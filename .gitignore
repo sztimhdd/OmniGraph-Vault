@@ -13,6 +13,8 @@ lightrag_storage/
 !specs/
 !Deploy.md
 !project_summary.md
+!.planning/
+!.planning/**
 entity_buffer/
 canonical_map.json
 canonical_map.json.tmp
