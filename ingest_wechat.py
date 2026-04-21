@@ -28,27 +28,10 @@ except ImportError as e:
 
 nest_asyncio.apply()
 
-# Load GEMINI_API_KEY and APIFY_TOKEN from ~/.hermes/.env if not set
-def load_env():
-    env_path = "/home/sztimhdd/.hermes/.env"
-    if os.path.exists(env_path):
-        with open(env_path, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    key, val = line.split("=", 1)
-                    if not os.environ.get(key):
-                        os.environ[key] = val.strip()
-
+from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env
 load_env()
-
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
-CDP_URL = "http://127.0.0.1:9223"
-BASE_IMAGE_DIR = "/home/sztimhdd/.hermes/kg-vault/images"
-RAG_WORKING_DIR = "/home/sztimhdd/.hermes/kg-vault/lightrag_storage"
 
 os.makedirs(BASE_IMAGE_DIR, exist_ok=True)
 os.makedirs(RAG_WORKING_DIR, exist_ok=True)

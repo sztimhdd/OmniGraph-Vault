@@ -1,29 +1,38 @@
-# 🧠 OmniGraph-Vault (全域图谱金库)
+# 🧠 OmniGraph-Vault: AI Agent Personal Knowledge Base
 
-[English](#english-version) | [中文版](#中文版)
+**[English](#english-version) | [中文版](#chinese-version)**
 
 ---
 
 <a name="english-version"></a>
-# English Version
+## English Version
 
-**OmniGraph-Vault** is a next-generation personal knowledge management system that transforms web content (WeChat articles) and local documents (PDFs) into an evolving, stateful **Knowledge Graph (KG)**. It leverages **LightRAG** for deep structural indexing and **Cognee** for session-aware memory and cross-session learning.
+**OmniGraph-Vault** is a **personal knowledge base solution** specifically designed for **Openclaw** and **Hermes Agent** AI assistants. It transforms web content (WeChat articles, blogs, documentation) into a stateful, evolving **Knowledge Graph (KG)** that serves as long-term memory and contextual intelligence for your AI agents.
 
-## 🚀 Key Features
-- **Self-Healing Scraper**: Dual-path scraping using Apify AI with a fallback to a **CDP (Chrome DevTools Protocol)** Edge browser bridge to bypass advanced anti-bot measures.
-- **Multimodal KG Ingestion**: Automatic extraction of text and images. Every image is semantically described by **Gemini Vision** and indexed into the graph.
-- **Stateful Intelligence**: Integrated with **Cognee** to remember your query history, learn your preferences, and canonicalize entities (e.g., merging "知识图谱" and "Knowledge Graph").
-- **Local Media Persistence**: A built-in local image server (port 8765) ensuring that your knowledge base remains visually rich even if original online links expire.
+### 🎯 Why OmniGraph-Vault for AI Agents?
+Modern AI agents (like Openclaw and Hermes Agent) excel at task execution but lack persistent, structured memory across sessions. OmniGraph-Vault fills this gap by providing:
+- **Structured Knowledge Storage**: Content is indexed as a graph (entities, relationships, concepts) rather than flat text.
+- **Multimodal Context**: Images are downloaded, described by vision AI, and stored locally — enabling rich visual context in agent responses.
+- **Session-Aware Memory**: Integrated with **Cognee** to remember user preferences, query patterns, and canonicalize entities over time.
+- **Local & Private**: All data stays on your machine; no external knowledge-base SaaS required.
 
-## 🛠 Tech Stack
+### 🚀 Core Features
+- **Dual-Path Scraper**: Primary scraping via **Apify AI**; automatic fallback to **CDP (Chrome DevTools Protocol)** when anti‑bot measures are detected.
+- **Multimodal KG Ingestion**: Extracts text and images from articles. Every image receives a semantic description from **Gemini Vision** and is linked in the knowledge graph.
+- **Stateful Intelligence**: **Cognee** memory layer tracks conversation history, learns user interests, and merges synonymous concepts (e.g., “知识图谱” ↔ “Knowledge Graph”).
+- **Local Media Persistence**: Built‑in image server (port 8765) ensures visual content remains accessible even if original online links disappear.
+- **Agent‑Ready APIs**: Simple Python interfaces for ingestion, query, and synthesis that can be called from Openclaw, Hermes Agent, or any other automation workflow.
+
+### 🛠 Technology Stack
 - **KG Engine**: [LightRAG](https://github.com/HKU-Smart-OT/LightRAG)
 - **Memory Layer**: [Cognee](https://github.com/topoteretes/cognee)
-- **LLM / Vision**: Google Gemini 1.5 Pro & 1.5 Flash
-- **Automation**: Playwright & Apify SDK
+- **LLM / Vision**: Google Gemini 2.5 Pro & Flash models
+- **Scraping**: Apify SDK + Playwright (CDP fallback)
+- **Infrastructure**: Python 3.11+, local HTTP server, config‑driven paths
 
-## 📦 Quick Start
+### 📦 Quick Start
 
-### 1. Installation
+#### 1. Clone & Setup
 ```bash
 git clone https://github.com/sztimhdd/OmniGraph-Vault.git
 cd OmniGraph-Vault
@@ -32,81 +41,160 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Configuration
-Create a `.env` file:
+#### 2. Configuration
+Create a `.env` file in the project root (or set environment variables):
 ```bash
 GEMINI_API_KEY=your_gemini_key
-APIFY_TOKEN=your_apify_token  # Optional
+APIFY_TOKEN=your_apify_token  # optional, for primary scraping
 ```
 
-### 3. Basic Usage
+#### 3. Basic Usage
 ```bash
-# Ingest a WeChat article or PDF
+# Ingest a WeChat article (text + images → KG)
 python ingest_wechat.py "https://mp.weixin.qq.com/s/..."
 
-# Generate a synthesized report
-python kg_synthesize.py "Synthesize everything you know about AI Agents."
+# Generate a synthesized report from your knowledge base
+python kg_synthesize.py "What are the latest trends in AI Agents?"
 
-# Direct KG query
-python query_lightrag.py "What are the core components of OmniGraph?"
+# Direct KG query (for debugging or agent‑side retrieval)
+python query_lightrag.py "Explain the architecture of OmniGraph‑Vault."
 ```
 
----
+#### 4. Integration with AI Agents
+OmniGraph‑Vault is designed to be called from Openclaw or Hermes Agent scripts. Example integration snippet:
+```python
+import subprocess
+import json
 
-<a name="中文版"></a>
-# 中文版
-
-**OmniGraph-Vault** 是一款下一代个人知识管理系统。它将网页内容（如微信公众号文章）和本地文档（PDF）转化为一个不断进化的、有状态的**知识图谱 (Knowledge Graph)**。系统利用 **LightRAG** 进行深度的结构化索引，并结合 **Cognee** 实现会话感知记忆和跨会话学习。
-
-## 🚀 核心特性
-- **自愈式爬虫**: 采用双路径抓取逻辑。优先使用 Apify AI 抓取，若遇到高强度反爬（如验证码），自动回退到基于 **CDP (Chrome DevTools Protocol)** 的 Edge 浏览器桥接模式。
-- **多模态图谱入库**: 自动提取文本和图片。每一张图片都会通过 **Gemini Vision** 生成语义描述，并直接索引到知识图谱中。
-- **有状态智能**: 集成 **Cognee** 记忆层，能够记住您的查询历史、学习您的偏好，并实现概念归一化（例如自动合并“知识图谱”和“Knowledge Graph”节点）。
-- **本地媒体持久化**: 内置本地图片服务器（端口 8765），确保即使原始链接失效，您的知识库依然图文并茂。
-
-## 🛠 技术栈
-- **图谱引擎**: [LightRAG](https://github.com/HKU-Smart-OT/LightRAG)
-- **记忆层**: [Cognee](https://github.com/topoteretes/cognee)
-- **大模型 / 视觉**: Google Gemini 1.5 Pro & 1.5 Flash
-- **自动化**: Playwright & Apify SDK
-
-## 📦 快速上手
-
-### 1. 安装
-```bash
-git clone https://github.com/sztimhdd/OmniGraph-Vault.git
-cd OmniGraph-Vault
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+def query_kg(question: str) -> str:
+    """Call OmniGraph‑Vault from an agent."""
+    result = subprocess.run(
+        ["python", "kg_synthesize.py", question],
+        capture_output=True, text=True
+    )
+    return result.stdout
 ```
 
-### 2. 配置
-创建 `.env` 文件并填入密钥：
-```bash
-GEMINI_API_KEY=您的Gemini密钥
-APIFY_TOKEN=您的Apify密钥  # 可选
-```
-
-### 3. 基础操作
-```bash
-# 采集微信文章或 PDF
-python ingest_wechat.py "https://mp.weixin.qq.com/s/..."
-
-# 生成深度综合报告
-python kg_synthesize.py "综合分析我的知识库中关于 AI Agent 的所有信息。"
-
-# 直接查询图谱
-python query_lightrag.py "OmniGraph 的核心组件有哪些？"
-```
-
----
-
-## 🔌 Windows Edge 桥接模式
-若因机器人检测导致抓取失败，请在 Windows 宿主机上开启 Edge 调试模式：
+### 🔌 Windows Edge Bridge (CDP Fallback)
+If Apify fails due to bot detection, enable Edge debugging on the Windows host:
 ```powershell
 Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 --user-data-dir=$env:LOCALAPPDATA\EdgeDebug9223"
 ```
+Then set `CDP_URL="http://localhost:9223"` in your environment.
 
-## 📄 开源协议
+### 📁 Project Structure
+```
+OmniGraph‑Vault/
+├── config.py              # Centralized paths & environment loading
+├── ingest_wechat.py       # WeChat article ingestion (Apify + CDP)
+├── kg_synthesize.py       # Synthesis & report generation
+├── query_lightrag.py      # Direct KG queries
+├── cognee_wrapper.py      # Cognee memory integration
+├── cognee_batch_processor.py # Batch processing for Cognee
+├── data_assets/           # Local copies of ingested images & markdown
+├── specs/                 # Design specifications & test plans
+└── tests/                 # Unit & integration tests
+```
+
+**Runtime data** (knowledge graph, images, Cognee databases) is stored under `~/.hermes/kg-vault/`, keeping source code and persistent data separate.
+
+### 📄 License
 MIT License.
+
+---
+
+<a name="chinese-version"></a>
+## 中文版
+
+**OmniGraph‑Vault** 是专为 **Openclaw** 与 **Hermes Agent** 等 AI 助手设计的**个人知识库解决方案**。它将网页内容（微信公众号文章、博客、技术文档）转化为有状态、可进化的**知识图谱（KG）**，作为 AI 代理的长期记忆与上下文智能核心。
+
+### 🎯 为何选择 OmniGraph‑Vault 作为 AI 代理的知识库？
+现代 AI 代理（如 Openclaw、Hermes Agent）擅长执行任务，但缺乏跨会话的持久化、结构化记忆。OmniGraph‑Vault 填补了这一空白：
+- **结构化知识存储**：内容以图谱（实体、关系、概念）形式索引，而非扁平文本。
+- **多模态上下文**：图片被下载、通过视觉 AI 描述并本地存储，使代理回复具备丰富的视觉语境。
+- **会话感知记忆**：集成 **Cognee**，记忆用户偏好、查询模式，并随时间推移进行实体归一化。
+- **本地与私有**：所有数据留存于本地，无需外部知识库 SaaS。
+
+### 🚀 核心特性
+- **双路爬虫**：主路径通过 **Apify AI** 抓取；检测到反爬时自动回退至 **CDP（Chrome DevTools Protocol）**。
+- **多模态图谱入库**：从文章中提取文本与图片。每张图片均由 **Gemini Vision** 生成语义描述并链接到知识图谱。
+- **有状态智能**：**Cognee** 记忆层跟踪对话历史、学习用户兴趣，合并同义概念（如“知识图谱”↔“Knowledge Graph”）。
+- **本地媒体持久化**：内置图片服务器（端口 8765）确保原始链接失效后视觉内容仍然可访问。
+- **代理就绪的 API**：提供简单的 Python 接口用于入库、查询与合成，可供 Openclaw、Hermes Agent 或其他自动化工作流调用。
+
+### 🛠 技术栈
+- **图谱引擎**：[LightRAG](https://github.com/HKU-Smart-OT/LightRAG)
+- **记忆层**：[Cognee](https://github.com/topoteretes/cognee)
+- **大模型 / 视觉**：Google Gemini 2.5 Pro 与 Flash 模型
+- **爬虫**：Apify SDK + Playwright（CDP 后备）
+- **基础设施**：Python 3.11+、本地 HTTP 服务器、配置驱动的路径管理
+
+### 📦 快速开始
+
+#### 1. 克隆与设置
+```bash
+git clone https://github.com/sztimhdd/OmniGraph-Vault.git
+cd OmniGraph-Vault
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+#### 2. 配置
+在项目根目录创建 `.env` 文件（或设置环境变量）：
+```bash
+GEMINI_API_KEY=你的_gemini_密钥
+APIFY_TOKEN=你的_apify_token  # 可选，用于主爬虫
+```
+
+#### 3. 基础使用
+```bash
+# 采集微信公众号文章（文本 + 图片 → 知识图谱）
+python ingest_wechat.py "https://mp.weixin.qq.com/s/..."
+
+# 从知识库生成深度综合报告
+python kg_synthesize.py "AI 代理领域的最新趋势是什么？"
+
+# 直接查询知识图谱（用于调试或代理端检索）
+python query_lightrag.py "解释 OmniGraph‑Vault 的架构。"
+```
+
+#### 4. 与 AI 代理集成
+OmniGraph‑Vault 设计为可被 Openclaw 或 Hermes Agent 脚本调用。示例集成片段：
+```python
+import subprocess
+
+def query_kg(question: str) -> str:
+    """从代理调用 OmniGraph‑Vault。"""
+    result = subprocess.run(
+        ["python", "kg_synthesize.py", question],
+        capture_output=True, text=True
+    )
+    return result.stdout
+```
+
+### 🔌 Windows Edge 桥接（CDP 后备）
+若 Apify 因机器人检测失败，请在 Windows 宿主机上开启 Edge 调试模式：
+```powershell
+Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 --user-data-dir=$env:LOCALAPPDATA\EdgeDebug9223"
+```
+然后在环境中设置 `CDP_URL="http://localhost:9223"`。
+
+### 📁 项目结构
+```
+OmniGraph‑Vault/
+├── config.py              # 集中化的路径与环境加载
+├── ingest_wechat.py       # 微信文章入库（Apify + CDP）
+├── kg_synthesize.py       # 综合与报告生成
+├── query_lightrag.py      # 直接图谱查询
+├── cognee_wrapper.py      # Cognee 记忆集成
+├── cognee_batch_processor.py # Cognee 批处理
+├── data_assets/           # 已入库图片与 Markdown 的本地副本
+├── specs/                 # 设计规格与测试计划
+└── tests/                 # 单元与集成测试
+```
+
+**运行时数据**（知识图谱、图片、Cognee 数据库）存储在 `~/.hermes/kg-vault/` 下，实现源代码与持久化数据的分离。
+
+### 📄 开源协议
+MIT 协议。

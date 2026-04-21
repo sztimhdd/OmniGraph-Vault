@@ -5,16 +5,8 @@ import sys
 import numpy as np
 import time
 
-# Essential Cognee Configuration MUST come before wrapper import
-# We use the key from environment or .env
-load_env_path = "/home/sztimhdd/.hermes/.env"
-if os.path.exists(load_env_path):
-    with open(load_env_path, "r") as f:
-        for line in f:
-            if "=" in line:
-                key, val = line.split("=", 1)
-                os.environ[key.strip()] = val.strip()
-
+from config import RAG_WORKING_DIR, load_env
+load_env()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     print("Error: GEMINI_API_KEY not found.")
@@ -36,7 +28,7 @@ from lightrag.llm.gemini import gemini_model_complete, gemini_embed
 from lightrag.utils import wrap_embedding_func_with_attrs
 
 # Constants
-RAG_WORKING_DIR = "/home/sztimhdd/.hermes/kg-vault/lightrag_storage"
+from config import RAG_WORKING_DIR
 MODEL_NAME = "gemini-2.5-flash" 
 
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
@@ -99,10 +91,11 @@ async def main():
         print("Usage: python kg_synthesize.py \"<your query>\" [mode]")
         sys.exit(1)
     query, mode = sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "naive"
+    from config import SYNTHESIS_OUTPUT
     try:
         response = await synthesize_response(query, mode=mode)
         if response:
-            output_file = "/home/sztimhdd/.hermes/kg-vault/synthesis_output.md"
+            output_file = SYNTHESIS_OUTPUT
             with open(output_file, "w") as f: f.write(response)
             print(f"Response saved to {output_file}")
     except Exception as e:
