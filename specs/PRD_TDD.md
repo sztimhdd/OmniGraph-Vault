@@ -338,5 +338,3 @@ User / Agent
 - **2026-04-19**: Core ingestion, synthesis, and memory features implemented.
 
 ---
-
-直接把这个内容替换掉 `specs/PRD_TDD.md` 就可以了。主要变化集中在架构图（4.1）、FR 表（新增 FR-6/7/10/11/18/28/29）、NFR-1 性能指标、Gate 表（合并两套体系）、以及 Changelog 日期修正。
