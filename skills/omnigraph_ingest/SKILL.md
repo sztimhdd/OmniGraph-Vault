@@ -72,8 +72,7 @@ Still run `ingest_wechat.py` — it handles general web URLs as well, not just W
 |-------|----------|
 | `GEMINI_API_KEY` not set | "⚠️ Configuration error: GEMINI_API_KEY is not set in ~/.hermes/.env" |
 | Apify quota exceeded | "⚠️ Apify quota exceeded. The scraper will automatically retry with CDP fallback." |
-| CDP not reachable (local `http://localhost:9223`) | "⚠️ CDP fallback unavailable. Start Edge with: `msedge --remote-debugging-port=9223`" |
-| Remote MCP server set as CDP_URL | "⚠️ Remote CDP_URL points to a Playwright MCP server, which is not yet supported by ingest_wechat.py. Set CDP_URL to a local browser endpoint (`http://localhost:9223`) or leave it unset to rely on Apify only." |
+| CDP not reachable (`http://localhost:9223`) | "⚠️ CDP fallback unavailable. Start Edge with remote debugging: `msedge --remote-debugging-port=9223`" |
 | File not found (PDF path) | "⚠️ File not found: <path>. Check the path and try again." |
 
 ## Output format

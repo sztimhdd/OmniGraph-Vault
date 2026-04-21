@@ -98,7 +98,7 @@ Query → kg_synthesize.py
 | `GEMINI_API_KEY` | Yes | All LLM, vision, and embedding calls |
 | `APIFY_TOKEN` | No | Primary scraping (falls back to CDP) |
 | `FIRECRAWL_API_KEY` | No | Firecrawl web scraping API |
-| `CDP_URL` | No | **Local** (`http://localhost:9223`): raw CDP WebSocket, used by `playwright.connect_over_cdp()` in `ingest_wechat.py`. **Remote** (`http://host:port/mcp`): Playwright MCP server — speaks MCP-over-SSE, NOT compatible with `connect_over_cdp()`. Remote requires MCP client integration; `ingest_wechat.py` cannot use it as-is. |
+| `CDP_URL` | No | **Default (production):** `http://localhost:9223` — local Edge browser with `--remote-debugging-port=9223`; `ingest_wechat.py` connects via `playwright.connect_over_cdp()`. **Testing fallback:** `http://host:port/mcp` — remote Playwright MCP server (MCP-over-SSE); used when no local Edge is available. `ingest_wechat.py` currently only implements the `connect_over_cdp()` path; MCP client support is a planned addition. |
 
 Set in `~/.hermes/.env`. Cognee-specific vars (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, etc.) are hardcoded in each script that uses Cognee.
 
@@ -234,7 +234,7 @@ After 5+ tool calls on a complex task, Hermes evaluates whether to auto-create a
 
 - Cognee batch operations silently drop entities if the buffer path isn't checked for `.processed` markers — always verify idempotency
 - The runtime data directory is `omonigraph-vault` (typo is baked into config.py and deployed environments — do not "fix" it without a coordinated migration)
-- The remote `CDP_URL` (`http://ohca.ddns.net:58931/mcp`) is a **Playwright MCP server**, not a raw CDP WebSocket. `ingest_wechat.py` uses `playwright.connect_over_cdp(CDP_URL)` which only works with a local browser (`http://localhost:9223`). Using the remote MCP URL with `connect_over_cdp()` will fail silently or with a protocol error. To use the remote browser, `ingest_wechat.py` must be refactored to use the MCP client interface instead.
+- `CDP_URL` has two distinct modes with different protocols: local Edge (`localhost:9223`) uses raw CDP WebSocket via `connect_over_cdp()`; the remote testing fallback (`host:port/mcp`) is a Playwright MCP server (MCP-over-SSE). The remote MCP path is intentional for local dev where no Edge browser is available, but `ingest_wechat.py` only implements the `connect_over_cdp()` path today — MCP client support needs to be added before the remote fallback works end-to-end.
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
