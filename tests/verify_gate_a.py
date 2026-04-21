@@ -4,7 +4,7 @@ import asyncio
 
 # Manually append the venv path to sys.path before importing cognee
 sys.path.append("/home/sztimhdd/.hermes/kg-vault/lightrag/venv/lib/python3.11/site-packages")
-sys.path.append('/home/sztimhdd/.hermes/kg-vault/venv/lib/python3.11/site-packages')
+sys.path.append('/home/sztimhdd/OmniGraph-Vault/venv/lib/python3.12/site-packages')
 
 os.environ['GOOGLE_API_KEY'] = os.getenv('GEMINI_API_KEY')
 os.environ['LLM_API_KEY'] = os.getenv('GEMINI_API_KEY')

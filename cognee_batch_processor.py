@@ -6,7 +6,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 # Ensure environment is loaded and Cognee is configured properly
-VENV_SITE_PACKAGES = "/home/sztimhdd/.hermes/kg-vault/venv/lib/python3.11/site-packages"
+VENV_SITE_PACKAGES = "/home/sztimhdd/OmniGraph-Vault/venv/lib/python3.12/site-packages"
 import sys
 if VENV_SITE_PACKAGES not in sys.path:
     sys.path.insert(0, VENV_SITE_PACKAGES)

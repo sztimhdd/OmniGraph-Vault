@@ -28,7 +28,7 @@ except ImportError as e:
 
 nest_asyncio.apply()
 
-from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env
+from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL
 load_env()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
@@ -103,9 +103,13 @@ async def scrape_wechat_apify(url):
                 "simulate_user": True,
             }
         }
+        # 增加 ingestion 超时时间，并在中间步骤添加打印以跟踪进度
         print(f"Starting Apify actor for {url}...")
         loop = asyncio.get_event_loop()
-        run = await loop.run_in_executor(None, lambda: client.actor("zOQWQaziNeBNFWN1O").call(run_input=run_input))
+        # 使用较长的 timeout
+        future = loop.run_in_executor(None, lambda: client.actor("zOQWQaziNeBNFWN1O").call(run_input=run_input))
+        run = await asyncio.wait_for(future, timeout=300)
+        print("Apify run finished.")
         
         results = [item for item in client.dataset(run["defaultDatasetId"]).iterate_items()]
         if results:
@@ -198,7 +202,8 @@ async def extract_entities(text):
 async def ingest_article(url):
     print(f"--- Starting Ingestion: {url} ---")
     
-    # 1. Try Apify first
+    print("Starting ingestion process...")
+# 1. Try Apify first
     article_data = await scrape_wechat_apify(url)
     
     # Check if invalid
@@ -365,3 +370,8 @@ async def ingest_pdf(file_path):
         print(f'Buffered {len(raw_entities)} entities for async processing.')
     except Exception as e:
         print(f'Warning: Entity buffering failed: {e}')
+
+if __name__ == "__main__":
+    import asyncio
+    url = sys.argv[1] if len(sys.argv) > 1 else "https://mp.weixin.qq.com/s/Y_uRMYBmdLWUPnz_ac7jWA"
+    asyncio.run(ingest_article(url))

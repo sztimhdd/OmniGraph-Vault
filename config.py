@@ -7,6 +7,8 @@ RAG_WORKING_DIR = BASE_DIR / "lightrag_storage"
 BASE_IMAGE_DIR = BASE_DIR / "images"
 SYNTHESIS_OUTPUT = BASE_DIR / "synthesis_output.md"
 
+CDP_URL = os.environ.get("CDP_URL", "http://localhost:9223")
+
 # Env
 ENV_PATH = Path.home() / ".hermes" / ".env"
 
