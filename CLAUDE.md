@@ -230,6 +230,53 @@ After 5+ tool calls on a complex task, Hermes evaluates whether to auto-create a
 
 ---
 
+## Testing the CDP / MCP Scraping Path
+
+The ingestion pipeline has three paths. Here's how to exercise each one manually:
+
+### Path 1 — Apify (primary)
+
+Set `APIFY_TOKEN` in `~/.hermes/.env` and run:
+
+```bash
+python ingest_wechat.py "https://mp.weixin.qq.com/s/<article-id>"
+```
+
+Look for `Scraping successful using method: apify` in the output.
+
+### Path 2 — Local Edge CDP (production fallback)
+
+1. Start Edge with remote debugging (Windows):
+
+   ```powershell
+   Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 --user-data-dir=$env:LOCALAPPDATA\EdgeDebug9223"
+   ```
+
+2. Set `CDP_URL=http://localhost:9223` in `~/.hermes/.env`
+3. Leave `APIFY_TOKEN` unset (or set an invalid value) so Apify fails and the fallback fires.
+4. Run `python ingest_wechat.py "<url>"` — look for `Falling back to local CDP...` then `method: cdp`.
+
+### Path 3 — Remote Playwright MCP (testing fallback)
+
+1. Set `CDP_URL=http://ohca.ddns.net:58931/mcp` in `~/.hermes/.env`
+   (The `/mcp` suffix is what triggers `_MCPClient` instead of `connect_over_cdp`.)
+2. Leave `APIFY_TOKEN` unset so the fallback fires.
+3. Run `python ingest_wechat.py "<url>"` — look for `Falling back to remote Playwright MCP...` then `method: mcp`.
+
+### Skill simulator (no Hermes required)
+
+```bash
+# All test cases for ingest routing
+python skill_runner.py skills/omnigraph_ingest --test-file tests/skills/test_omnigraph_ingest.json
+
+# All test cases for query routing
+python skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omnigraph_query.json
+```
+
+Exit code 0 = all pass. Requires only `GEMINI_API_KEY`.
+
+---
+
 ## Lessons Learned
 
 - Cognee batch operations silently drop entities if the buffer path isn't checked for `.processed` markers — always verify idempotency
