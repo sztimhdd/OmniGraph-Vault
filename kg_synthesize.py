@@ -1,4 +1,6 @@
 import os
+import cognee_wrapper
+
 
 # TRICK: Set environment variables BEFORE importing lightrag or genai
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
@@ -73,6 +75,17 @@ async def synthesize_response(query_text: str, mode: str = "naive"):
         await rag.initialize_storages()
         
     # Custom instructions for synthesis to ensure image links are preserved/used
+    
+    # Cognee integration: Recall previous synthesis context
+    past_context = []
+    try:
+        past_context = await cognee_wrapper.recall_previous_context(query_text)
+    except Exception as e:
+        print(f"Warning: Cognee recall failed: {e}")
+    
+    historical_context_str = ""
+    if past_context:
+        historical_context_str = "\n### Historical Context from Past Queries:\n" + "\n".join([str(c) for c in past_context]) + "\n"
     custom_prompt = f"""You are a knowledge synthesizer for KG-Vault. 
 Your task is to answer the user's query based on the provided knowledge graph context.
 The context contains local image links in the format 'http://localhost:8765/hash/index.jpg'.
@@ -84,7 +97,7 @@ REALLY IMPORTANT RULES:
 4. If there are multiple images, place them appropriately in the text where they add value.
 5. If the context has [Image Description] tags, use that text as the Alt text for the image.
 
-User Query: {query_text}
+{historical_context_str}\nUser Query: {query_text}
 """
 
     param = QueryParam(
@@ -93,6 +106,12 @@ User Query: {query_text}
     )
     
     response = await rag.aquery(custom_prompt, param=param)
+    
+    # Cognee integration: Remember the synthesis result
+    try:
+        await cognee_wrapper.remember_synthesis(query_text, response)
+    except Exception as e:
+        print(f"Warning: Cognee remember failed: {e}")
     return response
 
 async def main():

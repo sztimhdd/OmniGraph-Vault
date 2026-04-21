@@ -1,4 +1,6 @@
 import os
+import cognee_wrapper
+
 import asyncio
 import sys
 import numpy as np
@@ -74,6 +76,12 @@ async def query_and_synthesize(query_text: str):
     param = QueryParam(mode="hybrid")
     
     response = await rag.aquery(query_text, param=param)
+    
+    # Cognee integration: Log query pattern
+    try:
+        await cognee_wrapper.log_query_pattern(query_text, "hybrid", True)
+    except Exception as e:
+        print(f"Warning: Cognee logging failed: {e}")
     return response
 
 async def main():

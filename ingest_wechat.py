@@ -13,6 +13,7 @@ from google import genai
 from PIL import Image
 import numpy as np
 import sys
+import cognee_wrapper
 from apify_client import ApifyClient
 
 # For LightRAG
@@ -194,6 +195,22 @@ def process_content(html):
     
     return markdown, images
 
+
+async def extract_entities(text):
+    """Extract entities using Gemini for canonicalization."""
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
+        response = client.models.generate_content(
+            model='gemini-3.1-flash-lite-preview',
+            contents=[prompt]
+        )
+        entities = [e.strip() for e in response.text.split(',')]
+        return [e for e in entities if e]
+    except Exception as e:
+        print(f"Warning: Entity extraction failed: {e}")
+        return []
+
 # --- Main Logic ---
 async def ingest_article(url):
     print(f"--- Starting Ingestion: {url} ---")
@@ -266,6 +283,26 @@ async def ingest_article(url):
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
     rag = await get_rag()
+    
+    # Cognee integration: Canonicalization
+    try:
+        print("Extracting entities for canonicalization...")
+        raw_entities = await extract_entities(full_content)
+        print(f"Found {len(raw_entities)} raw entities. Disambiguating...")
+        canonical_entities = await cognee_wrapper.disambiguate_entities(raw_entities)
+        
+        mapping = []
+        for raw, canonical in zip(raw_entities, canonical_entities):
+            if raw.lower() != canonical.lower():
+                mapping.append(f"{raw} -> {canonical}")
+        
+        if mapping:
+            mapping_str = "\n\n### [Entity Canonical Mapping]:\n" + "\n".join(mapping)
+            full_content += mapping_str
+            print(f"Added {len(mapping)} canonical mappings to content.")
+    except Exception as e:
+        print(f"Warning: Cognee disambiguation failed: {e}")
+
     await rag.ainsert(full_content)
     
     # Save files for inspection
@@ -343,6 +380,26 @@ async def ingest_pdf(file_path):
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
     rag = await get_rag()
+    
+    # Cognee integration: Canonicalization
+    try:
+        print("Extracting entities for canonicalization...")
+        raw_entities = await extract_entities(full_text)
+        print(f"Found {len(raw_entities)} raw entities. Disambiguating...")
+        canonical_entities = await cognee_wrapper.disambiguate_entities(raw_entities)
+        
+        mapping = []
+        for raw, canonical in zip(raw_entities, canonical_entities):
+            if raw.lower() != canonical.lower():
+                mapping.append(f"{raw} -> {canonical}")
+        
+        if mapping:
+            mapping_str = "\n\n### [Entity Canonical Mapping]:\n" + "\n".join(mapping)
+            full_text += mapping_str
+            print(f"Added {len(mapping)} canonical mappings to content.")
+    except Exception as e:
+        print(f"Warning: Cognee disambiguation failed: {e}")
+
     await rag.ainsert(full_text)
     
     with open(os.path.join(article_dir, "metadata.json"), "w") as f:
