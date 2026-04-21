@@ -18,7 +18,7 @@
 
 ## Current Focus
 
-Phase 1: Plan 01-01 (INFRA-01..04) COMPLETE. Plan 01-02 (Gate 6 validation) pending.
+Phase 1: Plan 01-01 (INFRA-01..04) COMPLETE. Plan 01-02 (Gate 6 validation) CHECKPOINT REACHED.
 
 **Completed in Plan 01-01:**
 
@@ -30,13 +30,18 @@ Phase 1: Plan 01-01 (INFRA-01..04) COMPLETE. Plan 01-02 (Gate 6 validation) pend
 - ✓ Fixed ingest_pdf() variable references and added image counter
 - ✓ Removed venv path injections from 8 files
 
-**Next: Plan 01-02 (Gate 6 validation)**
+**Completed in Plan 01-02 (automated tasks):**
 
-- Ingest 3 WeChat articles with shared entities
-- Run cognee_batch_processor.py for entity canonicalization
-- Run kg_synthesize.py with cross-article query
-- Verify synthesis references entities from ≥2 articles
-- Run skill_runner.py test suite
+- ✓ Task 1: Verified pre-completed SKILL.md Case 5 guard and 9th test case (v1.1 milestone)
+- ✓ Task 2: Updated test expectations, skill_runner.py passes all 9/9 tests (GATE6-05)
+- ✓ Automated grep: zero hardcoded paths confirmed
+
+**CHECKPOINT: Plan 01-02 Task 3 — Manual pipeline validation required**
+
+- User must ingest 3 WeChat articles with shared entities (GATE6-01, GATE6-04)
+- User must run cognee_batch_processor.py and verify canonical_map.json created (GATE6-02)
+- User must run cross-article synthesis and verify multi-document response (GATE6-03)
+- All 5 Gate 6 requirements depend on this checkpoint completion
 
 ### Phase 2 skill package files
 
@@ -52,7 +57,7 @@ These do not conflict with Phase 1 code fixes; skill_runner validation happens i
 ## Progress Bar
 
 ```
-Phase 1 [==        ] 50% (Plan 01-01 INFRA fixes complete; Plan 01-02 Gate 6 validation pending)
+Phase 1 [===       ] 75% (Plan 01-01 complete; Plan 01-02 automated tasks done, checkpoint pending)
 Phase 2 [=         ] 10% (structural files created; skill_runner validation pending)
 Phase 3 [          ] 0%
 ```
@@ -63,10 +68,11 @@ Phase 3 [          ] 0%
 
 - Requirements mapped: 43/43
 - Phases planned: 3
-- Plans written: 2 (Phase 1 plans complete; Phase 2/3 plans TBD)
-- Requirements completed: 4/43 (INFRA-01, INFRA-02, INFRA-03, INFRA-04)
-- Gates passed: 5 (Gates 1-5 + A-D from prior milestone)
+- Plans written: 2 (Phase 1 plans executing; Phase 2/3 plans TBD)
+- Requirements completed: 5/43 (INFRA-01, INFRA-02, INFRA-03, INFRA-04, GATE6-05)
+- Gates passed: 5 (Gates 1-5 + A-D from prior milestone; GATE6-05 automated validation pass)
 - Plan 01-01 execution time: 15 min
+- Plan 01-02 automated tasks time: 7 min (checkpoint pending manual validation)
 
 ---
 
@@ -107,10 +113,19 @@ Phase 3 [          ] 0%
 
 Last session: 2026-04-21T14:00:00Z — Plan 01-01 executed: all 4 INFRA bugs fixed, 12 files updated, 15 min elapsed.
 
-- ✓ Config-based path constants added (ENTITY_BUFFER_DIR, CANONICAL_MAP_FILE)
-- ✓ All /home/sztimhdd/ hardcoded paths removed
-- ✓ json import added, default mode changed to hybrid
-- ✓ Exception handling improved, venv injections removed
-- ✓ SUMMARY.md created and committed
+Current session: 2026-04-21T20:10:38Z — Plan 01-02 automated tasks complete, checkpoint reached.
 
-Next action: Execute Plan 01-02 (Gate 6 validation) with manual script testing + skill_runner verification.
+**Completed in this session:**
+- ✓ Task 1: Verified pre-completed SKILL.md Case 5 guard (v1.1 milestone)
+- ✓ Task 2: Fixed test expectations, skill_runner passes 9/9 tests (exit code 0)
+- ✓ 01-02-SUMMARY.md created with checkpoint status
+- ✓ STATE.md updated with checkpoint status
+
+**Blocked at:**
+- Task 3: Manual pipeline validation checkpoint (human-verify gate)
+  - User must ingest 3 WeChat articles
+  - User must run cognee_batch_processor.py
+  - User must run cross-article synthesis query
+  - Will resume after manual validation complete
+
+Next action: User completes Task 3 manual steps, returns checkpoint completion message, executor resumes for final commit.
