@@ -1,8 +1,9 @@
 import os
 import networkx as nx
+from config import RAG_WORKING_DIR
 
 def list_entities():
-    graph_path = "/home/sztimhdd/.hermes/kg-vault/lightrag_storage/graph_chunk_entity_relation.graphml"
+    graph_path = str(RAG_WORKING_DIR / "graph_chunk_entity_relation.graphml")
     
     if not os.path.exists(graph_path):
         print(f"Error: Knowledge graph file not found at {graph_path}")

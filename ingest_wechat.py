@@ -28,7 +28,7 @@ except ImportError as e:
 
 nest_asyncio.apply()
 
-from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL
+from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR
 load_env()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
@@ -155,7 +155,8 @@ async def scrape_wechat_cdp(url):
         publish_time = ""
         try:
             publish_time = await page.inner_text("#publish_time")
-        except: pass
+        except Exception as e:
+            print(f"Warning: Could not extract publish_time: {e}")
         
         await page.close()
         # Don't close browser, it's shared with other tools
@@ -248,9 +249,12 @@ async def ingest_article(url):
 
     processed_images = []
     unique_img_urls = list(dict.fromkeys([u for u in img_urls if u.startswith('http')]))
-    
+
     print(f"Found {len(unique_img_urls)} unique potential images. Downloading and describing...")
-    
+
+    image_success_count = 0
+    image_fail_count = 0
+
     for i, img_url in enumerate(unique_img_urls):
         try:
             img_path = os.path.join(article_dir, f"{i}.jpg")
@@ -258,19 +262,26 @@ async def ingest_article(url):
             if resp.status_code == 200:
                 with open(img_path, "wb") as f:
                     f.write(resp.content)
-                
+
                 print(f"  [Image {i}] Describing...")
                 description = describe_image(img_path)
-                
+
                 local_url = f"http://localhost:8765/{article_hash}/{i}.jpg"
                 full_content = full_content.replace(img_url, local_url)
-                
+
                 full_content += f"\n\n[Image {i} Reference]: {local_url}\n[Image {i} Description]: {description}\n"
                 processed_images.append({"index": i, "description": description, "local_url": local_url})
+                image_success_count += 1
             else:
                 print(f"  [Image {i}] Download failed: HTTP {resp.status_code}")
+                image_fail_count += 1
         except Exception as e:
             print(f"  [Image {i}] Error: {e}")
+            image_fail_count += 1
+
+    total_images = image_success_count + image_fail_count
+    if total_images > 0 and image_success_count / total_images < 0.5:
+        print(f"Warning: Only {image_success_count}/{total_images} images downloaded successfully (< 50% success rate)")
 
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
@@ -280,8 +291,8 @@ async def ingest_article(url):
     try:
         raw_entities = await extract_entities(full_content)
         buffer_data = {'url': url, 'raw_entities': raw_entities, 'timestamp': os.path.getmtime(article_dir)}
-        os.makedirs('/home/sztimhdd/OmniGraph-Vault/entity_buffer', exist_ok=True)
-        with open(os.path.join('/home/sztimhdd/OmniGraph-Vault/entity_buffer', f'{article_hash}_entities.json'), 'w') as f:
+        os.makedirs(ENTITY_BUFFER_DIR, exist_ok=True)
+        with open(os.path.join(ENTITY_BUFFER_DIR, f'{article_hash}_entities.json'), 'w') as f:
             json.dump(buffer_data, f)
         print(f'Buffered {len(raw_entities)} entities for async processing.')
     except Exception as e:
@@ -361,15 +372,18 @@ async def ingest_pdf(file_path):
 
     doc.close()
 
+    article_hash = file_hash
+
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
     rag = await get_rag()
-    
+
     # Cognee integration: Buffered
     try:
-        raw_entities = await extract_entities(full_content)
-        buffer_data = {'url': url, 'raw_entities': raw_entities, 'timestamp': os.path.getmtime(article_dir)}
-        with open(os.path.join('/home/sztimhdd/OmniGraph-Vault/entity_buffer', f'{article_hash}_entities.json'), 'w') as f:
+        raw_entities = await extract_entities(full_text)
+        buffer_data = {'url': file_path, 'raw_entities': raw_entities, 'timestamp': os.path.getmtime(article_dir)}
+        os.makedirs(ENTITY_BUFFER_DIR, exist_ok=True)
+        with open(os.path.join(ENTITY_BUFFER_DIR, f'{article_hash}_entities.json'), 'w') as f:
             json.dump(buffer_data, f)
         print(f'Buffered {len(raw_entities)} entities for async processing.')
     except Exception as e:

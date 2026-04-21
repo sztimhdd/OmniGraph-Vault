@@ -19,10 +19,6 @@ os.environ["EMBEDDING_MODEL"] = "gemini/text-embedding-004"
 os.environ["EMBEDDING_DIMENSIONS"] = "768"
 os.environ["COGNEE_SKIP_CONNECTION_TEST"] = "true"
 
-# Add venv to path
-venv_path = "/home/sztimhdd/.hermes/kg-vault/lightrag/venv/lib/python3.11/site-packages"
-sys.path.insert(0, venv_path)
-
 import cognee
 import asyncio
 

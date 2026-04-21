@@ -7,26 +7,10 @@ import numpy as np
 from lightrag.lightrag import LightRAG, QueryParam
 from lightrag.llm.gemini import gemini_model_complete, gemini_embed
 from lightrag.utils import wrap_embedding_func_with_attrs
-
-# Constants
-RAG_WORKING_DIR = "/home/sztimhdd/.hermes/kg-vault/lightrag_storage"
+from config import RAG_WORKING_DIR, load_env
 
 # Force standard Gemini API mode (not Vertex AI)
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
-
-def load_env():
-    """Load environment variables from ~/.hermes/.env if they are not already set."""
-    env_path = os.path.expanduser("~/.hermes/.env")
-    if os.path.exists(env_path):
-        with open(env_path, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    key, val = line.split("=", 1)
-                    if not os.environ.get(key):
-                        os.environ[key] = val.strip()
 
 # Initialize environment
 load_env()

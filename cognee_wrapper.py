@@ -5,9 +5,6 @@ import logging
 from pathlib import Path
 
 # 1. Environment Configuration
-VENV_SITE_PACKAGES = "/home/sztimhdd/OmniGraph-Vault/venv/lib/python3.12/site-packages"
-if VENV_SITE_PACKAGES not in sys.path:
-    sys.path.insert(0, VENV_SITE_PACKAGES)
 
 ENV_PATH = Path.home() / ".hermes" / ".env"
 if ENV_PATH.exists():
@@ -91,4 +88,5 @@ async def log_query_pattern(query: str, mode: str, was_successful: bool):
     if not cognee: return None
     try:
         await cognee.remember(f"Log - Q: {query}, M: {mode}, S: {was_successful}", self_improvement=False)
-    except: pass
+    except Exception as e:
+        logger.debug(f"log_query_pattern failed: {e}")

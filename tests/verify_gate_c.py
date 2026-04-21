@@ -29,10 +29,7 @@ else:
         os.environ['LLM_API_KEY'] = key
         os.environ['GEMINI_API_KEY'] = key
 
-# 4. Ensure 'sys.path' includes the venv site-packages
-venv_path = '/home/sztimhdd/OmniGraph-Vault/venv/lib/python3.12/site-packages'
-if venv_path not in sys.path:
-    sys.path.append(venv_path)
+# 4. Ensure 'sys.path' includes the venv site-packages (now auto-handled when running from venv)
 
 # Set other environment variables
 os.environ['LLM_PROVIDER'] = 'gemini'

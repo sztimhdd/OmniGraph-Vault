@@ -6,6 +6,8 @@ BASE_DIR = Path.home() / ".hermes" / "omonigraph-vault"
 RAG_WORKING_DIR = BASE_DIR / "lightrag_storage"
 BASE_IMAGE_DIR = BASE_DIR / "images"
 SYNTHESIS_OUTPUT = BASE_DIR / "synthesis_output.md"
+ENTITY_BUFFER_DIR = BASE_DIR / "entity_buffer"
+CANONICAL_MAP_FILE = BASE_DIR / "canonical_map.json"
 
 CDP_URL = os.environ.get("CDP_URL", "http://localhost:9223")
 FIRECRAWL_API_KEY = os.environ.get("FIRECRAWL_API_KEY", "")

@@ -4,12 +4,9 @@ import logging
 from pathlib import Path
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+import sys
 
 # Ensure environment is loaded and Cognee is configured properly
-VENV_SITE_PACKAGES = "/home/sztimhdd/OmniGraph-Vault/venv/lib/python3.12/site-packages"
-import sys
-if VENV_SITE_PACKAGES not in sys.path:
-    sys.path.insert(0, VENV_SITE_PACKAGES)
 
 ENV_PATH = Path.home() / ".hermes" / ".env"
 if ENV_PATH.exists():
@@ -27,13 +24,14 @@ cognee.config.llm_model = "gemini-2.5-flash-lite"
 
 logger = logging.getLogger("cognee_batch")
 logger.setLevel(logging.INFO)
-handler = logging.FileHandler("/home/sztimhdd/OmniGraph-Vault/cognee_batch.log")
+handler = logging.FileHandler(str(Path(__file__).resolve().parent / "cognee_batch.log"))
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-BUFFER_DIR = "/home/sztimhdd/OmniGraph-Vault/entity_buffer"
-MAP_FILE = "/home/sztimhdd/OmniGraph-Vault/canonical_map.json"
+from config import ENTITY_BUFFER_DIR, CANONICAL_MAP_FILE
+BUFFER_DIR = str(ENTITY_BUFFER_DIR)
+MAP_FILE = str(CANONICAL_MAP_FILE)
 
 async def process_buffer_file(filepath):
     try:

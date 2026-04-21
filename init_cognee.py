@@ -1,8 +1,6 @@
 import os
 import sys
 import asyncio
-
-sys.path.append('/home/sztimhdd/.hermes/kg-vault/lightrag/venv/lib/python3.11/site-packages')
 os.environ['GOOGLE_API_KEY'] = os.environ.get('GEMINI_API_KEY', '')
 os.environ['LLM_PROVIDER'] = 'gemini'
 os.environ['LLM_MODEL'] = 'gemini/gemini-1.5-pro'

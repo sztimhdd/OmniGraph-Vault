@@ -1,11 +1,12 @@
 import os
+import json
 import cognee
 import asyncio
 import sys
 import numpy as np
 import time
 
-from config import RAG_WORKING_DIR, load_env
+from config import RAG_WORKING_DIR, load_env, CANONICAL_MAP_FILE
 load_env()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
@@ -41,13 +42,13 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
 async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
     return await gemini_embed.func(texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001")
 
-async def synthesize_response(query_text: str, mode: str = "naive"):
+async def synthesize_response(query_text: str, mode: str = "hybrid"):
     rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=llm_model_func, embedding_func=embedding_func, llm_model_name=MODEL_NAME)
     if hasattr(rag, "initialize_storages"): await rag.initialize_storages()
         
     await asyncio.sleep(2)
     # Apply canonical mapping if exists
-    map_file = "/home/sztimhdd/OmniGraph-Vault/canonical_map.json"
+    map_file = str(CANONICAL_MAP_FILE)
     if os.path.exists(map_file):
         try:
             with open(map_file, "r") as f:
@@ -90,7 +91,7 @@ async def main():
     if len(sys.argv) < 2:
         print("Usage: python kg_synthesize.py \"<your query>\" [mode]")
         sys.exit(1)
-    query, mode = sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "naive"
+    query, mode = sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "hybrid"
     from config import SYNTHESIS_OUTPUT
     try:
         response = await synthesize_response(query, mode=mode)
