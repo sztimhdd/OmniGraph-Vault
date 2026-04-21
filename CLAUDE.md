@@ -98,7 +98,7 @@ Query → kg_synthesize.py
 | `GEMINI_API_KEY` | Yes | All LLM, vision, and embedding calls |
 | `APIFY_TOKEN` | No | Primary scraping (falls back to CDP) |
 | `FIRECRAWL_API_KEY` | No | Firecrawl web scraping API |
-| `CDP_URL` | No | **Default (production):** `http://localhost:9223` — local Edge browser with `--remote-debugging-port=9223`; `ingest_wechat.py` connects via `playwright.connect_over_cdp()`. **Testing fallback:** `http://host:port/mcp` — remote Playwright MCP server (MCP-over-SSE); used when no local Edge is available. `ingest_wechat.py` currently only implements the `connect_over_cdp()` path; MCP client support is a planned addition. |
+| `CDP_URL` | No | **Local mode** (default): `http://localhost:9223` — raw CDP WebSocket; `ingest_wechat.py` uses `playwright.connect_over_cdp()`. Start Edge with `msedge --remote-debugging-port=9223`. **Remote MCP mode** (testing fallback): `http://host:port/mcp` — Playwright MCP server (MCP-over-SSE); `ingest_wechat.py` auto-detects the `/mcp` suffix and uses `_MCPClient` + `browser_navigate`/`browser_evaluate` instead. Both modes are fully implemented. |
 
 Set in `~/.hermes/.env`. Cognee-specific vars (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, etc.) are hardcoded in each script that uses Cognee.
 
@@ -234,7 +234,7 @@ After 5+ tool calls on a complex task, Hermes evaluates whether to auto-create a
 
 - Cognee batch operations silently drop entities if the buffer path isn't checked for `.processed` markers — always verify idempotency
 - The runtime data directory is `omonigraph-vault` (typo is baked into config.py and deployed environments — do not "fix" it without a coordinated migration)
-- `CDP_URL` has two distinct modes with different protocols: local Edge (`localhost:9223`) uses raw CDP WebSocket via `connect_over_cdp()`; the remote testing fallback (`host:port/mcp`) is a Playwright MCP server (MCP-over-SSE). The remote MCP path is intentional for local dev where no Edge browser is available, but `ingest_wechat.py` only implements the `connect_over_cdp()` path today — MCP client support needs to be added before the remote fallback works end-to-end.
+- `CDP_URL` supports two modes auto-detected by the `/mcp` URL suffix: local Edge (`localhost:9223`) uses `playwright.connect_over_cdp()`; remote testing (`host:port/mcp`) uses `_MCPClient` (MCP-over-SSE with `mcp-session-id` header). The MCP server requires `initialize` first, then subsequent requests must include `mcp-session-id` in the header — without it every call returns "Server not initialized".
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project

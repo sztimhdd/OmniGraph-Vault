@@ -214,13 +214,17 @@ async def ingest_article(url):
             is_invalid = True
             print("Apify detected verification page, triggering fallback...")
 
-    # 2. Fallback to CDP if Apify fails
+    # 2. Fallback to browser scraping if Apify fails
     if not article_data or is_invalid:
-        print("Apify failed or returned invalid results. Falling back to CDP...")
-        article_data = await scrape_wechat_cdp(url)
+        if _is_mcp_endpoint(CDP_URL):
+            print("Apify failed or returned invalid results. Falling back to remote Playwright MCP...")
+            article_data = await scrape_wechat_mcp(url)
+        else:
+            print("Apify failed or returned invalid results. Falling back to local CDP...")
+            article_data = await scrape_wechat_cdp(url)
 
     if not article_data:
-        print("Scraping failed (both Apify and CDP).")
+        print("Scraping failed (both Apify and browser fallback).")
         return
 
     method = article_data.get("method", "unknown")
