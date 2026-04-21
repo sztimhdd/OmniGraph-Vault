@@ -1,38 +1,38 @@
 [
   {
-    "description": "golden path: WeChat URL triggers ingest_wechat.py (FR-1)",
+    "description": "golden path: WeChat URL triggers ingest.sh (FR-1)",
     "input": "add this article to my knowledge base: https://mp.weixin.qq.com/s/Y_uRMYBmdLWUPnz_ac7jWA",
-    "expect_contains": ["ingest_wechat.py"],
-    "expect_not_contains": ["omnigraph_query", "kg_synthesize.py"]
+    "expect_contains": ["ingest.sh"],
+    "expect_not_contains": ["omnigraph_query", "kg_synthesize"]
   },
   {
     "description": "golden path: alternative trigger phrase 'save to kb'",
     "input": "save this to my kb: https://mp.weixin.qq.com/s/abc123",
-    "expect_contains": ["ingest_wechat.py"]
+    "expect_contains": ["ingest.sh"]
   },
   {
-    "description": "PDF ingestion triggers multimodal_ingest.py (FR-7)",
+    "description": "PDF ingestion triggers ingest.sh (FR-7)",
     "input": "ingest this PDF: /home/user/documents/ai_paper.pdf",
-    "expect_contains": ["multimodal_ingest.py"],
-    "expect_not_contains": ["ingest_wechat.py"]
+    "expect_contains": ["ingest.sh"],
+    "expect_not_contains": ["omnigraph_query"]
   },
   {
     "description": "missing URL: skill should ask for the URL before running",
     "input": "ingest this article",
     "expect_contains": ["url"],
-    "expect_not_contains": ["ingest_wechat.py", "multimodal_ingest.py"]
+    "expect_not_contains": ["ingest.sh"]
   },
   {
     "description": "wrong skill: query intent redirects to omnigraph_query",
     "input": "what do I know about knowledge graphs?",
     "expect_contains": ["omnigraph_query"],
-    "expect_not_contains": ["ingest_wechat.py"]
+    "expect_not_contains": ["ingest.sh"]
   },
   {
     "description": "wrong skill: synthesis request redirects to omnigraph_synthesize",
     "input": "write a report on AI agent architectures",
     "expect_contains": ["omnigraph_synthesize"],
-    "expect_not_contains": ["ingest_wechat.py"]
+    "expect_not_contains": ["ingest.sh"]
   },
   {
     "description": "config error: missing GEMINI_API_KEY surfaces actionable message",
@@ -48,6 +48,6 @@
     "description": "non-WeChat URL guard: skill rejects arbitrary URL and asks user to confirm or provide WeChat URL",
     "input": "ingest this article: https://example.com/some-blog-post-about-ai-agents",
     "expect_contains": ["WeChat"],
-    "expect_not_contains": ["ingest_wechat.py", "Starting ingestion"]
+    "expect_not_contains": ["ingest.sh", "Starting ingestion"]
   }
 ]
