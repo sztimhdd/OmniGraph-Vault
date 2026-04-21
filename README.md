@@ -17,7 +17,7 @@ Modern AI agents (like Openclaw and Hermes Agent) excel at task execution but la
 - **Local & Private**: All data stays on your machine; no external knowledge-base SaaS required.
 
 ### 🚀 Core Features
-- **Dual-Path Scraper**: Primary scraping via **Apify AI**; automatic fallback to **CDP (Chrome DevTools Protocol)** when anti‑bot measures are detected.
+- **Triple-Path Scraper**: Primary scraping via **Apify AI**; fallback to **local CDP** (Edge ) in production, or **remote Playwright MCP** server for local dev/testing — auto-detected from .
 - **Multimodal KG Ingestion**: Extracts text and images from articles. Every image receives a semantic description from **Gemini Vision** and is linked in the knowledge graph.
 - **Stateful Intelligence**: **Cognee** memory layer tracks conversation history, learns user interests, and merges synonymous concepts (e.g., “知识图谱” ↔ “Knowledge Graph”).
 - **Local Media Persistence**: Built‑in image server (port 8765) ensures visual content remains accessible even if original online links disappear.
@@ -27,7 +27,7 @@ Modern AI agents (like Openclaw and Hermes Agent) excel at task execution but la
 - **KG Engine**: [LightRAG](https://github.com/HKU-Smart-OT/LightRAG)
 - **Memory Layer**: [Cognee](https://github.com/topoteretes/cognee)
 - **LLM / Vision**: Google Gemini 2.5 Pro & Flash models
-- **Scraping**: Apify SDK + Playwright (CDP fallback)
+- **Scraping**: Apify SDK + Playwright CDP (local production) / Playwright MCP server (remote testing)
 - **Infrastructure**: Python 3.11+, local HTTP server, config‑driven paths
 
 ### 📦 Quick Start
@@ -46,7 +46,7 @@ Put your runtime secrets in `~/.hermes/.env` because `config.py` loads from that
 ```bash
 GEMINI_API_KEY=your_gemini_key
 APIFY_TOKEN=your_apify_token  # optional, for primary scraping
-CDP_URL=http://localhost:9223 # optional, for CDP fallback
+CDP_URL=http://localhost:9223  # local CDP; use http://host:port/mcp for remote Playwright MCP
 ```
 
 Important deployment rule:
@@ -99,18 +99,43 @@ Expected skills:
 
 This keeps GitHub, local development, and live Hermes behavior aligned.
 
-### 🔌 Windows Edge Bridge (CDP Fallback)
-If Apify fails due to bot detection, enable Edge debugging on the Windows host:
+#### 6. Test Skills Locally (skill_runner)
+
+Validate skill routing without Hermes using `skill_runner.py`:
+
+```bash
+# Ingest skill — 9 test cases (decision tree routing)
+python skill_runner.py skills/omnigraph_ingest --test-file tests/skills/test_omnigraph_ingest.json
+
+# Query skill — 10 test cases
+python skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omnigraph_query.json
+```
+
+Exit code 0 = all cases pass. Requires `GEMINI_API_KEY` to be set (loaded from `~/.hermes/.env`).
+
+Eval definitions (SkillHub format) live in each skill's `evals/evals.json`.
+
+### 🔌 Browser Fallback (CDP or Playwright MCP)
+
+`ingest_wechat.py` auto-selects the fallback method based on `CDP_URL`:
+
+**Local mode (production default)** — start Edge with remote debugging:
 ```powershell
 Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 --user-data-dir=$env:LOCALAPPDATA\EdgeDebug9223"
 ```
-Then set `CDP_URL="http://localhost:9223"` in your environment.
+Set `CDP_URL=http://localhost:9223` in `~/.hermes/.env`.
+
+**Remote MCP mode (local dev / testing)** — point to a running Playwright MCP server:
+```bash
+CDP_URL=http://host:port/mcp  # e.g. http://ohca.ddns.net:58931/mcp
+```
+The `/mcp` suffix triggers the MCP client path automatically. No Edge browser needed locally.
 
 ### 📁 Project Structure
 ```
 OmniGraph‑Vault/
 ├── config.py              # Centralized paths & environment loading
-├── ingest_wechat.py       # WeChat article ingestion (Apify + CDP)
+├── ingest_wechat.py       # WeChat article ingestion (Apify + CDP/MCP)
 ├── kg_synthesize.py       # Synthesis & report generation
 ├── query_lightrag.py      # Direct KG queries
 ├── cognee_wrapper.py      # Cognee memory integration
@@ -187,7 +212,7 @@ pip install -r requirements.txt
 ```bash
 GEMINI_API_KEY=你的_gemini_密钥
 APIFY_TOKEN=你的_apify_token  # 可选，用于主爬虫
-CDP_URL=http://localhost:9223 # 可选，用于 CDP 后备路径
+CDP_URL=http://localhost:9223  # 本地 CDP；远程测试用 http://host:port/mcp
 ```
 
 部署时请始终遵循：
@@ -223,18 +248,27 @@ def query_kg(question: str) -> str:
     return result.stdout
 ```
 
-### 🔌 Windows Edge 桥接（CDP 后备）
-若 Apify 因机器人检测失败，请在 Windows 宿主机上开启 Edge 调试模式：
+### 🔌 浏览器后备（CDP 或 Playwright MCP）
+
+`ingest_wechat.py` 根据 `CDP_URL` 自动选择后备方式：
+
+**本地模式（生产默认）** — 开启 Edge 远程调试：
 ```powershell
 Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 --user-data-dir=$env:LOCALAPPDATA\EdgeDebug9223"
 ```
-然后在环境中设置 `CDP_URL="http://localhost:9223"`。
+在 `~/.hermes/.env` 中设置 `CDP_URL=http://localhost:9223`。
+
+**远程 MCP 模式（本地开发/测试）** — 指向进行中的 Playwright MCP 服务器：
+```bash
+CDP_URL=http://host:port/mcp
+```
+`/mcp` 后缀自动触发 MCP 客户端路径，本地无需启动 Edge。
 
 ### 📁 项目结构
 ```
 OmniGraph‑Vault/
 ├── config.py              # 集中化的路径与环境加载
-├── ingest_wechat.py       # 微信文章入库（Apify + CDP）
+├── ingest_wechat.py       # 微信文章入库（Apify + CDP/MCP）
 ├── kg_synthesize.py       # 综合与报告生成
 ├── query_lightrag.py      # 直接图谱查询
 ├── cognee_wrapper.py      # Cognee 记忆集成

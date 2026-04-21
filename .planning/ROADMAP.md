@@ -36,7 +36,7 @@ Plans:
 ### Phase 2: SkillHub-Ready Skill Packaging
 **Goal**: Both skills satisfy the SkillHub package contract — pushy descriptions, CWD-independent wrappers, reference docs, eval suites — and pass all local skill_runner tests. No Hermes required; this phase is fully local.
 **Depends on**: Phase 1
-**Requirements**: PKG-01, PKG-02, PKG-03, SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-06, SKILL-07, SKILL-08, SKILL-09, SKILL-10, SKILL-11, SKILL-12, EVAL-01, EVAL-02, TEST-01, TEST-02, TEST-03, TEST-04
+**Requirements**: PKG-01, PKG-02, PKG-03, PKG-04, SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-07, SKILL-08, SKILL-09, SKILL-10, SKILL-11, EVAL-01, EVAL-02, TEST-01, TEST-02, TEST-03, TEST-04
 **Success Criteria** (what must be TRUE):
   1. Both `SKILL.md` descriptions are 100–200 words in SkillHub pushy format (starts with "Use this skill when...", ends with "Do NOT use when...")
   2. `scripts/ingest.sh` and `scripts/query.sh` each work from any working directory and exit non-zero with a human-readable message when `GEMINI_API_KEY` is unset or venv is missing

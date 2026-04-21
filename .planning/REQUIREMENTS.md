@@ -37,6 +37,7 @@
 **Script wrapper contract:**
 
 - [ ] **PKG-03**: Both `scripts/` wrappers resolve project root from `OMNIGRAPH_ROOT` env var (fallback: `$HOME/Desktop/OmniGraph-Vault`), activate the correct venv, validate `GEMINI_API_KEY` before running, and work correctly from any calling working directory
+- [x] **PKG-04**: Repo-root `README.md` covers install, env setup, Hermes `skills.external_dirs` configuration, and `skill_runner.py` + eval invocation — per SkillHub spec §7 ("README.md in repo root, not in skill/")
 - [ ] **SKILL-01**: `scripts/ingest.sh` announces "Starting ingestion — 30–120 seconds..." before calling `python ingest_wechat.py "<url>"` or `python multimodal_ingest.py "<path>"` based on input type; exits non-zero with human-readable message when GEMINI_API_KEY unset or venv missing
 - [ ] **SKILL-07**: `scripts/query.sh` announces "Querying — 15–60 seconds..." before calling `python kg_synthesize.py "<query>" <mode>`; exits non-zero with human-readable message when GEMINI_API_KEY unset or venv missing
 
@@ -46,7 +47,6 @@
 - [ ] **SKILL-03**: `SKILL.md` body contains decision tree: WeChat URL (→ `ingest.sh <url>`), PDF path (→ `ingest.sh <path>`), no URL (ask first), missing GEMINI_API_KEY (configuration error message), non-WeChat URL (guard/reject: ask to confirm or provide WeChat URL)
 - [ ] **SKILL-04**: `SKILL.md` body contains explicit "When NOT to Use" section: query intent → `omnigraph_query`, synthesis report → `omnigraph_synthesize`, graph health → `omnigraph_status`, manage entities → `omnigraph_manage`
 - [ ] **SKILL-05**: `references/api-surface.md` covers `scripts/ingest.sh` CLI args, required/optional env vars, dispatch logic (WeChat vs PDF), output format, exit codes, error messages, and image server dependency
-- [ ] **SKILL-06**: `README.md` covers install, env setup, and test invocation (`skill_runner.py` + eval suite)
 
 **Query skill (`skills/omnigraph_query/`):**
 
@@ -54,7 +54,6 @@
 - [ ] **SKILL-09**: `SKILL.md` body contains: image server warning (port 8765, for inline images), decision tree with mode dispatch, empty KB response (advise to ingest first), destructive-action guard (→ `omnigraph_manage`), and distinct failure messages
 - [ ] **SKILL-10**: `SKILL.md` body contains "When NOT to Use" section: ingest intent → `omnigraph_ingest`, synthesis report → `omnigraph_synthesize`, graph health → `omnigraph_status`, manage entities → `omnigraph_manage`, general web search → leave to agent default
 - [ ] **SKILL-11**: `references/api-surface.md` covers `scripts/query.sh` CLI args, required/optional env vars, query modes table, output file location, exit codes, error messages
-- [ ] **SKILL-12**: `README.md` covers install, env setup, and test invocation
 
 **Eval suites (SkillHub format):**
 
@@ -143,18 +142,17 @@
 | PKG-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | PKG-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | PKG-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| PKG-04 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
 | SKILL-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | SKILL-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | SKILL-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | SKILL-04 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | SKILL-05 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-06 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | SKILL-07 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | SKILL-08 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | SKILL-09 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | SKILL-10 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | SKILL-11 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-12 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | EVAL-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | EVAL-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | TEST-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
