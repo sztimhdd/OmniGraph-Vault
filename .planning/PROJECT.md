@@ -8,6 +8,20 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 
 When Hermes sees "add this to my KB" or "what do I know about X?" it calls the right script and gets a useful answer back.
 
+## Current Milestone: v1.1 SkillHub-Ready Skill Packaging
+
+**Goal:** Upgrade both Hermes skills into production-grade SkillHub packages with deterministic wrappers, eval suites, and a clear deployment contract.
+
+**Target features:**
+- Full skill package structure (`SKILL.md`, `scripts/`, `references/`, `evals/`) for both skills
+- CWD-independent shell wrappers with env validation and venv activation
+- Pushy SKILL.md descriptions (100–200 words) with explicit NOT-trigger redirects
+- SkillHub eval suites (`evals/evals.json`, ≥3 cases per skill)
+- Hermes deployment via `skills.external_dirs` (no skill copying; repo is source of truth)
+- `specs/SKILL_PACKAGING_GUIDE.md` as contributor reference
+
+---
+
 ## Requirements
 
 ### Validated

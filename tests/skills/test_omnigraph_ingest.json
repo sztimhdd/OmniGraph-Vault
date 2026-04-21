@@ -43,5 +43,11 @@
     "description": "CDP fallback error: actionable message with Edge debug command",
     "input": "ingest https://mp.weixin.qq.com/s/test — Apify failed and CDP is not reachable at localhost:9223",
     "expect_contains": ["9223", "CDP", "remote-debugging"]
+  },
+  {
+    "description": "non-WeChat URL guard: skill rejects arbitrary URL and asks user to confirm or provide WeChat URL",
+    "input": "ingest this article: https://example.com/some-blog-post-about-ai-agents",
+    "expect_contains": ["WeChat"],
+    "expect_not_contains": ["ingest_wechat.py", "Starting ingestion"]
   }
 ]

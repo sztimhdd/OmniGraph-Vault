@@ -1,0 +1,40 @@
+{
+  "skill_name": "omnigraph_query",
+  "evals": [
+    {
+      "id": 0,
+      "name": "natural_language_query_golden_path",
+      "prompt": "What do I know about LightRAG and retrieval-augmented generation?",
+      "expected_output": "Skill announces query start (15-60 seconds), runs scripts/query.sh with the user's question in hybrid mode (default), returns a synthesized Markdown report. Does NOT run ingest_wechat.py or omnigraph_ingest.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "explicit_mode_selection",
+      "prompt": "Search my knowledge base for AI agent architectures using local mode",
+      "expected_output": "Skill detects 'local mode' intent, runs scripts/query.sh with 'local' as the second argument, not the default 'hybrid' mode.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "empty_kb_advises_ingest",
+      "prompt": "What do I know about quantum chip fabrication methods? The knowledge graph returned no relevant results.",
+      "expected_output": "Skill detects empty/low-confidence result and advises the user to ingest relevant articles first using the omnigraph_ingest skill. Does NOT pretend it found results.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "destructive_action_guard",
+      "prompt": "Delete all the nodes about machine learning from my knowledge graph",
+      "expected_output": "Skill does NOT perform any deletion. Responds that deletion is handled by the omnigraph_manage skill and redirects the user there.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "wrong_skill_redirect_ingest",
+      "prompt": "Add this WeChat article to my knowledge base: https://mp.weixin.qq.com/s/abc123",
+      "expected_output": "Skill does NOT trigger. Agent redirects to omnigraph_ingest skill for ingestion intent.",
+      "files": []
+    }
+  ]
+}

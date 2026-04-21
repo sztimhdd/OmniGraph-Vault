@@ -1,7 +1,7 @@
 # Requirements
 
 **Project:** OmniGraph-Vault  
-**Version:** v1 (Phase 2 — Skill Packaging)  
+**Version:** v1 (SkillHub-Ready Skill Packaging milestone)  
 **Last Updated:** 2026-04-21
 
 ---
@@ -25,44 +25,78 @@
 - [ ] **GATE6-04**: Manual script run confirms no crash: `ingest_wechat.py` on 3 URLs exits clean, `kg_synthesize.py` produces synthesis output without `NameError` or path errors
 - [ ] **GATE6-05**: `skill_runner.py` LLM routing test passes for the ingest skill (confirms SKILL.md decision tree routes correctly before Phase 2 packaging begins)
 
-### Phase 2 — Skill Packaging
+---
 
-**Ingest skill (`skills/omnigraph-ingest/`):**
+### Phase 2 — SkillHub-Ready Skill Packaging
 
-- [ ] **SKILL-01**: `scripts/run-ingest.sh` shell wrapper resolves project root from `$(dirname "$0")`, activates venv (checks both `venv/Scripts/activate` and `venv/bin/activate`), verifies `GEMINI_API_KEY` is set, then calls `python ingest_wechat.py "<url>"`
-- [ ] **SKILL-02**: `SKILL.md` frontmatter has `name: omnigraph_ingest`, accurate `description`, trigger phrases covering "add this to my KB / ingest / save this article / add to knowledge base" patterns
-- [ ] **SKILL-03**: `SKILL.md` body contains decision tree: WeChat URL validation, pre-exec announcement ("Starting ingestion — 30–120 seconds"), success format (title + hash + method + "entity extraction queued"), and distinct failure messages for missing key, non-WeChat URL, and scrape failure
-- [ ] **SKILL-04**: `SKILL.md` body contains explicit "when NOT to trigger" section (PDF redirect to multimodal_ingest, query intent → omnigraph_query)
-- [ ] **SKILL-05**: `references/api-surface.md` covers script args, env vars, output format, and image server dependency
-- [ ] **SKILL-06**: `README.md` covers install, env setup, and test invocation
+**Description and trigger quality:**
 
-**Query skill (`skills/omnigraph-query/`):**
+- [ ] **PKG-01**: Both `SKILL.md` descriptions are 100–200 words in SkillHub pushy format: starts with "Use this skill when...", includes 3–5 quoted trigger phrases, ends with explicit "Do NOT use when..." redirects to the correct alternative skill
+- [ ] **PKG-02**: Both `SKILL.md` bodies are ≤500 lines; any heavy reference content (API docs, full examples, troubleshooting tables) moved to `references/`
 
-- [ ] **SKILL-07**: `scripts/run-query.sh` shell wrapper with same venv/cwd/env pre-flight pattern, calls `python kg_synthesize.py "<query>" hybrid`
-- [ ] **SKILL-08**: `SKILL.md` frontmatter with `name: omnigraph_query`, description, triggers covering "what do I know about / search my KB / tell me about" patterns
-- [ ] **SKILL-09**: `SKILL.md` body contains: image server warning (port 8765 check), pre-exec announcement ("Querying — 15–60 seconds"), synthesis output rendered as Markdown + file path, empty KB detection response, and distinct failure messages
-- [ ] **SKILL-10**: `SKILL.md` body contains "when NOT to trigger" section (ingest intent → omnigraph_ingest, web search intent → leave to agent default)
-- [ ] **SKILL-11**: `references/api-surface.md` covers query modes (naive/local/global/hybrid/mix), optional mode keyword, output file location
+**Script wrapper contract:**
+
+- [ ] **PKG-03**: Both `scripts/` wrappers resolve project root from `OMNIGRAPH_ROOT` env var (fallback: `$HOME/Desktop/OmniGraph-Vault`), activate the correct venv, validate `GEMINI_API_KEY` before running, and work correctly from any calling working directory
+- [ ] **SKILL-01**: `scripts/ingest.sh` announces "Starting ingestion — 30–120 seconds..." before calling `python ingest_wechat.py "<url>"` or `python multimodal_ingest.py "<path>"` based on input type; exits non-zero with human-readable message when GEMINI_API_KEY unset or venv missing
+- [ ] **SKILL-07**: `scripts/query.sh` announces "Querying — 15–60 seconds..." before calling `python kg_synthesize.py "<query>" <mode>`; exits non-zero with human-readable message when GEMINI_API_KEY unset or venv missing
+
+**Ingest skill (`skills/omnigraph_ingest/`):**
+
+- [ ] **SKILL-02**: `SKILL.md` frontmatter has `name: omnigraph_ingest`, 100–200 word pushy `description` (see PKG-01), no `triggers:` block (description does the work)
+- [ ] **SKILL-03**: `SKILL.md` body contains decision tree: WeChat URL (→ `ingest.sh <url>`), PDF path (→ `ingest.sh <path>`), no URL (ask first), missing GEMINI_API_KEY (configuration error message), non-WeChat URL (guard/reject: ask to confirm or provide WeChat URL)
+- [ ] **SKILL-04**: `SKILL.md` body contains explicit "When NOT to Use" section: query intent → `omnigraph_query`, synthesis report → `omnigraph_synthesize`, graph health → `omnigraph_status`, manage entities → `omnigraph_manage`
+- [ ] **SKILL-05**: `references/api-surface.md` covers `scripts/ingest.sh` CLI args, required/optional env vars, dispatch logic (WeChat vs PDF), output format, exit codes, error messages, and image server dependency
+- [ ] **SKILL-06**: `README.md` covers install, env setup, and test invocation (`skill_runner.py` + eval suite)
+
+**Query skill (`skills/omnigraph_query/`):**
+
+- [ ] **SKILL-08**: `SKILL.md` frontmatter with `name: omnigraph_query`, 100–200 word pushy `description`
+- [ ] **SKILL-09**: `SKILL.md` body contains: image server warning (port 8765, for inline images), decision tree with mode dispatch, empty KB response (advise to ingest first), destructive-action guard (→ `omnigraph_manage`), and distinct failure messages
+- [ ] **SKILL-10**: `SKILL.md` body contains "When NOT to Use" section: ingest intent → `omnigraph_ingest`, synthesis report → `omnigraph_synthesize`, graph health → `omnigraph_status`, manage entities → `omnigraph_manage`, general web search → leave to agent default
+- [ ] **SKILL-11**: `references/api-surface.md` covers `scripts/query.sh` CLI args, required/optional env vars, query modes table, output file location, exit codes, error messages
 - [ ] **SKILL-12**: `README.md` covers install, env setup, and test invocation
 
-**Local testing harness:**
+**Eval suites (SkillHub format):**
 
-- [ ] **TEST-01**: `tests/skills/test_omnigraph_ingest.json` covers trigger phrase matching, WeChat URL guard, non-WeChat URL guard, missing key guard, and wrong-skill redirect
-- [ ] **TEST-02**: `tests/skills/test_omnigraph_query.json` covers trigger phrase matching, empty KB response, successful synthesis output format, and wrong-skill redirect
-- [ ] **TEST-03**: `python skill_runner.py skills/omnigraph-ingest --test-file tests/skills/test_omnigraph_ingest.json` exits 0
-- [ ] **TEST-04**: `python skill_runner.py skills/omnigraph-query --test-file tests/skills/test_omnigraph_query.json` exits 0
+- [ ] **EVAL-01**: `skills/omnigraph_ingest/evals/evals.json` in SkillHub eval schema with ≥3 test cases: WeChat URL golden path, non-WeChat URL guard, missing GEMINI_API_KEY guard
+- [ ] **EVAL-02**: `skills/omnigraph_query/evals/evals.json` in SkillHub eval schema with ≥3 test cases: natural-language query golden path, mode selection, empty-KB response
 
-### Phase 3 — Deploy + Gate 7 Validation
+**Local test harness (skill_runner):**
 
-- [ ] **GATE7-01**: Both `run-ingest.sh` and `run-query.sh` execute successfully when invoked from `/tmp` (working directory is NOT the project root)
-- [ ] **GATE7-02**: Shell wrappers work on Windows (confirmed in Git Bash; fallback Python launcher if PowerShell is Hermes's exec shell)
-- [ ] **GATE7-03**: Skills are deployed to `<hermes-workspace>/skills/` and appear in `hermes skills list`
+- [ ] **TEST-01**: `tests/skills/test_omnigraph_ingest.json` covers: trigger phrase matching (2+ phrases), WeChat URL guard, non-WeChat URL guard (9th case), missing key guard, wrong-skill redirect
+- [ ] **TEST-02**: `tests/skills/test_omnigraph_query.json` covers: trigger phrase matching, empty KB response, successful synthesis output format, wrong-skill redirect
+- [ ] **TEST-03**: `python skill_runner.py skills/omnigraph_ingest --test-file tests/skills/test_omnigraph_ingest.json` exits 0 (all cases pass)
+- [ ] **TEST-04**: `python skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omnigraph_query.json` exits 0
+
+---
+
+### Phase 3 — Hermes Deployment + Gate 7 Validation
+
+**Deployment contract:**
+
+- [ ] **DRIFT-01**: Hermes is configured via `skills.external_dirs` to load skills directly from `~/Desktop/OmniGraph-Vault/skills/`; no skill files are copied into `~/.hermes/skills/` (prevents drift between repo and runtime)
+- [ ] **GATE7-10**: `hermes skills list` output confirms `omnigraph_ingest` and `omnigraph_query` are sourced from `~/Desktop/OmniGraph-Vault/skills/`, not from `~/.hermes/skills/`
+
+**Shell wrapper portability:**
+
+- [ ] **GATE7-01**: Both `scripts/ingest.sh` and `scripts/query.sh` execute successfully when invoked from `/tmp` (working directory is NOT the project root)
+- [ ] **GATE7-02**: Shell wrappers work on Windows in Git Bash; no PowerShell-only syntax
+
+**Trigger dispatch:**
+
+- [ ] **GATE7-03**: Skills are visible in `hermes skills list` after `skills.external_dirs` is configured
 - [ ] **GATE7-04**: Ingest trigger dispatch — Hermes correctly routes "add this article to my knowledge base" to `omnigraph_ingest` (not another skill)
 - [ ] **GATE7-05**: Query trigger dispatch — Hermes correctly routes "what do I know about LightRAG?" to `omnigraph_query`
-- [ ] **GATE7-06**: Cross-article synthesis — query returns multi-source answer referencing the 3 Gate 6 articles
+
+**Cross-article synthesis (Gate 7):**
+
+- [ ] **GATE7-06**: Cross-article synthesis — query returns multi-source answer referencing the 3 Gate 6 articles when executed through real Hermes
+
+**Guard clauses:**
+
 - [ ] **GATE7-07**: Wrong-trigger rejection — "search the web for LightRAG tutorials" does NOT fire `omnigraph_query`
-- [ ] **GATE7-08**: Missing-key guard — `run-ingest.sh` with `GEMINI_API_KEY` unset exits with human-readable error, not a Python traceback
-- [ ] **GATE7-09**: CDP-not-running guard — ingest with Apify disabled and CDP unreachable surfaces clear failure message
+- [ ] **GATE7-08**: Missing-key guard — `scripts/ingest.sh` with `GEMINI_API_KEY` unset prints human-readable error and exits non-zero — no Python traceback visible
+- [ ] **GATE7-09**: CDP-not-running guard — ingest with Apify disabled and CDP unreachable surfaces clear failure message via SKILL.md error handling
 
 ---
 
@@ -75,6 +109,8 @@
 - `omnigraph_manage` skill (list/delete/reindex entities)
 - Batch ingestion (multiple URLs in one call)
 - Multi-source ingestion: RSS feeds, GitHub repos, Zhihu
+- Trigger eval optimization loop (Section 6 of SKILLHUB_REQUIREMENTS.md)
+- `evals/benchmark.json` with aggregated timing/token results
 
 ---
 
@@ -87,6 +123,7 @@
 - Webhook-based ingestion (Telegram → OmniGraph-Vault) — future
 - Multi-user / team sharing — intentionally single-user, out of scope permanently
 - Openclaw-first skill packaging — secondary to Hermes; same SKILL.md format, different deployment path
+- LLM model abstraction layer (`llm_interface.py`) — not applicable; skills wrap existing pipeline
 
 ---
 
@@ -102,28 +139,36 @@
 | GATE6-02 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
 | GATE6-03 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
 | GATE6-04 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
-| SKILL-01 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-02 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-03 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-04 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-05 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-06 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-07 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-08 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-09 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-10 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-11 | 2 | Phase 2: Skill Packaging | Pending |
-| SKILL-12 | 2 | Phase 2: Skill Packaging | Pending |
-| TEST-01 | 2 | Phase 2: Skill Packaging | Pending |
-| TEST-02 | 2 | Phase 2: Skill Packaging | Pending |
-| TEST-03 | 2 | Phase 2: Skill Packaging | Pending |
-| TEST-04 | 2 | Phase 2: Skill Packaging | Pending |
-| GATE7-01 | 3 | Phase 3: Deploy + Gate 7 Validation | Pending |
-| GATE7-02 | 3 | Phase 3: Deploy + Gate 7 Validation | Pending |
-| GATE7-03 | 3 | Phase 3: Deploy + Gate 7 Validation | Pending |
-| GATE7-04 | 3 | Phase 3: Deploy + Gate 7 Validation | Pending |
-| GATE7-05 | 3 | Phase 3: Deploy + Gate 7 Validation | Pending |
-| GATE7-06 | 3 | Phase 3: Deploy + Gate 7 Validation | Pending |
-| GATE7-07 | 3 | Phase 3: Deploy + Gate 7 Validation | Pending |
-| GATE7-08 | 3 | Phase 3: Deploy + Gate 7 Validation | Pending |
-| GATE7-09 | 3 | Phase 3: Deploy + Gate 7 Validation | Pending |
+| GATE6-05 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
+| PKG-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| PKG-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| PKG-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-04 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-05 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-06 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-07 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-08 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-09 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-10 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-11 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-12 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| EVAL-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| EVAL-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| TEST-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| TEST-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| TEST-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| TEST-04 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| DRIFT-01 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-01 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-02 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-03 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-04 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-05 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-06 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-07 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-08 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-09 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| GATE7-10 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |

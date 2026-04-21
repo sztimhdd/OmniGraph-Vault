@@ -12,6 +12,7 @@ Your instructions:
 - `.planning/PROJECT.md`
 - `.planning/REQUIREMENTS.md`
 - `.planning/ROADMAP.md`
+- '.planning\PM_PO_HANDOFF_PLAN.md'
 - `.planning/STATE.md`
 - `.planning/phases/01-bug-fixes-gate-6-validation/01-01-PLAN.md`
 - `.planning/phases/01-bug-fixes-gate-6-validation/01-02-PLAN.md`
@@ -19,7 +20,7 @@ Your instructions:
 - `Deploy.md`
 - `skills/omnigraph_ingest/SKILL.md`
 - `skills/omnigraph_query/SKILL.md`
-- `D:\Downloads\SKILLHUB_REQUIREMENTS.md`
+- `.planning\SKILLHUB_REQUIREMENTS.md`
 
 2. Add two new docs:
 - `.planning/SKILLHUB_REQUIREMENTS.md`

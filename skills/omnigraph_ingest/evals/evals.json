@@ -1,0 +1,40 @@
+{
+  "skill_name": "omnigraph_ingest",
+  "evals": [
+    {
+      "id": 0,
+      "name": "wechat_url_golden_path",
+      "prompt": "Add this WeChat article to my knowledge base: https://mp.weixin.qq.com/s/Y_uRMYBmdLWUPnz_ac7jWA",
+      "expected_output": "Skill announces ingestion start (30-120 seconds), runs scripts/ingest.sh with the WeChat URL, reports article title, image count, and confirms content indexed. Does NOT run omnigraph_query or kg_synthesize.py.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "non_wechat_url_guard",
+      "prompt": "Ingest this article for me: https://example.com/some-blog-post-about-ai",
+      "expected_output": "Skill rejects the non-WeChat URL with a clear message asking the user to confirm intent or provide a WeChat article URL. Does NOT run ingest.sh blindly.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "missing_gemini_key_guard",
+      "prompt": "Add this to my knowledge base: https://mp.weixin.qq.com/s/test123 — note that GEMINI_API_KEY is not configured in the environment",
+      "expected_output": "Skill detects missing GEMINI_API_KEY and returns actionable error: 'Configuration error: GEMINI_API_KEY is not set. Add it to ~/.hermes/.env and restart.' Does NOT attempt ingestion.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "pdf_path_dispatch",
+      "prompt": "Please ingest this PDF into my knowledge base: /home/user/documents/ai_research_paper.pdf",
+      "expected_output": "Skill detects .pdf extension, announces PDF ingestion start, runs scripts/ingest.sh with the file path (dispatches to multimodal_ingest.py), not ingest_wechat.py.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "wrong_skill_redirect_query",
+      "prompt": "What do I know about knowledge graphs and LightRAG?",
+      "expected_output": "Skill does NOT trigger. Agent redirects to omnigraph_query skill for retrieval intent.",
+      "files": []
+    }
+  ]
+}
