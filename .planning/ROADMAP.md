@@ -9,7 +9,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Bug Fixes + Gate 6 Validation** - Fix four confirmed pipeline bugs and validate cross-article synthesis against 3 real WeChat articles
+- [x] **Phase 1: Bug Fixes + Gate 6 Validation** - Fix four confirmed pipeline bugs (50% complete: INFRA fixes done, Gate 6 validation pending)
 - [ ] **Phase 2: SkillHub-Ready Skill Packaging** - Upgrade both skills into production-grade SkillHub packages with CWD-independent wrappers, reference docs, eval suites, and a deployment-ready structure
 - [ ] **Phase 3: Hermes Deployment + Gate 7 Validation** - Deploy both skills to Hermes via `skills.external_dirs`, validate trigger dispatch, wrapper execution, guard clauses, and cross-article synthesis end-to-end
 
@@ -22,14 +22,14 @@
 **Depends on**: Nothing (first phase)
 **Requirements**: INFRA-01, INFRA-02, INFRA-03, INFRA-04, GATE6-01, GATE6-02, GATE6-03, GATE6-04, GATE6-05
 **Success Criteria** (what must be TRUE):
-  1. Running `kg_synthesize.py` on a machine other than the original dev box does not raise a path error or `NameError`
+  1. ✓ Running `kg_synthesize.py` on a machine other than the original dev box does not raise a path error or `NameError`
   2. A cross-article synthesis query returns a response that references named entities from at least 2 of the 3 ingested articles
   3. `cognee_batch_processor.py` completes after ingestion and produces a valid `canonical_map.json` using only config constants (no hardcoded paths)
   4. Manual script run (ingest + synthesize) exits clean with no crashes
   5. `skill_runner.py` LLM routing test passes for the ingest skill decision tree
 **Plans**: 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — Fix all infrastructure bugs: config constants, hardcoded paths, missing import, default mode, bare excepts, ingest_pdf variables, image counter
+- [x] 01-01-PLAN.md — Fix all infrastructure bugs: config constants, hardcoded paths, missing import, default mode, bare excepts, ingest_pdf variables, image counter (COMPLETED 2026-04-21)
 - [ ] 01-02-PLAN.md — Gate 6 validation: update SKILL.md Case 5, add test case, run skill_runner, manual pipeline verification
 **UI hint**: no
 
