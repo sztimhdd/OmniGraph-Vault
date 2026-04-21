@@ -1,0 +1,12 @@
+
+lightrag
+playwright
+beautifulsoup4
+html2text
+google-genai
+pillow
+numpy
+apify-client
+requests
+nest-asyncio
+pymupdf

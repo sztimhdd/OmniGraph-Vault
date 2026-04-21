@@ -1,0 +1,14 @@
+
+# Environment
+.env
+venv/
+__pycache__/
+
+# Data (Crucial to ignore these!)
+data/
+images/
+lightrag_storage/
+*.log
+*.md
+!README.md
+!project_summary.md
