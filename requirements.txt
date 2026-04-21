@@ -13,3 +13,5 @@ lancedb
 kuzu
 litellm
 instructor
+lightrag-hku
+requests

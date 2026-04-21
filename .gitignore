@@ -9,9 +9,11 @@ data/
 images/
 lightrag_storage/
 *.log
-*.md
+
+!*.md
 !specs/
 !Deploy.md
+!README.md
 !project_summary.md
 !.planning/
 !.planning/**
