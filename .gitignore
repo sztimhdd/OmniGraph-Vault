@@ -10,7 +10,8 @@ images/
 lightrag_storage/
 *.log
 *.md
-!README.md
+!specs/
+!Deploy.md
 !project_summary.md
 entity_buffer/
 canonical_map.json
