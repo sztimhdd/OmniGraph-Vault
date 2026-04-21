@@ -98,7 +98,7 @@ Query → kg_synthesize.py
 | `GEMINI_API_KEY` | Yes | All LLM, vision, and embedding calls |
 | `APIFY_TOKEN` | No | Primary scraping (falls back to CDP) |
 | `FIRECRAWL_API_KEY` | No | Firecrawl web scraping API |
-| `CDP_URL` | No | Chrome DevTools Protocol endpoint — local (`http://localhost:9223`) or remote MCP URL |
+| `CDP_URL` | No | **Local** (`http://localhost:9223`): raw CDP WebSocket, used by `playwright.connect_over_cdp()` in `ingest_wechat.py`. **Remote** (`http://host:port/mcp`): Playwright MCP server — speaks MCP-over-SSE, NOT compatible with `connect_over_cdp()`. Remote requires MCP client integration; `ingest_wechat.py` cannot use it as-is. |
 
 Set in `~/.hermes/.env`. Cognee-specific vars (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, etc.) are hardcoded in each script that uses Cognee.
 
@@ -234,6 +234,7 @@ After 5+ tool calls on a complex task, Hermes evaluates whether to auto-create a
 
 - Cognee batch operations silently drop entities if the buffer path isn't checked for `.processed` markers — always verify idempotency
 - The runtime data directory is `omonigraph-vault` (typo is baked into config.py and deployed environments — do not "fix" it without a coordinated migration)
+- The remote `CDP_URL` (`http://ohca.ddns.net:58931/mcp`) is a **Playwright MCP server**, not a raw CDP WebSocket. `ingest_wechat.py` uses `playwright.connect_over_cdp(CDP_URL)` which only works with a local browser (`http://localhost:9223`). Using the remote MCP URL with `connect_over_cdp()` will fail silently or with a protocol error. To use the remote browser, `ingest_wechat.py` must be refactored to use the MCP client interface instead.
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
