@@ -9,7 +9,7 @@ from lightrag.llm.gemini import gemini_model_complete, gemini_embed
 from lightrag.utils import wrap_embedding_func_with_attrs
 
 # Constants
-RAG_WORKING_DIR = os.path.expanduser("./data/lightrag_storage")
+RAG_WORKING_DIR = "/home/sztimhdd/.hermes/kg-vault/lightrag_storage"
 
 # Force standard Gemini API mode (not Vertex AI)
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"

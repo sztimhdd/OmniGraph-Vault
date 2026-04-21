@@ -5,101 +5,90 @@ import logging
 from pathlib import Path
 
 # 1. Environment Configuration
-# Setup sys.path for the specific venv site-packages
-VENV_SITE_PACKAGES = "/home/sztimhdd/.hermes/kg-vault/lightrag/venv/lib/python3.11/site-packages"
+VENV_SITE_PACKAGES = "/home/sztimhdd/.hermes/kg-vault/venv/lib/python3.11/site-packages"
 if VENV_SITE_PACKAGES not in sys.path:
     sys.path.insert(0, VENV_SITE_PACKAGES)
 
-# Load API key from ~/.hermes/.env
 ENV_PATH = Path.home() / ".hermes" / ".env"
 if ENV_PATH.exists():
-    try:
-        with open(ENV_PATH, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    if "=" in line:
-                        key, value = line.split("=", 1)
-                        os.environ[key.strip()] = value.strip().strip("'").strip('"')
-                        if key.strip() == "GEMINI_API_KEY":
-                            os.environ["GOOGLE_API_KEY"] = value.strip().strip("'").strip('"')
-                            os.environ["LLM_API_KEY"] = value.strip().strip("'").strip('"')
-    except Exception as e:
-        print(f"Warning: Could not load .env file: {e}")
+    with open(ENV_PATH, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                os.environ[key.strip()] = value.strip().strip("'").strip('"')
 
-# Set Gemini LLM/Embedding env vars for Cognee 1.0.1
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+os.environ["COGNEE_LLM_API_KEY"] = GEMINI_API_KEY
+os.environ["LITELLM_API_KEY"] = GEMINI_API_KEY
+os.environ["OPENAI_API_KEY"] = GEMINI_API_KEY
+
 os.environ["LLM_PROVIDER"] = "gemini"
-os.environ["LLM_MODEL"] = "gemini/gemini-1.5-pro"
+os.environ["LLM_MODEL"] = "gemini-2.5-flash"
 os.environ["EMBEDDING_PROVIDER"] = "gemini"
-os.environ["EMBEDDING_MODEL"] = "gemini/text-embedding-004"
+os.environ["EMBEDDING_MODEL"] = "gemini-embedding-001"
 os.environ["EMBEDDING_DIMENSIONS"] = "768"
 os.environ["COGNEE_SKIP_CONNECTION_TEST"] = "true"
 
-# Configure Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cognee_wrapper")
 
 try:
     import cognee
+    # Enforce configuration at the module level
+    cognee.config.llm_api_key = GEMINI_API_KEY
+    cognee.config.llm_provider = "gemini"
+    cognee.config.llm_model = "gemini-2.5-flash"
+    cognee.config.structured_output_backend = "gemini"
 except ImportError:
-    logger.error("Cognee not found in the specified venv path. Please ensure it is installed.")
+    logger.error("Cognee not found in wrapper.")
     cognee = None
 
+# Local cache for disambiguation
+_disambiguation_cache = {}
+
 async def remember_synthesis(query: str, synthesis_result: str):
-    """Stores the query and its answer in Cognee for long-term memory."""
     if not cognee: return None
     try:
-        content = f"Query: {query}\nSynthesis Result: {synthesis_result}"
-        # Using the new 1.0.1 remember API
-        await cognee.remember(content)
+        await cognee.remember(f"Query: {query}\nResult: {synthesis_result}", self_improvement=False)
         return True
     except Exception as e:
-        logger.error(f"Error in remember_synthesis: {e}")
+        logger.error(f"remember_synthesis error: {e}")
         return None
 
 async def recall_previous_context(query: str):
-    """Searches Cognee for related past queries or synthesis results."""
     if not cognee: return []
     try:
-        # Using the new 1.0.1 search/recall API
         results = await cognee.search(query)
         return results if results else []
     except Exception as e:
-        logger.error(f"Error in recall_previous_context: {e}")
+        logger.error(f"recall error: {e}")
         return []
 
 async def disambiguate_entities(entity_list: list):
-    """
-    Takes a list of raw entity names and returns canonicalized names 
-    by resolving them against Cognee's entity graph.
-    """
     if not cognee: return entity_list
-    try:
-        # Canonicalization via remember with ontology grounding is a background process.
-        # For an immediate wrapper, we check past memory.
-        canonical_entities = []
-        for entity in entity_list:
-            search_results = await cognee.search(f"Canonical name for entity: {entity}")
-            if search_results and len(search_results) > 0:
-                 # Logic for extraction from result objects
-                 canonical_entities.append(str(search_results[0]))
+    canonical_entities = []
+    for entity in entity_list:
+        if entity in _disambiguation_cache:
+            canonical_entities.append(_disambiguation_cache[entity])
+            continue
+        try:
+            # Short timeout, check memory
+            search_results = await asyncio.wait_for(cognee.search(f"Canonical name for: {entity}"), timeout=2.0)
+            if search_results:
+                canonical = str(search_results[0])
+                _disambiguation_cache[entity] = canonical
+                canonical_entities.append(canonical)
             else:
+                _disambiguation_cache[entity] = entity
                 canonical_entities.append(entity)
-        return canonical_entities
-    except Exception as e:
-        logger.error(f"Error in disambiguate_entities: {e}")
-        return entity_list
+        except (asyncio.TimeoutError, Exception):
+            _disambiguation_cache[entity] = entity
+            canonical_entities.append(entity)
+    return canonical_entities
 
 async def log_query_pattern(query: str, mode: str, was_successful: bool):
-    """Logs query routing patterns and outcomes to Cognee."""
     if not cognee: return None
     try:
-        log_entry = f"System Log - Query: {query}, Mode: {mode}, Success: {was_successful}"
-        await cognee.remember(log_entry)
-        return True
-    except Exception as e:
-        logger.error(f"Error in log_query_pattern: {e}")
-        return None
-
-if __name__ == "__main__":
-    print("Cognee Wrapper module ready.")
+        await cognee.remember(f"Log - Q: {query}, M: {mode}, S: {was_successful}", self_improvement=False)
+    except: pass

@@ -3,19 +3,24 @@ import sys
 import asyncio
 
 # Environment setup
-sys.path.append('/home/sztimhdd/.hermes/kg-vault/lightrag/venv/lib/python3.11/site-packages')
+sys.path.append('/home/sztimhdd/.hermes/kg-vault/venv/lib/python3.11/site-packages')
 
 os.environ['GOOGLE_API_KEY'] = os.getenv('GEMINI_API_KEY')
 os.environ['LLM_API_KEY'] = os.getenv('GEMINI_API_KEY')
 os.environ['GEMINI_API_KEY'] = os.getenv('GEMINI_API_KEY')
 os.environ['LLM_PROVIDER'] = 'gemini'
-os.environ['LLM_MODEL'] = 'gemini/gemini-1.5-pro'
+os.environ['LLM_MODEL'] = 'gemini-2.5-flash'
 os.environ['EMBEDDING_PROVIDER'] = 'gemini'
-os.environ['EMBEDDING_MODEL'] = 'gemini/text-embedding-004'
+os.environ['EMBEDDING_MODEL'] = 'gemini-embedding-001'
 os.environ['EMBEDDING_DIMENSIONS'] = '768'
 os.environ['COGNEE_SKIP_CONNECTION_TEST'] = 'true'
 
 import cognee
+cognee.config.llm_api_key = os.getenv('GEMINI_API_KEY')
+cognee.config.llm_provider = "gemini"
+cognee.config.llm_model = "gemini-2.5-flash"
+cognee.config.structured_output_backend = "gemini"
+
 
 async def main():
     # Gate B Goal: Verify Cognee 'remember' and 'recall' functionality.

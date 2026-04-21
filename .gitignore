@@ -12,3 +12,6 @@ lightrag_storage/
 *.md
 !README.md
 !project_summary.md
+entity_buffer/
+canonical_map.json
+canonical_map.json.tmp

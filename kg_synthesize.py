@@ -1,143 +1,112 @@
 import os
-import cognee_wrapper
-
-
-# TRICK: Set environment variables BEFORE importing lightrag or genai
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
-if "GOOGLE_API_KEY" in os.environ:
-    os.environ.pop("GOOGLE_API_KEY")
-
+import cognee
 import asyncio
 import sys
 import numpy as np
+import time
+
+# Essential Cognee Configuration MUST come before wrapper import
+# We use the key from environment or .env
+load_env_path = "/home/sztimhdd/.hermes/.env"
+if os.path.exists(load_env_path):
+    with open(load_env_path, "r") as f:
+        for line in f:
+            if "=" in line:
+                key, val = line.split("=", 1)
+                os.environ[key.strip()] = val.strip()
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    print("Error: GEMINI_API_KEY not found.")
+    sys.exit(1)
+
+# FORCE CONFIGURATION
+cognee.config.llm_api_key = GEMINI_API_KEY
+cognee.config.llm_provider = "gemini"
+cognee.config.llm_model = "gemini-2.5-flash"
+cognee.config.structured_output_backend = "gemini"
+os.environ["COGNEE_LLM_API_KEY"] = GEMINI_API_KEY
+os.environ["LITELLM_API_KEY"] = GEMINI_API_KEY
+
+print(f"Cognee Status: Provider={cognee.config.llm_provider}, Model={cognee.config.llm_model}")
+
+import cognee_wrapper
 from lightrag.lightrag import LightRAG, QueryParam
 from lightrag.llm.gemini import gemini_model_complete, gemini_embed
 from lightrag.utils import wrap_embedding_func_with_attrs
 
 # Constants
-RAG_WORKING_DIR = os.path.expanduser("./data/lightrag_storage")
-
-def load_env():
-    """Load environment variables from ~/.hermes/.env if they are not already set."""
-    env_path = os.path.expanduser("~/.hermes/.env")
-    if os.path.exists(env_path):
-        with open(env_path, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    key, val = line.split("=", 1)
-                    if not os.environ.get(key):
-                        os.environ[key] = val.strip()
-
-# Initialize environment
-load_env()
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-
-if not GEMINI_API_KEY:
-    print("Error: GEMINI_API_KEY not found in environment.")
-    sys.exit(1)
+RAG_WORKING_DIR = "/home/sztimhdd/.hermes/kg-vault/lightrag_storage"
+MODEL_NAME = "gemini-2.5-flash" 
 
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-    """Wrapper for Gemini LLM model completion using LightRAG's built-in helper."""
     return await gemini_model_complete(
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        api_key=GEMINI_API_KEY,
-        model_name="gemini-2.5-pro",
-        **kwargs,
+        prompt, system_prompt=system_prompt, history_messages=history_messages,
+        api_key=GEMINI_API_KEY, model_name=MODEL_NAME, **kwargs,
     )
 
-@wrap_embedding_func_with_attrs(
-    embedding_dim=3072,
-    send_dimensions=True,
-    max_token_size=2048,
-    model_name="gemini-embedding-001",
-)
+@wrap_embedding_func_with_attrs(embedding_dim=768, send_dimensions=True, max_token_size=2048, model_name="gemini-embedding-001")
 async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
-    """Wrapper for Gemini embedding function."""
-    return await gemini_embed.func(
-        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001"
-    )
+    return await gemini_embed.func(texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001")
 
 async def synthesize_response(query_text: str, mode: str = "naive"):
-    """Initializes LightRAG and performs a query to synthesize a markdown response."""
-    rag = LightRAG(
-        working_dir=RAG_WORKING_DIR,
-        llm_model_func=llm_model_func,
-        embedding_func=embedding_func,
-        llm_model_name="gemini-2.5-pro",
-    )
-    
-    if hasattr(rag, "initialize_storages"):
-        await rag.initialize_storages()
+    rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=llm_model_func, embedding_func=embedding_func, llm_model_name=MODEL_NAME)
+    if hasattr(rag, "initialize_storages"): await rag.initialize_storages()
         
-    # Custom instructions for synthesis to ensure image links are preserved/used
-    
-    # Cognee integration: Recall previous synthesis context
+    await asyncio.sleep(2)
+    # Apply canonical mapping if exists
+    map_file = "/home/sztimhdd/OmniGraph-Vault/canonical_map.json"
+    if os.path.exists(map_file):
+        try:
+            with open(map_file, "r") as f:
+                canonical_map = json.load(f)
+            # Simple text replace for exact matches - robust mapping logic
+            for raw, canonical in canonical_map.items():
+                if raw in query_text:
+                    query_text = query_text.replace(raw, canonical)
+        except Exception as e:
+            print(f"Warning: Failed to load canonical map: {e}")
+
     past_context = []
     try:
         past_context = await cognee_wrapper.recall_previous_context(query_text)
     except Exception as e:
         print(f"Warning: Cognee recall failed: {e}")
     
-    historical_context_str = ""
-    if past_context:
-        historical_context_str = "\n### Historical Context from Past Queries:\n" + "\n".join([str(c) for c in past_context]) + "\n"
-    custom_prompt = f"""You are a knowledge synthesizer for KG-Vault. 
-Your task is to answer the user's query based on the provided knowledge graph context.
-The context contains local image links in the format 'http://localhost:8765/hash/index.jpg'.
+    historical_context_str = "\n### Historical Context from Past Queries:\n" + "\n".join([str(c) for c in past_context]) + "\n" if past_context else ""
+    custom_prompt = f"You are a knowledge synthesizer for OminiGraph-Vault. Answer the query based on the graph context.\n{historical_context_str}\nUser Query: {query_text}"
 
-REALLY IMPORTANT RULES:
-1. You MUST include relevant images from the context in your response.
-2. Use standard Markdown syntax for images: ![Description](http://localhost:8765/hash/index.jpg)
-3. Do NOT change the image URLs.
-4. If there are multiple images, place them appropriately in the text where they add value.
-5. If the context has [Image Description] tags, use that text as the Alt text for the image.
-
-{historical_context_str}\nUser Query: {query_text}
-"""
-
-    param = QueryParam(
-        mode=mode, 
-        response_type="Detailed Markdown Article with Inline Images",
-    )
+    param = QueryParam(mode=mode, response_type="Detailed Markdown Article with Inline Images")
     
-    response = await rag.aquery(custom_prompt, param=param)
-    
-    # Cognee integration: Remember the synthesis result
-    try:
-        await cognee_wrapper.remember_synthesis(query_text, response)
-    except Exception as e:
-        print(f"Warning: Cognee remember failed: {e}")
+    response = None
+    for i in range(3):
+        try:
+            response = await rag.aquery(custom_prompt, param=param)
+            break
+        except Exception as e:
+            print(f"Query attempt {i+1} failed: {e}")
+            if i < 2: await asyncio.sleep(5)
+            else: raise e
+
+    if response:
+        await asyncio.sleep(2)
+        try: await cognee_wrapper.remember_synthesis(query_text, response)
+        except Exception as e: print(f"Warning: Cognee remember failed: {e}")
     return response
 
 async def main():
     if len(sys.argv) < 2:
         print("Usage: python kg_synthesize.py \"<your query>\" [mode]")
         sys.exit(1)
-        
-    query = sys.argv[1]
-    mode = sys.argv[2] if len(sys.argv) > 2 else "naive"
-    
+    query, mode = sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "naive"
     try:
-        print(f"--- Synthesizing Knowledge (Mode: {mode}) ---\nQuery: {query}\n")
         response = await synthesize_response(query, mode=mode)
-        print("\n--- Final Markdown Response ---\n")
-        print(response)
-        
-        # Save to a file for review
-        output_file = "/home/sztimhdd/.hermes/kg-vault/synthesis_output.md"
-        with open(output_file, "w") as f:
-            f.write(response)
-        print(f"\nResponse saved to {output_file}")
-        
+        if response:
+            output_file = "/home/sztimhdd/.hermes/kg-vault/synthesis_output.md"
+            with open(output_file, "w") as f: f.write(response)
+            print(f"Response saved to {output_file}")
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"Error: {e}")
+        import traceback; traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":

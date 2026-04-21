@@ -30,7 +30,7 @@ nest_asyncio.apply()
 
 # Load GEMINI_API_KEY and APIFY_TOKEN from ~/.hermes/.env if not set
 def load_env():
-    env_path = os.path.expanduser("~/.hermes/.env")
+    env_path = "/home/sztimhdd/.hermes/.env"
     if os.path.exists(env_path):
         with open(env_path, "r") as f:
             for line in f:
@@ -47,8 +47,8 @@ load_env()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
 CDP_URL = "http://127.0.0.1:9223"
-BASE_IMAGE_DIR = os.path.expanduser("~/.hermes/kg-vault/images")
-RAG_WORKING_DIR = os.path.expanduser("~/.hermes/kg-vault/lightrag_storage")
+BASE_IMAGE_DIR = "/home/sztimhdd/.hermes/kg-vault/images"
+RAG_WORKING_DIR = "/home/sztimhdd/.hermes/kg-vault/lightrag_storage"
 
 os.makedirs(BASE_IMAGE_DIR, exist_ok=True)
 os.makedirs(RAG_WORKING_DIR, exist_ok=True)
@@ -68,7 +68,7 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
     )
 
 @wrap_embedding_func_with_attrs(
-    embedding_dim=3072,
+    embedding_dim=768,
     send_dimensions=True,
     max_token_size=2048,
     model_name="gemini-embedding-001",
@@ -284,25 +284,17 @@ async def ingest_article(url):
     print("Ingesting into LightRAG...")
     rag = await get_rag()
     
-    # Cognee integration: Canonicalization
+    # Cognee integration: Buffered
     try:
-        print("Extracting entities for canonicalization...")
         raw_entities = await extract_entities(full_content)
-        print(f"Found {len(raw_entities)} raw entities. Disambiguating...")
-        canonical_entities = await cognee_wrapper.disambiguate_entities(raw_entities)
-        
-        mapping = []
-        for raw, canonical in zip(raw_entities, canonical_entities):
-            if raw.lower() != canonical.lower():
-                mapping.append(f"{raw} -> {canonical}")
-        
-        if mapping:
-            mapping_str = "\n\n### [Entity Canonical Mapping]:\n" + "\n".join(mapping)
-            full_content += mapping_str
-            print(f"Added {len(mapping)} canonical mappings to content.")
+        buffer_data = {'url': url, 'raw_entities': raw_entities, 'timestamp': os.path.getmtime(article_dir)}
+        os.makedirs('/home/sztimhdd/OmniGraph-Vault/entity_buffer', exist_ok=True)
+        with open(os.path.join('/home/sztimhdd/OmniGraph-Vault/entity_buffer', f'{article_hash}_entities.json'), 'w') as f:
+            json.dump(buffer_data, f)
+        print(f'Buffered {len(raw_entities)} entities for async processing.')
     except Exception as e:
-        print(f"Warning: Cognee disambiguation failed: {e}")
-
+        print(f'Warning: Entity buffering failed: {e}')
+        
     await rag.ainsert(full_content)
     
     # Save files for inspection
@@ -381,54 +373,12 @@ async def ingest_pdf(file_path):
     print("Ingesting into LightRAG...")
     rag = await get_rag()
     
-    # Cognee integration: Canonicalization
+    # Cognee integration: Buffered
     try:
-        print("Extracting entities for canonicalization...")
-        raw_entities = await extract_entities(full_text)
-        print(f"Found {len(raw_entities)} raw entities. Disambiguating...")
-        canonical_entities = await cognee_wrapper.disambiguate_entities(raw_entities)
-        
-        mapping = []
-        for raw, canonical in zip(raw_entities, canonical_entities):
-            if raw.lower() != canonical.lower():
-                mapping.append(f"{raw} -> {canonical}")
-        
-        if mapping:
-            mapping_str = "\n\n### [Entity Canonical Mapping]:\n" + "\n".join(mapping)
-            full_text += mapping_str
-            print(f"Added {len(mapping)} canonical mappings to content.")
+        raw_entities = await extract_entities(full_content)
+        buffer_data = {'url': url, 'raw_entities': raw_entities, 'timestamp': os.path.getmtime(article_dir)}
+        with open(os.path.join('/home/sztimhdd/OmniGraph-Vault/entity_buffer', f'{article_hash}_entities.json'), 'w') as f:
+            json.dump(buffer_data, f)
+        print(f'Buffered {len(raw_entities)} entities for async processing.')
     except Exception as e:
-        print(f"Warning: Cognee disambiguation failed: {e}")
-
-    await rag.ainsert(full_text)
-    
-    with open(os.path.join(article_dir, "metadata.json"), "w") as f:
-        json.dump({
-            "title": title, 
-            "file_path": file_path, 
-            "hash": file_hash, 
-            "images": processed_images
-        }, f, indent=2)
-    
-    with open(os.path.join(article_dir, "final_content.md"), "w") as f:
-        f.write(full_text)
-    
-    print(f"--- Successfully Ingested PDF! ---")
-    print(f"Title: {title}")
-    print(f"Hash: {file_hash}")
-    print(f"Local Path: {article_dir}")
-
-if __name__ == "__main__":
-    if not GEMINI_API_KEY:
-        print("Error: GEMINI_API_KEY not found in environment.")
-        sys.exit(1)
-    
-    input_path = sys.argv[1] if len(sys.argv) > 1 else "https://mp.weixin.qq.com/s/Y_uRMYBmdLWUPnz_ac7jWA"
-    
-    if input_path.startswith("http"):
-        asyncio.run(ingest_article(input_path))
-    elif input_path.lower().endswith(".pdf"):
-        asyncio.run(ingest_pdf(input_path))
-    else:
-        print(f"Unknown input type: {input_path}")
-        sys.exit(1)
+        print(f'Warning: Entity buffering failed: {e}')
