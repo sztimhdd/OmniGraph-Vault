@@ -28,6 +28,11 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# Windows cp1252 console can't print unicode box-drawing chars — force UTF-8.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import config  # loads ~/.hermes/.env, sets GEMINI_API_KEY
 
 try:
@@ -120,8 +125,16 @@ def load_skill(skill_dir: Path) -> SkillDef:
     )
 
 
+_SIMULATOR_PREAMBLE = """\
+You are simulating a Hermes agent skill in a local test harness.
+Respond with plain text only. Do NOT call any functions or tools.
+When the skill instructions say to run a command (e.g. `python ingest_wechat.py`),
+tell the user what command they should run -- do not attempt to execute it yourself.
+"""
+
+
 def _build_system_prompt(skill: SkillDef, load_references: list[str]) -> str:
-    parts = [skill.body]
+    parts = [_SIMULATOR_PREAMBLE, skill.body]
     for ref_path in load_references:
         ref_file = skill.path / "references" / ref_path
         if ref_file.exists():
@@ -133,23 +146,49 @@ def _build_system_prompt(skill: SkillDef, load_references: list[str]) -> str:
 
 # ── Gemini call ───────────────────────────────────────────────────────────────
 
+_GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
+_MAX_RETRIES = 3
+
+
 def call_gemini(system_prompt: str, user_message: str) -> str:
+    import time
     from google import genai
     from google.genai import types
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not set — check ~/.hermes/.env")
+        raise RuntimeError("GEMINI_API_KEY not set -- check ~/.hermes/.env")
     client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            temperature=0.1,  # low temperature for deterministic instruction-following
-        ),
-        contents=user_message,
-    )
-    return response.text
+
+    for attempt in range(_MAX_RETRIES):
+        try:
+            response = client.models.generate_content(
+                model=_GEMINI_MODEL,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.1,
+                    # Disable function calling so the model never tries to invoke tools.
+                    tool_config=types.ToolConfig(
+                        function_calling_config=types.FunctionCallingConfig(mode="NONE")
+                    ),
+                ),
+                contents=user_message,
+            )
+        except Exception as exc:
+            msg = str(exc)
+            if "503" in msg and attempt < _MAX_RETRIES - 1:
+                time.sleep(5 * (attempt + 1))
+                continue
+            raise
+
+        if response.text is not None:
+            return response.text
+        if response.candidates:
+            reason = response.candidates[0].finish_reason
+            raise RuntimeError(f"Gemini returned no text (finish_reason={reason})")
+        raise RuntimeError("Gemini returned empty response (no candidates)")
+
+    raise RuntimeError(f"Gemini unavailable after {_MAX_RETRIES} retries")
 
 
 # ── Test execution ────────────────────────────────────────────────────────────
@@ -226,7 +265,7 @@ def validate_skill(skill_dir: Path) -> list[str]:
 # ── Print helpers ─────────────────────────────────────────────────────────────
 
 def _print_result(result: TestResult, verbose: bool) -> None:
-    icon = f"{_GREEN}✓{_RESET}" if result.passed else f"{_RED}✗{_RESET}"
+    icon = f"{_GREEN}PASS{_RESET}" if result.passed else f"{_RED}FAIL{_RESET}"
     print(f"  {icon} {result.case.description}")
     if not result.passed:
         for failure in result.failures:
@@ -281,7 +320,7 @@ def main() -> int:
             if errors:
                 print(f"{_RED}FAIL{_RESET} {_BOLD}{skill_name}{_RESET}")
                 for err in errors:
-                    print(f"  {_RED}✗{_RESET} {err}")
+                    print(f"  {_RED}x{_RESET} {err}")
                 failed_validations += 1
             else:
                 print(f"{_GREEN}PASS{_RESET} {_BOLD}{skill_name}{_RESET}")

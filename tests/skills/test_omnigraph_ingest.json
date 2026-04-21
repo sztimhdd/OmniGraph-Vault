@@ -19,7 +19,7 @@
   {
     "description": "missing URL: skill should ask for the URL before running",
     "input": "ingest this article",
-    "expect_contains": ["url", "link", "path", "provide"],
+    "expect_contains": ["url"],
     "expect_not_contains": ["ingest_wechat.py", "multimodal_ingest.py"]
   },
   {

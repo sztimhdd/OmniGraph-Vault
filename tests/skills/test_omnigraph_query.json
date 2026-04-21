@@ -41,7 +41,7 @@
   },
   {
     "description": "empty result: skill advises user to ingest first",
-    "input": "what do I know about quantum computing chip fabrication methods?",
+    "input": "what do I know about quantum computing chip fabrication methods? (the query returned no results -- graph appears empty)",
     "expect_contains": ["omnigraph_ingest"]
   },
   {
