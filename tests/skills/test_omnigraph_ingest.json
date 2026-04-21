@@ -1,0 +1,47 @@
+[
+  {
+    "description": "golden path: WeChat URL triggers ingest_wechat.py (FR-1)",
+    "input": "add this article to my knowledge base: https://mp.weixin.qq.com/s/Y_uRMYBmdLWUPnz_ac7jWA",
+    "expect_contains": ["ingest_wechat.py"],
+    "expect_not_contains": ["omnigraph_query", "kg_synthesize.py"]
+  },
+  {
+    "description": "golden path: alternative trigger phrase 'save to kb'",
+    "input": "save this to my kb: https://mp.weixin.qq.com/s/abc123",
+    "expect_contains": ["ingest_wechat.py"]
+  },
+  {
+    "description": "PDF ingestion triggers multimodal_ingest.py (FR-7)",
+    "input": "ingest this PDF: /home/user/documents/ai_paper.pdf",
+    "expect_contains": ["multimodal_ingest.py"],
+    "expect_not_contains": ["ingest_wechat.py"]
+  },
+  {
+    "description": "missing URL: skill should ask for the URL before running",
+    "input": "ingest this article",
+    "expect_contains": ["url", "link", "path", "provide"],
+    "expect_not_contains": ["ingest_wechat.py", "multimodal_ingest.py"]
+  },
+  {
+    "description": "wrong skill: query intent redirects to omnigraph_query",
+    "input": "what do I know about knowledge graphs?",
+    "expect_contains": ["omnigraph_query"],
+    "expect_not_contains": ["ingest_wechat.py"]
+  },
+  {
+    "description": "wrong skill: synthesis request redirects to omnigraph_synthesize",
+    "input": "write a report on AI agent architectures",
+    "expect_contains": ["omnigraph_synthesize"],
+    "expect_not_contains": ["ingest_wechat.py"]
+  },
+  {
+    "description": "config error: missing GEMINI_API_KEY surfaces actionable message",
+    "input": "ingest https://mp.weixin.qq.com/s/test — but GEMINI_API_KEY is not configured",
+    "expect_contains": ["GEMINI_API_KEY", ".env"]
+  },
+  {
+    "description": "CDP fallback error: actionable message with Edge debug command",
+    "input": "ingest https://mp.weixin.qq.com/s/test — Apify failed and CDP is not reachable at localhost:9223",
+    "expect_contains": ["9223", "CDP", "remote-debugging"]
+  }
+]

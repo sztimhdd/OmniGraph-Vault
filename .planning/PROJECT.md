@@ -31,7 +31,9 @@ When Hermes sees "add this to my KB" or "what do I know about X?" it calls the r
 - [ ] `omnigraph_ingest` Hermes skill: trigger `ingest_wechat.py` from natural language ("add this to my KB")
 - [ ] `omnigraph_query` Hermes skill: trigger `kg_synthesize.py` from natural language ("what do I know about X?")
 - [ ] Skills surface clear error messages when scripts fail (missing env vars, API quota, CDP not running)
-- [ ] Gate 7: Hermes Agent integration demo — both skills exercised end-to-end
+- [ ] `skill_runner.py`: local simulator that loads SKILL.md as system prompt and runs test cases against Gemini API (same backend Hermes uses) — no Hermes install required
+- [ ] `tests/skills/test_omnigraph_ingest.json` + `tests/skills/test_omnigraph_query.json`: test cases covering trigger phrases, guard clauses, output format, and wrong-skill redirects
+- [ ] Gate 7: both skills pass all `skill_runner.py` test cases locally; trigger-phrase matching validated on Hermes PC
 
 ### Out of Scope
 

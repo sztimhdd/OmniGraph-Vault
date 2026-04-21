@@ -243,27 +243,58 @@ os.environ['LLM_MODEL'] = 'gemini-2.5-flash'
    - `disambiguate_entities()` - `c:/Users/huxxha/Desktop/OmniGraph-Vault/cognee_wrapper.py`
    - Batch processing - `c:/Users/huxxha/Desktop/OmniGraph-Vault/cognee_batch_processor.py`
 
+## Hermes Skill Simulator
+
+Because Hermes uses Gemini as its LLM backend — the same model already in this stack — skill execution can be simulated locally with no Hermes installation required.
+
+**Implementation:** `skill_runner.py` at project root.
+
+**What it simulates:**
+- Loads `SKILL.md` body as the system prompt
+- Optionally injects `references/` files (Level 2 loading)
+- Sends a test input message to Gemini API
+- Asserts `expect_contains` / `expect_not_contains` against the response
+- Tests `scripts/` standalone via `subprocess`
+
+**Test cases:** `tests/skills/test_<skill_name>.json`
+
+**Run commands:**
+```bash
+# Single skill, single message
+python skill_runner.py skills/omnigraph_query "what do I know about LightRAG?"
+
+# Full test suite for one skill
+python skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omnigraph_query.json
+
+# Validate all skill structures (no API call)
+python skill_runner.py skills/ --validate
+
+# Run all skill test suites
+python skill_runner.py skills/ --test-all
+```
+
+**Limitations:** Does not validate Hermes-specific tool dispatch or `triggers` auto-matching — those require a live Hermes instance (Gate 7).
+
 ## Recommended Testing Strategy
 
-**Phase 1: Establish Framework**
+**Phase 1: Skill simulator** (immediate priority)
+- Implement `skill_runner.py` using existing `google-genai` dependency
+- Write test cases in `tests/skills/` for `omnigraph_ingest` and `omnigraph_query`
+- Run before every commit that touches `skills/`
+
+**Phase 2: Establish framework for pipeline code**
 - Install `pytest` and `pytest-asyncio`
-- Create `conftest.py` with shared fixtures
-- Consolidate environment setup
+- Create `conftest.py` with shared env fixture (eliminate the 60-line duplication)
+- Refactor verification gates to pytest assertions
 
-**Phase 2: Unit Tests**
-- Test `config.load_env()` with mock file I/O
-- Test `cognee_wrapper` utility functions with mocked Cognee API
-- Add assertions for error cases
-
-**Phase 3: Integration Tests**
-- Keep verification gates but refactor to pytest
-- Use fixtures for environment setup
-- Add proper assertions instead of string matching
+**Phase 3: Unit tests**
+- `config.load_env()` with mock file I/O
+- `cognee_wrapper` functions with mocked Cognee
+- Batch processor idempotency (`cognee_batch_processor.py`)
 
 **Phase 4: Automation**
-- Set up test runner in CI/CD
-- Enforce minimum coverage (80%+)
-- Separate unit (fast) from integration (slow) tests
+- `python skill_runner.py skills/ --test-all` in GitHub Actions on `skills/**` changes
+- Separate unit (fast, no API) from integration (slow, live API) pytest marks
 
 ---
 

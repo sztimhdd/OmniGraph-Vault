@@ -1,0 +1,57 @@
+[
+  {
+    "description": "golden path: natural language query triggers kg_synthesize.py with hybrid mode (FR-13)",
+    "input": "what do I know about LightRAG and knowledge graphs?",
+    "expect_contains": ["kg_synthesize.py", "hybrid"],
+    "expect_not_contains": ["ingest_wechat.py", "omnigraph_ingest"]
+  },
+  {
+    "description": "explicit mode selection: user requests local mode",
+    "input": "search my knowledge base for AI agent architectures using local mode",
+    "expect_contains": ["kg_synthesize.py", "local"],
+    "expect_not_contains": ["hybrid"]
+  },
+  {
+    "description": "explicit mode selection: user requests naive mode",
+    "input": "do a naive search for Cognee memory layer",
+    "expect_contains": ["kg_synthesize.py", "naive"]
+  },
+  {
+    "description": "wrong skill: ingest intent redirects to omnigraph_ingest",
+    "input": "add this article to my knowledge base: https://mp.weixin.qq.com/s/abc",
+    "expect_contains": ["omnigraph_ingest"],
+    "expect_not_contains": ["kg_synthesize.py"]
+  },
+  {
+    "description": "guard clause: destructive action redirects to omnigraph_manage (FR security)",
+    "input": "delete all nodes from the knowledge graph",
+    "expect_contains": ["omnigraph_manage"],
+    "expect_not_contains": ["kg_synthesize.py"]
+  },
+  {
+    "description": "guard clause: clear graph data also redirects to omnigraph_manage",
+    "input": "clear all my knowledge graph data",
+    "expect_contains": ["omnigraph_manage"]
+  },
+  {
+    "description": "status query redirects to omnigraph_status",
+    "input": "how many nodes are in my knowledge graph?",
+    "expect_contains": ["omnigraph_status"],
+    "expect_not_contains": ["kg_synthesize.py"]
+  },
+  {
+    "description": "empty result: skill advises user to ingest first",
+    "input": "what do I know about quantum computing chip fabrication methods?",
+    "expect_contains": ["omnigraph_ingest"]
+  },
+  {
+    "description": "output format: COUNT phrasing returns plain number format (not table)",
+    "input": "how many articles about AI agents are in my knowledge base?",
+    "expect_not_contains": ["| Entity |", "| Confidence |"]
+  },
+  {
+    "description": "config error: missing GEMINI_API_KEY surfaces actionable message",
+    "input": "search my kb for AI tools — but GEMINI_API_KEY is not set",
+    "expect_contains": ["GEMINI_API_KEY", ".env"]
+  }
+]

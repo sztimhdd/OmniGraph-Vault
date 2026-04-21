@@ -258,10 +258,75 @@ User / Agent
 | Gate C | Chinese/English entity canonicalized through batch processor | ✅ Passed |
 | Gate D | Second query benefits from first query's remembered context | ✅ Passed |
 | Gate 6 | End-to-end: 3 articles ingested, cross-article synthesis query answered | 🔄 Current |
-| Gate 7 | Openclaw / Hermes Agent integration demo | 🔄 Planned |
+| Gate 7 | Hermes skill simulator: both skills pass all test cases via `skill_runner.py` | 🔄 Planned |
 
-### 5.5 Continuous Testing
+### 5.5 Hermes Skill Simulator (Local, No Hermes Required)
+
+Since Hermes uses Gemini as its LLM backend — the same model already in this project's stack — skill execution can be simulated exactly locally using `skill_runner.py`.
+
+**How it works:**
+
+```
+SKILL.md body       → system prompt
+references/*.md     → injected on-demand (Level 2 loading simulation)
+test input message  → user message
+Gemini API          → response (same backend Hermes uses)
+```
+
+`scripts/` files are tested standalone via `subprocess` independently of the LLM simulation.
+
+**Runner interface:**
+
+```bash
+# Test a skill against a single message
+python skill_runner.py skills/omnigraph_ingest "add this article to my kb: https://mp.weixin.qq.com/s/..."
+
+# Run all test cases defined in a skill's test file
+python skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omnigraph_query.json
+
+# Validate skill structure only (no API call)
+python skill_runner.py skills/omnigraph_ingest --validate
+```
+
+**Test case format** (`tests/skills/test_<skill_name>.json`):
+
+```json
+[
+  {
+    "description": "golden path trigger",
+    "input": "what do I know about LightRAG?",
+    "expect_contains": ["kg_synthesize.py", "hybrid"],
+    "expect_not_contains": ["ingest"]
+  },
+  {
+    "description": "guard clause fires on delete",
+    "input": "delete all nodes",
+    "expect_contains": ["confirm", "cannot be undone"]
+  },
+  {
+    "description": "wrong skill — should redirect",
+    "input": "add this article to my kb",
+    "expect_contains": ["omnigraph_ingest"]
+  }
+]
+```
+
+**What this validates:**
+- LLM follows decision trees correctly given the skill instructions
+- Guard clauses fire for destructive operations
+- Output format rules are respected (table vs bullets vs plain count)
+- Out-of-scope requests are redirected to the correct skill
+- `requires` env vars are referenced in responses when missing
+
+**What it does NOT validate:**
+- Hermes-specific tool dispatch (`skill_view`, `exec` calls) — those require live Hermes
+- Trigger phrase auto-matching (YAML `triggers` field) — validated on the Hermes PC at Gate 7
+
+**Location:** `skill_runner.py` (project root), test cases in `tests/skills/`
+
+### 5.6 Continuous Testing
 - **Pre-commit**: `flake8` + `black` static analysis.
+- **Skill simulator**: `python skill_runner.py skills/ --test-all` run locally before each commit touching `skills/`.
 - **GitHub Actions**: Integration tests on push to `main`.
 - **Manual**: Execute corresponding `specs/*.md` test plan before marking each gate complete.
 
