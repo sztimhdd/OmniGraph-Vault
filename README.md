@@ -42,11 +42,19 @@ pip install -r requirements.txt
 ```
 
 #### 2. Configuration
-Create a `.env` file in the project root (or set environment variables):
+Put your runtime secrets in `~/.hermes/.env` because `config.py` loads from that location:
 ```bash
 GEMINI_API_KEY=your_gemini_key
 APIFY_TOKEN=your_apify_token  # optional, for primary scraping
+CDP_URL=http://localhost:9223 # optional, for CDP fallback
 ```
+
+Important deployment rule:
+
+- `~/OmniGraph-Vault` = Git repo, source code, tests, skills
+- `~/.hermes/omonigraph-vault` = runtime data only
+
+Do not turn `~/.hermes/omonigraph-vault` into a second copy of the repo.
 
 #### 3. Basic Usage
 ```bash
@@ -75,6 +83,22 @@ def query_kg(question: str) -> str:
     return result.stdout
 ```
 
+#### 5. Connect Hermes To The Repo
+Hermes should load the repository's `skills/` directory directly instead of using copied skill files.
+
+```bash
+hermes config set skills.external_dirs '["/home/<your-user>/OmniGraph-Vault/skills"]'
+hermes gateway restart
+hermes skills list | grep omnigraph
+```
+
+Expected skills:
+
+- `omnigraph_ingest`
+- `omnigraph_query`
+
+This keeps GitHub, local development, and live Hermes behavior aligned.
+
 ### 🔌 Windows Edge Bridge (CDP Fallback)
 If Apify fails due to bot detection, enable Edge debugging on the Windows host:
 ```powershell
@@ -96,7 +120,25 @@ OmniGraph‑Vault/
 └── tests/                 # Unit & integration tests
 ```
 
-**Runtime data** (knowledge graph, images, Cognee databases) is stored under `~/.hermes/kg-vault/`, keeping source code and persistent data separate.
+**Runtime data** is stored under `~/.hermes/omonigraph-vault/`. The `omonigraph` spelling is intentional and currently baked into `config.py`, so preserve it unless you are doing a coordinated migration.
+
+### 🤖 Agent Deployment Notes
+
+For Hermes/Openclaw skill best practices, this project assumes:
+
+- skills are narrow in scope and explicit about when to trigger
+- skills call repo scripts, not ad-hoc copies in runtime folders
+- agents should not guess the repo path, data path, or Python environment
+- guard clauses should fire early when the user omitted a URL, file path, or API key
+
+Recommended command shape inside agent wrappers:
+
+```bash
+cd ~/OmniGraph-Vault && source venv/bin/activate && python ingest_wechat.py "<URL>"
+cd ~/OmniGraph-Vault && source venv/bin/activate && python kg_synthesize.py "<QUESTION>" hybrid
+```
+
+If you are deploying to Hermes, see [Deploy.md](Deploy.md) for the full connection flow.
 
 ### 📄 License
 MIT License.
@@ -141,11 +183,19 @@ pip install -r requirements.txt
 ```
 
 #### 2. 配置
-在项目根目录创建 `.env` 文件（或设置环境变量）：
+将运行时密钥放在 `~/.hermes/.env` 中，因为 `config.py` 会从该位置加载环境变量：
 ```bash
 GEMINI_API_KEY=你的_gemini_密钥
 APIFY_TOKEN=你的_apify_token  # 可选，用于主爬虫
+CDP_URL=http://localhost:9223 # 可选，用于 CDP 后备路径
 ```
+
+部署时请始终遵循：
+
+- `~/OmniGraph-Vault` 是 Git 仓库、源码目录、技能目录
+- `~/.hermes/omonigraph-vault` 是运行时数据目录
+
+不要把 `~/.hermes/omonigraph-vault` 当成第二份源码仓库。
 
 #### 3. 基础使用
 ```bash
@@ -194,7 +244,32 @@ OmniGraph‑Vault/
 └── tests/                 # 单元与集成测试
 ```
 
-**运行时数据**（知识图谱、图片、Cognee 数据库）存储在 `~/.hermes/kg-vault/` 下，实现源代码与持久化数据的分离。
+**运行时数据**存储在 `~/.hermes/omonigraph-vault/` 下。这里的 `omonigraph` 拼写是当前实现的一部分，请保留，不要在部署时自行改名。
+
+### 🤖 代理部署说明
+
+为了让 Hermes / Openclaw 少猜路径、少猜命令，建议始终遵循：
+
+- `~/OmniGraph-Vault` 作为 Git 仓库与源码目录
+- `~/.hermes/omonigraph-vault` 作为运行时数据目录
+- 让 Hermes 直接加载仓库的 `skills/`，不要手工复制出第二份旧技能
+
+推荐连接命令：
+
+```bash
+hermes config set skills.external_dirs '["/home/<your-user>/OmniGraph-Vault/skills"]'
+hermes gateway restart
+hermes skills list | grep omnigraph
+```
+
+技能中的推荐执行方式：
+
+```bash
+cd ~/OmniGraph-Vault && source venv/bin/activate && python ingest_wechat.py "<URL>"
+cd ~/OmniGraph-Vault && source venv/bin/activate && python kg_synthesize.py "<QUESTION>" hybrid
+```
+
+完整部署步骤请参考 [Deploy.md](Deploy.md)。
 
 ### 📄 开源协议
 MIT 协议。

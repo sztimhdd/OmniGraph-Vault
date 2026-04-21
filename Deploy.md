@@ -1,240 +1,253 @@
 # OmniGraph-Vault 部署指南
 
-本文档指导如何将 **OmniGraph‑Vault**（专为 Openclaw 与 Hermes Agent 设计的个人知识库解决方案）部署到全新的 Hermes 环境。部署过程分为 **环境初始化**、**技能配置** 和 **端到端验证** 三个阶段。
+本文档说明如何把 **OmniGraph-Vault** 接入真实运行中的 **Hermes Agent / Openclaw**，并避免最常见的部署错误。
+
+最重要的原则只有一条：
+
+- **Git 仓库是源码与技能定义的唯一真相来源**
+- **`~/.hermes/omonigraph-vault/` 是运行时数据目录，不是 Git 仓库**
+
+不要把源码、虚拟环境、LightRAG 源码副本、图谱数据和技能副本混在同一个目录里。Hermes/Openclaw 不应该“自己猜”项目在哪里；我们要显式告诉它。
 
 ## 1. 系统要求
 
-- **操作系统**：Linux / WSL2 (Ubuntu 20.04+) 或 macOS
-- **Python**：3.11 或更高版本
-- **Git**：版本控制
-- **Hermes Agent**：已安装并配置（CLI 或 Gateway 模式）
-- **API 密钥**：
-  - Google Gemini API 密钥（用于 LLM 与视觉描述）
-  - Apify Token（可选，用于优先抓取）
-  - 其他环境变量（详见下文）
+- 操作系统：Linux / WSL2 (Ubuntu 20.04+) 或 macOS
+- Python：3.11+
+- Git
+- Hermes Agent 或 Openclaw
+- Google Gemini API Key
+- Apify Token（可选）
+- Windows Edge 或 Chrome CDP 调试入口（可选，用于抓取后备）
 
-## 2. 环境初始化
+## 2. 目标目录结构
 
-### 2.1 克隆代码库
+推荐目录如下：
+
+```text
+~/OmniGraph-Vault/                 # Git 仓库：源码、skills、tests、docs
+~/.hermes/.env                     # Hermes / OmniGraph-Vault 共用环境变量
+~/.hermes/omonigraph-vault/        # 运行时数据：图谱、图片、输出、缓存
+```
+
+其中：
+
+- `~/OmniGraph-Vault` 必须保持为正常 Git 仓库
+- `~/.hermes/omonigraph-vault` 必须保留 `omonigraph` 这个拼写，**不要擅自改成 `omnigraph`**
+- `config.py` 会读取 `~/.hermes/.env`
+
+## 3. 安装源码仓库
+
 ```bash
 git clone https://github.com/sztimhdd/OmniGraph-Vault.git ~/OmniGraph-Vault
 cd ~/OmniGraph-Vault
-```
-
-### 2.2 创建虚拟环境
-```bash
 python3 -m venv venv
 source venv/bin/activate
-```
-
-### 2.3 安装依赖
-```bash
 pip install -r requirements.txt
 ```
 
-### 2.4 配置环境变量
-在 `~/.hermes/.env` 中设置以下变量（若文件不存在则创建）：
-```bash
-GEMINI_API_KEY=your_gemini_key
-APIFY_TOKEN=your_apify_token          # 可选，用于主抓取路径
-CDP_URL=http://localhost:9223         # 可选，CDP 后备抓取
-```
+验证：
 
-### 2.5 验证核心组件
 ```bash
-# 检查 LightRAG 与 Cognee 是否可导入
+git status --short --branch
 python -c "import lightrag; print('LightRAG OK')"
 python -c "import cognee; print('Cognee OK')"
 ```
 
-### 2.6 启动本地图像服务器
+## 4. 初始化运行时数据目录
+
 ```bash
-# 确保图像存储目录存在
 mkdir -p ~/.hermes/omonigraph-vault/images
+mkdir -p ~/.hermes/omonigraph-vault/lightrag_storage
+mkdir -p ~/.hermes/omonigraph-vault/outputs
+```
 
-# 在后台启动 HTTP 服务器（端口 8765）
+这一步只创建运行时目录，不复制源码，不复制整个仓库，不在这里再建第二个 Git repo。
+
+## 5. 配置环境变量
+
+在 `~/.hermes/.env` 中放置项目需要的变量：
+
+```bash
+GEMINI_API_KEY=your_gemini_key
+APIFY_TOKEN=your_apify_token
+CDP_URL=http://localhost:9223
+```
+
+如果你在 WSL 中调用 Windows Edge 进行 CDP 抓取，先在 Windows 主机启动：
+
+```powershell
+Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 --user-data-dir=$env:LOCALAPPDATA\EdgeDebug9223"
+```
+
+## 6. 启动图像服务器
+
+图像服务器必须直接指向运行时图片目录：
+
+```bash
 cd ~/.hermes/omonigraph-vault
-python -m http.server 8765 --directory images &
+python3 -m http.server 8765 --directory images
 ```
 
-## 3. 技能配置
+如果要后台运行：
 
-OmniGraph‑Vault 依赖以下 Hermes 技能（均已预置在技能库中）。请确保它们已安装并启用。
-
-### 3.1 核心技能清单
-
-| 技能名称 | 类别 | 作用 |
-|----------|------|------|
-| **omonigraph‑vault‑ops** | `omonigraph‑vault` | OmniGraph‑Vault 操作指南 – 涵盖 WeChat 抓取、图像描述、图谱合成全流程 |
-| **wechat_ingest** | 根目录 | WeChat 文章抓取专用技能 – Apify 优先、CDP 后备、图像处理逻辑 |
-| **cdp‑browser‑setup** | 根目录 | Windows Edge 桥接配置 – 为 CDP 后备抓取提供 WSL‑Windows 浏览器连接 |
-
-### 3.2 技能安装与启用
-
-#### 方法一：使用 Hermes CLI（推荐）
 ```bash
-# 查看已安装技能
-hermes skills list
-
-# 搜索 OmniGraph 相关技能（若在官方技能中心）
-hermes skills search omonigraph-vault
-
-# 安装技能（若尚未安装）
-hermes skills install omonigraph-vault-ops
-hermes skills install wechat_ingest
-hermes skills install cdp-browser-setup
-
-# 启用技能平台可见性
-hermes skills config
-# 在界面中确保上述技能在 CLI / Telegram 等平台勾选
+cd ~/.hermes/omonigraph-vault
+nohup python3 -m http.server 8765 --directory images > image_server.log 2>&1 &
 ```
 
-#### 方法二：手动复制技能文件（适用于本地开发）
+## 7. 把 Git 仓库显式连接到 Hermes
+
+这是部署里最关键的一步。
+
+### 7.1 不要复制 skills 到随机目录
+
+不推荐：
+
 ```bash
-# 假设技能文件位于项目下的 skills/ 目录
 cp -r ~/OmniGraph-Vault/skills/* ~/.hermes/skills/
-
-# 重新加载技能列表
-hermes skills check
 ```
 
-### 3.3 验证技能配置
-```bash
-# 查看技能详情
-hermes skills inspect omonigraph-vault-ops
+因为这样很容易让 Git 仓库和 Hermes 实际使用的技能副本发生漂移。
 
-# 在会话中加载测试
-hermes chat -s omonigraph-vault-ops -q "如何抓取微信文章？"
+### 7.2 推荐做法：让 Hermes 直接加载仓库内的 `skills/`
+
+```bash
+hermes config set skills.external_dirs '["/home/<your-user>/OmniGraph-Vault/skills"]'
 ```
 
-## 4. 端到端验证
+如果 CLI 版本不接受 JSON 数组，也可以直接编辑 `~/.hermes/config.yaml`：
 
-### 4.1 测试单篇文章抓取
-```bash
-# 使用示例 WeChat 文章 URL（请替换为真实 URL）
-python ingest_wechat.py "https://mp.weixin.qq.com/s/..."
-
-# 预期输出：
-# - 文章文本提取为 Markdown
-# - 图片下载至 ~/.hermes/omonigraph-vault/images/{article_hash}/
-# - Gemini Vision 生成图像描述
-# - 内容索引到 LightRAG 知识图谱
+```yaml
+skills:
+  external_dirs:
+    - /home/<your-user>/OmniGraph-Vault/skills
 ```
 
-### 4.2 测试知识图谱查询
-```bash
-python query_lightrag.py "测试查询"
+然后重启网关：
 
-# 应返回图谱中的实体与关系
+```bash
+hermes gateway restart
 ```
 
-### 4.3 测试合成报告生成
-```bash
-python kg_synthesize.py "简要介绍抓取的文章内容"
+验证：
 
-# 预期输出：
-# - 从知识图谱检索相关内容
-# - Cognee 记忆层提供上下文
-# - Gemini 2.5 Pro 生成综合报告
-# - 报告保存至 ~/.hermes/omonigraph-vault/synthesis_output.md
-# - 报告中包含本地图片链接（http://localhost:8765/...）
+```bash
+hermes skills list | grep -E 'omnigraph|omonigraph'
 ```
 
-### 4.4 检查输出文件
+你应该至少看到：
+
+- `omnigraph_ingest`
+- `omnigraph_query`
+
+## 8. Openclaw / Hermes 技能最佳实践
+
+为了让代理尽量少猜测，项目技能必须遵循下面的约束：
+
+- 技能只描述明确职责，不做大而全的“万能技能”
+- 技能中的命令应调用 Git 仓库里的脚本，而不是运行时目录里的副本
+- 所有路径都应以环境变量或稳定绝对路径表达
+- 对缺失 URL、文件路径、API key 的情况，必须给出 guard clause
+- 不要要求代理自行推断 repo 路径、数据路径、图片目录、CDP 端口
+
+本项目推荐的技能职责：
+
+| 技能 | 职责 |
+|------|------|
+| `omnigraph_ingest` | 把 URL / PDF 写入图谱 |
+| `omnigraph_query` | 从图谱检索并生成回答 |
+
+这些技能应始终把：
+
+- **源码执行目录** 视为 `~/OmniGraph-Vault`
+- **运行时数据目录** 视为 `~/.hermes/omonigraph-vault`
+
+## 9. 建议给代理的固定执行模式
+
+如果你要让 Hermes/Openclaw 在没有太多人工干预的情况下工作，建议让技能或包装脚本显式执行：
+
 ```bash
+cd ~/OmniGraph-Vault && source venv/bin/activate && python ingest_wechat.py "<URL>"
+```
+
+以及：
+
+```bash
+cd ~/OmniGraph-Vault && source venv/bin/activate && python kg_synthesize.py "<QUESTION>" hybrid
+```
+
+这样可以避免：
+
+- 从错误目录执行脚本
+- 使用错误的 Python
+- 把运行时目录误当作源码目录
+
+## 10. 部署后验证
+
+### 10.1 验证仓库与技能连接
+
+```bash
+cd ~/OmniGraph-Vault && git status --short --branch
+hermes skills list | grep omnigraph
+hermes chat -s omnigraph_ingest -q "add this to my kb"
+```
+
+预期：
+
+- Git 仓库状态正常
+- Hermes 能看到 `omnigraph_ingest`
+- 当没有提供 URL / PDF 时，技能返回 guard clause，而不是报错
+
+### 10.2 验证直接脚本调用
+
+```bash
+cd ~/OmniGraph-Vault
+source venv/bin/activate
+python query_lightrag.py "test query"
+```
+
+### 10.3 验证合成输出
+
+```bash
+cd ~/OmniGraph-Vault
+source venv/bin/activate
+python kg_synthesize.py "What do I know about OmniGraph-Vault?" hybrid
 cat ~/.hermes/omonigraph-vault/synthesis_output.md
 ```
 
-## 5. 与 Openclaw / Hermes Agent 集成
+## 11. 升级流程
 
-OmniGraph‑Vault 设计为可被 AI 代理直接调用。在您的 Agent 脚本中添加以下模块：
+更新项目时：
 
-```python
-# omnigraph_integration.py
-import subprocess
-import json
-from pathlib import Path
-
-def ingest_to_kg(url: str) -> dict:
-    """抓取文章并存入知识图谱"""
-    result = subprocess.run(
-        ["python", Path.home() / "OmniGraph-Vault/ingest_wechat.py", url],
-        capture_output=True, text=True
-    )
-    return {"success": result.returncode == 0, "output": result.stdout}
-
-def query_kg(question: str) -> str:
-    """从知识图谱生成合成报告"""
-    result = subprocess.run(
-        ["python", Path.home() / "OmniGraph-Vault/kg_synthesize.py", question],
-        capture_output=True, text=True
-    )
-    return result.stdout
-```
-
-## 6. 自动化与监控
-
-### 6.1 创建健康检查 Cron 任务
-```bash
-hermes cron create "0 */6 * * *" \
-  --prompt "检查 OmniGraph‑Vault 服务：1) 图像服务器端口 8765 2) LightRAG 存储目录 3) Cognee 内存连接" \
-  --name "omonigraph-vault-health"
-```
-
-### 6.2 启动网关服务（若使用 Telegram 等平台）
-```bash
-hermes gateway install
-hermes gateway start
-```
-
-## 7. 故障排除
-
-### 7.1 常见问题
-
-| 问题 | 可能原因 | 解决方案 |
-|------|----------|----------|
-| **LightRAG 导入失败** | 依赖未正确安装 | `pip install lightrag --upgrade` |
-| **Cognee 密钥错误** | `GEMINI_API_KEY` 未设置 | 检查 `~/.hermes/.env` 文件 |
-| **CDP 连接失败** | Windows Edge 未启动调试模式 | 运行 `cdp-browser-setup` 技能配置桥接 |
-| **图像服务器无法访问** | 端口 8765 被占用或服务未启动 | `lsof -i:8765` 检查，重启服务器 |
-| **技能未显示** | 技能未启用对应平台 | `hermes skills config` 中勾选相应平台 |
-
-### 7.2 日志位置
-- **Hermes 网关日志**：`~/.hermes/logs/gateway.log`
-- **OmniGraph‑Vault 运行日志**：`~/OmniGraph-Vault/cognee_batch.log`
-- **Python 错误**：查看终端输出或使用 `try/except` 捕获
-
-## 8. 升级与维护
-
-### 8.1 更新代码库
 ```bash
 cd ~/OmniGraph-Vault
-git pull origin main
+git pull --ff-only origin main
 source venv/bin/activate
-pip install -r requirements.txt --upgrade
+pip install -r requirements.txt
+hermes gateway restart
 ```
 
-### 8.2 更新技能
-```bash
-hermes skills update
-```
+不要更新 `~/.hermes/omonigraph-vault/` 里的源码副本，因为那里本来就不应该有源码副本。
 
-### 8.3 备份知识图谱数据
-```bash
-tar -czf kg-vault-backup-$(date +%Y%m%d).tar.gz ~/.hermes/omonigraph-vault/
-```
+## 12. 常见问题
 
-## 9. 总结
+| 问题 | 原因 | 解决方式 |
+|------|------|----------|
+| 技能显示不出来 | Hermes 没有加载 repo `skills/` | 检查 `skills.external_dirs`，然后 `hermes gateway restart` |
+| 技能和 GitHub 内容不一致 | 复制了一份旧 skills 到 `~/.hermes/skills/` | 删除旧副本，改为直接加载 repo `skills/` |
+| 图谱数据目录混乱 | 把源码和运行时数据放在一个目录 | 恢复为 `~/OmniGraph-Vault` + `~/.hermes/omonigraph-vault` 双目录结构 |
+| 查询脚本找不到数据 | 运行时目录拼写被改了 | 恢复 `~/.hermes/omonigraph-vault` |
+| CDP 抓取失败 | Windows Edge 未开启 remote debugging | 启动 Edge `--remote-debugging-port=9223` |
 
-成功部署的标志：
-1. ✅ 环境变量配置正确（`~/.hermes/.env`）
-2. ✅ 虚拟环境激活且依赖安装完成
-3. ✅ 图像服务器运行在端口 8765
-4. ✅ 核心技能已安装并启用
-5. ✅ 单篇文章抓取测试通过
-6. ✅ 知识图谱查询返回结果
-7. ✅ 合成报告生成且包含本地图片链接
+## 13. 成功标准
 
-完成上述步骤后，OmniGraph‑Vault 即可作为 **Openclaw 和 Hermes Agent 的持久化知识库**，为 AI 代理提供长期记忆、结构化检索和跨会话上下文。
+成功部署后，应满足：
 
-如需进一步协助，请查阅项目 [README.md](README.md) 或 [specs/PRD_TDD.md](specs/PRD_TDD.md) 文档。
+1. `~/OmniGraph-Vault` 是 Git 仓库
+2. `~/.hermes/omonigraph-vault` 只存运行时数据
+3. `~/.hermes/.env` 中已有必需 API key
+4. Hermes 能看到 `omnigraph_ingest` 与 `omnigraph_query`
+5. Hermes/Openclaw 通过 repo 中的脚本执行 OmniGraph-Vault
+6. 图片服务器能从 `http://localhost:8765/...` 提供本地图片
+
+如需更详细的产品与架构背景，请继续参考 [README.md](README.md) 与 [specs/PRD_TDD.md](specs/PRD_TDD.md)。
