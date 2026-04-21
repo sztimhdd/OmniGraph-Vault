@@ -97,7 +97,8 @@ Query → kg_synthesize.py
 |---|---|---|
 | `GEMINI_API_KEY` | Yes | All LLM, vision, and embedding calls |
 | `APIFY_TOKEN` | No | Primary scraping (falls back to CDP) |
-| `CDP_URL` | No | Playwright CDP fallback (default: `http://localhost:9223`) |
+| `FIRECRAWL_API_KEY` | No | Firecrawl web scraping API |
+| `CDP_URL` | No | Chrome DevTools Protocol endpoint — local (`http://localhost:9223`) or remote MCP URL |
 
 Set in `~/.hermes/.env`. Cognee-specific vars (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, etc.) are hardcoded in each script that uses Cognee.
 
