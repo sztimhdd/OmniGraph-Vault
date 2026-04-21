@@ -46,8 +46,8 @@ load_env()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
 CDP_URL = "http://127.0.0.1:9223"
-BASE_IMAGE_DIR = os.path.expanduser("./data/images")
-RAG_WORKING_DIR = os.path.expanduser("./data/lightrag_storage")
+BASE_IMAGE_DIR = os.path.expanduser("~/.hermes/kg-vault/images")
+RAG_WORKING_DIR = os.path.expanduser("~/.hermes/kg-vault/lightrag_storage")
 
 os.makedirs(BASE_IMAGE_DIR, exist_ok=True)
 os.makedirs(RAG_WORKING_DIR, exist_ok=True)
