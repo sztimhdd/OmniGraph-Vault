@@ -30,6 +30,10 @@ nest_asyncio.apply()
 
 from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR
 load_env()
+
+
+def _is_mcp_endpoint(url: str) -> bool:
+    return bool(url) and url.rstrip("/").endswith("/mcp")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
 
@@ -125,6 +129,104 @@ async def scrape_wechat_apify(url):
         print(f"Apify scraping failed: {e}")
     return None
 
+async def scrape_wechat_mcp(url):
+    """Fallback scraping via remote Playwright MCP server (MCP-over-SSE)."""
+    import json as _json
+
+    mcp_url = CDP_URL.rstrip("/")
+    session_id = None
+    msg_id = 0
+
+    def _next_id():
+        nonlocal msg_id
+        msg_id += 1
+        return msg_id
+
+    def _call(method, params=None):
+        nonlocal session_id
+        headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+        if session_id:
+            headers["mcp-session-id"] = session_id
+        payload = {"jsonrpc": "2.0", "id": _next_id(), "method": method}
+        if params:
+            payload["params"] = params
+        resp = requests.post(mcp_url, json=payload, headers=headers, timeout=60, stream=True)
+        if "mcp-session-id" in resp.headers:
+            session_id = resp.headers["mcp-session-id"]
+        result = None
+        for line in resp.iter_lines(decode_unicode=True):
+            if line and line.startswith("data: "):
+                data = _json.loads(line[6:])
+                if "result" in data:
+                    result = data["result"]
+                elif "error" in data:
+                    raise RuntimeError(f"MCP error: {data['error']}")
+        return result
+
+    try:
+        print(f"Connecting to MCP at {mcp_url}...")
+        _call("initialize", {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "omnigraph-ingest", "version": "1.0"}
+        })
+        _call("notifications/initialized")
+        print("MCP initialized.")
+
+        print(f"Navigating to {url}...")
+        _call("tools/call", {"name": "browser_navigate", "arguments": {"url": url}})
+
+        import time
+        time.sleep(5)
+
+        print("Extracting page content...")
+        title_result = _call("tools/call", {
+            "name": "browser_evaluate",
+            "arguments": {"function": "() => document.title"}
+        })
+        content_result = _call("tools/call", {
+            "name": "browser_evaluate",
+            "arguments": {"function": "() => { const el = document.querySelector('#js_content'); return el ? el.innerHTML : document.body.innerHTML; }"}
+        })
+        time_result = _call("tools/call", {
+            "name": "browser_evaluate",
+            "arguments": {"function": "() => { const el = document.querySelector('#publish_time'); return el ? el.innerText : ''; }"}
+        })
+
+        title = ""
+        content_html = ""
+        publish_time = ""
+
+        if title_result and "content" in title_result:
+            for c in title_result["content"]:
+                if c.get("type") == "text":
+                    title = c["text"]
+        if content_result and "content" in content_result:
+            for c in content_result["content"]:
+                if c.get("type") == "text":
+                    content_html = c["text"]
+        if time_result and "content" in time_result:
+            for c in time_result["content"]:
+                if c.get("type") == "text":
+                    publish_time = c["text"]
+
+        if not content_html or len(content_html) < 100:
+            print(f"MCP returned too little content ({len(content_html)} chars)")
+            return None
+
+        print(f"MCP scraped: title='{title[:50]}', content={len(content_html)} chars")
+        return {
+            "title": title,
+            "content_html": content_html,
+            "publish_time": publish_time,
+            "url": url,
+            "method": "mcp"
+        }
+    except Exception as e:
+        print(f"MCP scraping failed: {e}")
+        return None
+
+
 async def scrape_wechat_cdp(url):
     """Fallback scraping via CDP."""
     async with async_playwright() as p:
@@ -207,13 +309,17 @@ async def ingest_article(url):
 # 1. Try Apify first
     article_data = await scrape_wechat_apify(url)
     
-    # Check if invalid
+    # Check if Apify returned a verification/login page instead of real content.
+    # Real verification pages are very short (<500 chars); real articles with "验证"
+    # in them (e.g., "模型验证") are thousands of chars long.
     is_invalid = False
     if article_data:
         content = article_data.get("markdown", "") + article_data.get("title", "")
-        if any(keyword in content for keyword in ["环境异常", "验证", "登录"]):
+        is_short = len(content) < 500
+        has_block_keywords = any(kw in content for kw in ["环境异常", "请完成验证", "请登录"])
+        if is_short and has_block_keywords:
             is_invalid = True
-            print("Apify detected verification page, triggering fallback...")
+            print(f"Apify returned verification/login page ({len(content)} chars), triggering fallback...")
 
     # 2. Fallback to browser scraping if Apify fails
     if not article_data or is_invalid:
