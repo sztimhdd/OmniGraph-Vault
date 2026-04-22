@@ -5,6 +5,19 @@ https://mp.weixin.qq.com/s/4bE4AZPAAYVdtQIlf9hP9A
 https://mp.weixin.qq.com/s/qzacaj9XHfq9etTOBt8r5Q
 https://mp.weixin.qq.com/s/oGXo8psXgP6A24mmKbTGIw
 
+MCP:
+ npx @playwright/mcp@latest --cdp-endpoint=http://127.0.0.1:9222 --host=0.0.0.0 --port=8931 --allowed-hosts=* --allowed-origins=*
+npm error config prefix cannot be changed from project config: C:\Users\Administrator\.npmrc.
+Listening on http://localhost:8931
+Put this in your client config:
+{
+  "mcpServers": {
+    "playwright": {
+      "url": "http://localhost:8931/mcp"
+    }
+  }
+}
+
 
 ═══════════════════════════════════════════════════════════════════════════════
 PHASE 1: BUG FIXES & GATE 6 VALIDATION
