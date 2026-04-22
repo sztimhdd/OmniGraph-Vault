@@ -1,20 +1,20 @@
 [
   {
-    "description": "golden path: natural language query triggers kg_synthesize.py with hybrid mode (FR-13)",
+    "description": "golden path: natural language query triggers query.sh (FR-13)",
     "input": "what do I know about LightRAG and knowledge graphs?",
-    "expect_contains": ["kg_synthesize.py", "hybrid"],
+    "expect_contains": ["query.sh"],
     "expect_not_contains": ["ingest_wechat.py", "omnigraph_ingest"]
   },
   {
     "description": "explicit mode selection: user requests local mode",
     "input": "search my knowledge base for AI agent architectures using local mode",
-    "expect_contains": ["kg_synthesize.py", "local"],
+    "expect_contains": ["query.sh", "local"],
     "expect_not_contains": ["hybrid"]
   },
   {
     "description": "explicit mode selection: user requests naive mode",
     "input": "do a naive search for Cognee memory layer",
-    "expect_contains": ["kg_synthesize.py", "naive"]
+    "expect_contains": ["query.sh", "naive"]
   },
   {
     "description": "wrong skill: ingest intent redirects to omnigraph_ingest",
