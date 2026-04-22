@@ -1,8 +1,12 @@
 import os
+import sys
 import json
 import hashlib
 import requests
 import re
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
 import asyncio
 import nest_asyncio
 import fitz  # PyMuPDF
@@ -12,7 +16,6 @@ import html2text
 from google import genai
 from PIL import Image
 import numpy as np
-import sys
 import cognee_wrapper
 from apify_client import ApifyClient
 
@@ -62,7 +65,8 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
 )
 async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
     return await gemini_embed.func(
-        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001"
+        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001",
+        embedding_dim=768,
     )
 
 async def get_rag():
@@ -130,101 +134,137 @@ async def scrape_wechat_apify(url):
     return None
 
 async def scrape_wechat_mcp(url):
-    """Fallback scraping via remote Playwright MCP server (MCP-over-SSE)."""
+    """Fallback scraping via remote Playwright MCP server.
+
+    Uses browser_run_code with async (page) => {...} to do navigate + extract
+    in a single atomic MCP call. This avoids the 5-second heartbeat timeout
+    that kills sessions between separate browser_navigate/browser_evaluate calls.
+    """
     import json as _json
 
     mcp_url = CDP_URL.rstrip("/")
     session_id = None
     msg_id = 0
+    _headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
 
-    def _next_id():
-        nonlocal msg_id
+    def _post(method, params=None, timeout=30):
+        nonlocal session_id, msg_id
         msg_id += 1
-        return msg_id
-
-    def _call(method, params=None):
-        nonlocal session_id
-        headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+        h = dict(_headers)
         if session_id:
-            headers["mcp-session-id"] = session_id
-        payload = {"jsonrpc": "2.0", "id": _next_id(), "method": method}
+            h["mcp-session-id"] = session_id
+        payload = {"jsonrpc": "2.0", "id": msg_id, "method": method}
         if params:
             payload["params"] = params
-        resp = requests.post(mcp_url, json=payload, headers=headers, timeout=60, stream=True)
+        resp = requests.post(mcp_url, json=payload, headers=h, timeout=timeout)
+        resp.encoding = "utf-8"
         if "mcp-session-id" in resp.headers:
             session_id = resp.headers["mcp-session-id"]
-        result = None
-        for line in resp.iter_lines(decode_unicode=True):
-            if line and line.startswith("data: "):
-                data = _json.loads(line[6:])
-                if "result" in data:
-                    result = data["result"]
-                elif "error" in data:
-                    raise RuntimeError(f"MCP error: {data['error']}")
-        return result
+        if resp.status_code != 200 or len(resp.text) == 0:
+            return None
+        for m in re.finditer(r"data: ({.+})", resp.text, re.DOTALL):
+            try:
+                obj = _json.loads(m.group(1))
+                if "result" in obj:
+                    return obj["result"]
+                if "error" in obj:
+                    raise RuntimeError(f"MCP error: {obj['error']}")
+            except _json.JSONDecodeError:
+                pass
+        return None
 
-    try:
-        print(f"Connecting to MCP at {mcp_url}...")
-        _call("initialize", {
-            "protocolVersion": "2025-03-26",
-            "capabilities": {},
-            "clientInfo": {"name": "omnigraph-ingest", "version": "1.0"}
-        })
-        _call("notifications/initialized")
-        print("MCP initialized.")
+    def _text(result):
+        if not result or "content" not in result:
+            return ""
+        return "".join(c["text"] for c in result["content"] if c.get("type") == "text")
 
-        print(f"Navigating to {url}...")
-        _call("tools/call", {"name": "browser_navigate", "arguments": {"url": url}})
-
-        import time
-        time.sleep(5)
-
-        print("Extracting page content...")
-        title_result = _call("tools/call", {
-            "name": "browser_evaluate",
-            "arguments": {"function": "() => document.title"}
-        })
-        content_result = _call("tools/call", {
-            "name": "browser_evaluate",
-            "arguments": {"function": "() => { const el = document.querySelector('#js_content'); return el ? el.innerHTML : document.body.innerHTML; }"}
-        })
-        time_result = _call("tools/call", {
-            "name": "browser_evaluate",
-            "arguments": {"function": "() => { const el = document.querySelector('#publish_time'); return el ? el.innerText : ''; }"}
-        })
-
-        title = ""
-        content_html = ""
-        publish_time = ""
-
-        if title_result and "content" in title_result:
-            for c in title_result["content"]:
-                if c.get("type") == "text":
-                    title = c["text"]
-        if content_result and "content" in content_result:
-            for c in content_result["content"]:
-                if c.get("type") == "text":
-                    content_html = c["text"]
-        if time_result and "content" in time_result:
-            for c in time_result["content"]:
-                if c.get("type") == "text":
-                    publish_time = c["text"]
-
-        if not content_html or len(content_html) < 100:
-            print(f"MCP returned too little content ({len(content_html)} chars)")
+    def _parse_run_code_json(text_result):
+        if "### Result\n" not in text_result:
+            return None
+        raw = text_result.split("### Result\n")[1].split("\n### Ran")[0].strip()
+        try:
+            unwrapped = _json.loads(raw)
+            if isinstance(unwrapped, str):
+                return _json.loads(unwrapped)
+            return unwrapped
+        except (_json.JSONDecodeError, TypeError):
             return None
 
-        print(f"MCP scraped: title='{title[:50]}', content={len(content_html)} chars")
-        return {
-            "title": title,
-            "content_html": content_html,
-            "publish_time": publish_time,
-            "url": url,
-            "method": "mcp"
-        }
-    except Exception as e:
-        print(f"MCP scraping failed: {e}")
-        return None
+    js_code = f"""async (page) => {{
+  await page.goto('{url}', {{waitUntil: 'domcontentloaded', timeout: 4500}});
+  var title = await page.title();
+  var pubTime = await page.evaluate(() => {{
+    var el = document.querySelector('#publish_time');
+    return el ? el.innerText : '';
+  }});
+  var contentHtml = await page.evaluate(() => {{
+    var el = document.querySelector('#js_content');
+    return el ? el.innerHTML : '';
+  }});
+  var imgCount = await page.evaluate(() => {{
+    return document.querySelectorAll('#js_content img, img[data-src]').length;
+  }});
+  return JSON.stringify({{title: title, pubTime: pubTime, contentLen: contentHtml.length, contentHtml: contentHtml, imgCount: imgCount}});
+}}"""
+
+    max_attempts = 2
+    for attempt in range(1, max_attempts + 1):
+        try:
+            print(f"Connecting to MCP at {mcp_url}... (attempt {attempt}/{max_attempts})")
+            session_id = None
+            msg_id = 0
+            _post("initialize", {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {"name": "omnigraph-ingest", "version": "1.0"}
+            })
+            h = dict(_headers)
+            if session_id:
+                h["mcp-session-id"] = session_id
+            requests.post(mcp_url, json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=h, timeout=5)
+
+            print(f"Navigating and extracting {url} (atomic browser_run_code)...")
+            result = _post("tools/call", {"name": "browser_run_code", "arguments": {"code": js_code}}, timeout=15)
+            text_out = _text(result)
+
+            if "Error" in text_out and "Timeout" in text_out and attempt < max_attempts:
+                print(f"Timeout on attempt {attempt}, retrying...")
+                continue
+
+            data = _parse_run_code_json(text_out)
+            if not data:
+                if "Error" in text_out:
+                    print(f"MCP browser_run_code error: {text_out[:200]}")
+                else:
+                    print(f"MCP returned unparseable result ({len(text_out)} chars)")
+                if attempt < max_attempts:
+                    continue
+                return None
+
+            content_html = data.get("contentHtml", "")
+            if len(content_html) < 100:
+                print(f"MCP returned too little content ({len(content_html)} chars)")
+                if attempt < max_attempts:
+                    continue
+                return None
+
+            title = data.get("title", "Untitled")
+            publish_time = data.get("pubTime", "")
+            img_count = data.get("imgCount", 0)
+            print(f"MCP scraped: title='{title[:50]}', content={len(content_html)} chars, images={img_count}")
+            return {
+                "title": title,
+                "content_html": content_html,
+                "publish_time": publish_time,
+                "url": url,
+                "method": "mcp"
+            }
+        except Exception as e:
+            print(f"MCP scraping failed (attempt {attempt}): {e}")
+            if attempt < max_attempts:
+                continue
+            return None
+    return None
 
 
 async def scrape_wechat_cdp(url):

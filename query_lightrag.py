@@ -36,7 +36,8 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
 async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
     """Wrapper for Gemini embedding function."""
     return await gemini_embed.func(
-        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001"
+        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001",
+        embedding_dim=768,
     )
 
 async def query_and_synthesize(query_text: str):

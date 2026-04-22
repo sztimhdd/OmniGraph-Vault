@@ -65,7 +65,8 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
 )
 async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
     return await gemini_embed.func(
-        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001"
+        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001",
+        embedding_dim=768,
     )
 
 async def get_rag():

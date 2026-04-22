@@ -3,6 +3,9 @@ import json
 import cognee
 import asyncio
 import sys
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
 import numpy as np
 import time
 
@@ -40,7 +43,7 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
 
 @wrap_embedding_func_with_attrs(embedding_dim=768, send_dimensions=True, max_token_size=2048, model_name="gemini-embedding-001")
 async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
-    return await gemini_embed.func(texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001")
+    return await gemini_embed.func(texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001", embedding_dim=768)
 
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
     rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=llm_model_func, embedding_func=embedding_func, llm_model_name=MODEL_NAME)
@@ -97,7 +100,7 @@ async def main():
         response = await synthesize_response(query, mode=mode)
         if response:
             output_file = SYNTHESIS_OUTPUT
-            with open(output_file, "w") as f: f.write(response)
+            with open(output_file, "w", encoding="utf-8") as f: f.write(response)
             print(f"Response saved to {output_file}")
     except Exception as e:
         import traceback; traceback.print_exc()
