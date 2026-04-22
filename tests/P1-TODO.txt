@@ -1,3 +1,11 @@
+Test Cases:
+https://mp.weixin.qq.com/s/Y_uRMYBmdLWUPnz_ac7jWA
+https://mp.weixin.qq.com/s/8SGRMIyspvUcLMcmeDa2Mw
+https://mp.weixin.qq.com/s/4bE4AZPAAYVdtQIlf9hP9A
+https://mp.weixin.qq.com/s/qzacaj9XHfq9etTOBt8r5Q
+https://mp.weixin.qq.com/s/oGXo8psXgP6A24mmKbTGIw
+
+
 ═══════════════════════════════════════════════════════════════════════════════
 PHASE 1: BUG FIXES & GATE 6 VALIDATION
 OmniGraph-Vault Manual Testing Checkpoint for Hermes Agent
