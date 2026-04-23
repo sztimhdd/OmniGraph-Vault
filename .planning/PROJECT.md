@@ -8,17 +8,16 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 
 When Hermes sees "add this to my KB" or "what do I know about X?" it calls the right script and gets a useful answer back.
 
-## Current Milestone: v1.1 SkillHub-Ready Skill Packaging
+## Current Milestone: v2.0 Knowledge Infrastructure MVP
 
-**Goal:** Upgrade both Hermes skills into production-grade SkillHub packages with deterministic wrappers, eval suites, and a clear deployment contract.
+**Goal:** Build a rules engine, populate the KB with GitHub tools and KOL content, and design the `/architect` skill — giving the vault structured architecture guidance on demand.
 
 **Target features:**
-- Full skill package structure (`SKILL.md`, `scripts/`, `references/`, `evals/`) for both skills
-- CWD-independent shell wrappers with env validation and venv activation
-- Pushy SKILL.md descriptions (100–200 words) with explicit NOT-trigger redirects
-- SkillHub eval suites (`evals/evals.json`, ≥3 cases per skill)
-- Hermes deployment via `skills.external_dirs` (no skill copying; repo is source of truth)
-- `specs/SKILL_PACKAGING_GUIDE.md` as contributor reference
+- Rules engine: 20–30 structured rules in `rules_engine.json` (bootstrapped via Copilot GPT-5.4)
+- KB population: 50+ GitHub AI tools + 5–10 KOL articles indexed in OmniGraph-Vault
+- `/architect` skill (`omnigraph_architect`): `SKILL.md` + `scripts/architect.sh` with Propose/Query/Ingest modes
+- `skill_runner.py` enhanced for multi-turn conversation support
+- 9+ test cases for `/architect`; all 3 skills green in `skill_runner.py`
 
 ---
 
@@ -38,31 +37,42 @@ When Hermes sees "add this to my KB" or "what do I know about X?" it calls the r
 - ✓ Telegram delivery of synthesized .md reports — existing
 - ✓ Centralized config (config.py) with path constants, ~/.hermes/.env loading — existing
 - ✓ Gate 1-5 + A-D: LightRAG, Cognee, image server, single-article ingestion, PDF ingestion — passed
+- ✓ `omnigraph_ingest` skill package: SKILL.md (100–200 words pushy), `scripts/ingest.sh`, `references/`, `evals/evals.json` — v1.1 Phase 2
+- ✓ `omnigraph_query` skill package: SKILL.md, `scripts/query.sh`, `references/`, `evals/evals.json` — v1.1 Phase 2
+- ✓ `skill_runner.py`: local simulator passing 9/9 ingest + 10/10 query test cases — v1.1 Phase 2
+- ✓ `scripts/install-for-hermes.sh`: venv auto-setup, pip install, smoke test — v1.1 Phase 2
+- ✓ KG-RAG embedding strategy: keep Method A (Vision describe + text embed; LightRAG has no multimodal vector support) — v1.1 Phase 2
 
-### Active
+### Active (v2.0)
 
-- [ ] Gate 6: Ingest 3 articles, run cross-article synthesis query, confirm multi-document answer
-- [ ] `omnigraph_ingest` Hermes skill: trigger `ingest_wechat.py` from natural language ("add this to my KB")
-- [ ] `omnigraph_query` Hermes skill: trigger `kg_synthesize.py` from natural language ("what do I know about X?")
-- [ ] Skills surface clear error messages when scripts fail (missing env vars, API quota, CDP not running)
-- [ ] `skill_runner.py`: local simulator that loads SKILL.md as system prompt and runs test cases against Gemini API (same backend Hermes uses) — no Hermes install required
-- [ ] `tests/skills/test_omnigraph_ingest.json` + `tests/skills/test_omnigraph_query.json`: test cases covering trigger phrases, guard clauses, output format, and wrong-skill redirects
-- [ ] Gate 7: both skills pass all `skill_runner.py` test cases locally; trigger-phrase matching validated on Hermes PC
+- [ ] Gate 6: Ingest 3 articles, run cross-article synthesis query, confirm multi-document answer *(carry-over from v1.1 — prerequisite for Phase 4)*
+- [ ] Rules engine: `rules_engine.json` with 20–30 structured rules (bootstrapped via Copilot GPT-5.4 researcher mode)
+- [ ] KB population: 50+ GitHub AI tools indexed in OmniGraph-Vault (via Graphify MCP + `ingest_wechat.py`)
+- [ ] `entity_registry.json`: GitHub URL → entity ID mapping
+- [ ] KB population: 5–10 KOL articles (WeChat, GitHub issues, Zhihu) indexed
+- [ ] `/architect` skill (`omnigraph_architect`): `SKILL.md` with Propose/Query/Ingest decision tree (100–200 words, SkillHub pushy format)
+- [ ] `scripts/architect.sh`: CWD-independent wrapper for `/architect` skill
+- [ ] GSD:DISCUSS pattern documented (`.planning/GSD_DISCUSS_PATTERN.md`)
+- [ ] `skill_runner.py` enhanced: multi-turn support (`inputs: list[str]`, conversation context across turns)
+- [ ] `tests/skills/test_omnigraph_architect.json`: 9+ test cases (3 per mode: Propose, Query, Ingest)
+- [ ] All 3 skills passing: `python skill_runner.py skills/ --test-all`
 
 ### Out of Scope
 
+- Hermes deployment via `skills.external_dirs` + Gate 7 validation — deferred until after v2.0 completion
 - Multi-source batch ingestion (RSS, GitHub API, Zhihu scraping) — parking the vision for now
-- Cross-validation and confidence scoring layer — Phase 3 vision, not needed for basic KB skill
-- Self-completing knowledge graph (gap detection, auto-fill) — Phase 4 vision
+- Cross-validation and confidence scoring layer — future
+- Self-completing knowledge graph (gap detection, auto-fill) — future
 - REST API for remote agent calls — future
 - Webhook-based ingestion (Telegram → OmniGraph-Vault) — future
 - Multi-user / team sharing — intentionally single-user
 
 ## Context
 
-- **Phase 1 complete**: Core ingestion pipeline, synthesis, Cognee memory all implemented and gate-tested
+- **v1.1 Phase 2 complete**: Both skill packages (omnigraph_ingest, omnigraph_query) are production-grade with CWD-independent wrappers, eval suites, and passing skill_runner test suites (9/9, 10/10)
+- **v1.1 Gate 6 pending**: Cross-article synthesis manual checkpoint not yet validated — required before Phase 4 KB population work
+- **v1.1 Phase 3 deferred**: Hermes deployment via `skills.external_dirs` deferred until after v2.0 completion
 - **Runtime data path has a typo**: directory is `omonigraph-vault` (not `omnigraph-vault`) — baked into config.py and deployed; do not change without coordinated migration
-- **Hermes skill interface**: Skills call Python scripts via subprocess. The skill body specifies when to trigger, how to call the script, and how to surface errors.
 - **Cognee is always async**: never await or block on Cognee in the ingestion fast path
 - **Image server must be running** for synthesized reports to render inline images correctly
 
@@ -82,6 +92,8 @@ When Hermes sees "add this to my KB" or "what do I know about X?" it calls the r
 | `.processed` marker on entity_buffer files | Idempotency: re-running batch processor never double-processes | ✓ Good |
 | Two skills (ingest + query) not one unified skill | Clearer intent mapping, easier to test independently | — Pending validation |
 | Skip Phase 2-4 vision features for now | Focus on Gate 6 + working Hermes skill before scaling the data sources | — Pending |
+| KG-RAG Architecture: Image Embedding Strategy | Choice between Vision API description + Gemini Embeddings vs. embedding-2 multimodal | ✓ Keep Method A (LightRAG has no multimodal vector support) |
+| Hermes deployment deferred to post-v2.0 | Knowledge Infrastructure (rules engine + /architect skill) is higher priority than Hermes wiring | — Deferred |
 
 ## Evolution
 
@@ -101,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-21 after initialization*
+*Last updated: 2026-04-23 — Milestone v2.0 started*

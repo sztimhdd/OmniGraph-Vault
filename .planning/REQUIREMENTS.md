@@ -1,8 +1,8 @@
 # Requirements
 
 **Project:** OmniGraph-Vault  
-**Version:** v1 (SkillHub-Ready Skill Packaging milestone)  
-**Last Updated:** 2026-04-21
+**Version:** v2.0 (Knowledge Infrastructure MVP milestone)  
+**Last Updated:** 2026-04-23
 
 ---
 
@@ -99,7 +99,44 @@
 
 ---
 
-## v2 Requirements (Deferred)
+---
+
+## v2.0 Requirements
+
+### Foundation (prerequisites — must land before KB population)
+
+- [ ] **FOUND-01**: `config.py` adds two constants: `GITHUB_TOKEN` (env var, optional but required at batch scale) and `ENTITY_REGISTRY_FILE` (absolute path to `entity_registry.json` at project root) — follows existing constants pattern; no other changes
+- [ ] **FOUND-02**: New `ingest_github.py` script using the **GitHub REST API** (via existing `requests` library — Graphify MCP does not exist and is not used): accepts a GitHub repo URL, fetches README via `api.github.com` with authenticated headers (`GITHUB_TOKEN`), strips badge images and `pip install` boilerplate, prepends `# Source: github.com/org/repo` header, calls `rag.ainsert()`, and atomically updates `entity_registry.json` with `{url: entity_id}` entry; exits non-zero with human-readable message on rate-limit or auth failure
+- [ ] **FOUND-03**: `kg_synthesize.py` canonical_map replacement uses `re.sub` with `\b` word-boundary anchors (replace current `str.replace`) to prevent spurious replacements during bulk ingestion
+
+### Rules Engine
+
+- [ ] **RULES-01**: `rules_engine.json` at project root contains 20–30 rules; each rule has fields: `id` (string), `condition` (string, when this rule applies), `recommendation` (string), `dont_use` (list of strings), `weight` (int 0–10), `tags` (list: `solo-dev` / `startup` / `researcher`), `test_scenario` (string describing a test case for this rule)
+- [ ] **RULES-02**: Quality gate before `/architect` SKILL.md authoring: manual spot-check confirms rules look plausible, cover distinct scenarios (not duplicates of each other), and are not obviously generic advice; all 20–30 rules have `test_scenario` populated
+
+### KB Population
+
+- [ ] **GATE6-PREREQ**: Gate 6 manual checkpoint must pass before KB population begins — complete GATE6-01 through GATE6-04 from v1.1 (ingest 3 WeChat articles with shared entities, run `cognee_batch_processor.py`, confirm cross-article synthesis response references entities from ≥2 articles); validates that multi-document retrieval is functional before adding 50+ more documents to the graph
+
+- [ ] **KB-01**: 50+ GitHub AI tool repositories indexed in LightRAG using `ingest_github.py`; duplicate detection works via `entity_registry.json` (re-running on already-indexed URL is a no-op)
+- [ ] **KB-02**: `entity_registry.json` maps each ingested GitHub repo URL to its LightRAG entity ID; populated atomically after each repo ingestion; used for duplicate detection in Ingest mode
+- [ ] **KB-03**: 5–10 KOL articles (WeChat, GitHub issue discussions, or Zhihu Q&A) ingested via `ingest_wechat.py`; topics cover AI agent architecture, tool selection, and engineering best practices
+- [ ] **KB-04**: Integration gate — `python query_lightrag.py "best practices for building AI agents" hybrid` returns a response referencing entities from ≥2 distinct source repositories; confirms multi-source retrieval before `/architect` phase begins
+
+### /architect Skill
+
+- [ ] **ARCH-01**: `.planning/GSD_DISCUSS_PATTERN.md` documents the 4-step Propose conversation flow: Default Guess → Q1 (team size + project type) → Q2 (primary constraint) → Output (stack recommendation + `dont_use` list + TDD template hint); `skills/omnigraph_architect/SKILL.md` frontmatter `description` is **100–200 words in SkillHub pushy format** (starts with "Use this skill when...", includes 3–5 quoted trigger phrases, ends with explicit "Do NOT use when..." redirects); SKILL.md body has 3-mode decision tree (Propose / Query / Ingest); GSD:DISCUSS protocol in `references/discuss-protocol.md` (Level 2 loading)
+- [ ] **ARCH-02**: `skills/omnigraph_architect/scripts/architect.sh` accepts `propose`, `query`, or `ingest` as positional arg 1; resolves project root from `OMNIGRAPH_ROOT` env var (fallback: `$HOME/Desktop/OmniGraph-Vault`); validates `GEMINI_API_KEY`; exits non-zero with human-readable message on missing env or missing venv; works from any working directory
+
+### Testing
+
+- [ ] **TEST-05**: `skill_runner.py` supports multi-turn conversations: `TestCase` dataclass gains `inputs: list[str]` field alongside (not replacing) existing `input: str` field; `call_gemini()` accepts growing `contents` list; `expect_final` assertions checked only on last turn's response; fresh `contents = []` per `TestCase` (no context leakage between cases); all 19 existing test cases continue to pass unchanged
+- [ ] **TEST-06**: `tests/skills/test_omnigraph_architect.json` contains ≥9 test cases: ≥3 Propose mode (multi-turn, exercises GSD:DISCUSS 4-step flow), ≥3 Query mode (single-turn KB queries, verifies routing to `query.sh`), ≥3 Ingest mode (URL routing, guard clause on non-WeChat URL)
+- [ ] **TEST-07**: `python skill_runner.py skills/ --test-all` exits 0 on 1 clean run; all tests across all 3 skills pass (minimum: 9 ingest + 10 query + 9 architect = 28 cases)
+
+---
+
+## v2.x Requirements (Deferred to future milestone)
 
 - Duplicate URL detection before ingestion (check existing image hash dirs)
 - Streaming progress feedback during long-running ingestion
@@ -107,17 +144,20 @@
 - `omnigraph_status` skill (graph stats, image server health, queue depth)
 - `omnigraph_manage` skill (list/delete/reindex entities)
 - Batch ingestion (multiple URLs in one call)
-- Multi-source ingestion: RSS feeds, GitHub repos, Zhihu
+- Multi-source ingestion: RSS feeds, Zhihu
 - Trigger eval optimization loop (Section 6 of SKILLHUB_REQUIREMENTS.md)
 - `evals/benchmark.json` with aggregated timing/token results
+- Persona-tag filtering in rules engine (solo-dev / startup / researcher)
+- Ingest mode duplicate guard via entity_registry.json in architect.sh
 
 ---
 
 ## Out of Scope
 
-- Multi-source batch ingestion (RSS, GitHub API, Zhihu scraping) — Phase 3+ vision
-- Cross-validation and confidence scoring layer — Phase 3+ vision
-- Self-completing knowledge graph (gap detection, auto-fill) — Phase 4 vision
+- Hermes deployment via `skills.external_dirs` + Gate 7 validation — deferred until after v2.0 completes
+- Multi-source batch ingestion (RSS, Zhihu scraping) — v2.x vision
+- Cross-validation and confidence scoring layer — future
+- Self-completing knowledge graph (gap detection, auto-fill) — future
 - REST API for remote agent calls — future
 - Webhook-based ingestion (Telegram → OmniGraph-Vault) — future
 - Multi-user / team sharing — intentionally single-user, out of scope permanently
@@ -129,7 +169,7 @@
 ## Traceability
 
 | REQ-ID | Phase | Maps to Roadmap Phase | Status |
-|--------|-------|-----------------------|--------|
+| ------ | ----- | --------------------- | ------ |
 | INFRA-01 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
 | INFRA-02 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
 | INFRA-03 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
@@ -170,3 +210,18 @@
 | GATE7-08 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
 | GATE7-09 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
 | GATE7-10 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
+| FOUND-01 | 4 | Phase 4: Foundation Patch + Rules Bootstrap | Pending |
+| FOUND-02 | 4 | Phase 4: Foundation Patch + Rules Bootstrap | Pending |
+| FOUND-03 | 4 | Phase 4: Foundation Patch + Rules Bootstrap | Pending |
+| RULES-01 | 4 | Phase 4: Foundation Patch + Rules Bootstrap | Pending |
+| RULES-02 | 5 | Phase 5: KB Population + Rules Quality Gate | Pending |
+| GATE6-PREREQ | 5 | Phase 5: KB Population + Rules Quality Gate (gate at phase start) | Pending |
+| KB-01 | 5 | Phase 5: KB Population + Rules Quality Gate | Pending |
+| KB-02 | 5 | Phase 5: KB Population + Rules Quality Gate | Pending |
+| KB-03 | 5 | Phase 5: KB Population + Rules Quality Gate | Pending |
+| KB-04 | 5 | Phase 5: KB Population + Rules Quality Gate | Pending |
+| ARCH-01 | 6 | Phase 6: /architect Skill + Multi-Turn Testing | Pending |
+| ARCH-02 | 6 | Phase 6: /architect Skill + Multi-Turn Testing | Pending |
+| TEST-05 | 6 | Phase 6: /architect Skill + Multi-Turn Testing | Pending |
+| TEST-06 | 6 | Phase 6: /architect Skill + Multi-Turn Testing | Pending |
+| TEST-07 | 6 | Phase 6: /architect Skill + Multi-Turn Testing | Pending |

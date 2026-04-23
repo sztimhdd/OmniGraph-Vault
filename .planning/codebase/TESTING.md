@@ -275,24 +275,48 @@ python skill_runner.py skills/ --test-all
 
 **Limitations:** Does not validate Hermes-specific tool dispatch or `triggers` auto-matching — those require a live Hermes instance (Gate 7).
 
+## Phase 2 Testing Strategy
+
+**Local E2E without Hermes:**
+- Developers run `skill_runner.py` tests locally before committing
+- No Hermes installation required; same Gemini backend as Hermes uses
+- Tests validate: skill routing, guard clauses, output format, error handling
+
+**Infrastructure Requirements:**
+- `skill_runner.py`: Exit codes 0 (pass) / non-zero (fail) for CI compatibility
+- No remote MCP blocker: Use local CDP (`http://localhost:9223`) for testing
+- Error messages must be human-readable (no Python tracebacks to end users)
+
+**Test Coverage:**
+- Happy path: valid skill trigger, expected output
+- Wrong-skill redirect: query should route to correct skill, not wrong one
+- Guard clause: skill should error cleanly when env var missing or image server down
+- Format validation: output matches expected structure (Markdown, JSON, or plain text as defined)
+
 ## Recommended Testing Strategy
 
-**Phase 1: Skill simulator** (immediate priority)
-- Implement `skill_runner.py` using existing `google-genai` dependency
-- Write test cases in `tests/skills/` for `omnigraph_ingest` and `omnigraph_query`
-- Run before every commit that touches `skills/`
+**Phase 1: Skill simulator** (DONE: existing implementation)
+- ✓ `skill_runner.py` implemented using existing `google-genai` dependency
+- ✓ Test cases in `tests/skills/` for `omnigraph_ingest` and `omnigraph_query`
+- ✓ Run before every commit that touches `skills/`
 
-**Phase 2: Establish framework for pipeline code**
+**Phase 2: Infrastructure hardening** (current milestone)
+- Local E2E testing without Hermes (documented above)
+- Exit code compliance for CI/CD pipelines
+- Human-readable error handling (no tracebacks)
+- Installation script with smoke tests
+
+**Phase 3: Establish framework for pipeline code**
 - Install `pytest` and `pytest-asyncio`
 - Create `conftest.py` with shared env fixture (eliminate the 60-line duplication)
 - Refactor verification gates to pytest assertions
 
-**Phase 3: Unit tests**
+**Phase 4: Unit tests**
 - `config.load_env()` with mock file I/O
 - `cognee_wrapper` functions with mocked Cognee
 - Batch processor idempotency (`cognee_batch_processor.py`)
 
-**Phase 4: Automation**
+**Phase 5: Automation**
 - `python skill_runner.py skills/ --test-all` in GitHub Actions on `skills/**` changes
 - Separate unit (fast, no API) from integration (slow, live API) pytest marks
 
