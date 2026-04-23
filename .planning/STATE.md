@@ -106,7 +106,7 @@ Phase 6 [          ] 0%
 
 ## Session Continuity
 
-Last activity: 2026-04-23 - Completed quick task 260423-fq7: WeChat KOL Cold-Start Bridge
+Last activity: 2026-04-23 - Completed quick task 260423-n4x: Upgrade ingest_github.py to Level 2 multi-segment depth
 
 ---
 
@@ -115,6 +115,7 @@ Last activity: 2026-04-23 - Completed quick task 260423-fq7: WeChat KOL Cold-Sta
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260423-fq7 | WeChat KOL Cold-Start Bridge | 2026-04-23 | df89da7 | [260423-fq7-wechat-kol-cold-start-bridge](./quick/260423-fq7-wechat-kol-cold-start-bridge/) |
+| 260423-n4x | Upgrade ingest_github.py to Level 2 multi-segment depth | 2026-04-23 | ea49568 | [260423-n4x-upgrade-ingest-github-py-to-level-2-dept](./quick/260423-n4x-upgrade-ingest-github-py-to-level-2-dept/) |
 
 ---
 
