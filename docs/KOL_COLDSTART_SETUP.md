@@ -1,17 +1,15 @@
-OUTPUT
+## Credentials
 
-Token:
-352072792
+> These credentials are stored locally only and must never be committed to git.
+> See kol_config.py (gitignored) for the actual values.
 
-Cookie:
-appmsglist_action_3964447985=card; ua_id=2QDqj1WI4yVUoC3JAAAAAAHtgt0jhYXlK_O09_g9OH8=; mm_lang=zh_CN; wxuin=70212311603434; pac_uid=0_HWWMNNeRwi2KB; _qimei_uuid42=1a20a0a2217100634035a59ae657edac5f9f462841; _qimei_fingerprint=e6645d5edb4b3c7596b591d112cdbbe4; _qimei_q36=; _qimei_h38=327088bd4035a59ae657edac0200000eb1a20a; omgid=0_HWWMNNeRwi2KB; personAgree_3964447985=true; pgv_pvid=9265182336; rewardsn=; wxtokenkey=777; _clck=3964447985|1|g5g|0; uuid=1a2ffe07f60cf05e555a1909d26d7b3d; rand_info=CAESIMLcDqSO0emLgZYJVAVh6yn7cu727uh6P9SfTjiEsLQu; slave_bizuin=3964447985; data_bizuin=3964447985; bizuin=3964447985; data_ticket=kPZ5KdoNMvy9Y925rCguj0OODurFNg0o0hcCgtIeAh2N4xHiIUW3RrLAsSnS+gtb; slave_sid=SFR3cEs1VHZzNUZXVlJpdWhkWXNZOFNHZkRFbks2eVVxM0txN3BTaVEwMmloTnhpTFQ1aUhrOU1VOGdNS0ZZc0ZlWHZsSDlWem5IMUs3MTYzdkx4OERZM3VLYUk0VEd4M0Y2dFlLTmxqcDRpWlpEcWZaZldLeHZEc25hQ2taaU1zODIyUnlVUW1yMVFrU0dT; slave_user=gh_8634a42b5a6b; xid=b76ab49a86e0d994eeb918d7846cba34; _clsk=k01af7|1776952610699|1|1|mp.weixin.qq.com/weheat-agent/payload/record
+TOKEN: <redacted — see kol_config.py>
+COOKIE: <redacted — see kol_config.py>
+FAKEIDS:
+  - <redacted — see kol_config.py>
+  - <redacted — see kol_config.py>
 
-
-Fakeid:
-
-MzkyMDU5Mjc4OA==
-Mzg5NzczNjE0NQ==
-
+---
 
 # WeChat KOL Cold-Start Setup Guide
 
