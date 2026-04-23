@@ -50,7 +50,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Audit and fix all skill package files against SkillHub contract (COMPLETED 2026-04-23)
 - [x] 02-02-PLAN.md — KG-RAG embedding strategy experiment and decision (COMPLETED 2026-04-23)
-- [ ] 02-03-PLAN.md — Run skill_runner test suites and fix until green
+- [x] 02-03-PLAN.md — Run skill_runner test suites and fix until green (COMPLETED 2026-04-23)
 **UI hint**: no
 
 ### Phase 3: Hermes Deployment + Gate 7 Validation
@@ -73,5 +73,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Bug Fixes + Gate 6 Validation | 1/2 | In progress | - |
-| 2. SkillHub-Ready Skill Packaging | 2/3 | In progress | - |
+| 2. SkillHub-Ready Skill Packaging | 3/3 | Complete | 2026-04-23 |
 | 3. Hermes Deployment + Gate 7 Validation | 0/? | Not started | - |
