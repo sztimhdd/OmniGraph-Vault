@@ -2,7 +2,7 @@
 
 **Project:** OmniGraph-Vault
 **Milestone:** v1.1 — SkillHub-Ready Skill Packaging
-**Last Updated:** 2026-04-21
+**Last Updated:** 2026-04-22
 **Coverage:** 43/43 v1 requirements mapped
 
 ---
@@ -22,7 +22,7 @@
 **Depends on**: Nothing (first phase)
 **Requirements**: INFRA-01, INFRA-02, INFRA-03, INFRA-04, GATE6-01, GATE6-02, GATE6-03, GATE6-04, GATE6-05
 **Success Criteria** (what must be TRUE):
-  1. ✓ Running `kg_synthesize.py` on a machine other than the original dev box does not raise a path error or `NameError`
+  1. Running `kg_synthesize.py` on a machine other than the original dev box does not raise a path error or `NameError`
   2. A cross-article synthesis query returns a response that references named entities from at least 2 of the 3 ingested articles
   3. `cognee_batch_processor.py` completes after ingestion and produces a valid `canonical_map.json` using only config constants (no hardcoded paths)
   4. Manual script run (ingest + synthesize) exits clean with no crashes
@@ -38,12 +38,19 @@ Plans:
 **Depends on**: Phase 1
 **Requirements**: PKG-01, PKG-02, PKG-03, PKG-04, SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-07, SKILL-08, SKILL-09, SKILL-10, SKILL-11, EVAL-01, EVAL-02, TEST-01, TEST-02, TEST-03, TEST-04
 **Success Criteria** (what must be TRUE):
-  1. Both `SKILL.md` descriptions are 100–200 words in SkillHub pushy format (starts with "Use this skill when...", ends with "Do NOT use when...")
+  1. Both `SKILL.md` descriptions are 100-200 words in SkillHub pushy format (starts with "Use this skill when...", ends with "Do NOT use when...")
   2. `scripts/ingest.sh` and `scripts/query.sh` each work from any working directory and exit non-zero with a human-readable message when `GEMINI_API_KEY` is unset or venv is missing
-  3. Each skill has `evals/evals.json` with ≥3 test cases in SkillHub eval schema
+  3. Each skill has `evals/evals.json` with >=3 test cases in SkillHub eval schema
   4. `python skill_runner.py skills/omnigraph_ingest --test-file tests/skills/test_omnigraph_ingest.json` exits 0 (9/9 cases pass)
   5. `python skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omnigraph_query.json` exits 0
-**Plans**: TBD
+  6. `skill_runner.py` returns exit code 0 on pass, non-zero on fail (CI-compatible)
+  7. `scripts/install-for-hermes.sh` works from scratch on clean machine with human-readable error messages
+  8. Embedding strategy experiment completed and decision documented (keep current / switch / hybrid)
+**Plans**: 3 plans
+Plans:
+- [x] 02-01-PLAN.md — Audit and fix all skill package files against SkillHub contract (COMPLETED 2026-04-23)
+- [ ] 02-02-PLAN.md — KG-RAG embedding strategy experiment and decision
+- [ ] 02-03-PLAN.md — Run skill_runner test suites and fix until green
 **UI hint**: no
 
 ### Phase 3: Hermes Deployment + Gate 7 Validation
@@ -65,6 +72,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Bug Fixes + Gate 6 Validation | 0/2 | Planned | - |
-| 2. SkillHub-Ready Skill Packaging | 0/? | Not started | - |
+| 1. Bug Fixes + Gate 6 Validation | 1/2 | In progress | - |
+| 2. SkillHub-Ready Skill Packaging | 1/3 | In progress | - |
 | 3. Hermes Deployment + Gate 7 Validation | 0/? | Not started | - |

@@ -31,39 +31,39 @@
 
 **Description and trigger quality:**
 
-- [ ] **PKG-01**: Both `SKILL.md` descriptions are 100–200 words in SkillHub pushy format: starts with "Use this skill when...", includes 3–5 quoted trigger phrases, ends with explicit "Do NOT use when..." redirects to the correct alternative skill
-- [ ] **PKG-02**: Both `SKILL.md` bodies are ≤500 lines; any heavy reference content (API docs, full examples, troubleshooting tables) moved to `references/`
+- [x] **PKG-01**: Both `SKILL.md` descriptions are 100–200 words in SkillHub pushy format: starts with "Use this skill when...", includes 3–5 quoted trigger phrases, ends with explicit "Do NOT use when..." redirects to the correct alternative skill
+- [x] **PKG-02**: Both `SKILL.md` bodies are ≤500 lines; any heavy reference content (API docs, full examples, troubleshooting tables) moved to `references/`
 
 **Script wrapper contract:**
 
-- [ ] **PKG-03**: Both `scripts/` wrappers resolve project root from `OMNIGRAPH_ROOT` env var (fallback: `$HOME/Desktop/OmniGraph-Vault`), activate the correct venv, validate `GEMINI_API_KEY` before running, and work correctly from any calling working directory
+- [x] **PKG-03**: Both `scripts/` wrappers resolve project root from `OMNIGRAPH_ROOT` env var (fallback: `$HOME/Desktop/OmniGraph-Vault`), activate the correct venv, validate `GEMINI_API_KEY` before running, and work correctly from any calling working directory
 - [x] **PKG-04**: Repo-root `README.md` covers install, env setup, Hermes `skills.external_dirs` configuration, and `skill_runner.py` + eval invocation — per SkillHub spec §7 ("README.md in repo root, not in skill/")
-- [ ] **SKILL-01**: `scripts/ingest.sh` announces "Starting ingestion — 30–120 seconds..." before calling `python ingest_wechat.py "<url>"` or `python multimodal_ingest.py "<path>"` based on input type; exits non-zero with human-readable message when GEMINI_API_KEY unset or venv missing
-- [ ] **SKILL-07**: `scripts/query.sh` announces "Querying — 15–60 seconds..." before calling `python kg_synthesize.py "<query>" <mode>`; exits non-zero with human-readable message when GEMINI_API_KEY unset or venv missing
+- [x] **SKILL-01**: `scripts/ingest.sh` announces "Starting ingestion — 30–120 seconds..." before calling `python ingest_wechat.py "<url>"` or `python multimodal_ingest.py "<path>"` based on input type; exits non-zero with human-readable message when GEMINI_API_KEY unset or venv missing
+- [x] **SKILL-07**: `scripts/query.sh` announces "Querying — 15–60 seconds..." before calling `python kg_synthesize.py "<query>" <mode>`; exits non-zero with human-readable message when GEMINI_API_KEY unset or venv missing
 
 **Ingest skill (`skills/omnigraph_ingest/`):**
 
-- [ ] **SKILL-02**: `SKILL.md` frontmatter has `name: omnigraph_ingest`, 100–200 word pushy `description` (see PKG-01), no `triggers:` block (description does the work)
-- [ ] **SKILL-03**: `SKILL.md` body contains decision tree: WeChat URL (→ `ingest.sh <url>`), PDF path (→ `ingest.sh <path>`), no URL (ask first), missing GEMINI_API_KEY (configuration error message), non-WeChat URL (guard/reject: ask to confirm or provide WeChat URL)
-- [ ] **SKILL-04**: `SKILL.md` body contains explicit "When NOT to Use" section: query intent → `omnigraph_query`, synthesis report → `omnigraph_synthesize`, graph health → `omnigraph_status`, manage entities → `omnigraph_manage`
-- [ ] **SKILL-05**: `references/api-surface.md` covers `scripts/ingest.sh` CLI args, required/optional env vars, dispatch logic (WeChat vs PDF), output format, exit codes, error messages, and image server dependency
+- [x] **SKILL-02**: `SKILL.md` frontmatter has `name: omnigraph_ingest`, 100–200 word pushy `description` (see PKG-01), no `triggers:` block (description does the work)
+- [x] **SKILL-03**: `SKILL.md` body contains decision tree: WeChat URL (→ `ingest.sh <url>`), PDF path (→ `ingest.sh <path>`), no URL (ask first), missing GEMINI_API_KEY (configuration error message), non-WeChat URL (guard/reject: ask to confirm or provide WeChat URL)
+- [x] **SKILL-04**: `SKILL.md` body contains explicit "When NOT to Use" section: query intent → `omnigraph_query`, synthesis report → `omnigraph_synthesize`, graph health → `omnigraph_status`, manage entities → `omnigraph_manage`
+- [x] **SKILL-05**: `references/api-surface.md` covers `scripts/ingest.sh` CLI args, required/optional env vars, dispatch logic (WeChat vs PDF), output format, exit codes, error messages, and image server dependency
 
 **Query skill (`skills/omnigraph_query/`):**
 
-- [ ] **SKILL-08**: `SKILL.md` frontmatter with `name: omnigraph_query`, 100–200 word pushy `description`
-- [ ] **SKILL-09**: `SKILL.md` body contains: image server warning (port 8765, for inline images), decision tree with mode dispatch, empty KB response (advise to ingest first), destructive-action guard (→ `omnigraph_manage`), and distinct failure messages
-- [ ] **SKILL-10**: `SKILL.md` body contains "When NOT to Use" section: ingest intent → `omnigraph_ingest`, synthesis report → `omnigraph_synthesize`, graph health → `omnigraph_status`, manage entities → `omnigraph_manage`, general web search → leave to agent default
-- [ ] **SKILL-11**: `references/api-surface.md` covers `scripts/query.sh` CLI args, required/optional env vars, query modes table, output file location, exit codes, error messages
+- [x] **SKILL-08**: `SKILL.md` frontmatter with `name: omnigraph_query`, 100–200 word pushy `description`
+- [x] **SKILL-09**: `SKILL.md` body contains: image server warning (port 8765, for inline images), decision tree with mode dispatch, empty KB response (advise to ingest first), destructive-action guard (→ `omnigraph_manage`), and distinct failure messages
+- [x] **SKILL-10**: `SKILL.md` body contains "When NOT to Use" section: ingest intent → `omnigraph_ingest`, synthesis report → `omnigraph_synthesize`, graph health → `omnigraph_status`, manage entities → `omnigraph_manage`, general web search → leave to agent default
+- [x] **SKILL-11**: `references/api-surface.md` covers `scripts/query.sh` CLI args, required/optional env vars, query modes table, output file location, exit codes, error messages
 
 **Eval suites (SkillHub format):**
 
-- [ ] **EVAL-01**: `skills/omnigraph_ingest/evals/evals.json` in SkillHub eval schema with ≥3 test cases: WeChat URL golden path, non-WeChat URL guard, missing GEMINI_API_KEY guard
-- [ ] **EVAL-02**: `skills/omnigraph_query/evals/evals.json` in SkillHub eval schema with ≥3 test cases: natural-language query golden path, mode selection, empty-KB response
+- [x] **EVAL-01**: `skills/omnigraph_ingest/evals/evals.json` in SkillHub eval schema with ≥3 test cases: WeChat URL golden path, non-WeChat URL guard, missing GEMINI_API_KEY guard
+- [x] **EVAL-02**: `skills/omnigraph_query/evals/evals.json` in SkillHub eval schema with ≥3 test cases: natural-language query golden path, mode selection, empty-KB response
 
 **Local test harness (skill_runner):**
 
-- [ ] **TEST-01**: `tests/skills/test_omnigraph_ingest.json` covers: trigger phrase matching (2+ phrases), WeChat URL guard, non-WeChat URL guard (9th case), missing key guard, wrong-skill redirect
-- [ ] **TEST-02**: `tests/skills/test_omnigraph_query.json` covers: trigger phrase matching, empty KB response, successful synthesis output format, wrong-skill redirect
+- [x] **TEST-01**: `tests/skills/test_omnigraph_ingest.json` covers: trigger phrase matching (2+ phrases), WeChat URL guard, non-WeChat URL guard (9th case), missing key guard, wrong-skill redirect
+- [x] **TEST-02**: `tests/skills/test_omnigraph_query.json` covers: trigger phrase matching, empty KB response, successful synthesis output format, wrong-skill redirect
 - [ ] **TEST-03**: `python skill_runner.py skills/omnigraph_ingest --test-file tests/skills/test_omnigraph_ingest.json` exits 0 (all cases pass)
 - [ ] **TEST-04**: `python skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omnigraph_query.json` exits 0
 
@@ -139,24 +139,24 @@
 | GATE6-03 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
 | GATE6-04 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
 | GATE6-05 | 1 | Phase 1: Bug Fixes + Gate 6 Validation | Pending |
-| PKG-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| PKG-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| PKG-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| PKG-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| PKG-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| PKG-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
 | PKG-04 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
-| SKILL-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-04 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-05 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-07 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-08 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-09 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-10 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| SKILL-11 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| EVAL-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| EVAL-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| TEST-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
-| TEST-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
+| SKILL-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| SKILL-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| SKILL-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| SKILL-04 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| SKILL-05 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| SKILL-07 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| SKILL-08 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| SKILL-09 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| SKILL-10 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| SKILL-11 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| EVAL-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| EVAL-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| TEST-01 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
+| TEST-02 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Done |
 | TEST-03 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | TEST-04 | 2 | Phase 2: SkillHub-Ready Skill Packaging | Pending |
 | DRIFT-01 | 3 | Phase 3: Hermes Deployment + Gate 7 Validation | Pending |
