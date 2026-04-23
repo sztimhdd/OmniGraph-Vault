@@ -114,6 +114,31 @@
 - [ ] **RULES-01**: `rules_engine.json` at project root contains 20–30 rules; each rule has fields: `id` (string), `condition` (string, when this rule applies), `recommendation` (string), `dont_use` (list of strings), `weight` (int 0–10), `tags` (list: `solo-dev` / `startup` / `researcher`), `test_scenario` (string describing a test case for this rule)
 - [ ] **RULES-02**: Quality gate before `/architect` SKILL.md authoring: manual spot-check confirms rules look plausible, cover distinct scenarios (not duplicates of each other), and are not obviously generic advice; all 20–30 rules have `test_scenario` populated
 
+### Knowledge Source Integration Model
+
+> **How GitHub content and KOL content integrate in LightRAG — read this before KB population.**
+
+Both `ingest_github.py` and `ingest_wechat.py` call `rag.ainsert(markdown_text)` against the **same LightRAG instance** (storage: `~/.hermes/omonigraph-vault/lightrag_storage/`). There is no separate Graphify graph — all knowledge lives in one graph.
+
+**Integration mechanism:**
+
+1. **Shared entity namespace** — LightRAG uses Gemini to extract entities and relationships from every inserted document. When "LangChain" appears in a GitHub README and also in a KOL WeChat article, LightRAG links them as the same entity node (or adjacent nodes) in the knowledge graph.
+
+2. **Chinese↔English normalization** — `cognee_batch_processor.py` runs after ingestion and writes `canonical_map.json` (entity alias map). At query time, `kg_synthesize.py` normalizes the query using `canonical_map.json` before calling LightRAG — so searching "LangChain" also hits content that used "LangChain框架" or other alias forms.
+
+3. **Hybrid retrieval across both sources** — `rag.aquery(mode=hybrid)` runs dense vector search AND graph traversal simultaneously. A query about "best practices for building AI agents" will retrieve relevant chunks from both GitHub READMEs and KOL articles in one call, ranked by relevance.
+
+4. **Source provenance** — `ingest_github.py` prepends `# Source: github.com/org/repo` to each document before insertion. KOL articles retain their URL metadata from `ingest_wechat.py`. LightRAG stores this provenance in node metadata, so synthesis responses can cite both source types.
+
+5. **No separate query paths** — There is no "Graphify query" and "LightRAG query" running in parallel. All queries go through `kg_synthesize.py` → `rag.aquery()`. The GitHub data and KOL data are integrated at insertion time, not at query time.
+
+**Duplicate prevention:**
+
+- GitHub repos: `entity_registry.json` (keyed by GitHub URL, written by `ingest_github.py`) — re-running on an already-indexed URL is a no-op
+- KOL articles: `entity_buffer/` + `.processed` marker (written by `ingest_wechat.py`) — idempotent by design
+
+---
+
 ### KB Population
 
 - [ ] **GATE6-PREREQ**: Gate 6 manual checkpoint must pass before KB population begins — complete GATE6-01 through GATE6-04 from v1.1 (ingest 3 WeChat articles with shared entities, run `cognee_batch_processor.py`, confirm cross-article synthesis response references entities from ≥2 articles); validates that multi-document retrieval is functional before adding 50+ more documents to the graph

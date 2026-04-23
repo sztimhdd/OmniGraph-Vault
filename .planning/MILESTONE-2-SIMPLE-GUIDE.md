@@ -79,13 +79,16 @@ Copy this into the plan:
 - Est: 3 hours
 - Blocker: Needs 2.1-01 complete
 
-### Task 2.1-03: Ingest GitHub Tools via Graphify (Agent)
-- Use Graphify MCP to fetch ~100 AI tools (LangChain, Claude, etc.)
-- Run: python ingest_wechat.py --source graphify --list tools.json
-- Create entity_registry.json (GitHub URL → entity ID mapping)
-- Verify: query_lightrag.py "What is LangChain?" returns GitHub info
-- Output: KB contains GitHub tools; entity_registry.json
+### Task 2.1-03: Ingest GitHub Tools via ingest_github.py (Agent)
+- Ask Claude to write ingest_github.py (GitHub REST API, mirrors ingest_wechat.py structure)
+- Script: fetches README + description via api.github.com, calls rag.ainsert(), atomically updates entity_registry.json
+- Run: python ingest_github.py "https://github.com/langchain-ai/langchain" (one repo at a time)
+- Batch: loop over a curated list of 50+ AI tool repos
+- Create entity_registry.json (GitHub URL → entity ID mapping, for duplicate detection)
+- Verify: python query_lightrag.py "What is LangChain?" hybrid → returns GitHub README content
+- Output: 50+ GitHub tool repos in KB; entity_registry.json populated
 - Est: 4 hours
+- Note: GITHUB_TOKEN optional but recommended (60 req/hr unauth vs 5000/hr auth)
 
 ### Task 2.1-04: Ingest KOL Content (You)
 - Manually curate 5-10 articles:
@@ -124,8 +127,8 @@ This enters execution mode. Work through tasks sequentially:
 - Test with 3 scenarios manually
 
 **2.1-03 (Agent):**
-- Ask me to write Graphify ingestion script
-- Run it, validate KB updated
+- Ask Claude to write ingest_github.py (GitHub REST API)
+- Run it on a curated list of 50+ repos, validate KB updated
 
 **2.1-04 (You):**
 - Ingest 5-10 articles manually
