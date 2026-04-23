@@ -79,7 +79,7 @@ def _gh_api(endpoint: str) -> dict | None:
     try:
         result = subprocess.run(
             ["gh", "api", endpoint],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, encoding="utf-8", timeout=15,
         )
         if result.returncode == 0:
             return json.loads(result.stdout)
