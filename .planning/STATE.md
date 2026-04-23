@@ -1,92 +1,63 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: milestone
-current_phase: 02
-status: executing
-last_updated: "2026-04-23T10:54:00Z"
+milestone: v2.0
+milestone_name: Knowledge Infrastructure MVP
+current_phase: 4
+status: planning
+last_updated: "2026-04-23T00:00:00.000Z"
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 **Project:** OmniGraph-Vault
-**Milestone:** v1.1 — SkillHub-Ready Skill Packaging
-**Current Phase:** 02
-**Status:** Executing Phase 02
-**Last Updated:** 2026-04-21
+**Milestone:** v2.0 — Knowledge Infrastructure MVP
+**Current Phase:** 4 (not started — roadmap defined, awaiting Gate 6 prerequisite)
+**Status:** Ready to plan
+**Last Updated:** 2026-04-23
 
 ---
 
 ## Phase Status
 
-- Phase 1 — Bug Fixes + Gate 6 Validation: executing (Plan 01-01 complete, Plan 01-02 pending)
-- Phase 2 — SkillHub-Ready Skill Packaging: pending
-- Phase 3 — Hermes Deployment + Gate 7 Validation: pending
+- Phase 4 — Foundation Patch + Rules Bootstrap: not started
+- Phase 5 — KB Population + Rules Quality Gate: not started
+- Phase 6 — /architect Skill + Multi-Turn Testing: not started
 
 ---
 
 ## Current Focus
 
-Phase 1: Plan 01-01 (INFRA-01..04) COMPLETE. Plan 01-02 (Gate 6 validation) CHECKPOINT REACHED.
+Roadmap defined. v2.0 has 3 phases (4, 5, 6) covering 13 requirements.
 
-**Completed in Plan 01-01:**
+**Carry-over from v1.1:**
+- Gate 6 manual checkpoint still pending (ingest 3 articles, cross-article synthesis) — prerequisite for Phase 4
+- Phase 3 (Hermes deployment) deferred until after v2.0 completion
 
-- ✓ INFRA-01: Added ENTITY_BUFFER_DIR and CANONICAL_MAP_FILE to config.py
-- ✓ INFRA-02: Removed all hardcoded /home/sztimhdd/ paths (13 instances across 12 files)
-- ✓ INFRA-03: Added missing json import in kg_synthesize.py
-- ✓ INFRA-04: Changed default query mode from "naive" to "hybrid"
-- ✓ Fixed bare except clauses in cognee_wrapper.py and ingest_wechat.py
-- ✓ Fixed ingest_pdf() variable references and added image counter
-- ✓ Removed venv path injections from 8 files
-
-**Completed in Plan 01-02 (automated tasks):**
-
-- ✓ Task 1: Verified pre-completed SKILL.md Case 5 guard and 9th test case (v1.1 milestone)
-- ✓ Task 2: Updated test expectations, skill_runner.py passes all 9/9 tests (GATE6-05)
-- ✓ Automated grep: zero hardcoded paths confirmed
-
-**CHECKPOINT: Plan 01-02 Task 3 — Manual pipeline validation required**
-
-- User must ingest 3 WeChat articles with shared entities (GATE6-01, GATE6-04)
-- User must run cognee_batch_processor.py and verify canonical_map.json created (GATE6-02)
-- User must run cross-article synthesis and verify multi-document response (GATE6-03)
-- All 5 Gate 6 requirements depend on this checkpoint completion
-
-### Phase 2 skill package files
-
-Already on disk (created ahead of Phase 1 execution):
-
-- `skills/omnigraph_ingest/` — upgraded SKILL.md, scripts/ingest.sh, references/, evals/
-- `skills/omnigraph_query/` — upgraded SKILL.md, scripts/query.sh, references/, evals/
-
-These do not conflict with Phase 1 code fixes; skill_runner validation happens in Phase 2.
+**Next action:** Complete Gate 6 manual checkpoint, then `/gsd:plan-phase 4`
 
 ---
 
 ## Progress Bar
 
-```
-Phase 1 [===       ] 75% (Plan 01-01 complete; Plan 01-02 automated tasks done, checkpoint pending)
-Phase 2 [==========] 100% (Plans 02-01, 02-02, 02-03 complete)
-Phase 3 [          ] 0%
+```text
+Phase 4 [          ] 0%
+Phase 5 [          ] 0%
+Phase 6 [          ] 0%
 ```
 
 ---
 
 ## Performance Metrics
 
-- Requirements mapped: 43/43
-- Phases planned: 3
-- Plans written: 2 (Phase 1 plans executing; Phase 2/3 plans TBD)
-- Requirements completed: 5/43 (INFRA-01, INFRA-02, INFRA-03, INFRA-04, GATE6-05)
-- Gates passed: 5 (Gates 1-5 + A-D from prior milestone; GATE6-05 automated validation pass)
-- Plan 01-01 execution time: 15 min
-- Plan 01-02 automated tasks time: 7 min (checkpoint pending manual validation)
+- Requirements mapped: 13/13 (FOUND-01/02/03, RULES-01/02, KB-01/02/03/04, ARCH-01/02, TEST-05/06/07)
+- Phases planned: 3 (phases 4, 5, 6)
+- Plans written: 0
+- Requirements completed: 0
 
 ---
 
@@ -109,31 +80,58 @@ Phase 3 [          ] 0%
 - Repo path (`~/Desktop/OmniGraph-Vault`) and runtime path (`~/.hermes/omonigraph-vault`) must always be explicit in wrappers
 - KEEP CURRENT embedding strategy (Method A): Vision describe + text embed — LightRAG has no multimodal vector support
 
+### Key Decisions (v2.0 roadmap)
+
+- Graphify MCP does not exist — replace with `ingest_github.py` using GitHub REST API (already in requirements.txt via `requests`)
+- SKILL.md hard cap at 100 lines — GSD:DISCUSS protocol moves to `references/discuss-protocol.md` (Level 2 loading)
+- `skill_runner.py` multi-turn: add `inputs: list[str]` alongside (not replacing) existing `input: str` — backward compat is non-negotiable
+- `kg_synthesize.py` is NOT modified for rules injection — rules prepended at shell layer in `architect.sh`
+- RULES-01 (content creation) runs in Phase 4 alongside Foundation code work — no code dependency blocks it
+- RULES-02 quality audit gates Phase 6 start alongside KB-04 integration gate
+
 ### Constraints
 
 - Windows-primary platform (Git Bash + Edge for CDP)
 - Python 3.11+, LightRAG, Cognee, Gemini 2.5 Flash/Pro — no framework migrations
 - All data stays local; only Gemini API + Apify make external calls
 - No LLM abstraction layer — skills wrap existing pipeline, not new standalone Python scripts
+- Zero new Python dependencies for v2.0 — everything builds on existing requirements.txt
 
-### Open Questions
+### Open Questions (v2.0)
 
-- Exact Hermes exec shell on Windows (Git Bash vs PowerShell vs cmd.exe) — validate in Phase 3 before other Gate 7 testing
-- Whether `metadata.openclaw.requires.config` is enforced by Hermes or advisory only — do not rely on it; shell wrapper must always perform env pre-flight independently
-- Exact `skills.external_dirs` config file location and format in Hermes — validate before Phase 3 planning
+- `google-genai` multi-turn `contents` list API exact parameter names — verify against installed version before implementing TEST-05 (context7 lookup recommended)
+- LightRAG entity collision threshold — 10-15 repo batch cap is conservative; expand if first batch shows no hub-node inflation
+- Copilot rule quality — 50% cap is policy; adversarial audit is the only reliable signal; run during Phase 4
 
 ---
 
 ## Session Continuity
 
-Last session: 2026-04-23T11:06:43Z — Plan 02-03 executed: both skill_runner test suites pass (9/9 ingest, 10/10 query), 224s elapsed.
+Last activity: 2026-04-23 - Completed quick task 260423-fq7: WeChat KOL Cold-Start Bridge
 
-**Completed in this session:**
+---
 
-- ✓ Plan 02-03 Task 1: Ingest skill test suite 9/9 passed (zero fixes needed)
-- ✓ Plan 02-03 Task 2: Query skill test suite 10/10 passed (zero fixes needed)
-- ✓ 02-03-SUMMARY.md created
-- ✓ STATE.md and ROADMAP.md updated
-- ✓ Phase 2 complete (all 3 plans done)
+### Quick Tasks Completed
 
-Next action: Plan and execute Phase 3 (Hermes Deployment + Gate 7 Validation).
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260423-fq7 | WeChat KOL Cold-Start Bridge | 2026-04-23 | df89da7 | [260423-fq7-wechat-kol-cold-start-bridge](./quick/260423-fq7-wechat-kol-cold-start-bridge/) |
+
+---
+
+Last session: 2026-04-23 — v2.0 roadmap created. 3 phases defined (4, 5, 6). 13/13 v2.0 requirements mapped. ROADMAP.md, STATE.md, and REQUIREMENTS.md traceability updated.
+
+**Completed in prior milestone (v1.1):**
+
+- Phase 1 Plan 01-01: All INFRA fixes (hardcoded paths, imports, bare excepts) — DONE
+- Phase 1 Plan 01-02: skill_runner 9/9 automated (Gate 6 manual checkpoint still pending)
+- Phase 2 Plans 02-01, 02-02, 02-03: Both skill packages complete, embedding strategy decided — DONE
+
+**Phase dependency chain (v2.0):**
+
+```text
+Gate 6 checkpoint (carry-over)
+  └─> Phase 4: FOUND-01/02/03 + RULES-01
+        └─> Phase 5: KB-01/02/03/04 + RULES-02
+              └─> Phase 6: ARCH-01/02 + TEST-05/06/07
+```
