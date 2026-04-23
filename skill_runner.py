@@ -67,10 +67,12 @@ class SkillDef:
 @dataclass
 class TestCase:
     description: str
-    input: str
+    input: str = ""
+    inputs: list[str] = field(default_factory=list)
     expect_contains: list[str] = field(default_factory=list)
     expect_not_contains: list[str] = field(default_factory=list)
     load_references: list[str] = field(default_factory=list)
+    expect_final_only: bool = True
 
 
 @dataclass
@@ -150,7 +152,7 @@ _GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 _MAX_RETRIES = 3
 
 
-def call_gemini(system_prompt: str, user_message: str) -> str:
+def call_gemini(system_prompt: str, user_message: str, history: list[dict] | None = None) -> str:
     import time
     from google import genai
     from google.genai import types
@@ -160,6 +162,12 @@ def call_gemini(system_prompt: str, user_message: str) -> str:
         raise RuntimeError("GEMINI_API_KEY not set -- check ~/.hermes/.env")
     client = genai.Client(api_key=api_key)
 
+    contents: list[types.Content] = []
+    if history:
+        for turn in history:
+            contents.append(types.Content(role=turn["role"], parts=[types.Part(text=turn["text"])]))
+    contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+
     for attempt in range(_MAX_RETRIES):
         try:
             response = client.models.generate_content(
@@ -167,12 +175,11 @@ def call_gemini(system_prompt: str, user_message: str) -> str:
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=0.1,
-                    # Disable function calling so the model never tries to invoke tools.
                     tool_config=types.ToolConfig(
                         function_calling_config=types.FunctionCallingConfig(mode="NONE")
                     ),
                 ),
-                contents=user_message,
+                contents=contents,
             )
         except Exception as exc:
             msg = str(exc)
@@ -195,20 +202,30 @@ def call_gemini(system_prompt: str, user_message: str) -> str:
 
 def run_test_case(skill: SkillDef, case: TestCase) -> TestResult:
     system_prompt = _build_system_prompt(skill, case.load_references)
+
+    turns = case.inputs if case.inputs else [case.input]
+    history: list[dict] = []
+    all_responses: list[str] = []
+
     try:
-        response = call_gemini(system_prompt, case.input)
+        for user_msg in turns:
+            response = call_gemini(system_prompt, user_msg, history=history or None)
+            all_responses.append(response)
+            history.append({"role": "user", "text": user_msg})
+            history.append({"role": "model", "text": response})
     except Exception as exc:
         return TestResult(case=case, passed=False, response="", failures=[f"API error: {exc}"])
 
+    check_text = all_responses[-1] if case.expect_final_only else "\n".join(all_responses)
     failures: list[str] = []
-    response_lower = response.lower()
+    check_lower = check_text.lower()
     for expected in case.expect_contains:
-        if expected.lower() not in response_lower:
+        if expected.lower() not in check_lower:
             failures.append(f"expected to contain: '{expected}'")
     for forbidden in case.expect_not_contains:
-        if forbidden.lower() in response_lower:
+        if forbidden.lower() in check_lower:
             failures.append(f"expected NOT to contain: '{forbidden}'")
-    return TestResult(case=case, passed=not failures, response=response, failures=failures)
+    return TestResult(case=case, passed=not failures, response="\n---\n".join(all_responses), failures=failures)
 
 
 def run_test_file(skill: SkillDef, test_file: Path) -> list[TestResult]:

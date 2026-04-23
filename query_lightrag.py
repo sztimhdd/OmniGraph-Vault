@@ -28,7 +28,7 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
     )
 
 @wrap_embedding_func_with_attrs(
-    embedding_dim=3072,
+    embedding_dim=768,
     send_dimensions=True,
     max_token_size=2048,
     model_name="gemini-embedding-001",

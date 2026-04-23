@@ -1,0 +1,81 @@
+[
+  {
+    "description": "propose golden path: AI/LLM + Time → stack recommendation with rules",
+    "inputs": [
+      "I want to build an AI chatbot for customer support",
+      "A",
+      "A"
+    ],
+    "expect_contains": ["architect.sh", "propose"],
+    "expect_not_contains": ["omnigraph_ingest", "omnigraph_query"],
+    "expect_final_only": true
+  },
+  {
+    "description": "propose golden path: Web/SaaS + Scale → modular monolith advice",
+    "inputs": [
+      "I'm building a SaaS product for project management",
+      "B",
+      "B"
+    ],
+    "expect_contains": ["architect.sh", "propose"],
+    "expect_not_contains": ["ingest_github.py"],
+    "expect_final_only": true
+  },
+  {
+    "description": "propose early exit: user says go after default guess",
+    "inputs": [
+      "What stack should I use for my side project?",
+      "go, that sounds right — give me the full breakdown"
+    ],
+    "expect_contains": ["architect.sh", "propose"],
+    "expect_not_contains": ["omnigraph_ingest"],
+    "expect_final_only": true
+  },
+  {
+    "description": "query mode: factual architecture question triggers query mode",
+    "input": "What is the difference between FAISS and pgvector for embeddings?",
+    "expect_contains": ["architect.sh", "query"],
+    "expect_not_contains": ["propose", "ingest_github.py"]
+  },
+  {
+    "description": "query mode: knowledge graph architecture question",
+    "input": "How does LightRAG handle entity extraction?",
+    "expect_contains": ["architect.sh", "query"],
+    "expect_not_contains": ["propose", "omnigraph_ingest"]
+  },
+  {
+    "description": "query mode: comparison question about tools",
+    "input": "What are the trade-offs between LangChain and direct API calls?",
+    "expect_contains": ["architect.sh", "query"],
+    "expect_not_contains": ["ingest_github.py"]
+  },
+  {
+    "description": "ingest mode: GitHub URL triggers ingest with correct command",
+    "input": "Add https://github.com/NousResearch/hermes-agent to my knowledge base",
+    "expect_contains": ["architect.sh", "ingest", "github.com"],
+    "expect_not_contains": ["omnigraph_ingest", "query"]
+  },
+  {
+    "description": "ingest guard: non-GitHub URL rejected",
+    "input": "Ingest https://mp.weixin.qq.com/s/abc123 as a repo",
+    "expect_contains": ["omnigraph_ingest"],
+    "expect_not_contains": ["ingest_github.py"]
+  },
+  {
+    "description": "wrong skill: WeChat article redirects to omnigraph_ingest",
+    "input": "Save this article to my KB: https://mp.weixin.qq.com/s/test123",
+    "expect_contains": ["omnigraph_ingest"],
+    "expect_not_contains": ["architect.sh"]
+  },
+  {
+    "description": "wrong skill: graph status redirects to omnigraph_status",
+    "input": "How many nodes are in my knowledge graph?",
+    "expect_contains": ["omnigraph_status"],
+    "expect_not_contains": ["architect.sh"]
+  },
+  {
+    "description": "config error: missing GEMINI_API_KEY surfaces actionable message",
+    "input": "recommend a stack for my project — but GEMINI_API_KEY is not set",
+    "expect_contains": ["GEMINI_API_KEY", ".env"]
+  }
+]

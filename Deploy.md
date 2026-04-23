@@ -1,121 +1,142 @@
-# OmniGraph-Vault 部署指南
+# OmniGraph-Vault Deployment Guide
 
-本文档说明如何把 **OmniGraph-Vault** 接入真实运行中的 **Hermes Agent / Openclaw**，并避免最常见的部署错误。
+The authoritative guide for deploying OmniGraph-Vault skills into a running Hermes Agent or Openclaw instance.
 
-最重要的原则只有一条：
+**One principle governs everything:**
 
-- **Git 仓库是源码与技能定义的唯一真相来源**
-- **`~/.hermes/omonigraph-vault/` 是运行时数据目录，不是 Git 仓库**
+- **The Git repo is the single source of truth** for code, skills, and tests
+- **`~/.hermes/omonigraph-vault/`** is runtime data only — graph index, images, synthesis output
+- Never mix source code and runtime data in the same directory
 
-不要把源码、虚拟环境、LightRAG 源码副本、图谱数据和技能副本混在同一个目录里。Hermes/Openclaw 不应该“自己猜”项目在哪里；我们要显式告诉它。
+---
 
-## 1. 系统要求
+## 1. System Requirements
 
-- 操作系统：Linux / WSL2 (Ubuntu 20.04+) 或 macOS
-- Python：3.11+
-- Git
-- Hermes Agent 或 Openclaw
-- Google Gemini API Key
-- Apify Token（可选）
-- Windows Edge 或 Chrome CDP 调试入口（可选，用于抓取后备）
+| Requirement | Minimum |
+|---|---|
+| OS | Linux / WSL2 (Ubuntu 20.04+) / macOS / Windows with Git Bash |
+| Python | 3.11+ |
+| Git | Any recent version |
+| Agent | Hermes Agent or Openclaw |
+| API Key | Google Gemini API Key (`GEMINI_API_KEY`) |
+| Optional | `APIFY_TOKEN` (primary scraper), Edge/Chrome CDP (scraping fallback), `GITHUB_TOKEN` (GitHub ingestion) |
 
-## 2. 目标目录结构
+---
 
-推荐目录如下：
+## 2. Directory Layout
 
-```text
-~/OmniGraph-Vault/                 # Git 仓库：源码、skills、tests、docs
-~/.hermes/.env                     # Hermes / OmniGraph-Vault 共用环境变量
-~/.hermes/omonigraph-vault/        # 运行时数据：图谱、图片、输出、缓存
+```
+~/OmniGraph-Vault/                  # Git repo: code, skills/, tests/, docs
+├── skills/
+│   ├── omnigraph_ingest/           # Ingest WeChat articles + PDFs
+│   ├── omnigraph_query/            # Query the knowledge graph
+│   └── omnigraph_architect/        # Architecture advice + GitHub repo ingestion
+├── rules_engine.json               # 28 solo-dev architecture rules
+├── skill_runner.py                 # Local skill test harness (multi-turn)
+├── tests/skills/                   # Test suites for all 3 skills
+├── config.py                       # Loads ~/.hermes/.env, sets all paths
+└── venv/                           # Python virtual environment
+
+~/.hermes/.env                      # Shared env vars (Hermes + OmniGraph-Vault)
+~/.hermes/omonigraph-vault/         # Runtime data ONLY (note: "omonigraph" typo is intentional)
+├── lightrag_storage/               # LightRAG knowledge graph index
+├── images/{hash}/                  # Downloaded article images
+├── entity_buffer/                  # Extracted entities awaiting canonicalization
+├── canonical_map.json              # Entity normalization map
+└── synthesis_output.md             # Last synthesis output
 ```
 
-其中：
+**Critical:** the runtime directory is `omonigraph-vault` (with the typo). This is baked into `config.py` and all deployed environments. Do NOT rename it.
 
-- `~/OmniGraph-Vault` 必须保持为正常 Git 仓库
-- `~/.hermes/omonigraph-vault` 必须保留 `omonigraph` 这个拼写，**不要擅自改成 `omnigraph`**
-- `config.py` 会读取 `~/.hermes/.env`
+---
 
-## 3. 安装源码仓库
+## 3. Skills Catalog
+
+| Skill | Modes | Trigger Phrases | Entry Script |
+|---|---|---|---|
+| `omnigraph_ingest` | WeChat URL, PDF path | "add this to my KB", "ingest this article", "save this" | `scripts/ingest.sh <url-or-path>` |
+| `omnigraph_query` | naive, local, global, hybrid, mix | "what do I know about X", "search my KB" | `scripts/query.sh "<question>" [mode]` |
+| `omnigraph_architect` | propose, query, ingest | "what stack should I use", "recommend tech for", "add this GitHub repo" | `scripts/architect.sh <mode> "<input>"` |
+
+### omnigraph_architect modes
+
+| Mode | What it does | Example |
+|---|---|---|
+| `propose` | Multi-turn guided stack recommendation using 28 rules from `rules_engine.json` | `architect.sh propose "AI chatbot for customer support"` |
+| `query` | Single-turn architecture question answered via the knowledge graph | `architect.sh query "What is LightRAG?"` |
+| `ingest` | Add a GitHub repo's README + metadata to the knowledge graph | `architect.sh ingest "https://github.com/org/repo"` |
+
+---
+
+## 4. Installation
+
+### 4.1 Clone the repo
 
 ```bash
 git clone https://github.com/sztimhdd/OmniGraph-Vault.git ~/OmniGraph-Vault
 cd ~/OmniGraph-Vault
+```
+
+### 4.2 Create venv and install dependencies
+
+```bash
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate          # Linux/macOS
+# source venv/Scripts/activate    # Windows Git Bash
 pip install -r requirements.txt
 ```
 
-验证：
+### 4.3 Verify imports
 
 ```bash
-git status --short --branch
 python -c "import lightrag; print('LightRAG OK')"
 python -c "import cognee; print('Cognee OK')"
+python -c "from google import genai; print('google-genai OK')"
 ```
 
-## 4. 初始化运行时数据目录
+### 4.4 Initialize runtime data directory
 
 ```bash
 mkdir -p ~/.hermes/omonigraph-vault/images
 mkdir -p ~/.hermes/omonigraph-vault/lightrag_storage
-mkdir -p ~/.hermes/omonigraph-vault/outputs
 ```
 
-这一步只创建运行时目录，不复制源码，不复制整个仓库，不在这里再建第二个 Git repo。
+Only creates empty directories. No source code copied here.
 
-## 5. 配置环境变量
+### 4.5 Configure environment variables
 
-在 `~/.hermes/.env` 中放置项目需要的变量：
+Create `~/.hermes/.env`:
 
 ```bash
-GEMINI_API_KEY=your_gemini_key
-APIFY_TOKEN=your_apify_token
-CDP_URL=http://localhost:9223
+GEMINI_API_KEY=your_gemini_key_here
+APIFY_TOKEN=your_apify_token          # optional
+CDP_URL=http://localhost:9223          # optional
+GITHUB_TOKEN=your_github_token        # optional, for ingest_github.py
 ```
 
-如果你在 WSL 中调用 Windows Edge 进行 CDP 抓取，先在 Windows 主机启动：
-
-```powershell
-Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 --user-data-dir=$env:LOCALAPPDATA\EdgeDebug9223"
-```
-
-## 6. 启动图像服务器
-
-图像服务器必须直接指向运行时图片目录：
+### 4.6 Start image server (optional, for inline images in synthesis output)
 
 ```bash
-cd ~/.hermes/omonigraph-vault
-python3 -m http.server 8765 --directory images
+cd ~/.hermes/omonigraph-vault && python3 -m http.server 8765 --directory images &
 ```
 
-如果要后台运行：
+---
 
-```bash
-cd ~/.hermes/omonigraph-vault
-nohup python3 -m http.server 8765 --directory images > image_server.log 2>&1 &
-```
+## 5. Connect Skills to Hermes
 
-## 7. 把 Git 仓库显式连接到 Hermes
+**This is the most important deployment step.**
 
-这是部署里最关键的一步。
+### DO NOT copy skills into `~/.hermes/skills/`
 
-### 7.1 不要复制 skills 到随机目录
+Copying creates drift between the repo and what Hermes actually uses. Instead, point Hermes at the repo directly.
 
-不推荐：
-
-```bash
-cp -r ~/OmniGraph-Vault/skills/* ~/.hermes/skills/
-```
-
-因为这样很容易让 Git 仓库和 Hermes 实际使用的技能副本发生漂移。
-
-### 7.2 推荐做法：让 Hermes 直接加载仓库内的 `skills/`
+### Configure `skills.external_dirs`
 
 ```bash
 hermes config set skills.external_dirs '["/home/<your-user>/OmniGraph-Vault/skills"]'
 ```
 
-如果 CLI 版本不接受 JSON 数组，也可以直接编辑 `~/.hermes/config.yaml`：
+Or edit `~/.hermes/config.yaml` directly:
 
 ```yaml
 skills:
@@ -123,101 +144,99 @@ skills:
     - /home/<your-user>/OmniGraph-Vault/skills
 ```
 
-然后重启网关：
+Then restart the gateway:
 
 ```bash
 hermes gateway restart
 ```
 
-验证：
+### Verify skill registration
 
 ```bash
-hermes skills list | grep -E 'omnigraph|omonigraph'
-```
-
-你应该至少看到：
-
-- `omnigraph_ingest`
-- `omnigraph_query`
-
-## 8. Openclaw / Hermes 技能最佳实践
-
-为了让代理尽量少猜测，项目技能必须遵循下面的约束：
-
-- 技能只描述明确职责，不做大而全的“万能技能”
-- 技能中的命令应调用 Git 仓库里的脚本，而不是运行时目录里的副本
-- 所有路径都应以环境变量或稳定绝对路径表达
-- 对缺失 URL、文件路径、API key 的情况，必须给出 guard clause
-- 不要要求代理自行推断 repo 路径、数据路径、图片目录、CDP 端口
-
-本项目推荐的技能职责：
-
-| 技能 | 职责 |
-|------|------|
-| `omnigraph_ingest` | 把 URL / PDF 写入图谱 |
-| `omnigraph_query` | 从图谱检索并生成回答 |
-
-这些技能应始终把：
-
-- **源码执行目录** 视为 `~/OmniGraph-Vault`
-- **运行时数据目录** 视为 `~/.hermes/omonigraph-vault`
-
-## 9. 建议给代理的固定执行模式
-
-如果你要让 Hermes/Openclaw 在没有太多人工干预的情况下工作，建议让技能或包装脚本显式执行：
-
-```bash
-cd ~/OmniGraph-Vault && source venv/bin/activate && python ingest_wechat.py "<URL>"
-```
-
-以及：
-
-```bash
-cd ~/OmniGraph-Vault && source venv/bin/activate && python kg_synthesize.py "<QUESTION>" hybrid
-```
-
-这样可以避免：
-
-- 从错误目录执行脚本
-- 使用错误的 Python
-- 把运行时目录误当作源码目录
-
-## 10. 部署后验证
-
-### 10.1 验证仓库与技能连接
-
-```bash
-cd ~/OmniGraph-Vault && git status --short --branch
 hermes skills list | grep omnigraph
+```
+
+Expected output (3 skills):
+
+```
+omnigraph_ingest     — Ingest WeChat articles and PDFs into the knowledge graph
+omnigraph_query      — Query the knowledge graph by natural language
+omnigraph_architect  — Architecture advice, knowledge queries, and GitHub repo ingestion
+```
+
+---
+
+## 6. Verification Commands
+
+### 6.1 Structural validation (no API calls)
+
+```bash
+cd ~/OmniGraph-Vault
+source venv/bin/activate
+python skill_runner.py skills/ --validate --test-all
+```
+
+Expected: `PASS omnigraph_architect`, `PASS omnigraph_ingest`, `PASS omnigraph_query`
+
+### 6.2 Full test suite (calls Gemini API)
+
+```bash
+python skill_runner.py skills/ --test-all
+```
+
+Expected: `30/30 passed` (11 architect + 9 ingest + 10 query)
+
+### 6.3 Direct script tests
+
+```bash
+# Query mode
+python kg_synthesize.py "What do I know about AI agent architectures?" hybrid
+
+# Ingest a test article (uses Gemini API)
+python ingest_wechat.py "https://mp.weixin.qq.com/s/<article-id>"
+
+# Architect propose mode (loads rules_engine.json)
+bash skills/omnigraph_architect/scripts/architect.sh propose "solo AI chatbot"
+
+# Architect query mode
+bash skills/omnigraph_architect/scripts/architect.sh query "What is FAISS?"
+```
+
+### 6.4 Hermes live dispatch test
+
+```bash
 hermes chat -s omnigraph_ingest -q "add this to my kb"
+# Expected: guard clause asking for URL (no crash)
+
+hermes chat -s omnigraph_query -q "what do I know about LightRAG?"
+# Expected: synthesis from knowledge graph
+
+hermes chat -s omnigraph_architect -q "what stack should I use for a solo AI chatbot?"
+# Expected: default guess + asks Q1 (project type)
 ```
 
-预期：
+---
 
-- Git 仓库状态正常
-- Hermes 能看到 `omnigraph_ingest`
-- 当没有提供 URL / PDF 时，技能返回 guard clause，而不是报错
+## 7. Gate 7 Validation Checklist
 
-### 10.2 验证直接脚本调用
+Run these checks after deployment to confirm the system works end-to-end.
 
-```bash
-cd ~/OmniGraph-Vault
-source venv/bin/activate
-python query_lightrag.py "test query"
-```
+| # | Check | Command | Pass Criteria |
+|---|-------|---------|---------------|
+| G7-1 | Skills registered from repo | `hermes skills list \| grep omnigraph` | Shows 3 skills sourced from `~/OmniGraph-Vault/skills/` |
+| G7-2 | Shell wrappers work from `/tmp` | `cd /tmp && bash ~/OmniGraph-Vault/skills/omnigraph_ingest/scripts/ingest.sh` | Exits non-zero with "Usage: ingest.sh" message (no Python traceback) |
+| G7-3 | Ingest routing | `hermes chat "add this article to my knowledge base"` | Routes to `omnigraph_ingest`, asks for URL |
+| G7-4 | Query routing | `hermes chat "what do I know about LightRAG?"` | Routes to `omnigraph_query`, returns synthesis |
+| G7-5 | Architect routing | `hermes chat "what stack should I use for my project?"` | Routes to `omnigraph_architect`, starts propose flow |
+| G7-6 | Config error guard | Unset `GEMINI_API_KEY`, run `ingest.sh "<url>"` | Human-readable error message, no traceback |
+| G7-7 | Cross-article synthesis | `kg_synthesize.py "Compare Hermes and OpenClaw architectures" hybrid` | Response references entities from 2+ ingested articles |
+| G7-8 | Skill_runner green | `python skill_runner.py skills/ --test-all` | 30/30 passed |
+| G7-9 | No skill drift | Skills sourced from repo, not `~/.hermes/skills/` | `hermes skills list` shows repo path |
+| G7-10 | Architect ingest mode | `architect.sh ingest "https://github.com/NousResearch/hermes-agent"` | Repo indexed, no crash |
 
-### 10.3 验证合成输出
+---
 
-```bash
-cd ~/OmniGraph-Vault
-source venv/bin/activate
-python kg_synthesize.py "What do I know about OmniGraph-Vault?" hybrid
-cat ~/.hermes/omonigraph-vault/synthesis_output.md
-```
-
-## 11. 升级流程
-
-更新项目时：
+## 8. Upgrading
 
 ```bash
 cd ~/OmniGraph-Vault
@@ -227,27 +246,18 @@ pip install -r requirements.txt
 hermes gateway restart
 ```
 
-不要更新 `~/.hermes/omonigraph-vault/` 里的源码副本，因为那里本来就不应该有源码副本。
+Never update `~/.hermes/omonigraph-vault/` — it's runtime data, not source code.
 
-## 12. 常见问题
+---
 
-| 问题 | 原因 | 解决方式 |
-|------|------|----------|
-| 技能显示不出来 | Hermes 没有加载 repo `skills/` | 检查 `skills.external_dirs`，然后 `hermes gateway restart` |
-| 技能和 GitHub 内容不一致 | 复制了一份旧 skills 到 `~/.hermes/skills/` | 删除旧副本，改为直接加载 repo `skills/` |
-| 图谱数据目录混乱 | 把源码和运行时数据放在一个目录 | 恢复为 `~/OmniGraph-Vault` + `~/.hermes/omonigraph-vault` 双目录结构 |
-| 查询脚本找不到数据 | 运行时目录拼写被改了 | 恢复 `~/.hermes/omonigraph-vault` |
-| CDP 抓取失败 | Windows Edge 未开启 remote debugging | 启动 Edge `--remote-debugging-port=9223` |
+## 9. Troubleshooting
 
-## 13. 成功标准
-
-成功部署后，应满足：
-
-1. `~/OmniGraph-Vault` 是 Git 仓库
-2. `~/.hermes/omonigraph-vault` 只存运行时数据
-3. `~/.hermes/.env` 中已有必需 API key
-4. Hermes 能看到 `omnigraph_ingest` 与 `omnigraph_query`
-5. Hermes/Openclaw 通过 repo 中的脚本执行 OmniGraph-Vault
-6. 图片服务器能从 `http://localhost:8765/...` 提供本地图片
-
-如需更详细的产品与架构背景，请继续参考 [README.md](README.md) 与 [specs/PRD_TDD.md](specs/PRD_TDD.md)。
+| Problem | Cause | Fix |
+|---|---|---|
+| Skills not showing | Hermes not loading repo `skills/` | Check `skills.external_dirs` → `hermes gateway restart` |
+| Skills out of date | Copied old skills to `~/.hermes/skills/` | Delete copies, use `external_dirs` |
+| Runtime data missing | Wrong directory path | Ensure `~/.hermes/omonigraph-vault` (with typo) exists |
+| Query returns nothing | Empty knowledge graph | Ingest articles first: `python ingest_wechat.py "<url>"` |
+| CDP scraping fails | Edge not in debug mode | Start Edge: `msedge --remote-debugging-port=9223` |
+| GitHub ingest rate-limited | No `GITHUB_TOKEN` set | Add token to `~/.hermes/.env` (60 req/hr → 5000/hr) |
+| `rules_engine.json` not found | architect propose mode fails | Ensure file exists at repo root (28 rules) |

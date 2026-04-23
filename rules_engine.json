@@ -1,0 +1,295 @@
+{
+  "$schema": "rules_engine_v1",
+  "version": "1.0.0",
+  "generated": "2026-04-23",
+  "description": "Architecture decision rules for /architect skill. Each rule encodes an overengineering trap or tech-debt pattern with a condition (trigger), recommendation (safe default), dont_use list (what to avoid), and a test_scenario for validation.",
+  "sources": [
+    "docs/rules-research-report-1.md",
+    "docs/rules-research-report-2.md",
+    "docs/rules-research-report-3.md",
+    "docs/rules-research-report-4.md",
+    "docs/rules-research-report-5.md"
+  ],
+  "rules": [
+    {
+      "id": "rule_001",
+      "name": "sql_first",
+      "condition": "Choosing a database for a new project with < 100M rows, < 1TB data, or < 1000 ops/sec",
+      "recommendation": "Use a single PostgreSQL instance (or SQLite for tiny apps). A well-tuned SQL DB on one server handles millions of records. Scale vertically first, then read-replicas. Use JSONB columns for schemaless parts.",
+      "dont_use": ["MongoDB cluster", "Cassandra", "DynamoDB", "CockroachDB", "HBase", "multi-DB polyglot"],
+      "weight": 9,
+      "tags": ["database", "infrastructure", "solo-dev"],
+      "test_scenario": "Solo dev building a personal finance app with <100k users asks what database to use. Rule should recommend PostgreSQL, not MongoDB."
+    },
+    {
+      "id": "rule_002",
+      "name": "local_vector_store",
+      "condition": "Building RAG or semantic search with < 100K embeddings or < 1GB text corpus",
+      "recommendation": "Use a local vector store: pgvector (if already using Postgres), FAISS, LanceDB, or Chroma locally. In-memory search is faster and simpler. Only move to hosted vector DB when data exceeds single-machine capacity or you need multi-user concurrent high-QPS.",
+      "dont_use": ["Pinecone (for small data)", "Weaviate cluster", "Milvus cluster", "ElasticSearch with vector plugin", "AWS OpenSearch"],
+      "weight": 9,
+      "tags": ["database", "ai-llm", "rag", "solo-dev"],
+      "test_scenario": "Developer building a personal notes chatbot with 5K documents asks about vector databases. Rule should recommend FAISS or pgvector, not Pinecone."
+    },
+    {
+      "id": "rule_003",
+      "name": "modular_monolith",
+      "condition": "Starting a new project with a single developer or small team (< 5 people)",
+      "recommendation": "Build a modular monolith — one deployable unit with clear internal module boundaries. Function calls over network calls. Structure code into modules/folders by domain. Only split into services when you feel real scaling or team-coordination pain. Martin Fowler: almost all successful microservices started as a monolith.",
+      "dont_use": ["microservices architecture on day one", "separate service per feature", "service mesh (Istio/Linkerd)", "API gateway for internal routing", "separate databases per service"],
+      "weight": 10,
+      "tags": ["architecture", "infrastructure", "solo-dev"],
+      "test_scenario": "Solo dev asks whether to use microservices for a new SaaS MVP. Rule should recommend a modular monolith, not microservices."
+    },
+    {
+      "id": "rule_004",
+      "name": "simple_api",
+      "condition": "Building an API with one or two known client types (e.g., your own web frontend + maybe a mobile app)",
+      "recommendation": "Use simple RESTful JSON endpoints. Tailor responses to what the UI needs. Use OpenAPI for docs if needed. Only adopt GraphQL when you have multiple independent consumers with diverse data-fetch patterns. Only use gRPC for high-performance inter-service comms at proven scale.",
+      "dont_use": ["GraphQL (for single-consumer APIs)", "gRPC (for simple web apps)", "OData", "API Gateway products (for a handful of endpoints)", "BFF micro-layer (when one dev controls both ends)"],
+      "weight": 7,
+      "tags": ["api", "architecture", "solo-dev"],
+      "test_scenario": "Solo dev building a React app with a Python backend asks whether to use GraphQL. Rule should recommend REST, since they control both client and server."
+    },
+    {
+      "id": "rule_005",
+      "name": "simple_deployment",
+      "condition": "Deploying an app with low-to-moderate traffic (< 10K concurrent users) as a single developer",
+      "recommendation": "Use a single VPS ($5-10/month) or PaaS (Heroku, Fly.io, Render, Vercel, Cloud Run). Docker Compose on one node if you want containers. Process manager (PM2, Gunicorn, systemd) is enough. Only consider K8s when you have multiple services and manual management breaks down.",
+      "dont_use": ["Kubernetes (EKS/GKE/AKS)", "Helm charts for simple apps", "Istio/Linkerd service mesh", "Rancher/OpenShift", "Terraform for trivial infra"],
+      "weight": 9,
+      "tags": ["deployment", "infrastructure", "solo-dev"],
+      "test_scenario": "Solo dev asks how to deploy a Python web app + database. Rule should recommend Cloud Run or a single VPS, not Kubernetes."
+    },
+    {
+      "id": "rule_006",
+      "name": "simple_auth",
+      "condition": "Building auth for an app with < 1000 users or a handful of known internal users",
+      "recommendation": "Use managed auth (Firebase Auth, Supabase Auth, Auth0 free tier) or your framework's built-in auth (Django auth, Rails Devise). For internal tools, Google OAuth or even HTTP Basic behind a proxy may suffice. Only deploy enterprise IAM (Keycloak, Okta custom) when you have multi-app SSO needs or compliance requirements.",
+      "dont_use": ["self-hosted Keycloak (for < 1000 users)", "custom OAuth2 authorization code flow between own services", "LDAP/Active Directory (for small apps)", "dedicated RBAC microservice (for simple role checks)"],
+      "weight": 8,
+      "tags": ["auth", "security", "solo-dev"],
+      "test_scenario": "Solo dev building a SaaS with email/password login and Google sign-in for ~50 beta users. Rule should recommend Firebase Auth or Supabase, not Keycloak."
+    },
+    {
+      "id": "rule_007",
+      "name": "direct_calls_over_queues",
+      "condition": "Task flow with low throughput (< 100 tasks/minute) or simple async needs in a single-service app",
+      "recommendation": "Use direct function calls or lightweight scheduling. For background tasks, use framework job queues (Celery, Sidekiq) or cron jobs. For simple delayed work, use in-memory task queues or database-backed job tables. Only use dedicated message brokers when you have multiple independent consumers, high-volume producers, or true fire-hose data streams.",
+      "dont_use": ["Apache Kafka (for low-volume events)", "RabbitMQ (for single-consumer tasks)", "AWS SQS/SNS (for simple sequences)", "Google Pub/Sub (for synchronous workflows)", "NATS (without clear fan-out need)"],
+      "weight": 7,
+      "tags": ["architecture", "infrastructure", "solo-dev"],
+      "test_scenario": "Solo dev needs to send confirmation emails after orders (10 orders/day). Rule should recommend a simple background function or cron, not Kafka."
+    },
+    {
+      "id": "rule_008",
+      "name": "cache_after_measuring",
+      "condition": "Adding caching before profiling or before observing actual performance problems",
+      "recommendation": "Build without a cache first. Trust database buffer pools and indexes. If you need caching, start with in-process cache (Python lru_cache, Django local-memory, Caffeine for Java). Only add Redis/memcached when you have multiple servers sharing cache or data too large for process memory. Always add caching for specific measured hotspots, not everywhere.",
+      "dont_use": ["Redis (before profiling)", "memcached (for single-server apps)", "multi-layer caching (browser + CDN + Redis + in-app) for internal tools", "cache-everything strategies without measurement"],
+      "weight": 7,
+      "tags": ["performance", "infrastructure", "solo-dev"],
+      "test_scenario": "Solo dev's admin dashboard is a bit slow with 5 concurrent users. Rule should recommend adding database indexes first, not deploying Redis."
+    },
+    {
+      "id": "rule_009",
+      "name": "direct_llm_api",
+      "condition": "Building an LLM app with < 3 sequential calls or straightforward prompt-response flows",
+      "recommendation": "Call LLM APIs directly using official SDKs (OpenAI, Anthropic, Google). Use simple functions for chaining calls. Store prompts as version-controlled strings or templates. Implement conversation memory with a simple list. Only adopt orchestration frameworks when you need dynamic tool use, complex branching, or agent-level autonomy that you cannot easily code.",
+      "dont_use": ["LangChain (for single-call or two-call flows)", "AutoGPT-style agents (for fixed procedures)", "Airflow/Temporal (for a few LLM calls)", "custom LLM manager class hierarchies", "multiple stacked frameworks"],
+      "weight": 9,
+      "tags": ["ai-llm", "architecture", "solo-dev"],
+      "test_scenario": "Solo dev building a FAQ chatbot that does embedding lookup + one LLM call. Rule should recommend direct API calls, not LangChain."
+    },
+    {
+      "id": "rule_010",
+      "name": "api_over_self_hosting",
+      "condition": "Needing LLM inference for a project without proven high-volume demand or strict data-residency requirements",
+      "recommendation": "Use hosted LLM APIs (OpenAI, Anthropic, Google) for inference — they handle scaling, optimization, and updates. For customization, try prompt engineering and RAG before fine-tuning. If fine-tuning is needed, use provider-hosted fine-tuning (OpenAI fine-tuning, LoRA) before full DIY training. Only self-host when usage volume justifies the GPU cost and ops burden.",
+      "dont_use": ["self-hosted LLaMA/BLOOM (for prototypes)", "custom fine-tuning (before exhausting prompt engineering)", "full ML pipelines with PyTorch (for classification tasks solvable by few-shot)", "dedicated GPU instances 24/7 (for low-volume inference)"],
+      "weight": 8,
+      "tags": ["ai-llm", "infrastructure", "solo-dev"],
+      "test_scenario": "Solo dev wants to customize a chatbot for their niche domain. Rule should recommend RAG + prompt engineering on GPT-4, not fine-tuning LLaMA-7B."
+    },
+    {
+      "id": "rule_011",
+      "name": "single_agent_first",
+      "condition": "Building an AI agent or assistant with a single primary task or a well-defined workflow",
+      "recommendation": "Start with one well-scoped agent with a clear prompt and 2-5 tools max. For multi-step tasks, use a deterministic script with multiple LLM calls in sequence (you orchestrate the logic). Use a router pattern (classifier + specialized prompts) for diverse inputs. Limit tool count to < 15. Only add a second agent when a single agent demonstrably fails due to context window limits or truly independent parallel tasks.",
+      "dont_use": ["multi-agent orchestration frameworks (AutoGPT, CrewAI) for prototypes", "20+ tools in one agent prompt", "agents invoking agents without clear justification", "Microsoft Autogen (for simple flows)", "Hugging Face Transformers Agents (for basic tasks)"],
+      "weight": 9,
+      "tags": ["ai-llm", "architecture", "agents", "solo-dev"],
+      "test_scenario": "Solo dev building a coding assistant that needs web search + code generation. Rule should recommend one agent with 2 tools, not a multi-agent swarm."
+    },
+    {
+      "id": "rule_012",
+      "name": "skip_mlops_early",
+      "condition": "Doing prompt engineering or simple LLM integration (not training/retraining ML models at scale)",
+      "recommendation": "Track prompt versions in Git. Evaluate prompts with simple scripts or spreadsheets. Use basic logging (print/logging module) for LLM call monitoring. Only set up MLflow/Kubeflow/Weights&Biases when you are actually training models with hyperparameter sweeps, or when your prompt experiments exceed what Git + simple scripts can track.",
+      "dont_use": ["MLflow (for prompt versioning only)", "Kubeflow Pipelines (for simple LLM calls)", "Weights & Biases (for non-training workflows)", "dedicated experiment tracking servers (for < 50 experiments)", "CI/CD pipelines for prompt deployment"],
+      "weight": 6,
+      "tags": ["ai-llm", "devops", "solo-dev"],
+      "test_scenario": "Solo dev iterating on prompts for a content generator asks about experiment tracking. Rule should recommend Git + evaluation scripts, not MLflow."
+    },
+    {
+      "id": "rule_013",
+      "name": "skip_feature_store",
+      "condition": "Running a single model or LLM app with simple input data that doesn't require shared feature computation across teams",
+      "recommendation": "Pass features directly in code or store them in your existing database. Feature stores solve a cross-team, multi-model coordination problem — if you have one model and one developer, the overhead is pure waste. Only adopt a feature store when multiple models consume the same computed features and you need point-in-time consistency.",
+      "dont_use": ["Feast", "Tecton", "Hopsworks", "AWS SageMaker Feature Store", "custom feature pipelines (for single-model apps)"],
+      "weight": 6,
+      "tags": ["ai-llm", "infrastructure", "solo-dev"],
+      "test_scenario": "Solo dev with one RAG pipeline asks whether to set up Feast for managing embeddings. Rule should recommend storing features in Postgres/files, not a feature store."
+    },
+    {
+      "id": "rule_014",
+      "name": "minimal_observability",
+      "condition": "Running a small app with < 5 services on < 3 servers",
+      "recommendation": "Use structured logging to stdout/files + basic error alerting (email, PagerDuty free tier, or Sentry). Application-level health checks and simple dashboards (Grafana with your existing DB metrics) are enough. Only deploy full observability stacks (distributed tracing, metrics pipelines, log aggregation) when you have enough services and traffic that correlating issues across boundaries is a real debugging need.",
+      "dont_use": ["OpenTelemetry collector + Jaeger + Prometheus + Grafana stack (for one service)", "Datadog/New Relic enterprise tiers (for hobby projects)", "ELK stack (for one app's logs)", "distributed tracing (for monoliths)"],
+      "weight": 6,
+      "tags": ["observability", "infrastructure", "solo-dev"],
+      "test_scenario": "Solo dev asks how to monitor their single FastAPI app. Rule should recommend Sentry + structured logging, not a full OpenTelemetry stack."
+    },
+    {
+      "id": "rule_015",
+      "name": "simple_workflow_orchestration",
+      "condition": "Running sequential or simple parallel data processing tasks that can be expressed as a script",
+      "recommendation": "Use a Python script with asyncio, a cron job, or your framework's background task system. For simple ETL, a scheduled script is fine. Only adopt workflow engines when you have complex DAGs with retries, branching, human-in-the-loop steps, or multi-team coordination that simple scripts can't reliably handle.",
+      "dont_use": ["Apache Airflow (for < 10 scheduled tasks)", "Temporal (for linear sequences)", "Prefect (for simple cron replacements)", "AWS Step Functions (for straightforward scripts)", "Dagster (for single-pipeline projects)"],
+      "weight": 7,
+      "tags": ["architecture", "data-pipeline", "solo-dev"],
+      "test_scenario": "Solo dev needs to run a nightly data sync from 3 APIs into their database. Rule should recommend a cron + Python script, not Airflow."
+    },
+    {
+      "id": "rule_016",
+      "name": "orm_with_eyes_open",
+      "condition": "Choosing a data access strategy for a new project",
+      "recommendation": "Use an ORM for rapid prototyping but monitor generated SQL from day one. Profile queries early (EXPLAIN ANALYZE). Drop to raw SQL or a query builder (Knex, Dapper) for hot paths and complex joins. Learn enough SQL to not depend entirely on the ORM. Watch for N+1 queries and ORM-generated bloat.",
+      "dont_use": ["blind ORM usage without query profiling", "ORM for all queries including analytics and reporting", "ORM-only approach when complex joins are needed", "heavy ORMs (Hibernate) for simple CRUD apps where a query builder suffices"],
+      "weight": 7,
+      "tags": ["database", "performance", "solo-dev"],
+      "test_scenario": "Solo dev using Django ORM notices slow page loads at 6 months. Rule should recommend profiling with django-debug-toolbar and writing raw SQL for heavy queries, not blindly trusting the ORM."
+    },
+    {
+      "id": "rule_017",
+      "name": "lightweight_frontend",
+      "condition": "Building a web UI for an MVP, internal tool, or content-oriented site",
+      "recommendation": "Start with the simplest frontend that handles current needs. For content sites: server-rendered (Rails + Hotwire, Next.js static export, Eleventy). For interactive apps: lightweight frameworks (Vue, Svelte) or React with minimal tooling. Use a UI kit (Tailwind, Material UI) instead of custom design systems. Progressively enhance — add complexity only when the simple approach breaks down.",
+      "dont_use": ["Angular (for small apps — steep learning curve, large bundles)", "full SSR framework (for apps that could be client-rendered)", "custom design systems (for MVPs)", "multiple frontend frameworks stacked together"],
+      "weight": 6,
+      "tags": ["frontend", "architecture", "solo-dev"],
+      "test_scenario": "Solo dev building an internal admin dashboard asks which frontend framework to use. Rule should recommend a lightweight option like Vue + Tailwind, not Angular."
+    },
+    {
+      "id": "rule_018",
+      "name": "delay_state_management",
+      "condition": "Starting a new frontend app and considering global state management",
+      "recommendation": "Start with framework built-ins: React useState/useContext, Vue reactive/props. For server data, use React Query / TanStack Query instead of Redux for API caching. Only introduce global state management (Zustand, Jotai — not Redux) when prop drilling becomes a real problem across 3+ levels. Dan Abramov: 'Don't use Redux until you have problems with vanilla React.'",
+      "dont_use": ["Redux (for small-to-medium apps)", "MobX (without proven need)", "NgRx (for simple Angular apps)", "Vuex (when Vue 3 composables suffice)", "custom state management frameworks"],
+      "weight": 6,
+      "tags": ["frontend", "architecture", "solo-dev"],
+      "test_scenario": "Solo dev starting a React app asks whether to add Redux. Rule should recommend useState + useContext first, and React Query for server state."
+    },
+    {
+      "id": "rule_019",
+      "name": "polling_before_websockets",
+      "condition": "Adding live-update features to an app where data changes infrequently (< 1 update/second per user)",
+      "recommendation": "Use periodic polling (every 10-30 seconds) or long-polling first. HTTP polling is simple, stateless, and works with standard infrastructure (CDNs, load balancers, proxies). Only adopt WebSockets when you need sub-second latency for truly real-time features (chat, collaborative editing, live gaming). SSE (Server-Sent Events) is a simpler middle ground for one-directional updates.",
+      "dont_use": ["Socket.IO (for infrequent updates)", "Firebase Realtime Database (when periodic sync suffices)", "WebSocket servers (for notification-only features)", "GraphQL subscriptions (for simple data refresh)"],
+      "weight": 6,
+      "tags": ["architecture", "frontend", "solo-dev"],
+      "test_scenario": "Solo dev building a dashboard with data that updates every 5 minutes asks about WebSockets. Rule should recommend polling every 30 seconds, not Socket.IO."
+    },
+    {
+      "id": "rule_020",
+      "name": "managed_auth_over_custom",
+      "condition": "Implementing user authentication for a new web app as a solo developer",
+      "recommendation": "Use a managed auth service (Clerk, Auth0 free tier, Firebase Auth, Supabase Auth) or your framework's built-in auth module. These handle password hashing, token management, social logins, and security patches. Rolling your own auth is one of the highest-risk DIY decisions — one mistake means compromised user data. Only roll custom auth when you have regulatory requirements that managed services can't meet.",
+      "dont_use": ["custom JWT implementation from scratch", "hand-rolled password hashing", "custom OAuth2 server", "session management without established libraries", "storing passwords in plaintext or with weak hashing"],
+      "weight": 9,
+      "tags": ["auth", "security", "solo-dev"],
+      "test_scenario": "Solo dev asks whether to implement their own JWT auth or use a service. Rule should strongly recommend a managed auth service for security reasons."
+    },
+    {
+      "id": "rule_021",
+      "name": "managed_infra",
+      "condition": "Solo developer deciding whether to self-host infrastructure (databases, servers, CI/CD) vs using managed services",
+      "recommendation": "Use managed services by default: managed databases (RDS, Supabase, PlanetScale), managed hosting (Vercel, Render, Fly.io), managed CI (GitHub Actions). Self-hosting means you're the DBA, sysadmin, and security team. Only self-host when cost at scale justifies it or when you have specific compliance/data-residency requirements.",
+      "dont_use": ["self-hosted PostgreSQL on bare metal (for MVPs)", "self-managed Kubernetes clusters", "self-hosted GitLab CI (when GitHub Actions exists)", "self-hosted monitoring stacks (for small apps)"],
+      "weight": 8,
+      "tags": ["infrastructure", "deployment", "solo-dev"],
+      "test_scenario": "Solo dev asks whether to run their own database server or use a managed service. Rule should recommend managed (RDS/Supabase) to reduce ops burden."
+    },
+    {
+      "id": "rule_022",
+      "name": "avoid_niche_tech",
+      "condition": "Choosing a technology stack and considering a cutting-edge or niche framework/language with a small community",
+      "recommendation": "Prefer boring, proven technology with large communities, abundant documentation, and easy hiring. PostgreSQL > exotic NewSQL. Python/JS/Go > niche languages. Django/FastAPI/Express > bleeding-edge frameworks. The cost of a niche choice compounds: fewer Stack Overflow answers, fewer libraries, harder to get help, harder to find contributors. Only choose niche tech when it solves a specific problem no mainstream tool can.",
+      "dont_use": ["brand-new frameworks with < 1 year of stability", "programming languages with tiny communities (for primary stack)", "databases without proven production track record", "tools that require the creator's personal support to debug"],
+      "weight": 8,
+      "tags": ["architecture", "solo-dev", "tech-choice"],
+      "test_scenario": "Solo dev considering a hot new Rust web framework with 500 GitHub stars for their SaaS backend. Rule should recommend a proven framework (FastAPI, Express, Django) instead."
+    },
+    {
+      "id": "rule_023",
+      "name": "no_premature_abstractions",
+      "condition": "Writing code for the first implementation of a feature, especially with only one use case",
+      "recommendation": "Write concrete, specific code first. Don't create abstractions, interfaces, or 'flexible' architectures until you have 3+ concrete use cases that would benefit. Three similar lines of code are better than a premature abstraction. Avoid enterprise patterns (Factory, Strategy, AbstractVisitor) in small codebases. The Rule of Three: duplicate, then abstract.",
+      "dont_use": ["factory patterns for single implementations", "strategy pattern with one strategy", "dependency injection frameworks (for simple apps)", "abstract base classes with one subclass", "plugin architectures (before you have plugins)"],
+      "weight": 8,
+      "tags": ["architecture", "code-quality", "solo-dev"],
+      "test_scenario": "Solo dev writes an AbstractDatabaseFactory with one PostgreSQL implementation. Rule should recommend removing the abstraction and using Postgres directly."
+    },
+    {
+      "id": "rule_024",
+      "name": "tdd_where_it_matters",
+      "condition": "Deciding whether to use TDD for a new feature or module",
+      "recommendation": "Use TDD for: pure logic/algorithms, data transformations, API contracts, validation rules, bug fixes (write failing test first), and any code where correctness is critical. Skip strict TDD for: UI layout/styling, exploratory prototypes, one-off scripts, thin wrappers around external APIs. Minimum viable testing: unit tests for core logic, integration tests for API endpoints, manual smoke tests for UI.",
+      "dont_use": ["100% test coverage mandates (for solo projects)", "TDD for UI pixel-pushing", "TDD for throwaway prototypes", "mocking everything (test behavior, not implementation)", "testing framework internals or third-party library behavior"],
+      "weight": 7,
+      "tags": ["testing", "code-quality", "solo-dev"],
+      "test_scenario": "Solo dev asks whether to write tests first for a new pricing calculator function. Rule should recommend TDD (pure logic, correctness-critical). But for a CSS layout change, recommend manual verification."
+    },
+    {
+      "id": "rule_025",
+      "name": "risk_based_testing",
+      "condition": "Planning test strategy for a solo project with limited time",
+      "recommendation": "Prioritize tests by risk and blast radius: (1) integration tests for critical paths (payment, auth, data mutations), (2) unit tests for complex business logic, (3) smoke tests for deployment verification. Skip tests for trivial getters/setters, UI-only components, and code that changes daily during active development. Test the 20% of code that causes 80% of bugs.",
+      "dont_use": ["comprehensive test suites for every function", "separate test environments mirroring production exactly (for MVPs)", "mutation testing (for small projects)", "100% branch coverage tools (without ROI analysis)"],
+      "weight": 7,
+      "tags": ["testing", "code-quality", "solo-dev"],
+      "test_scenario": "Solo dev with limited time asks what to test first. Rule should recommend integration tests for payment flow and auth, not unit tests for utility helpers."
+    },
+    {
+      "id": "rule_026",
+      "name": "scripted_deploys",
+      "condition": "Setting up CI/CD for a solo project or small team with < 5 repos",
+      "recommendation": "Start with GitHub Actions (or equivalent) for basic CI: lint, test, deploy on push to main. Use a simple deploy script (rsync, scp, or platform CLI). Only build multi-environment pipelines (dev/staging/prod) when you have actual users who would be impacted by untested changes. One environment (production) with feature flags is simpler than maintaining three environments.",
+      "dont_use": ["Jenkins (for small projects)", "ArgoCD/FluxCD (without K8s)", "multi-stage Docker builds with matrix CI (for one service)", "custom deployment orchestration (when a PaaS handles it)"],
+      "weight": 6,
+      "tags": ["devops", "deployment", "solo-dev"],
+      "test_scenario": "Solo dev asks whether to set up Jenkins with staging/prod pipeline for their side project. Rule should recommend GitHub Actions with deploy-on-push to one environment."
+    },
+    {
+      "id": "rule_027",
+      "name": "nosql_only_when_needed",
+      "condition": "Choosing NoSQL (MongoDB, Firebase) as primary database for an app with relational data (users, posts, comments, orders)",
+      "recommendation": "If your data has relationships (users → posts → comments, orders → items), use SQL. NoSQL excels at: document-oriented data without joins, very high write throughput, or truly schemaless rapid iteration on non-relational data. Firebase is great for real-time sync but expensive at scale and limited in querying. MongoDB can work but you'll fight it for relational patterns. Default to PostgreSQL — it handles JSON, full-text search, and vector search too.",
+      "dont_use": ["MongoDB as primary DB for relational data", "Firebase/Firestore for complex queries or analytics", "CouchDB for transactional apps", "DynamoDB without understanding its query limitations"],
+      "weight": 8,
+      "tags": ["database", "architecture", "solo-dev"],
+      "test_scenario": "Solo dev building a social app (users, friends, posts, likes) asks whether to use MongoDB. Rule should recommend PostgreSQL since the data is relational."
+    },
+    {
+      "id": "rule_028",
+      "name": "tdd_anti_patterns",
+      "condition": "Writing tests and noticing excessive mocking, brittle tests, or tests that mirror implementation",
+      "recommendation": "Test behavior, not implementation. Avoid mocking everything — use real dependencies where practical (real DB for integration tests, in-memory variants for unit tests). Don't test private methods directly. Don't write tests that break on every refactor (testing implementation details). One assertion per test concept. Keep test setup minimal and readable.",
+      "dont_use": ["mocking every dependency (leads to false confidence)", "testing private/internal methods", "copy-pasting implementation logic into test assertions", "100% mock coverage as a goal", "test frameworks that require more code than the thing being tested"],
+      "weight": 7,
+      "tags": ["testing", "code-quality", "solo-dev"],
+      "test_scenario": "Solo dev has tests that break every time they refactor, even though behavior is unchanged. Rule should recommend testing public API behavior, not internal implementation details."
+    }
+  ]
+}
