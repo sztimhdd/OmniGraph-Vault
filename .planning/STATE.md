@@ -9,7 +9,7 @@ progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -72,7 +72,7 @@ These do not conflict with Phase 1 code fixes; skill_runner validation happens i
 
 ```
 Phase 1 [===       ] 75% (Plan 01-01 complete; Plan 01-02 automated tasks done, checkpoint pending)
-Phase 2 [===       ] 33% (Plan 02-01 complete; 02-02 and 02-03 pending)
+Phase 2 [======    ] 67% (Plan 02-01, 02-02 complete; 02-03 pending)
 Phase 3 [          ] 0%
 ```
 
@@ -107,6 +107,7 @@ Phase 3 [          ] 0%
 - SKILL.md descriptions use SkillHub pushy format (100–200 words, explicit NOT-triggers) — Claude under-triggers without this
 - evals/evals.json format follows SkillHub schema for future SkillHub submission compatibility
 - Repo path (`~/Desktop/OmniGraph-Vault`) and runtime path (`~/.hermes/omonigraph-vault`) must always be explicit in wrappers
+- KEEP CURRENT embedding strategy (Method A): Vision describe + text embed — LightRAG has no multimodal vector support
 
 ### Constraints
 
@@ -125,23 +126,12 @@ Phase 3 [          ] 0%
 
 ## Session Continuity
 
-Last session: 2026-04-21T14:00:00Z — Plan 01-01 executed: all 4 INFRA bugs fixed, 12 files updated, 15 min elapsed.
-
-Current session: 2026-04-21T20:10:38Z — Plan 01-02 automated tasks complete, checkpoint reached.
+Last session: 2026-04-23T10:58:37Z — Plan 02-02 executed: embedding strategy research complete, 2 min elapsed.
 
 **Completed in this session:**
 
-- ✓ Task 1: Verified pre-completed SKILL.md Case 5 guard (v1.1 milestone)
-- ✓ Task 2: Fixed test expectations, skill_runner passes 9/9 tests (exit code 0)
-- ✓ 01-02-SUMMARY.md created with checkpoint status
-- ✓ STATE.md updated with checkpoint status
+- ✓ Task 1: Researched LightRAG multimodal vector support, documented KEEP CURRENT decision
+- ✓ 02-02-SUMMARY.md created
+- ✓ STATE.md and ROADMAP.md updated
 
-**Blocked at:**
-
-- Task 3: Manual pipeline validation checkpoint (human-verify gate)
-  - User must ingest 3 WeChat articles
-  - User must run cognee_batch_processor.py
-  - User must run cross-article synthesis query
-  - Will resume after manual validation complete
-
-Next action: User completes Task 3 manual steps, returns checkpoint completion message, executor resumes for final commit.
+Next action: Execute Plan 02-03 (skill_runner test suites).
