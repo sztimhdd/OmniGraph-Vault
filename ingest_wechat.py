@@ -456,7 +456,7 @@ async def ingest_article(url):
             "images": processed_images
         }, f, indent=2)
     
-    with open(os.path.join(article_dir, "final_content.md"), "w") as f:
+    with open(os.path.join(article_dir, "final_content.md"), "w", encoding="utf-8") as f:
         f.write(full_content)
     
     print(f"--- Successfully Ingested! ---")
