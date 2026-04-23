@@ -93,8 +93,8 @@ def _gh_api(endpoint: str) -> dict | None:
         logger.error(f"gh api call failed: {e}")
         return None
 
-def fetch_repo_content(org: str, repo: str) -> str | None:
-    """Fetch repo metadata + README + file tree and return as a single markdown document."""
+def _fetch_identity(org: str, repo: str) -> str | None:
+    """Fetch repo metadata + README + file tree as the identity card segment."""
     slug = f"repos/{org}/{repo}"
 
     meta = _gh_api(slug)
@@ -115,7 +115,7 @@ def fetch_repo_content(org: str, repo: str) -> str | None:
         top_files = [item["path"] for item in tree_data["tree"] if item["type"] in ("blob", "tree")][:30]
 
     topics = meta.get("topics", [])
-    doc = f"""# {meta['full_name']}
+    doc = f"""# {org}/{repo} — Identity
 
 ## Repository Metadata
 - **Description**: {meta.get('description') or 'N/A'}
@@ -133,6 +133,83 @@ def fetch_repo_content(org: str, repo: str) -> str | None:
 
 {readme_text}
 """
+    return doc
+
+
+def _fetch_docs(org: str, repo: str) -> str | None:
+    """Fetch .md and .rst files from the docs/ directory."""
+    listing = _gh_api(f"repos/{org}/{repo}/contents/docs")
+    if not isinstance(listing, list):
+        return None
+
+    md_files = [f for f in listing if f["name"].endswith((".md", ".rst"))]
+    if not md_files:
+        return None
+
+    doc = f"# {org}/{repo} — Documentation\n\n"
+    for file_entry in md_files[:10]:
+        file_data = _gh_api(file_entry["url"])
+        if not file_data or not file_data.get("content"):
+            continue
+        try:
+            content = base64.b64decode(file_data["content"]).decode("utf-8", errors="replace")
+        except Exception:
+            continue
+        doc += f"## {file_entry['name']}\n\n{content}\n\n"
+
+    return doc if len(doc) > len(f"# {org}/{repo} — Documentation\n\n") else None
+
+
+def _fetch_releases(org: str, repo: str) -> str | None:
+    """Fetch the last 5 releases."""
+    releases = _gh_api(f"repos/{org}/{repo}/releases?per_page=5")
+    if not isinstance(releases, list) or not releases:
+        return None
+
+    doc = f"# {org}/{repo} — Releases\n\n"
+    for r in releases:
+        tag = r.get("tag_name", "")
+        name = r.get("name", "")
+        published = r.get("published_at", "")
+        body = r.get("body") or ""
+        doc += f"## {tag} — {name}\nPublished: {published}\n\n{body}\n\n"
+
+    return doc
+
+
+def _fetch_deps(org: str, repo: str) -> str | None:
+    """Fetch the first available dependency manifest file."""
+    for filename in ("requirements.txt", "pyproject.toml", "package.json"):
+        result = _gh_api(f"repos/{org}/{repo}/contents/{filename}")
+        if result and result.get("content"):
+            try:
+                content = base64.b64decode(result["content"]).decode("utf-8", errors="replace")
+                return f"# {org}/{repo} — Dependencies\n\n## {filename}\n\n{content}\n"
+            except Exception:
+                continue
+    return None
+
+
+def _fetch_top_issues(org: str, repo: str) -> str | None:
+    """Fetch top 10 issues sorted by reactions."""
+    items = _gh_api(f"repos/{org}/{repo}/issues?state=all&sort=reactions&per_page=10&direction=desc")
+    if not isinstance(items, list) or not items:
+        return None
+
+    issues = [item for item in items if not item.get("pull_request")]
+    if not issues:
+        return None
+
+    doc = f"# {org}/{repo} — Top Issues (by reactions)\n\n"
+    for issue in issues:
+        number = issue.get("number", "")
+        title = issue.get("title", "")
+        state = issue.get("state", "")
+        labels = ", ".join(lbl["name"] for lbl in issue.get("labels", []))
+        body = (issue.get("body") or "")[:500]
+        reactions = (issue.get("reactions") or {}).get("total_count", 0)
+        doc += f"## #{number}: {title}\nState: {state} | Reactions: {reactions} | Labels: {labels}\n\n{body}\n\n"
+
     return doc
 
 
@@ -170,23 +247,39 @@ async def ingest_github(url: str) -> None:
         return
 
     print("Fetching from GitHub API...")
-    content = fetch_repo_content(org, repo)
-    if not content:
-        print(f"Error: Could not fetch content for {org}/{repo}")
+
+    # Fetch all segments
+    segments: list[tuple[str, str | None]] = [
+        ("identity", _fetch_identity(org, repo)),
+        ("docs", _fetch_docs(org, repo)),
+        ("releases", _fetch_releases(org, repo)),
+        ("deps", _fetch_deps(org, repo)),
+        ("issues", _fetch_top_issues(org, repo)),
+    ]
+
+    # Must have at least identity
+    if segments[0][1] is None:
+        print(f"Error: Could not fetch identity for {org}/{repo}")
         sys.exit(1)
 
-    content_hash = hashlib.md5(content.encode()).hexdigest()[:10]
-    print(f"Content fetched ({len(content)} chars, hash {content_hash})")
+    # Compute dedup hash on ALL segment content combined
+    combined_for_hash = "".join(content for _, content in segments if content)
+    content_hash = hashlib.md5(combined_for_hash.encode()).hexdigest()[:10]
+    print(f"Segments fetched: {[name for name, c in segments if c]} (combined hash {content_hash})")
 
-    print("Ingesting into LightRAG...")
+    # Insert each segment separately
     rag = await get_rag()
-    await rag.ainsert(content)
+    for seg_name, seg_content in segments:
+        if seg_content:
+            print(f"  Inserting segment: {seg_name} ({len(seg_content)} chars)")
+            await rag.ainsert(seg_content)
 
     registry[url] = {
         "url": url,
         "org": org,
         "repo": repo,
         "content_hash": content_hash,
+        "segments": [name for name, c in segments if c],
         "ingested_at": datetime.now(timezone.utc).isoformat(),
     }
     _save_registry(registry)
