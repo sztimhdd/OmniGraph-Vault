@@ -1,585 +1,595 @@
-# Architecture Patterns: Hermes Skill Deployment
+# Architecture Patterns: v2.0 Knowledge Infrastructure MVP
 
-**Project:** OmniGraph-Vault — Phase 2 (Skill Packaging + Gate 6/7)
-**Researched:** 2026-04-21
-**Confidence:** HIGH for in-repo patterns (codebase analysis); MEDIUM for Hermes-specific conventions
-(official URLs unreachable from this endpoint; CLAUDE.md treated as authoritative proxy since it
-was synthesized from those docs by the project author).
+**Domain:** Local knowledge graph + agent skill system (rules-engine overlay)
+**Researched:** 2026-04-23
+**Confidence:** HIGH — derived entirely from actual source files; no external docs needed.
 
 ---
 
-## Recommended Architecture
+## Standard Architecture
 
-The system has two distinct deployment layers:
+### System Overview
+
+v2.0 adds three new layers on top of the existing v1.1 pipeline. The existing code is largely
+untouched; new components plug in at well-defined seams.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  HERMES AGENT (natural language interface)                  │
-│  - Loads SKILL.md at Level 1 on dispatch                    │
-│  - Matches trigger phrases to skill catalog                 │
-│  - Reads exec output as free-text response                  │
-└────────────────────┬────────────────────────────────────────┘
-                     │  exec (shell)
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│  SKILL LAYER  (skills/ at project root)                     │
-│                                                             │
-│  omnigraph-ingest/           omnigraph-query/               │
-│  ├── SKILL.md                ├── SKILL.md                   │
-│  ├── scripts/run-ingest.sh   ├── scripts/run-query.sh       │
-│  └── references/             └── references/               │
-│      api-surface.md              api-surface.md             │
-└────────────────────┬────────────────────────────────────────┘
-                     │  subprocess (activated venv python)
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│  PYTHON PIPELINE  (project root)                            │
-│                                                             │
-│  ingest_wechat.py            kg_synthesize.py               │
-│  multimodal_ingest.py        query_lightrag.py              │
-│  cognee_batch_processor.py   list_entities.py               │
-└────────────────────┬────────────────────────────────────────┘
-                     │  async I/O
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│  DATA LAYER  (~/.hermes/omonigraph-vault/)                  │
-│                                                             │
-│  lightrag_storage/   images/{hash}/   canonical_map.json   │
-│  entity_buffer/      synthesis_output.md                    │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  HERMES / OPENCLAW AGENT                                             │
+│  - SKILL.md Level-0 catalog → Level-1 dispatch                      │
+│  - Matches trigger phrases to skill                                  │
+└──────────────────────────┬───────────────────────────────────────────┘
+                           │  exec (shell)
+                           ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  SKILL LAYER  (skills/ at project root)          [v2.0 ADDS]        │
+│                                                                      │
+│  omnigraph_ingest/    omnigraph_query/    omnigraph_architect/ (NEW) │
+│  ├── SKILL.md         ├── SKILL.md        ├── SKILL.md               │
+│  └── scripts/         └── scripts/        └── scripts/              │
+│      ingest.sh            query.sh            architect.sh (NEW)     │
+└──────────────────────────┬───────────────────────────────────────────┘
+                           │  subprocess (activated venv python)
+                           ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  PYTHON PIPELINE  (project root)                                     │
+│                                                                      │
+│  EXISTING:                          NEW (v2.0):                      │
+│  ingest_wechat.py                   ingest_github.py                 │
+│  multimodal_ingest.py               rules_engine.json (data file)    │
+│  kg_synthesize.py  ◄── called by    GSD_DISCUSS_PATTERN.md (doc)    │
+│  cognee_batch_processor.py                                           │
+│  skill_runner.py   ◄── MODIFIED (multi-turn support)                │
+└──────────────────────────┬───────────────────────────────────────────┘
+                           │  async I/O
+                           ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  DATA LAYER  (~/.hermes/omonigraph-vault/)                           │
+│                                                                      │
+│  EXISTING:                          NEW (v2.0):                      │
+│  lightrag_storage/                  entity_registry.json (project root)│
+│  images/{hash}/                                                      │
+│  canonical_map.json                                                  │
+│  entity_buffer/                                                      │
+│  synthesis_output.md                                                 │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Component Boundaries
 
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| `SKILL.md` | Decision tree for agent: when to trigger, what args to pass, how to surface errors | Agent reads at Level 1 |
-| `scripts/run-*.sh` | Venv activation, cwd setup, pre-flight env checks, python call | Shell exec from agent |
-| `ingest_wechat.py` | Web scraping → content enrichment → LightRAG insert | LightRAG, Gemini, Apify/CDP |
-| `kg_synthesize.py` | Query normalization → graph retrieval → synthesis → Cognee store | LightRAG, Cognee, Gemini |
-| `cognee_batch_processor.py` | Async entity canonicalization (runs separately) | Cognee, entity_buffer/ |
-| `skill_runner.py` | Local test harness: load SKILL.md as system prompt, run JSON test cases | Gemini (direct API call) |
+### Existing components (v1.1 — no modification required unless noted)
+
+| Component | File | Responsibility | v2.0 change |
+|-----------|------|----------------|-------------|
+| Ingestion entry point | `ingest_wechat.py` | Apify/CDP scrape → LightRAG ainsert + entity buffer | NONE — GitHub ingestion is a separate script |
+| PDF ingestion | `multimodal_ingest.py` | PDF extract → LightRAG ainsert | NONE |
+| Synthesis engine | `kg_synthesize.py` | canonical_map → LightRAG aquery → Cognee recall → Gemini → stdout | NONE — architect.sh calls it directly |
+| Config | `config.py` | Path constants, `~/.hermes/.env` loader | ADD 2 constants: `ENTITY_REGISTRY_FILE`, `GITHUB_TOKEN` |
+| Skill simulator | `skill_runner.py` | Load SKILL.md as system prompt, run JSON test cases (single-turn) | MODIFY — add multi-turn `inputs: list[str]` support |
+| Ingest skill | `skills/omnigraph_ingest/` | Agent decision tree → `ingest.sh` | NONE |
+| Query skill | `skills/omnigraph_query/` | Agent decision tree → `query.sh` | NONE |
+
+### New components (v2.0 — net-new, does not exist yet)
+
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| Rules data file | `rules_engine.json` | 20–30 structured architecture rules: id, condition, recommendation, dont_use |
+| GitHub ingestion | `ingest_github.py` | GitHub REST API batch fetch → markdown → LightRAG ainsert + entity_registry.json update |
+| Entity registry | `entity_registry.json` | GitHub URL → entity ID mapping (written by ingest_github.py, read by /architect) |
+| Architect skill | `skills/omnigraph_architect/SKILL.md` | Decision tree for 3 modes: Propose, Query, Ingest |
+| Architect shell wrapper | `skills/omnigraph_architect/scripts/architect.sh` | venv activate → mode-dispatch → kg_synthesize.py or ingest_github.py |
+| Discussion pattern doc | `.planning/GSD_DISCUSS_PATTERN.md` | 4-step Propose-mode conversation template (doc only, not executable) |
+| Architect test suite | `tests/skills/test_omnigraph_architect.json` | 9 test cases (3 per mode) for skill_runner.py |
 
 ---
 
-## Skill Directory Structure
-
-Every skill is a **directory**, not a single file. Placement in the repo: `skills/` at project root.
-This is the highest OpenClaw/Hermes precedence scope (`<workspace>/skills/`).
+## Recommended Project Structure
 
 ```
-skills/
-├── omnigraph-ingest/
-│   ├── SKILL.md              # Agent-facing: triggers, decision tree, error handling (required)
-│   ├── scripts/
-│   │   └── run-ingest.sh     # Shell wrapper: venv activate → python ingest_wechat.py "$1"
-│   ├── references/
-│   │   └── api-surface.md    # Script args, output format, method strings — Level 2 only
-│   └── README.md             # Human-facing: install, test, publish steps
+OmniGraph-Vault/
+├── config.py                         # MODIFY: add ENTITY_REGISTRY_FILE, GITHUB_TOKEN
+├── ingest_wechat.py                  # no change
+├── ingest_github.py                  # NEW: GitHub REST API batch ingestion
+├── kg_synthesize.py                  # no change
+├── skill_runner.py                   # MODIFY: multi-turn support
+├── rules_engine.json                 # NEW: 20-30 architecture rules
+├── entity_registry.json              # NEW: GitHub URL → entity ID map
 │
-└── omnigraph-query/
-    ├── SKILL.md
-    ├── scripts/
-    │   └── run-query.sh      # Shell wrapper: venv activate → python kg_synthesize.py "$1" "$2"
-    ├── references/
-    │   └── api-surface.md    # Query modes, output schema, synthesis_output.md path
-    └── README.md
+├── skills/
+│   ├── omnigraph_ingest/             # no change
+│   ├── omnigraph_query/              # no change
+│   └── omnigraph_architect/          # NEW skill directory
+│       ├── SKILL.md                  # NEW: 3-mode decision tree
+│       ├── scripts/
+│       │   └── architect.sh          # NEW: mode-dispatch shell wrapper
+│       ├── references/
+│       │   ├── rules-overview.md     # NEW: human-readable rules summary for Level-2
+│       │   └── api-surface.md        # NEW: architect.sh args, output format
+│       ├── evals/
+│       │   └── evals.json            # NEW: eval metadata (mirrors ingest/query pattern)
+│       └── README.md                 # NEW: human-facing install + test guide
+│
+├── tests/
+│   └── skills/
+│       ├── test_omnigraph_ingest.json   # no change
+│       ├── test_omnigraph_query.json    # no change
+│       └── test_omnigraph_architect.json # NEW: 9 test cases
+│
+└── .planning/
+    └── GSD_DISCUSS_PATTERN.md        # NEW: Propose-mode 4-step template (doc)
 ```
-
-**Separation rule:** `references/` = files the agent reads. `scripts/` = files the agent executes.
-Never put Python modules in `scripts/` and never put shell scripts in `references/`.
 
 ---
 
-## Invocation Chain: Async Python from a Shell Exec
+## Architectural Patterns
 
-This is the most critical architectural detail. The agent executes a shell script via `exec`. That
-shell script must activate the venv and call Python. The Python scripts use `asyncio.run()` (not
-`nest_asyncio`) when invoked as CLI entry points.
+### Pattern 1: rules_engine.json as read-only lookup — loaded by architect.sh, not kg_synthesize.py
 
-### Why two layers (shell wrapper + python)?
+**What:** `rules_engine.json` lives at the project root and is read directly by `architect.sh`
+before it calls `kg_synthesize.py`. The synthesis engine is NOT modified. Rules are injected
+into the query as a prepended system context, not embedded in the Python pipeline.
 
-1. **Venv activation requires a shell source step.** A bare `exec python ingest_wechat.py` uses the
-   system Python without packages. The shell wrapper `source venv/Scripts/activate` (Windows) or
-   `source venv/bin/activate` (Linux/macOS) before calling python resolves this.
-2. **Working directory must be the project root.** Scripts do `from config import RAG_WORKING_DIR` —
-   relative imports require cwd to be the project root. The shell wrapper sets `cd "$PROJECT_DIR"`.
-3. **Cross-platform path.** Windows uses `venv\Scripts\python`; Linux/macOS uses `venv/bin/python`.
-   The wrapper checks both and falls back cleanly.
-
-### Shell wrapper pattern (canonical)
+**Concrete flow:**
 
 ```bash
-#!/bin/bash
-# skills/omnigraph-ingest/scripts/run-ingest.sh
-set -e
-
-# Resolve project root relative to this script's location (skills/omnigraph-ingest/scripts/)
-PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$PROJECT_DIR"
-
-# Pre-flight: required env vars
-if [ -z "$GEMINI_API_KEY" ]; then
-  echo "ERROR: GEMINI_API_KEY is not set. Add it to ~/.hermes/.env" >&2
-  exit 1
-fi
-
-# Activate venv (cross-platform)
-if [ -f "venv/Scripts/activate" ]; then
-  source venv/Scripts/activate
-elif [ -f "venv/bin/activate" ]; then
-  source venv/bin/activate
-else
-  echo "ERROR: venv not found. Run: python -m venv venv && pip install -r requirements.txt" >&2
-  exit 1
-fi
-
-python ingest_wechat.py "$1"
+# architect.sh (Propose mode)
+RULES=$(python -c "import json,sys; rules=json.load(open('rules_engine.json')); \
+  print('\n'.join(f\"[{r['id']}] {r['recommendation']}\" for r in rules))")
+python kg_synthesize.py "ARCHITECTURE RULES:\n$RULES\n\nUSER QUERY: $QUERY" hybrid
 ```
 
-The query wrapper passes two args:
+Alternatively, architect.sh can pass rules as a prepended file argument — but the subprocess
+contract for `kg_synthesize.py` already accepts a free-text query string, so inline prepending
+is the lowest-friction approach. `kg_synthesize.py::synthesize_response(query_text, mode)` at
+line 48 takes `query_text` as a plain string — rules text prepended to this string requires zero
+changes to the Python side.
+
+**When to use:** Rules are stable reference data, not runtime state. Loading them at the shell
+layer keeps `kg_synthesize.py` ignorant of the rules concept (clean separation).
+
+**Trade-offs:** Rules text grows the Gemini context window for every Propose query. At 20–30
+rules averaging ~50 words each, this is ~1500 tokens — acceptable for Gemini 2.5 Flash.
+
+### Pattern 2: architect.sh mode dispatch from parsed input, SKILL.md routes conceptually
+
+**What:** The SKILL.md decision tree instructs the agent which mode applies (Propose/Query/Ingest)
+based on natural language. The agent then calls `architect.sh <mode> "<query_or_url>"`. The shell
+script dispatches based on the mode argument.
+
+**Concrete architect.sh structure:**
 
 ```bash
-python kg_synthesize.py "$1" "${2:-hybrid}"
+#!/usr/bin/env bash
+# skills/omnigraph_architect/scripts/architect.sh
+# Usage: architect.sh propose "<question>"
+#        architect.sh query "<question>"
+#        architect.sh ingest "<github-url>"
+
+set -euo pipefail
+
+OMNIGRAPH_ROOT="${OMNIGRAPH_ROOT:-$HOME/Desktop/OmniGraph-Vault}"
+MODE="${1:-}"
+INPUT="${2:-}"
+
+# ... venv activation (same pattern as ingest.sh and query.sh) ...
+
+cd "$OMNIGRAPH_ROOT"
+
+case "$MODE" in
+  propose)
+    RULES=$(python -c "
+import json
+rules = json.load(open('rules_engine.json'))
+for r in rules:
+    print(f\"[{r['id']}] {r['recommendation']}\")
+")
+    python kg_synthesize.py "ARCHITECTURE RULES CONTEXT:
+$RULES
+
+USER ARCHITECTURE QUESTION: $INPUT" hybrid
+    ;;
+  query)
+    python kg_synthesize.py "$INPUT" hybrid
+    ;;
+  ingest)
+    python ingest_github.py "$INPUT"
+    ;;
+  *)
+    echo "Usage: architect.sh <propose|query|ingest> <input>" >&2
+    exit 1
+    ;;
+esac
 ```
 
-### asyncio.run() vs nest_asyncio in CLI context
+**Why SKILL.md routing handles mode selection:** The agent reads the SKILL.md decision tree and
+identifies which mode applies from the user's natural language. It then calls
+`scripts/architect.sh <mode> "<query>"` with the explicit mode argument. This avoids NLP parsing
+in bash, which is fragile. The shell script's job is pure dispatch, not intent detection.
 
-`ingest_wechat.py` uses `nest_asyncio.apply()` at module level (line 29). This is fine when the
-script is invoked as a subprocess (fresh Python process, no existing event loop). The pattern is:
+**When to use:** Any multi-mode skill. Mode-as-first-argument is a stable CLI convention that
+`skill_runner.py` test cases can directly assert against.
 
-```
-Shell exec (no event loop) → python ingest_wechat.py → nest_asyncio.apply() (no-op, no loop) → asyncio.run(ingest_article(url))
-```
+### Pattern 3: ingest_github.py follows ingest_wechat.py architecture exactly
 
-`nest_asyncio` is harmless in CLI context. It only matters when another async framework (e.g.,
-Jupyter, an existing uvloop) has already created an event loop. In the skill's subprocess invocation,
-there is no existing loop, so `asyncio.run()` works directly and `nest_asyncio.apply()` does nothing.
+**What:** `ingest_github.py` is a new entry point script with the same structure as
+`ingest_wechat.py`. It uses the GitHub REST API (no Graphify MCP — confirmed unavailable) to
+fetch README + description for a repository, then calls `rag.ainsert()` and writes
+`entity_registry.json`.
 
-**Do not remove nest_asyncio** from the scripts — it is needed for the interactive Python / Jupyter
-development workflow. It is transparent in the subprocess path.
-
----
-
-## SKILL.md Body Patterns
-
-### Decision tree structure (required for agent determinism)
-
-The body of SKILL.md must be explicit decision trees, not prose descriptions. The agent uses this
-as a system prompt and must never guess which branch to take.
-
-```markdown
-## When to Trigger
-
-Trigger this skill when the user wants to:
-- Add a URL to the knowledge base
-- Save an article for later reference
-- Ingest content into the graph
-
-DO NOT trigger for:
-- Questions about stored knowledge → use `omnigraph_query`
-- PDF files → also handled here (pass the file path, not a URL)
-- Status checks → use `omnigraph_status`
-
-## How to Call
-
-1. Extract the URL or file path from the user's message.
-2. Call: `scripts/run-ingest.sh "<url_or_path>"`
-3. Wait for output (may take 30–300 seconds for web scraping).
-4. Present the output summary to the user.
-
-## Output Interpretation
-
-Success output contains:
-- "--- Successfully Ingested! ---"
-- Article title, hash, method (apify or cdp), local path
-
-On success, respond: "Saved '[title]' to your knowledge base (method: [method], id: [hash])."
-
-## Error Handling
-
-If exit code is non-zero:
-- GEMINI_API_KEY error → ⚠️ Config: GEMINI_API_KEY not set. Add it to ~/.hermes/.env
-- Import error → ⚠️ Setup: Python package missing. Run: pip install -r requirements.txt
-- CDP error → ⚠️ Browser: CDP not running. Start Edge with --remote-debugging-port=9223
-- "Query attempt 3 failed" → ⚠️ API: Gemini rate limit. Wait 60s and retry.
-- Any other error → ⚠️ Unknown: [last stderr line]. Check console for full traceback.
-```
-
-### Progressive disclosure: what goes in SKILL.md vs references/
-
-| Content | Location | Why |
-|---------|----------|-----|
-| Trigger conditions + "do not trigger" list | SKILL.md body | Agent reads at Level 1 — must be fast to load |
-| Call sequence, output interpretation, error table | SKILL.md body | Core operating instructions |
-| Full argument table with all modes | `references/api-surface.md` | Heavy; only needed for advanced usage |
-| Output schema details (field names, types) | `references/api-surface.md` | Reference, not operating instructions |
-| Troubleshooting deep-dives | `references/troubleshooting.md` | Agent fetches only when error occurs |
-
-Target: SKILL.md body under 150 lines. If it grows beyond that, extract to references/.
-
----
-
-## Gate 6: Cross-Article Synthesis Validation
-
-Gate 6 goal: ingest 3 articles, then run one query that produces a response drawing from all three.
-
-### Test script structure (`tests/verify_gate_6.py`)
-
-The gate test follows the same pattern as verify_gate_a/b/c but operates at the pipeline level:
+**Concrete structure:**
 
 ```python
-#!/usr/bin/env python3
-"""
-tests/verify_gate_6.py — Cross-article synthesis validation.
+# ingest_github.py — mirrors ingest_wechat.py structure
+import asyncio, json, os, sys, requests
+from config import RAG_WORKING_DIR, load_env, ENTITY_REGISTRY_FILE
 
-Pass condition: kg_synthesize.py produces a response that contains
-entity references from at least 2 of the 3 ingested articles.
-
-Usage:
-    python tests/verify_gate_6.py
-
-Requires:
-    - GEMINI_API_KEY set in ~/.hermes/.env
-    - 3 articles already ingested (or runs fresh ingestion)
-    - LightRAG storage populated at ~/.hermes/omonigraph-vault/lightrag_storage/
-"""
-
-import asyncio
-import os
-import sys
-import json
-from pathlib import Path
-
-# Ensure project root is on path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from config import RAG_WORKING_DIR, SYNTHESIS_OUTPUT, load_env
 load_env()
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")  # optional, avoids rate limiting
 
-# --- Test articles (use URLs that are publicly accessible and known to contain
-#     distinct entities — choose 3 with overlapping domain but distinct subjects)
-TEST_URLS = [
-    "https://mp.weixin.qq.com/s/<article_1_hash>",  # Replace with real URLs
-    "https://mp.weixin.qq.com/s/<article_2_hash>",
-    "https://mp.weixin.qq.com/s/<article_3_hash>",
-]
+async def fetch_github_repo(url: str) -> dict:
+    """Convert github.com/owner/repo URL → REST API call → markdown content."""
+    # Parse owner/repo from URL
+    # GET https://api.github.com/repos/{owner}/{repo}
+    # GET https://raw.githubusercontent.com/{owner}/{repo}/main/README.md
+    ...
 
-# Entities expected to appear in synthesis response — at least 2 of these
-# must be present for the gate to pass. Choose entities that are unique to
-# the chosen articles, not generic terms.
-EXPECTED_ENTITIES = [
-    "<entity_from_article_1>",
-    "<entity_from_article_2>",
-    "<entity_from_article_3>",
-]
-
-CROSS_ARTICLE_QUERY = (
-    "Summarize the key themes and relationships across the articles I've ingested."
-)
-
-async def check_storage_populated() -> bool:
-    """Return True if LightRAG storage has graph data."""
-    graph_file = RAG_WORKING_DIR / "graph_chunk_entity_relation.graphml"
-    if not graph_file.exists():
-        return False
-    stat = graph_file.stat()
-    return stat.st_size > 1000  # non-trivial graph
-
-async def run_synthesis(query: str, mode: str = "hybrid") -> str:
-    """Run kg_synthesize.py as subprocess and return stdout."""
-    import subprocess
-    result = subprocess.run(
-        [sys.executable, "kg_synthesize.py", query, mode],
-        capture_output=True,
-        text=True,
-        cwd=Path(__file__).parent.parent,  # project root
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"kg_synthesize.py failed (exit {result.returncode}):\n"
-            f"stderr: {result.stderr}\nstdout: {result.stdout}"
-        )
-    # Read the synthesis output file (more reliable than stdout parsing)
-    if SYNTHESIS_OUTPUT.exists():
-        return SYNTHESIS_OUTPUT.read_text(encoding="utf-8")
-    return result.stdout
-
-async def main():
-    print("=== Gate 6: Cross-Article Synthesis ===\n")
-
-    # Step 1: Check LightRAG storage is populated
-    print("Step 1: Checking LightRAG storage...")
-    if not await check_storage_populated():
-        print("FAIL: LightRAG storage empty or missing. Ingest 3 articles first.")
-        sys.exit(1)
-    print("  OK: LightRAG storage has data.\n")
-
-    # Step 2: List ingested article hashes for audit trail
-    images_dir = RAG_WORKING_DIR.parent / "images"
-    article_hashes = [d.name for d in images_dir.iterdir() if d.is_dir()] if images_dir.exists() else []
-    print(f"Step 2: Ingested article directories found: {len(article_hashes)}")
-    if len(article_hashes) < 3:
-        print(f"  WARNING: Only {len(article_hashes)} article(s) found. Gate 6 requires 3+.")
-    for h in article_hashes[:5]:  # show up to 5
-        meta_file = images_dir / h / "metadata.json"
-        if meta_file.exists():
-            meta = json.loads(meta_file.read_text())
-            print(f"  - {h}: {meta.get('title', '(no title)')}")
-    print()
-
-    # Step 3: Run cross-article synthesis
-    print(f"Step 3: Running cross-article synthesis query...")
-    print(f"  Query: \"{CROSS_ARTICLE_QUERY}\"")
-    print("  (This may take 30–90 seconds...)\n")
-    try:
-        response = await run_synthesis(CROSS_ARTICLE_QUERY, mode="hybrid")
-    except RuntimeError as e:
-        print(f"FAIL: Synthesis script error:\n{e}")
-        sys.exit(1)
-
-    # Step 4: Check response is non-trivial
-    if not response or len(response.strip()) < 200:
-        print("FAIL: Synthesis response is empty or too short.")
-        print(f"  Response length: {len(response)} chars")
-        sys.exit(1)
-    print(f"  OK: Synthesis response received ({len(response)} chars)\n")
-
-    # Step 5: Check for cross-article signals in response
-    # A genuine cross-article synthesis contains references to entities from
-    # multiple articles. We check for the expected entities as a proxy.
-    print("Step 4: Checking for cross-article entity coverage...")
-    response_lower = response.lower()
-    found = [e for e in EXPECTED_ENTITIES if e.lower() in response_lower]
-    missing = [e for e in EXPECTED_ENTITIES if e.lower() not in response_lower]
-
-    print(f"  Expected entities: {EXPECTED_ENTITIES}")
-    print(f"  Found in response: {found}")
-    print(f"  Missing:          {missing}")
-
-    # Pass condition: at least 2 of N expected entities present
-    MIN_ENTITIES_REQUIRED = max(2, len(EXPECTED_ENTITIES) // 2)
-    if len(found) >= MIN_ENTITIES_REQUIRED:
-        print(f"\n=== Gate 6 PASSED ({len(found)}/{len(EXPECTED_ENTITIES)} entities found) ===")
-        # Save synthesis output for audit
-        print(f"  Synthesis saved to: {SYNTHESIS_OUTPUT}")
-        sys.exit(0)
-    else:
-        print(f"\n=== Gate 6 FAILED ({len(found)}/{len(EXPECTED_ENTITIES)} entities found, need {MIN_ENTITIES_REQUIRED}) ===")
-        print("\nFull synthesis response (first 500 chars):")
-        print(response[:500])
-        sys.exit(1)
+async def ingest_repo(url: str):
+    content = await fetch_github_repo(url)
+    rag = await get_rag()  # same get_rag() pattern as ingest_wechat.py
+    await rag.ainsert(content["markdown"])
+    # Update entity_registry.json atomically (tmp → rename, same as canonical_map.json)
+    _update_entity_registry(url, content["entity_id"])
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    url = sys.argv[1]
+    asyncio.run(ingest_repo(url))
 ```
 
-### Gate 6 checklist (manual, before running the script)
+**Why not extend ingest_wechat.py:** Adding GitHub as a source to `ingest_wechat.py` would
+require a `--source` flag and conditional dispatch, which complicates the existing script's
+contract and the ingest skill's test cases. A separate script preserves the subprocess-as-contract
+boundary pattern.
 
-1. Start the image server: `cd ~/.hermes/omonigraph-vault && python -m http.server 8765 --directory images &`
-2. Ingest article 1: `python ingest_wechat.py "<url_1>"`
-3. Ingest article 2: `python ingest_wechat.py "<url_2>"`
-4. Ingest article 3: `python ingest_wechat.py "<url_3>"`
-5. Note the unique entity names from each article's stdout (titles, author names, product names)
-6. Fill `EXPECTED_ENTITIES` in verify_gate_6.py with those entity names
-7. Run: `python tests/verify_gate_6.py`
+### Pattern 4: skill_runner.py multi-turn — inputs list replaces single input field
 
-**What "cross-article" actually means in LightRAG hybrid mode:** the hybrid query runs both local
-(entity-focused) and global (theme-focused) retrieval. A genuine cross-article synthesis will surface
-relationships that span document boundaries — e.g., "Article 1 discusses X, which also appears in
-Article 3 as Y." The entity check in the gate script is a proxy for this: if the response mentions
-entities from multiple distinct articles, it pulled from multiple graph segments.
+**What:** The `TestCase` dataclass gains an `inputs: list[str]` field (plural). When present,
+the runner maintains a conversation history across turns and checks `expect_contains` only on the
+final turn's response. The existing `input: str` field remains for backward compatibility
+(single-turn cases).
+
+**Concrete TestCase change (skill_runner.py):**
+
+```python
+@dataclass
+class TestCase:
+    description: str
+    input: str = ""                          # kept for backward compat (single-turn)
+    inputs: list[str] = field(default_factory=list)  # NEW: multi-turn
+    expect_contains: list[str] = field(default_factory=list)
+    expect_not_contains: list[str] = field(default_factory=list)
+    load_references: list[str] = field(default_factory=list)
+    expect_final_only: bool = True           # NEW: when True, check expects on last turn only
+```
+
+`call_gemini()` needs a `history: list[dict]` parameter. The Gemini SDK `types.Content` object
+supports multi-turn via the `contents` list (alternating user/model roles).
+
+**Impact on existing test cases:** Zero — existing JSON files use `"input"` (singular).
+The runner checks `inputs` first; if empty, falls back to `input`.
 
 ---
 
-## Gate 7: Hermes End-to-End Integration Test
+## Data Flow
 
-Gate 7 validates that the skills work in a real Hermes Agent environment. This is a manual test
-protocol, not an automated script (no Hermes install on the CI machine).
-
-### Prerequisites
-
-- Hermes Agent installed and running on the target PC
-- Skills directory at `<workspace>/skills/` (highest precedence scope)
-- `~/.hermes/.env` with `GEMINI_API_KEY` set
-- Edge browser running with `--remote-debugging-port=9223` (for CDP fallback)
-- Image server running on port 8765
-
-### Trigger-phrase validation test plan
+### /architect Propose Mode (rules + KB → structured recommendation)
 
 ```
-Test 1: Ingest trigger
-  Input:  "add this to my kb: https://mp.weixin.qq.com/s/..."
-  Pass:   Hermes dispatches omnigraph_ingest skill
-  Verify: Response contains "Successfully Ingested" and article title
-
-Test 2: Query trigger
-  Input:  "what do I know about [entity from ingested article]?"
-  Pass:   Hermes dispatches omnigraph_query skill
-  Verify: Response is a multi-paragraph synthesis, not "I don't know"
-
-Test 3: Cross-article query (Gate 6 at skill level)
-  Input:  "summarize the key themes across everything I've saved"
-  Pass:   Response references entities from more than one article
-  Verify: Manual check of response content
-
-Test 4: Wrong trigger rejection
-  Input:  "what's the weather today?"
-  Pass:   Hermes does NOT dispatch an omnigraph skill
-  Verify: Normal Hermes response, no script execution
-
-Test 5: Guard clause — missing env var
-  Setup:  Temporarily remove GEMINI_API_KEY from ~/.hermes/.env
-  Input:  "search my knowledge base for LightRAG"
-  Pass:   Skill surfaces "⚠️ Config: GEMINI_API_KEY not set" error message
-  Verify: No Python traceback visible to user; clean error message only
-
-Test 6: CDP not running
-  Setup:  Stop Edge CDP, remove APIFY_TOKEN
-  Input:  "ingest https://mp.weixin.qq.com/s/..."
-  Pass:   Skill surfaces "⚠️ Browser: CDP not running" error (after Apify fallback attempt)
-  Verify: Error message includes remediation step
+User: "I'm building a solo project, should I use microservices?"
+    ↓
+SKILL.md decision tree → identifies Propose mode
+    ↓
+Agent calls: scripts/architect.sh propose "should I use microservices?"
+    ↓
+architect.sh:
+    1. Load rules_engine.json → flatten to rules text (~1500 tokens)
+    2. Build augmented query: "ARCHITECTURE RULES CONTEXT:\n{rules}\n\nUSER QUESTION: {input}"
+    3. Call: python kg_synthesize.py "{augmented_query}" hybrid
+    ↓
+kg_synthesize.py::synthesize_response():
+    1. Load canonical_map.json → normalize entity names in query (line 54-64)
+    2. Cognee recall → fetch past synthesis context (line 66-72)
+    3. Build custom_prompt with historical context (line 72-74)
+    4. LightRAG aquery(mode=hybrid) → graph retrieval against populated KB (line 75-85)
+    5. Gemini synthesis → Markdown response
+    6. Cognee remember → store for future recall (line 87-90)
+    7. Write to synthesis_output.md + stdout
+    ↓
+Agent reads stdout → presents recommendation to user
 ```
 
-### skill_runner.py as Gate 7 pre-validation
+Note: The GSD:DISCUSS 4-step pattern is documented in `.planning/GSD_DISCUSS_PATTERN.md` and
+referenced in the SKILL.md body. It describes how the agent conducts the multi-turn conversation
+(default guess → Q1 → Q2 → output). This is an instruction pattern in SKILL.md, not a code
+component. No Python changes are needed to implement GSD:DISCUSS — it is purely agent behavior
+guided by SKILL.md.
 
-Before running in real Hermes, validate all test cases locally:
+### /architect Query Mode (direct KB lookup, no rules injection)
 
-```bash
-# Structural validation (no API call)
-python skill_runner.py skills/ --validate --test-all
-
-# Run JSON test suites against Gemini (same backend as Hermes)
-python skill_runner.py skills/ --test-all
-
-# Single skill, verbose on failure
-python skill_runner.py skills/omnigraph-query --test-file tests/skills/test_omnigraph_query.json -v
+```
+User: "What is LangChain's relationship to LlamaIndex?"
+    ↓
+SKILL.md → Query mode (factual question, no design decision)
+    ↓
+architect.sh query "What is LangChain's relationship to LlamaIndex?"
+    ↓
+python kg_synthesize.py "{query}" hybrid
+    ↓ (same flow as omnigraph_query skill — no rules overhead)
+stdout → agent
 ```
 
-The `skill_runner.py` (already implemented at project root) loads SKILL.md as a system prompt and
-sends test cases through `gemini-2.5-flash`. It validates:
-- Trigger-phrase matching (does the LLM correctly identify when to use this skill?)
-- Guard clause firing (does it surface the right error for missing env vars?)
-- Output format compliance (does the response follow the defined format rules?)
-- Wrong-skill rejection (does the LLM NOT invoke the skill for off-topic inputs?)
+### /architect Ingest Mode (GitHub URL → KB)
+
+```
+User: "Add this GitHub tool to my KB: github.com/langchain-ai/langchain"
+    ↓
+SKILL.md → Ingest mode
+    ↓
+architect.sh ingest "https://github.com/langchain-ai/langchain"
+    ↓
+python ingest_github.py "https://github.com/langchain-ai/langchain"
+    ↓
+ingest_github.py:
+    1. Parse owner/repo from URL
+    2. GitHub REST API: GET /repos/{owner}/{repo} → metadata
+    3. Fetch README.md via raw.githubusercontent.com
+    4. Build markdown: "# {name}\n\n{description}\n\n{readme_content}"
+    5. rag.ainsert(markdown) → LightRAG storage
+    6. Atomic write: entity_registry.json[url] = entity_id (tmp → rename)
+    ↓
+stdout: "Ingested {repo_name} (entity: {entity_id})"
+    ↓
+Agent confirms to user
+```
+
+### skill_runner.py Multi-Turn Flow (Propose mode testing)
+
+```
+test_omnigraph_architect.json (Propose case):
+    "inputs": [
+        "I'm planning a new project, help me choose the architecture",
+        "It's a solo hobby project",
+        "I want to add features incrementally"
+    ],
+    "expect_contains": ["monolith", "avoid microservices"]
+
+    ↓
+run_test_case():
+    Turn 1: call_gemini(system_prompt, inputs[0]) → response_1
+    Turn 2: call_gemini(system_prompt, inputs[1], history=[{user:inputs[0]}, {model:response_1}])
+    Turn 3: call_gemini(system_prompt, inputs[2], history=[...accumulated...]) → final_response
+    Check expect_contains against final_response only (expect_final_only=True)
+```
 
 ---
 
-## Patterns to Follow
+## New vs Modified Components
 
-### Pattern 1: Subprocess-as-skill-boundary
+### New (does not exist, must be created from scratch)
 
-The subprocess call is the contract boundary between the agent and the Python pipeline. The agent
-knows nothing about Python internals — it only sees stdin/stdout/exit-code.
+| Component | File path | Phase |
+|-----------|-----------|-------|
+| Architecture rules | `rules_engine.json` | Phase 2.1 |
+| GitHub ingestion script | `ingest_github.py` | Phase 2.1 |
+| Entity registry | `entity_registry.json` | Phase 2.1 (written by ingest_github.py on first run) |
+| config.py additions | `config.py` lines | Phase 2.1 (prerequisite for ingest_github.py) |
+| Discussion pattern doc | `.planning/GSD_DISCUSS_PATTERN.md` | Phase 2.2 |
+| Architect skill | `skills/omnigraph_architect/SKILL.md` | Phase 2.2 |
+| Architect shell wrapper | `skills/omnigraph_architect/scripts/architect.sh` | Phase 2.2 |
+| Architect skill references | `skills/omnigraph_architect/references/` | Phase 2.2 |
+| Architect test cases | `tests/skills/test_omnigraph_architect.json` | Phase 2.2 |
 
-Keep the subprocess contract stable:
-- Argument order is frozen once published (`"<url>"` for ingest, `"<query>" [mode]` for query)
-- Exit 0 = success; exit 1 = error
-- Success summary on stdout (last few lines are the user-facing result)
-- Error explanation on stderr OR last stdout line
+### Modified (exists, requires targeted changes)
 
-Do not add new required positional arguments to existing scripts after skills are in use. Add optional
-flags with defaults instead.
+| Component | File path | Change | Phase |
+|-----------|-----------|--------|-------|
+| Config constants | `config.py` | Add `ENTITY_REGISTRY_FILE = BASE_DIR / "entity_registry.json"` and `GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")` | Phase 2.1 |
+| Skill simulator | `skill_runner.py` | Add `inputs: list[str]` to `TestCase`; add `history` param to `call_gemini()`; update `run_test_case()` loop | Phase 2.2 |
 
-### Pattern 2: Env var pre-flight in shell wrapper
+### Unchanged (confirmed stable, do not touch)
 
-The shell wrapper performs the env check before Python starts. This gives a clean, immediate error
-message instead of a Python traceback 30 seconds into a scraping run.
-
-```bash
-if [ -z "$GEMINI_API_KEY" ]; then
-  echo "ERROR: GEMINI_API_KEY is not set. Add it to ~/.hermes/.env" >&2
-  exit 1
-fi
-```
-
-The agent SKILL.md body maps this stderr pattern to a user-friendly `⚠️ Config:` message.
-
-### Pattern 3: Windows/macOS path resolution in shell wrapper
-
-The `PROJECT_DIR` calculation must work when Hermes executes the script from any cwd:
-
-```bash
-# Resolve project root from script location (3 levels up: scripts/ → skill-dir → skills/ → project/)
-PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$PROJECT_DIR"
-```
-
-On Windows Git Bash and macOS/Linux, `dirname "$0"` resolves correctly when the script is called
-with an absolute path. Hermes/OpenClaw always passes absolute paths to exec scripts.
-
-### Pattern 4: Keep Cognee off the ingestion fast path
-
-`cognee_batch_processor.py` runs separately from ingestion. The ingest skill shell wrapper should
-NOT start the batch processor — that would block the agent for minutes. The batch processor is a
-background daemon the user runs independently.
-
-The ingest SKILL.md body should mention this: "Entity canonicalization runs asynchronously. Run
-`cognee_batch_processor.py` separately to update the canonical entity map."
+| Component | Reason |
+|-----------|--------|
+| `ingest_wechat.py` | architect.sh never calls it; GitHub has its own script |
+| `kg_synthesize.py` | architect.sh calls it as-is; rules text is prepended in the query string |
+| `multimodal_ingest.py` | Not involved in v2.0 |
+| `cognee_batch_processor.py` | Not involved in v2.0 |
+| `skills/omnigraph_ingest/` | No change to existing skill |
+| `skills/omnigraph_query/` | No change to existing skill |
+| `config.py` `load_env()` | Stable; GITHUB_TOKEN + ENTITY_REGISTRY_FILE are additive |
 
 ---
 
-## Anti-Patterns to Avoid
+## Build Order
 
-### Anti-Pattern 1: Calling Python directly without venv activation
+The dependency graph enforces this sequence:
 
-**What:** `exec python ingest_wechat.py "$1"` directly in SKILL.md body
-**Why bad:** Uses system Python (no lightrag, cognee, etc.); import errors at runtime
-**Instead:** Always route through the shell wrapper in `scripts/`
+```
+Phase 2.1 — Rules Engine + KB Population
+─────────────────────────────────────────
 
-### Anti-Pattern 2: Hardcoded absolute paths in scripts
+Step 1: config.py additions
+  Adds: ENTITY_REGISTRY_FILE, GITHUB_TOKEN constants
+  Required by: ingest_github.py (imports these constants)
+  Dependency: none — this is the root
 
-**What:** `/home/sztimhdd/OmniGraph-Vault/entity_buffer` (seen in ingest_wechat.py lines 279-280)
-**Why bad:** Silently breaks on any other machine (including the Windows deployment target)
-**Instead:** Use `config.py` constants (`BASE_DIR / "entity_buffer"`)
+Step 2: rules_engine.json
+  Bootstrapped via Copilot GPT-5.4 researcher mode (external)
+  Required by: architect.sh at runtime (shell reads this file)
+  Dependency: none — standalone JSON data file
 
-This is a known pre-flight issue identified in STACK.md. Must be fixed before Gate 7.
+Step 3: ingest_github.py
+  Required by: architect.sh (Ingest mode calls this script)
+  Required by: KB population (50+ GitHub tools)
+  Dependency: Step 1 (config.py constants must exist)
 
-### Anti-Pattern 3: Monolithic SKILL.md body
+Step 4: entity_registry.json
+  Created automatically on first run of ingest_github.py
+  Dependency: Step 3
 
-**What:** Putting all reference material (arg tables, output schemas, troubleshooting) in SKILL.md body
-**Why bad:** Slow Level 1 load; Hermes loads the full body on every dispatch; token cost
-**Instead:** Keep body under 150 lines; move heavy material to `references/`
+Step 5: KB population (data work, not code)
+  Run ingest_github.py for 50+ repos
+  Run ingest_wechat.py for 5-10 KOL articles
+  Dependency: Step 3 (ingest_github.py must work)
+  Verify: query_lightrag.py returns substantive answers
 
-### Anti-Pattern 4: Starting Cognee batch processor from skill
+Phase 2.2 — /architect Skill
+─────────────────────────────
 
-**What:** Shell wrapper runs `python cognee_batch_processor.py &` on every ingest
-**Why bad:** Multiple background processes accumulate; batch processor is a long-running daemon
-**Instead:** Run batch processor independently as a scheduled task; document this in SKILL.md
+Step 6: GSD_DISCUSS_PATTERN.md
+  Documents the 4-step Propose conversation flow
+  Required by: SKILL.md author (needs pattern defined before writing decision tree)
+  Dependency: Step 2 (rules_engine.json must be finalized so pattern is concrete)
 
-### Anti-Pattern 5: JSON-on-stdout as agent response format
+Step 7: skills/omnigraph_architect/SKILL.md + architect.sh
+  Writes the 3-mode decision tree + shell dispatch wrapper
+  Dependency: Step 2 (rules), Step 3 (ingest_github.py), Step 6 (GSD_DISCUSS_PATTERN.md)
+  Note: architect.sh calls kg_synthesize.py (existing, no change) and ingest_github.py (Step 3)
 
-**What:** Script prints `{"status": "ok", "title": "..."}` to stdout for the agent to parse
-**Why bad:** Hermes reads stdout as free text; JSON adds parsing complexity with zero benefit
-**Instead:** Print human-readable summary lines; the agent reads them directly
+Step 8: skill_runner.py multi-turn enhancement
+  Adds inputs: list[str] + history accumulation
+  Dependency: independent of Steps 1-7 (can be done in parallel with Step 7)
+  Note: existing test files (test_omnigraph_ingest.json, test_omnigraph_query.json) are
+        backward compatible — no changes to passing test suites
+
+Step 9: tests/skills/test_omnigraph_architect.json
+  Writes 9 test cases (3 per mode)
+  Dependency: Step 7 (SKILL.md must exist to know what to test), Step 8 (multi-turn runner needed)
+
+Step 10: Integration validation
+  python skill_runner.py skills/ --test-all
+  All 3 skills must pass: omnigraph_ingest (9/9), omnigraph_query (10/10), omnigraph_architect (9/9)
+  Dependency: Steps 7, 8, 9 complete
+```
+
+Critical path: Step 1 → Step 3 → Step 7 → Step 9 → Step 10.
+Step 2 (rules_engine.json) and Step 8 (skill_runner.py) can proceed in parallel with their
+respective phases.
 
 ---
 
-## Scalability Considerations
+## Integration Points
 
-This is a single-user, local tool. Scalability concerns are about pipeline reliability, not load.
+### External Services
 
-| Concern | Current state | Mitigation |
-|---------|--------------|------------|
-| LightRAG graph size | Unbounded growth | `omnigraph_manage` skill to prune; list_entities.py already exists |
-| Gemini API quota | 15 requests/min (free tier) | Retry loop in kg_synthesize.py already handles this |
-| Cognee memory size | Grows with every synthesis | Periodic Cognee reset via init_cognee.py |
-| Entity buffer accumulation | entity_buffer/ grows without bound | `.processed` marker + periodic cleanup |
-| Image disk usage | Each article: 5–50 MB | Manual management; `omnigraph_manage` skill for deletion |
+| Service | Integration | Notes |
+|---------|-------------|-------|
+| GitHub REST API | `GET /repos/{owner}/{repo}` and raw README fetch in `ingest_github.py` | GITHUB_TOKEN optional but recommended (60 req/hr unauth vs 5000 auth). No OAuth needed — read-only public API. |
+| Gemini API | `kg_synthesize.py` (existing). `ingest_github.py` uses same `llm_model_func` / `embedding_func` pattern. | Same API key, same quota. ingest_github.py adds ~2 Gemini calls per repo (embed + entity extract). |
+
+### Internal Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `architect.sh` → `kg_synthesize.py` | subprocess call with augmented query string | rules_engine.json content is prepended to query_text; no changes to kg_synthesize.py interface |
+| `architect.sh` → `ingest_github.py` | subprocess call with GitHub URL as argv[1] | same subprocess-as-contract-boundary pattern as ingest.sh → ingest_wechat.py |
+| `ingest_github.py` → `entity_registry.json` | atomic write (tmp → rename) | mirrors canonical_map.json write pattern already established in cognee_batch_processor.py |
+| `skill_runner.py` → `TestCase.inputs` | backward-compatible dataclass field | `input` (singular) still works; `inputs` (list) enables multi-turn; runner checks `inputs` first |
+| `SKILL.md` (architect) → `rules_engine.json` | runtime — architect.sh reads the file | SKILL.md body instructs agent to call `architect.sh propose "<question>"`; shell loads rules |
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Modifying kg_synthesize.py to be "rules-aware"
+
+**What people do:** Add a `rules_file` argument to `kg_synthesize.py` or `synthesize_response()`;
+load and inject rules inside the Python function.
+
+**Why it's wrong:** `kg_synthesize.py` is called by three paths (architect.sh Propose mode,
+architect.sh Query mode, query.sh). Injecting rules-awareness into the function means rules apply
+to all calls — including Query mode and omnigraph_query calls — which is incorrect. It also
+adds a new required parameter to an existing passing interface.
+
+**Do this instead:** Load rules in `architect.sh` at the shell layer and prepend to the query
+string before calling `python kg_synthesize.py`. The Python interface stays clean; rules
+injection is the caller's responsibility.
+
+### Anti-Pattern 2: Three-argument dispatch in architect.sh
+
+**What people do:** Pass mode as an embedded prefix in the query string:
+`architect.sh "propose: should I use microservices?"` and parse in bash with `cut`.
+
+**Why it's wrong:** Fragile string parsing in bash; breaks when user input contains `:` or
+spaces before the mode keyword. The SKILL.md decision tree already extracts intent — it should
+pass the mode explicitly as a positional argument.
+
+**Do this instead:** `architect.sh <mode> "<query>"` — explicit positional arg, clean case
+statement in shell, no parsing.
+
+### Anti-Pattern 3: Writing entity_registry.json to ~/.hermes/ data dir
+
+**What people do:** Store `entity_registry.json` in `BASE_DIR` (`~/.hermes/omonigraph-vault/`)
+alongside `canonical_map.json`.
+
+**Why it's wrong:** `entity_registry.json` maps GitHub URLs to LightRAG entity IDs. It is code
+metadata, not user data — it should travel with the repository (committed to git) so it is
+reproducible. `canonical_map.json` contains learned entity aliases from Cognee (dynamic, user-data,
+not committed). These are conceptually different.
+
+**Do this instead:** Store `entity_registry.json` at project root. Add to `.gitignore` only if
+it will contain private repo URLs; for public AI tool repos, commit it.
+
+### Anti-Pattern 4: Blocking the architect skill on batch GitHub ingestion
+
+**What people do:** architect.sh Ingest mode triggers ingestion of an entire curated list
+(e.g., 50 repos) in one synchronous call.
+
+**Why it's wrong:** Single-repo ingest takes 15–60 seconds (LightRAG ainsert + Gemini embed).
+50 repos = 12–50 minutes blocking the agent. Hermes will time out or the user will kill it.
+
+**Do this instead:** architect.sh Ingest mode ingests one URL at a time (same as ingest.sh).
+Bulk ingestion is a separate data-population task run manually: `for url in ...; do python ingest_github.py "$url"; done`.
+
+---
+
+## Scaling Considerations
+
+This is a single-user, local tool. Scaling is about pipeline reliability over time, not load.
+
+| Concern | Current state (v2.0 target) | Mitigation |
+|---------|------------------------------|------------|
+| Rules engine size | 20–30 rules (~1500 tokens) | Acceptable. At 100+ rules, split into rule categories and load only matching category in architect.sh |
+| entity_registry.json growth | 50–100 GitHub repos initially | JSON file with 100 entries is <10 KB. No database needed until 10k+ entries. |
+| LightRAG graph with 50+ repos + 10 articles | ~60 documents total | LightRAG (kuzu backend) handles thousands of nodes; no concern at this scale |
+| Gemini quota during bulk ingestion | 50 repos × 2 calls = 100 Gemini calls | Run ingest_github.py sequentially with 1–2 second sleep between calls; free tier handles this over ~2 hours |
+| skill_runner.py multi-turn context | 3-turn Propose test × 9 cases = 27 Gemini calls per test run | Acceptable; existing 19 test cases already make 19 calls |
 
 ---
 
 ## Sources
 
-- CLAUDE.md (project), "OpenClaw / Hermes Skill Writing Standards" section — HIGH confidence for
-  skill directory structure, SKILL.md format, trigger phrases, progressive disclosure levels
-  (synthesized from hermes-agent.ai, docs.openclaw.ai, lushbinary.com by project author)
-- PROJECT.md — subprocess interface as stated design decision, Gate 6/7 requirements
-- STACK.md (research) — shell wrapper pattern, error surfacing protocol, known pre-flight issues
-- ARCHITECTURE.md (codebase, .planning/codebase/) — layer boundaries, entry points, data flow
-- ingest_wechat.py — nest_asyncio usage (line 29), asyncio.run() entry point (line 377)
-- kg_synthesize.py — synthesize_response() async pattern, sys.exit() error protocol
-- verify_gate_a/b/c.py — gate test script structure (asyncio.run(main()) pattern)
-- skill_runner.py — test harness design, SKILL.md loading, Gemini call pattern
-- config.py — BASE_DIR, RAG_WORKING_DIR, SYNTHESIS_OUTPUT constants (path management)
+- `kg_synthesize.py` — `synthesize_response(query_text, mode)` signature at line 48; `query_text`
+  is a plain string that architect.sh can prepend rules text to without any Python changes.
+- `config.py` — current constants at lines 5-13; `ENTITY_REGISTRY_FILE` and `GITHUB_TOKEN`
+  additions follow the exact same pattern as existing constants.
+- `ingest_wechat.py` — `ingest_article()` structure, `get_rag()` pattern, entity buffer write
+  pattern at lines 437-445; `ingest_github.py` mirrors this exactly.
+- `skills/omnigraph_ingest/scripts/ingest.sh` and `skills/omnigraph_query/scripts/query.sh` —
+  canonical shell wrapper pattern (OMNIGRAPH_ROOT resolution, venv activation, cd, dispatch).
+  `architect.sh` follows this pattern with a mode-dispatch case statement added.
+- `skill_runner.py` — `TestCase` dataclass at line 68-74; `call_gemini()` at line 153;
+  `run_test_case()` at line 196-211. Multi-turn enhancement is additive to these exact functions.
+- `skills/omnigraph_query/SKILL.md` and `skills/omnigraph_ingest/SKILL.md` — SKILL.md structure,
+  decision-tree body format, frontmatter schema. `omnigraph_architect` SKILL.md follows the same format.
+- `PROJECT.md` — confirmed Graphify MCP unavailable (line 50 notes this); GitHub REST API is
+  the replacement approach for `ingest_github.py`.
+- `.planning/MILESTONE-2-SIMPLE-GUIDE.md` — authoritative task list and success criteria for
+  Phase 2.1 and 2.2; used to derive build order.
+
+---
+
+*Architecture research for: OmniGraph-Vault v2.0 Knowledge Infrastructure MVP*
+*Researched: 2026-04-23*
+*Confidence: HIGH — all findings derived from actual source files, no external docs.*

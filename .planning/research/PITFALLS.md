@@ -1,472 +1,643 @@
-# Domain Pitfalls: Hermes Skill Packaging for a Python KB Pipeline
+# Domain Pitfalls: OmniGraph-Vault v2.0 Knowledge Infrastructure MVP
 
-**Project:** OmniGraph-Vault — Phase 2 (Skill Packaging + Gate 6/7)
-**Domain:** Hermes Agent skill packaging over a multi-script Python knowledge-base pipeline
-**Researched:** 2026-04-21
-**Confidence:** HIGH for in-repo evidence (codebase analysis, CONCERNS.md, existing SKILL.md files);
-MEDIUM for Hermes-specific runtime conventions (inferred from CLAUDE.md, which was synthesized from
-official skill writing guides by the project author — treat as authoritative proxy)
+**Project:** OmniGraph-Vault — v2.0 (Rules Engine + KB Population + /architect Skill)
+**Domain:** Adding rules engine, batch GitHub ingestion, and multi-mode LLM skill to an existing
+LightRAG/Cognee/Gemini Python knowledge-graph system
+**Researched:** 2026-04-23
+**Confidence:** HIGH for in-repo evidence (codebase analysis, existing CONCERNS.md, SKILL.md files,
+skill_runner.py source); MEDIUM for GitHub API rate-limit specifics (derived from known GitHub REST
+API documentation); LOW where noted (first-principles reasoning without direct evidence)
+
+**Scope note:** This file covers v2.0-specific pitfalls only — the 6 question domains below. For
+v1.1 pitfalls (hardcoded paths, trigger collisions, env pre-flight, skill_runner false passes, etc.)
+see the v1.1 PITFALLS.md in the same directory. Those pitfalls are prerequisites for v2.0 and must
+be resolved before Phase 4 begins.
+
+**Phase assignment key:**
+- **Phase 4** = Rules Engine + Knowledge Base population
+- **Phase 5** = /architect Skill Design + Testing
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites, hard-to-debug failures, or silent wrong behaviour.
+Mistakes that cause rewrites, data corruption, or fundamentally wrong system behavior.
 
 ---
 
-### Pitfall 1: Hardcoded Developer Paths Survive Into Skill Scripts
+### Pitfall 1: rules_engine.json Schema Too Rigid to Be Queryable by an LLM
 
-**What goes wrong:** Python scripts called by the skill contain `/home/sztimhdd/` absolute paths.
-When Hermes executes the skill on a different machine (or even a different user account on the
-same Windows machine via WSL vs native path), every path-dependent call silently fails or crashes
-with `FileNotFoundError`. The agent receives an error exit, but the error message is useless
-because it names a path that doesn't exist on the running system.
+**Domain:** Rules engine design (Question 1)
+**Phase:** Phase 4 (prevention), Phase 5 (symptom surfaces during architect skill integration)
 
-**Why it happens:** Phase 1 development on a single machine never required portability. Paths were
-hardcoded as a shortcut. Now that skill scripts invoke those same Python files, the assumption
-propagates through the execution chain.
+**What goes wrong:** The rules JSON schema is designed for human readability — nested objects,
+conditional logic encoded as prose, long natural language `condition` fields — but when
+`kg_synthesize.py` or the `/architect` skill injects rules into an LLM prompt, the LLM either
+ignores most rules (too much text), hallucinates rules that sound plausible, or applies the wrong
+rule because the `condition` field required human interpretation that the LLM cannot do reliably.
 
-**Files already known to be affected (from CONCERNS.md):**
-- `ingest_wechat.py` lines 279, 280, 368 — entity buffer path
-- `kg_synthesize.py` line 50 — canonical map path
-- `cognee_batch_processor.py` lines 9, 30, 35, 36
-- `cognee_wrapper.py` line 8
-- `init_cognee.py` lines 5, 23
-- `list_entities.py` line 5
-- `query_lightrag.py` line 12
-- All `tests/verify_gate_*.py` files
+A concrete example from the SIMPLE-GUIDE plan: each rule has `{ "condition": "...", "recommendation": "...", "dont_use": [...] }`.
+If `condition` is `"when building a solo hobby project with no team requirements"`, the LLM must
+match that condition against the user's conversational context — a subjective inference, not a
+lookup. When multiple rules have similar conditions (common in architecture guidance), the LLM picks
+one semi-randomly based on recency in the prompt rather than best match.
+
+**Why it happens:** Rule schemas are written to look clean in JSON, not to be queried. The schema
+optimises for human authoring, not for LLM injection. There is no forcing function that makes the
+LLM apply rules correctly unless the schema is designed with the query path in mind.
 
 **Consequences:**
-- Skill passes `skill_runner.py --validate` (structure check) but fails silently at runtime
-- Gate 7 passes locally on the original machine but breaks on any other machine
-- `skill_runner.py` LLM tests pass (they only test the LLM response, not script execution)
+- `/architect` gives confident but rule-ignoring advice in Phase 5 integration tests
+- The rules become decoration — the LLM uses its training data instead, defeating the purpose of
+  having a local rules engine
+- No test in `skill_runner.py` can catch this because tests check text format, not whether a rule
+  was actually applied
 
 **Prevention:**
-1. Before writing any skill scripts, fix ALL hardcoded paths to use `config.py` constants.
-   Add `ENTITY_BUFFER_DIR` and `CANONICAL_MAP_FILE` to `config.py`. Import from there everywhere.
-2. Skill wrapper scripts must set `PROJECT_ROOT` from their own location:
-   ```bash
-   PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-   cd "$PROJECT_ROOT"
-   python ingest_wechat.py "$@"
-   ```
-3. Test the skill by moving the working directory before running — paths that break on `cd` reveal
-   every hardcoded assumption.
+1. Design the schema for injection. Each rule must be a self-contained sentence the LLM can apply
+   as a filter. Prefer: `"if_context_matches": "solo developer, hobby, no funding"` as a
+   classification tag, not a prose condition. Tag-based matching is more reliable than prose-matching.
+2. Keep rules short. Each rule entry must fit in one LLM "attention unit" — aim for 50-word
+   `recommendation` fields. Move elaboration to a `details` field that is only injected on demand.
+3. Index rules by `category` (e.g., `"tech_stack"`, `"testing"`, `"architecture"`) and inject only
+   the relevant category into the LLM context for a given question. Injecting all 20-30 rules at
+   once risks exceeding useful attention budget.
+4. Add a `test_scenario` field to each rule: the scenario where this rule should fire and the
+   expected keyword in the response. This becomes your Phase 5 test oracle.
 
-**Detection:** Run `grep -r '/home/' skills/ scripts/` and `grep -r '/home/' *.py`. Any hit is a
-blocker before publishing.
+**Detection:** During Phase 5 integration test: inject all 30 rules into a prompt alongside a
+specific user scenario. Check whether the LLM response quotes or references a specific rule ID.
+If it never quotes rule IDs, the rules are being ignored.
 
 ---
 
-### Pitfall 2: Trigger Phrase Collisions Between Skills
+### Pitfall 2: Copilot-Generated Rules Have Systematic Bias Toward Mainstream Use Cases
 
-**What goes wrong:** Hermes matches user intent to a skill using both the frontmatter `triggers`
-list and the Level-0 `description`. When two skills have semantically overlapping triggers, the
-agent fires the wrong one. The user says "summarize what I know about X" and gets `omnigraph_ingest`
-instead of `omnigraph_query` or `omnigraph_synthesize`. No error is surfaced — the wrong skill runs
-and produces a confusing response.
+**Domain:** Copilot as rule source (Question 5)
+**Phase:** Phase 4 (occurs during Task 2.1-01 rule bootstrapping)
 
-**Why it happens:** Trigger phrases are written independently per skill. Overlap creeps in because
-natural language phrasing is ambiguous. The current `omnigraph_ingest` triggers include
-`"save this article"`. The current `omnigraph_query` triggers include `"search my knowledge base"`.
-But `"search"` can also feel like retrieval-then-summarise, which is closer to `omnigraph_synthesize`.
+**What goes wrong:** Copilot GPT-5.4 (or any frontier LLM used as a researcher) has training data
+heavily skewed toward well-documented, public, mainstream software engineering advice. When asked
+"overengineering patterns in indie/hobby projects" or "solo-dev constraints", the generated rules
+will systematically:
 
-**Specific collision risks in the current trigger set:**
+1. **Repeat generic advice:** Rules that are already in every "clean code" or "YAGNI" article,
+   not OmniGraph-Vault-specific or AI-tool-specific guidance. Example: "Don't over-abstract early"
+   appears in >90% of such rule sets and adds no signal for `/architect`.
 
-| Phrase | Intended Skill | Collision Risk |
-|--------|---------------|----------------|
-| `"what do I know about"` | `omnigraph_query` | Also sounds like `omnigraph_synthesize` |
-| `"search my kb"` | `omnigraph_query` | "search" in Chinese-context can mean "find and report" |
-| `"ingest"` | `omnigraph_ingest` | Bare word, could fire on "ingest this report" meaning read-it |
-| `"save this article"` | `omnigraph_ingest` | "save" could mean save the output of a query |
-| `"find in graph"` | `omnigraph_query` | Matches accidentally if user says "find and delete from graph" |
+2. **Assume VC-funded startup context:** Rules about scalability, team workflows, and CI/CD pipelines
+   that apply to funded startups, not solo researchers. When injected into `/architect`, these rules
+   will steer advice toward over-engineering for a single-user local tool.
 
-**Future collision risk:** Once `omnigraph_synthesize` and `omnigraph_status` are added, the phrase
-`"summarize what I know"` will compete between `omnigraph_query` and `omnigraph_synthesize` depending
-on how their triggers and descriptions are written.
+3. **Miss Chinese developer ecosystem nuance:** Copilot's English-language training underweights
+   WeChat/Zhihu/GitHub Chinese community patterns. KOL articles ingested into this KB are Chinese-
+   language AI content. Rules about "community-validated tools" will reference Western ecosystems
+   (Hacker News, Product Hunt) while the user's context is Chinese AI development.
+
+4. **Overstate certainty:** Copilot generates rules with confident phrasing. There is no mechanism
+   to distinguish "we know this is true" from "this sounds plausible." Without weighting or
+   confidence annotation, all 20-30 rules carry equal apparent authority in the LLM prompt.
+
+**Why it happens:** Copilot optimises for plausible-sounding output, not for the user's specific
+context. The researcher prompt is too open-ended to elicit system-specific guidance.
 
 **Consequences:**
-- Wrong skill fires, user gets an unexpected prompt or action
-- Destructive skills (`omnigraph_manage`) firing when user intended a query — the most dangerous case
-- Gate 7 trigger-phrase tests can pass locally on `skill_runner.py` (which loads one skill at a time)
-  but fail on real Hermes (which resolves across the full catalog)
+- Rules engine gives advice indistinguishable from generic LLM advice without a KB
+- `/architect` Propose mode returns correct-looking but contextually wrong recommendations for
+  Chinese-market or solo-researcher personas
+- After integration, developer cannot tell whether `/architect` is using the rules or just drawing
+  from Gemini's training data
 
 **Prevention:**
-1. Write the `description` field for Level-0 matching with the precision of a mutex. It is the
-   primary disambiguation signal. Bad: `"Query the knowledge graph"`. Good: `"Retrieve and answer
-   a question from ingested articles — does NOT ingest new content"`.
-2. Enumerate "when NOT to trigger" cases in SKILL.md explicitly for every overlapping phrase. The
-   existing skills do this correctly (they already list redirects). Maintain this discipline for all
-   future skills.
-3. Before adding any new trigger phrase, check whether it appears verbatim or semantically in any
-   other skill's triggers list or description.
-4. Gate 7 test cases must include cross-skill routing tests: send a phrase that is ambiguous between
-   two skills and assert only one skill name appears in the response. The existing test suites already
-   do this for ingest vs query — extend this pattern to all skill pairs.
+1. Before running Copilot, write 3 concrete example scenarios the rules must distinguish:
+   (a) "solo researcher with local tools", (b) "startup CTO with 3 engineers", (c) "indie hacker
+   with $0 budget". Use these as the evaluation frame when reviewing generated rules.
+2. After generation, apply a deduplication + quality filter: discard any rule that Gemini could
+   derive without looking at the rules (i.e., it is just training data). Keep only rules that
+   reference specific tools, constraints, or context (AI agent tools, WeChat/Zhihu ecosystem, Gemini
+   vs Claude trade-offs, LightRAG-specific patterns).
+3. Add a `source` field to each rule: `"copilot"`, `"kol_article"`, or `"codebase_experience"`.
+   Rules from KOL articles (Phase 4 KB) should be weighted higher than Copilot-generated ones.
+4. Cap Copilot-derived rules at 50% of total. The remaining 50% must come from ingested KB content
+   (KOL articles + GitHub README + your own decisions documented in CLAUDE.md).
+5. Write 3 "adversarial" `/architect` test cases in Phase 5 that specifically check whether rules
+   override generic Gemini advice. If generic advice wins, the rules are not working.
 
-**Detection:** Review all `triggers` lists side-by-side. Run `skill_runner.py` with a phrase that
-sits on the boundary between two skills and check which skill name the LLM proposes.
+**Detection:** After Phase 4 rule bootstrapping, do a "rules audit": for each rule, ask "could
+Gemini answer this without the rule?". If yes for >60% of rules, the rule set has been captured
+by generic advice.
 
 ---
 
-### Pitfall 3: Environment Variable Pre-flight Failures Are Opaque from the Hermes Side
+### Pitfall 3: LightRAG Entity Collision When Batch-Ingesting 50+ GitHub Repositories
 
-**What goes wrong:** The skill runs, the Python script is invoked, but `GEMINI_API_KEY` is not in
-the shell environment that Hermes uses to exec the skill. The script dies with a Python traceback.
-Hermes receives stderr output and displays it as a generic error. The user sees a wall of Python
-traceback instead of `"⚠️ Configuration error: GEMINI_API_KEY is not set. Please add it to
-~/.hermes/.env and restart."` as specified in the skill decision tree.
+**Domain:** Batch GitHub ingestion (Question 2)
+**Phase:** Phase 4 (during KB population Task 2.1-03)
 
-**Why it happens:** The skill decision trees check for missing env vars and specify clean error
-messages. But those checks are in the SKILL.md instructions to the LLM — not in the shell scripts
-that actually invoke Python. The Python scripts fail before the LLM can intercept. The LLM only
-sees what the agent surfaces back to it, and a raw traceback from a subprocess does not match
-the `expect_contains: ["GEMINI_API_KEY", ".env"]` pattern the tests verify.
+**What goes wrong:** When 50+ GitHub repositories are ingested sequentially into LightRAG, many
+share the same entity names: "Python", "API", "agent", "LLM", "memory", "vector database",
+"embedding". LightRAG builds a knowledge graph by extracting entity-relationship triples. When the
+same entity name appears hundreds of times across dozens of READMEs, LightRAG either:
+(a) merges all occurrences into one super-entity with contradictory attributes, or
+(b) creates duplicate entity nodes with the same name, degrading retrieval quality.
 
-**Three distinct failure modes:**
+The existing `canonical_map.json` mechanism (async batch processor) is designed for
+cross-article canonicalization, but it was designed for article-scale ingestion (5-10 items),
+not batch ingestion of 50+ repositories with highly overlapping terminology.
 
-1. **Missing key entirely**: `~/.hermes/.env` not present or key not in it. Python crashes with
-   `KeyError` or `AssertionError` depending on where validation happens.
-2. **Key present in `.env` but not exported to subprocess env**: The wrapper script sources `.env`
-   but uses `source` syntax that doesn't propagate to child processes, or uses `export` on the
-   wrong variable name.
-3. **Cognee-specific vars not set**: `LLM_PROVIDER`, `LLM_MODEL`, `EMBEDDING_PROVIDER` are
-   hardcoded in each script that uses Cognee, but `config.py` doesn't validate them. Cognee silently
-   misconfigures, then fails with a cryptic API error much later in execution.
+**Why it happens:** GitHub AI tool READMEs are written with similar vocabulary. The entity
+extraction (Gemini via LightRAG) will extract "LLM" as an entity from every repository that
+mentions LLMs. After 50 ingestions, "LLM" becomes a massively over-connected hub node with
+relationships to 50+ tools, degrading retrieval specificity.
 
 **Consequences:**
-- `skill_runner.py` test cases for "config error" pass (the LLM correctly describes what to do in
-  response to the hypothetical scenario) but the actual skill wrapper doesn't perform the pre-flight
-  check before invoking Python.
-- The user sees a traceback. The agent tries to interpret it. The interpretation is usually wrong.
+- Queries like "what do I know about LangChain" retrieve content about every tool that mentions
+  "LangChain" anywhere, not just LangChain-specific content
+- Hub entities ("Python", "API", "agent") accumulate so many edges that they create noise in
+  every query result
+- `canonical_map.json` grows large and the simple string-replace canonicalization
+  (`kg_synthesize.py` lines 56-58) becomes increasingly incorrect (already flagged as fragile
+  in CONCERNS.md) at scale
 
 **Prevention:**
-1. Perform env pre-flight in the shell wrapper script, before invoking Python:
-   ```bash
-   if [ -z "$GEMINI_API_KEY" ]; then
-     echo "⚠️ Configuration error: GEMINI_API_KEY is not set. Add it to ~/.hermes/.env and restart."
-     exit 1
-   fi
-   ```
-   This is the only reliable way to guarantee the clean error format the SKILL.md specifies.
-2. Add `assert os.environ.get("GEMINI_API_KEY"), "GEMINI_API_KEY must be set"` at the top of
-   `config.py` — not in individual scripts.
-3. The `metadata.openclaw.requires.config: ["GEMINI_API_KEY"]` frontmatter field signals to
-   OpenClaw/Hermes to check this before loading the skill — verify whether Hermes actually enforces
-   this pre-check or only surfaces it to the agent as advisory text.
+1. Batch in groups of 10-15, not all at once. After each group, run a test query to verify
+   retrieval quality is still acceptable. Stop if quality degrades.
+2. Tag each ingested document with its source repository URL as metadata. LightRAG does not
+   natively support document-level metadata in retrieval, but you can prepend a source header
+   to the content: `"# Source: github.com/org/repo\n\n<readme content>"`. This gives the LLM
+   retrieval context to distinguish sources.
+3. Before ingestion, strip boilerplate from READMEs: badges, install instructions (`pip install`
+   blocks), license text, and contributor tables. These add token cost without knowledge value
+   and contribute noise entities.
+4. Focus entity extraction on differentiating facts: what the tool does, what it is comparable
+   to, what constraints it has. Consider writing a pre-processing step that extracts only the
+   "Description" and "Features" sections of each README.
+5. After ingestion, run a test query: "What is unique about [tool X] compared to [tool Y]?"
+   If the answer is generic, entity collision has degraded the graph.
 
-**Detection:** Remove `GEMINI_API_KEY` from the environment, run the skill wrapper script directly
-from a plain shell (not from within `skill_runner.py`), observe what the agent receives.
+**Detection:** After ingesting 15 repositories, run `list_entities.py`. Count how many entities
+have >20 connections. Hub entities (>50 connections) are a sign of collision. If "Python" has
+>100 connections, the entity namespace is already polluted.
 
 ---
 
-### Pitfall 4: `skill_runner.py` LLM Tests Give False Passes for Script Execution Issues
+### Pitfall 4: GitHub API Rate Limiting Silently Breaks Mid-Batch Ingestion
 
-**What goes wrong:** `skill_runner.py` tests whether the LLM correctly follows the SKILL.md
-decision tree. It does not execute the Python scripts. A test case that says "ingest this URL" and
-`expect_contains: ["ingest_wechat.py"]` passes as long as the LLM outputs the text `ingest_wechat.py`
-in its response. It does not verify that `ingest_wechat.py` actually ran, succeeded, or produced
-correct output.
+**Domain:** Batch GitHub ingestion (Question 2)
+**Phase:** Phase 4 (during KB population Task 2.1-03)
 
-**Why it matters:** This creates a gap class of failures that `skill_runner.py` will never catch:
-- Hardcoded paths that break on the current machine
-- Missing `import json` in `kg_synthesize.py` (the known bug from CONCERNS.md line 55)
-- `ingest_pdf()` undefined variable crashes (CONCERNS.md lines 89-99)
-- Subprocess timeout or hang with no output
-- `canonical_map.json` absent on first run causing a crash in `kg_synthesize.py`
+**What goes wrong:** The confirmed approach for GitHub ingestion is the GitHub REST API via
+`requests` library in a new `ingest_github.py` script (Graphify MCP is NOT available). GitHub
+REST API enforces rate limits: 60 requests/hour for unauthenticated, 5,000/hour for authenticated.
+For 50-100 repositories, each repository requires at minimum:
+- 1 request to get repo metadata
+- 1 request to fetch README content
+- Optional: N requests for additional files (CHANGELOG, docs/, etc.)
+
+At 60 unauthenticated requests/hour, 50 repos = 100+ requests = fails in the first hour.
+At 5,000 authenticated requests/hour, 50 repos is fine — but the `ingest_github.py` script
+may not handle the 403/429 response codes that signal rate limit exhaustion.
+
+The existing ingestion pipeline (`ingest_wechat.py`) has retry logic only for 503 errors (line 179
+in `skill_runner.py` — Gemini retries), and has no retry logic for GitHub rate limits. If
+`ingest_github.py` is written following the existing pattern, rate limit errors will cause a
+silent crash mid-batch.
+
+**Why it happens:** No GitHub API integration exists yet; `ingest_github.py` will be written fresh
+in Phase 4. Without explicitly building rate-limit handling, it will be omitted (consistent with
+existing ingestion scripts which have minimal retry logic per CONCERNS.md).
 
 **Consequences:**
-- Gate 7 says "PASS" on all `skill_runner.py` tests. Developer ships the skill. First real use on
-  Hermes fails silently because the Python script crashes before producing output.
-- The `missing json import` bug in `kg_synthesize.py` only manifests after the first article has
-  been ingested (when `canonical_map.json` gets created). Gate 6 single-article ingestion doesn't
-  trigger it. Cross-article Gate 6 query will trigger it. So Gate 7 can pass while Gate 6 is still
-  broken.
+- Batch ingestion fails silently at repo 30/50 with a 403 response
+- No `.processed` marker pattern exists for GitHub repos (unlike `entity_buffer/`), so there is
+  no idempotency — a re-run starts from scratch
+- `entity_registry.json` (GitHub URL → entity ID) is partially populated, making it an unreliable
+  source of truth
 
 **Prevention:**
-1. Gate 7 must include a live execution test, not just an LLM response test. The test flow:
-   a. Run the skill wrapper script directly from shell against a real (or mock) URL
-   b. Assert exit code 0
-   c. Assert output contains expected confirmation text
-   d. Assert LightRAG storage was actually written to
-2. Fix the known `import json` bug in `kg_synthesize.py` before Gate 6 cross-article synthesis.
-3. Fix `ingest_pdf()` undefined variable scope bugs before any PDF skill is declared working.
-4. Keep `skill_runner.py` tests for what they are good at: LLM routing correctness and output
-   format. Do not conflate "LLM routing test passed" with "skill works end-to-end."
+1. Use authenticated requests. Set `GITHUB_TOKEN` in `~/.hermes/.env` and add it to the
+   `Authorization: Bearer <token>` header. This raises the rate limit to 5,000/hour. Add
+   `GITHUB_TOKEN` to the `config.py` constant list alongside `GEMINI_API_KEY`.
+2. Implement the `.processed` marker pattern from `entity_buffer/` for GitHub ingestion:
+   maintain a `github_ingested.json` manifest (atomic write — same pattern as `canonical_map.json`).
+   Check the manifest before each repo to skip already-processed repos.
+3. Add explicit rate-limit handling: check `X-RateLimit-Remaining` response header; if it falls
+   below 10, sleep until `X-RateLimit-Reset`.
+4. Test with 5 repos first, then 20, then 50. Each increment should produce a test query that
+   returns multi-repository results.
 
-**Detection:** After `skill_runner.py` passes all tests, run `python kg_synthesize.py "test query"
-hybrid` from a shell with `canonical_map.json` present. If it crashes, the skill is not ready.
+**Detection:** Check `X-RateLimit-Remaining` header in the first GitHub API response. If 0 or
+unauthenticated, stop before starting the batch.
 
 ---
 
-### Pitfall 5: Subprocess CWD Mismatch Breaks Relative Script Calls
+### Pitfall 5: Storage Explosion from Unfiltered GitHub README + Image Ingestion
 
-**What goes wrong:** The SKILL.md decision tree shows `python ingest_wechat.py "<URL>"` as the
-command to run. This assumes `cwd` is the project root. When Hermes executes a skill, its working
-directory may be the skill directory, the Hermes data directory, or the OS home directory —
-not the project root. `python ingest_wechat.py` then fails with `ModuleNotFoundError` or
-`FileNotFoundError` because `config.py` (imported at the top of `ingest_wechat.py`) cannot be found
-relative to that cwd.
+**Domain:** Batch GitHub ingestion, storage (Question 2)
+**Phase:** Phase 4
 
-**Why it happens:** During local testing, the developer runs `python ingest_wechat.py` from the
-project root. `skill_runner.py` also runs from the project root. Neither surface the cwd problem.
-Real Hermes execution is the first context where cwd is something unexpected.
-
-**Consequences:**
-- Every Python invocation in every skill wrapper silently fails on first deploy to real Hermes.
-- Error message is `ModuleNotFoundError: No module named 'config'` or similar — not useful.
+**What goes wrong:** LightRAG stores embeddings, entity relationships, and raw document chunks in
+`~/.hermes/omonigraph-vault/lightrag_storage/`. The current KB contains 5-10 articles.
+Adding 50-100 GitHub repositories will multiply storage by 5-10x minimum. The risks:
+1. The embedding dimension is 768 (gemini-embedding-001). Each document chunk generates one vector.
+   A typical GitHub README (1,000-3,000 words) generates 5-20 chunks. 100 repos × 20 chunks ×
+   768 floats × 4 bytes = ~6MB for embeddings alone. The graph edges and entity tables will be
+   comparable. Total: ~20-50MB additional. On Windows with limited SSD, this is manageable, but
+   LightRAG's graph structure may have higher constant factors — verify before starting.
+2. If `ingest_github.py` downloads images from GitHub READMEs (badges, screenshots, diagrams),
+   the `~/.hermes/omonigraph-vault/images/` directory will grow rapidly. GitHub badges alone are
+   hundreds of PNG/SVG files per repository.
+3. The existing `entity_buffer/` grows with each ingestion. 100 repos × average 20 extracted
+   entities = 2,000 entity buffer files. The `cognee_batch_processor.py` processes these
+   sequentially (flagged in CONCERNS.md as a performance bottleneck) — at ~100ms per file, this is
+   a ~3-minute blocking operation.
 
 **Prevention:**
-1. Shell wrapper scripts must `cd` to an absolute project root before invoking Python:
-   ```bash
-   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-   PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-   cd "$PROJECT_ROOT"
-   python ingest_wechat.py "$@"
-   ```
-2. Consider making all Python scripts importable from any cwd by using `sys.path` manipulation
-   in `config.py`, but the shell-wrapper `cd` is simpler and more reliable.
-3. Verify by running `skill wrapper script` from `/tmp` before declaring Gate 7 complete.
+1. Strip badge images from READMEs before ingestion. They carry no knowledge value. Use a regex
+   to remove `[![...](badge.svg)](link)` patterns before passing to `LightRAG.ainsert()`.
+2. Set a maximum README size (e.g., 10,000 tokens) before ingestion. Repositories with very long
+   READMEs (documentation repos, monorepos) should be ingested selectively by section, not fully.
+3. Skip image download for GitHub READMEs unless the image is a diagram (not a badge/logo). Add a
+   content-type filter: only download images with `image/png` MIME type and >5KB size.
+4. Run a disk usage check before and after each batch of 10 repos: `du -sh ~/.hermes/omonigraph-vault/`.
+   Set a budget (e.g., 500MB cap).
 
 ---
 
-### Pitfall 6: Missing `import json` Causes Silent Post-Ingestion Failure in kg_synthesize.py
+### Pitfall 6: /architect Skill Mode Confusion — Propose vs Query vs Ingest Routing Errors
 
-**What goes wrong:** `kg_synthesize.py` calls `json.load(f)` at line 54 to read `canonical_map.json`,
-but `import json` is not present in the file (confirmed in CONCERNS.md line 55). On the first run
-after ingestion, `canonical_map.json` is created. The next call to `kg_synthesize.py` crashes with
-`NameError: name 'json' is not defined`. This is silent from the Hermes side — the agent receives
-a non-zero exit code and a Python traceback.
+**Domain:** Multi-mode LLM skill routing (Question 3)
+**Phase:** Phase 5 (primary), Phase 4 (must be considered when writing test cases)
 
-**Why it matters for Gate 6 specifically:** Gate 6 requires ingesting 3 articles then running a
-cross-article synthesis query. The cross-article query is the first call to `kg_synthesize.py` after
-`canonical_map.json` has been written. Gate 6 will fail at this exact step unless the bug is fixed
-first.
+**What goes wrong:** The `/architect` skill has three modes — Propose (multi-turn conversation),
+Query (single-turn KB lookup), and Ingest (URL/doc ingestion). These modes are distinguished by
+the agent's interpretation of natural language intent. The routing decision is made by the LLM
+reading the SKILL.md decision tree, not by code logic.
 
-**Prevention:** Add `import json` to `kg_synthesize.py` before running Gate 6. This is a one-line
-fix but a Gate 6 blocker.
+The three critical failure modes for `/architect`:
 
-**Detection:** `python -c "import py_compile; py_compile.compile('kg_synthesize.py')"` will pass
-(syntax is valid). The bug only manifests at runtime when the conditional branch at line 54 is
-reached. Verify with: `python kg_synthesize.py "test" hybrid` after creating a minimal
-`canonical_map.json` with `{}`.
+**Mode 1: Propose → Query confusion**
+User says "what framework should I use for my agent?" — ambiguously either a KB query (what does
+OmniGraph-Vault know about agent frameworks?) or a Propose-mode conversation (the skill should ask
+clarifying questions about the user's context before recommending). If the skill routes to Query
+mode, it dumps a synthesis report without the GSD:DISCUSS conversation. The user gets raw KB
+content without architecture guidance through the rules engine.
+
+**Mode 2: Query → Ingest confusion**
+User says "add LangChain to my architect knowledge base" — ambiguously either Ingest mode (ingest
+the LangChain GitHub repo) or a Query about something called "architect knowledge base". The word
+"add" should trigger Ingest but the phrase "architect knowledge base" could confuse the routing.
+
+**Mode 3: Propose → Ingest escalation**
+During a Propose-mode conversation (multi-turn), the user shares a GitHub URL "here is what I'm
+building on: github.com/X/Y" as context for the recommendation. The skill should NOT auto-ingest
+the URL — it should use it as conversational context. But if the SKILL.md decision tree is not
+explicit about this, the LLM may route to Ingest mode mid-conversation.
+
+**Why it happens:** These three modes are semantically close. "What should I use for X?" can be
+Propose or Query. "Add X" can be Ingest or Query filter. The SKILL.md decision tree must
+disambiguate them with explicit boundary conditions, not general intent descriptions.
+
+The existing `omnigraph_ingest` and `omnigraph_query` skills already demonstrate the pattern
+correctly — they have explicit "When NOT to Use" sections. But the `/architect` skill is more
+complex because it has three internal modes plus boundaries with two other skills.
+
+**Prevention:**
+1. Design the SKILL.md decision tree for `/architect` with explicit mode-locking: the first
+   message determines the mode; subsequent messages in the same conversation do not re-trigger
+   routing. This prevents Mode 3 (Propose → Ingest escalation).
+2. Write the routing rules as syntactic pattern-matching, not semantic intent:
+   - Propose mode: user asks a "what should I" / "how should I" / "which X for my Y" question
+     with no specific KB query intent
+   - Query mode: user says "what do I know about", "search", "find", or names a specific tool
+   - Ingest mode: user provides a GitHub URL or says "add this", "ingest this", "learn about"
+3. Add a `mode_lock` concept to the multi-turn test harness (Phase 5): after the first turn
+   establishes Propose mode, subsequent turns must not retrigger mode detection.
+4. Write 3 "boundary" test cases in Phase 5: one for each of the three failure modes above.
+   These are harder to pass than the golden-path tests and will reveal routing ambiguity.
+
+**Detection:** In `skill_runner.py` multi-turn tests, include a second turn that looks like an
+Ingest trigger but is actually conversational context. If the response includes `ingest.sh` or
+`scripts/architect.sh --ingest`, Mode 3 is occurring.
 
 ---
 
 ## Moderate Pitfalls
 
-Mistakes that degrade functionality without causing a complete failure.
-
 ---
 
-### Pitfall 7: SKILL.md Bloat Degrades Agent Decision Quality
+### Pitfall 7: skill_runner.py Multi-Turn Support Breaks Backward Compatibility With Existing Tests
 
-**What goes wrong:** As SKILL.md grows (more cases added, more error scenarios documented, mode
-tables expanded), the agent's ability to follow the decision tree degrades. At Level 1 loading,
-the full SKILL.md body is in context. Long skills push out earlier decision branches from the
-effective attention window. The agent correctly recalls the last few cases but "forgets" earlier
-ones, most often the "when NOT to trigger" redirects.
+**Domain:** Multi-turn conversation support (Question 4)
+**Phase:** Phase 5 (Task 2.2-03)
 
-**Why it happens:** Progressive feature additions each feel small. Each error case, each query mode
-explanation, each output format rule is individually justified. The cumulative effect is a 3-5KB
-skill body that is longer than the attention bandwidth of the LLM for precise instruction-following.
+**What goes wrong:** The current `skill_runner.py` `TestCase` dataclass has `input: str` (single
+string). The plan calls for enhancing it to support `inputs: list[str]` for multi-turn. The most
+likely implementation approach is to rename `input` to `inputs` and accept both `str` (old) and
+`list[str]` (new). If the rename is done without a backward-compatibility shim, all existing
+19 test cases in `test_omnigraph_ingest.json` and `test_omnigraph_query.json` (which use `"input"`)
+will break with a `TypeError`.
 
-**Current state:** Both `omnigraph_ingest/SKILL.md` (92 lines) and `omnigraph_query/SKILL.md`
-(102 lines) are at the acceptable boundary. The query skill's "Query modes explained" table is the
-most at-risk section — it is informational but not decision-critical, and adds ~15 lines that
-compete with the routing logic for attention.
+The existing test files use the `"input"` key. `TestCase(**c)` at line 216 of `skill_runner.py`
+will fail with `TypeError: __init__() got an unexpected keyword argument 'input'` if `input` is
+removed and replaced with `inputs`.
 
-**Prevention:**
-1. SKILL.md hard ceiling: 80 lines of body (after frontmatter). Above that, move content to
-   `references/`.
-2. Move the "Query modes explained" table to `references/query-modes.md`. Reference it explicitly
-   in the skill body: "See references/query-modes.md for when to use each mode."
-3. Decision tree branches (when to trigger / when not to trigger / error handling) must always
-   appear before informational content. Agents read top-down and stop when they have enough
-   information to act.
-4. Write one test case specifically for recall of an early "when NOT to trigger" branch after
-   reading a long input that exercises many sections of the skill.
+**Why it happens:** The existing test JSON uses `"input"` as the key name. Python dataclass
+construction with `**c` is strict — unknown or missing fields cause immediate failures.
 
-**Detection:** Send a test input that triggers an early "when NOT to trigger" redirect after also
-matching a later section's pattern. If the agent routes correctly, attention is sufficient.
-
----
-
-### Pitfall 8: Gate 6 Cross-Article Tests Produce False Passes
-
-**What goes wrong:** Gate 6 tests cross-article synthesis by ingesting 3 articles and querying for
-a topic that spans them. The test "passes" if the synthesis output contains any content. But the
-output could be:
-- A response that draws only from the most recently ingested article (LightRAG recency bias)
-- A Gemini-hallucinated answer that is confident but not grounded in the graph
-- A correct answer that uses only local-mode retrieval even when hybrid was specified
-
-**Why it happens:** `kg_synthesize.py` defaults to `"naive"` mode (CONCERNS.md line 222) unless
-the caller explicitly passes `"hybrid"`. The skill always passes `"hybrid"`, but if a developer
-runs the gate test directly (`python kg_synthesize.py "test" `), it silently uses naive mode and
-appears to work.
-
-**Specific Gate 6 risks:**
-- All 3 articles must be about topics that can be cross-linked. If 2 of 3 are unrelated, a
-  superficially coherent response may not actually require cross-document retrieval.
-- `canonical_map.json` may not exist yet (blocking the json load), or may be empty (no
-  canonicalization has run), making the cross-article entity linking invisible in the response.
-- The image server (port 8765) must be running for report image URLs to resolve. If it is not,
-  the synthesis output is technically correct but the rendered report is broken.
+**Consequences:**
+- After the enhancement, `python skill_runner.py skills/ --test-all` fails immediately for
+  the two existing skills before even reaching the new `/architect` tests
+- Developer either (a) patches all existing test files (risky, introduces errors) or
+  (b) rolls back the enhancement (defeats the purpose)
 
 **Prevention:**
-1. Choose 3 Gate 6 articles that share specific named entities (e.g., all 3 mention "LightRAG"
-   or a specific concept). The cross-article query must ask about that entity explicitly.
-2. The expected output must contain a specific string that can only come from cross-document
-   retrieval — not something Gemini could hallucinate from the query text alone.
-3. Run `cognee_batch_processor.py` after ingesting all 3 articles and before running the synthesis
-   query. Verify `canonical_map.json` is non-empty. Only then run the cross-article query.
-4. Verify the default mode is `"hybrid"` in `kg_synthesize.py` before Gate 6. Fix the default
-   from `"naive"` (current) to `"hybrid"`.
-
----
-
-### Pitfall 9: Bare `except` Clauses Hide Skill Execution Failures
-
-**What goes wrong:** `cognee_wrapper.py` (line 94) and `ingest_wechat.py` (line 158) have bare
-`except: pass` clauses (confirmed in CONCERNS.md lines 67-83). When these are hit during skill
-execution, the script continues, exits with code 0, and the skill reports success. The agent tells
-the user ingestion is complete. But Cognee silently dropped the entity buffer, and the knowledge
-graph is partially populated.
-
-**Why it matters for skills specifically:** Skills interpret exit code 0 as success. A script that
-silently swallowed a `cognee.remember()` error looks identical to a script that succeeded. The
-user's next query finds no Cognee memory context and gets a degraded synthesis. No error, no
-indication of why.
-
-**Prevention:**
-1. Replace `except: pass` with `except Exception as e: logger.warning("cognee.remember failed: %s", e)`.
-   The script can still continue (Cognee is non-blocking by design), but the failure is logged.
-2. Skill output should include a line like `[Cognee memory: OK]` or `[Cognee memory: degraded — check logs]`
-   so the agent can surface it to the user.
-3. Before Gate 7, run the skill against a scenario where Cognee is unreachable. Confirm the
-   skill reports degraded (not success) and exits with a non-zero code if the primary operation
-   (LightRAG insert) also failed.
-
----
-
-### Pitfall 10: Windows-Specific Path Separators in Skill Wrapper Scripts
-
-**What goes wrong:** The project is Windows-primary (see PROJECT.md: "Platform: Windows-primary").
-Shell wrapper scripts written with Unix path assumptions (`/` separators, `~` expansion, `source`)
-fail when Hermes execs them on Windows via Git Bash, PowerShell, or cmd.exe depending on the shell
-Hermes uses internally.
-
-**Specific risks:**
-- `source ~/.hermes/.env` expands `~` correctly in Bash but not in PowerShell/cmd
-- `export VAR=value` is Bash syntax; PowerShell uses `$env:VAR = "value"`
-- `cd ~/.hermes/omonigraph-vault` fails if Hermes uses a Windows-native shell
-- `python` resolves to system Python, not the venv Python, unless the venv is explicitly activated
-
-**Why it happens:** `skill_runner.py` is run from Git Bash and works fine. The actual Hermes
-exec environment is never tested separately.
-
-**Prevention:**
-1. Test all shell wrapper scripts explicitly from both Git Bash and PowerShell before Gate 7.
-2. Use Python scripts as wrappers instead of shell scripts when portability is required:
+1. Use a field alias or union type in the `TestCase` dataclass:
    ```python
-   # scripts/run-ingest.py
-   import subprocess, sys, os
-   from pathlib import Path
-   project_root = Path(__file__).parent.parent.parent
-   env = os.environ.copy()
-   subprocess.run([sys.executable, str(project_root / "ingest_wechat.py"), sys.argv[1]], env=env, check=True)
+   @dataclass
+   class TestCase:
+       description: str
+       input: str = ""          # backward compat — old single-turn tests
+       inputs: list[str] = field(default_factory=list)  # new multi-turn
+       ...
    ```
-3. The venv Python path differs on Windows (`.venv/Scripts/python.exe`) vs Linux/macOS
-   (`.venv/bin/python`). Do not hardcode the venv path; use `sys.executable` if already inside
-   the venv, or detect the platform.
+   In the test runner, treat `input` as `inputs[0]` if `inputs` is empty:
+   ```python
+   def _get_inputs(case: TestCase) -> list[str]:
+       return case.inputs if case.inputs else [case.input]
+   ```
+2. Do NOT rename the existing field. Add the new field alongside it.
+3. Write one test case that mixes old `"input"` format and new `"inputs"` format in the same
+   JSON file to verify both work together.
+4. The success criterion for Task 2.2-03 must include: "all existing 19 tests still pass after
+   enhancement".
+
+**Detection:** After the enhancement, run `python skill_runner.py skills/omnigraph_ingest
+--test-file tests/skills/test_omnigraph_ingest.json` before writing any new tests. If it fails,
+fix backward compat first.
 
 ---
 
-### Pitfall 11: Cognee Batch Processor Not Running Before Cross-Article Query
+### Pitfall 8: Multi-Turn Context Leakage Between Test Cases
 
-**What goes wrong:** `canonical_map.json` is written by `cognee_batch_processor.py`, which runs
-separately and asynchronously. If Gate 6 ingests 3 articles and immediately queries without waiting
-for the batch processor to complete, `canonical_map.json` either does not exist or contains entities
-from only the most recently processed batch. Cross-article entity linking via canonical names fails
-silently — the query runs against non-canonical entity names and produces poorer results.
+**Domain:** Multi-turn conversation support (Question 4)
+**Phase:** Phase 5
+
+**What goes wrong:** Multi-turn test execution sends all turns of a single test case in one
+Gemini API call using a `contents` list (conversation history). If the test runner reuses the same
+Gemini client session state or passes accumulated history from one test case into the next, context
+leaks between tests.
+
+The current `call_gemini()` in `skill_runner.py` (line 153) takes a single `user_message: str`.
+For multi-turn, it must accept a `contents: list` (Gemini chat format). The current implementation
+creates a new `genai.Client` object on each call — this avoids session state leakage. But if the
+multi-turn enhancement reuses a chat session object across test cases (a common simplification), the
+second test case starts with the conversation history from the first.
+
+**Why it happens:** Gemini `genai.Client.chats.create()` returns a persistent chat object that
+accumulates history. If this object is passed between test cases for efficiency, context leaks.
+
+**Consequences:**
+- Test case 2 of a multi-turn suite gets influence from test case 1's conversation
+- Tests appear to pass individually but fail when run together (`--test-all`)
+- Flaky tests: results depend on test execution order
 
 **Prevention:**
-1. The skill decision tree for `omnigraph_ingest` should note: "Entity canonicalization runs via
-   `cognee_batch_processor.py` which must be run separately. For best cross-article query results,
-   run the batch processor before querying."
-2. Gate 6 procedure must explicitly include: run batch processor, wait for completion, verify
-   `canonical_map.json` is updated, then run synthesis query.
-3. Consider adding a `--wait-for-batch` flag to `kg_synthesize.py` that polls for pending
-   entity_buffer files before querying.
+1. Create a fresh Gemini chat session (or equivalently, build a fresh `contents` list) for each
+   `TestCase`, not for each turn. The session is per-test-case, not shared across cases.
+2. In `run_test_case()`, build the `contents` list by appending each turn:
+   ```python
+   contents = []
+   for turn_input in inputs:
+       contents.append({"role": "user", "parts": [turn_input]})
+       response = call_gemini_multi(system_prompt, contents)
+       contents.append({"role": "model", "parts": [response]})
+   ```
+   Each `TestCase` gets its own `contents = []` starting point.
+3. Add a multi-turn test case where turn 2 explicitly contradicts turn 1 context. If the response
+   to turn 2 is correct (uses turn 2 context), context handling is correct. If it uses turn 1
+   context, there is leakage.
+
+**Detection:** Run the test suite twice with test cases in reversed order. If results differ, there
+is ordering-dependent context leakage.
+
+---
+
+### Pitfall 9: rules_engine.json + kg_synthesize.py Integration — Rules Injected After Context Window is Saturated
+
+**Domain:** Rules engine + kg_synthesize.py integration (Question 6)
+**Phase:** Phase 5 (integration of Phase 4 rules engine with Phase 4 KB synthesis)
+
+**What goes wrong:** `kg_synthesize.py` builds its prompt by concatenating: historical Cognee
+context + custom prompt + LightRAG graph retrieval results. When the `/architect` skill adds the
+rules engine, the combined prompt becomes:
+
+```
+[system preamble] +
+[historical Cognee context (variable)] +
+[rules_engine.json content (20-30 rules = ~2,000 tokens)] +
+[LightRAG graph retrieval results (500-2,000 tokens per query)] +
+[user query]
+```
+
+With 20-30 rules × 50 words each = ~1,500 tokens for rules alone. If LightRAG retrieves a rich
+multi-document result (common for "best practices" queries), the total prompt can exceed 4,000-6,000
+tokens. Gemini 2.5 Flash has a large context window, so this will not cause an API error — but the
+effective attention budget for rules is diluted by the large graph context. The LLM tends to weight
+recent tokens more heavily; rules injected before graph context get deprioritized.
+
+Additionally, `kg_synthesize.py`'s current architecture has no injection point for rules. The
+function signature is `synthesize_response(query_text: str, mode: str)` — there is no `rules`
+parameter. Adding rules injection means modifying `kg_synthesize.py`, which risks breaking the
+existing `omnigraph_query` skill if the parameter addition is not backward-compatible.
+
+**Why it happens:** `kg_synthesize.py` was designed for KB-only synthesis. The rules engine is
+being bolted on in Phase 5. The integration point was not designed in Phase 4.
+
+**Consequences:**
+- Rules are injected but have diminishing effect in long-context prompts
+- Modifying `kg_synthesize.py` signature breaks `omnigraph_query` skill test compatibility
+- Developer discovers the integration problem only during Phase 5, requiring a Phase 4 rework
+
+**Prevention:**
+1. In Phase 4, design `kg_synthesize.py` with the rules injection point in mind. Add an optional
+   `rules: list[dict] | None = None` parameter now, so Phase 5 only needs to pass data rather than
+   redesign the function.
+2. Inject rules AFTER the graph context, not before, so they are closer to the generation point
+   in the LLM's attention window.
+3. Inject only the rules that match the query category (filter by `category` field), not all rules.
+   This keeps the rules injection to 5-8 rules (~400 tokens) rather than all 30.
+4. Write a Phase 5 integration test that checks the response contains a specific
+   `dont_use` item from a known rule that applies to the test scenario. If it does not appear,
+   rule injection is not working.
+
+**Detection:** During Phase 5 testing, inject a rule with an unusual, distinctive `dont_use` value
+(e.g., `"dont_use": ["frameworkX_that_doesnt_exist"]`) into the rules engine. If `/architect` never
+mentions it when the relevant scenario is triggered, rules are not reaching the generation step.
+
+---
+
+### Pitfall 10: entity_registry.json Becomes a Single Point of Failure for KB Population
+
+**Domain:** Batch GitHub ingestion (Question 2)
+**Phase:** Phase 4
+
+**What goes wrong:** The plan calls for `entity_registry.json` (GitHub URL → entity ID mapping).
+This file is the only record linking each GitHub repository to its corresponding LightRAG entity.
+If it is partially written (script crashes mid-batch), corrupted (concurrent writes from a retry
+run), or lost, there is no way to re-establish which repositories are already in the KB without
+re-reading all of LightRAG's internal graph storage.
+
+The existing `canonical_map.json` uses atomic write (tmp → rename), but there is no specification
+for `entity_registry.json` write safety. The `ingest_github.py` script does not exist yet — it
+will be written fresh in Phase 4 without established write-safety conventions unless they are
+explicitly required.
+
+**Why it happens:** The entity_registry.json requirement is stated in PROJECT.md as a goal without
+specifying write semantics. New scripts written quickly tend to omit atomic write patterns unless
+the developer explicitly remembers to apply the pattern.
+
+**Prevention:**
+1. Apply the same atomic write pattern as `canonical_map.json`: always write to `entity_registry.json.tmp`
+   then `os.rename()`. Document this requirement in the Phase 4 plan task description.
+2. Design `entity_registry.json` as an append-only log, not a full-rewrite file. Append a new
+   entry after each successful repo ingestion. This minimises the write window and makes
+   partial-batch recovery safe.
+3. Add a `"status"` field: `{"url": "...", "entity_id": "...", "status": "indexed", "indexed_at": "..."}`.
+   On restart, skip entries with `status: "indexed"` — same idempotency pattern as `.processed` markers.
+
+---
+
+### Pitfall 11: GSD:DISCUSS Pattern Over-Engineering the Conversation Flow
+
+**Domain:** Rules engine over-engineering (Question 1), multi-mode routing (Question 3)
+**Phase:** Phase 4 (pattern design), Phase 5 (implementation)
+
+**What goes wrong:** The GSD:DISCUSS pattern (Task 2.2-01) is a 4-step multi-turn conversation
+flow: Default Guess → Question 1 → Question 2 → Output. This is an elegant design on paper.
+In practice, the 4-step structure is over-specified for an LLM skill:
+
+1. The LLM may collapse steps 2 and 3 into a single message ("I'll ask both questions at once")
+   because nothing prevents it. The SKILL.md can specify the flow, but the LLM optimises for
+   helpfulness, not compliance with a rigid conversation script.
+2. If the user answers "yes" to the Default Guess at step 1, the flow should short-circuit to
+   Output. The SKILL.md must explicitly handle this case, otherwise the LLM forces the user
+   through 3 more steps even when the answer is already obvious.
+3. The multi-turn test harness must encode the exact expected flow (turn 1 = default guess,
+   turn 2 = user confirms, turn 3 = output). If the LLM produces the output in turn 2 (skipping
+   step 3 confirmation), the test fails even though the behavior is actually correct.
+
+**Prevention:**
+1. Design the GSD:DISCUSS pattern with explicit branch conditions:
+   - If user says "yes"/"correct"/"that's right" at step 1 → skip to Output immediately
+   - If user gives more details at step 1 → treat as partial answer to step 2 questions
+   - Only require the full 4 steps if the user provides no context at all
+2. Write 3 test scenarios: (a) user confirms at step 1 (short circuit), (b) user gives full
+   context at step 1 (collapse all questions), (c) user gives no context at all (full 4-step flow).
+3. The `expect_final` check (checking only the last response) in multi-turn tests must be flexible
+   enough to accept output in turn 2 or turn 4. Avoid encoding a specific turn number as the
+   expected output turn.
 
 ---
 
 ## Minor Pitfalls
 
-Nuisances that slow development but do not cause data loss or wrong answers.
+---
+
+### Pitfall 12: ingest_github.py Missing the `canonical_map.json` Word-Boundary Bug
+
+**Domain:** Integration of GitHub ingestion with existing kg_synthesize.py (Question 6)
+**Phase:** Phase 4
+
+**What goes wrong:** `kg_synthesize.py` applies `canonical_map.json` using simple string
+replacement (flagged in CONCERNS.md as fragile). At 5-10 articles, this is a tolerable risk.
+After ingesting 50+ GitHub repositories, `canonical_map.json` will have hundreds of entity
+canonical mappings. The probability of a destructive replacement (e.g., replacing "AI" inside
+"FAIL", or replacing "Lang" inside "LangChain" when trying to map "Lang" → "Language") increases
+linearly with the number of entries.
+
+**Prevention:**
+The CONCERNS.md already identifies the fix: use regex with word boundaries.
+Apply this fix in Phase 4 BEFORE KB population, not after. Once 50+ repos are ingested and
+canonical_map.json has hundreds of entries, debugging spurious replacements is extremely hard.
+
+This is a one-line fix (`re.sub(r'\b' + re.escape(raw) + r'\b', canonical, query_text)`)
+that must be done in Phase 4 as a prerequisite to bulk ingestion, not treated as Phase 5 cleanup.
 
 ---
 
-### Pitfall 12: `skill_runner.py --validate` Does Not Check Frontmatter Consistency
+### Pitfall 13: Flaky skill_runner.py Tests Due to LLM Temperature Variation
 
-**What goes wrong:** `validate_skill()` in `skill_runner.py` checks for `name` and `description`
-presence and validates that referenced files exist. It does not check that `triggers` phrases
-in frontmatter are not duplicated across skills, and does not validate that `requires.config`
-names match the actual env var names used in the SKILL.md body.
+**Domain:** Test harness reliability (Question 4)
+**Phase:** Phase 5
 
-**Example:** A trigger phrase added to `omnigraph_synthesize` that duplicates one in `omnigraph_query`
-will pass validation. The collision only manifests on real Hermes.
+**What goes wrong:** `skill_runner.py` uses `temperature=0.1` for Gemini calls (line 168). This
+is low but not zero, and Gemini 2.5 Flash does not guarantee deterministic output even at
+temperature=0. Test cases with `expect_contains` checks pass 9 times out of 10 but fail
+intermittently because the LLM paraphrases the expected keyword.
 
-**Prevention:** Add a cross-skill validation mode: `python skill_runner.py skills/ --validate --test-all`
-should also check for trigger phrase overlap across all loaded skills.
+For example, a test might `expect_contains: ["ingest.sh"]`. The LLM might output
+`"run the ingestion script"` instead of `"ingest.sh"`. At temperature=0.1, this variant appears
+~5-10% of the time. As the test suite grows to 28 cases (9 ingest + 10 query + 9 architect),
+running the full suite has ~40-50% probability of at least one flaky failure.
+
+The multi-turn tests added in Phase 5 amplify this: each turn has independent temperature noise,
+so a 3-turn test has 3× the flakiness surface.
+
+**Prevention:**
+1. For critical routing tests, make `expect_contains` match multiple acceptable phrasings:
+   `"expect_contains": ["ingest.sh", "ingest script", "ingest.sh"]` (use OR semantics in the checker).
+2. Keep temperature at 0.1 but document that the test suite should be run 2-3 times to confirm
+   a failure is real, not flaky.
+3. For the final integration validation (Phase 5 Task 2.2-05), run `--test-all` 3 times and
+   require 3/3 clean runs before declaring the milestone complete.
+4. Add `temperature: 0` as an option to `skill_runner.py` for CI-style deterministic runs
+   (accepting that Gemini does not guarantee it).
 
 ---
 
-### Pitfall 13: `test_omnigraph_query.json` "Empty Result" Test Has a False Pass Condition
+### Pitfall 14: `/architect` SKILL.md Bloat From 3-Mode + Rules + GSD:DISCUSS Pattern
 
-**What goes wrong:** The test case `"what do I know about quantum computing chip fabrication methods?"`
-has `expect_contains: ["omnigraph_ingest"]`. It passes as long as the LLM mentions `omnigraph_ingest`
-somewhere in its response. But it does not verify that `kg_synthesize.py` was NOT called, or that
-the response format is correct (no hallucinated content about quantum computing). The LLM could
-run the query AND mention `omnigraph_ingest` as a follow-up suggestion, which would pass the test
-but represent the wrong behaviour.
+**Domain:** Multi-mode skill design (Question 3), skill maintainability
+**Phase:** Phase 5
 
-**Prevention:** Add `expect_not_contains: ["kg_synthesize.py"]` to this test case. The correct
-behaviour is to NOT run the query, just redirect to ingest.
+**What goes wrong:** The v1.1 PITFALLS.md identified SKILL.md bloat as a moderate pitfall at
+80-100 lines. The `/architect` SKILL.md has a much higher inherent complexity: 3 decision trees
+(Propose/Query/Ingest) + GSD:DISCUSS 4-step flow + rules engine reference + error handling for
+all 3 modes + output format specifications for each mode. The plan calls for 300-400 lines.
+The v1.1 pitfall analysis showed that 100-line skills are already at the attention boundary.
+A 300-line SKILL.md is 3× over the safe limit.
 
----
-
-### Pitfall 14: `synthesis_output.md` Path in SKILL.md Is Inconsistent With `omonigraph-vault` Typo
-
-**What goes wrong:** `omnigraph_query/SKILL.md` line 94 states:
-`"The synthesized report is also saved to ~/.hermes/omonigraph-vault/synthesis_output.md."`
-This path uses the correct `omonigraph-vault` spelling (with the typo preserved, as per convention).
-If a future developer "fixes" the typo in `config.py` without also updating the SKILL.md body,
-the SKILL.md will reference the wrong path. Users following the path manually will not find
-the file.
-
-**Prevention:** Keep a single source of truth: the path in SKILL.md should reference the
-env var `OMNIGRAPH_DATA_DIR` rather than a hardcoded path, for the same reason the Python scripts
-should use `config.py` constants. Alternatively, add a comment in `config.py` next to the typo
-constant saying "also referenced in skills/omnigraph_query/SKILL.md — update together."
+**Prevention:**
+1. Keep the SKILL.md body under 100 lines. The body contains routing logic only.
+2. Move the GSD:DISCUSS conversation protocol to `references/discuss-protocol.md`.
+3. Move rules engine guidance to `references/rules-guide.md`.
+4. Move Ingest-mode instructions to `references/ingest-instructions.md`.
+5. Use Level 2 loading: the skill body references these files explicitly, and the agent loads
+   them on demand via `skill_view(name, path)`.
+6. The SKILL.md frontmatter description must be under 200 words (SkillHub pushy format).
 
 ---
 
 ## Phase-Specific Warnings
 
-| Phase / Gate | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Gate 6: 3-article ingest | Missing `import json` crashes kg_synthesize.py | Fix before Gate 6 runs |
-| Gate 6: cross-article synthesis | Batch processor not run; canonical_map.json empty | Gate procedure must include batch processor step |
-| Gate 6: default mode is "naive" | Synthesis uses wrong retrieval mode | Change default to "hybrid" in kg_synthesize.py |
-| Gate 7: skill_runner.py pass | False confidence; scripts not executed | Add shell-level execution tests |
-| Gate 7: real Hermes deploy | CWD mismatch breaks every Python call | Test scripts from /tmp before deploying |
-| Gate 7: real Hermes deploy | GEMINI_API_KEY not in Hermes shell env | Pre-flight check in wrapper, not just in SKILL.md instructions |
-| Gate 7: Windows shell | Path separators, venv activation | Test wrappers from PowerShell AND Git Bash |
-| omnigraph_synthesize (future) | Trigger collision with omnigraph_query | Write description as explicit mutex from the start |
-| omnigraph_manage (future) | Guard clause bypassed by ambiguous phrasing | Every destructive action needs exact-match confirmation phrase |
+| Phase / Task | Likely Pitfall | Mitigation |
+|--------------|----------------|------------|
+| Phase 4 Task 2.1-01: Copilot rule bootstrap | Rules are generic, not system-specific | Cap Copilot at 50% of rules; audit with adversarial test |
+| Phase 4 Task 2.1-02: rules_engine.json design | Schema not queryable by LLM | Tag-based conditions, short recommendations, `test_scenario` field |
+| Phase 4 Task 2.1-02: rules_engine.json design | No rules injection point in kg_synthesize.py | Add optional `rules` parameter NOW, before Phase 5 |
+| Phase 4 Task 2.1-03: GitHub batch ingestion | GitHub rate limiting mid-batch | Authenticate, check `X-RateLimit-Remaining`, pause on exhaustion |
+| Phase 4 Task 2.1-03: GitHub batch ingestion | Entity collision from shared vocabulary | Batch 10-15 at a time; add source headers; strip boilerplate |
+| Phase 4 Task 2.1-03: GitHub batch ingestion | entity_registry.json corruption | Atomic write; append-only; status field for idempotency |
+| Phase 4 Task 2.1-03: GitHub batch ingestion | Storage explosion from images/badges | Strip badge images; cap README size; skip images under 5KB |
+| Phase 4 Task 2.1-03: KB population | canonical_map word-boundary bug at scale | Fix `re.sub` word boundary BEFORE bulk ingestion |
+| Phase 5 Task 2.2-01: GSD:DISCUSS design | Over-specified 4-step flow | Add short-circuit for "yes" at step 1; test collapse scenarios |
+| Phase 5 Task 2.2-02: /architect SKILL.md | 300-line bloat degrades routing | Hard cap at 100 lines; offload to references/ |
+| Phase 5 Task 2.2-02: /architect routing | Propose vs Query vs Ingest confusion | Syntactic routing rules; explicit mode-lock; boundary test cases |
+| Phase 5 Task 2.2-03: skill_runner enhancement | `input` rename breaks 19 existing tests | Add `inputs` alongside `input`; never rename existing field |
+| Phase 5 Task 2.2-03: multi-turn context | Context leakage between test cases | Fresh `contents = []` per TestCase; test with reversed order |
+| Phase 5 Task 2.2-04: architect test cases | Flaky expect_contains at temperature 0.1 | Multi-phrasings in expect_contains; require 3/3 clean runs |
+| Phase 5 Task 2.2-05: integration | Rules ignored after long graph context | Inject rules AFTER graph context; filter by category |
 
 ---
 
@@ -474,25 +645,37 @@ constant saying "also referenced in skills/omnigraph_query/SKILL.md — update t
 
 | Area | Level | Reason |
 |------|-------|--------|
-| Hardcoded paths pitfall | HIGH | Directly confirmed in CONCERNS.md with specific file/line evidence |
-| Missing `import json` | HIGH | Directly confirmed in CONCERNS.md line 55 |
-| Trigger collision analysis | MEDIUM | Based on SKILL.md analysis + Hermes matching model behavior (inferred) |
-| Env var pre-flight failure modes | MEDIUM | Inferred from codebase structure; exact Hermes exec environment not verified |
-| skill_runner false pass analysis | HIGH | Verified by reading skill_runner.py source — it tests LLM output, not script execution |
-| Windows path pitfalls | MEDIUM | PROJECT.md confirms Windows-primary; exact Hermes shell not verified |
-| Gate 6 false pass conditions | HIGH | Based on CONCERNS.md default mode bug + batch processor timing evidence |
-| SKILL.md bloat attention degradation | LOW | General LLM behavior; not Hermes-specific evidence available |
+| Copilot bias in rules | HIGH | Well-documented LLM training data skew toward mainstream advice; corroborated by the 3 Copilot prompts in SIMPLE-GUIDE which are open-ended enough to produce generic output |
+| rules_engine.json LLM queryability | MEDIUM | First-principles reasoning about LLM attention; no direct LightRAG/rules-injection experiment in codebase |
+| GitHub API rate limits | HIGH | GitHub REST API rate limits are documented facts; the lack of retry logic in existing scripts confirmed in CONCERNS.md |
+| Entity collision in LightRAG batch ingest | MEDIUM | Inferred from LightRAG entity extraction behavior; no prior large-batch evidence in this codebase |
+| Storage explosion | MEDIUM | Estimated from embedding dimensions and file count; not benchmarked on this system |
+| /architect mode routing errors | HIGH | Pattern directly confirmed by existing trigger collision pitfall from v1.1; complexity multiplied by 3 modes |
+| skill_runner backward compat | HIGH | Direct code evidence: TestCase uses `input: str` (line 70); existing test JSON uses `"input"` key; `TestCase(**c)` is strict |
+| Multi-turn context leakage | MEDIUM | Common pattern failure in multi-turn test harness design; not yet code-confirmed since the enhancement doesn't exist |
+| rules + kg_synthesize integration | MEDIUM | Inferred from function signature analysis (line 48, kg_synthesize.py); no injection point exists yet |
+| entity_registry.json write safety | HIGH | Pattern confirmed by existing canonical_map.json atomic write requirement; new script has no such requirement yet |
+| SKILL.md bloat at 300 lines | HIGH | v1.1 pitfall confirmed at 100 lines; 300-line target is 3× the identified limit |
 
 ---
 
 ## Sources
 
-- `c:/Users/huxxha/Desktop/OmniGraph-Vault/.planning/codebase/CONCERNS.md` — primary evidence for
-  bugs, hardcoded paths, bare except clauses, missing imports (HIGH confidence, direct codebase analysis)
-- `c:/Users/huxxha/Desktop/OmniGraph-Vault/skills/omnigraph_ingest/SKILL.md` — trigger phrase analysis
-- `c:/Users/huxxha/Desktop/OmniGraph-Vault/skills/omnigraph_query/SKILL.md` — trigger phrase analysis, synthesis_output.md path
-- `c:/Users/huxxha/Desktop/OmniGraph-Vault/skill_runner.py` — test architecture analysis (false pass risk)
-- `c:/Users/huxxha/Desktop/OmniGraph-Vault/tests/skills/test_omnigraph_ingest.json` — existing test coverage gaps
-- `c:/Users/huxxha/Desktop/OmniGraph-Vault/tests/skills/test_omnigraph_query.json` — false pass risk in empty-result test
-- `c:/Users/huxxha/Desktop/OmniGraph-Vault/.planning/PROJECT.md` — platform constraint (Windows-primary)
-- `c:/Users/huxxha/Desktop/OmniGraph-Vault/CLAUDE.md` — Hermes skill writing standards (synthesized from official docs by project author)
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\codebase\CONCERNS.md` — canonical_map fragility,
+  bare excepts, entity_buffer idempotency, rate limiting, sequential batch processor (HIGH confidence)
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\skill_runner.py` — TestCase dataclass structure (input: str,
+  line 71), Gemini temperature=0.1 (line 168), test execution architecture (HIGH confidence)
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\kg_synthesize.py` — synthesize_response signature (line 48),
+  canonical_map simple string replace (lines 56-62), no rules injection point (HIGH confidence)
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\MILESTONE-2-SIMPLE-GUIDE.md` — rules JSON schema
+  from plan, Copilot prompts, GSD:DISCUSS 4-step flow specification (HIGH confidence)
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\PROJECT.md` — entity_registry.json requirement,
+  active requirements for v2.0, platform constraints (HIGH confidence)
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\STATE.md` — Graphify MCP NOT available confirmed;
+  GitHub REST API via requests confirmed as approach (HIGH confidence)
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\skills\omnigraph_ingest\SKILL.md` — trigger phrase patterns
+  for comparison with /architect routing design (MEDIUM confidence)
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\tests\skills\test_omnigraph_ingest.json` — existing test
+  JSON format uses `"input"` key (HIGH confidence, backward compat analysis)
+- `.planning\research\PITFALLS.md` (v1.1) — trigger collision, SKILL.md bloat patterns confirmed
+  in Phase 2 (HIGH confidence, prior validated research)
