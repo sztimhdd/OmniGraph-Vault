@@ -115,6 +115,42 @@ Exit code 0 = all cases pass. Requires `GEMINI_API_KEY` to be set (loaded from `
 
 Eval definitions (SkillHub format) live in each skill's `evals/evals.json`.
 
+### 📚 Local Development
+
+#### One-Line Setup
+```bash
+bash scripts/install-for-hermes.sh
+```
+
+This script:
+- Validates `GEMINI_API_KEY` is set in `~/.hermes/.env`
+- Creates `~/.hermes/omonigraph-vault/` directories (images, lightrag_storage, entity_buffer)
+- Sets up Python venv and installs dependencies
+- Validates imports (LightRAG, Cognee, Gemini)
+- Runs smoke test to confirm everything works
+
+#### Pre-Commit Validation
+Before committing changes to skills, run:
+
+```bash
+# All skills
+python skill_runner.py skills/ --test-all
+
+# Single skill
+python skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omnigraph_query.json
+```
+
+Exit code 0 = all tests passed (CI-friendly).
+
+#### Detailed Development Guide
+See [.planning/LOCAL_TESTING_GUIDE.md](.planning/LOCAL_TESTING_GUIDE.md) for:
+- Full environment setup instructions
+- CDP configuration (local Edge/Chrome with remote debugging)
+- Manual script execution and testing workflows
+- Troubleshooting: missing keys, API errors, CDP connection issues
+- Advanced options: verbose logging, single test cases, JSON output
+- CI/CD integration patterns with exit codes and JSON results
+
 ### 🔌 Browser Fallback (CDP or Playwright MCP)
 
 `ingest_wechat.py` auto-selects the fallback method based on `CDP_URL`:

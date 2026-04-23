@@ -226,3 +226,156 @@ Before committing a skill or opening a PR:
 **Note:** The runtime path has a typo (`omonigraph` not `omnigraph`). This is intentional — it is baked into `config.py` and deployed environments. Do not rename.
 
 Scripts always call repo Python scripts (from `$OMNIGRAPH_ROOT`). Runtime data lives under `~/.hermes/omonigraph-vault/` and is never in the repo.
+
+---
+
+## Complete Skill Package Example
+
+A production-ready SkillHub skill includes all files below. This structure is what Hermes loads when the skill is triggered.
+
+```
+skills/omnigraph_query/
+├── SKILL.md                    # Agent-facing instructions (required)
+├── scripts/
+│   ├── query.sh               # Shell wrapper (executable)
+│   └── llm_interface.py       # Python abstraction for LLM calls (optional)
+├── references/
+│   ├── api-surface.md         # API docs, args, env vars, exit codes
+│   ├── examples.md            # Usage examples and edge cases
+│   └── troubleshooting.md     # Common errors and solutions
+├── evals/
+│   └── evals.json             # SkillHub eval suite (≥3 test cases)
+└── assets/
+    └── icon.svg               # Optional: skill icon for UI
+
+```
+
+### SKILL.md Example
+
+```yaml
+---
+name: omnigraph_query
+description: |
+  Use this skill when the user asks "what do I know about X?" or "search my KB" 
+  to retrieve synthesized answers from the local knowledge graph. 
+  This skill handles multi-source queries (references multiple articles), 
+  filters by relevance, and provides Markdown reports with citations.
+  Triggers include: "search the knowledge base", "what do I know about", "tell me about", "KB search".
+  This skill handles edge cases: empty KB (graceful "nothing found" message), 
+  ambiguous entities (disambiguation prompt), and image-heavy articles (visual summary included).
+  Do NOT use when the user wants to ingest new content — use omnigraph_ingest instead.
+  Do NOT use for general knowledge questions unrelated to stored articles.
+compatibility: |
+  Requires: GEMINI_API_KEY, Python 3.11+, venv at $OMNIGRAPH_ROOT/venv
+  Optional: CDP_URL (for fallback if primary method unavailable)
+---
+
+## Quick Reference
+
+| Task | Command | Output |
+|------|---------|--------|
+| Query knowledge base | `scripts/query.sh "what is LightRAG?"` | Markdown report to stdout |
+| List recent topics | `scripts/query.sh --list-topics` | Bulleted topic list |
+| Export synthesis | `scripts/query.sh "..." --export pdf` | PDF to ~/synthesis.pdf |
+
+## When to Use
+
+- User asks "what do I know about [topic]?"
+- User wants to cross-reference multiple articles
+- User requests a synthesis or summary report
+- User searches by keyword or entity name
+
+## When NOT to Use
+
+**Use omnigraph_ingest instead** when user says: "add this", "save this article", "ingest this"
+**Use omnigraph_synthesize instead** when user says: "write a report", "create a summary", "combine articles"
+**Use omnigraph_status instead** when user asks: "how many articles", "KB size", "what's stored"
+
+## Decision Tree
+
+### Case 1: Simple keyword search
+- User: "What do I know about embeddings?"
+- Check: Does KB contain articles mentioning "embeddings"?
+- If yes: Run query in "naive" mode (fastest), return top result
+- If no: Return "No articles found on this topic"
+
+### Case 2: Cross-reference query
+- User: "How do LightRAG and n8n integrate?"
+- Check: Do multiple articles mention both LightRAG and n8n?
+- If yes: Run query in "hybrid" mode (combines local + global graph), return synthesis
+- If no: Return "Your KB doesn't have articles on both topics"
+
+### Case 3: Image-heavy article
+- User: "What are the architecture diagrams in my KB?"
+- Check: Are there images with descriptions?
+- If yes: Include image summaries in response
+- If no: Continue with text-only response
+
+## Error Handling
+
+| Error | Response |
+|-------|----------|
+| `GEMINI_API_KEY` unset | `⚠️ Configuration error: GEMINI_API_KEY is not set. Add it to ~/.hermes/.env` |
+| Empty KB | `No articles found in your knowledge base. Use omnigraph_ingest to add content.` |
+| Query too vague | `Your query is too broad. Try: "What do I know about [specific topic]?"` |
+| API quota exceeded | `Gemini API quota exhausted. Try again in 1 minute.` |
+```
+
+### evals/evals.json Example
+
+```json
+{
+  "skill_name": "omnigraph_query",
+  "evals": [
+    {
+      "id": 0,
+      "name": "simple_keyword_search",
+      "prompt": "What do I know about LightRAG?",
+      "expected_output": "Response mentions LightRAG from one or more stored articles",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "cross_article_synthesis",
+      "prompt": "How do LightRAG and Cognee work together?",
+      "expected_output": "Synthesis references concepts from both tools",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "empty_kb_graceful_error",
+      "prompt": "What do I know about random_nonsense_topic_xyz?",
+      "expected_output": "Graceful message saying no articles found, not a crash",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "missing_env_var_guard_clause",
+      "prompt": "Any query",
+      "expected_output": "Human-readable error message about GEMINI_API_KEY missing",
+      "files": []
+    }
+  ]
+}
+```
+
+### scripts/query.sh Example
+
+```bash
+#!/bin/bash
+# Wrapper for omnigraph_query
+
+OMNIGRAPH_ROOT="${OMNIGRAPH_ROOT:-$HOME/Desktop/OmniGraph-Vault}"
+
+# Guard: GEMINI_API_KEY
+if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+    echo "⚠️  Configuration error: GEMINI_API_KEY is not set." >&2
+    exit 1
+fi
+
+# Activate venv
+source "$OMNIGRAPH_ROOT/venv/bin/activate" || exit 1
+
+# Run query
+python "$OMNIGRAPH_ROOT/kg_synthesize.py" "$@"
+```
