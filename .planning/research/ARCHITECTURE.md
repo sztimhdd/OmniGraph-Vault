@@ -214,7 +214,7 @@ in bash, which is fragile. The shell script's job is pure dispatch, not intent d
 ### Pattern 3: ingest_github.py follows ingest_wechat.py architecture exactly
 
 **What:** `ingest_github.py` is a new entry point script with the same structure as
-`ingest_wechat.py`. It uses the GitHub REST API (no Graphify MCP — confirmed unavailable) to
+`ingest_wechat.py`. It uses the GitHub REST API to
 fetch README + description for a repository, then calls `rag.ainsert()` and writes
 `entity_registry.json`.
 
@@ -583,8 +583,7 @@ This is a single-user, local tool. Scaling is about pipeline reliability over ti
   `run_test_case()` at line 196-211. Multi-turn enhancement is additive to these exact functions.
 - `skills/omnigraph_query/SKILL.md` and `skills/omnigraph_ingest/SKILL.md` — SKILL.md structure,
   decision-tree body format, frontmatter schema. `omnigraph_architect` SKILL.md follows the same format.
-- `PROJECT.md` — confirmed Graphify MCP unavailable (line 50 notes this); GitHub REST API is
-  the replacement approach for `ingest_github.py`.
+- `PROJECT.md` — v2.0 active requirements, platform constraints; GitHub REST API confirmed as ingestion approach for `ingest_github.py`.
 - `.planning/MILESTONE-2-SIMPLE-GUIDE.md` — authoritative task list and success criteria for
   Phase 2.1 and 2.2; used to derive build order.
 

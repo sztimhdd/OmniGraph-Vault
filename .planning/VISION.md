@@ -83,7 +83,6 @@ KB provides the "why" when the user asks follow-up questions in Query mode.
 - Real-time scraping beyond WeChat/GitHub — future milestone
 - Cutting-edge recommendations — conservative safe defaults only
 - Hermes deployment (Phase 3 / v1.1) — prerequisite for v2.0 but separate milestone
-- Graphify MCP — does not exist; replaced by GitHub REST API
 
 ---
 

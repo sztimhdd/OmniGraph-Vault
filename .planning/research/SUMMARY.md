@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-OmniGraph-Vault v2.0 extends a working v1.1 pipeline (LightRAG + Cognee + Gemini + Playwright CDP) with three new capabilities: a rules engine encoding 20-30 architecture heuristics, a populated knowledge base of 50+ GitHub AI tool repositories ingested via the GitHub REST API, and an `/architect` skill that combines those two data sources to give contextual architecture recommendations. The key insight from research is that **v2.0 requires zero new Python dependencies** — every feature can be built with the existing `requests`, `google-genai`, and stdlib `json` already in `requirements.txt`. The most significant technical decision confirmed is that Graphify MCP, previously referenced in planning documents as `--source graphify`, does not exist as an installable package and has no implementation in the codebase; it must be replaced by a purpose-built `ingest_github.py` script using the GitHub REST API.
+OmniGraph-Vault v2.0 extends a working v1.1 pipeline (LightRAG + Cognee + Gemini + Playwright CDP) with three new capabilities: a rules engine encoding 20-30 architecture heuristics, a populated knowledge base of 50+ GitHub AI tool repositories ingested via the GitHub REST API, and an `/architect` skill that combines those two data sources to give contextual architecture recommendations. The key insight from research is that **v2.0 requires zero new Python dependencies** — every feature can be built with the existing `requests`, `google-genai`, and stdlib `json` already in `requirements.txt`.
 
 The recommended implementation order is strictly driven by dependency chains: `config.py` constants patch first (2 lines), then `ingest_github.py`, then batch KB population in groups of 10-15 repos with test queries between batches, then `rules_engine.json` finalised with a human deduplication and quality audit, then the `omnigraph_architect` SKILL.md hard-capped at 100 lines with the GSD:DISCUSS protocol offloaded to `references/`, and finally `skill_runner.py` multi-turn support added alongside (not replacing) the existing `input` field. The synthesis engine `kg_synthesize.py` is **not modified** — rules injection happens at the shell layer in `architect.sh` by prepending rules text to the query string before the Python call.
 
@@ -34,10 +34,6 @@ No new libraries are needed. v2.0 is entirely buildable with the existing requir
 **New environment variable:**
 
 - `GITHUB_TOKEN` — optional flag but critical in practice; unauthenticated limit is 60 req/hr (insufficient for 50+ repos); authenticated raises to 5000/hr
-
-**Eliminated from planning docs:**
-
-- Graphify MCP — no Python package, no implementation, no `--source` flag in `ingest_wechat.py`; replaced by GitHub REST API per `OMNIGRAPH_VISION_Statement.md` specification
 
 ### Expected Features
 
@@ -87,17 +83,15 @@ v2.0 follows the established subprocess-as-contract pattern: the agent calls she
 
 ### Critical Pitfalls
 
-1. **Graphify MCP does not exist** — building against it would block Phase 2.1 entirely. Mitigation: `ingest_github.py` + GitHub REST API; confirmed viable by `OMNIGRAPH_VISION_Statement.md` and existing `requests` in requirements.txt.
+1. **SKILL.md bloat at 300+ lines degrades routing quality** — v1.1 pitfalls confirmed 100-line threshold; 3-mode decision tree + GSD:DISCUSS + rules guidance pushes to 300-400 lines. Mitigation: hard cap at 100 lines; move GSD:DISCUSS protocol to `references/discuss-protocol.md`, rules guidance to `references/rules-guide.md` (Level 2 loading).
 
-2. **SKILL.md bloat at 300+ lines degrades routing quality** — v1.1 pitfalls confirmed 100-line threshold; 3-mode decision tree + GSD:DISCUSS + rules guidance pushes to 300-400 lines. Mitigation: hard cap at 100 lines; move GSD:DISCUSS protocol to `references/discuss-protocol.md`, rules guidance to `references/rules-guide.md` (Level 2 loading).
+2. **`skill_runner.py` `input` field rename breaks 19 existing tests** — `TestCase(**c)` construction is strict; renaming `input` to `inputs` causes immediate `TypeError` on all existing test files. Mitigation: add `inputs: list[str]` as a new field alongside `input: str`; never rename the existing field; verify with `python skill_runner.py skills/omnigraph_ingest --test-file ...` before writing any new tests.
 
-3. **`skill_runner.py` `input` field rename breaks 19 existing tests** — `TestCase(**c)` construction is strict; renaming `input` to `inputs` causes immediate `TypeError` on all existing test files. Mitigation: add `inputs: list[str]` as a new field alongside `input: str`; never rename the existing field; verify with `python skill_runner.py skills/omnigraph_ingest --test-file ...` before writing any new tests.
+3. **LightRAG entity collision from batch GitHub ingestion** — 50+ repos share vocabulary ("Python", "API", "LLM", "agent"), creating over-connected hub nodes. Mitigation: ingest in groups of 10-15; prepend `# Source: github.com/org/repo` header to each document; run `list_entities.py` after each batch and count entities with >20 connections; strip badge images and `pip install` boilerplate before `ainsert()`.
 
-4. **LightRAG entity collision from batch GitHub ingestion** — 50+ repos share vocabulary ("Python", "API", "LLM", "agent"), creating over-connected hub nodes. Mitigation: ingest in groups of 10-15; prepend `# Source: github.com/org/repo` header to each document; run `list_entities.py` after each batch and count entities with >20 connections; strip badge images and `pip install` boilerplate before `ainsert()`.
+4. **Copilot-generated rules captured by generic LLM advice** — rules bootstrapped by Copilot will repeat standard "YAGNI / no microservices" advice that Gemini already knows without the rules. Mitigation: cap Copilot-derived rules at 50% of total; add `source` field per rule; run adversarial audit ("could Gemini answer this without the rule?"); keep only rules that reference specific tools, constraints, or context.
 
-5. **Copilot-generated rules captured by generic LLM advice** — rules bootstrapped by Copilot will repeat standard "YAGNI / no microservices" advice that Gemini already knows without the rules. Mitigation: cap Copilot-derived rules at 50% of total; add `source` field per rule; run adversarial audit ("could Gemini answer this without the rule?"); keep only rules that reference specific tools, constraints, or context.
-
-6. **Multi-turn context leakage between test cases** — reusing a Gemini chat object across `TestCase` iterations causes history from case N to influence case N+1. Mitigation: build a fresh `contents = []` list per `TestCase`, not per turn; test by running the suite twice with cases in reversed order.
+5. **Multi-turn context leakage between test cases** — reusing a Gemini chat object across `TestCase` iterations causes history from case N to influence case N+1. Mitigation: build a fresh `contents = []` list per `TestCase`, not per turn; test by running the suite twice with cases in reversed order.
 
 ---
 
@@ -112,8 +106,6 @@ Based on combined research, the dependency chain enforces a 4-phase structure. T
 **Delivers:** `config.py` with `ENTITY_REGISTRY_FILE` and `GITHUB_TOKEN`; functional `ingest_github.py` with GitHub REST API, authenticated headers, `X-RateLimit-Remaining` check, source headers, README badge/boilerplate stripping, and atomic `entity_registry.json` writes; one-line `re.sub` word-boundary fix in `kg_synthesize.py`.
 
 **Addresses:** Pitfall 4 (rate limiting), Pitfall 5 (storage explosion), Pitfall 10 (entity_registry.json write safety), Pitfall 12 (canonical_map word-boundary bug)
-
-**Avoids:** Building against Graphify MCP
 
 ### Phase 2: Rules Engine Construction
 
@@ -179,7 +171,7 @@ Phases with standard patterns (skip research):
 
 | Area | Confidence | Notes |
 | ------ | ---------- | ------- |
-| Stack | HIGH | All decisions traced to actual source files: requirements.txt, skill_runner.py, config.py, ingest_wechat.py. Graphify elimination confirmed by code absence analysis. |
+| Stack | HIGH | All decisions traced to actual source files: requirements.txt, skill_runner.py, config.py, ingest_wechat.py. |
 | Features | HIGH | Feature list derived from MILESTONE-2-SIMPLE-GUIDE.md task breakdown and existing SKILL.md structure analysis. Backward-compat analysis is code-evidence based (TestCase dataclass at line 68-74). |
 | Architecture | HIGH | All component boundaries and data flows traced to actual function signatures and file paths. `synthesize_response(query_text, mode)` confirmed at line 48 of kg_synthesize.py. |
 | Pitfalls | HIGH (routing, compat, bloat) / MEDIUM (entity collision, rules injection) | Routing, backward-compat, and SKILL.md bloat are HIGH confidence from v1.1 validated pitfall evidence. Entity collision and rules injection via context window are inferred from first principles without prior experiment in this codebase. |
@@ -203,7 +195,7 @@ Phases with standard patterns (skip research):
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\ingest_wechat.py` — no `--source` flag confirmed; `sys.argv[1]` only; `run_in_executor` pattern for sync calls in async context (line 118)
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\kg_synthesize.py` — `synthesize_response(query_text, mode)` at line 48; canonical_map simple string replace at lines 56-62; no rules injection point confirmed
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\config.py` — existing constants pattern; `FIRECRAWL_API_KEY` already loaded; `ENTITY_BUFFER_DIR`, `CANONICAL_MAP_FILE` patterns to replicate
-- `C:\Users\huxxha\Desktop\OmniGraph-Vault\requirements.txt` — no pyyaml, no PyGithub, no Graphify; `requests`, `google-genai`, `lightrag-hku`, `cognee` confirmed present
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\requirements.txt` — no pyyaml, no PyGithub; `requests`, `google-genai`, `lightrag-hku`, `cognee` confirmed present
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\skills\omnigraph_ingest\SKILL.md` — existing skill structure, decision tree format, guard clause pattern
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\skills\omnigraph_query\SKILL.md` — Query mode routing pattern, error handling table
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\tests\skills\test_omnigraph_ingest.json` — confirms `"input"` (singular) key in existing test cases; backward compat baseline
@@ -212,7 +204,6 @@ Phases with standard patterns (skip research):
 ### Secondary (HIGH confidence — planning and spec documents)
 
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\MILESTONE-2-SIMPLE-GUIDE.md` — authoritative task list and success criteria for Phase 2.1 and 2.2
-- `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\STATE.md` line 88 — "Graphify MCP availability and schema — validate before Phase 4" (confirms it was never implemented)
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\specs\OMNIGRAPH_VISION_Statement.md` lines 76-84 — GitHub API approach explicitly specified with `ingest_github.py` script name
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\specs\OMNIGRAPH_PRODUCT_BRIEF.md` — entity_registry.json as GitHub URL anchor design
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\specs\SKILL_PACKAGING_GUIDE.md` — SkillHub packaging requirements; v1.1 pitfall evidence on SKILL.md length threshold

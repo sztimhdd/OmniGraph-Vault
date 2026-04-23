@@ -106,7 +106,7 @@
 ### Foundation (prerequisites — must land before KB population)
 
 - [ ] **FOUND-01**: `config.py` adds two constants: `GITHUB_TOKEN` (env var, optional but required at batch scale) and `ENTITY_REGISTRY_FILE` (absolute path to `entity_registry.json` at project root) — follows existing constants pattern; no other changes
-- [ ] **FOUND-02**: New `ingest_github.py` script using the **GitHub REST API** (via existing `requests` library — Graphify MCP does not exist and is not used): accepts a GitHub repo URL, fetches README via `api.github.com` with authenticated headers (`GITHUB_TOKEN`), strips badge images and `pip install` boilerplate, prepends `# Source: github.com/org/repo` header, calls `rag.ainsert()`, and atomically updates `entity_registry.json` with `{url: entity_id}` entry; exits non-zero with human-readable message on rate-limit or auth failure
+- [ ] **FOUND-02**: New `ingest_github.py` script using the **GitHub REST API** (via existing `requests` library): accepts a GitHub repo URL, fetches README via `api.github.com` with authenticated headers (`GITHUB_TOKEN`), strips badge images and `pip install` boilerplate, prepends `# Source: github.com/org/repo` header, calls `rag.ainsert()`, and atomically updates `entity_registry.json` with `{url: entity_id}` entry; exits non-zero with human-readable message on rate-limit or auth failure
 - [ ] **FOUND-03**: `kg_synthesize.py` canonical_map replacement uses `re.sub` with `\b` word-boundary anchors (replace current `str.replace`) to prevent spurious replacements during bulk ingestion
 
 ### Rules Engine
@@ -118,7 +118,7 @@
 
 > **How GitHub content and KOL content integrate in LightRAG — read this before KB population.**
 
-Both `ingest_github.py` and `ingest_wechat.py` call `rag.ainsert(markdown_text)` against the **same LightRAG instance** (storage: `~/.hermes/omonigraph-vault/lightrag_storage/`). There is no separate Graphify graph — all knowledge lives in one graph.
+Both `ingest_github.py` and `ingest_wechat.py` call `rag.ainsert(markdown_text)` against the **same LightRAG instance** (storage: `~/.hermes/omonigraph-vault/lightrag_storage/`). All knowledge lives in one graph.
 
 **Integration mechanism:**
 
@@ -130,7 +130,7 @@ Both `ingest_github.py` and `ingest_wechat.py` call `rag.ainsert(markdown_text)`
 
 4. **Source provenance** — `ingest_github.py` prepends `# Source: github.com/org/repo` to each document before insertion. KOL articles retain their URL metadata from `ingest_wechat.py`. LightRAG stores this provenance in node metadata, so synthesis responses can cite both source types.
 
-5. **No separate query paths** — There is no "Graphify query" and "LightRAG query" running in parallel. All queries go through `kg_synthesize.py` → `rag.aquery()`. The GitHub data and KOL data are integrated at insertion time, not at query time.
+5. **No separate query paths** — All queries go through `kg_synthesize.py` → `rag.aquery()`. GitHub data and KOL data are integrated at insertion time, not at query time.
 
 **Duplicate prevention:**
 

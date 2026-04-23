@@ -43,7 +43,7 @@ Features that must exist for the milestone to be considered complete. Missing an
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| 50+ GitHub AI tools indexed in LightRAG | `omnigraph_query` must return useful answers to "what is LangChain?" before `/architect` query mode can work | MEDIUM | Batch ingest via `ingest_github.py` loop (GitHub REST API — Graphify MCP does not exist); creates `entity_registry.json` as side effect |
+| 50+ GitHub AI tools indexed in LightRAG | `omnigraph_query` must return useful answers to "what is LangChain?" before `/architect` query mode can work | MEDIUM | Batch ingest via `ingest_github.py` loop (GitHub REST API); creates `entity_registry.json` as side effect |
 | `entity_registry.json` mapping GitHub URL → entity ID | Required to avoid re-ingesting the same tool on repeat runs | LOW | Key: GitHub URL; Value: LightRAG entity ID or article hash; written atomically (tmp → rename) |
 | 5–10 KOL articles indexed | Architecture advisory needs real-world "best practices" perspectives, not just docs | MEDIUM | Manual curation: WeChat KOL, GitHub issue discussions, Zhihu — tagged with `--tag kol --author` |
 | `query_lightrag.py` returns useful answers to "best practices" questions | Integration gate before `/architect` can be written — KB must contain enough signal | MEDIUM | Verified via: `python query_lightrag.py "What are best practices for building a chatbot?" hybrid` returning multi-source output |
@@ -398,7 +398,7 @@ See the "Detail: skill_runner.py Multi-Turn Schema" section above.
 | GSD:DISCUSS 4-step pattern | HIGH | Derived from MILESTONE-2-SIMPLE-GUIDE.md task 2.2-01 explicit step definition; pattern is self-consistent with existing decision-tree SKILL.md structure |
 | `/architect` decision tree | HIGH | Derived from existing SKILL.md decision tree patterns (omnigraph_ingest, omnigraph_query); 3-mode structure maps directly to MILESTONE-2-SIMPLE-GUIDE.md goals |
 | multi-turn skill_runner.py schema | HIGH | Derived from current skill_runner.py source analysis (TestCase dataclass, call_gemini signature, run_test_case logic) + MILESTONE-2-SIMPLE-GUIDE.md task 2.2-03 explicit requirements |
-| KB population complexity | MEDIUM | GitHub ingestion uses `ingest_github.py` + GitHub REST API (Graphify MCP was a planning placeholder — never implemented, no Python package exists); batch run is a manual loop over a curated repo list |
+| KB population complexity | MEDIUM | GitHub ingestion uses `ingest_github.py` + GitHub REST API; batch run is a manual loop over a curated repo list |
 | Table stakes vs differentiators split | HIGH | Based on direct dependency analysis: anything the `/architect` output claims to deliver (stack + don't-use + TDD) is table stakes; anything that improves quality/personalization is a differentiator |
 
 ---

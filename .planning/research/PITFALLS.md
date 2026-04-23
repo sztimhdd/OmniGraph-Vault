@@ -187,7 +187,7 @@ have >20 connections. Hub entities (>50 connections) are a sign of collision. If
 **Phase:** Phase 4 (during KB population Task 2.1-03)
 
 **What goes wrong:** The confirmed approach for GitHub ingestion is the GitHub REST API via
-`requests` library in a new `ingest_github.py` script (Graphify MCP is NOT available). GitHub
+`requests` library in a new `ingest_github.py` script. GitHub
 REST API enforces rate limits: 60 requests/hour for unauthenticated, 5,000/hour for authenticated.
 For 50-100 repositories, each repository requires at minimum:
 - 1 request to get repo metadata
@@ -671,8 +671,7 @@ A 300-line SKILL.md is 3× over the safe limit.
   from plan, Copilot prompts, GSD:DISCUSS 4-step flow specification (HIGH confidence)
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\PROJECT.md` — entity_registry.json requirement,
   active requirements for v2.0, platform constraints (HIGH confidence)
-- `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\STATE.md` — Graphify MCP NOT available confirmed;
-  GitHub REST API via requests confirmed as approach (HIGH confidence)
+- `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\STATE.md` — GitHub REST API via requests confirmed as approach (HIGH confidence)
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\skills\omnigraph_ingest\SKILL.md` — trigger phrase patterns
   for comparison with /architect routing design (MEDIUM confidence)
 - `C:\Users\huxxha\Desktop\OmniGraph-Vault\tests\skills\test_omnigraph_ingest.json` — existing test

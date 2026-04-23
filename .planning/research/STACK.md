@@ -2,7 +2,7 @@
 
 **Domain:** Local knowledge graph pipeline with rules engine + agent skill layer
 **Researched:** 2026-04-23
-**Confidence:** HIGH for codebase-grounded decisions; MEDIUM for Graphify (no official source reachable)
+**Confidence:** HIGH for codebase-grounded decisions; MEDIUM for GitHub API surface area (stable but knowledge cutoff Aug 2025)
 
 ---
 
@@ -55,29 +55,7 @@ at this scale.
 
 ### Feature 2: GitHub AI Tool Ingestion (~100 repos)
 
-**Verdict: Graphify MCP is NOT viable for v2.0. Use GitHub REST API + existing ingest_wechat.py pipeline instead.**
-
-#### Graphify MCP — Investigation
-
-"Graphify MCP" is mentioned in MILESTONE-2-SIMPLE-GUIDE.md (Task 2.1-03) and OMNIGRAPH_PRODUCT_BRIEF.md
-as a tool for "工具结构理解" (structural tool understanding). STATE.md explicitly flags it as an open
-question: "Graphify MCP availability and schema — validate before Phase 4 GitHub tools ingestion task."
-
-After exhaustive search through the codebase, specs, and planning docs:
-
-- No Graphify Python package exists in requirements.txt or any import statement
-- No Graphify MCP configuration file exists (no `mcp.json`, no server registration)
-- The only references are in planning/specs documents, never in implementation files
-- The MILESTONE-2-SIMPLE-GUIDE.md command `python ingest_wechat.py --source graphify --list tools.json`
-  refers to a `--source` flag that does NOT exist in the current `ingest_wechat.py` (confirmed by
-  reading the file — `sys.argv[1]` is the only argument, no argparse, no `--source`)
-
-**Conclusion:** Graphify MCP is a planning placeholder from an earlier design session. It was never
-implemented, never installed, and the interface assumed in the planning doc (`--source graphify`) was
-speculative. There is no evidence it is a real, available package in the Python ecosystem that would
-serve this purpose.
-
-**Recommended alternative: GitHub REST API + new `ingest_github.py` script**
+**Verdict: Use GitHub REST API + new `ingest_github.py` script.**
 
 The OMNIGRAPH_VISION_Statement.md already specifies this approach explicitly:
 
@@ -375,7 +353,6 @@ other projects (isolated venv). Pinning is recommended if/when this moves to sha
 
 | Considered | Recommended | Why Not |
 |-----------|-------------|---------|
-| Graphify MCP | GitHub REST API + requests | Graphify has no confirmed Python package, no implementation in codebase, `--source graphify` flag doesn't exist in ingest_wechat.py — it's a planning placeholder |
 | PyGithub library | requests (raw API) | PyGithub is a full-featured GitHub API client — useful for complex workflows, but adds a dependency for what amounts to 3-4 simple GET calls per repo. Raw requests is 10 lines, no new install. |
 | Firecrawl scraping | GitHub REST API | config.py already has FIRECRAWL_API_KEY loaded (suggesting it was considered). Firecrawl is external SaaS, adds latency, and charges per crawl. GitHub API is free for public repos and returns structured JSON — strictly better. |
 | CDP/Playwright scraping of GitHub pages | GitHub REST API | GitHub has rate-limited REST API specifically designed for programmatic access. Scraping via CDP for repos that have a proper API is unnecessary complexity. |
@@ -403,7 +380,6 @@ other projects (isolated venv). Pinning is recommended if/when this moves to sha
 |-------|-----|-----------------|
 | `pyyaml` | Already conditionally imported in skill_runner.py with a working fallback; adding it to requirements.txt would change behavior for existing test infrastructure in an untested way | Leave optional import as-is |
 | `PyGithub` | Adds a dependency for 3–4 GET calls; raw `requests` handles GitHub REST API cleanly | `requests` (already installed) |
-| Graphify MCP | No confirmed Python package; planning doc uses a non-existent `--source` flag; blocked by Cisco Umbrella proxy anyway | GitHub REST API via `requests` |
 | `durable-rules`, `pyknow`, `business-rules` | Rule-engine libraries designed for 1000+ rules with complex firing logic; massively over-engineered for 20–30 static rules | `json.load()` + list comprehension filter |
 | `aiohttp` | Async HTTP for GitHub API calls would require refactoring ingest_github.py's event loop handling | `requests` in executor (same pattern as apify_client in ingest_wechat.py) |
 
@@ -471,11 +447,9 @@ unpinned `google-genai`, which will get the latest version — all relevant feat
 - `C:/Users/huxxha/Desktop/OmniGraph-Vault/skill_runner.py` — confirmed single-turn only, optional yaml import, `call_gemini()` signature (HIGH confidence — source file)
 - `C:/Users/huxxha/Desktop/OmniGraph-Vault/ingest_wechat.py` — confirmed no `--source` flag, `sys.argv[1]` only; run_in_executor pattern for sync calls in async context (HIGH confidence — source file)
 - `C:/Users/huxxha/Desktop/OmniGraph-Vault/config.py` — confirmed FIRECRAWL_API_KEY already loaded; ENTITY_BUFFER_DIR, CANONICAL_MAP_FILE patterns to replicate (HIGH confidence — source file)
-- `C:/Users/huxxha/Desktop/OmniGraph-Vault/.planning/PROJECT.md` — v2.0 feature list, Graphify MCP mention, "no framework migrations" constraint (HIGH confidence — planning doc)
-- `C:/Users/huxxha/Desktop/OmniGraph-Vault/.planning/STATE.md` line 88 — "Graphify MCP availability and schema — validate before Phase 4" (HIGH confidence — confirms it's an open question, not implemented)
-- `C:/Users/huxxha/Desktop/OmniGraph-Vault/.planning/MILESTONE-2-SIMPLE-GUIDE.md` Task 2.1-03 — speculative `--source graphify` command that doesn't match actual ingest_wechat.py interface (HIGH confidence — confirms planning doc was aspirational, not implemented)
+- `C:/Users/huxxha/Desktop/OmniGraph-Vault/.planning/PROJECT.md` — v2.0 feature list, "no framework migrations" constraint (HIGH confidence — planning doc)
+- `C:/Users/huxxha/Desktop/OmniGraph-Vault/.planning/MILESTONE-2-SIMPLE-GUIDE.md` Task 2.1-03 — `ingest_github.py` script name and GitHub REST API approach (HIGH confidence — planning doc)
 - `C:/Users/huxxha/Desktop/OmniGraph-Vault/specs/OMNIGRAPH_VISION_Statement.md` lines 76–84 — GitHub API approach explicitly specified (`ingest_github.py`, public API, README + docs + labeled issues) (HIGH confidence — spec doc)
-- `C:/Users/huxxha/Desktop/OmniGraph-Vault/specs/OMNIGRAPH_PRODUCT_BRIEF.md` lines 147–203 — Graphify positioned as "工具结构理解" data source alongside LightRAG, entity_registry.json as GitHub URL anchor (MEDIUM confidence — design vision, implementation approach not yet validated)
 - GitHub REST API public documentation — `/readme`, `/contents`, `/issues` endpoints; 60/hr unauthenticated, 5000/hr with token (MEDIUM confidence — knowledge cutoff Aug 2025; API has been stable for years, no breaking changes expected)
 - `google-genai` multi-turn conversation history — Contents API with alternating user/model roles (MEDIUM confidence — training data; pattern is stable and well-established)
 

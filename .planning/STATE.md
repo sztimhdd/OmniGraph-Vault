@@ -82,7 +82,6 @@ Phase 6 [          ] 0%
 
 ### Key Decisions (v2.0 roadmap)
 
-- Graphify MCP does not exist — replace with `ingest_github.py` using GitHub REST API (already in requirements.txt via `requests`)
 - SKILL.md hard cap at 100 lines — GSD:DISCUSS protocol moves to `references/discuss-protocol.md` (Level 2 loading)
 - `skill_runner.py` multi-turn: add `inputs: list[str]` alongside (not replacing) existing `input: str` — backward compat is non-negotiable
 - `kg_synthesize.py` is NOT modified for rules injection — rules prepended at shell layer in `architect.sh`
