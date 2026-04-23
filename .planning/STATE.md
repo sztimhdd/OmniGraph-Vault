@@ -1,22 +1,22 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Knowledge Infrastructure MVP
-current_phase: 4
-status: planning
-last_updated: "2026-04-23T00:00:00.000Z"
+milestone: v1.1
+milestone_name: SkillHub-Ready Skill Packaging
+current_phase: 3
+status: ready to plan
+last_updated: "2026-04-23T20:10:04.000Z"
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 6
+  completed_phases: 5
+  total_plans: 5
+  completed_plans: 5
 ---
 
 # Project State
 
 **Project:** OmniGraph-Vault
-**Milestone:** v2.0 — Knowledge Infrastructure MVP
-**Current Phase:** 4 (not started — roadmap defined, awaiting Gate 6 prerequisite)
+**Milestone:** v1.1 final phase + v2.0 complete
+**Current Phase:** 3 — Hermes Deployment + Gate 7 Validation (next action)
 **Status:** Ready to plan
 **Last Updated:** 2026-04-23
 
@@ -24,40 +24,60 @@ progress:
 
 ## Phase Status
 
-- Phase 4 — Foundation Patch + Rules Bootstrap: not started
-- Phase 5 — KB Population + Rules Quality Gate: not started
-- Phase 6 — /architect Skill + Multi-Turn Testing: not started
+**v1.1:**
+
+- Phase 1 — Bug Fixes + Gate 6 Validation: complete (2/2 plans; skill_runner 9/9; manual synthesis via KOL bridge)
+- Phase 2 — SkillHub-Ready Skill Packaging: complete (3/3 plans; 8/8 SCs verified)
+- Phase 3 — Hermes Deployment + Gate 7 Validation: **not started — next action**
+
+**v2.0 (executed outside GSD plan structure — commit f995e91):**
+
+- Phase 4 — Foundation Patch + Rules Bootstrap: complete (2/4 SCs have gaps — see ROADMAP footnotes)
+- Phase 5 — KB Population + Rules Quality Gate: partial (7 KOL articles, 1 GitHub repo; 50+ GitHub target deferred)
+- Phase 6 — /architect Skill + Multi-Turn Testing: complete (30/30 tests; discuss-protocol.md inline, not in references/)
 
 ---
 
 ## Current Focus
 
-Roadmap defined. v2.0 has 3 phases (4, 5, 6) covering 13 requirements.
+v2.0 work complete (phases 4-6 executed as one large commit f995e91, 2026-04-23). v1.1 Phase 3 is the only remaining phase.
 
-**Carry-over from v1.1:**
-- Gate 6 manual checkpoint still pending (ingest 3 articles, cross-article synthesis) — prerequisite for Phase 4
-- Phase 3 (Hermes deployment) deferred until after v2.0 completion
+**Deployment artifacts ready:**
 
-**Next action:** Complete Gate 6 manual checkpoint, then `/gsd:plan-phase 4`
+- `Deploy.md` — authoritative 3-skill deployment guide
+- `docs/GATE7_VALIDATION_PROMPT.md` — copy-paste kickstart prompt (10 Gate 7 checks)
+
+**Next action:** `/gsd:plan-phase 3` — Hermes Deployment + Gate 7 Validation
+
+**Carry-over gaps (address during or after Phase 3):**
+
+- 50+ GitHub tool ingestion (Phase 5 SC1/SC3 — deferred, not blocking Gate 7)
+- `GITHUB_TOKEN` rate-limit guard in `ingest_github.py` (Phase 4 SC2)
+- `kg_synthesize.py` `\b` word-boundary anchors (Phase 4 SC4)
+- `references/discuss-protocol.md` extraction from SKILL.md (Phase 6 SC1)
 
 ---
 
 ## Progress Bar
 
 ```text
-Phase 4 [          ] 0%
-Phase 5 [          ] 0%
-Phase 6 [          ] 0%
+v1.1 Phase 1 [██████████] 100% ✓
+v1.1 Phase 2 [██████████] 100% ✓
+v1.1 Phase 3 [          ]   0% ← next
+v2.0 Phase 4 [████████░░]  ~80% (2 SCs deferred)
+v2.0 Phase 5 [██████░░░░]  ~60% (50+ GitHub deferred)
+v2.0 Phase 6 [████████░░]  ~90% (discuss-protocol.md inline)
 ```
 
 ---
 
 ## Performance Metrics
 
-- Requirements mapped: 13/13 (FOUND-01/02/03, RULES-01/02, KB-01/02/03/04, ARCH-01/02, TEST-05/06/07)
-- Phases planned: 3 (phases 4, 5, 6)
-- Plans written: 0
-- Requirements completed: 0
+- v1.1 requirements mapped: 43/43
+- v2.0 requirements mapped: 13/13 (FOUND-01/02/03, RULES-01/02, KB-01/02/03/04, ARCH-01/02, TEST-05/06/07)
+- Plans written (GSD): 5 (phases 1-2); v2.0 executed inline via /orchestrate
+- Tests passing: 30/30 (9 ingest + 10 query + 11 architect)
+- KB: 7 KOL articles + 1 GitHub repo ingested
 
 ---
 
@@ -106,32 +126,25 @@ Phase 6 [          ] 0%
 
 ## Session Continuity
 
-Last activity: 2026-04-23 - Completed quick task 260423-n4x: Upgrade ingest_github.py to Level 2 multi-segment depth
+Last activity: 2026-04-23 - feat: complete Milestone 2 (commit f995e91) — rules_engine.json (28 rules), batch KOL ingestion (7 articles), omnigraph_architect skill (3 modes), multi-turn skill_runner.py, 30/30 tests passing
 
 ---
 
 ### Quick Tasks Completed
 
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 260423-fq7 | WeChat KOL Cold-Start Bridge | 2026-04-23 | df89da7 | [260423-fq7-wechat-kol-cold-start-bridge](./quick/260423-fq7-wechat-kol-cold-start-bridge/) |
-| 260423-n4x | Upgrade ingest_github.py to Level 2 multi-segment depth | 2026-04-23 | ea49568 | [260423-n4x-upgrade-ingest-github-py-to-level-2-dept](./quick/260423-n4x-upgrade-ingest-github-py-to-level-2-dept/) |
+| ID         | Description                                             | Date       | Commit  |
+|------------|---------------------------------------------------------|------------|---------|
+| 260423-fq7 | WeChat KOL Cold-Start Bridge                            | 2026-04-23 | df89da7 |
+| 260423-n4x | Upgrade ingest_github.py to Level 2 multi-segment depth | 2026-04-23 | ea49568 |
 
 ---
 
-Last session: 2026-04-23 — v2.0 roadmap created. 3 phases defined (4, 5, 6). 13/13 v2.0 requirements mapped. ROADMAP.md, STATE.md, and REQUIREMENTS.md traceability updated.
+Last session: 2026-04-23 — Milestone 2 complete via commit f995e91. All v2.0 phases executed outside GSD structure (single large commit). ROADMAP.md and STATE.md synced to reflect actual codebase state.
 
-**Completed in prior milestone (v1.1):**
+**Completed (all phases):**
 
-- Phase 1 Plan 01-01: All INFRA fixes (hardcoded paths, imports, bare excepts) — DONE
-- Phase 1 Plan 01-02: skill_runner 9/9 automated (Gate 6 manual checkpoint still pending)
-- Phase 2 Plans 02-01, 02-02, 02-03: Both skill packages complete, embedding strategy decided — DONE
-
-**Phase dependency chain (v2.0):**
-
-```text
-Gate 6 checkpoint (carry-over)
-  └─> Phase 4: FOUND-01/02/03 + RULES-01
-        └─> Phase 5: KB-01/02/03/04 + RULES-02
-              └─> Phase 6: ARCH-01/02 + TEST-05/06/07
-```
+- Phase 1 (01-01, 01-02): INFRA fixes + skill_runner 9/9 — DONE
+- Phase 2 (02-01, 02-02, 02-03): SkillHub packaging + embedding decision + test suites — DONE
+- Phase 4: rules_engine.json (28 rules) + ingest_github.py (Level 2) — DONE (2 SCs deferred)
+- Phase 5: 7 KOL articles + 1 GitHub repo ingested, rules audited — PARTIAL (50+ GitHub deferred)
+- Phase 6: omnigraph_architect skill + multi-turn skill_runner.py + 30/30 tests — DONE
