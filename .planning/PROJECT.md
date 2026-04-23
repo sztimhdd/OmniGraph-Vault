@@ -47,7 +47,7 @@ When Hermes sees "add this to my KB" or "what do I know about X?" it calls the r
 
 - [ ] Gate 6: Ingest 3 articles, run cross-article synthesis query, confirm multi-document answer *(carry-over from v1.1 — prerequisite for Phase 4)*
 - [ ] Rules engine: `rules_engine.json` with 20–30 structured rules (bootstrapped via Copilot GPT-5.4 researcher mode)
-- [ ] KB population: 50+ GitHub AI tools indexed in OmniGraph-Vault (via Graphify MCP + `ingest_wechat.py`)
+- [ ] KB population: 50+ GitHub AI tools indexed in OmniGraph-Vault (via `ingest_github.py` — GitHub REST API)
 - [ ] `entity_registry.json`: GitHub URL → entity ID mapping
 - [ ] KB population: 5–10 KOL articles (WeChat, GitHub issues, Zhihu) indexed
 - [ ] `/architect` skill (`omnigraph_architect`): `SKILL.md` with Propose/Query/Ingest decision tree (100–200 words, SkillHub pushy format)
