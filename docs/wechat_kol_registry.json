@@ -1,0 +1,147 @@
+{
+  "description": "OmniGraph-Vault WeChat KOL Registry — canonical account → WeChat_ID → FakeID mapping",
+  "version": "1.0",
+  "last_updated": "2026-04-24",
+  "accounts": [
+    {
+      "name": "叶小钗",
+      "wechat_id": "yexiaochai",
+      "fakeid": "Mzg2MzcyODQ5MQ==",
+      "source": "KOL_List",
+      "tags": ["AI工程", "RAG", "Agent"]
+    },
+    {
+      "name": "NLP工作站",
+      "wechat_id": "nlp_station",
+      "fakeid": "Mzg5MTU1NTE1OQ==",
+      "source": "KOL_List",
+      "tags": ["AI工程", "LLM调优"]
+    },
+    {
+      "name": "一枫说码",
+      "wechat_id": "yifeng_code",
+      "fakeid": "MzI2OTg0MjI2Nw==",
+      "source": "KOL_List",
+      "tags": ["AI工程", "Prompt"]
+    },
+    {
+      "name": "陈宇明",
+      "wechat_id": "chenyuming_ai",
+      "fakeid": "MzI2OTk4NTA4OA==",
+      "source": "KOL_List",
+      "tags": ["Agent", "AI产品实践"]
+    },
+    {
+      "name": "折腾技术",
+      "wechat_id": "zheteng_tech",
+      "fakeid": "MzU3NTcxNTE1Mg==",
+      "source": "KOL_List",
+      "tags": ["AI工程", "AI产品实践"]
+    },
+    {
+      "name": "阿里通义实验室",
+      "wechat_id": "tongyi_lab",
+      "fakeid": "MzkxMTYyMTAzNA==",
+      "source": "KOL_List",
+      "tags": ["AI工程", "infra"]
+    },
+    {
+      "name": "腾讯AI Lab",
+      "wechat_id": "tencent_ailab",
+      "fakeid": "MzIzOTg4MjEwNw==",
+      "source": "KOL_List",
+      "tags": ["AI工程", "infra"]
+    },
+    {
+      "name": "海滨code",
+      "wechat_id": "haibin_code",
+      "fakeid": "MzYzODc4ODc2NQ==",
+      "source": "KOL_List",
+      "tags": ["AI工程", "Prompt"]
+    },
+    {
+      "name": "夕小瑶科技说",
+      "wechat_id": "xixiaoyao",
+      "fakeid": "MzIwNzc2NTk0NQ==",
+      "source": "KOL_List",
+      "tags": ["NLP", "行业分析"]
+    },
+    {
+      "name": "夕小瑶智能体",
+      "wechat_id": "xixiaoyao_smart",
+      "fakeid": "Mzk0ODQ5MzcyMQ==",
+      "source": "KOL_List_Extra",
+      "tags": ["Agent", "AI产品实践"]
+    },
+    {
+      "name": "智猩猩",
+      "wechat_id": "zhixingxing",
+      "fakeid": "MjM5ODExNDA2MA==",
+      "source": "KOL_List",
+      "tags": ["技术专栏", "深度学习"]
+    },
+    {
+      "name": "阮一峰的网络日志",
+      "wechat_id": "ruanyifeng",
+      "fakeid": "MzI4NjAxNjY4Nw==",
+      "source": "KOL_List",
+      "tags": ["技术博客", "周刊"]
+    },
+    {
+      "name": "PaperWeekly",
+      "wechat_id": "paperweekly",
+      "fakeid": "MzIwMTc4ODE0Mw==",
+      "source": "KOL_List",
+      "tags": ["学术论文", "工程实践"]
+    },
+    {
+      "name": "NLP PaperWeekly",
+      "wechat_id": "NLPPaperWeekly",
+      "fakeid": "Mzg3Njk2NTc4Mw==",
+      "source": "KOL_List",
+      "tags": ["NLP", "学术论文"]
+    },
+    {
+      "name": "刘悦的技术博客",
+      "wechat_id": "liuyue_tech",
+      "fakeid": "MzU3MjQ1Nzk1NA==",
+      "source": "KOL_List",
+      "tags": ["AI实战", "代码实现"]
+    },
+    {
+      "name": "字节笔记本",
+      "wechat_id": "byte_notes",
+      "fakeid": "MzIzMzQyMzUzNw==",
+      "source": "CSV_Scrape",
+      "tags": ["AI工程", "Agent"]
+    },
+    {
+      "name": "程序员鱼皮",
+      "wechat_id": "coder_yupi",
+      "fakeid": "MzI1NDczNTAwMA==",
+      "source": "CSV_Scrape",
+      "tags": ["AI工程", "编程教育"]
+    },
+    {
+      "name": "ArronAI",
+      "wechat_id": "ArronAI",
+      "fakeid": "Mzg3NDIyMzI0Mw==",
+      "source": "CSV_Scrape",
+      "tags": ["AI", "大模型"]
+    },
+    {
+      "name": "老顾聊技术",
+      "wechat_id": "laoguliaojishu",
+      "fakeid": "MzU3NDg3MzUwMw==",
+      "source": "CSV_Scrape",
+      "tags": ["技术分享", "AI"]
+    },
+    {
+      "name": "DeepHub IMBA",
+      "wechat_id": "deephub-imba",
+      "fakeid": "MzU5OTM2NjYwNg==",
+      "source": "KOL_List_Extra",
+      "tags": ["深度学习", "AI"]
+    }
+  ]
+}
