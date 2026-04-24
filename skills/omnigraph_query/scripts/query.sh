@@ -11,7 +11,15 @@
 set -euo pipefail
 
 # ── 1. Resolve project root ────────────────────────────────────────────────
-OMNIGRAPH_ROOT="${OMNIGRAPH_ROOT:-$HOME/Desktop/OmniGraph-Vault}"
+OMNIGRAPH_ROOT="${OMNIGRAPH_ROOT:-$HOME/OmniGraph-Vault}"
+
+# Source shared env vars if available
+if [[ -f "$HOME/.hermes/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$HOME/.hermes/.env"
+  set +a
+fi
 
 if [[ ! -d "$OMNIGRAPH_ROOT" ]]; then
   echo "⚠️ Setup error: OmniGraph-Vault repo not found at $OMNIGRAPH_ROOT" >&2
