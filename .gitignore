@@ -18,11 +18,13 @@ lightrag_storage/
 entity_buffer/
 canonical_map.json
 canonical_map.json.tmp
-entity_registry.json
 entity_registry.json.tmp
 
 # Local-only KOL config (contains WeChat credentials)
 kol_config.py
+
+# Release build artifacts
+*.tar.gz
 
 # Spider source copies (gitignored)
 spiders/

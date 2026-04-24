@@ -94,14 +94,34 @@ python -c "import cognee; print('Cognee OK')"
 python -c "from google import genai; print('google-genai OK')"
 ```
 
-### 4.4 Initialize runtime data directory
+### 4.4 Restore KB Snapshot (recommended)
+
+Download the pre-built knowledge graph from the GitHub Release instead of starting with an empty graph. This avoids re-ingesting 49 GitHub repos + 7 KOL articles (~60 minutes).
 
 ```bash
 mkdir -p ~/.hermes/omonigraph-vault/images
-mkdir -p ~/.hermes/omonigraph-vault/lightrag_storage
+
+# Download release assets
+cd ~/OmniGraph-Vault
+gh release download v2.0-kb -p "lightrag_storage_v2.0.tar.gz"
+
+# Extract into runtime directory
+tar -xzf lightrag_storage_v2.0.tar.gz -C ~/.hermes/omonigraph-vault/
+
+# Verify
+ls ~/.hermes/omonigraph-vault/lightrak_storage/
+# Expected: graph_chunk_entity_relation.graphml  kv_store_*.json  vdb_*.json
 ```
 
-Only creates empty directories. No source code copied here.
+`entity_registry.json` (the ingestion dedup registry) is committed to the repo and already present after `git clone`. It prevents `ingest_github.py` from re-indexing already-ingested repos.
+
+**If you skip the snapshot** (empty graph), run this once after setup to re-build (~60 min):
+
+```bash
+cd ~/OmniGraph-Vault
+source venv/bin/activate
+python batch_ingest_github.py
+```
 
 ### 4.5 Configure environment variables
 
@@ -257,7 +277,7 @@ Never update `~/.hermes/omonigraph-vault/` — it's runtime data, not source cod
 | Skills not showing | Hermes not loading repo `skills/` | Check `skills.external_dirs` → `hermes gateway restart` |
 | Skills out of date | Copied old skills to `~/.hermes/skills/` | Delete copies, use `external_dirs` |
 | Runtime data missing | Wrong directory path | Ensure `~/.hermes/omonigraph-vault` (with typo) exists |
-| Query returns nothing | Empty knowledge graph | Ingest articles first: `python ingest_wechat.py "<url>"` |
+| Query returns nothing | Empty knowledge graph | Restore KB snapshot (section 4.4), or run `python batch_ingest_github.py` |
 | CDP scraping fails | Edge not in debug mode | Start Edge: `msedge --remote-debugging-port=9223` |
 | GitHub ingest rate-limited | No `GITHUB_TOKEN` set | Add token to `~/.hermes/.env` (60 req/hr → 5000/hr) |
 | `rules_engine.json` not found | architect propose mode fails | Ensure file exists at repo root (28 rules) |

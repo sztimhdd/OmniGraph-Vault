@@ -1,0 +1,653 @@
+{
+  "https://github.com/NousResearch/hermes-agent": {
+    "url": "https://github.com/NousResearch/hermes-agent",
+    "org": "NousResearch",
+    "repo": "hermes-agent",
+    "content_hash": "2962351245",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-23T19:53:22.056622+00:00"
+  },
+  "https://github.com/langchain-ai/langchain": {
+    "url": "https://github.com/langchain-ai/langchain",
+    "org": "langchain-ai",
+    "repo": "langchain",
+    "content_hash": "2bf638ac3d",
+    "segments": [
+      "identity",
+      "releases",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:49:31.150557+00:00"
+  },
+  "https://github.com/run-llama/llama_index": {
+    "url": "https://github.com/run-llama/llama_index",
+    "org": "run-llama",
+    "repo": "llama_index",
+    "content_hash": "e293716ed2",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:49:54.160908+00:00"
+  },
+  "https://github.com/microsoft/autogen": {
+    "url": "https://github.com/microsoft/autogen",
+    "org": "microsoft",
+    "repo": "autogen",
+    "content_hash": "5997966c5d",
+    "segments": [
+      "identity",
+      "releases",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:50:14.778836+00:00"
+  },
+  "https://github.com/crewAIInc/crewAI": {
+    "url": "https://github.com/crewAIInc/crewAI",
+    "org": "crewAIInc",
+    "repo": "crewAI",
+    "content_hash": "4be41ca7ec",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:50:37.271365+00:00"
+  },
+  "https://github.com/pydantic/pydantic-ai": {
+    "url": "https://github.com/pydantic/pydantic-ai",
+    "org": "pydantic",
+    "repo": "pydantic-ai",
+    "content_hash": "d0a712f15b",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:51:09.727022+00:00"
+  },
+  "https://github.com/griptape-ai/griptape": {
+    "url": "https://github.com/griptape-ai/griptape",
+    "org": "griptape-ai",
+    "repo": "griptape",
+    "content_hash": "e2392c1b14",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:51:41.496065+00:00"
+  },
+  "https://github.com/letta-ai/letta": {
+    "url": "https://github.com/letta-ai/letta",
+    "org": "letta-ai",
+    "repo": "letta",
+    "content_hash": "8a59f1d734",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:52:09.985995+00:00"
+  },
+  "https://github.com/All-Hands-AI/OpenHands": {
+    "url": "https://github.com/All-Hands-AI/OpenHands",
+    "org": "All-Hands-AI",
+    "repo": "OpenHands",
+    "content_hash": "c064ec8fbd",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:52:39.975612+00:00"
+  },
+  "https://github.com/BerriAI/litellm": {
+    "url": "https://github.com/BerriAI/litellm",
+    "org": "BerriAI",
+    "repo": "litellm",
+    "content_hash": "8556e48032",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:53:10.880500+00:00"
+  },
+  "https://github.com/ollama/ollama": {
+    "url": "https://github.com/ollama/ollama",
+    "org": "ollama",
+    "repo": "ollama",
+    "content_hash": "b2b582b4c0",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:53:46.033513+00:00"
+  },
+  "https://github.com/vllm-project/vllm": {
+    "url": "https://github.com/vllm-project/vllm",
+    "org": "vllm-project",
+    "repo": "vllm",
+    "content_hash": "a3a095351f",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:54:25.397674+00:00"
+  },
+  "https://github.com/ggerganov/llama.cpp": {
+    "url": "https://github.com/ggerganov/llama.cpp",
+    "org": "ggerganov",
+    "repo": "llama.cpp",
+    "content_hash": "582f628675",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:55:13.777503+00:00"
+  },
+  "https://github.com/huggingface/transformers": {
+    "url": "https://github.com/huggingface/transformers",
+    "org": "huggingface",
+    "repo": "transformers",
+    "content_hash": "c49ed1e735",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:56:00.945583+00:00"
+  },
+  "https://github.com/HKUDS/LightRAG": {
+    "url": "https://github.com/HKUDS/LightRAG",
+    "org": "HKUDS",
+    "repo": "LightRAG",
+    "content_hash": "cf0952b5f0",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:56:52.694324+00:00"
+  },
+  "https://github.com/microsoft/graphrag": {
+    "url": "https://github.com/microsoft/graphrag",
+    "org": "microsoft",
+    "repo": "graphrag",
+    "content_hash": "b47dfec73c",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:57:43.987951+00:00"
+  },
+  "https://github.com/chroma-core/chroma": {
+    "url": "https://github.com/chroma-core/chroma",
+    "org": "chroma-core",
+    "repo": "chroma",
+    "content_hash": "106059a644",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:58:26.517120+00:00"
+  },
+  "https://github.com/qdrant/qdrant": {
+    "url": "https://github.com/qdrant/qdrant",
+    "org": "qdrant",
+    "repo": "qdrant",
+    "content_hash": "e91fa396a4",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T15:59:15.633896+00:00"
+  },
+  "https://github.com/weaviate/weaviate": {
+    "url": "https://github.com/weaviate/weaviate",
+    "org": "weaviate",
+    "repo": "weaviate",
+    "content_hash": "370ab37254",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:00:09.976346+00:00"
+  },
+  "https://github.com/lancedb/lancedb": {
+    "url": "https://github.com/lancedb/lancedb",
+    "org": "lancedb",
+    "repo": "lancedb",
+    "content_hash": "f11c6611ac",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:00:59.349956+00:00"
+  },
+  "https://github.com/milvus-io/milvus": {
+    "url": "https://github.com/milvus-io/milvus",
+    "org": "milvus-io",
+    "repo": "milvus",
+    "content_hash": "ae16850d52",
+    "segments": [
+      "identity",
+      "releases",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:01:42.108945+00:00"
+  },
+  "https://github.com/modelcontextprotocol/python-sdk": {
+    "url": "https://github.com/modelcontextprotocol/python-sdk",
+    "org": "modelcontextprotocol",
+    "repo": "python-sdk",
+    "content_hash": "f1c0d869e1",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:02:51.291503+00:00"
+  },
+  "https://github.com/modelcontextprotocol/servers": {
+    "url": "https://github.com/modelcontextprotocol/servers",
+    "org": "modelcontextprotocol",
+    "repo": "servers",
+    "content_hash": "63e7367911",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:03:45.668059+00:00"
+  },
+  "https://github.com/anthropics/anthropic-sdk-python": {
+    "url": "https://github.com/anthropics/anthropic-sdk-python",
+    "org": "anthropics",
+    "repo": "anthropic-sdk-python",
+    "content_hash": "77808060dc",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:04:43.520046+00:00"
+  },
+  "https://github.com/topoteretes/cognee": {
+    "url": "https://github.com/topoteretes/cognee",
+    "org": "topoteretes",
+    "repo": "cognee",
+    "content_hash": "1ed749412c",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:05:39.123257+00:00"
+  },
+  "https://github.com/mem0ai/mem0": {
+    "url": "https://github.com/mem0ai/mem0",
+    "org": "mem0ai",
+    "repo": "mem0",
+    "content_hash": "aa981767e2",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:06:47.989677+00:00"
+  },
+  "https://github.com/getzep/graphiti": {
+    "url": "https://github.com/getzep/graphiti",
+    "org": "getzep",
+    "repo": "graphiti",
+    "content_hash": "8147ccdbdd",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:07:49.661052+00:00"
+  },
+  "https://github.com/explodinggradients/ragas": {
+    "url": "https://github.com/explodinggradients/ragas",
+    "org": "explodinggradients",
+    "repo": "ragas",
+    "content_hash": "2bcc6763fa",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:09:05.434847+00:00"
+  },
+  "https://github.com/confident-ai/deepeval": {
+    "url": "https://github.com/confident-ai/deepeval",
+    "org": "confident-ai",
+    "repo": "deepeval",
+    "content_hash": "fb63f9adc9",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:10:22.220128+00:00"
+  },
+  "https://github.com/langfuse/langfuse": {
+    "url": "https://github.com/langfuse/langfuse",
+    "org": "langfuse",
+    "repo": "langfuse",
+    "content_hash": "bdc0f3496b",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:11:28.657003+00:00"
+  },
+  "https://github.com/Arize-ai/phoenix": {
+    "url": "https://github.com/Arize-ai/phoenix",
+    "org": "Arize-ai",
+    "repo": "phoenix",
+    "content_hash": "89292ca11c",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:12:50.184222+00:00"
+  },
+  "https://github.com/wandb/weave": {
+    "url": "https://github.com/wandb/weave",
+    "org": "wandb",
+    "repo": "weave",
+    "content_hash": "89b56f9db9",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:13:59.444496+00:00"
+  },
+  "https://github.com/continuedev/continue": {
+    "url": "https://github.com/continuedev/continue",
+    "org": "continuedev",
+    "repo": "continue",
+    "content_hash": "4c70ce8090",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:15:37.667913+00:00"
+  },
+  "https://github.com/cline/cline": {
+    "url": "https://github.com/cline/cline",
+    "org": "cline",
+    "repo": "cline",
+    "content_hash": "99c8329f66",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:16:50.581590+00:00"
+  },
+  "https://github.com/safishamsi/graphify": {
+    "url": "https://github.com/safishamsi/graphify",
+    "org": "safishamsi",
+    "repo": "graphify",
+    "content_hash": "cf64da2df7",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:18:05.666935+00:00"
+  },
+  "https://github.com/QwenLM/Qwen-Agent": {
+    "url": "https://github.com/QwenLM/Qwen-Agent",
+    "org": "QwenLM",
+    "repo": "Qwen-Agent",
+    "content_hash": "baf26962ab",
+    "segments": [
+      "identity",
+      "releases",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:19:06.742468+00:00"
+  },
+  "https://github.com/QwenLM/Qwen2.5": {
+    "url": "https://github.com/QwenLM/Qwen2.5",
+    "org": "QwenLM",
+    "repo": "Qwen2.5",
+    "content_hash": "43fb870b09",
+    "segments": [
+      "identity",
+      "docs",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:20:16.469001+00:00"
+  },
+  "https://github.com/InternLM/InternLM": {
+    "url": "https://github.com/InternLM/InternLM",
+    "org": "InternLM",
+    "repo": "InternLM",
+    "content_hash": "1205afc381",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:21:36.409622+00:00"
+  },
+  "https://github.com/THUDM/ChatGLM3": {
+    "url": "https://github.com/THUDM/ChatGLM3",
+    "org": "THUDM",
+    "repo": "ChatGLM3",
+    "content_hash": "1be1fc7797",
+    "segments": [
+      "identity",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:22:41.963482+00:00"
+  },
+  "https://github.com/baichuan-inc/Baichuan2": {
+    "url": "https://github.com/baichuan-inc/Baichuan2",
+    "org": "baichuan-inc",
+    "repo": "Baichuan2",
+    "content_hash": "cfb4ba4f16",
+    "segments": [
+      "identity",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:23:47.680268+00:00"
+  },
+  "https://github.com/hiyouga/LLaMA-Factory": {
+    "url": "https://github.com/hiyouga/LLaMA-Factory",
+    "org": "hiyouga",
+    "repo": "LLaMA-Factory",
+    "content_hash": "e8eff8235c",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:25:14.375873+00:00"
+  },
+  "https://github.com/n8n-io/n8n": {
+    "url": "https://github.com/n8n-io/n8n",
+    "org": "n8n-io",
+    "repo": "n8n",
+    "content_hash": "baea7368cc",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:26:44.510631+00:00"
+  },
+  "https://github.com/prefecthq/prefect": {
+    "url": "https://github.com/prefecthq/prefect",
+    "org": "prefecthq",
+    "repo": "prefect",
+    "content_hash": "2e8845917a",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:28:34.037013+00:00"
+  },
+  "https://github.com/instructor-ai/instructor": {
+    "url": "https://github.com/instructor-ai/instructor",
+    "org": "instructor-ai",
+    "repo": "instructor",
+    "content_hash": "227d5ae558",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:30:32.932195+00:00"
+  },
+  "https://github.com/outlines-dev/outlines": {
+    "url": "https://github.com/outlines-dev/outlines",
+    "org": "outlines-dev",
+    "repo": "outlines",
+    "content_hash": "d83ac35281",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:32:28.288196+00:00"
+  },
+  "https://github.com/jxnl/instructor": {
+    "url": "https://github.com/jxnl/instructor",
+    "org": "jxnl",
+    "repo": "instructor",
+    "content_hash": "241216849a",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:34:25.170191+00:00"
+  },
+  "https://github.com/stanfordnlp/dspy": {
+    "url": "https://github.com/stanfordnlp/dspy",
+    "org": "stanfordnlp",
+    "repo": "dspy",
+    "content_hash": "7208b11bfe",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:36:27.456033+00:00"
+  },
+  "https://github.com/guardrails-ai/guardrails": {
+    "url": "https://github.com/guardrails-ai/guardrails",
+    "org": "guardrails-ai",
+    "repo": "guardrails",
+    "content_hash": "0a002527c7",
+    "segments": [
+      "identity",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:38:10.508039+00:00"
+  },
+  "https://github.com/NVIDIA/NeMo-Guardrails": {
+    "url": "https://github.com/NVIDIA/NeMo-Guardrails",
+    "org": "NVIDIA",
+    "repo": "NeMo-Guardrails",
+    "content_hash": "a0cf544854",
+    "segments": [
+      "identity",
+      "docs",
+      "releases",
+      "deps",
+      "issues"
+    ],
+    "ingested_at": "2026-04-24T16:40:11.046448+00:00"
+  }
+}
