@@ -1,17 +1,18 @@
 import os
 import json
-import cognee
-import asyncio
 import sys
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
-import numpy as np
-import time
 
 from config import RAG_WORKING_DIR, load_env, CANONICAL_MAP_FILE
 load_env()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+import asyncio
+import numpy as np
+import time
+import cognee
 if not GEMINI_API_KEY:
     print("Error: GEMINI_API_KEY not found.")
     sys.exit(1)

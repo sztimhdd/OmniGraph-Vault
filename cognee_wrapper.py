@@ -44,22 +44,33 @@ except ImportError:
 # Local cache for disambiguation
 _disambiguation_cache = {}
 
+_COGNEE_TIMEOUT = 10.0
+
 async def remember_synthesis(query: str, synthesis_result: str):
     if not cognee: return None
     try:
-        await cognee.remember(f"Query: {query}\nResult: {synthesis_result}", self_improvement=False)
+        await asyncio.wait_for(
+            cognee.remember(f"Query: {query}\nResult: {synthesis_result}", self_improvement=False),
+            timeout=_COGNEE_TIMEOUT
+        )
         return True
+    except asyncio.TimeoutError:
+        logger.warning("remember_synthesis timed out (Cognee embeddings unavailable on free tier)")
+        return None
     except Exception as e:
-        logger.error(f"remember_synthesis error: {e}")
+        logger.warning(f"remember_synthesis error: {e}")
         return None
 
 async def recall_previous_context(query: str):
     if not cognee: return []
     try:
-        results = await cognee.search(query)
+        results = await asyncio.wait_for(cognee.search(query), timeout=_COGNEE_TIMEOUT)
         return results if results else []
+    except asyncio.TimeoutError:
+        logger.warning("recall_previous_context timed out (Cognee embeddings unavailable on free tier)")
+        return []
     except Exception as e:
-        logger.error(f"recall error: {e}")
+        logger.warning(f"recall error: {e}")
         return []
 
 async def disambiguate_entities(entity_list: list):

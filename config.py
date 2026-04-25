@@ -27,3 +27,10 @@ def load_env():
                         os.environ[key] = val.strip()
 
 load_env()
+
+# Force Gemini API mode — the env may have GOOGLE_GENAI_USE_VERTEXAI=true
+# which routes all genai.Client calls to Vertex AI (requires billing)
+os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
+os.environ.pop("GOOGLE_API_KEY", None)
+os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+os.environ.pop("GOOGLE_CLOUD_LOCATION", None)
