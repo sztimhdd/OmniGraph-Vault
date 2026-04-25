@@ -4,6 +4,7 @@ import json
 import hashlib
 import requests
 import re
+import time
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -418,6 +419,9 @@ async def ingest_article(url):
                 full_content += f"\n\n[Image {i} Reference]: {local_url}\n[Image {i} Description]: {description}\n"
                 processed_images.append({"index": i, "description": description, "local_url": local_url})
                 image_success_count += 1
+
+                if i + 1 < len(unique_img_urls):
+                    time.sleep(4)
             else:
                 print(f"  [Image {i}] Download failed: HTTP {resp.status_code}")
                 image_fail_count += 1

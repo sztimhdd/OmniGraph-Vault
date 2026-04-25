@@ -14,6 +14,7 @@ import json
 import logging
 import subprocess
 import sys
+import time
 import os
 from datetime import datetime
 from pathlib import Path
@@ -38,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 VENV_PYTHON = str(PROJECT_ROOT / "venv" / "Scripts" / "python.exe")
 INGEST_SCRIPT = str(PROJECT_ROOT / "ingest_wechat.py")
+
+SLEEP_BETWEEN_ARTICLES = 60
 
 
 def get_python_exe() -> str:
@@ -64,8 +67,11 @@ def ingest_article(url: str, dry_run: bool) -> bool:
 def run(days_back: int, max_articles: int, dry_run: bool) -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     summary: list[dict] = []
+    processed = 0
+    total = 0
 
-    for account_name, fakeid in kol_config.FAKEIDS.items():
+    accounts = list(kol_config.FAKEIDS.items())
+    for account_name, fakeid in accounts:
         logger.info("=== Account: %s (fakeid=%s) ===", account_name, fakeid)
 
         try:
@@ -81,6 +87,7 @@ def run(days_back: int, max_articles: int, dry_run: bool) -> None:
             summary.append({"account": account_name, "error": str(exc)})
             continue
 
+        total += len(articles)
         logger.info("Found %d articles for %s", len(articles), account_name)
 
         for i, article in enumerate(articles, 1):
@@ -100,6 +107,11 @@ def run(days_back: int, max_articles: int, dry_run: bool) -> None:
                 "url": url,
                 "status": "dry_run" if dry_run else ("ok" if success else "failed"),
             })
+
+            processed += 1
+            if not dry_run and (processed < total or account_name != accounts[-1][0]):
+                logger.info("  Sleeping %ds (rate limit: 15 RPM free tier)...", SLEEP_BETWEEN_ARTICLES)
+                time.sleep(SLEEP_BETWEEN_ARTICLES)
 
     data_dir = PROJECT_ROOT / "data"
     data_dir.mkdir(exist_ok=True)
