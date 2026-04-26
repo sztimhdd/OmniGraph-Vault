@@ -83,10 +83,23 @@ DEEPSEEK_MODEL = "deepseek-chat"
 
 
 def get_deepseek_api_key() -> str | None:
-    """Resolve DeepSeek API key from env var or ~/.hermes/config.yaml."""
+    """Resolve DeepSeek API key from env var, ~/.hermes/.env, or ~/.hermes/config.yaml."""
     key = os.environ.get("DEEPSEEK_API_KEY")
     if key:
         return key
+    # Fallback 1: read from ~/.hermes/.env
+    dotenv_path = Path.home() / ".hermes" / ".env"
+    if dotenv_path.exists():
+        try:
+            for line in dotenv_path.read_text().splitlines():
+                line = line.strip()
+                if line.startswith("DEEPSEEK_API_KEY="):
+                    val = line.split("=", 1)[1].strip().strip("\"'")
+                    if val:
+                        return val
+        except Exception:
+            pass
+    # Fallback 2: read from ~/.hermes/config.yaml (skips ${...} template vars)
     config_path = Path.home() / ".hermes" / "config.yaml"
     if config_path.exists() and yaml is not None:
         try:

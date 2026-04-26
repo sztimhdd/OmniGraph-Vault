@@ -2,8 +2,8 @@
 
 **Product:** OmniGraph-Vault – Personal Knowledge Base for AI Agents  
 **Target Users:** Developers and researchers using Openclaw, Hermes Agent, or similar AI assistant frameworks.  
-**Version:** 1.1  
-**Last Updated:** 2026-04-21  
+**Version:** 1.2  
+**Last Updated:** 2026-04-24  
 
 ---
 
@@ -38,6 +38,9 @@ OmniGraph-Vault is a **local, graph-based knowledge base** that:
 - **Stateful Learning**: Cognee async layer tracks user preferences, merges
   synonymous concepts, and improves recall over multiple sessions without
   blocking the ingestion fast-path.
+- **Canonical KOL Registry**: Version-controlled JSON registry (`docs/wechat_kol_registry.json`)
+  with canonical name → 微信号 → FakeID mapping, tags, and source provenance — eliminating
+  hardcoded account lists in ingestion scripts.
 - **Self-Healing Scraper**: Dual-path Apify → CDP fallback survives WeChat
   anti-bot measures automatically.
 
@@ -94,6 +97,8 @@ OmniGraph-Vault is a **local, graph-based knowledge base** that:
 | FR-28 | Cognee batch processor health log (`cognee_batch.log`) | Must | ✅ Implemented |
 | FR-29 | Scheduled or trigger-based Cognee batch sync (≤1x/day or on buffer threshold) | Should | 🔄 Planned |
 | FR-30 | Comprehensive logging and error monitoring | Should | 🔄 Planned |
+| FR-31 | Maintain canonical WeChat KOL registry (`docs/wechat_kol_registry.json`) as single source of truth for account identities | Must | ✅ Implemented |
+| FR-32 | Provide Python helper module (`kol_registry.py`) for name → WeChat_ID → FakeID lookup by ingestion scripts | Must | ✅ Implemented |
 
 ---
 
@@ -157,6 +162,17 @@ User / Agent
     │   └─────────────────────────────────────────────────────┘
     │
     │   ┌─────────────────────────────────────────────────────┐
+    │   │  KOL REGISTRY (pre-ingestion lookup)                │
+    │   │                                                     │
+    │   │  docs/wechat_kol_registry.json canonical JSON       │
+    │   │      ↓                                              │
+    │   │  kol_registry.py → get_fakeid(name)                 │
+    │   │      ↓                                              │
+    │   │  kol_config.py → auto-loads FAKEIDS dict            │
+    │   │      → consumed by batch_ingest_kol_mvp.py          │
+    │   └─────────────────────────────────────────────────────┘
+    │
+    │   ┌─────────────────────────────────────────────────────┐
     │   │  ASYNC PATH (background, ≤ 1x/day or on threshold)  │
     │   │                                                     │
     │   │  cognee_batch_processor.py                          │
@@ -191,6 +207,8 @@ User / Agent
 | Query CLI | `query_lightrag.py` | Direct KG access (naive/local/global/hybrid) | LightRAG |
 | Local Media Server | (systemd / background) | Serve downloaded images on port 8765 | Python `http.server` |
 | Configuration | `config.py` | Centralized settings & env-var loading | `python-dotenv` |
+| Account Registry | `docs/wechat_kol_registry.json` + `kol_registry.py` | Canonical KOL identity store: name → WeChat_ID → FakeID | JSON, lazy-loaded Python module |
+| Batch KOL Ingestion | `batch_ingest_kol_mvp.py` | Batch scrape all registered KOL accounts using registry FAKEIDS | Apify SDK, registry lookup |
 
 ### 4.3 Storage Layout
 ```
@@ -206,6 +224,31 @@ User / Agent
 ├── outputs/               # Synthesized .md reports
 │   └── {query_hash}.md
 └── cognee_batch.log       # Batch processor health log
+```
+
+### 4.4 Source Code Layout (Project Root)
+```
+OmniGraph-Vault/
+├── config.py               # Centralized config & env-var loading
+├── kol_config.py           # LOCAL ONLY — secrets (TOKEN, COOKIE), auto-loads FAKEIDS from registry
+├── kol_registry.py         # Python helper: get_fakeid(), get_wechat_id(), get_account(), list_accounts()
+├── ingest_wechat.py        # Primary WeChat article ingestion engine
+├── batch_ingest_kol_mvp.py # Batch KOL ingestion using registry FAKEIDS
+├── kg_synthesize.py        # Synthesis engine (retrieve + LLM generate)
+├── query_lightrag.py       # CLI for direct KG query
+├── skill_runner.py         # Hermes skill simulator for local validation
+├── docs/
+│   ├── wechat_kol_registry.json   # Canonical KOL identity registry (version-controlled)
+│   └── rules-research-report-*.md # Archival research reports
+├── skills/
+│   ├── omnigraph_ingest/    # Hermes skill: article ingestion
+│   ├── omnigraph_query/     # Hermes skill: KG query
+│   └── omnigraph_architect/ # Hermes skill: architecture advice
+├── tests/
+│   ├── unit/               # Unit tests
+│   ├── integration/         # Integration tests
+│   └── skills/             # Skill simulator test cases
+└── .planning/              # Planning docs (ROADMAP.md, STATE.md, etc.)
 ```
 
 ---
@@ -342,6 +385,7 @@ python skill_runner.py skills/omnigraph_ingest --validate
 - Synthesis report generation + Telegram delivery
 
 ### Phase 2: Stability & Agent Integration (Current)
+- Canonical WeChat KOL Registry — version-controlled JSON + Python helper module
 - Gate 6 end-to-end validation
 - Batch ingestion support (FR-8)
 - Comprehensive error handling and logging (FR-30)
@@ -368,6 +412,7 @@ python skill_runner.py skills/omnigraph_ingest --validate
 | Cognee entity alignment has eventual consistency | New articles take ≤1 day to be canonicalized | Acceptable for personal KB; fast-path LightRAG retrieval still works immediately |
 | Single-user design | Not suited for team collaboration | Intentional; multi-user would require significant rearchitecting |
 | LightRAG graph size at scale | Very large graphs may slow retrieval | Graph pruning or dedicated Neo4j instance when needed |
+| KOL registry manually maintained | New WeChat accounts not auto-detected | Periodic web search + PR workflow to update registry |
 
 ---
 
@@ -383,6 +428,7 @@ python skill_runner.py skills/omnigraph_ingest --validate
 - **Async Path** – The background Cognee batch processing pipeline
 - **entity_buffer** – File-based queue of raw entities awaiting Cognee canonicalization
 - **canonical_map.json** – Output of Cognee batch processing; used by synthesis layer to normalize query entities
+- **KOL Registry** – `docs/wechat_kol_registry.json`: version-controlled JSON mapping of WeChat KOL account names to 微信号 and FakeIDs, with tags and source provenance
 
 ### 8.2 References
 - [LightRAG GitHub](https://github.com/HKU-Smart-OT/LightRAG)
@@ -393,6 +439,12 @@ python skill_runner.py skills/omnigraph_ingest --validate
 - [OnlyTerp LightRAG + Hermes Guide](https://github.com/OnlyTerp/hermes-optimization-guide)
 
 ### 8.3 Changelog
+- **2026-04-24**: v1.2 – Add canonical WeChat KOL Registry:
+  `docs/wechat_kol_registry.json`, `kol_registry.py` helper module;
+  `kol_config.py` now auto-loads FAKEIDS from registry eliminating
+  hardcoded account lists; add data flow diagram for registry lookup;
+  add FR-31/FR-32, component rows, source-code layout section (4.4),
+  roadmap item, limitation, and glossary entry.
 - **2026-04-21**: v1.1 – Reflect async Cognee decoupling architecture;
   add `entity_buffer`, `canonical_map.json`, `cognee_batch_processor.py`;
   update Gate table to merge original Gates 1-5 with Cognee Gates A-D;

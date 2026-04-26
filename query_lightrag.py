@@ -23,7 +23,7 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
         system_prompt=system_prompt,
         history_messages=history_messages,
         api_key=GEMINI_API_KEY,
-        model_name="gemini-2.0-flash",
+        model_name="gemini-2.5-flash-lite",
         **kwargs,
     )
 
@@ -49,7 +49,7 @@ async def query_and_synthesize(query_text: str):
         working_dir=RAG_WORKING_DIR,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
-        llm_model_name="gemini-2.0-flash",
+        llm_model_name="gemini-2.5-flash-lite",
     )
     
     # Ensure storages are initialized (for newer versions of LightRAG)
