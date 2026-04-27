@@ -28,3 +28,6 @@ kol_config.py
 
 # Spider source copies (gitignored)
 spiders/*.zip
+
+# Binary archives
+*.zip
