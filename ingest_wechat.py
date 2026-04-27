@@ -94,7 +94,7 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
             system_prompt=system_prompt,
             history_messages=history_messages,
             api_key=GEMINI_API_KEY,
-            model_name="gemini-2.5-flash",
+            model_name="gemini-2.5-flash-lite",
             **kwargs,
         )
 
@@ -115,7 +115,7 @@ async def get_rag():
         working_dir=RAG_WORKING_DIR,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
-        llm_model_name="gemini-2.5-flash",
+        llm_model_name="gemini-2.5-flash-lite",
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
@@ -127,7 +127,7 @@ def describe_image(image_path):
         vision_client = genai.Client(api_key=GEMINI_API_KEY)
         img = Image.open(image_path)
         response = vision_client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.5-flash-lite',
             contents=["Describe this image in detail for a knowledge graph. Return only the description.", img]
         )
         return response.text
@@ -373,7 +373,7 @@ async def extract_entities(text):
         client = genai.Client(api_key=GEMINI_API_KEY)
         prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.5-flash-lite',
             contents=[prompt]
         )
         entities = [e.strip() for e in response.text.split(',')]
