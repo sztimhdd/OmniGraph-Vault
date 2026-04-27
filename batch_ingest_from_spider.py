@@ -16,6 +16,7 @@ Writes summary JSON to data/coldstart_run_{timestamp}.json
 import argparse
 import json
 import logging
+import sqlite3
 import subprocess
 import sys
 import time
@@ -64,6 +65,7 @@ INGEST_SCRIPT = str(PROJECT_ROOT / "ingest_wechat.py")
 
 SLEEP_BETWEEN_ARTICLES = 60
 GEMINI_BATCH_SLEEP = 5.0   # Gemini free tier: 15 RPM
+DB_PATH = PROJECT_ROOT / "data" / "kol_scan.db"
 
 
 def get_python_exe() -> str:
@@ -533,6 +535,65 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
     logger.info("Done — %d ok, %d failed, %d filtered, %d skipped", ok, fail, filt, len(summary) - ok - fail - filt)
 
 
+def ingest_from_db(topic: str, min_depth: int, dry_run: bool) -> None:
+    """Ingest articles that passed classification for a topic. Reads from kol_scan.db."""
+    if not DB_PATH.exists():
+        logger.error("DB not found: %s. Run batch_scan_kol.py first.", DB_PATH)
+        sys.exit(1)
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS ingestions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_id INTEGER NOT NULL REFERENCES articles(id),
+            status TEXT NOT NULL CHECK(status IN ('ok', 'failed', 'skipped')),
+            ingested_at TEXT DEFAULT (datetime('now', 'localtime')),
+            UNIQUE(article_id)
+        )
+    """)
+    conn.commit()
+
+    rows = conn.execute("""
+        SELECT a.id, a.title, a.url, acc.name, c.depth_score
+        FROM articles a
+        JOIN accounts acc ON a.account_id = acc.id
+        JOIN classifications c ON a.id = c.article_id
+        WHERE c.topic = ? AND c.relevant = 1 AND c.depth_score >= ?
+          AND a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
+        ORDER BY c.depth_score DESC, a.id
+    """, (topic, min_depth)).fetchall()
+
+    if not rows:
+        logger.info("No passed articles found for topic '%s' (min_depth=%d)", topic, min_depth)
+        conn.close()
+        return
+
+    logger.info("%d articles to ingest for topic '%s'", len(rows), topic)
+    processed = 0
+    for i, (art_id, title, url, account, depth) in enumerate(rows, 1):
+        logger.info("[%d/%d] [%s] (depth=%s) %s", i, len(rows), account, depth, title)
+
+        if not url:
+            logger.warning("  Skipping — no URL")
+            conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')", (art_id,))
+            conn.commit()
+            continue
+
+        success = ingest_article(url, dry_run)
+        status = "dry_run" if dry_run else ("ok" if success else "failed")
+        conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, ?)", (art_id, status))
+        conn.commit()
+
+        processed += 1
+        if not dry_run and processed < len(rows):
+            logger.info("  Sleeping %ds (Gemini Flash 15 RPM limit)...", SLEEP_BETWEEN_ARTICLES)
+            time.sleep(SLEEP_BETWEEN_ARTICLES)
+
+    ok = sum(1 for r in rows if True)  # count is tracked via status in DB
+    logger.info("Done — %d articles processed", len(rows))
+    conn.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Bulk ingest WeChat KOL articles into OmniGraph-Vault")
     parser.add_argument("--dry-run", action="store_true", help="List articles without ingesting")
@@ -544,18 +605,26 @@ def main() -> None:
     parser.add_argument("--account", type=str, default=None, help="Only process this specific account name")
     parser.add_argument("--classifier", type=str, default="deepseek", choices=["deepseek", "gemini"],
                         help="Classifier model: deepseek (default) or gemini")
+    parser.add_argument("--from-db", action="store_true",
+                        help="Ingest articles already classified in kol_scan.db (requires --topic-filter)")
     args = parser.parse_args()
 
-    run(
-        days_back=args.days_back,
-        max_articles=args.max_articles,
-        dry_run=args.dry_run,
-        topic_filter=args.topic_filter,
-        exclude_topics=args.exclude_topics,
-        min_depth=args.min_depth,
-        account_filter=args.account,
-        classifier=args.classifier,
-    )
+    if args.from_db:
+        if not args.topic_filter:
+            logger.error("--topic-filter is required with --from-db")
+            sys.exit(1)
+        ingest_from_db(args.topic_filter, args.min_depth, args.dry_run)
+    else:
+        run(
+            days_back=args.days_back,
+            max_articles=args.max_articles,
+            dry_run=args.dry_run,
+            topic_filter=args.topic_filter,
+            exclude_topics=args.exclude_topics,
+            min_depth=args.min_depth,
+            account_filter=args.account,
+            classifier=args.classifier,
+        )
 
 
 if __name__ == "__main__":
