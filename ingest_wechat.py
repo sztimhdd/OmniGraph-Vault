@@ -136,6 +136,107 @@ def describe_image(image_path):
 
 # --- Scraping Methods ---
 
+# Rotating UA pool — avoids detection by varying WeChat client fingerprints
+_UA_POOL = [
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.34(0x16082222) NetType/WIFI Language/zh_CN",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.42(0x18042a23) NetType/4G Language/zh_CN",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.144 Mobile Safari/537.36 MicroMessenger/8.0.45(0x28004534) NetType/WIFI Language/zh_CN",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.44(0x18004428) NetType/5G Language/zh_CN",
+    "Mozilla/5.0 (Linux; Android 13; SM-S9080) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/118.0.5993.111 Mobile Safari/537.36 MicroMessenger/8.0.41(0x28004135) NetType/WIFI Language/zh_CN",
+]
+_ua_index = 0
+
+
+def _next_ua() -> str:
+    global _ua_index
+    ua = _UA_POOL[_ua_index % len(_UA_POOL)]
+    _ua_index += 1
+    return ua
+
+
+async def scrape_wechat_ua(url: str):
+    """Primary method: UA spoofing with MicroMessenger token.
+    
+    WeChat's anti-scraping checks for 'MicroMessenger' in User-Agent.
+    If found, serves full HTML. No cookies, no login, no proxy needed.
+    Parses only the article content div (js_content) to avoid loading
+    3MB+ of JavaScript overhead.
+    """
+    import re as _re
+    
+    try:
+        ua = _next_ua()
+        resp = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: __import__("requests").get(
+                url,
+                headers={"User-Agent": ua},
+                timeout=15,
+            ),
+        )
+        if resp.status_code != 200:
+            print(f"UA scrape: HTTP {resp.status_code}")
+            return None
+
+        html = resp.text
+        content_len = len(html)
+        print(f"UA scrape: HTTP 200, {content_len // 1024}KB")
+
+        # --- Parse title from og:title (fast, no full DOM parse) ---
+        title = ""
+        og_match = _re.search(r'property="og:title"[^>]*content="([^"]+)"', html)
+        if og_match:
+            title = og_match.group(1)
+        else:
+            t_match = _re.search(r"<title>([^<]+)</title>", html)
+            if t_match:
+                title = t_match.group(1)
+
+        # --- Extract article body (1-4KB text, not 3MB JS) ---
+        content_html = ""
+        for div_id in ["js_content", "img-content"]:
+            start = html.find(f'id="{div_id}"')
+            if start < 0:
+                continue
+            start = html.rfind("<", start - 100, start)  # rewind to opening <
+            # Find matching close — look for next </div> after content ends
+            depth = 0
+            i = start
+            while i < len(html):
+                if html[i : i + 4] == "<div":
+                    depth += 1
+                elif html[i : i + 5] == "</div":
+                    depth -= 1
+                    if depth == 0:
+                        content_html = html[start : i + 6]
+                        break
+                i += 1
+            if content_html:
+                break
+
+        if not content_html:
+            print("UA scrape: article body not found in HTML")
+            return None
+
+        # --- Extract images ---
+        img_urls: list[str] = []
+        for m in _re.finditer(r'data-src="(https?://mmbiz[^"]+)"', html):
+            img_urls.append(m.group(1))
+
+        print(f"UA scrape: title='{title[:40]}', body={len(content_html)}B, {len(img_urls)} imgs")
+        return {
+            "title": title,
+            "content_html": content_html,
+            "img_urls": img_urls,
+            "url": url,
+            "publish_time": "",
+            "method": "ua",
+        }
+    except Exception as e:
+        print(f"UA scrape failed: {e}")
+        return None
+
+
 async def scrape_wechat_apify(url):
     """Try scraping with Apify WeChat actor."""
     if not APIFY_TOKEN:
@@ -387,28 +488,30 @@ async def ingest_article(url):
     print(f"--- Starting Ingestion: {url} ---")
     
     print("Starting ingestion process...")
-# 1. Try Apify first
-    article_data = await scrape_wechat_apify(url)
     
-    # Check if Apify returned a verification/login page instead of real content.
-    # Real verification pages are very short (<500 chars); real articles with "验证"
-    # in them (e.g., "模型验证") are thousands of chars long.
-    is_invalid = False
-    if article_data:
-        content = article_data.get("markdown", "") + article_data.get("title", "")
-        is_short = len(content) < 500
-        has_block_keywords = any(kw in content for kw in ["环境异常", "请完成验证", "请登录"])
-        if is_short and has_block_keywords:
-            is_invalid = True
-            print(f"Apify returned verification/login page ({len(content)} chars), triggering fallback...")
-
-    # 2. Fallback to browser scraping if Apify fails
-    if not article_data or is_invalid:
+    # 1. UA spoofing (primary — fast, free, reliable)
+    article_data = await scrape_wechat_ua(url)
+    
+    if not article_data:
+        # 2. Apify (backup)
+        article_data = await scrape_wechat_apify(url)
+        
+        # Check if Apify returned a verification/login page
+        if article_data:
+            content = article_data.get("markdown", "") + article_data.get("title", "")
+            is_short = len(content) < 500
+            has_block_keywords = any(kw in content for kw in ["环境异常", "请完成验证", "请登录"])
+            if is_short and has_block_keywords:
+                print(f"Apify returned verification/login page ({len(content)} chars), triggering fallback...")
+                article_data = None
+    
+    # 3. CDP fallback (last resort)
+    if not article_data:
         if _is_mcp_endpoint(CDP_URL):
-            print("Apify failed or returned invalid results. Falling back to remote Playwright MCP...")
+            print("UA & Apify failed. Falling back to remote Playwright MCP...")
             article_data = await scrape_wechat_mcp(url)
         else:
-            print("Apify failed or returned invalid results. Falling back to local CDP...")
+            print("UA & Apify failed. Falling back to local CDP...")
             article_data = await scrape_wechat_cdp(url)
 
     if not article_data:
@@ -423,7 +526,13 @@ async def ingest_article(url):
         markdown = article_data.get("markdown", "")
         publish_time = article_data.get("publish_time", "")
         img_urls = re.findall(r'!\[.*?\]\((.*?)\)', markdown)
-    else: # CDP
+    elif method == "ua":
+        title = article_data["title"]
+        publish_time = article_data.get("publish_time", "")
+        markdown, _img_urls = process_content(article_data["content_html"])
+        # Merge UA-extracted data-src images with process_content images
+        img_urls = article_data.get("img_urls", []) + _img_urls
+    else:  # CDP / MCP
         title = article_data['title']
         publish_time = article_data['publish_time']
         markdown, img_urls = process_content(article_data['content_html'])
