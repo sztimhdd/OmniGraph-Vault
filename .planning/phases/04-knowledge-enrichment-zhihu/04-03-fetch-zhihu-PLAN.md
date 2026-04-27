@@ -78,6 +78,12 @@ The MCP variant uses `_MCPClient` for URLs ending in `/mcp`.
 
 PRD §6.2 image filter: skip images with width < 100px (author-icons, emoji, etc.)
 
+**Zhihu CDN URL normalization:** Zhihu images use CDN format
+`https://picX.zhimg.com/v2-{md5}_{size}.jpg`. Strip the `_{size}` suffix
+(e.g., `_1440w`, `_250x0`) to request the full-resolution original. Then
+download via `image_pipeline.download_images()`. CDN requires no
+authentication or Referer header — direct HTTP GET works.
+
 D-03 stdout contract for fetch_zhihu:
 ```
 {"hash": "<wechat_hash>", "q_idx": <N>, "status": "ok", "md_path": "...", "image_count": N}

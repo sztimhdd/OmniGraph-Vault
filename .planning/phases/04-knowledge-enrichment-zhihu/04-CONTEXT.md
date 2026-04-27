@@ -99,6 +99,15 @@ used by both paths.
   gaps. Reuses existing `GEMINI_API_KEY`. **PRD section 8's
   `ENRICHMENT_LLM_MODEL = "deepseek-v4-flash"` is superseded.**
 
+- **D-12a (Grounding fallback):** Google Search grounding requires a paid
+  Gemini tier or billing-enabled project. The user's current free-tier API
+  key was confirmed to NOT support grounding. Phase-0 spike must verify
+  grounding availability on the remote WSL host's API key. If unavailable:
+  fallback to Gemini 2.5 Flash Lite WITHOUT grounding, and add a prompt
+  instruction: "avoid suggesting questions that are well-known or already
+  heavily answered in public literature." This is not equal to grounding
+  but preserves the intent.
+
 ### Zhihu login recovery
 
 - **D-13:** When the skill detects a Zhihu login wall, it **captures a

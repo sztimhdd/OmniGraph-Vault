@@ -76,13 +76,16 @@ RESEARCH.md §2 10-step flow (repeated here for direct reference):
 | 1 | browser_navigate https://zhida.zhihu.com/ | `load` | Telegram notify, abort question |
 | 2 | Detect login wall | 2s | **D-13**: screenshot QR, send_message MEDIA:, wait /resume |
 | 3 | Find search entry (contenteditable / role=searchbox) | visible+enabled | Probe DOM; abort |
-| 4 | Enter question text (Draft.js — use document.execCommand('insertText')) | text visible | Fallback: historical-search entry |
+|| 4 | Enter question text | text visible | **DO NOT use document.execCommand or innerText manipulation — Draft.js rejects synthetic input (verified failure, 2026-04-27). Working methods:** (A) Click the "新对话" button → bottom input area becomes available for browser_type; (B) Click on a prior search entry in left sidebar history → re-triggers that search. Fallback: if neither works, manually position and use browser_press to type character-by-character. |
 | 5 | Submit (Enter key or 搜索 button) | URL/panel change | Retry once |
 | 6 | Wait for AI summary (sentinel "完成回答") | ≤120s | Timeout → mark failed |
 | 7 | Extract summary (innerText of main article) | — | Empty → failed |
 | 8 | Expand 全部来源 panel | cards render | No panel → failed |
 | 9 | Pick best source card (title match + engagement) | parsed | No card → failed |
-| 10 | Click card → read location.href | valid Zhihu answer URL | Ad URL → failed |
+|| 10 | Click card → read location.href | valid Zhihu answer URL | Ad URL → failed |
+||      | **IMPORTANT:** Source panel cards are React components, NOT `<a>` tags. |  |  |
+||      | The URL is NOT in the DOM. You MUST click the card, wait for |  |  |
+||      | navigation, then capture `window.location.href`. |  |  |
 
 D-13 Telegram recovery (RESEARCH.md §6):
 - Screenshot QR element → save to `$ENRICHMENT_DIR/$HASH/$Q_IDX/zhihu_login_qr.png`
