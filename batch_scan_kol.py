@@ -5,6 +5,7 @@ Usage:
     python batch_scan_kol.py --days-back 120 --max-articles 20
     python batch_scan_kol.py --days-back 120 --max-articles 20 --account "叶小钗"
     python batch_scan_kol.py --resume  # skip accounts already in DB
+    python batch_scan_kol.py --daily --summary-json  # daily incremental scan, JSON output
 
 Creates data/kol_scan.db on first run. Scan only — no classification, no ingest.
 """
@@ -204,8 +205,8 @@ def _import_articles(conn: sqlite3.Connection, articles: list[dict], account_nam
     return new, skipped
 
 
-def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: int, max_articles: int) -> bool:
-    """Scan single account. Returns True on success."""
+def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: int, max_articles: int) -> tuple[bool, int, int]:
+    """Scan single account. Returns (ok, new, skipped)."""
     logger.info("  Scanning %s (fakeid=%s)...", name, fakeid[:20] + "..." if len(fakeid) > 20 else fakeid)
     try:
         articles = list_articles(
@@ -217,14 +218,15 @@ def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: in
         )
     except Exception as exc:
         logger.error("  Failed to scan %s: %s", name, exc)
-        return False
+        return False, 0, 0
 
     new, skipped = _import_articles(conn, articles, name, fakeid)
     logger.info("  %s: %d new, %d skipped (total %d scanned)", name, new, skipped, len(articles))
-    return True
+    return True, new, skipped
 
 
-def run(days_back: int, max_articles: int, account_filter: str | None, resume: bool) -> None:
+def run(days_back: int, max_articles: int, account_filter: str | None, resume: bool,
+        daily: bool = False, summary_json: bool = False) -> None:
     _load_hermes_env()
 
     conn = init_db(DB_PATH)
@@ -237,13 +239,13 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
             logger.error("No accounts in DB")
             sys.exit(1)
 
-        total = len(rows)
+        total_accounts = len(rows)
         if resume:
             rows = [(n, f) for n, f in rows if not _account_has_articles(conn, n)]
             if not rows:
-                logger.info("All %d accounts already scanned (--resume). Nothing to do.", total)
+                logger.info("All %d accounts already scanned (--resume). Nothing to do.", total_accounts)
                 return
-            logger.info("Resume mode: %d / %d accounts remaining to scan", len(rows), total)
+            logger.info("Resume mode: %d / %d accounts remaining to scan", len(rows), total_accounts)
 
         if account_filter:
             rows = [(n, f) for n, f in rows if n == account_filter]
@@ -254,31 +256,51 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
         req_count = 0
         scanned_count = 0
         failed_count = 0
+        total_new = 0
+        total_skipped = 0
+        by_account: list[dict] = []
 
         for i, (name, fakeid) in enumerate(rows, 1):
             if req_count >= SESSION_LIMIT:
                 logger.info(
                     "Session limit reached (%d requests). "
-                    "Refresh mp.weixin.qq.com in browser then run: python batch_scan_kol.py --resume",
+                    "Refresh mp.weixin.qq.com in browser then re-run.",
                     SESSION_LIMIT,
                 )
                 break
 
             logger.info("[%d/%d] %s", i, len(rows), name)
-            ok = scan_account(conn, name, fakeid, days_back, max_articles)
+            ok, new, skipped = scan_account(conn, name, fakeid, days_back, max_articles)
             req_count += 1
             if ok:
                 scanned_count += 1
+                total_new += new
+                total_skipped += skipped
+                if summary_json:
+                    by_account.append({"name": name, "new": new, "skipped": skipped})
             else:
                 failed_count += 1
+                if summary_json:
+                    by_account.append({"name": name, "new": 0, "skipped": 0, "error": True})
 
             if i < len(rows) and req_count < SESSION_LIMIT:
                 time.sleep(RATE_LIMIT_SLEEP_ACCOUNTS)
 
         logger.info(
-            "Scan complete: %d ok, %d failed, %d requests. %d accounts remaining.",
-            scanned_count, failed_count, req_count, max(0, total - scanned_count - failed_count),
+            "Scan complete: %d ok, %d failed, %d requests.",
+            scanned_count, failed_count, req_count,
         )
+
+        if summary_json:
+            summary = {
+                "total_accounts": total_accounts,
+                "scanned": scanned_count,
+                "failed": failed_count,
+                "new_articles": total_new,
+                "skipped_articles": total_skipped,
+                "by_account": by_account,
+            }
+            print(json.dumps(summary, ensure_ascii=False))
 
     finally:
         conn.close()
@@ -290,13 +312,22 @@ def main() -> None:
     parser.add_argument("--max-articles", type=int, default=20, help="Max articles per account (default: 20)")
     parser.add_argument("--account", type=str, default=None, help="Scan only this account name")
     parser.add_argument("--resume", action="store_true", help="Skip accounts already present in DB")
+    parser.add_argument("--daily", action="store_true",
+                        help="Daily incremental scan of all accounts (INSERT OR IGNORE by URL)")
+    parser.add_argument("--summary-json", action="store_true",
+                        help="Output JSON summary to stdout after scan")
     args = parser.parse_args()
+
+    if args.daily and args.resume:
+        parser.error("--daily and --resume are mutually exclusive")
 
     run(
         days_back=args.days_back,
         max_articles=args.max_articles,
         account_filter=args.account,
         resume=args.resume,
+        daily=args.daily,
+        summary_json=args.summary_json,
     )
 
 
