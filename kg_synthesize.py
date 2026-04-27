@@ -31,7 +31,7 @@ from cognee.infrastructure.llm.config import get_llm_config
 llm_config = get_llm_config()
 llm_config.llm_api_key = GEMINI_API_KEY
 llm_config.llm_provider = "gemini"
-llm_config.llm_model = "gemini-2.5-flash"
+llm_config.llm_model = "gemini-2.5-flash-lite"
 
 print(f"Cognee Status: Provider={llm_config.llm_provider}, Model={llm_config.llm_model}")
 
@@ -42,7 +42,7 @@ from lightrag.utils import wrap_embedding_func_with_attrs
 
 # Constants
 from config import RAG_WORKING_DIR
-MODEL_NAME = "gemini-2.5-flash" 
+MODEL_NAME = "gemini-2.5-flash-lite" 
 
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
     return await gemini_model_complete(
@@ -87,8 +87,16 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
     except Exception as e:
         print(f"Warning: Cognee recall failed: {e}")
     
-    historical_context_str = "\n### Historical Context from Past Queries:\n" + "\n".join([str(c) for c in past_context]) + "\n" if past_context else ""
-    custom_prompt = f"You are a knowledge synthesizer for OminiGraph-Vault. Answer the query based on the graph context.\n{historical_context_str}\nUser Query: {query_text}"
+    historical_context_str = "\\n### Historical Context from Past Queries:\\n" + "\\n".join([str(c) for c in past_context]) + "\\n" if past_context else ""
+    custom_prompt = f"""You are a knowledge synthesizer for OminiGraph-Vault. Answer the query based on the graph context.
+{historical_context_str}
+### Instructions:
+1. Output a detailed Markdown article with inline images.
+2. When the context contains image URLs (http://localhost:8765/...), include them as ![description](url) inline in the text near the relevant description.
+3. Preserve original image URLs from the context — do NOT remove or replace them.
+4. Organize with clear headings, descriptions, and references.
+
+User Query: {query_text}"""
 
     param = QueryParam(mode=mode, response_type="Detailed Markdown Article with Inline Images")
     
