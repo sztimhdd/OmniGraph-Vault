@@ -515,6 +515,46 @@ async def extract_entities(text):
 async def ingest_article(url):
     print(f"--- Starting Ingestion: {url} ---")
     
+    article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+    article_dir = os.path.join(BASE_IMAGE_DIR, article_hash)
+    os.makedirs(article_dir, exist_ok=True)
+    
+    # Cache check: if already scraped and stored, skip HTTP entirely
+    cache_content = os.path.join(article_dir, "final_content.md")
+    if os.path.exists(cache_content):
+        print(f"📦 Cached article found → reusing {cache_content}")
+        with open(cache_content, encoding='utf-8') as f:
+            full_content = f.read()
+        
+        # Load cached images metadata
+        processed_images = []
+        cache_meta = os.path.join(article_dir, "metadata.json")
+        if os.path.exists(cache_meta):
+            try:
+                meta = json.load(open(cache_meta))
+                processed_images = meta.get("images", [])
+                title = meta.get("title", "")
+            except:
+                title = ""
+        
+        # Skip scrape + image download, jump to entity extraction
+        raw_entities = await extract_entities(full_content)
+        buffer_data = {'url': url, 'raw_entities': raw_entities, 'timestamp': time.time()}
+        os.makedirs(ENTITY_BUFFER_DIR, exist_ok=True)
+        with open(os.path.join(ENTITY_BUFFER_DIR, f'{article_hash}_entities.json'), 'w') as f:
+            json.dump(buffer_data, f)
+        print(f'Buffered {len(raw_entities)} entities (from cache).')
+        _persist_entities_to_sqlite(url, raw_entities)
+        
+        try:
+            rag = await get_rag()
+            await rag.ainsert(full_content)
+        except Exception as e:
+            print(f"LightRAG insert failed: {e}")
+        
+        print(f"✅ Cached article processed (scrape skipped)")
+        return
+    
     print("Starting ingestion process...")
     
     # 1. UA spoofing (primary — fast, free, reliable)
@@ -660,6 +700,20 @@ async def ingest_article(url):
     print(f"Hash: {article_hash}")
     print(f"Method: {method}")
     print(f"Local Path: {article_dir}")
+    
+    # Update DB: store content_hash so batch processor can skip re-scrape
+    if DB_PATH.exists():
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            conn.execute("UPDATE articles SET content_hash = ? WHERE url = ?", (article_hash, url))
+            conn.execute(
+                "INSERT OR IGNORE INTO ingestions(article_id, status) VALUES ((SELECT id FROM articles WHERE url = ?), 'ok')",
+                (url,),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"DB update failed: {e}")
 
 async def ingest_pdf(file_path):
     print(f"--- Starting PDF Ingestion: {file_path} ---")
