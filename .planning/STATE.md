@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 4 of 4 (knowledge-enrichment-zhihu)
-Plan: 3 of 8 in current phase (04-00, 04-01, 04-05 complete; next 04-02 + 04-03 in Wave 2)
-Status: In progress — Wave 1 complete (all three plans merged), pending remote validation before Wave 2
-Last activity: 2026-04-27 — Wave 1b merged (04-01 image_pipeline + 04-05 zhihu-haowen-enrich skill)
+Plan: 5 of 8 in current phase (04-00, 04-01, 04-02, 04-03, 04-05 complete; next 04-04 in Wave 3)
+Status: In progress — Wave 2 merged, pending remote validation before Wave 3
+Last activity: 2026-04-27 — Wave 2 merged (04-02 extract_questions + 04-03 fetch_zhihu)
 
-Progress: [███░░░░░░░] ~37% (3 of 8 plans complete)
+Progress: [██████░░░░] ~62% (5 of 8 plans complete)
 
 ## Performance Metrics
 
