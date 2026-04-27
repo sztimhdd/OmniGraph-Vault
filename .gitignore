@@ -27,4 +27,4 @@ kol_config.py
 *.tar.gz
 
 # Spider source copies (gitignored)
-spiders/
+spiders/*.zip
