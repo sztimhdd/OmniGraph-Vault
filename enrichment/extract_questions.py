@@ -53,6 +53,11 @@ def extract_questions(article_text: str, max_q: int = DEFAULT_MAX_QUESTIONS) -> 
     from google import genai
     from google.genai import types
 
+    # CRITICAL: Hermes env has GOOGLE_GENAI_USE_VERTEXAI=true globally.
+    # This forces genai.Client to use Vertex AI which rejects API keys.
+    # Must unset before creating any client. See test report 04-06.
+    os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
+
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
     config = None
