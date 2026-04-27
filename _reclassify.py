@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
-"""Re-classify articles from a previous dry-run summary with a topic filter."""
+"""Re-classify articles from a previous dry-run summary with a topic filter.
+
+Usage:
+    python _reclassify.py <summary.json> <topic> <min_depth> [--classifier deepseek|gemini]
+"""
 import json, os, sys, requests, time, logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
+
+try:
+    from google import genai
+    from google.genai import types as genai_types
+except ImportError:
+    genai = None
+    genai_types = None
 
 API_URL = "https://api.deepseek.com/chat/completions"
 
@@ -40,34 +51,81 @@ def call_deepseek(prompt, api_key):
             content = content[start:end].strip()
     return json.loads(content)
 
+
+def get_gemini_api_key():
+    key = os.environ.get("GEMINI_API_KEY")
+    if key:
+        return key
+    auth_path = os.path.expanduser("~/.hermes/auth.json")
+    if os.path.exists(auth_path):
+        try:
+            with open(auth_path) as f:
+                pool = json.load(f).get("credential_pool", {})
+            for cred in pool.get("gemini", []):
+                if cred.get("access_token"):
+                    return cred["access_token"]
+        except Exception:
+            pass
+    return None
+
+
+def call_gemini(prompt):
+    if genai is None:
+        logger.error("google-genai package not available")
+        sys.exit(1)
+    api_key = get_gemini_api_key()
+    if not api_key:
+        logger.error("GEMINI_API_KEY not set")
+        sys.exit(1)
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash-lite",
+        contents=prompt,
+        config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+    )
+    return json.loads(response.text)
+
+
 def main():
+    # Parse optional --classifier before positional arg unpacking
+    classifier = "deepseek"
+    if "--classifier" in sys.argv:
+        idx = sys.argv.index("--classifier")
+        if idx + 1 < len(sys.argv) and sys.argv[idx + 1] in ("deepseek", "gemini"):
+            classifier = sys.argv[idx + 1]
+        del sys.argv[idx:idx + 2]
+
     _, summary_path, topic, min_depth = sys.argv[0:4]
     min_depth = int(min_depth)
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
-    if not api_key:
-        # Fallback: read from Hermes credential pool
-        auth_path = os.path.expanduser("~/.hermes/auth.json")
-        if os.path.exists(auth_path):
-            try:
-                with open(auth_path) as f:
-                    pool = json.load(f).get("credential_pool", {})
-                for cred in pool.get("deepseek", []):
-                    if cred.get("access_token"):
-                        api_key = cred["access_token"]
-                        break
-            except Exception:
-                pass
-    if not api_key:
-        logger.error("DEEPSEEK_API_KEY not set")
-        sys.exit(1)
 
     articles = [a for a in json.load(open(summary_path)) if a.get("status") == "dry_run"]
     logger.info(f"Loaded {len(articles)} dry_run articles from {summary_path}")
 
     titles = [a.get("title", "(no title)") for a in articles]
     prompt = build_prompt(titles, topic, min_depth)
-    logger.info(f"Calling DeepSeek to classify {len(titles)} articles (topic={topic})...")
-    result = call_deepseek(prompt, api_key)
+
+    if classifier == "gemini":
+        logger.info(f"Calling Gemini to classify {len(titles)} articles (topic={topic})...")
+        result = call_gemini(prompt)
+    else:
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key:
+            auth_path = os.path.expanduser("~/.hermes/auth.json")
+            if os.path.exists(auth_path):
+                try:
+                    with open(auth_path) as f:
+                        pool = json.load(f).get("credential_pool", {})
+                    for cred in pool.get("deepseek", []):
+                        if cred.get("access_token"):
+                            api_key = cred["access_token"]
+                            break
+                except Exception:
+                    pass
+        if not api_key:
+            logger.error("DEEPSEEK_API_KEY not set")
+            sys.exit(1)
+        logger.info(f"Calling DeepSeek to classify {len(titles)} articles (topic={topic})...")
+        result = call_deepseek(prompt, api_key)
 
     if isinstance(result, dict):
         for key in ("results", "articles", "classifications"):

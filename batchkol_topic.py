@@ -7,13 +7,14 @@ Usage:
 
 Pipeline (3 passes):
     Pass 1 — Scan all 20 KOL accounts -> collect (title, digest, url, account)
-    Pass 2 — Batch all titles+digests -> DeepSeek classifies -> returns qualifying URLs
+    Pass 2 — Batch all titles+digests -> classifier (DeepSeek or Gemini) -> returns qualifying URLs
     Pass 3 — Ingest survivors at 1 article/min (enforces Gemini Flash 15 RPM limit)
 
 Rate limits enforced:
     - WeChat MP API: 2s sleep between accounts during scan
     - Gemini Flash: exactly 1 ingestion per 60s minimum (subprocess per article)
-    - DeepSeek: generous limits, used for all non-Vision classification
+    - Classifier: 5s sleep before Gemini classification (15 RPM free tier)
+    - DeepSeek: generous limits, default classifier
     - Apify: credit check before batch, stop if free tier nearly exhausted
 
 NOTE: The old batchingestkolmvp.py pattern (hardcoded article list, no topic filter,
@@ -42,6 +43,13 @@ except ImportError:
     requests = None
 
 try:
+    from google import genai
+    from google.genai import types as genai_types
+except ImportError:
+    genai = None
+    genai_types = None
+
+try:
     import kol_config
 except ImportError:
     print("ERROR: kol_config.py not found. Create it locally — see docs/KOL_COLDSTART_SETUP.md")
@@ -66,6 +74,7 @@ GITHUB_REPO_RE = re.compile(r"github\.com/([^/]+/[^/\s?#]+)")
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
+GEMINI_CLASSIFY_SLEEP = 5.0   # Gemini free tier: 15 RPM
 
 
 def get_python_exe() -> str:
@@ -171,19 +180,51 @@ def _get_deepseek_api_key() -> str | None:
     return None
 
 
+def _get_gemini_api_key() -> str | None:
+    """Gemini API key is already in os.environ via config.load_env()."""
+    return os.environ.get("GEMINI_API_KEY")
+
+
+def _call_gemini(prompt: str) -> list[dict] | None:
+    """Call Gemini API and parse JSON response. Returns None on failure."""
+    if genai is None:
+        logger.warning("google-genai package not available — cannot call Gemini API")
+        return None
+    api_key = _get_gemini_api_key()
+    if not api_key:
+        logger.warning("No Gemini API key found")
+        return None
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        return json.loads(response.text)
+    except Exception as exc:
+        logger.warning("Gemini API call failed: %s", exc)
+        return None
+
+
 def classify_articles(
     articles: list[dict],
     topic_filter: str,
     min_depth: int = 2,
+    classifier: str = "deepseek",
 ) -> tuple[list[dict], list[dict]]:
     """
-    Batch-classify articles via DeepSeek. Returns (passed, filtered_out).
-    Falls back to passing all if DeepSeek unavailable or fails.
+    Batch-classify articles via DeepSeek or Gemini. Returns (passed, filtered_out).
+    Falls back to passing all if classifier unavailable or fails.
     """
-    api_key = _get_deepseek_api_key()
-    if not api_key:
-        logger.warning("No DeepSeek API key — passing all articles through unfiltered")
-        return articles, []
+    if classifier == "gemini":
+        logger.info("  Rate limit: sleeping %.0fs (Gemini free tier: 15 RPM)", GEMINI_CLASSIFY_SLEEP)
+        time.sleep(GEMINI_CLASSIFY_SLEEP)
+    else:
+        api_key = _get_deepseek_api_key()
+        if not api_key:
+            logger.warning("No DeepSeek API key — passing all articles through unfiltered")
+            return articles, []
 
     if not articles:
         return [], []
@@ -211,75 +252,82 @@ Articles:
 
 Return ONLY valid JSON, no other text."""
 
-    if requests is None:
-        logger.warning("requests unavailable — passing all articles through")
-        return articles, []
-
-    try:
-        resp = requests.post(
-            DEEPSEEK_API_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": DEEPSEEK_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.0,
-            },
-            timeout=120,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        if content.startswith("```"):
-            start = content.find("\n") + 1
-            end = content.rfind("```")
-            if end > start:
-                content = content[start:end].strip()
-        parsed = json.loads(content)
-        if isinstance(parsed, dict):
-            for key in ("results", "articles", "classifications"):
-                if key in parsed and isinstance(parsed[key], list):
-                    parsed = parsed[key]
-                    break
-        if not isinstance(parsed, list):
-            logger.warning("DeepSeek returned unexpected format — passing all through")
+    if classifier == "gemini":
+        parsed = _call_gemini(prompt)
+        if parsed is None:
+            logger.warning("Gemini classification failed — passing all through")
+            return articles, []
+    else:
+        if requests is None:
+            logger.warning("requests unavailable — passing all articles through")
             return articles, []
 
-        cls_by_idx = {int(c["index"]): c for c in parsed if "index" in c}
+        try:
+            resp = requests.post(
+                DEEPSEEK_API_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": DEEPSEEK_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.0,
+                },
+                timeout=120,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"].strip()
+            if content.startswith("```"):
+                start = content.find("\n") + 1
+                end = content.rfind("```")
+                if end > start:
+                    content = content[start:end].strip()
+            parsed = json.loads(content)
+        except Exception as exc:
+            logger.warning("DeepSeek classification failed: %s — passing all through", exc)
+            return articles, []
 
-        passed = []
-        filtered_out = []
-        for i, article in enumerate(articles):
-            cls = cls_by_idx.get(i, {})
-            depth_score = cls.get("depth_score", min_depth)
-            if not isinstance(depth_score, int) or depth_score < 1:
-                depth_score = min_depth
-            relevant = cls.get("relevant", True)
-            reason = cls.get("reason", "")
-
-            skip_reasons = []
-            if not relevant:
-                skip_reasons.append(f"off-topic ({reason or 'not about ' + topic_filter})")
-            if depth_score < min_depth:
-                skip_reasons.append(f"depth too low ({reason or 'shallow'})")
-
-            if skip_reasons:
-                filtered_out.append({
-                    **article,
-                    "filter_reason": "; ".join(skip_reasons),
-                    "depth_score": depth_score,
-                })
-            else:
-                article["depth_score"] = depth_score
-                passed.append(article)
-
-        return passed, filtered_out
-
-    except Exception as exc:
-        logger.warning("DeepSeek classification failed: %s — passing all through", exc)
+    # Shared JSON parsing and filtering (Gemini and DeepSeek converge here)
+    if isinstance(parsed, dict):
+        for key in ("results", "articles", "classifications"):
+            if key in parsed and isinstance(parsed[key], list):
+                parsed = parsed[key]
+                break
+    if not isinstance(parsed, list):
+        logger.warning("Classifier returned unexpected format — passing all through")
         return articles, []
+
+    cls_by_idx = {int(c["index"]): c for c in parsed if "index" in c}
+
+    passed = []
+    filtered_out = []
+    for i, article in enumerate(articles):
+        cls = cls_by_idx.get(i, {})
+        depth_score = cls.get("depth_score", min_depth)
+        if not isinstance(depth_score, int) or depth_score < 1:
+            depth_score = min_depth
+        relevant = cls.get("relevant", True)
+        reason = cls.get("reason", "")
+
+        skip_reasons = []
+        if not relevant:
+            skip_reasons.append(f"off-topic ({reason or 'not about ' + topic_filter})")
+        if depth_score < min_depth:
+            skip_reasons.append(f"depth too low ({reason or 'shallow'})")
+
+        if skip_reasons:
+            filtered_out.append({
+                **article,
+                "filter_reason": "; ".join(skip_reasons),
+                "depth_score": depth_score,
+            })
+        else:
+            article["depth_score"] = depth_score
+            passed.append(article)
+
+    return passed, filtered_out
 
 
 def print_dry_run_report(passed: list[dict], filtered_out: list[dict]) -> None:
@@ -307,7 +355,7 @@ def print_dry_run_report(passed: list[dict], filtered_out: list[dict]) -> None:
 
 
 def run(topic: str, max_ingest: int, days_back: int, max_per_account: int,
-        min_depth: int, dry_run: bool) -> None:
+        min_depth: int, dry_run: bool, classifier: str = "deepseek") -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     summary: list[dict] = []
 
@@ -389,8 +437,8 @@ def run(topic: str, max_ingest: int, days_back: int, max_per_account: int,
         logger.info("No articles found.")
         return
 
-    logger.info("=== Pass 2: Classifying %d articles via DeepSeek ===", len(all_articles))
-    passed, filtered_out = classify_articles(all_articles, topic_filter, min_depth)
+    logger.info("=== Pass 2: Classifying %d articles via %s ===", len(all_articles), classifier.title())
+    passed, filtered_out = classify_articles(all_articles, topic_filter, min_depth, classifier=classifier)
 
     logger.info("Classification: %d passed, %d filtered out", len(passed), len(filtered_out))
 
@@ -524,6 +572,8 @@ def main() -> None:
                         help="Max articles per account to scan (default: 20)")
     parser.add_argument("--min-depth", type=int, default=2, choices=[1, 2, 3],
                         help="Minimum depth score 1-3 (default: 2)")
+    parser.add_argument("--classifier", type=str, default="deepseek", choices=["deepseek", "gemini"],
+                        help="Classifier model: deepseek (default) or gemini")
     args = parser.parse_args()
 
     run(
@@ -533,6 +583,7 @@ def main() -> None:
         max_per_account=args.max_per_account,
         min_depth=args.min_depth,
         dry_run=args.dry_run,
+        classifier=args.classifier,
     )
 
 

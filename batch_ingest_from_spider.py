@@ -4,12 +4,12 @@ Batch ingestion bridge for WeChat KOL cold-start seeding.
 Usage:
     python batch_ingest_from_spider.py [--dry-run] [--days-back N] [--max-articles N]
                                        [--topic-filter TOPIC] [--exclude-topics TOPICS]
-                                       [--min-depth N]
+                                       [--min-depth N] [--classifier deepseek|gemini]
 
 Reads accounts from kol_config.py (local only, gitignored).
 For each account, lists recent articles via WeChat MP API.
 If --topic-filter or --exclude-topics is set, classifies all titles via
-DeepSeek API (depth_score 1-3, relevance, exclusion) and filters before ingesting.
+DeepSeek (default) or Gemini API and filters before ingesting.
 For each passing article, calls: python ingest_wechat.py "<url>"
 Writes summary JSON to data/coldstart_run_{timestamp}.json
 """
@@ -33,6 +33,13 @@ try:
 except ImportError:
     yaml = None  # type: ignore
 
+try:
+    from google import genai
+    from google.genai import types as genai_types
+except ImportError:
+    genai = None
+    genai_types = None
+
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -43,6 +50,7 @@ except ImportError:
     sys.exit(1)
 
 from spiders.wechat_spider import list_articles_with_digest as list_articles
+from spiders.wechat_spider import RATE_LIMIT_SLEEP_ACCOUNTS, RATE_LIMIT_COOLDOWN
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,6 +63,7 @@ VENV_PYTHON = str(PROJECT_ROOT / "venv" / "Scripts" / "python.exe")
 INGEST_SCRIPT = str(PROJECT_ROOT / "ingest_wechat.py")
 
 SLEEP_BETWEEN_ARTICLES = 60
+GEMINI_BATCH_SLEEP = 5.0   # Gemini free tier: 15 RPM
 
 
 def get_python_exe() -> str:
@@ -107,6 +116,25 @@ def get_deepseek_api_key() -> str | None:
             raw = cfg.get("providers", {}).get("deepseek", {}).get("api_key", "")
             if raw and not raw.startswith("${"):
                 return raw
+        except Exception:
+            pass
+    return None
+
+
+def get_gemini_api_key() -> str | None:
+    """Resolve Gemini API key from env var or ~/.hermes/.env."""
+    key = os.environ.get("GEMINI_API_KEY")
+    if key:
+        return key
+    dotenv_path = Path.home() / ".hermes" / ".env"
+    if dotenv_path.exists():
+        try:
+            for line in dotenv_path.read_text().splitlines():
+                line = line.strip()
+                if line.startswith("GEMINI_API_KEY="):
+                    val = line.split("=", 1)[1].strip().strip("\"'")
+                    if val:
+                        return val
         except Exception:
             pass
     return None
@@ -199,21 +227,51 @@ def _call_deepseek(prompt: str, api_key: str) -> list[dict] | None:
         return None
 
 
+def _call_gemini(prompt: str) -> list[dict] | None:
+    """Call Gemini API and parse JSON response. Returns None on failure."""
+    if genai is None:
+        logger.warning("google-genai package not available — cannot call Gemini API")
+        return None
+    api_key = get_gemini_api_key()
+    if not api_key:
+        logger.warning("No Gemini API key found")
+        return None
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        return json.loads(response.text)
+    except Exception as exc:
+        logger.warning("Gemini API call failed: %s", exc)
+        return None
+
+
 def batch_classify_articles(
     articles: list[dict],
     topic_filter: str | None,
     exclude_topics: str | None,
     min_depth: int,
+    classifier: str = "deepseek",
 ) -> tuple[list[dict], list[dict]]:
     """
-    Classify all article titles via DeepSeek batch API call.
+    Classify all article titles via DeepSeek or Gemini batch API call.
     Returns (passed_articles, filtered_out_articles).
     On API failure, passes all through (fail-open).
     """
-    api_key = get_deepseek_api_key()
-    if not api_key:
-        logger.warning("No DeepSeek API key found — passing all articles through")
-        return articles, []
+    is_gemini = classifier == "gemini"
+    if is_gemini:
+        api_key = get_gemini_api_key()
+        if not api_key:
+            logger.warning("No Gemini API key found — passing all articles through")
+            return articles, []
+    else:
+        api_key = get_deepseek_api_key()
+        if not api_key:
+            logger.warning("No DeepSeek API key found — passing all articles through")
+            return articles, []
 
     # Build title entries with index
     titles = [a.get("title", "(no title)") for a in articles]
@@ -225,18 +283,26 @@ def batch_classify_articles(
     for batch_start in range(0, len(titles), batch_size):
         batch_titles = titles[batch_start : batch_start + batch_size]
         batch_digests = digests[batch_start : batch_start + batch_size]
+        label = "Gemini" if is_gemini else "DeepSeek"
         logger.info(
-            "Classifying articles %d–%d of %d via DeepSeek...",
+            "Classifying articles %d–%d of %d via %s...",
             batch_start + 1,
             min(batch_start + batch_size, len(titles)),
             len(titles),
+            label,
         )
         prompt = _build_filter_prompt(batch_titles, topic_filter, exclude_topics, batch_digests)
-        result = _call_deepseek(prompt, api_key)
+        if is_gemini:
+            result = _call_gemini(prompt)
+        else:
+            result = _call_deepseek(prompt, api_key)
         if result is None:
-            logger.warning("DeepSeek API failed — passing all articles through (fail open)")
+            logger.warning("%s API failed — passing all articles through (fail open)", label)
             return articles, []
         all_classifications.extend(result)
+        if is_gemini and batch_start + batch_size < len(titles):
+            logger.info("  Rate limit: sleeping %.0fs (Gemini free tier: 15 RPM)", GEMINI_BATCH_SLEEP)
+            time.sleep(GEMINI_BATCH_SLEEP)
 
     # Build lookup by index
     cls_by_idx: dict[int, dict] = {}
@@ -322,9 +388,18 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
     topic_filter = kwargs.get("topic_filter")
     exclude_topics = kwargs.get("exclude_topics")
     min_depth = kwargs.get("min_depth", 2)
+    account_filter = kwargs.get("account_filter")
+    classifier = kwargs.get("classifier", "deepseek")
 
-    # Phase 1: Scan all accounts (with 2s throttle between accounts)
-    accounts = list(kol_config.FAKEIDS.items())
+    # Phase 1: Scan accounts (with 2s throttle between accounts)
+    all_accounts = list(kol_config.FAKEIDS.items())
+    if account_filter:
+        accounts = [(name, fid) for name, fid in all_accounts if name == account_filter]
+        if not accounts:
+            logger.error("Account '%s' not found in kol_config. Available: %s", account_filter, [n for n, _ in all_accounts])
+            return
+    else:
+        accounts = all_accounts
     total_accounts = len(accounts)
     all_articles: list[dict] = []
 
@@ -363,7 +438,7 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
             min_depth,
         )
         passed, filtered_out = batch_classify_articles(
-            all_articles, topic_filter, exclude_topics, min_depth,
+            all_articles, topic_filter, exclude_topics, min_depth, classifier=classifier,
         )
         print_filter_summary(passed, filtered_out)
     else:
@@ -433,6 +508,9 @@ def main() -> None:
     parser.add_argument("--topic-filter", type=str, default=None, help="Required topic to include (e.g. 'AI agents')")
     parser.add_argument("--exclude-topics", type=str, default=None, help="Comma-separated topics to exclude (e.g. 'OpenClaw,crypto')")
     parser.add_argument("--min-depth", type=int, default=2, choices=[1, 2, 3], help="Minimum depth score 1-3 (default: 2)")
+    parser.add_argument("--account", type=str, default=None, help="Only process this specific account name")
+    parser.add_argument("--classifier", type=str, default="deepseek", choices=["deepseek", "gemini"],
+                        help="Classifier model: deepseek (default) or gemini")
     args = parser.parse_args()
 
     run(
@@ -442,6 +520,8 @@ def main() -> None:
         topic_filter=args.topic_filter,
         exclude_topics=args.exclude_topics,
         min_depth=args.min_depth,
+        account_filter=args.account,
+        classifier=args.classifier,
     )
 
 
