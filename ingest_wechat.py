@@ -220,6 +220,16 @@ async def scrape_wechat_ua(url: str):
             if t_match:
                 title = t_match.group(1)
 
+        # --- Parse publish_time: var ct unix timestamp (primary), fallback to #publish_time element ---
+        publish_time = ""
+        ct_match = _re.search(r'var\s+ct\s*=\s*"(\d+)"', html)
+        if ct_match:
+            publish_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(ct_match.group(1))))
+        else:
+            pt_match = _re.search(r'id="publish_time"[^>]*>([^<]+)<', html)
+            if pt_match:
+                publish_time = pt_match.group(1).strip()
+
         # --- Extract article body (1-4KB text, not 3MB JS) ---
         content_html = ""
         for div_id in ["js_content", "img-content"]:
@@ -251,13 +261,13 @@ async def scrape_wechat_ua(url: str):
         for m in _re.finditer(r'data-src="(https?://mmbiz[^"]+)"', html):
             img_urls.append(m.group(1))
 
-        print(f"UA scrape: title='{title[:40]}', body={len(content_html)}B, {len(img_urls)} imgs")
+        print(f"UA scrape: title='{title[:40]}', body={len(content_html)}B, {len(img_urls)} imgs, publish_time='{publish_time}'")
         return {
             "title": title,
             "content_html": content_html,
             "img_urls": img_urls,
             "url": url,
-            "publish_time": "",
+            "publish_time": publish_time,
             "method": "ua",
         }
     except Exception as e:
