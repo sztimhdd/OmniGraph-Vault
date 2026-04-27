@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 4 of 4 (knowledge-enrichment-zhihu)
-Plan: 5 of 8 in current phase (04-00, 04-01, 04-02, 04-03, 04-05 complete; next 04-04 in Wave 3)
-Status: In progress — Wave 2 merged, pending remote validation before Wave 3
-Last activity: 2026-04-27 — Wave 2 merged (04-02 extract_questions + 04-03 fetch_zhihu)
+Plan: 6 of 8 in current phase (04-00, 04-01, 04-02, 04-03, 04-04, 04-05 complete; next 04-06 in Wave 4)
+Status: In progress — Wave 3 complete (04-04 merge_md + merge_and_ingest)
+Last activity: 2026-04-27 — Wave 3 complete (04-04 merge_and_ingest)
 
-Progress: [██████░░░░] ~62% (5 of 8 plans complete)
+Progress: [███████░░░] ~75% (6 of 8 plans complete)
 
 ## Performance Metrics
 
@@ -30,8 +30,8 @@ Progress: [██████░░░░] ~62% (5 of 8 plans complete)
 | 4 | 3/8 | ~3h | ~55 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-00 (~2h, checkpoint), 04-01 (~25 min, TDD), 04-05 (~25 min, markdown skill)
-- Trend: Improving — Wave 1b plans completed fast in parallel
+- Last 5 plans: 04-00 (~2h, checkpoint), 04-01 (~25 min, TDD), 04-05 (~25 min, markdown skill), 04-02 (~15 min), 04-03 (~25 min), 04-04 (~5 min)
+- Trend: Improving — Wave 3 plan executed extremely fast (~5 min TDD)
 
 *Updated after each plan completion*
 
@@ -60,6 +60,5 @@ None tracked.
 ## Session Continuity
 
 Last session: 2026-04-27
-Stopped at: Wave 1 complete on `gsd/phase-04` — running remote validation (pytest + D-14 spike) on Hermes PC before spawning Wave 2.
-  Commits: 04-00 chain (50628bf..e7e5cc8), 04-01 merge (via 7998e89), 04-05 merge (via 4521b18).
+Stopped at: Wave 3 complete on `gsd/phase-04` — 04-04 merge_md + merge_and_ingest committed (95e8cb8, c75f23a, f64e407). Next: 04-06 enrich_article top-level skill (Wave 4).
 Resume file: None
