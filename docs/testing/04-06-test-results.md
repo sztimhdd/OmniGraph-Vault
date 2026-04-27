@@ -75,13 +75,16 @@ os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
 
 Or set it to empty string before client creation.
 
-### 🔴 BLOCKER 2: Source panel cards in React Portal
+### 🟢 RESOLVED: Source panel cards are now reachable
 
-Zhihu's source panel renders via React Portal. The cards are NOT in the main DOM tree, not reachable via `document.querySelectorAll`, and not in the accessibility tree (snapshot). The URL is not extractable via browser_console.
+User identified stable React `data-testid` selectors:
 
-**Workaround implemented:** After getting the AI summary, fall back to a `web_search` on the main zhihu.com to find a relevant article URL.
+- **"全部来源" button:** `[data-testid="Button:reference_card_block_more_btn"]` (class: `css-175oi2r.r-1loqt21.r-1otgn73`)
+- **Source cards:** `[data-testid="Card:reference_card"]`
 
-**Skill update needed:** Step 10 of zhihu-haowen-enrich skill should document this limitation and the web_search fallback pattern.
+These are standard React testing attributes and survive UI redesigns. Cards are NOT in a React Portal — they render inside `#root`. The earlier "portal" conclusion was wrong; the cards just weren't loaded into the DOM yet when we queried.
+
+**Skill updated** with these selectors in Steps 8-10. The `web_search` fallback is now deprecated — direct DOM access works.
 
 ### 🟡 FINDING 3: Gemini model quota strategy
 

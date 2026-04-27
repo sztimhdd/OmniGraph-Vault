@@ -172,33 +172,30 @@ If the summary is empty after selector expansion: write failure haowen.json with
 
 ### Step 8 — Expand source panel
 
-Find and click an element with text matching `/全部来源\s*\d+/` (or
-`查看全部来源`, `展开来源`). Wait for source cards to render.
+Click the button: `[data-testid="Button:reference_card_block_more_btn"]` (class: `css-175oi2r.r-1loqt21.r-1otgn73`).
+Wait for the panel to render (~2s), then verify cards appear: `document.querySelectorAll('[data-testid="Card:reference_card"]')`.
 
-If no source panel is found: write failure haowen.json with
-`error: "no_sources"` and return.
+If no source panel is found: write failure haowen.json with `error: "no_sources"` and return.
 
 ### Step 9 — Pick best source card
 
-Parse the visible source cards. Heuristic (in order):
+Parse the visible source cards using the stable `data-testid="Card:reference_card"` selector.
+Each card contains: title (h3/h4), author name, follower count, like count.
+Heuristic (in order):
 1. Title contains ≥1 keyword from `<QUESTION>` (tokenize on whitespace)
 2. Highest combined 点赞 + 关注 count
-3. Falls back to the first non-ad card
+3. Falls back to the first card
 
-Skip any card that is an advertisement (class `advertisement` or iframe embed).
+Skip any card that is an advertisement.
 
-If no card survives the filter: write failure haowen.json with
-`error: "no_source_cards"` and return.
+If no card survives the filter: write failure haowen.json with `error: "no_source_cards"` and return.
 
 ### Step 10 — Click card and extract final URL
 
-Click the chosen card. Source panel cards are React components, NOT `<a>` tags —
-the URL is NOT in the DOM. You MUST click the card, wait for navigation or a new
-tab to open, then read `window.location.href` (or the new tab's URL).
-
-**React Portal limitation (verified 2026-04-27):** The source panel renders via
-React Portal — the cards may NOT be reachable via `document.querySelectorAll` or
-the accessibility tree (`browser_snapshot`). If clicking a card fails or you
+Click the selected card. Cards are React components with onClick handlers — the URL is NOT in the DOM as an `<a>` tag.
+Wait for navigation, then read `window.location.href`.
+Validate: URL must match `zhihu.com/question/.../answer/...` or `zhuanlan.zhihu.com/p/...`.
+If invalid: write failure haowen.json with `error: "bad_source_url: <url>"` and return.
 cannot find any reachable card element:
 
 **Fallback:** Use the `web_search` tool with the question as query restricted to
