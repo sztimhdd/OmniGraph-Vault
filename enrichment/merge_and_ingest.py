@@ -177,6 +177,11 @@ async def merge_and_ingest(
     wechat_text = article_path.read_text(encoding="utf-8")
     enriched_md = merge_wechat_with_haowen(wechat_text, haowen_list)
 
+    # Persist merged MD to disk so downstream auditing / test validation can
+    # observe it independent of LightRAG state. Wave 4 test criterion 7.
+    enriched_path = hash_dir / "final_content.enriched.md"
+    enriched_path.write_text(enriched_md, encoding="utf-8")
+
     # Ingest enriched WeChat MD + Zhihu docs into LightRAG
     await _ingest_to_lightrag(enriched_md, zhihu_mds, wechat_hash)
 
