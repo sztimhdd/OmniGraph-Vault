@@ -154,6 +154,33 @@ def _next_ua() -> str:
     return ua
 
 
+# Random cooldown between UA requests to avoid WeChat frequency bans
+_last_ua_request: float = 0.0
+_UA_MIN_INTERVAL = 3.0   # minimum seconds
+_UA_MAX_INTERVAL = 8.0   # maximum seconds
+_UA_SESSION_LIMIT = 40    # requests before mandatory long cooldown
+_ua_session_count = 0
+
+
+def _ua_cooldown():
+    """Enforce random delay between UA-scraped WeChat requests."""
+    global _last_ua_request, _ua_session_count
+    now = __import__("time").time()
+    elapsed = now - _last_ua_request
+    
+    if _ua_session_count >= _UA_SESSION_LIMIT:
+        cooldown = 60 + __import__("random").uniform(0, 30)
+        print(f"UA session limit ({_UA_SESSION_LIMIT}) reached. Cooling down {cooldown:.0f}s...")
+        __import__("time").sleep(cooldown)
+        _ua_session_count = 0
+    elif elapsed < _UA_MIN_INTERVAL:
+        delay = __import__("random").uniform(_UA_MIN_INTERVAL, _UA_MAX_INTERVAL)
+        __import__("time").sleep(delay)
+    
+    _last_ua_request = __import__("time").time()
+    _ua_session_count += 1
+
+
 async def scrape_wechat_ua(url: str):
     """Primary method: UA spoofing with MicroMessenger token.
     
@@ -165,6 +192,7 @@ async def scrape_wechat_ua(url: str):
     import re as _re
     
     try:
+        _ua_cooldown()
         ua = _next_ua()
         resp = await asyncio.get_event_loop().run_in_executor(
             None,
