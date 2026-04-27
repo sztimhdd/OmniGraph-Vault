@@ -133,6 +133,12 @@ async def get_rag():
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
         llm_model_name=INGEST_LLM_MODEL,
+        # Throttle concurrency to fit Gemini free-tier quotas:
+        # gemini-embedding-*: 100 RPM → serialize embeddings with max_async=1
+        # flash/flash-lite LLM: 250/20 RPD → cap LLM concurrency at 2
+        embedding_func_max_async=1,
+        embedding_batch_num=20,
+        llm_model_max_async=2,
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
