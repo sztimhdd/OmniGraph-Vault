@@ -12,6 +12,11 @@ description: |
   context retrieval from the knowledge graph, diff review, and commit decisions.
   Claude Code owns focused implementation in a single deep session.
 
+  Also covers the **post-hoc push** scenario: the user ran Claude Code
+  independently (not via ACP bridge) and asks Hermes to review, stage, commit,
+  push, and explain the changes. Trigger phrases for this variant include:
+  "帮我推送", "看看他改了啥", "Claude Code finished", "push his changes".
+
   Do NOT use this skill when: the change is a single-file edit or trivial fix
   (<20 lines) — keep it in Hermes (cheaper, faster). Do NOT use when the task
   touches skills, KG configs, or runs ingest scripts — those are Hermes territory.
@@ -41,9 +46,10 @@ metadata:
 
 | Task | Trigger | Action |
 |------|---------|--------|
-| Implement a feature | "build X", "add Y", "implement Z" | Preflight → delegate → review → commit |
-| Fix a bug | "fix X", "this is broken", "debug Y" | Preflight → delegate → review → commit |
-| Refactor | "refactor X", "rewrite Y" | Preflight → delegate → review → commit |
+| Implement a feature | "build X", "add Y", "implement Z" | Preflight → delegate → review → commit → push |
+| Fix a bug | "fix X", "this is broken", "debug Y" | Preflight → delegate → review → commit → push |
+| Refactor | "refactor X", "rewrite Y" | Preflight → delegate → review → commit → push |
+| Push Claude Code changes | "帮他推送", "push his changes", "claudecode在改代码" | Status → commit (if needed) → push → review diff |
 
 ## When to Use
 
@@ -51,6 +57,7 @@ metadata:
 - Bug fixes requiring deep codebase context (e.g., "why does X fail only when Y is null")
 - Codebase-wide refactoring (rename patterns, migrate APIs)
 - Tasks benefiting from Claude Code's autonomous file exploration (reading adjacent files, running tests)
+- **Post-hoc push**: User ran Claude Code independently and asks you to review, commit, push, and explain the diff. Trigger phrases: "帮我推送", "看看他改了啥", "push his changes", "Claudecode在改代码"
 
 ## When NOT to Use
 

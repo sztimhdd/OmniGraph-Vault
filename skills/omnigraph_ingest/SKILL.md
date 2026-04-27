@@ -99,6 +99,8 @@ Do not run `ingest.sh` for arbitrary web URLs without user confirmation.
 | `GEMINI_API_KEY` not set | "⚠️ Configuration error: GEMINI_API_KEY is not set in `~/.hermes/.env`" |
 | Apify quota exceeded | Script logs warning; CDP fallback is tried automatically — report method used |
 | CDP not reachable (`localhost:9223`) | "⚠️ CDP fallback unavailable. Start Edge: `msedge --remote-debugging-port=9223`" |
+| Gemini 429 (free tier exhausted) during entity extraction | **Root cause:** Free tier limits (5 RPM for `gemini-2.5-flash`, 15 RPM for flash-lite). LightRAG spawns 4+ concurrent workers, exhausting the quota instantly. **Fix 1:** `ingest_wechat.py` has an asyncio rate limiter in `llm_model_func` (~4 RPM, 15s between calls) — check it's present (commit `6e3fd20`). **Fix 2:** Clean accumulated pending/failed docs in `kv_store_doc_status.json` (`lightrag_storage/`) — keep only `processed` entries to prevent mass reprocessing. **Fix 3:** Switch model from `gemini-3.1-flash-lite-preview` to `gemini-2.5-flash` (better quality, same RPM limiter). **Fix 4:** The credential pool holds 2 Gemini keys (`...BJQ8` + `...uzNQ`) — Hermes rotates on 429 for the main provider, but vision calls through `auxiliary.vision` bypass the pool. |
+| Gemini 503 (model overloaded) | Transient — retry after 30s. Usually resolves. |
 | File not found (PDF path) | "⚠️ File not found: `<path>`. Check the path and try again." |
 | Script not found / venv missing | "⚠️ Setup error: venv not found. Run: `pip install -r requirements.txt` in the repo root." |
 
