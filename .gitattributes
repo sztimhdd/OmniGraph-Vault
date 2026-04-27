@@ -1,0 +1,5 @@
+# Force Unix line endings for shell scripts so they stay executable on Linux
+# even when checked out on Windows with core.autocrlf=true.
+# Caught during Phase 4 remote validation: deploy.sh failed `bash -n` on WSL
+# after CRLF was injected by git archive.
+*.sh text eol=lf

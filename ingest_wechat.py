@@ -17,7 +17,6 @@ from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 import html2text
 from google import genai
-from PIL import Image
 import numpy as np
 import cognee_wrapper
 from apify_client import ApifyClient
@@ -34,8 +33,12 @@ except ImportError as e:
 
 nest_asyncio.apply()
 
-from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR
+from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR, ENRICHMENT_MIN_LENGTH, INGEST_LLM_MODEL
 load_env()
+
+from image_pipeline import (
+    download_images, localize_markdown, describe_images, save_markdown_with_images,
+)
 
 
 def _is_mcp_endpoint(url: str) -> bool:
@@ -44,6 +47,20 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
 
 DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
+
+# Phase 4: ensure SQLite has the enriched + enrichment_id columns on
+# every deploy. init_db() is idempotent (uses _ensure_column ALTER TABLE
+# guards). Guarded by DB_PATH existence so fresh installs (no DB at all)
+# don't fail here — those get init_db() called later via batch_scan_kol.
+if DB_PATH.exists():
+    try:
+        from batch_scan_kol import init_db as _kol_init_db
+        _kol_init_db(DB_PATH)
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            "Phase 4 SQLite auto-migrate skipped: %s", _e
+        )
 
 
 def _persist_entities_to_sqlite(url: str, entities: list[str]) -> None:
@@ -94,7 +111,7 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
             system_prompt=system_prompt,
             history_messages=history_messages,
             api_key=GEMINI_API_KEY,
-            model_name="gemini-2.5-flash-lite",
+            model_name=INGEST_LLM_MODEL,
             **kwargs,
         )
 
@@ -115,24 +132,17 @@ async def get_rag():
         working_dir=RAG_WORKING_DIR,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
-        llm_model_name="gemini-2.5-flash-lite",
+        llm_model_name=INGEST_LLM_MODEL,
+        # Throttle concurrency to fit Gemini free-tier quotas:
+        # gemini-embedding-*: 100 RPM → serialize embeddings with max_async=1
+        # flash/flash-lite LLM: 250/20 RPD → cap LLM concurrency at 2
+        embedding_func_max_async=1,
+        embedding_batch_num=20,
+        llm_model_max_async=2,
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
     return rag
-
-# --- Image Processing ---
-def describe_image(image_path):
-    try:
-        vision_client = genai.Client(api_key=GEMINI_API_KEY)
-        img = Image.open(image_path)
-        response = vision_client.models.generate_content(
-            model='gemini-2.5-flash-lite',
-            contents=["Describe this image in detail for a knowledge graph. Return only the description.", img]
-        )
-        return response.text
-    except Exception as e:
-        return f"Error describing image: {e}"
 
 # --- Scraping Methods ---
 
@@ -512,7 +522,7 @@ async def extract_entities(text):
         client = genai.Client(api_key=GEMINI_API_KEY)
         prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
         response = client.models.generate_content(
-            model='gemini-2.5-flash-lite',
+            model=INGEST_LLM_MODEL,
             contents=[prompt]
         )
         entities = [e.strip() for e in response.text.split(',')]
@@ -621,44 +631,20 @@ async def ingest_article(url):
     article_dir = os.path.join(BASE_IMAGE_DIR, article_hash)
     os.makedirs(article_dir, exist_ok=True)
 
-    processed_images = []
+    # Localize + describe images via shared pipeline (D-15)
     unique_img_urls = list(dict.fromkeys([u for u in img_urls if u.startswith('http')]))
-
     print(f"Found {len(unique_img_urls)} unique potential images. Downloading and describing...")
-
-    image_success_count = 0
-    image_fail_count = 0
-
-    for i, img_url in enumerate(unique_img_urls):
-        try:
-            img_path = os.path.join(article_dir, f"{i}.jpg")
-            resp = requests.get(img_url, timeout=10)
-            if resp.status_code == 200:
-                with open(img_path, "wb") as f:
-                    f.write(resp.content)
-
-                print(f"  [Image {i}] Describing...")
-                description = describe_image(img_path)
-
-                local_url = f"http://localhost:8765/{article_hash}/{i}.jpg"
-                full_content = full_content.replace(img_url, local_url)
-
-                full_content += f"\n\n[Image {i} Reference]: {local_url}\n[Image {i} Description]: {description}\n"
-                processed_images.append({"index": i, "description": description, "local_url": local_url})
-                image_success_count += 1
-
-                if i + 1 < len(unique_img_urls):
-                    time.sleep(4)
-            else:
-                print(f"  [Image {i}] Download failed: HTTP {resp.status_code}")
-                image_fail_count += 1
-        except Exception as e:
-            print(f"  [Image {i}] Error: {e}")
-            image_fail_count += 1
-
-    total_images = image_success_count + image_fail_count
-    if total_images > 0 and image_success_count / total_images < 0.5:
-        print(f"Warning: Only {image_success_count}/{total_images} images downloaded successfully (< 50% success rate)")
+    url_to_path = download_images(unique_img_urls, Path(article_dir))
+    descriptions = describe_images(list(url_to_path.values()))
+    full_content = localize_markdown(full_content, url_to_path, article_hash=article_hash)
+    processed_images = []
+    for i, (url_img, path) in enumerate(url_to_path.items()):
+        desc = descriptions.get(path, "")
+        local_url = f"http://localhost:8765/{article_hash}/{path.name}"
+        full_content += f"\n\n[Image {i} Reference]: {local_url}\n[Image {i} Description]: {desc}\n"
+        processed_images.append({"index": i, "description": desc, "local_url": local_url})
+    image_success_count = len(url_to_path)
+    image_fail_count = len(unique_img_urls) - image_success_count
 
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
@@ -692,18 +678,18 @@ async def ingest_article(url):
     except Exception:
         pass
 
-    # Save files for inspection
-    with open(os.path.join(article_dir, "metadata.json"), "w") as f:
-        json.dump({
-            "title": title, 
-            "url": url, 
-            "hash": article_hash, 
+    # Save files via shared pipeline (atomic write, D-16)
+    save_markdown_with_images(
+        full_content,
+        Path(article_dir),
+        {
+            "title": title,
+            "url": url,
+            "hash": article_hash,
             "method": method,
-            "images": processed_images
-        }, f, indent=2)
-    
-    with open(os.path.join(article_dir, "final_content.md"), "w", encoding="utf-8") as f:
-        f.write(full_content)
+            "images": processed_images,
+        },
+    )
     
     print(f"--- Successfully Ingested! ---")
     print(f"Article: {title}")
@@ -716,6 +702,13 @@ async def ingest_article(url):
         try:
             conn = sqlite3.connect(str(DB_PATH))
             conn.execute("UPDATE articles SET content_hash = ? WHERE url = ?", (article_hash, url))
+            # D-07: mark short articles as enriched=-1 so the enrich_article skill
+            # (or batch re-enrichment job) knows to skip them permanently.
+            if len(full_content) < ENRICHMENT_MIN_LENGTH:
+                conn.execute(
+                    "UPDATE articles SET enriched = ? WHERE url = ?",
+                    (-1, url),
+                )
             conn.execute(
                 "INSERT OR IGNORE INTO ingestions(article_id, status) VALUES ((SELECT id FROM articles WHERE url = ?), 'ok')",
                 (url,),
@@ -763,7 +756,7 @@ async def ingest_pdf(file_path):
                 f.write(image_bytes)
             
             print(f"  [Page {page_index+1}, Image {img_index}] Describing...")
-            description = describe_image(img_path)
+            description = describe_images([Path(img_path)]).get(Path(img_path), "")
             
             local_url = f"http://localhost:8765/{file_hash}/{img_filename}"
             full_text += f"\n\n[Image {image_counter} Reference]: {local_url}\n[Image {image_counter} Description]: {description}\n\n"

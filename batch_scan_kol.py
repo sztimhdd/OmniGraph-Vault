@@ -91,7 +91,9 @@ def init_db(db_path: Path) -> sqlite3.Connection:
             url TEXT NOT NULL UNIQUE,
             digest TEXT,
             update_time INTEGER,
-            scanned_at TEXT DEFAULT (datetime('now', 'localtime'))
+            scanned_at TEXT DEFAULT (datetime('now', 'localtime')),
+            content_hash TEXT,
+            enriched INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS classifications (
@@ -111,6 +113,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
             article_id INTEGER NOT NULL REFERENCES articles(id),
             status TEXT NOT NULL CHECK(status IN ('ok', 'failed', 'skipped')),
             ingested_at TEXT DEFAULT (datetime('now', 'localtime')),
+            enrichment_id TEXT,
             UNIQUE(article_id)
         );
 
@@ -137,6 +140,19 @@ def init_db(db_path: Path) -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_extracted_entities_article ON extracted_entities(article_id);
     """)
     conn.commit()
+
+    # Idempotent runtime migrations. SQLite ALTER TABLE ADD COLUMN is only safe
+    # with an explicit PRAGMA table_info guard.
+    def _ensure_column(c, table: str, column: str, type_def: str) -> None:
+        cols = {row[1] for row in c.execute(f"PRAGMA table_info({table})")}
+        if column not in cols:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_def}")
+
+    _ensure_column(conn, "articles", "content_hash", "TEXT")
+    _ensure_column(conn, "articles", "enriched", "INTEGER DEFAULT 0")
+    _ensure_column(conn, "ingestions", "enrichment_id", "TEXT")
+    conn.commit()
+
     return conn
 
 

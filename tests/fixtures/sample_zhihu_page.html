@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>LightRAG多跳实体解析原理详解 - 知乎</title>
+</head>
+<body>
+  <div class="QuestionHeader">
+    <h1 class="QuestionHeader-title">LightRAG 如何实现多跳实体解析？</h1>
+  </div>
+
+  <div class="AnswerItem">
+    <div class="RichContent">
+      <div class="RichContent-inner">
+        <p>LightRAG 通过构建实体-关系图来支持多跳推理。每篇文档在插入时，系统会抽取其中的实体节点和边，存入 kuzu 图数据库中。</p>
+
+        <p>在查询阶段，系统首先在向量空间中定位最相关的实体（local 模式），然后通过图遍历扩展到相邻节点（global 模式），最终在 hybrid 模式下融合两种策略的结果，生成跨文档的综合回答。</p>
+
+        <img src="https://pic1.zhimg.com/v2-abc123_r.jpg" alt="LightRAG架构图" width="720" height="480" />
+
+        <p>实体规范化是多跳推理的关键前提。如果"大语言模型"和"LLM"被识别为两个不同节点，图遍历将无法跨越这两个等价节点之间的语义桥梁。LightRAG 内置的去重机制会在插入阶段自动合并等价实体。</p>
+
+        <img src="https://pic2.zhimg.com/v2-def456_r.jpg" alt="实体规范化示意图" width="40" height="30" />
+
+        <p>对于需要 3 跳以上推理的复杂问题，建议使用 mix 模式，它会综合 naive、local、global 三种策略的检索结果，以最大化信息覆盖。但需注意，mix 模式的 token 消耗也最高。</p>
+
+        <p>总结：LightRAG 的多跳能力来源于图结构的显式关系建模，而非依赖语言模型的隐式推理能力。这使得它在需要精确溯源的企业知识管理场景中更具优势。</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

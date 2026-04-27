@@ -1,0 +1,18 @@
+{
+  "title": "",
+  "url": "https://mp.weixin.qq.com/s/-1CQxvdc1bDMrPzIHFPpbA",
+  "hash": "8ac04218b4",
+  "method": "apify",
+  "images": [
+    {
+      "index": 0,
+      "description": "This image features a black background with text in a retro, pixelated, gaming-style aesthetic. At the top left, \"HERMES-AGENT\" appears in large, blocky yellow letters with dark outlines. Below this, centered in the frame, is a white, pixel-font header reading \"Hermes Agent\". Behind this text, a faint, dark green pixelated overlay spells \"HERMES AGENT\". The central query, \"\u5982\u4f55\u53d8\u6210\u6ee1\u914d\u7248?\" (How to become fully configured?), is written in a white, pixelated font. Beneath it, the text \"\u4e94\u5927\u914d\u7f6e\u6a21\u5757\u5de5\u5177\u6307\u5357\u6765\u4e86\" (The guide to the five major configuration module tools is here) is also displayed in white pixel-font. In the bottom right corner, there is a small circular avatar of an anime-style character with split-colored hair (blue and orange), accompanied by the handle \"@congge918\".",
+      "local_url": "http://localhost:8765/8ac04218b4/0.jpg"
+    },
+    {
+      "index": 1,
+      "description": "A close-up, circular-framed image shows a dramatic confrontation between a mechanical, robotic hand and a biological, human-like hand, both gripping a piece of dark, textured, fabric-like material between them. The robotic hand on the left is constructed of metallic plates, gears, and circuitry, featuring glowing blue energy currents. The biological hand on the right displays visible veins and muscle tissue, interwoven with subtle, thin glowing blue wires. Where the two hands meet, intense, jagged bolts of blue and green electrical sparks arc outward, illuminating the junction of organic and synthetic elements. The background consists of a dark, industrial steel wall with rivets and panel lines.",
+      "local_url": "http://localhost:8765/8ac04218b4/1.jpg"
+    }
+  ]
+}

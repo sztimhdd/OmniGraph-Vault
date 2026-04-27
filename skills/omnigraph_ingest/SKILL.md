@@ -5,7 +5,7 @@ description: |
   the OmniGraph-Vault knowledge graph. Trigger phrases include: "add this to my knowledge
   base", "ingest this article", "save this to my KB", "add to knowledge base", or any
   time a WeChat URL (mp.weixin.qq.com) or a .pdf file path is provided with intent to
-  index it.
+  index it. For the Phase 4 Zhihu-enriched production ingest path, the orchestrator calls this skill's underlying scraper but routes first through the enrich_article skill; use enrich_article when enrichment is desired.
 
   This skill handles: WeChat article scraping via Apify (primary) or CDP fallback,
   PDF extraction with embedded image processing, image downloading with Gemini Vision
@@ -123,6 +123,7 @@ For full script interface (env vars, exit codes, dispatch logic), see
 
 ## Related Skills
 
+- For Zhihu-enriched ingest (production default per Phase 4): `enrich_article` — orchestrates question extraction, 好问, and cross-referenced Zhihu ingest.
 - To query ingested content: `omnigraph_query`
 - To generate a long-form synthesis report: `omnigraph_synthesize`
 - To check graph health and statistics: `omnigraph_status`
