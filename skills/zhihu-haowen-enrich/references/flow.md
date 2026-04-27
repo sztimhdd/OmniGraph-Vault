@@ -1,97 +1,45 @@
-# Zhihu 好问 CDP Flow — Empirical Reference
+# 好问 CDP Flow — Empirical Refinements
 
-This document captures per-step selector strategy and empirical findings from
-real-world runs. Update after every skill invocation that reveals new DOM
-behavior.
+Captured from real-world test runs. Update as Zhihu UI evolves.
 
-## First-run probes (PRD §7 / RESEARCH.md §2)
+## Draft.js Input (Step 4)
 
-On the FIRST invocation of this skill on remote, capture these observations to
-refine the selectors:
+**Working method:** `document.execCommand('insertText', false, <text>)` works on current zhida.zhihu.com (verified 2026-04-27). Clear the editor first via `selectNodeContents` + `removeAllRanges` before inserting.
 
-1. Does the search entry appear immediately, or behind a "search" button click?
-2. Is the Draft.js contenteditable div reachable via role=`textbox` or `searchbox`?
-3. What exact DOM pattern marks "AI summary generation complete"? (e.g. is
-   there a `.is-complete` class, a CSS property transition, or only the
-   `完成回答` text sentinel?)
-4. What text pattern identifies the sources-panel trigger? `全部来源 N`,
-   `查看全部来源`, `展开来源`?
-5. What is the realistic AI-generation latency distribution? If p95 exceeds
-   120s, raise `ENRICHMENT_HAOWEN_TIMEOUT`.
+**Fallback:** Click "新对话" button → bottom input becomes usable with `browser_type`.
 
-Record answers inline in this file after each run (append, don't overwrite).
+## Source Panel (Steps 8-10)
 
-## Login-wall heuristic (Step 2)
+**Stable selectors (React data-testid, survive UI redesigns):**
+- Open button: `[data-testid="Button:reference_card_block_more_btn"]`
+- Cards: `[data-testid="Card:reference_card"]`
+- Clickable hotspot within card: `span.css-1jxf684` (the purple numbered badge)
 
-Login wall detected IF any of:
-- URL contains `/signin` or `/login`
-- Visible element with text `登录` inside a modal layer (not a regular link)
-- Visible image with aspect ratio ~1:1 and `alt` or data attribute containing
-  `qr` / `扫码`
-
-False positives (do NOT treat as login wall):
-- Top-bar `登录` button (always present for logged-out UI but doesn't block usage)
-- Hidden login modal that never rendered
-
-## Draft.js input (Step 4)
-
-Known-working insertion methods (in priority order):
-
-1. Click "新对话" button → new input area accepts `browser_type` directly. This
-   is the most reliable path; try it first.
-2. `document.execCommand('insertText', false, <QUESTION>)` — works in most
-   Chromium versions when the contenteditable element has focus.
-3. `contenteditable_div.focus()` + InputEvent dispatch with
-   `{inputType: 'insertText', data: <QUESTION>, bubbles: true}`
-
-**Setting `.textContent` or `.innerHTML` directly does NOT trigger Draft.js state
-updates** — the value is visually present but Zhihu ignores it on submit. This
-is a confirmed failure mode verified empirically on 2026-04-27.
-
-## Source card picker (Step 9)
-
-The best-source heuristic is a triple:
-1. Keyword overlap with the question (tokenize both on whitespace)
-2. Upvote count (`点赞数`)
-3. Follower count of the answer author (if visible in card)
-
-If all three are tied or unavailable, take the first non-ad card.
-
-Ad slots are marked with class `advertisement` or contain an `iframe` embed —
-skip those unconditionally.
-
-## Bad-URL filter (Step 10)
-
-Accept:
-- `https://www.zhihu.com/question/<qid>/answer/<aid>`
-- `https://zhuanlan.zhihu.com/p/<pid>`
-
-Reject:
-- `zhihu.com/market/...` (paid content)
-- `zhihu.com/people/...` (author profile, not an answer)
-- Any external domain (Zhihu sometimes links out to partner sites)
-
-**IMPORTANT:** Source panel cards are React components, NOT `<a>` tags. The URL
-is NOT in the DOM before click. You MUST click the card, wait for navigation or
-a new tab, and then read `window.location.href`. Do not attempt to extract the
-URL from the card's HTML before clicking.
-
-## Rate limits and retries
-
-- Per-question budget: 120s (step 6) + ~10s (all other steps) ≈ 130s ceiling
-- Whole-article budget (3 questions): ~10 minutes
-- If Zhihu rate-limits the IP, subsequent navigations will show a CAPTCHA —
-  treat as a login wall (Step 2 recovery path) and let the user resolve it via
-  Telegram.
-
-## Run log
-
-Append entries here after each real-world invocation:
+**Click method:** DOM `.click()` and synthetic React events do NOT trigger navigation (React checks `event.isTrusted`). Use CDP `Input.dispatchMouseEvent` at the exact coordinates of the numbered span:
 
 ```
-Date:
-Question:
-Step reached:
-Outcome (success / error code):
-New selector observations:
+# mouseMoved → mousePressed → mouseReleased
+# at (rect.left + rect.width/2, rect.top + rect.height/2)
 ```
+
+**New tab detection:** After click, call `Target.getTargets`. Find tab with `openerId` matching the current page's `targetId`. Read `url` from the new target.
+
+**Card quality heuristic:** Only cards WITH follower/like counts (知乎原生内容) produce zhihu.com URLs. Cards from "什么值得买"/CSDN have no zhihu article — skip them. Filter: `card has engagement data (关注/赞同)`.
+
+## GOOGLE_GENAI_USE_VERTEXAI Pitfall
+
+Hermes sets `GOOGLE_GENAI_USE_VERTEXAI=true` globally. This causes `google.genai.Client(api_key=...)` to route to Vertex AI which rejects API keys with 401.
+
+**Fix:** `os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)` before creating any `genai.Client`.
+
+All Python helpers in `enrichment/` that use `genai.Client` must include this fix.
+
+## Gemini Model Quota (2026-04 Free Tier)
+
+| Model | RPM | RPD | Notes |
+|-------|-----|-----|-------|
+| gemini-2.5-flash-lite | 15 | 20 | Exhausted quickly — avoid for pipeline |
+| gemini-2.5-flash | 10 | 250 | Separate quota from flash-lite ✅ |
+| gemini-2.5-pro | 5 | 100 | Overkill for extraction |
+
+**Recommendation:** Default `ENRICHMENT_LLM_MODEL=gemini-2.5-flash` for question extraction.
