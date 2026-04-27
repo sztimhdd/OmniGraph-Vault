@@ -19,6 +19,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 os.environ["COGNEE_LLM_API_KEY"] = GEMINI_API_KEY
 os.environ["LITELLM_API_KEY"] = GEMINI_API_KEY
 os.environ["OPENAI_API_KEY"] = GEMINI_API_KEY
+os.environ["LLM_API_KEY"] = GEMINI_API_KEY        # Cognee 1.0 unified key
 
 os.environ["LLM_PROVIDER"] = "gemini"
 os.environ["LLM_MODEL"] = "gemini-2.5-flash"
@@ -26,6 +27,8 @@ os.environ["EMBEDDING_PROVIDER"] = "gemini"
 os.environ["EMBEDDING_MODEL"] = "gemini-embedding-001"
 os.environ["EMBEDDING_DIMENSIONS"] = "768"
 os.environ["COGNEE_SKIP_CONNECTION_TEST"] = "true"
+# Cognee 1.0: disable multi-user access control (single-user personal tool)
+os.environ["ENABLE_BACKEND_ACCESS_CONTROL"] = "false"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cognee_wrapper")
@@ -44,7 +47,7 @@ except ImportError:
 # Local cache for disambiguation
 _disambiguation_cache = {}
 
-_COGNEE_TIMEOUT = 10.0
+_COGNEE_TIMEOUT = 30.0  # remember() runs add()→cognify() internally, ~15-30s on first call
 
 async def remember_synthesis(query: str, synthesis_result: str):
     if not cognee: return None
@@ -72,6 +75,54 @@ async def recall_previous_context(query: str):
     except Exception as e:
         logger.warning(f"recall error: {e}")
         return []
+
+_ARTICLE_DATASET = "ingested_articles"
+
+
+async def remember_article(
+    title: str,
+    url: str,
+    entities: list[str],
+    summary_gist: str = "",
+) -> bool:
+    """Store article metadata in Cognee episodic memory (fire-and-forget).
+
+    Per 2026 RAG best practices: dual-store at ingestion time.
+    LightRAG stores the full semantic content; Cognee stores episodic metadata
+    so queries like "what have I read about X?" can surface relevant articles.
+
+    Uses Cognee 1.0 remember() — times out at _COGNEE_TIMEOUT seconds.
+    Never raises — always returns bool.
+    """
+    if not cognee:
+        return False
+    try:
+        entity_str = ", ".join(entities[:15]) if entities else "none extracted"
+        gist = summary_gist[:500] if summary_gist else ""
+        text = (
+            f"Article: {title}\n"
+            f"URL: {url}\n"
+            f"Key entities: {entity_str}\n"
+            + (f"Summary: {gist}" if gist else "")
+        )
+        await asyncio.wait_for(
+            cognee.remember(
+                text,
+                dataset_name=_ARTICLE_DATASET,
+                self_improvement=False,
+                run_in_background=True,   # fire-and-forget: returns immediately
+            ),
+            timeout=5.0,                   # only waiting for queue, not processing
+        )
+        logger.info("remember_article stored: %s", title[:80])
+        return True
+    except asyncio.TimeoutError:
+        logger.debug("remember_article timed out (non-blocking, ok)")
+        return False
+    except Exception as e:
+        logger.debug("remember_article skipped: %s", e)
+        return False
+
 
 async def disambiguate_entities(entity_list: list):
     if not cognee: return entity_list

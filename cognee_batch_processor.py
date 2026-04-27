@@ -167,6 +167,43 @@ async def process_buffer_file(filepath, gemini_client):
     except Exception as e:
         logger.error(f"Error processing {filepath}: {e}")
 
+
+async def process_db_entities(client, db_entities: list[str]) -> None:
+    """Canonicalize entities from extracted_entities table (no entity_buffer file)."""
+    try:
+        canonical_map = _load_canonical_map()
+        new_entities = [e for e in db_entities if e not in canonical_map]
+        if not new_entities:
+            logger.info("All DB entities already in canonical map, skipping")
+            return
+
+        prompt = CANONICALIZATION_PROMPT.format(
+            existing_map=json.dumps({k: canonical_map[k] for k in list(canonical_map.keys())[:50]}),
+            entities=json.dumps(new_entities)
+        )
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json")
+        )
+
+        new_mappings = json.loads(response.text)
+        updates = 0
+        for raw_name, canonical_name in new_mappings.items():
+            if raw_name not in canonical_map and raw_name != canonical_name:
+                canonical_map[raw_name] = canonical_name
+                _save_canonical_entry(raw_name, canonical_name)
+                updates += 1
+
+        if updates > 0:
+            logger.info(f"Updated canonical map with {updates} DB-only entries.")
+        else:
+            logger.info("No new canonical mappings from DB entities.")
+    except Exception as e:
+        logger.error(f"Error processing DB entities: {e}")
+
+
 async def run_batch():
     os.makedirs(BUFFER_DIR, exist_ok=True)
 
@@ -201,6 +238,12 @@ async def run_batch():
             logger.info("Rate limit: waiting %ss (free tier: 15 RPM)", _RATE_LIMIT_SECONDS)
             time.sleep(_RATE_LIMIT_SECONDS)
         await process_buffer_file(filepath, client)
+
+    if db_entities:
+        if files:
+            logger.info("Rate limit: waiting %ss before DB entity processing", _RATE_LIMIT_SECONDS)
+            time.sleep(_RATE_LIMIT_SECONDS)
+        await process_db_entities(client, db_entities)
 
 if __name__ == "__main__":
     import asyncio
