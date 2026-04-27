@@ -33,7 +33,7 @@ except ImportError as e:
 
 nest_asyncio.apply()
 
-from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR
+from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR, ENRICHMENT_MIN_LENGTH, INGEST_LLM_MODEL
 load_env()
 
 from image_pipeline import (
@@ -47,6 +47,20 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
 
 DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
+
+# Phase 4: ensure SQLite has the enriched + enrichment_id columns on
+# every deploy. init_db() is idempotent (uses _ensure_column ALTER TABLE
+# guards). Guarded by DB_PATH existence so fresh installs (no DB at all)
+# don't fail here — those get init_db() called later via batch_scan_kol.
+if DB_PATH.exists():
+    try:
+        from batch_scan_kol import init_db as _kol_init_db
+        _kol_init_db(DB_PATH)
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            "Phase 4 SQLite auto-migrate skipped: %s", _e
+        )
 
 
 def _persist_entities_to_sqlite(url: str, entities: list[str]) -> None:
@@ -97,7 +111,7 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
             system_prompt=system_prompt,
             history_messages=history_messages,
             api_key=GEMINI_API_KEY,
-            model_name="gemini-2.5-flash-lite",
+            model_name=INGEST_LLM_MODEL,
             **kwargs,
         )
 
@@ -118,7 +132,7 @@ async def get_rag():
         working_dir=RAG_WORKING_DIR,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
-        llm_model_name="gemini-2.5-flash-lite",
+        llm_model_name=INGEST_LLM_MODEL,
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
@@ -502,7 +516,7 @@ async def extract_entities(text):
         client = genai.Client(api_key=GEMINI_API_KEY)
         prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
         response = client.models.generate_content(
-            model='gemini-2.5-flash-lite',
+            model=INGEST_LLM_MODEL,
             contents=[prompt]
         )
         entities = [e.strip() for e in response.text.split(',')]
@@ -682,6 +696,13 @@ async def ingest_article(url):
         try:
             conn = sqlite3.connect(str(DB_PATH))
             conn.execute("UPDATE articles SET content_hash = ? WHERE url = ?", (article_hash, url))
+            # D-07: mark short articles as enriched=-1 so the enrich_article skill
+            # (or batch re-enrichment job) knows to skip them permanently.
+            if len(full_content) < ENRICHMENT_MIN_LENGTH:
+                conn.execute(
+                    "UPDATE articles SET enriched = ? WHERE url = ?",
+                    (-1, url),
+                )
             conn.execute(
                 "INSERT OR IGNORE INTO ingestions(article_id, status) VALUES ((SELECT id FROM articles WHERE url = ?), 'ok')",
                 (url,),

@@ -32,6 +32,12 @@ from image_pipeline import (
     save_markdown_with_images,
 )
 
+# Hermes env has GOOGLE_GENAI_USE_VERTEXAI=true globally which forces
+# genai.Client to Vertex AI (rejects API keys). Unset at import time so
+# any downstream genai.Client (including image_pipeline.describe_images)
+# routes to the Gemini API. See test report 04-06.
+os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_DIR = Path(
