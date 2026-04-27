@@ -15,3 +15,6 @@ litellm
 instructor
 lightrag-hku
 requests
+pytest>=7.4
+pytest-asyncio>=0.23
+pytest-mock>=3.12
