@@ -331,6 +331,50 @@ Exit code 0 = all pass. Requires only `GEMINI_API_KEY`.
 
 ---
 
+## Remote Hermes Deployment (E2E testing against real deployment)
+
+A production Hermes instance runs OmniGraph-Vault on a remote PC (WSL2 Linux). It is the only place where the full skill → script → LightRAG → Gemini flow can be exercised against real deployed state: real KG data, real `~/.hermes/.env`, real gateway routing, real scraper credentials. The remote PC is also the primary dev machine for Hermes-integration work, so its git state may be ahead of GitHub.
+
+**When to use it:**
+
+- End-to-end testing of ingest / query / architect skills against deployed Hermes
+- Reproducing bugs the user reports from their actual Hermes workflow
+- Verifying a local code change behaves correctly on the target environment
+- Confirming deployed env vars, runtime data state, or KG contents
+
+**How to reach it:**
+
+SSH connection details (host, port, user, auth) are in project memory at `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/hermes_ssh.md` — loaded automatically into every session for this project via the memory index. Never commit credentials or hostnames into this repo.
+
+**Before running a remote test, always reconcile git state first:**
+
+```bash
+# Check if remote has unpushed commits before assuming local view is current
+ssh -p <port> <user>@<host> "cd ~/OmniGraph-Vault && git status -sb && git log --oneline -5"
+```
+
+If remote is ahead: push from remote, pull locally, and re-read any changed files before making recommendations. Decisions based on stale local code will mislead the user.
+
+**Typical workflow:**
+
+1. SSH into the remote PC (details from memory)
+2. `cd ~/OmniGraph-Vault && git pull --ff-only`
+3. `source venv/bin/activate` (remote uses `venv/bin/`, not `venv/Scripts/`)
+4. Reproduce the issue or run the test
+5. Capture logs and KG state changes
+6. Propose a fix locally, push, pull on remote, re-test
+
+**Remote runtime paths (WSL2 Linux):**
+
+- Code: `~/OmniGraph-Vault`
+- Runtime data: `~/.hermes/omonigraph-vault/` (typo is canonical — do not rename)
+- Env: `~/.hermes/.env`
+- Hermes gateway state: `~/.hermes/gateway.pid`, `~/.hermes/state.db`
+
+**Do NOT commit credentials, hostnames, ports, or usernames to this file.**
+
+---
+
 ## Lessons Learned
 
 - Cognee batch operations silently drop entities if the buffer path isn't checked for `.processed` markers — always verify idempotency
