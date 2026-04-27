@@ -12,7 +12,7 @@
 - **D-01** Top-level orchestration in a new Hermes skill (`enrich_article` / `omnigraph_enrich`). Python helpers are pure deterministic subprocesses; no Python→Hermes bridge.
 - **D-02** Per-question for-loop lives in the Hermes skill body (Markdown). For each question the skill invokes `zhihu-haowen-enrich` natively, then shells to `python enrichment/fetch_zhihu.py`, accumulates results, and calls `python enrichment/merge_and_ingest.py`.
 - **D-03** Contract = **one-line JSON on stdout** (small metadata + control flow, <50KB cap per Hermes `tool_output.max_bytes`) + large artifacts on disk at `~/.hermes/omonigraph-vault/enrichment/<article_hash>/<q_idx>/`. Non-zero exit + stderr on failure.
-- **D-04..D-06** Everything runs on remote WSL (`ohca.ddns.net:49221`). Dev loop = git push (Windows) → `ssh remote 'cd OmniGraph-Vault && git pull'`. No local testability of the enrichment pipeline. CI = `ssh remote 'pytest tests/...'`.
+- **D-04..D-06** Everything runs on remote WSL (connection details in private memory; never committed to this public repo). Dev loop = git push (Windows) → `ssh remote 'cd OmniGraph-Vault && git pull'`. No local testability of the enrichment pipeline. CI = `ssh remote 'pytest tests/...'`.
 - **D-07** Enrichment is **mandatory and default-on** (no `--enrich` flag). `articles.enriched`: 0=pending, 1=in-progress, 2=success (including partial ≥1 question), -1=skipped (<2000 chars), -2=all 3 failed. **Supersedes PRD §12 Phase 5 `--enrich` flag.**
 - **D-08** 3 Zhihu answers = independent LightRAG docs with metadata `enriches=<wechat_article_hash>`.
 - **D-09** 3 好问 AI summaries appended inline to the enriched WeChat MD tail; ingested as part of that MD, not as separate docs.
@@ -536,7 +536,7 @@ This is a small-budget probe (<30 min) runnable as a standalone Python script on
 - `hermes-agent.nousresearch.com/docs/user-guide/configuration/` — `tool_output.max_bytes: 50000`
 - `hermes-agent.nousresearch.com/docs/user-guide/features/skills` — skill discovery, `skills.external_dirs`
 
-### Remote SSH findings (HIGH confidence — verified on `ohca.ddns.net:49221` 2026-04-27)
+### Remote SSH findings (HIGH confidence — verified on remote WSL 2026-04-27)
 
 - `~/.hermes/hermes-agent/tools/skills_tool.py:846` — `skill_view(name, file_path=None)` native agent tool (resolves §1 open question).
 - `~/.hermes/hermes-agent/agent/skill_commands.py:306,332` — `build_skill_invocation_message`; `/skill-name` is the invocation convention.

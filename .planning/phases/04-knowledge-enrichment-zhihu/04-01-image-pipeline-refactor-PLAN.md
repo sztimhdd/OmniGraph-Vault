@@ -10,7 +10,7 @@ files_modified:
   - tests/unit/test_image_pipeline.py
   - tests/integration/test_image_pipeline_golden.py
 autonomous: true
-requirements: [D-15, D-16]
+requirements: [D-06, D-15, D-16]
 must_haves:
   truths:
     - "image_pipeline.py exports 4 functions: download_images, localize_markdown, describe_images, save_markdown_with_images"

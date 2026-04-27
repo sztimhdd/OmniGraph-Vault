@@ -20,7 +20,7 @@ files_modified:
   - scripts/phase0_delete_spike.py
   - deploy.sh
 autonomous: true
-requirements: [D-05, D-07, D-14, D-16]
+requirements: [D-04, D-05, D-07, D-10, D-14, D-16]
 must_haves:
   truths:
     - "pytest can discover and run tests from tests/ directory"
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS ingestions (
     markers = [
         "unit: unit-tier tests (fast, mocked, local-runnable)",
         "integration: integration-tier tests (remote-only, live deps)",
-        "remote: tests that must run on ohca.ddns.net WSL host",
+        "remote: tests that must run on the remote WSL host (see private memory for connection)",
     ]
     ```
 
@@ -464,9 +464,9 @@ CREATE TABLE IF NOT EXISTS ingestions (
     # deploy.sh — Windows-local → remote WSL sync for Phase 4 dev loop.
     #
     # Required env vars (set in your shell, NEVER committed):
-    #   OMNIGRAPH_SSH_HOST   remote hostname (e.g. ohca.ddns.net)
-    #   OMNIGRAPH_SSH_PORT   SSH port (e.g. 49221)
-    #   OMNIGRAPH_SSH_USER   remote username
+    #   OMNIGRAPH_SSH_HOST   remote hostname (set in your shell; never committed)
+    #   OMNIGRAPH_SSH_PORT   SSH port (set in your shell; never committed)
+    #   OMNIGRAPH_SSH_USER   remote username (set in your shell; never committed)
     # Optional:
     #   OMNIGRAPH_REMOTE_DIR remote repo path (default: ~/OmniGraph-Vault)
     #
@@ -515,7 +515,7 @@ CREATE TABLE IF NOT EXISTS ingestions (
     - File `deploy.sh` exists at repo root and passes `bash -n deploy.sh` (syntax check)
     - `grep -q "OMNIGRAPH_SSH_HOST" deploy.sh` succeeds
     - `grep -q "git pull --ff-only" deploy.sh` succeeds
-    - `grep -vE "^#|^$" deploy.sh | grep -v "OMNIGRAPH_SSH_HOST" | grep -E "(ohca\.ddns\.net|49221|sztimhdd)"` returns NO matches (i.e., no committed hostnames/ports/users)
+    - The executor MUST run a credential-leakage anti-regression grep using the actual hostname/port/username values (read from their local env vars, NOT hardcoded here) and confirm `grep -vE "^#|^$" deploy.sh | grep -v "OMNIGRAPH_SSH_" | grep -E "$OMNIGRAPH_SSH_HOST|$OMNIGRAPH_SSH_PORT|$OMNIGRAPH_SSH_USER"` returns NO matches. This check must pass before the plan is marked complete.
     - `grep -q "set -euo pipefail" deploy.sh` succeeds
     - File `tests/fixtures/golden_articles.txt` exists
   </acceptance_criteria>
