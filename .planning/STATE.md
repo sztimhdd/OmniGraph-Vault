@@ -57,9 +57,28 @@ None tracked.
 ### Blockers/Concerns
 
 - Phase 4 runtime depends on remote Edge CDP (`localhost:9223`) being available for Zhihu fetch integration tests; integration tests in wave 2+ may be stubbed until a live CDP is reachable.
+- **Gemini free-tier 20-RPM burst on `flash-lite`**: LightRAG default launches 4 parallel workers × ~2-5 chunks per doc = instant quota saturation. Environmental, not a phase-4 bug. Sequential-worker mode (`llm_model_max_async=1`) would fix but is out of phase-4 scope.
+- **SQLite migration deployment gap (ACTION REQUIRED for 04-07)**: 04-00's `_ensure_column` migration only runs when `batch_scan_kol.init_db()` is called. The live `~/OmniGraph-Vault/data/kol_scan.db` had no `enriched` column until the orchestrator manually ran `init_db()` during Wave 3 validation. 04-07 must formalize this as either (a) an auto-migrate on `ingest_wechat.py` startup or (b) a documented `python -c "from batch_scan_kol import init_db; init_db(path)"` deploy step in README.
+- **Spike script async race (non-blocking)**: `scripts/phase0_delete_spike.py` doesn't await LightRAG's async entity extraction before measuring counts — its report contract passes but entity counts are vacuous. Documented in `phase0_spike_report.md`. Not blocking; ticketable refactor later.
+
+## Waiting / Blocked On
+
+**Wave 4 E2E test by user**: `docs/testing/04-06-enrich_article-manual-test.md` (on branch `gsd/phase-04`, pushed to `origin/gsd/phase-04` as of commit `4f0aa5c`). User runs this on the remote Hermes PC via interactive `hermes agent` session — drives the full `enrich_article` orchestration (extract_questions → zhihu-haowen-enrich × N → fetch_zhihu × N → merge_and_ingest).
+
+Expected outcomes from that test (fills gaps SSH can't cover):
+- D-13 Telegram login-recovery fallback actually fires and works
+- Per-question for-loop is correctly executed by the Hermes agent (not mis-skipping questions)
+- CDP → Zhihu → image filter → Vision → LightRAG full pipeline end-to-end on one real article
+- Acceptance checklist in §4 of the test guide
+
+When user returns with results:
+- If PASS: proceed to Wave 5 (04-07) — and ensure 04-07 closes the SQLite-migration deployment gap listed above.
+- If FAIL with 04-06 defects: fix `skills/enrich_article/` on `gsd/phase-04`, redeploy, retest.
+- If FAIL with upstream defects (e.g., 04-05 D-13 broken): open gap-closure plan, fix, retest.
 
 ## Session Continuity
 
 Last session: 2026-04-27
-Stopped at: Wave 4 complete on `gsd/phase-04` — 04-06 enrich_article SKILL.md + README.md committed (1f4102c, 17f6146). Next: 04-07 ingest_wechat integration (D-07 enriched=-1 marker + omnigraph_ingest strip).
-Resume file: None
+Stopped at: Wave 4 complete on `gsd/phase-04` (pushed to origin as of `4f0aa5c`) — 04-06 enrich_article SKILL.md + README.md + manual test guide. Orchestrator compacted context here while waiting for user's manual Hermes E2E test results before starting Wave 5 (04-07 ingest_wechat integration).
+Resume file: `docs/testing/04-06-enrich_article-manual-test.md`
+Next command after test results return: plan/execute 04-07 with SQLite-migration deploy-step added to its scope.
