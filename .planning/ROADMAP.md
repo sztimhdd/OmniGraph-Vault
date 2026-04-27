@@ -35,7 +35,7 @@ refactored out of `ingest_wechat.py` into a shared `image_pipeline.py`.
 **Plans:** 8 plans in 6 waves
 
 Plans:
-- [ ] 04-00-wave0-scaffold-and-spike-PLAN.md — pytest scaffold, SQLite migration, LightRAG delete+reinsert spike (D-14), deploy.sh, golden-file fixture capture
+- [x] 04-00-wave0-scaffold-and-spike-PLAN.md — pytest scaffold, SQLite migration, LightRAG delete+reinsert spike (D-14), deploy.sh, golden-file fixture capture (completed 2026-04-27)
 - [ ] 04-01-image-pipeline-refactor-PLAN.md — extract image_pipeline.py from ingest_wechat.py (4 public functions), golden-file regression gate
 - [ ] 04-02-extract-questions-PLAN.md — enrichment/extract_questions.py: Gemini 2.5 Flash Lite + google_search grounding, D-03 stdout contract
 - [ ] 04-03-fetch-zhihu-PLAN.md — enrichment/fetch_zhihu.py: CDP fetch + image_pipeline reuse, <100px image filter, image namespacing
