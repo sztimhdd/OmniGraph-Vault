@@ -4,9 +4,13 @@ Respects Gemini API RPM limits by adding delays between articles.
 """
 import sys
 import os
+import sqlite3
 import time
 import asyncio
 import json
+from pathlib import Path
+
+DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -46,10 +50,20 @@ async def ingest_one(url, index):
 async def main():
     results = []
 
-    # Check which articles are already ingested (by entity buffer)
+    # Check which articles are already ingested (DB-first, entity buffer fallback)
     from config import ENTITY_BUFFER_DIR
-    existing = set()
-    if os.path.exists(ENTITY_BUFFER_DIR):
+    existing: set[str] = set()
+    if DB_PATH.exists():
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute("SELECT url FROM articles WHERE id IN (SELECT article_id FROM ingestions WHERE status='ok')").fetchall()
+            conn.close()
+            for (url,) in rows:
+                import hashlib
+                existing.add(hashlib.md5(url.encode()).hexdigest()[:10])
+        except Exception:
+            pass
+    if not existing and os.path.exists(ENTITY_BUFFER_DIR):
         for f in os.listdir(ENTITY_BUFFER_DIR):
             if f.endswith("_entities.json"):
                 existing.add(f.split("_")[0])

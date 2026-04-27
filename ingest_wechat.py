@@ -5,6 +5,8 @@ import hashlib
 import requests
 import re
 import time
+import sqlite3
+from pathlib import Path
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -40,6 +42,30 @@ def _is_mcp_endpoint(url: str) -> bool:
     return bool(url) and url.rstrip("/").endswith("/mcp")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
+
+DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
+
+
+def _persist_entities_to_sqlite(url: str, entities: list[str]) -> None:
+    """Write extracted entities to kol_scan.db if it exists. No-op otherwise."""
+    if not DB_PATH.exists():
+        return
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        article = conn.execute("SELECT id FROM articles WHERE url = ?", (url,)).fetchone()
+        if article:
+            article_id = article[0]
+            for entity in entities:
+                conn.execute(
+                    "INSERT OR IGNORE INTO extracted_entities(article_id, entity_name) VALUES (?, ?)",
+                    (article_id, entity.strip()),
+                )
+            conn.commit()
+    except Exception:
+        pass  # entity_buffer files remain the primary path
+    finally:
+        conn.close()
+
 
 os.makedirs(BASE_IMAGE_DIR, exist_ok=True)
 os.makedirs(RAG_WORKING_DIR, exist_ok=True)
@@ -459,11 +485,26 @@ async def ingest_article(url):
         with open(os.path.join(ENTITY_BUFFER_DIR, f'{article_hash}_entities.json'), 'w') as f:
             json.dump(buffer_data, f)
         print(f'Buffered {len(raw_entities)} entities for async processing.')
+        _persist_entities_to_sqlite(url, raw_entities)
     except Exception as e:
         print(f'Warning: Entity buffering failed: {e}')
-        
+        raw_entities = []
+
     await rag.ainsert(full_content)
-    
+
+    # Cognee episodic memory: fire-and-forget article metadata
+    # Per 2026 RAG best practices — dual-store: LightRAG (semantic) + Cognee (episodic)
+    # Never blocks the fast path — timeout 5s, all exceptions swallowed
+    try:
+        await cognee_wrapper.remember_article(
+            title=title,
+            url=url,
+            entities=raw_entities,
+            summary_gist=full_content[:1000],
+        )
+    except Exception:
+        pass
+
     # Save files for inspection
     with open(os.path.join(article_dir, "metadata.json"), "w") as f:
         json.dump({
@@ -550,6 +591,7 @@ async def ingest_pdf(file_path):
         with open(os.path.join(ENTITY_BUFFER_DIR, f'{article_hash}_entities.json'), 'w') as f:
             json.dump(buffer_data, f)
         print(f'Buffered {len(raw_entities)} entities for async processing.')
+        _persist_entities_to_sqlite(file_path, raw_entities)
     except Exception as e:
         print(f'Warning: Entity buffering failed: {e}')
 

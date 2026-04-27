@@ -1,12 +1,15 @@
 import os
 import json
+import sqlite3
 import sys
+from pathlib import Path
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 
 from config import RAG_WORKING_DIR, load_env, CANONICAL_MAP_FILE
 load_env()
+DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 import asyncio
@@ -51,18 +54,27 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
     if hasattr(rag, "initialize_storages"): await rag.initialize_storages()
         
     await asyncio.sleep(2)
-    # Apply canonical mapping if exists
-    map_file = str(CANONICAL_MAP_FILE)
-    if os.path.exists(map_file):
+    # Apply canonical mapping if exists (DB-first, JSON fallback)
+    canonical_map = {}
+    if DB_PATH.exists():
         try:
-            with open(map_file, "r") as f:
-                canonical_map = json.load(f)
-            # Simple text replace for exact matches - robust mapping logic
-            for raw, canonical in canonical_map.items():
-                if raw in query_text:
-                    query_text = query_text.replace(raw, canonical)
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute("SELECT raw_name, canonical_name FROM entity_canonical").fetchall()
+            conn.close()
+            canonical_map = dict(rows)
         except Exception as e:
-            print(f"Warning: Failed to load canonical map: {e}")
+            print(f"Warning: Failed to load canonical map from DB: {e}")
+    if not canonical_map:
+        map_file = str(CANONICAL_MAP_FILE)
+        if os.path.exists(map_file):
+            try:
+                with open(map_file, "r") as f:
+                    canonical_map = json.load(f)
+            except Exception as e:
+                print(f"Warning: Failed to load canonical map: {e}")
+    for raw, canonical in canonical_map.items():
+        if raw in query_text:
+            query_text = query_text.replace(raw, canonical)
 
     past_context = []
     try:

@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import sqlite3
 import time
 from pathlib import Path
 
@@ -39,6 +40,56 @@ from google.genai import types
 from config import ENTITY_BUFFER_DIR, CANONICAL_MAP_FILE
 BUFFER_DIR = str(ENTITY_BUFFER_DIR)
 MAP_FILE = str(CANONICAL_MAP_FILE)
+DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
+
+
+def _load_canonical_map() -> dict:
+    """Load canonical map. DB-first, JSON fallback."""
+    if DB_PATH.exists():
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute("SELECT raw_name, canonical_name FROM entity_canonical").fetchall()
+            conn.close()
+            if rows:
+                return dict(rows)
+        except Exception:
+            pass
+    if os.path.exists(MAP_FILE):
+        try:
+            with open(MAP_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _save_canonical_entry(raw: str, canonical: str) -> None:
+    """Persist one canonical mapping. DB-first, JSON fallback."""
+    if DB_PATH.exists():
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            conn.execute(
+                "INSERT OR REPLACE INTO entity_canonical(raw_name, canonical_name) VALUES (?, ?)",
+                (raw, canonical),
+            )
+            conn.commit()
+            conn.close()
+            return
+        except Exception:
+            pass
+    # File fallback
+    canonical_map = {}
+    if os.path.exists(MAP_FILE):
+        try:
+            with open(MAP_FILE, 'r') as f:
+                canonical_map = json.load(f)
+        except Exception:
+            pass
+    canonical_map[raw] = canonical
+    tmp_file = MAP_FILE + ".tmp"
+    with open(tmp_file, 'w') as f:
+        json.dump(canonical_map, f, indent=2, ensure_ascii=False)
+    os.rename(tmp_file, MAP_FILE)
 
 CANONICALIZATION_PROMPT = """You are an entity canonicalization engine. Your job is to merge entity names that
 refer to the same real-world thing, even across languages.
@@ -77,10 +128,7 @@ async def process_buffer_file(filepath, gemini_client):
 
         logger.info(f"Processing {len(raw_entities)} entities from {filepath}")
 
-        canonical_map = {}
-        if os.path.exists(MAP_FILE):
-            with open(MAP_FILE, 'r') as f:
-                canonical_map = json.load(f)
+        canonical_map = _load_canonical_map()
 
         existing_entities = list(canonical_map.keys())
         new_entities = [e for e in raw_entities if e not in canonical_map]
@@ -105,14 +153,11 @@ async def process_buffer_file(filepath, gemini_client):
         for raw_name, canonical_name in new_mappings.items():
             if raw_name not in canonical_map and raw_name != canonical_name:
                 canonical_map[raw_name] = canonical_name
+                _save_canonical_entry(raw_name, canonical_name)
                 updates += 1
 
         if updates > 0:
-            tmp_file = MAP_FILE + ".tmp"
-            with open(tmp_file, 'w') as f:
-                json.dump(canonical_map, f, indent=2, ensure_ascii=False)
-            os.rename(tmp_file, MAP_FILE)
-            logger.info(f"Updated canonical_map with {updates} new entries.")
+            logger.info(f"Updated canonical map with {updates} new entries.")
         else:
             logger.info("No new canonical mappings found.")
 
@@ -124,17 +169,36 @@ async def process_buffer_file(filepath, gemini_client):
 
 async def run_batch():
     os.makedirs(BUFFER_DIR, exist_ok=True)
+
+    # DB-first entity discovery: check extracted_entities not yet canonicalized
+    db_entities: list[str] = []
+    if DB_PATH.exists():
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute("""
+                SELECT DISTINCT e.entity_name
+                FROM extracted_entities e
+                WHERE e.entity_name NOT IN (SELECT raw_name FROM entity_canonical)
+                LIMIT 200
+            """).fetchall()
+            conn.close()
+            db_entities = [r[0] for r in rows]
+        except Exception as exc:
+            logger.warning("DB entity query failed, falling back to files: %s", exc)
+
+    # File-based discovery (always runs — entity_buffer files are canonical source)
     files = [f for f in os.listdir(BUFFER_DIR) if f.endswith('_entities.json')]
-    if not files:
-        logger.info("No new entity files to process.")
+    if not files and not db_entities:
+        logger.info("No new entities to process.")
         return
 
     client = genai.Client(api_key=GEMINI_API_KEY)
-    logger.info(f"Found {len(files)} files to process in batch.")
+    logger.info("Processing: %d entity_buffer files, %d DB-only entities", len(files), len(db_entities))
+
     for i, file in enumerate(files):
         filepath = os.path.join(BUFFER_DIR, file)
         if i > 0:
-            logger.info(f"Rate limit: waiting {_RATE_LIMIT_SECONDS}s (free tier: 15 RPM)")
+            logger.info("Rate limit: waiting %ss (free tier: 15 RPM)", _RATE_LIMIT_SECONDS)
             time.sleep(_RATE_LIMIT_SECONDS)
         await process_buffer_file(filepath, client)
 
