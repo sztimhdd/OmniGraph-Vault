@@ -1,5 +1,6 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 markers = [
     "unit: unit-tier tests (fast, mocked, local-runnable)",
