@@ -9,8 +9,8 @@ PYTHON="$REPO_ROOT/venv/bin/python"
 SCAN_SCRIPT="$REPO_ROOT/batch_scan_kol.py"
 
 # --- Session warm-up (Hermes executes this via browser_navigate before calling us) ---
-# If session is cold, the Python script will get ret=200013 on the first account.
-# Hermes should run: browser_navigate "https://mp.weixin.qq.com" → sleep 3
+# Hermes should run the Decision Tree in SKILL.md to restore session first:
+#   browser_navigate → if "请重新登录" → browser_click "登录" → verify dashboard
 # before invoking this script.  See SKILL.md decision tree.
 
 # --- Run scan ---

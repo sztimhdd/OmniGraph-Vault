@@ -35,16 +35,23 @@ hermes cronjob add \
 
 ### Trigger: user asks to scan
 
-1. Run `scripts/scan_kol.sh`
-2. If script succeeds → show summary (N new articles across M accounts)
-3. If script fails with session error → attempt browser refresh via `browser_navigate` to `https://mp.weixin.qq.com`, wait 3s, retry once
-4. If retry still fails → deliver notification to the user via Telegram:
-   "WeChat MP session expired. Please refresh mp.weixin.qq.com in your browser, then say 'scan KOL'."
+1. **Check session**: `browser_navigate` to `https://mp.weixin.qq.com/cgi-bin/home`
+2. **If dashboard visible** (user stats, recent articles) → session active, run `scripts/scan_kol.sh`
+3. **If "请重新登录" visible** → session expired but cookies still valid:
+   - `browser_click` on the "登录" link/button
+   - Wait 3s for redirect to dashboard
+   - Verify with `browser_snapshot` (look for user content)
+   - Then run `scripts/scan_kol.sh`
+4. **If clicking login still shows re-login page** → cookies truly expired, notify user via Telegram: "WeChat MP session expired. Please open mp.weixin.qq.com in your browser, scan the QR code, then say 'scan KOL'."
 
 ### Trigger: cron fires
 
-Same as above, but on session failure, always deliver Telegram notification
+Same as above, but on cookie-level failure, deliver Telegram notification
 (since user may not be watching the chat).
+
+### Retry on rate limit
+
+If `scan_kol.sh` exits with SESSION_ERROR (ret=200013 mid-scan), wait 30 minutes then re-run the full Decision Tree (step 1–4). If retry also fails, stop and notify.
 
 ## Guard Clauses
 
