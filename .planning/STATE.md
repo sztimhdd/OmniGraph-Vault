@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 4 of 4 (knowledge-enrichment-zhihu)
-Plan: 6 of 8 in current phase (04-00, 04-01, 04-02, 04-03, 04-04, 04-05 complete; next 04-06 in Wave 4)
-Status: In progress — Wave 3 complete (04-04 merge_md + merge_and_ingest)
-Last activity: 2026-04-27 — Wave 3 complete (04-04 merge_and_ingest)
+Plan: 7 of 8 in current phase (04-00, 04-01, 04-02, 04-03, 04-04, 04-05, 04-06 complete; next 04-07 ingest_wechat integration)
+Status: In progress — Wave 4 complete (04-06 enrich_article top-level skill, Hermes discovery confirmed)
+Last activity: 2026-04-27 — Wave 4 complete (04-06 enrich_article SKILL.md + README.md, deployed + discovered on remote)
 
-Progress: [███████░░░] ~75% (6 of 8 plans complete)
+Progress: [████████░░] ~87.5% (7 of 8 plans complete)
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Recent decisions affecting current work:
 - 04-00: LightRAG spike script created locally; remote execution is the Wave 1 gate (phase0_spike_report.md) — pending at time of this STATE update
 - 04-01: TDD-first refactor; image_pipeline.py exports 4 public functions; ingest_wechat.py had two orphans cleaned (removed `from PIL import Image` and a stale `describe_image()` call in `ingest_pdf`)
 - 04-05: Pure-Markdown Hermes skill (D-02); task 5.3 remote connectivity smoke-test passed; full E2E skill invocation deferred (requires interactive Hermes session after deploy)
+- 04-06: enrich_article top-level skill (D-01/D-02); 208-line SKILL.md with 4-step orchestration + per-question for-loop; deployed via scp (remote has untracked zhihu-haowen-enrich blocking git checkout); `hermes skills list` confirmed `enrich_article | local | local | enabled`
 
 ### Pending Todos
 
@@ -60,5 +61,5 @@ None tracked.
 ## Session Continuity
 
 Last session: 2026-04-27
-Stopped at: Wave 3 complete on `gsd/phase-04` — 04-04 merge_md + merge_and_ingest committed (95e8cb8, c75f23a, f64e407). Next: 04-06 enrich_article top-level skill (Wave 4).
+Stopped at: Wave 4 complete on `gsd/phase-04` — 04-06 enrich_article SKILL.md + README.md committed (1f4102c, 17f6146). Next: 04-07 ingest_wechat integration (D-07 enriched=-1 marker + omnigraph_ingest strip).
 Resume file: None
