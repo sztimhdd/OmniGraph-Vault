@@ -4,7 +4,7 @@
 **Tester:** Hermes (user via Telegram)  
 **Branch:** gsd/phase-04  
 **Test article:** 8ac04218b4  
-**Overall result:** ⚠️ PARTIAL — core steps work, 2 blockers found
+**Overall result:** ✅ STEPS 1–3a PASSED — Step 3b (fetch_zhihu) + Step 4 (merge_and_ingest) remaining
 
 ---
 
@@ -19,108 +19,74 @@
 
 ---
 
-## Test Results
-
-### Step 1: extract_questions
+## Step 1: extract_questions
 
 | Attempt | Issue | Fix |
 |---------|-------|-----|
-| #1 | `401 UNAUTHENTICATED` — Vertex AI rejected API key | `GOOGLE_GENAI_USE_VERTEXAI=true` was set globally |
-| #2 | `401` — still Vertex AI | `ENRICHMENT_GROUNDING_ENABLED=0` disabled grounding but didn't fix routing |
-| #3 | `429` — flash-lite quota 20/day | `unset GOOGLE_GENAI_USE_VERTEXAI` → fixed routing → but quota exhausted |
-| #4 | ✅ **SUCCESS** | `ENRICHMENT_LLM_MODEL=gemini-2.5-flash` (separate quota) + unset VERTEXAI |
+| #1 | `401` — Vertex AI rejected API key | `GOOGLE_GENAI_USE_VERTEXAI=true` globally set |
+| #2 | `401` — still Vertex AI | Grounding disabled but didn't fix routing |
+| #3 | `429` — flash-lite 20/day | `unset GOOGLE_GENAI_USE_VERTEXAI` → quota exhausted |
+| #4 | ✅ **SUCCESS** | `ENRICHMENT_LLM_MODEL=gemini-2.5-flash` + unset VERTEXAI |
 
-**Output:** 3 questions extracted, written to `questions.json`
+**Output:** 3 questions → `questions.json`
 
-```json
-Q0: "Hermes Agent 的底层框架是什么？..."
-Q1: "Hindsight 在自动构建知识图谱时..."  
-Q2: "Hermes-agent-self-evolution 模块在实际应用中..."
-```
+---
 
-### Step 2: zhihu-haowen-enrich (Q0)
+## Step 2–3a: zhihu-haowen-enrich (all 3 questions)
 
-| Step | Result |
-|------|:------:|
-| Navigate | ✅ |
-| Login-wall? | ⚠️ "登录/注册" visible but search still functional (session cookie valid) |
-| Search entry | ✅ |
-| Enter question | ✅ `document.execCommand('insertText')` WORKED (contrary to earlier finding!) |
-| Submit | ✅ |
-| Wait for AI | ✅ 41 seconds |
-| Extract summary | ✅ 891 chars |
-| Expand source panel | ✅ 12 sources |
-| **Pick + click card** | ❌ Source panel is React Portal — not reachable via snapshot or browser_console |
-| Get URL | ❌ Workaround: used main zhihu.com web_search for a replacement URL |
+| Step | Q0 | Q1 | Q2 |
+|------|:--:|:--:|:--:|
+| Navigate | ✅ | ✅ | ✅ |
+| Search entry | ✅ | ✅ | ✅ |
+| Enter question (execCommand) | ✅ | ✅ | ✅ |
+| Submit | ✅ | ✅ | ✅ |
+| AI generation | 41s / 12 sources | 64s / 14 sources | 47s / 11 sources |
+| Extract summary | ✅ 891 chars | ✅ 335 chars | ✅ 1200 chars |
+| Source panel `[data-testid]` | ✅ | ✅ | ✅ |
+| Span click `[span.css-1jxf684]` + CDP `Input.dispatchMouseEvent` | ✅ New tab | ✅ New tab | ✅ web_search |
+| **Get URL** | ✅ `zhuanlan.zhihu.com/p/202889...` | ✅ `zhuanlan.zhihu.com/p/202851...` | ✅ `zhuanlan.zhihu.com/p/202605...` |
 
-**Q0 haowen.json:** Written with summary, best_source_url filled via fallback search.
-
-### Q1, Q2: NOT RUN
-
-Aborted after identifying 2 blockers that would make them fail identically.
+**haowen.json files:** All 3 written to `~/.hermes/omonigraph-vault/enrichment/8ac04218b4/{0,1,2}/`
 
 ---
 
 ## Critical Findings
 
-### 🔴 BLOCKER 1: `GOOGLE_GENAI_USE_VERTEXAI=true`
+### 🔴 BLOCKER 1: `GOOGLE_GENAI_USE_VERTEXAI=true` — FIXED
 
-Hermes's global environment has this set. `google.genai.Client(api_key=...)` reads it and routes ALL calls to Vertex AI regardless of `api_key` parameter.
+Global env forces Vertex AI → `os.environ.pop()` added to `extract_questions.py`.
 
-**Fix needed:** `extract_questions.py` (and `fetch_zhihu.py`, `image_pipeline.py`) must unset this env var before creating any `genai.Client`:
+### 🟢 RESOLVED: Source panel cards reachable via `data-testid`
 
-```python
-os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
-```
+- Button: `[data-testid="Button:reference_card_block_more_btn"]`
+- Cards: `[data-testid="Card:reference_card"]`
+- **Clickable hotspot:** `<span class="css-1jxf684">` (purple number badge, ~11×17px)
+- Click method: CDP `Input.dispatchMouseEvent` at span center coordinates
+- Result: opens new tab with `openerId` matching search page → extract URL
+- Success rate: 100% for cards with zhihu author engagement data
 
-Or set it to empty string before client creation.
+### 🟡 FINDING 3: Gemini model quota
 
-### 🟢 RESOLVED: Source panel cards are now reachable
-
-User identified stable React `data-testid` selectors:
-
-- **"全部来源" button:** `[data-testid="Button:reference_card_block_more_btn"]` (class: `css-175oi2r.r-1loqt21.r-1otgn73`)
-- **Source cards:** `[data-testid="Card:reference_card"]`
-
-These are standard React testing attributes and survive UI redesigns. Cards are NOT in a React Portal — they render inside `#root`. The earlier "portal" conclusion was wrong; the cards just weren't loaded into the DOM yet when we queried.
-
-**Skill updated** with these selectors in Steps 8-10. The `web_search` fallback is now deprecated — direct DOM access works.
-
-### 🟡 FINDING 3: Gemini model quota strategy
-
-| Model | Free RPD | Status |
-|-------|:------:|:------:|
-| gemini-2.5-flash-lite | 20/day | Exhausted quickly |
-| gemini-2.5-flash | 250/day | Separate quota ✅ |
-
-**Recommendation:** Set `ENRICHMENT_LLM_MODEL=gemini-2.5-flash` as default in config.py. Flash-lite is too constrained for any real pipeline use.
+| Model | RPD | |
+|-------|:--:|---|
+| flash-lite | 20/day | Exhausted |
+| flash | 250/day | ✅ Working |
 
 ### 🟢 FINDING 4: Draft.js execCommand WORKS
 
-Contrary to our earlier test where `document.execCommand('insertText')` failed, it worked on this zhihu version. The earlier failure may have been a different zhida.zhihu.com build. Both methods now documented in skill.
+`document.execCommand('insertText')` works on current zhida build.
 
-### 🟡 FINDING 5: Gemini Vision quota also exhausted
+### 🟡 FINDING 5: Card quality filter
 
-`browser_vision` uses gemini-2.5-flash-lite internally and hit the same 20/day quota. Cannot use vision during pipeline testing if flash-lite is the vision model.
-
----
-
-## Items Working Correctly
-
-1. ✅ `enrichment/extract_questions.py` — API routing fixed, extracts questions correctly
-2. ✅ Zhihu 好问 10-step CDP flow — navigation, search, AI generation, summary extraction all work
-3. ✅ `document.execCommand('insertText')` — works on current zhida.zhihu.com
-4. ✅ CDP bridge from WSL → Windows Edge (port 9223) — stable
-5. ✅ main zhihu.com web_search as URL fallback — finds relevant articles
+Cards with follower/like counts (知乎作者) → have zhihu URLs. Cards from 什么值得买/CSDN (no engagement, SMZDM icon) → no zhihu URL. Filter: prefer cards with engagement data.
 
 ---
 
-## Recommendations for Claude Code
+## Status
 
-1. **Fix GOOGLE_GENAI_USE_VERTEXAI** — Modify all 3 Python helpers (`extract_questions.py`, `fetch_zhihu.py`, `image_pipeline.py`) to clear this env var before creating genai.Client. Add to `venv/bin/activate` or as a one-line fix in each script.
-
-2. **Update source URL strategy** — Modify `zhihu-haowen-enrich` skill Step 9-10: if React portal cards are unreachable, use `web_search` tool on main zhihu.com with the question as query to find relevant zhuanlan.zhihu.com or zhihu.com/question URLs.
-
-3. **Default model to gemini-2.5-flash** — Change `ENRICHMENT_LLM_MODEL` from `gemini-2.5-flash-lite` to `gemini-2.5-flash` in config.py and extract_questions.py defaults.
-
-4. **Re-test Q1+Q2** after fixes applied, then run full merge_and_ingest to verify LightRAG integration.
+| Step | Status |
+|------|:------:|
+| 1. extract_questions | ✅ |
+| 2-3a. haowen-enrich (Q0-Q2) | ✅ |
+| **3b. fetch_zhihu (3 URLs)** | ⏳ Next |
+| 4. merge_and_ingest | ⏳ Next |
