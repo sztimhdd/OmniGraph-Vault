@@ -15,20 +15,25 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 import asyncio
 import numpy as np
 import time
+
+# Set Cognee env vars BEFORE import so LLMConfig() picks them up at construction
+os.environ["COGNEE_LLM_API_KEY"] = GEMINI_API_KEY
+os.environ["LITELLM_API_KEY"] = GEMINI_API_KEY
+os.environ["LLM_API_KEY"] = GEMINI_API_KEY  # Cognee 1.0 unified key
+
 import cognee
 if not GEMINI_API_KEY:
     print("Error: GEMINI_API_KEY not found.")
     sys.exit(1)
 
-# FORCE CONFIGURATION
-cognee.config.llm_api_key = GEMINI_API_KEY
-cognee.config.llm_provider = "gemini"
-cognee.config.llm_model = "gemini-2.5-flash"
-cognee.config.structured_output_backend = "gemini"
-os.environ["COGNEE_LLM_API_KEY"] = GEMINI_API_KEY
-os.environ["LITELLM_API_KEY"] = GEMINI_API_KEY
+# FORCE CONFIGURATION (runtime, in case env didn't set it on LLMConfig singleton)
+from cognee.infrastructure.llm.config import get_llm_config
+llm_config = get_llm_config()
+llm_config.llm_api_key = GEMINI_API_KEY
+llm_config.llm_provider = "gemini"
+llm_config.llm_model = "gemini-2.5-flash"
 
-print(f"Cognee Status: Provider={cognee.config.llm_provider}, Model={cognee.config.llm_model}")
+print(f"Cognee Status: Provider={llm_config.llm_provider}, Model={llm_config.llm_model}")
 
 import cognee_wrapper
 from lightrag.lightrag import LightRAG, QueryParam

@@ -35,11 +35,12 @@ logger = logging.getLogger("cognee_wrapper")
 
 try:
     import cognee
-    # Enforce configuration at the module level
-    cognee.config.llm_api_key = GEMINI_API_KEY
-    cognee.config.llm_provider = "gemini"
-    cognee.config.llm_model = "gemini-2.5-flash"
-    cognee.config.structured_output_backend = "gemini"
+    # Enforce configuration at the module level — use LLMConfig singleton directly
+    from cognee.infrastructure.llm.config import get_llm_config
+    llm_config = get_llm_config()
+    llm_config.llm_api_key = GEMINI_API_KEY
+    llm_config.llm_provider = "gemini"
+    llm_config.llm_model = "gemini-2.5-flash"
 except ImportError:
     logger.error("Cognee not found in wrapper.")
     cognee = None
