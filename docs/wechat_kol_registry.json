@@ -1,14 +1,203 @@
 {
   "description": "OmniGraph-Vault WeChat KOL Registry — canonical account → WeChat_ID → FakeID mapping",
-  "version": "1.0",
-  "last_updated": "2026-04-24",
+  "version": "1.1",
+  "last_updated": "2026-04-26",
   "accounts": [
     {
       "name": "叶小钗",
       "wechat_id": "yexiaochai",
       "fakeid": "Mzg2MzcyODQ5MQ==",
       "source": "KOL_List",
-      "tags": ["AI工程", "RAG", "Agent"]
+      "tags": ["AI工程化", "RAG", "Agent"]
+    },
+    {
+      "name": "阮一峰的网络日志",
+      "wechat_id": "ruanyf-blog",
+      "fakeid": "MzI4NjAxNjY4Nw==",
+      "source": "KOL_List",
+      "tags": ["科技趋势", "技术科普", "周刊"]
+    },
+    {
+      "name": "夕小瑶科技说",
+      "wechat_id": "xixiaoyaoQAQ",
+      "fakeid": "MzIwNzc2NTk0NQ==",
+      "source": "KOL_List",
+      "tags": ["NLP", "行业分析", "深度解读"]
+    },
+    {
+      "name": "李继刚",
+      "wechat_id": "",
+      "fakeid": "MzkxMzc1NzM1Mw==",
+      "source": "searchbiz_API",
+      "tags": ["Prompt Engineering"]
+    },
+    {
+      "name": "宝玉AI",
+      "wechat_id": "baoyu-ai-",
+      "fakeid": "Mzk1NzgxMjQ0OA==",
+      "source": "searchbiz_API",
+      "tags": ["AI编程", "大模型API"]
+    },
+    {
+      "name": "刘聪NLP",
+      "wechat_id": "liucongnotes",
+      "fakeid": "Mzg5MTU1NTE1OQ==",
+      "source": "searchbiz_API",
+      "tags": ["NLP", "大语言模型"]
+    },
+    {
+      "name": "张俊林JohnAI2.0",
+      "wechat_id": "",
+      "fakeid": "MzU3MDQ1MzU4OQ==",
+      "source": "searchbiz_API",
+      "tags": ["LLM", "前沿思考"]
+    },
+    {
+      "name": "数字生命卡兹克",
+      "wechat_id": "Rockhazix",
+      "fakeid": "MzIyMzA5NjEyMA==",
+      "source": "searchbiz_API",
+      "tags": ["AI内容创作", "行业观察"]
+    },
+    {
+      "name": "漫士沉思录",
+      "wechat_id": "",
+      "fakeid": "Mzk3NTQwMTY3Nw==",
+      "source": "searchbiz_API",
+      "tags": ["AI技术科普"]
+    },
+    {
+      "name": "老刘说NLP",
+      "wechat_id": "Laoliushuo_NLP",
+      "fakeid": "MzAxMjc3MjkyMg==",
+      "source": "searchbiz_API",
+      "tags": ["NLP", "RAG", "知识图谱"]
+    },
+    {
+      "name": "小窗幽记机器学习",
+      "wechat_id": "FiresideChatML",
+      "fakeid": "MzkwNjE2ODMxNQ==",
+      "source": "searchbiz_API",
+      "tags": ["模型加速", "模型部署", "LLM"]
+    },
+    {
+      "name": "圆圆的算法笔记",
+      "wechat_id": "",
+      "fakeid": "MzIyOTUyMDIwNg==",
+      "source": "searchbiz_API",
+      "tags": ["模型优化", "搜推广算法"]
+    },
+    {
+      "name": "ShowMeAI",
+      "wechat_id": "ShowMeAI-Tech",
+      "fakeid": "Mzg4ODU2NTA3Mw==",
+      "source": "searchbiz_API",
+      "tags": ["AI周报", "前沿信息"]
+    },
+    {
+      "name": "孟健AI编程",
+      "wechat_id": "mjcoding2",
+      "fakeid": "Mzk0ODM5NTEyNA==",
+      "source": "searchbiz_API",
+      "tags": ["AI编程", "全栈开发"]
+    },
+    {
+      "name": "袋鼠帝AI客栈",
+      "wechat_id": "masterlhm",
+      "fakeid": "MzkwMzE4NjU5NA==",
+      "source": "searchbiz_API",
+      "tags": ["AI工具测评", "AI应用"]
+    },
+    {
+      "name": "CVer",
+      "wechat_id": "CVerNews",
+      "fakeid": "MzUxNjcxMjQxNg==",
+      "source": "searchbiz_API",
+      "tags": ["CV", "论文精读"]
+    },
+    {
+      "name": "CV技术指南",
+      "wechat_id": "p15080074221",
+      "fakeid": "MzkyMDE2OTA3Mw==",
+      "source": "searchbiz_API",
+      "tags": ["CV", "论文解读", "教程"]
+    },
+    {
+      "name": "OpenCV学堂",
+      "wechat_id": "CVSCHOOL",
+      "fakeid": "MzA4MDExMDEyMw==",
+      "source": "searchbiz_API",
+      "tags": ["图像处理", "OpenCV", "CV"]
+    },
+    {
+      "name": "我爱计算机视觉",
+      "wechat_id": "aicvml",
+      "fakeid": "MzIwMTE1NjQxMQ==",
+      "source": "searchbiz_API",
+      "tags": ["CV", "开源技术"]
+    },
+    {
+      "name": "AI 深度研究员",
+      "wechat_id": "AIshenduyanjiuyuan",
+      "fakeid": "MzYyNTQwNzIwNA==",
+      "source": "searchbiz_API",
+      "tags": ["AI前沿", "算法原理"]
+    },
+    {
+      "name": "GitHubDaily",
+      "wechat_id": "GitHubDaily",
+      "fakeid": "MzAxOTcxNTIwNQ==",
+      "source": "searchbiz_API",
+      "tags": ["开源项目", "AI项目"]
+    },
+    {
+      "name": "AI产品榜",
+      "wechat_id": "aicpb-com",
+      "fakeid": "MzA5OTM1NjU3OA==",
+      "source": "searchbiz_API",
+      "tags": ["AI产品", "产品设计"]
+    },
+    {
+      "name": "特工宇宙",
+      "wechat_id": "AgentVerse",
+      "fakeid": "MzYyMTY1NDA0Nw==",
+      "source": "searchbiz_API",
+      "tags": ["AI工具测评", "AIGC", "自动化"]
+    },
+    {
+      "name": "AI前线",
+      "wechat_id": "ai-front",
+      "fakeid": "MzU1NDA4NjU2MA==",
+      "source": "searchbiz_API",
+      "tags": ["企业级AI", "架构方案"]
+    },
+    {
+      "name": "AI科技评论",
+      "wechat_id": "aitechtalk",
+      "fakeid": "MzA5ODEzMjIyMA==",
+      "source": "searchbiz_API",
+      "tags": ["AI深度报道", "技术市场分析"]
+    },
+    {
+      "name": "磐创AI",
+      "wechat_id": "xunixs",
+      "fakeid": "MzAxMjMwODMyMQ==",
+      "source": "searchbiz_API",
+      "tags": ["深度学习框架", "TensorFlow", "PyTorch"]
+    },
+    {
+      "name": "AINLP",
+      "wechat_id": "nlpjob",
+      "fakeid": "MjM5ODkzMzMwMQ==",
+      "source": "searchbiz_API",
+      "tags": ["NLP", "AI技术分享"]
+    },
+    {
+      "name": "苍何",
+      "wechat_id": "cangheya",
+      "fakeid": "MzU4NTE1Mjg4MA==",
+      "source": "searchbiz_API",
+      "tags": ["AI开发实践", "API使用"]
     },
     {
       "name": "NLP工作站",
@@ -60,15 +249,8 @@
       "tags": ["AI工程", "Prompt"]
     },
     {
-      "name": "夕小瑶科技说",
-      "wechat_id": "xixiaoyao",
-      "fakeid": "MzIwNzc2NTk0NQ==",
-      "source": "KOL_List",
-      "tags": ["NLP", "行业分析"]
-    },
-    {
       "name": "夕小瑶智能体",
-      "wechat_id": "xixiaoyao_smart",
+      "wechat_id": "xixiaoyaoai",
       "fakeid": "Mzk0ODQ5MzcyMQ==",
       "source": "KOL_List_Extra",
       "tags": ["Agent", "AI产品实践"]
@@ -81,13 +263,6 @@
       "tags": ["技术专栏", "深度学习"]
     },
     {
-      "name": "阮一峰的网络日志",
-      "wechat_id": "ruanyifeng",
-      "fakeid": "MzI4NjAxNjY4Nw==",
-      "source": "KOL_List",
-      "tags": ["技术博客", "周刊"]
-    },
-    {
       "name": "PaperWeekly",
       "wechat_id": "paperweekly",
       "fakeid": "MzIwMTc4ODE0Mw==",
@@ -96,7 +271,7 @@
     },
     {
       "name": "NLP PaperWeekly",
-      "wechat_id": "NLPPaperWeekly",
+      "wechat_id": "",
       "fakeid": "Mzg3Njk2NTc4Mw==",
       "source": "KOL_List",
       "tags": ["NLP", "学术论文"]
@@ -142,6 +317,18 @@
       "fakeid": "MzU5OTM2NjYwNg==",
       "source": "KOL_List_Extra",
       "tags": ["深度学习", "AI"]
+    }
+  ],
+  "unresolved_accounts": [
+    {
+      "name": "晓辉博士",
+      "status": "not_found",
+      "note": "未在公众号搜索中找到精确匹配，尝试过晓辉博士、晓辉博士AI、博士晓辉等变体均无结果"
+    },
+    {
+      "name": "深圳AI科技评论",
+      "status": "not_found",
+      "note": "未找到匹配账号，搜索结果中无此公众号"
     }
   ]
 }
