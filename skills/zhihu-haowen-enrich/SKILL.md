@@ -192,24 +192,65 @@ If no card survives the filter: write failure haowen.json with `error: "no_sourc
 
 ### Step 10 — Click card and extract final URL
 
-Click the selected card. Cards are React components with onClick handlers — the URL is NOT in the DOM as an `<a>` tag.
-Wait for navigation, then read `window.location.href`.
-Validate: URL must match `zhihu.com/question/.../answer/...` or `zhuanlan.zhihu.com/p/...`.
-If invalid: write failure haowen.json with `error: "bad_source_url: <url>"` and return.
-cannot find any reachable card element:
+Cards are React components with onClick handlers — standard
+`browser_click`/DOM `.click()`/synthetic events are rejected because
+React checks `event.isTrusted`.
 
-**Fallback:** Use the `web_search` tool with the question as query restricted to
-`site:zhihu.com`. From the results, pick the most relevant `zhuanlan.zhihu.com`
-or `zhihu.com/question` URL. Write this URL as `best_source_url` and note
-`"source_method": "web_search_fallback"` in haowen.json.
+**Verified working method (2026-04-27, Edge 148 + zhida.zhihu.com):**
 
-This fallback is proven to work (04-06 E2E test found 5 relevant URLs in one
-`web_search` call). The AI summary is already captured — the URL is for
-downstream `fetch_zhihu.py` to scrape the full answer.
+1. Find the card's **numbered badge**: `card.querySelector('span.css-1jxf684')`
+   — this is the small `<span>` containing the card number ("4 ") inside the
+   title div, colored purple (`color: rgb(90, 77, 248)`). This span is the
+   **only** child element whose onClick triggers navigation. The card body,
+   title div text, avatar, and follow button do NOT trigger navigation.
 
-Validate: the URL must match `zhihu.com/question/.../answer/...` or
-`zhuanlan.zhihu.com/p/...`. If the URL is an ad link or a non-Zhihu domain:
-write failure haowen.json with `error: "bad_source_url: <url>"` and return.
+2. Get the span's center coordinates via
+   `browser_evaluate: span.getBoundingClientRect()`. The span is small
+   (~11×17px) — precision matters.
+
+3. Use `browser_cdp` with `Input.dispatchMouseEvent` at those exact
+   coordinates. Send the full sequence: `mouseMoved → mousePressed →
+   mouseReleased`. Use the **main zhida tab's target_id** (NOT a new tab).
+
+   Example CDP calls:
+   ```
+   # Get main tab ID first
+   browser_cdp(method="Target.getTargets", params={})
+   → find entry with url matching "zhida.zhihu.com/search/" → target_id
+
+   # Move, press, release at span center
+   browser_cdp(method="Input.dispatchMouseEvent",
+     params={type:"mouseMoved", x:cx, y:cy, button:"left", clickCount:1},
+     target_id=main_tab_id)
+   browser_cdp(method="Input.dispatchMouseEvent",
+     params={type:"mousePressed", x:cx, y:cy, button:"left", clickCount:1},
+     target_id=main_tab_id)
+   browser_cdp(method="Input.dispatchMouseEvent",
+     params={type:"mouseReleased", x:cx, y:cy, button:"left", clickCount:1},
+     target_id=main_tab_id)
+   ```
+
+4. The card click opens a **new browser tab**. Wait ~2s, then call
+   `browser_cdp(method="Target.getTargets", params={})` again. Find the
+   new tab entry — it has:
+   - `type: "page"`
+   - `openerId` matching the main zhida tab's `targetId`
+   - `url` containing `zhuanlan.zhihu.com/p/` or `zhihu.com/question/`
+   - `title` containing the card's article title
+
+5. Extract the URL from the new tab entry's `url` field. Do NOT navigate
+   the CDP session to the new tab — just read the URL.
+
+**Card quality pre-filter (Step 9.5):** Before clicking, prefer cards
+that have follower/like engagement data (知乎原生作者). Cards from
+什么值得买/CSDN/AtomGit (no engagement, source indicator in title) are
+third-party sources without zhihu URLs — skip them. Only click cards
+from zhihu authors.
+
+**Fallback (if span click produces no new tab after 2 attempts):**
+Use the `web_search` tool with `site:zhihu.com "{card_title}"`. Extract
+the best matching `zhuanlan.zhihu.com/p/...` URL. This works reliably
+for zhihu author cards.
 
 ### Finalize
 
