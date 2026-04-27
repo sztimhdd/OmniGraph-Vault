@@ -48,15 +48,29 @@ os.makedirs(RAG_WORKING_DIR, exist_ok=True)
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
 # --- LightRAG Setup ---
+# --- Rate Limiting for Gemini Free Tier ---
+_llm_lock = asyncio.Lock()
+_last_llm_time = 0.0
+_LLM_MIN_INTERVAL = 15.0  # 4 RPM, safe below 5 RPM free tier limit
+
+
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-    return await gemini_model_complete(
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        api_key=GEMINI_API_KEY,
-        model_name="gemini-3.1-flash-lite-preview",
-        **kwargs,
-    )
+    global _last_llm_time
+    async with _llm_lock:
+        now = time.time()
+        elapsed = now - _last_llm_time
+        if _last_llm_time > 0 and elapsed < _LLM_MIN_INTERVAL:
+            wait = _LLM_MIN_INTERVAL - elapsed
+            await asyncio.sleep(wait)
+        _last_llm_time = time.time()
+        return await gemini_model_complete(
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            api_key=GEMINI_API_KEY,
+            model_name="gemini-2.5-flash",
+            **kwargs,
+        )
 
 @wrap_embedding_func_with_attrs(
     embedding_dim=768,
@@ -75,7 +89,7 @@ async def get_rag():
         working_dir=RAG_WORKING_DIR,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
-        llm_model_name="gemini-3.1-flash-lite-preview",
+        llm_model_name="gemini-2.5-flash",
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
@@ -87,7 +101,7 @@ def describe_image(image_path):
         vision_client = genai.Client(api_key=GEMINI_API_KEY)
         img = Image.open(image_path)
         response = vision_client.models.generate_content(
-            model='gemini-3.1-flash-lite-preview',
+            model='gemini-2.5-flash',
             contents=["Describe this image in detail for a knowledge graph. Return only the description.", img]
         )
         return response.text
@@ -333,7 +347,7 @@ async def extract_entities(text):
         client = genai.Client(api_key=GEMINI_API_KEY)
         prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
         response = client.models.generate_content(
-            model='gemini-3.1-flash-lite-preview',
+            model='gemini-2.5-flash',
             contents=[prompt]
         )
         entities = [e.strip() for e in response.text.split(',')]
