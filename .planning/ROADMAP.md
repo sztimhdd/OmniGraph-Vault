@@ -36,11 +36,11 @@ refactored out of `ingest_wechat.py` into a shared `image_pipeline.py`.
 
 Plans:
 - [x] 04-00-wave0-scaffold-and-spike-PLAN.md — pytest scaffold, SQLite migration, LightRAG delete+reinsert spike (D-14), deploy.sh, golden-file fixture capture (completed 2026-04-27)
-- [ ] 04-01-image-pipeline-refactor-PLAN.md — extract image_pipeline.py from ingest_wechat.py (4 public functions), golden-file regression gate
+- [x] 04-01-image-pipeline-refactor-PLAN.md — extract image_pipeline.py from ingest_wechat.py (4 public functions), golden-file regression gate (completed 2026-04-27)
 - [ ] 04-02-extract-questions-PLAN.md — enrichment/extract_questions.py: Gemini 2.5 Flash Lite + google_search grounding, D-03 stdout contract
 - [ ] 04-03-fetch-zhihu-PLAN.md — enrichment/fetch_zhihu.py: CDP fetch + image_pipeline reuse, <100px image filter, image namespacing
 - [ ] 04-04-merge-and-ingest-PLAN.md — merge_md (pure) + merge_and_ingest (runner): LightRAG ids+file_paths (D-08), SQLite enriched state (D-07/D-11)
-- [ ] 04-05-zhihu-haowen-enrich-skill-PLAN.md — skills/zhihu-haowen-enrich/: 10-step CDP flow + D-13 Telegram login recovery (pure Markdown, no script)
+- [x] 04-05-zhihu-haowen-enrich-skill-PLAN.md — skills/zhihu-haowen-enrich/: 10-step CDP flow + D-13 Telegram login recovery (pure Markdown, no script) (completed 2026-04-27)
 - [ ] 04-06-enrich-article-top-skill-PLAN.md — skills/enrich_article/: per-question for-loop orchestrator (D-01/D-02, no Python orchestrator)
 - [ ] 04-07-ingest-wechat-integration-PLAN.md — config.py keys, ingest_wechat.py enriched=-1 marker, strip --enrich flag from omnigraph_ingest skill (D-07 supersession)
 
