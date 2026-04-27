@@ -57,6 +57,7 @@ except ImportError:
 
 from kol_registry import list_accounts
 from spiders.wechat_spider import list_articles_with_digest as list_articles
+from spiders.wechat_spider import RATE_LIMIT_SLEEP_ACCOUNTS, RATE_LIMIT_COOLDOWN
 
 logging.basicConfig(
     level=logging.INFO,
@@ -395,10 +396,10 @@ def run(topic: str, max_ingest: int, days_back: int, max_per_account: int,
             if "rate limit" in err_str.lower() or "freq control" in err_str.lower():
                 consecutive_rate_limits += 1
                 retry_accounts.append(acc)
-                if consecutive_rate_limits >= 3:
-                    logger.info("  Cooling down 30s after %d consecutive rate limits...", consecutive_rate_limits)
-                    time.sleep(30)
-                    consecutive_rate_limits = 0
+                logger.info("  Cooling down %.0fs (rate limit hit, %d consecutive)...",
+                          RATE_LIMIT_COOLDOWN, consecutive_rate_limits)
+                time.sleep(RATE_LIMIT_COOLDOWN)
+                consecutive_rate_limits = 0
             continue
 
         for art in articles:
@@ -409,7 +410,7 @@ def run(topic: str, max_ingest: int, days_back: int, max_per_account: int,
         consecutive_rate_limits = 0
 
         if i < len(accounts):
-            time.sleep(3.0)
+            time.sleep(RATE_LIMIT_SLEEP_ACCOUNTS)
 
     for acc in retry_accounts:
         name = acc["name"]

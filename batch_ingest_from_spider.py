@@ -91,6 +91,33 @@ DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
 
 
+def _load_hermes_env() -> None:
+    """Load env vars from ~/.hermes/.env if not already set."""
+    dotenv_paths = [
+        Path.home() / ".hermes" / ".env",
+        Path("//wsl.localhost/Ubuntu-24.04/home/sztimhdd/.hermes/.env"),
+    ]
+    dotenv_path = None
+    for p in dotenv_paths:
+        if p.exists():
+            dotenv_path = p
+            break
+    if dotenv_path is None:
+        return
+    try:
+        for line in dotenv_path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip().strip("\"'")
+            if key and val and key not in os.environ:
+                os.environ[key] = val
+    except Exception:
+        pass
+
+
 def get_deepseek_api_key() -> str | None:
     """Resolve DeepSeek API key from env var, ~/.hermes/.env, or ~/.hermes/config.yaml."""
     key = os.environ.get("DEEPSEEK_API_KEY")
@@ -385,6 +412,8 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
     summary: list[dict] = []
     processed = 0
 
+    _load_hermes_env()
+
     topic_filter = kwargs.get("topic_filter")
     exclude_topics = kwargs.get("exclude_topics")
     min_depth = kwargs.get("min_depth", 2)
@@ -415,8 +444,12 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
                 max_articles=max_articles,
             )
         except Exception as exc:
+            err_str = str(exc)
             logger.error("Failed to list articles for %s: %s", account_name, exc)
-            summary.append({"account": account_name, "error": str(exc)})
+            summary.append({"account": account_name, "error": err_str})
+            if "rate limit" in err_str.lower() or "freq control" in err_str.lower() or "200013" in err_str:
+                logger.info("  Cooling down %.0fs (WeChat rate limit hit)...", RATE_LIMIT_COOLDOWN)
+                time.sleep(RATE_LIMIT_COOLDOWN)
             continue
 
         logger.info("Found %d articles for %s", len(articles), account_name)
@@ -425,7 +458,7 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
             all_articles.append(article)
 
         if i < total_accounts:
-            time.sleep(2.0)
+            time.sleep(RATE_LIMIT_SLEEP_ACCOUNTS)
 
     # Phase 2: Filter
     scanning_active = bool(topic_filter or exclude_topics)
