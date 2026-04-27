@@ -21,4 +21,31 @@
 
 ## Next
 
-- Not yet planned — focus is on populating the knowledge base with quality KOL content
+### Phase 4: knowledge-enrichment-zhihu
+
+**Goal:** Insert a mandatory knowledge enrichment step between WeChat scrape
+and LightRAG ingestion. For each scraped article ≥2000 chars, extract 1–3
+under-documented technical questions via Gemini + Google Search grounding,
+route each to the `zhihu-haowen-enrich` Hermes skill that drives zhida.zhihu.com
+via CDP, fetch the best-cited Zhihu source answer (text + images), then ingest
+the enriched WeChat MD (inline 好问 summaries) + up to 3 standalone Zhihu
+answer docs into LightRAG as cross-referenced documents. Image handling
+refactored out of `ingest_wechat.py` into a shared `image_pipeline.py`.
+
+**Plans:** 8 plans in 6 waves
+
+Plans:
+- [ ] 04-00-wave0-scaffold-and-spike-PLAN.md — pytest scaffold, SQLite migration, LightRAG delete+reinsert spike (D-14), deploy.sh, golden-file fixture capture
+- [ ] 04-01-image-pipeline-refactor-PLAN.md — extract image_pipeline.py from ingest_wechat.py (4 public functions), golden-file regression gate
+- [ ] 04-02-extract-questions-PLAN.md — enrichment/extract_questions.py: Gemini 2.5 Flash Lite + google_search grounding, D-03 stdout contract
+- [ ] 04-03-fetch-zhihu-PLAN.md — enrichment/fetch_zhihu.py: CDP fetch + image_pipeline reuse, <100px image filter, image namespacing
+- [ ] 04-04-merge-and-ingest-PLAN.md — merge_md (pure) + merge_and_ingest (runner): LightRAG ids+file_paths (D-08), SQLite enriched state (D-07/D-11)
+- [ ] 04-05-zhihu-haowen-enrich-skill-PLAN.md — skills/zhihu-haowen-enrich/: 10-step CDP flow + D-13 Telegram login recovery (pure Markdown, no script)
+- [ ] 04-06-enrich-article-top-skill-PLAN.md — skills/enrich_article/: per-question for-loop orchestrator (D-01/D-02, no Python orchestrator)
+- [ ] 04-07-ingest-wechat-integration-PLAN.md — config.py keys, ingest_wechat.py enriched=-1 marker, strip --enrich flag from omnigraph_ingest skill (D-07 supersession)
+
+**Canonical refs:**
+- `docs/enrichment-prd.md` — full PRD, source of truth (note §6.1 and §12 Phase 5 are superseded by D-07 and D-12)
+- `.planning/phases/04-knowledge-enrichment-zhihu/04-CONTEXT.md` — 16 locked decisions
+- `.planning/phases/04-knowledge-enrichment-zhihu/04-RESEARCH.md` — technical research (remote SSH probe confirmed)
+- `.planning/phases/04-knowledge-enrichment-zhihu/04-VALIDATION.md` — Nyquist validation strategy
