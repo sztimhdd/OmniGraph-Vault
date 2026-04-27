@@ -2,8 +2,8 @@
 
 **Product:** OmniGraph-Vault – Personal Knowledge Base for AI Agents  
 **Target Users:** Developers and researchers using Openclaw, Hermes Agent, or similar AI assistant frameworks.  
-**Version:** 1.2  
-**Last Updated:** 2026-04-24  
+**Version:** 1.3
+**Last Updated:** 2026-04-27  
 
 ---
 
@@ -208,7 +208,11 @@ User / Agent
 | Local Media Server | (systemd / background) | Serve downloaded images on port 8765 | Python `http.server` |
 | Configuration | `config.py` | Centralized settings & env-var loading | `python-dotenv` |
 | Account Registry | `docs/wechat_kol_registry.json` + `kol_registry.py` | Canonical KOL identity store: name → WeChat_ID → FakeID | JSON, lazy-loaded Python module |
-| Batch KOL Ingestion | `batch_ingest_kol_mvp.py` | Batch scrape all registered KOL accounts using registry FAKEIDS | Apify SDK, registry lookup |
+| Batch KOL Ingestion (legacy) | `batch_ingest_kol_mvp.py` | Deprecated — use scan→classify→ingest pipeline instead | Apify SDK, registry lookup |
+| KOL Scanner | `batch_scan_kol.py` | Scan WeChat KOL articles into SQLite (no classify, no ingest) | WeChat MP API, SQLite |
+| KOL Classifier | `batch_classify_kol.py` | Classify scanned articles by topic via LLM, write results to SQLite | DeepSeek, Gemini, SQLite |
+| KOL Ingest (DB mode) | `batch_ingest_from_spider.py --from-db` | Ingest pre-classified articles from SQLite into LightRAG | SQLite, ingest_wechat subprocess |
+| SQLite Database | `data/kol_scan.db` | Unified persistence: accounts, articles, classifications, ingestions, entities | Python sqlite3 |
 
 ### 4.3 Storage Layout
 ```
@@ -217,6 +221,12 @@ User / Agent
 ├── images/                # Downloaded article images
 │   └── {article_hash}/
 │       └── {image_index}.jpg
+├── entity_buffer/         # Entity extraction JSON files (file fallback)
+├── canonical_map.json     # Entity canonical map (file fallback)
+
+<project>/data/
+└── kol_scan.db            # SQLite: accounts, articles, classifications,
+                            #   ingestions, extracted_entities, entity_canonical
 ├── entity_buffer/         # Raw entities pending Cognee processing
 │   ├── {article_hash}.json
 │   └── {article_hash}.json.processed   # marker after batch run
@@ -384,21 +394,19 @@ python skill_runner.py skills/omnigraph_ingest --validate
 - Local image server
 - Synthesis report generation + Telegram delivery
 
-### Phase 2: Stability & Agent Integration (Current)
+### Phase 2: Stability & Agent Integration ✅ Completed
 - Canonical WeChat KOL Registry — version-controlled JSON + Python helper module
-- Gate 6 end-to-end validation
-- Batch ingestion support (FR-8)
-- Comprehensive error handling and logging (FR-30)
-- Hermes Agent skill wrappers for `ingest_wechat` / `kg_synthesize`
+- Batch ingestion pipeline: scan → classify via LLM (DeepSeek/Gemini) → ingest
+- SQLite-backed KOL pipeline (accounts, articles, classifications, ingestions)
+- Entity layer migration to SQLite (dual-write, DB-first read)
+- Hermes Agent skill wrappers + skill runner with test suites
 
-### Phase 3: Extended Content Sources (Planned)
-- RSS / Atom feed ingestion
-- Generic web-page scraping (non-WeChat)
-- Scheduled Cognee batch sync with cron configuration
+### Phase 3: Extended Content Sources (Current)
+- Large-scale batch KOL ingestion (54 accounts, 1000+ articles)
+- Gemini free-tier classifier integration
 
 ### Phase 4: Advanced Features (Future)
-- REST API for remote agent calls
-- Webhook-based ingestion (Telegram bot direct integration)
+- Scheduled Cognee batch sync with cron configuration
 - Graph analytics (topic clustering, trend detection)
 
 ---
@@ -439,6 +447,12 @@ python skill_runner.py skills/omnigraph_ingest --validate
 - [OnlyTerp LightRAG + Hermes Guide](https://github.com/OnlyTerp/hermes-optimization-guide)
 
 ### 8.3 Changelog
+- **2026-04-27**: v1.3 – SQLite-backed KOL pipeline: `batch_scan_kol.py`,
+  `batch_classify_kol.py`, `--from-db` ingest mode; `data/kol_scan.db`
+  with 6 tables (accounts, articles, classifications, ingestions,
+  extracted_entities, entity_canonical); Phase 2 entity layer migration
+  (dual-write, DB-first read); Gemini classifier option alongside DeepSeek;
+  document cleanup (52→23 docs). Deprecate `batch_ingest_kol_mvp.py`.
 - **2026-04-24**: v1.2 – Add canonical WeChat KOL Registry:
   `docs/wechat_kol_registry.json`, `kol_registry.py` helper module;
   `kol_config.py` now auto-loads FAKEIDS from registry eliminating

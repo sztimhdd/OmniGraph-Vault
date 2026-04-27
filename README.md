@@ -142,14 +142,8 @@ python skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omni
 
 Exit code 0 = all tests passed (CI-friendly).
 
-#### Detailed Development Guide
-See [.planning/LOCAL_TESTING_GUIDE.md](.planning/LOCAL_TESTING_GUIDE.md) for:
-- Full environment setup instructions
-- CDP configuration (local Edge/Chrome with remote debugging)
-- Manual script execution and testing workflows
-- Troubleshooting: missing keys, API errors, CDP connection issues
-- Advanced options: verbose logging, single test cases, JSON output
-- CI/CD integration patterns with exit codes and JSON results
+#### Development Reference
+See [.planning/PROJECT.md](.planning/PROJECT.md) for current architecture and [docs/KOL_COLDSTART_SETUP.md](docs/KOL_COLDSTART_SETUP.md) for WeChat credentials setup.
 
 ### 🔌 Browser Fallback (CDP or Playwright MCP)
 
@@ -167,18 +161,36 @@ CDP_URL=http://host:port/mcp  # e.g. http://ohca.ddns.net:58931/mcp
 ```
 The `/mcp` suffix triggers the MCP client path automatically. No Edge browser needed locally.
 
+### 🗂 KOL Batch Pipeline
+For bulk ingestion of WeChat Key Opinion Leader (KOL) articles across 54 accounts:
+```bash
+# Step 1: Scan — collect article titles, URLs, digests into SQLite
+python batch_scan_kol.py --days-back 120 --max-articles 20
+
+# Step 2: Classify — filter by topic via DeepSeek or Gemini (free)
+python batch_classify_kol.py --topic "AI agents" --classifier gemini --min-depth 2
+
+# Step 3: Ingest — feed passing articles into the knowledge graph
+python batch_ingest_from_spider.py --from-db --topic-filter "AI agents" --dry-run
+```
+All intermediate data persisted in `data/kol_scan.db` (SQLite). Articles scanned once, re-classifiable with different topics without re-scraping.
+
 ### 📁 Project Structure
 ```
 OmniGraph‑Vault/
 ├── config.py              # Centralized paths & environment loading
 ├── ingest_wechat.py       # WeChat article ingestion (Apify + CDP/MCP)
+├── batch_scan_kol.py      # KOL article scanner → SQLite
+├── batch_classify_kol.py  # KOL classifier via LLM (DeepSeek/Gemini)
+├── batch_ingest_from_spider.py  # KOL ingest (full-pipeline or --from-db)
 ├── kg_synthesize.py       # Synthesis & report generation
 ├── query_lightrag.py      # Direct KG queries
 ├── cognee_wrapper.py      # Cognee memory integration
-├── cognee_batch_processor.py # Batch processing for Cognee
-├── data_assets/           # Local copies of ingested images & markdown
-├── specs/                 # Design specifications & test plans
-└── tests/                 # Unit & integration tests
+├── cognee_batch_processor.py # Batch entity canonicalization
+├── data/                  # SQLite DB + JSON run summaries (gitignored)
+├── specs/                 # Design specifications
+├── skills/                # Hermes agent skills
+└── tests/                 # Skill runner test suites
 ```
 
 **Runtime data** is stored under `~/.hermes/omonigraph-vault/`. The `omonigraph` spelling is intentional and currently baked into `config.py`, so preserve it unless you are doing a coordinated migration.
@@ -300,18 +312,36 @@ CDP_URL=http://host:port/mcp
 ```
 `/mcp` 后缀自动触发 MCP 客户端路径，本地无需启动 Edge。
 
+### 🗂 KOL 批量管线
+跨 54 个微信公众号 KOL 账号的大规模入库：
+```bash
+# 第一步: 扫描 — 收集文章标题、链接、摘要到 SQLite
+python batch_scan_kol.py --days-back 120 --max-articles 20
+
+# 第二步: 分类 — 通过 DeepSeek 或 Gemini（免费）按主题筛选
+python batch_classify_kol.py --topic "AI agents" --classifier gemini --min-depth 2
+
+# 第三步: 入库 — 将通过筛选的文章写入知识图谱
+python batch_ingest_from_spider.py --from-db --topic-filter "AI agents" --dry-run
+```
+中间数据持久化在 `data/kol_scan.db`（SQLite）。扫描一次，可反复用不同主题分类，无需重复刮削。
+
 ### 📁 项目结构
 ```
 OmniGraph‑Vault/
 ├── config.py              # 集中化的路径与环境加载
 ├── ingest_wechat.py       # 微信文章入库（Apify + CDP/MCP）
+├── batch_scan_kol.py      # KOL 文章扫描 → SQLite
+├── batch_classify_kol.py  # KOL 分类（DeepSeek/Gemini）
+├── batch_ingest_from_spider.py  # KOL 入库（完整管线或 --from-db）
 ├── kg_synthesize.py       # 综合与报告生成
 ├── query_lightrag.py      # 直接图谱查询
 ├── cognee_wrapper.py      # Cognee 记忆集成
-├── cognee_batch_processor.py # Cognee 批处理
-├── data_assets/           # 已入库图片与 Markdown 的本地副本
-├── specs/                 # 设计规格与测试计划
-└── tests/                 # 单元与集成测试
+├── cognee_batch_processor.py # 实体归一化批处理
+├── data/                  # SQLite DB + JSON 运行汇总（gitignored）
+├── specs/                 # 设计规格
+├── skills/                # Hermes agent 技能
+└── tests/                 # Skill runner 测试套件
 ```
 
 **运行时数据**存储在 `~/.hermes/omonigraph-vault/` 下。这里的 `omonigraph` 拼写是当前实现的一部分，请保留，不要在部署时自行改名。
