@@ -196,6 +196,20 @@ Click the chosen card. Source panel cards are React components, NOT `<a>` tags �
 the URL is NOT in the DOM. You MUST click the card, wait for navigation or a new
 tab to open, then read `window.location.href` (or the new tab's URL).
 
+**React Portal limitation (verified 2026-04-27):** The source panel renders via
+React Portal — the cards may NOT be reachable via `document.querySelectorAll` or
+the accessibility tree (`browser_snapshot`). If clicking a card fails or you
+cannot find any reachable card element:
+
+**Fallback:** Use the `web_search` tool with the question as query restricted to
+`site:zhihu.com`. From the results, pick the most relevant `zhuanlan.zhihu.com`
+or `zhihu.com/question` URL. Write this URL as `best_source_url` and note
+`"source_method": "web_search_fallback"` in haowen.json.
+
+This fallback is proven to work (04-06 E2E test found 5 relevant URLs in one
+`web_search` call). The AI summary is already captured — the URL is for
+downstream `fetch_zhihu.py` to scrape the full answer.
+
 Validate: the URL must match `zhihu.com/question/.../answer/...` or
 `zhuanlan.zhihu.com/p/...`. If the URL is an ad link or a non-Zhihu domain:
 write failure haowen.json with `error: "bad_source_url: <url>"` and return.
