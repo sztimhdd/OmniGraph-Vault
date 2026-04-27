@@ -8,17 +8,23 @@ files_modified:
   - config.py
   - ingest_wechat.py
   - skills/omnigraph_ingest/SKILL.md
+  - enrichment/fetch_zhihu.py
+  - enrichment/merge_and_ingest.py
 autonomous: false
-requirements: [D-07]
+requirements: [D-07, D-12-REVISED]
 must_haves:
   truths:
     - "config.py has all 8 Phase 4 ENRICHMENT_* + ZHIHAO_SKILL_NAME + IMAGE_SERVER_BASE_URL keys per RESEARCH.md §9"
-    - "config.py ENRICHMENT_LLM_MODEL is 'gemini-2.5-flash-lite' (not deepseek; D-12 supersession)"
+    - "config.py ENRICHMENT_LLM_MODEL is 'gemini-2.5-flash' (D-12-REVISED: flash, not flash-lite; flash-lite 20/day quota empirically unusable per Wave 4 test)"
+    - "config.py introduces INGEST_LLM_MODEL = 'gemini-2.5-flash' for LightRAG entity extraction + image-vision paths"
     - "ingest_wechat.py writes articles.enriched = -1 for articles < ENRICHMENT_MIN_LENGTH chars"
     - "ingest_wechat.py does NOT add a --enrich flag (D-07 supersession)"
+    - "ingest_wechat.py replaces all 3 hardcoded 'gemini-2.5-flash-lite' strings with INGEST_LLM_MODEL import from config (D-12-REVISED)"
+    - "ingest_wechat.py calls batch_scan_kol.init_db(DB_PATH) at module import so the _ensure_column migration runs on every deploy (closes Wave 3 deployment gap)"
+    - "enrichment/fetch_zhihu.py and enrichment/merge_and_ingest.py pop GOOGLE_GENAI_USE_VERTEXAI before any genai.Client (matches extract_questions.py pattern; fixes test report blocker 1)"
     - "ingest_wechat.py ingests un-enriched articles itself; enrichment happens via the enrich_article skill layer (not embedded in Python)"
     - "skills/omnigraph_ingest/SKILL.md no longer documents an --enrich flag"
-    - "Remote E2E: invoking /enrich_article on one real WeChat article produces 1 enriched WeChat doc + up to 3 Zhihu docs in LightRAG"
+    - "Remote E2E: rerun merge_and_ingest on the 8ac04218b4 fixtures captured during Wave 4 test → acceptance criteria 7-12 from 04-06-test-results.md all flip to PASS"
   artifacts:
     - path: "config.py"
       provides: "Phase 4 enrichment configuration keys"
@@ -113,16 +119,24 @@ around line 680.
 <tasks>
 
 <task type="auto">
-  <name>Task 7.1: Add Phase 4 config keys to config.py</name>
+  <name>Task 7.1: Add Phase 4 config keys to config.py (D-12-REVISED: flash, not flash-lite)</name>
   <files>config.py</files>
   <read_first>
-    - config.py (entire file — to see the insertion point)
-    - .planning/phases/04-knowledge-enrichment-zhihu/04-RESEARCH.md §9 (exact keys + values — copy verbatim)
+    - config.py (entire file — to see the insertion point at line 36)
+    - .planning/phases/04-knowledge-enrichment-zhihu/04-RESEARCH.md §9 (original keys)
     - .planning/phases/04-knowledge-enrichment-zhihu/04-CONTEXT.md D-12 (Gemini not DeepSeek)
+    - docs/testing/04-06-test-results.md §"Recommendations" (flash-lite 20/day empirically unusable; use flash 250/day)
   </read_first>
   <action>
     Append the Phase 4 enrichment config block to `config.py`, AFTER the existing
     line `os.environ.pop("GOOGLE_CLOUD_LOCATION", None)` (currently line 36).
+
+    IMPORTANT: This is REVISED from RESEARCH.md §9. The Wave 4 live E2E test
+    (docs/testing/04-06-test-results.md) proved that `gemini-2.5-flash-lite`
+    free tier (20 RPD) is exhausted by a single article's LightRAG entity
+    extraction + image vision + question extraction pipeline. Use
+    `gemini-2.5-flash` (250 RPD) instead. D-12 stands (Gemini over DeepSeek),
+    but the specific model choice is superseded to flash.
 
     Exact content to append (after a blank line):
 
@@ -130,8 +144,7 @@ around line 680.
 
     # === Phase 4: Knowledge Enrichment ===
     # Master switch. Per D-07 this is always True in production; the key exists
-    # so that individual invocations (e.g., direct `python ingest_wechat.py` for
-    # debugging) can set ENRICHMENT_ENABLED=0 via env to bypass.
+    # so that individual invocations can set ENRICHMENT_ENABLED=0 to bypass.
     ENRICHMENT_ENABLED = os.environ.get("ENRICHMENT_ENABLED", "1") != "0"
 
     # Article character threshold below which extraction is skipped (enriched=-1).
@@ -140,8 +153,14 @@ around line 680.
     # Maximum questions per article.
     ENRICHMENT_MAX_QUESTIONS = 3
 
-    # LLM for extract_questions (D-12 supersedes the PRD DeepSeek choice).
-    ENRICHMENT_LLM_MODEL = "gemini-2.5-flash-lite"
+    # LLM for extract_questions. D-12-REVISED: flash (250/day), not flash-lite
+    # (20/day). Live E2E test 2026-04-27 proved flash-lite quota insufficient.
+    ENRICHMENT_LLM_MODEL = os.environ.get("ENRICHMENT_LLM_MODEL", "gemini-2.5-flash")
+
+    # LLM for the ingest path: LightRAG entity extraction + image-vision in
+    # ingest_wechat.py / image_pipeline.py. Separate from ENRICHMENT_LLM_MODEL
+    # so either path can be tuned independently. D-12-REVISED: flash default.
+    INGEST_LLM_MODEL = os.environ.get("INGEST_LLM_MODEL", "gemini-2.5-flash")
 
     # Enable google_search grounding tool on the extract_questions call (D-12).
     ENRICHMENT_GROUNDING_ENABLED = True
@@ -166,61 +185,88 @@ around line 680.
     additive.
   </action>
   <verify>
-    <automated>python -c "import config; assert config.ENRICHMENT_LLM_MODEL == 'gemini-2.5-flash-lite'; assert config.ENRICHMENT_MIN_LENGTH == 2000; assert config.ENRICHMENT_MAX_QUESTIONS == 3; assert config.ENRICHMENT_BASE_DIR.name == 'enrichment'; assert config.ZHIHAO_SKILL_NAME == 'zhihu-haowen-enrich'; print('ok')"</automated>
+    <automated>python -c "import config; assert config.ENRICHMENT_LLM_MODEL == 'gemini-2.5-flash'; assert config.INGEST_LLM_MODEL == 'gemini-2.5-flash'; assert config.ENRICHMENT_MIN_LENGTH == 2000; assert config.ENRICHMENT_MAX_QUESTIONS == 3; assert config.ENRICHMENT_BASE_DIR.name == 'enrichment'; assert config.ZHIHAO_SKILL_NAME == 'zhihu-haowen-enrich'; print('ok')"</automated>
   </verify>
   <acceptance_criteria>
     - `grep -q "ENRICHMENT_ENABLED = " config.py` succeeds
     - `grep -q "ENRICHMENT_MIN_LENGTH = 2000" config.py` succeeds
     - `grep -q "ENRICHMENT_MAX_QUESTIONS = 3" config.py` succeeds
-    - `grep -q "ENRICHMENT_LLM_MODEL = \"gemini-2.5-flash-lite\"" config.py` succeeds
+    - `grep -qE "ENRICHMENT_LLM_MODEL.*gemini-2\\.5-flash\"" config.py` succeeds AND `! grep -q "flash-lite" config.py` (D-12-REVISED enforced)
+    - `grep -qE "INGEST_LLM_MODEL.*gemini-2\\.5-flash\"" config.py` succeeds (new key)
     - `grep -q "ENRICHMENT_GROUNDING_ENABLED = True" config.py` succeeds
     - `grep -q "ENRICHMENT_HAOWEN_TIMEOUT = 120" config.py` succeeds
     - `grep -q "ENRICHMENT_ZHIHU_FETCH_TIMEOUT = 60" config.py` succeeds
     - `grep -q "ENRICHMENT_BASE_DIR = BASE_DIR / \"enrichment\"" config.py` succeeds
     - `grep -q "ZHIHAO_SKILL_NAME = \"zhihu-haowen-enrich\"" config.py` succeeds
     - `grep -q "IMAGE_SERVER_BASE_URL = \"http://localhost:8765\"" config.py` succeeds
-    - `grep -q "deepseek" config.py` returns NO matches (D-12 supersession enforced)
-    - `python -c "import config"` exits 0 (file parses as valid Python)
-    - The 8 ENRICHMENT_* + 2 other new keys are all importable: `python -c "from config import ENRICHMENT_ENABLED, ENRICHMENT_MIN_LENGTH, ENRICHMENT_MAX_QUESTIONS, ENRICHMENT_LLM_MODEL, ENRICHMENT_GROUNDING_ENABLED, ENRICHMENT_HAOWEN_TIMEOUT, ENRICHMENT_ZHIHU_FETCH_TIMEOUT, ENRICHMENT_BASE_DIR, ZHIHAO_SKILL_NAME, IMAGE_SERVER_BASE_URL; print('ok')"` exits 0
+    - `grep -q "deepseek" config.py` returns NO matches
+    - `python -c "import config"` exits 0
+    - All 11 new keys importable: `python -c "from config import ENRICHMENT_ENABLED, ENRICHMENT_MIN_LENGTH, ENRICHMENT_MAX_QUESTIONS, ENRICHMENT_LLM_MODEL, INGEST_LLM_MODEL, ENRICHMENT_GROUNDING_ENABLED, ENRICHMENT_HAOWEN_TIMEOUT, ENRICHMENT_ZHIHU_FETCH_TIMEOUT, ENRICHMENT_BASE_DIR, ZHIHAO_SKILL_NAME, IMAGE_SERVER_BASE_URL; print('ok')"` exits 0
   </acceptance_criteria>
-  <done>config.py has all 10 new keys with exact values from RESEARCH.md §9</done>
+  <done>config.py has all 11 new keys (10 original + new INGEST_LLM_MODEL); flash model default; no flash-lite references</done>
 </task>
 
 <task type="auto">
-  <name>Task 7.2: Mark short articles as enriched=-1 in ingest_wechat.py</name>
+  <name>Task 7.2: ingest_wechat.py — enriched=-1 marker + INGEST_LLM_MODEL swap + SQLite auto-migrate</name>
   <files>ingest_wechat.py</files>
   <read_first>
-    - ingest_wechat.py entire file (the SQLite UPDATE pattern around line 713-725)
-    - config.py (to see the ENRICHMENT_MIN_LENGTH constant just added)
+    - ingest_wechat.py entire file (current state — line 36 imports config; lines 95-121 and 505 use hardcoded flash-lite; line 681+ has SQLite UPDATE block)
+    - config.py (to see ENRICHMENT_MIN_LENGTH + INGEST_LLM_MODEL just added)
+    - batch_scan_kol.py (init_db + _ensure_column helper — signature: init_db(db_path: Path | str) -> None)
     - .planning/phases/04-knowledge-enrichment-zhihu/04-CONTEXT.md D-07 (enriched=-1 semantics)
+    - docs/testing/04-06-test-results.md §"Step 4" (proves flash-lite quota blocks LightRAG entity extraction)
+    - .planning/STATE.md §"Blockers/Concerns" (SQLite migration deployment gap requirement)
   </read_first>
   <action>
-    Modify `ingest_wechat.py` to write `articles.enriched = -1` when the scraped
-    article is shorter than `ENRICHMENT_MIN_LENGTH` characters. Minimal surgical
-    change — do NOT refactor anything else.
+    Three surgical changes to ingest_wechat.py. Do NOT refactor anything else.
 
-    (A) Add import near the top of the file (next to other config imports — grep
-    for existing `from config import` to find the right place; if no such import
-    exists, use `from config import BASE_DIR, RAG_WORKING_DIR, ...`, and ADD
-    `ENRICHMENT_MIN_LENGTH` to that import list):
+    (A) Expand the existing `from config import ...` line at line 36 to also
+    import `ENRICHMENT_MIN_LENGTH` and `INGEST_LLM_MODEL`:
 
-    ```python
-    from config import ENRICHMENT_MIN_LENGTH
-    ```
+    Current line 36:
+        from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR
 
-    If `config` module-level values are accessed via a different pattern (e.g.
-    `import config` then `config.BASE_DIR`), match that pattern instead. Grep
-    first to determine which.
+    Change to (same line, appended imports):
+        from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR, ENRICHMENT_MIN_LENGTH, INGEST_LLM_MODEL
 
-    (B) Find the SQLite UPDATE block around lines 713-725 (where `content_hash`
-    is written). ADD a parallel UPDATE for `enriched` when `len(full_content) <
-    ENRICHMENT_MIN_LENGTH`. The exact insertion point: immediately AFTER the
-    existing `conn.execute("UPDATE articles SET content_hash = ? WHERE url = ?", ...)`
-    line and BEFORE `conn.commit()`.
+    (B) Replace all 3 hardcoded "gemini-2.5-flash-lite" strings with
+    INGEST_LLM_MODEL (D-12-REVISED). Locations:
+      - Line 100: `model_name="gemini-2.5-flash-lite"` → `model_name=INGEST_LLM_MODEL`
+      - Line 121: `llm_model_name="gemini-2.5-flash-lite"` → `llm_model_name=INGEST_LLM_MODEL`
+      - Line 505: `model='gemini-2.5-flash-lite'` → `model=INGEST_LLM_MODEL`
 
-    Exact insertion:
+    After the edits: `grep -c "gemini-2.5-flash-lite" ingest_wechat.py` should
+    return 0 (no remaining references).
 
-    ```python
+    (C) Auto-run SQLite migration at module import time. Immediately after the
+    `DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"` line (currently
+    line 49), add a guarded `init_db()` call that ensures the Phase 4
+    `articles.enriched` and `ingestions.enrichment_id` columns exist even on
+    fresh deploys. (Closes Wave 3 deployment gap; see STATE.md Blockers.)
+
+    Exact insertion AFTER the DB_PATH line:
+
+        # Phase 4: ensure SQLite has the enriched + enrichment_id columns on
+        # every deploy. init_db() is idempotent (uses _ensure_column ALTER TABLE
+        # guards). Guarded by DB_PATH existence so fresh installs (no DB at all)
+        # don't fail here — those get init_db() called later via batch_scan_kol.
+        if DB_PATH.exists():
+            try:
+                from batch_scan_kol import init_db as _kol_init_db
+                _kol_init_db(DB_PATH)
+            except Exception as _e:
+                import logging as _log
+                _log.getLogger(__name__).warning(
+                    "Phase 4 SQLite auto-migrate skipped: %s", _e
+                )
+
+    (D) Find the SQLite UPDATE block around lines 681-690 (the `if DB_PATH.exists()`
+    guard where `content_hash` and related fields are written). ADD a parallel
+    UPDATE for `enriched = -1` when `len(full_content) < ENRICHMENT_MIN_LENGTH`.
+
+    Insertion point: immediately AFTER the existing content_hash UPDATE and
+    BEFORE `conn.commit()`. Exact insertion:
+
             # D-07: mark short articles as enriched=-1 so the enrich_article skill
             # (or batch re-enrichment job) knows to skip them permanently.
             if len(full_content) < ENRICHMENT_MIN_LENGTH:
@@ -228,31 +274,85 @@ around line 680.
                     "UPDATE articles SET enriched = ? WHERE url = ?",
                     (-1, url),
                 )
-    ```
 
-    Preserve EVERYTHING else about the UPDATE block — the `try/except`, the
-    `conn.close()`, other UPDATEs, etc. Touch only the lines needed.
+    Preserve the surrounding try/except, the conn.close(), other UPDATEs, etc.
+    Touch only the lines needed.
 
-    (C) Do NOT add a `--enrich` flag, `--no-enrich` flag, or any conditional path
-    based on an ENRICHMENT_ENABLED env var in this task. Enrichment is owned by
-    the `enrich_article` skill, not by ingest_wechat.py. This file's
-    responsibility for Phase 4 is limited to: (1) run image_pipeline (already
-    done in plan 01), (2) write enriched=-1 for short articles (this task), (3)
-    write content_hash (already present).
+    (E) Do NOT add a `--enrich`, `--no-enrich`, or ENRICHMENT_ENABLED conditional
+    path. Enrichment is owned by the enrich_article skill, not this file.
   </action>
   <verify>
-    <automated>grep -q "ENRICHMENT_MIN_LENGTH" ingest_wechat.py && grep -q "UPDATE articles SET enriched" ingest_wechat.py && python -c "import ast; ast.parse(open('ingest_wechat.py').read())"</automated>
+    <automated>grep -q "ENRICHMENT_MIN_LENGTH" ingest_wechat.py && grep -q "INGEST_LLM_MODEL" ingest_wechat.py && grep -q "UPDATE articles SET enriched" ingest_wechat.py && ! grep -q "gemini-2.5-flash-lite" ingest_wechat.py && grep -q "_kol_init_db\|from batch_scan_kol import init_db" ingest_wechat.py && python -c "import ast; ast.parse(open('ingest_wechat.py').read())"</automated>
   </verify>
   <acceptance_criteria>
-    - `grep -q "from config import.*ENRICHMENT_MIN_LENGTH\|import config" ingest_wechat.py` succeeds AND `grep -q "ENRICHMENT_MIN_LENGTH" ingest_wechat.py` succeeds
+    - `grep -q "ENRICHMENT_MIN_LENGTH" ingest_wechat.py` succeeds
+    - `grep -q "INGEST_LLM_MODEL" ingest_wechat.py` succeeds (at least 3 usages + 1 import = 4 total)
+    - `grep -c "INGEST_LLM_MODEL" ingest_wechat.py` returns >= 4
+    - `grep -c "gemini-2.5-flash-lite" ingest_wechat.py` returns 0 (D-12-REVISED enforced)
     - `grep -q "UPDATE articles SET enriched" ingest_wechat.py` succeeds
-    - `grep -q "(-1, url)\|-1, url" ingest_wechat.py` succeeds (the -1 value is passed)
     - `grep -q "len(full_content) < ENRICHMENT_MIN_LENGTH" ingest_wechat.py` succeeds
-    - `grep -q "\-\-enrich" ingest_wechat.py` returns NO matches (D-07 no flag)
+    - `grep -q "from batch_scan_kol import init_db" ingest_wechat.py` succeeds (SQLite auto-migrate)
+    - `grep -q "\-\-enrich" ingest_wechat.py` returns NO matches
     - `python -c "import ast; ast.parse(open('ingest_wechat.py').read())"` exits 0
     - The cache-hit branch (lines ~532-566), UA scrape, Apify fallback, CDP fallback, and image_pipeline calls from plan 01 are ALL still present (no unrelated changes)
   </acceptance_criteria>
-  <done>ingest_wechat.py marks short articles as enriched=-1; no --enrich flag introduced</done>
+  <done>ingest_wechat.py: uses INGEST_LLM_MODEL (flash), auto-migrates SQLite on import, marks short articles enriched=-1, no --enrich flag</done>
+</task>
+
+<task type="auto">
+  <name>Task 7.2b: Pop GOOGLE_GENAI_USE_VERTEXAI in enrichment/fetch_zhihu.py and enrichment/merge_and_ingest.py</name>
+  <files>enrichment/fetch_zhihu.py, enrichment/merge_and_ingest.py</files>
+  <read_first>
+    - enrichment/extract_questions.py lines 53-61 (the existing pop pattern the user committed 7fb89de — this is the reference)
+    - enrichment/fetch_zhihu.py (find any `genai.Client(...)` construction site)
+    - enrichment/merge_and_ingest.py (find any `genai.Client(...)` construction site AND the LightRAG init — LightRAG's own genai client is created in ingest_wechat.py, not here)
+    - docs/testing/04-06-test-results.md §"BLOCKER 1" (VERTEXAI env var global leak)
+  </read_first>
+  <action>
+    Match extract_questions.py's pattern: pop GOOGLE_GENAI_USE_VERTEXAI
+    immediately before any genai.Client construction. These two modules are
+    entry points (invoked via `python -m enrichment.fetch_zhihu` and
+    `python -m enrichment.merge_and_ingest`) and do NOT import config.py, so
+    they must pop the env var themselves.
+
+    (A) enrichment/fetch_zhihu.py — if the file contains any `genai.Client(` or
+    any `from google import genai`/`import google.genai` usage that ultimately
+    builds a client, add the pop before that. If the file uses image_pipeline's
+    describe_images (which has its own genai.Client at image_pipeline.py:75),
+    add the pop immediately AFTER the `import os` statement near the top of the
+    file, module-level:
+
+        # Hermes env has GOOGLE_GENAI_USE_VERTEXAI=true globally which forces
+        # genai.Client to Vertex AI (rejects API keys). Unset at import time so
+        # any downstream genai.Client (including image_pipeline.describe_images)
+        # routes to the Gemini API. See test report 04-06.
+        os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
+
+    Place this AFTER all other imports at module top, before any function
+    definition. Match extract_questions.py's wording style.
+
+    (B) enrichment/merge_and_ingest.py — same pattern. Place the pop at module
+    top, AFTER imports, BEFORE any function. This covers the case where
+    merge_and_ingest triggers LightRAG's async entity extraction (which calls
+    genai via ingest_wechat.gemini_model_complete — but that path already
+    benefits from config.py's pop since ingest_wechat imports config). The pop
+    here is defensive redundancy: it guarantees that even if somebody invokes
+    merge_and_ingest from an environment where config.py wasn't imported first,
+    the env var is unset.
+
+    Do not modify any other lines. Do not rename imports.
+  </action>
+  <verify>
+    <automated>grep -q 'os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI"' enrichment/fetch_zhihu.py && grep -q 'os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI"' enrichment/merge_and_ingest.py && python -c "import ast; ast.parse(open('enrichment/fetch_zhihu.py').read()); ast.parse(open('enrichment/merge_and_ingest.py').read())"</automated>
+  </verify>
+  <acceptance_criteria>
+    - `grep -q 'GOOGLE_GENAI_USE_VERTEXAI' enrichment/fetch_zhihu.py` succeeds
+    - `grep -q 'GOOGLE_GENAI_USE_VERTEXAI' enrichment/merge_and_ingest.py` succeeds
+    - `grep -q 'GOOGLE_GENAI_USE_VERTEXAI' enrichment/extract_questions.py` still succeeds (we did NOT remove the existing one)
+    - Both files parse as valid Python
+    - Pop is at module top (before any function/class definition) in both new files
+  </acceptance_criteria>
+  <done>Both enrichment entry-point modules pop VERTEXAI defensively at import, matching extract_questions.py</done>
 </task>
 
 <task type="auto">
@@ -321,120 +421,86 @@ around line 680.
   <done>omnigraph_ingest/SKILL.md has no --enrich flag docs; cross-references enrich_article</done>
 </task>
 
-<task type="checkpoint:human-verify">
-  <name>Task 7.4: Remote E2E — one real WeChat article through enrich_article</name>
-  <files>(no file changes — verification only)</files>
+<task type="auto">
+  <name>Task 7.4: Remote live-validate merge_and_ingest against Wave 4 fixtures — flip criteria 7-12 to PASS</name>
+  <files>(no file changes — remote validation only)</files>
   <read_first>
-    - skills/enrich_article/README.md (E2E test instructions)
-    - .planning/phases/04-knowledge-enrichment-zhihu/04-VALIDATION.md (E2E tier — full skill run against one real article)
-    - All of: skills/enrich_article/SKILL.md, skills/zhihu-haowen-enrich/SKILL.md, enrichment/*.py (to mentally trace the expected data flow)
+    - docs/testing/04-06-test-results.md §4 "Acceptance Criteria" (rows 7-12 are blocked; this task flips them to PASS)
+    - skills/enrich_article/README.md
+    - enrichment/merge_and_ingest.py (CLI contract)
+    - .planning/STATE.md §"Waiting / Blocked On" (this task closes the blocker)
   </read_first>
   <action>
-    Execute the end-to-end Phase 4 validation against the live remote Hermes
-    instance. This is the phase's exit gate.
+    This is automated (not a human-verify checkpoint) because SSH can drive the
+    full flow: the Wave 4 test already captured all the upstream artifacts
+    (questions.json, 0/haowen.json, 0/final_content.md, 1/*, 2/*) on remote at
+    ~/.hermes/omonigraph-vault/enrichment/8ac04218b4/. The only step that got
+    blocked was merge_and_ingest itself due to flash-lite quota. With the flash
+    model swap (Task 7.2) plus SQLite auto-migrate, rerunning merge_and_ingest
+    against the existing fixtures will flip criteria 7-12 to PASS.
 
-    Steps (user performs on Windows host):
+    Orchestrator (not executor) runs this via SSH after Wave 5 ships.
 
-    1. Push all Phase 4 code: `./deploy.sh`
-    2. Ensure the Phase-0 spike report exists on remote with `status: success`:
-       ```
-       ssh -p $OMNIGRAPH_SSH_PORT $OMNIGRAPH_SSH_USER@$OMNIGRAPH_SSH_HOST \
-         'grep "^status:" OmniGraph-Vault/.planning/phases/04-knowledge-enrichment-zhihu/phase0_spike_report.md'
-       ```
-    3. On remote, run full unit + integration test suite:
-       ```
-       ssh -p $OMNIGRAPH_SSH_PORT $OMNIGRAPH_SSH_USER@$OMNIGRAPH_SSH_HOST \
-         'cd ~/OmniGraph-Vault && source venv/bin/activate && pytest tests/ -v --tb=short'
-       ```
-       All tests must pass (or skip cleanly for missing-fixture cases).
-    4. Pick ONE real production WeChat article URL (≥2000 chars; ideally one
-       that's already been scraped and cached — fast path). Let `HASH` = the
-       md5[:10] of its URL.
-    5. Ensure the article is scraped (cache exists at
-       `~/.hermes/omonigraph-vault/images/$HASH/final_content.md`) OR run
-       `python ingest_wechat.py "<url>"` first to scrape.
-    6. From Hermes chat/CLI on remote:
-       ```
-       /enrich_article
-       ARTICLE_URL=<the url>
-       ARTICLE_PATH=/home/<user>/.hermes/omonigraph-vault/images/<hash>/final_content.md
-       ```
-    7. Wait up to 15 minutes. Observe the agent executing:
-       - Step 1 (extract_questions) → one-line JSON with `status:ok, question_count:N`
-       - Step 2 (for-each question) → /zhihu-haowen-enrich invocations + fetch_zhihu calls
-       - Step 4 (merge_and_ingest) → one-line JSON with `status:ok, enriched:2`
-    8. Verify artifacts:
-       ```
-       # On remote:
-       ls ~/.hermes/omonigraph-vault/enrichment/<hash>/questions.json
-       ls ~/.hermes/omonigraph-vault/enrichment/<hash>/*/haowen.json
-       ls ~/.hermes/omonigraph-vault/enrichment/<hash>/*/final_content.md   # zhihu MDs
-       ```
+    Steps:
+
+    1. SSH to remote; `cd ~/OmniGraph-Vault && git fetch origin && git checkout gsd/phase-04 && git pull --ff-only`
+    2. Verify flash model swap landed: `grep -c "gemini-2.5-flash-lite" ingest_wechat.py` returns 0; `grep -q "INGEST_LLM_MODEL" ingest_wechat.py` succeeds.
+    3. Verify SQLite auto-migrate on import: `source venv/bin/activate && python -c "import ingest_wechat; print('migration ran')"` exits 0.
+    4. Verify fixtures still present: `ls ~/.hermes/omonigraph-vault/enrichment/8ac04218b4/questions.json ~/.hermes/omonigraph-vault/enrichment/8ac04218b4/{0,1,2}/haowen.json ~/.hermes/omonigraph-vault/enrichment/8ac04218b4/{0,1,2}/final_content.md`
+    5. Pre-run LightRAG graph baseline: `grep -c '<node' ~/.hermes/omonigraph-vault/lightrag_storage/graph_chunk_entity_relation.graphml` (record N).
+    6. Rerun merge_and_ingest:
+       `cd ~/OmniGraph-Vault && source venv/bin/activate && set -a && source ~/.hermes/.env && set +a && python -m enrichment.merge_and_ingest 8ac04218b4 --article-path ~/.hermes/omonigraph-vault/images/8ac04218b4/final_content.md --article-url "https://mp.weixin.qq.com/s/-1CQxvdc1bDMrPzIHFPpbA" 2>&1 | tee /tmp/mi_rerun.log`
+    7. Capture last line of stdout — must be D-03 single-line JSON: `{"hash": "8ac04218b4", "status": "ok", "enriched": 2, "question_count": 3, "success_count": 3, "zhihu_docs_ingested": N'', "enrichment_id": "enrich_8ac04218b4"}` where N'' >= 1.
+    8. Verify filesystem: `ls ~/.hermes/omonigraph-vault/enrichment/8ac04218b4/final_content.enriched.md` exists AND is non-empty AND contains inline 好问 summaries (grep for "好问" or the first question text).
     9. Verify SQLite:
-       ```
-       sqlite3 ~/OmniGraph-Vault/data/kol_scan.db \
-         "SELECT enriched FROM articles WHERE url = '<the url>'"
-       # Expect: 2 (success/partial) or -2 (all-fail)
+       - `sqlite3 ~/OmniGraph-Vault/data/kol_scan.db "SELECT enriched FROM articles WHERE url='https://mp.weixin.qq.com/s/-1CQxvdc1bDMrPzIHFPpbA'"` returns 2
+       - `sqlite3 ~/OmniGraph-Vault/data/kol_scan.db "SELECT enrichment_id FROM ingestions WHERE article_id=(SELECT id FROM articles WHERE url='https://mp.weixin.qq.com/s/-1CQxvdc1bDMrPzIHFPpbA')"` returns `enrich_8ac04218b4`
+    10. Verify LightRAG: `python -c "import json; d=json.load(open('/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json')); new=[(k,v['status']) for k,v in d.items() if '8ac04218b4' in k]; print(new)"` — all status values must be `processed`, none `failed`.
+    11. Verify graph grew: post-run `grep -c '<node'` > baseline N from step 5.
+    12. Record all outputs in a commit-ready validation note (orchestrator adds this to 04-07-SUMMARY.md).
 
-       sqlite3 ~/OmniGraph-Vault/data/kol_scan.db \
-         "SELECT enrichment_id FROM ingestions WHERE article_id=(SELECT id FROM articles WHERE url='<the url>')"
-       # Expect: enrich_<hash>
-       ```
-    10. Verify LightRAG:
-        ```
-        ssh remote 'cd ~/OmniGraph-Vault && source venv/bin/activate && \
-          python -c "
-        import asyncio
-        from ingest_wechat import get_rag
-        async def main():
-            rag = await get_rag()
-            # Inspect doc store for zhihu_<hash>_* ids
-            # (LightRAG API detail — use repl to check)
-        asyncio.run(main())
-        "'
-        ```
-        (Exact API call may vary — user confirms visually via inspection.)
-
-    Resume-signal: type "phase 4 E2E passed" with a one-line summary:
-    - Question count extracted
-    - Successful/failed 好问 per question
-    - Final `enriched` state
-    - LightRAG zhihu_<hash>_* doc count
-
-    If ANY step fails, capture the error + logs and plan a follow-up gap-closure
-    phase (`/gsd:plan-phase 4 --gaps`).
+    If any step fails: capture logs + error to docs/testing/04-07-validation-results.md on gsd/phase-04; plan follow-up gap-closure.
   </action>
   <verify>
     <automated>true</automated>
   </verify>
   <acceptance_criteria>
-    - Remote Phase-0 spike report shows `status: success`
-    - Remote pytest suite green (unit + integration, skips ok)
-    - Remote E2E invocation produces:
-      - `~/.hermes/omonigraph-vault/enrichment/<hash>/questions.json` exists with at least 1 question
-      - At least one `~/.hermes/omonigraph-vault/enrichment/<hash>/*/haowen.json` exists (success or graceful error)
-      - SQLite `articles.enriched` for the test URL is in {2, -2} (NOT 0, NOT null)
-      - SQLite `ingestions.enrichment_id` starts with `enrich_`
-    - User reports (in resume signal) how many questions succeeded and the final enriched state
+    - D-03 JSON emitted with `"status": "ok"` AND `"success_count" >= 1` AND `"zhihu_docs_ingested" >= 1`
+    - `~/.hermes/omonigraph-vault/enrichment/8ac04218b4/final_content.enriched.md` exists, non-empty, contains 好问 summaries inline (closes criterion 7)
+    - SQLite `articles.enriched == 2` for the test URL (closes criterion 9)
+    - SQLite `ingestions.enrichment_id == "enrich_8ac04218b4"` (closes criterion 10)
+    - LightRAG `kv_store_doc_status.json` shows all `8ac04218b4`-tagged docs with status `processed`, none `failed` (closes criterion 12)
+    - LightRAG graph grew (node count post > baseline) (closes criterion 11)
+    - merge_and_ingest exit code 0 (closes criterion 14 already-PASS reinforcement)
+    - All 6 blocked criteria (7, 8, 9, 10, 11, 12) from 04-06-test-results.md §4 flip to PASS
+    - If ALL 6 flip: Phase 4 exit gate passed. Orchestrator proceeds to phase verification + merge.
   </acceptance_criteria>
-  <done>End-to-end pipeline works on one real article on remote; all artifacts present; SQLite state correct</done>
+  <done>Wave 4 test report §4 criteria 7-12 flipped to PASS; Phase 4 end-to-end pipeline proven on real remote data</done>
 </task>
 
 </tasks>
 
 <verification>
-  - `python -c "import config; print(config.ENRICHMENT_LLM_MODEL)"` prints `gemini-2.5-flash-lite`
+  - `python -c "import config; print(config.ENRICHMENT_LLM_MODEL)"` prints `gemini-2.5-flash`
+  - `python -c "import config; print(config.INGEST_LLM_MODEL)"` prints `gemini-2.5-flash`
+  - `! grep -q "flash-lite" config.py` (D-12-REVISED)
+  - `! grep -q "gemini-2.5-flash-lite" ingest_wechat.py` (D-12-REVISED)
+  - `grep -q "from batch_scan_kol import init_db" ingest_wechat.py` (SQLite auto-migrate)
+  - `grep -q "UPDATE articles SET enriched" ingest_wechat.py` (D-07 short-article marker)
   - `grep -q "deepseek" config.py` returns no matches
   - `grep -q "\-\-enrich" skills/omnigraph_ingest/SKILL.md` returns no matches
-  - `grep -q "UPDATE articles SET enriched" ingest_wechat.py` succeeds
-  - Remote E2E succeeds per Task 7.4 acceptance criteria
+  - `grep -q "GOOGLE_GENAI_USE_VERTEXAI" enrichment/fetch_zhihu.py` (VERTEXAI guard)
+  - `grep -q "GOOGLE_GENAI_USE_VERTEXAI" enrichment/merge_and_ingest.py` (VERTEXAI guard)
+  - Remote live-validation succeeds per Task 7.4 acceptance criteria (all 6 blocked criteria flip to PASS)
 </verification>
 
 <success_criteria>
-- All 10 Phase 4 config keys present in config.py with exact values from RESEARCH.md §9
-- ingest_wechat.py marks short articles as enriched=-1 (no flag added)
+- All 11 Phase 4 config keys present in config.py (10 original + new INGEST_LLM_MODEL); default model = flash
+- ingest_wechat.py: uses INGEST_LLM_MODEL (no hardcoded flash-lite), auto-migrates SQLite on import, marks short articles enriched=-1, no --enrich flag
+- enrichment/fetch_zhihu.py and enrichment/merge_and_ingest.py pop GOOGLE_GENAI_USE_VERTEXAI at import (defensive; matches extract_questions.py)
 - omnigraph_ingest SKILL.md cross-references enrich_article; no --enrich flag docs
-- Remote E2E: one real article produces enriched LightRAG state and correct SQLite values
+- Remote live-validation: rerunning merge_and_ingest against Wave 4 fixtures flips test report §4 criteria 7-12 from BLOCKED to PASS
+- Phase 4 complete end-to-end on real article 8ac04218b4: 1 enriched WeChat doc + 3 Zhihu docs in LightRAG, articles.enriched=2, ingestions.enrichment_id=enrich_8ac04218b4
 </success_criteria>
 
 <output>
