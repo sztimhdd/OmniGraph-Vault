@@ -12,10 +12,20 @@ description: |
   context retrieval from the knowledge graph, diff review, and commit decisions.
   Claude Code owns focused implementation in a single deep session.
 
-  Also covers the **post-hoc push** scenario: the user ran Claude Code
-  independently (not via ACP bridge) and asks Hermes to review, stage, commit,
-  push, and explain the changes. Trigger phrases for this variant include:
-  "帮我推送", "看看他改了啥", "Claude Code finished", "push his changes".
+Also covers the **post-hoc push** scenario: the user ran Claude Code
+independently (not via ACP bridge) and asks Hermes to review, stage, commit,
+push, and explain the changes. Trigger phrases for this variant include:
+"帮我推送", "看看他改了啥", "Claude Code finished", "push his changes".
+
+Also covers the **plan review and rectify** scenario: Claude Code generated
+planning documents (.planning/ phases, design docs, PRDs) and the user asks
+Hermes to review them against Hermes' own verified domain knowledge — especially
+for plans that touch CDP browser automation, SPA quirks, API availability on
+free tiers, image CDN behaviors, or other details Claude Code cannot empirically
+verify. Hermes reads the plans, identifies gaps between plan assumptions and
+real-world behavior, makes surgical corrections, and pushes back to GitHub.
+Trigger phrases: "review his plans", "看看规划对不对", "Claude Code已经完成了计划",
+"check the planning docs", "review what Claude Code planned", "审校规划文档".
 
   Do NOT use this skill when: the change is a single-file edit or trivial fix
   (<20 lines) — keep it in Hermes (cheaper, faster). Do NOT use when the task
