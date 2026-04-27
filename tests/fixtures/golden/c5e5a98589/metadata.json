@@ -1,0 +1,18 @@
+{
+  "title": "",
+  "url": "http://mp.weixin.qq.com/s?__biz=Mzg2MzcyODQ5MQ==&mid=2247500797&idx=1&sn=68674486da6aad9de1d824676e63f2cc&chksm=ce76a5f9f9012cef93246d1a2ea88e1a460aaeafee235eeda768e794edbafe79b93c3829f007#rd",
+  "hash": "c5e5a98589",
+  "method": "apify",
+  "images": [
+    {
+      "index": 0,
+      "description": "This image displays the top portion of a \"Hermes Agent Five-Layer Architecture Diagram\" (Hermes Agent \u4e94\u5c42\u67b6\u6784\u56fe). The visible part details the \"1. Entry Layer\" (1 \u5165\u53e3\u5c42) and partially shows the \"2. Gateway Layer\" (2 \u7f51\u5173\u5c42).\n\nThe \"Entry Layer\" is presented within a large white rectangular box and is described as encompassing \"CLI + 20+ Message Platform Adapters\" (CLI + \u4e8c\u5341\u591a\u4e2a\u6d88\u606f\u5e73\u53f0\u9002\u914d\u5668). This layer visually consists of two main components:\n1.  **CLI (Command Line Interface):** Represented by a dark grey rectangular icon containing a white `>` and `_` symbol, labeled \"CLI\" below.\n2.  **Message Platform Adapters:** A grid of application icons, labeled \"\u6d88\u606f\u5e73\u53f0\u9002\u914d\u5668 (20+)\", indicating over 20 messaging platforms. These adapters are connected to the CLI by a horizontal double-headed arrow, suggesting interaction or integration.\n\nThe message platform adapters shown in the grid include:\n*   **Top row (left to right):** Feishu (teal/blue folded paper icon), DingTalk (blue winged figure icon), Telegram (blue paper airplane icon), Discord (blue gamepad/robot icon), Slack (colorful intersecting shapes icon), WhatsApp (green phone icon), iMessage (green speech bubble icon), and Email (blue envelope icon).\n*   **Bottom row (left to right):** SMS (green speech bubble icon), \u4f01\u4e1a\u5fae\u4fe1 (WeChat Work, blue speech bubble with yellow people icon), LINE (green speech bubble with \"LINE\" text icon), Messenger (purple/blue gradient speech bubble with lightning bolt 'N' icon), WeCom (blue speech bubble with yellow flower-like icon), Twitter/X (black 'X' icon), Instagram (orange/purple gradient camera icon), and an ellipsis (\"...\") indicating more platforms.\n\nA vertical double-headed arrow connects the entire \"Entry Layer\" box downwards to the partially visible \"2. Gateway Layer\" (2 \u7f51\u5173\u5c42), suggesting data flow or hierarchical connection between these two architectural layers.",
+      "local_url": "http://localhost:8765/c5e5a98589/0.jpg"
+    },
+    {
+      "index": 1,
+      "description": "A circular image features a male character rendered in a detailed anime style, showcasing long, flowing silver-white hair and intense red eyes. He possesses fair skin and distinctive red facial markings: a prominent line extending from below his left eye and a smaller mark above the bridge of his nose. The character is dressed in elaborate, layered traditional East Asian-inspired robes, predominantly in shades of white, grey, and dark blue, accented with wide sleeves, dark blue sashes, and decorative tassels. He is depicted in a dynamic pose, with his right hand firmly gripping the hilt of a sheathed sword, which also features a dark tassel. The background is a minimalist dark blue with subtle diagonal lines, complementing the character's cool-toned palette and serious expression.",
+      "local_url": "http://localhost:8765/c5e5a98589/1.jpg"
+    }
+  ]
+}

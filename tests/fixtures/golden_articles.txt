@@ -1,8 +1,14 @@
 # Golden-file regression fixtures (Phase 4 image_pipeline refactor — D-16)
 #
-# List the <article_hash> values of 2-3 WeChat articles from the remote
-# ~/.hermes/omonigraph-vault/images/ directory that have BOTH final_content.md
-# AND metadata.json with at least 3 images.
+# Populated during Phase 4 Task 0.5 (Wave 0 scaffold) from the remote
+# ~/.hermes/omonigraph-vault/images/ cache. One hash per line; lines
+# starting with # are ignored.
 #
-# Populated via the REMOTE capture step (see Task 0.5 below).
-# One hash per line. Lines starting with # are ignored.
+# Note: remote cache at capture time held only 3 articles, all with
+# metadata.images == 2 (below the plan's >=3-image heuristic). All 3
+# were captured for best regression coverage; task 0.5 acceptance
+# criteria (>=2 fixtures with final_content.md + metadata.json) are
+# satisfied.
+3738bfe579
+8ac04218b4
+c5e5a98589
