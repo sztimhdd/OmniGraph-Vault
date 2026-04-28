@@ -72,19 +72,19 @@ kg_synthesize.py        ←── 不动 (未来 Agentic RAG 重构)
 
 ### 2.4 关键前置: Embedding 模型迁移 (Critical Prerequisite)
 
-Phase 5 的第一件事不是 RSS，而是把 LightRAG 的 embedding 从 `gemini-embedding-001` 迁移到 `gemini-embedding-002`（多模态）。
+Phase 5 的第一件事不是 RSS，而是把 LightRAG 的 embedding 从 `gemini-embedding-001` 迁移到 `gemini-gemini-embedding-2`（多模态）。
 
 **为什么现在做:**
 
 - **Phase 4 出口 blocker**: `embedding-001` free-tier 100 RPM，LightRAG per-doc entity upsert 稳定 429。这是 302 篇存量 KOL 入图的根因。
-- **多模态能力解锁**: `embedding-002` 直接接受 image bytes，可以删掉 `image_pipeline.describe_images()` 的 Gemini Vision 转写步骤，跨模态检索（文本 query → 图片 chunk）自然启用。
+- **多模态能力解锁**: `gemini-embedding-2` 直接接受 image bytes，可以删掉 `image_pipeline.describe_images()` 的 Gemini Vision 转写步骤，跨模态检索（文本 query → 图片 chunk）自然启用。
 - **关键时序（不可调换）**: Phase 4 close → Phase 5 embedding 迁移 → 302 篇 catch-up。**反序执行会浪费 ~$1 + 强制二次 re-embed 800+ docs**（两次嵌入空间不兼容）。
 
 **Scope:**
 
-1. **Spike 先行（先确认可行，再迁移）**: LightRAG 的 `embedding_func` contract 目前是 `(texts: list[str]) -> np.ndarray`。确认可否拓宽签名接受 `images: list[bytes] | None`，或需要 fork/wrap `gemini_embed`。产出: `docs/spikes/embedding-002-contract.md` — go/no-go 决策。
-2. **替换 Vision pass**: `image_pipeline.describe_images()`（Gemini Vision → 文字描述 → 文本 embedding）改为直接将 image bytes 送入 `embedding-002`。
-3. **扩展 embedding_func 签名**: `gemini_embed` 包装器接受 `texts: list[str]` + `images: list[bytes] | None`，内部路由到 `embedding-002` 多模态接口。
+1. **Spike 先行（先确认可行，再迁移）**: LightRAG 的 `embedding_func` contract 目前是 `(texts: list[str]) -> np.ndarray`。确认可否拓宽签名接受 `images: list[bytes] | None`，或需要 fork/wrap `gemini_embed`。产出: `docs/spikes/gemini-embedding-2-contract.md` — go/no-go 决策。
+2. **替换 Vision pass**: `image_pipeline.describe_images()`（Gemini Vision → 文字描述 → 文本 embedding）改为直接将 image bytes 送入 `gemini-embedding-2`。
+3. **扩展 embedding_func 签名**: `gemini_embed` 包装器接受 `texts: list[str]` + `images: list[bytes] | None`，内部路由到 `gemini-embedding-2` 多模态接口。
 4. **重嵌入存量 18 docs**: 新旧 embedding 维度/语义空间不兼容，复用 Phase 4 D-14 `delete + reinsert` 路径。预计 ~1 min / ~$0.03。
 5. **302 篇 KOL catch-up**: 新管线跑存量追赶摄入。预计 ~25 min / 净成本 ≤ embedding-001 情况下的成本（删掉的 Vision pass 抵消新 embedding 溢价）。
 
@@ -217,6 +217,8 @@ CREATE TABLE IF NOT EXISTS rss_classifications (
 
 #### 3.1.5 RSS 分类器 (`rss_classify.py`)
 
+> **Superseded by Phase 5 D-07 (2026-04-28):** All RSS articles with depth_score ≥ 2 go through Zhihu 好问 enrichment regardless of language. The "英文 RSS 可能不需要增厚" note below is obsolete.
+
 **复用 `batch_classify_kol.py` 的分类逻辑**，适配 RSS 数据源：
 
 - LLM prompt 调整为英文为主 + 中文兼容
@@ -346,6 +348,8 @@ A retrospective on how LLM capabilities evolved, what surprised us...
 ```
 
 **Hermes Cron 实现:**
+
+> **Superseded by Phase 4 D-12:** Question extraction uses Gemini 2.5 Flash Lite (with optional grounding). `ENRICHMENT_LLM_MODEL` no longer points at DeepSeek.
 
 不再使用单一大 cron job。改为独立 job + 合理间隔：
 
@@ -533,9 +537,11 @@ langdetect>=1.0        # 语言检测 (RSS 预筛选)
 
 ### Wave 0: Embedding 模型迁移 + 302 篇 catch-up (2 plans) — **必须最先做**
 
+> **Superseded by Phase 5 D-10 (2026-04-28):** Ingestion filter is keyword match AND depth_score ≥ 2, NOT all 302 articles. Current keyword scope: `{openclaw, hermes, agent, harness}`.
+
 | Plan | 内容 | 产出 |
 |------|------|------|
-| 05-00 | embedding-002 spike + embedding_func 扩展 + 18 docs re-embed | `docs/spikes/embedding-002-contract.md` go/no-go，新 `gemini_embed` 支持 image bytes，18 docs 重嵌完成 |
+| 05-00 | gemini-embedding-2 spike + embedding_func 扩展 + 18 docs re-embed | `docs/spikes/gemini-embedding-2-contract.md` go/no-go，新 `gemini_embed` 支持 image bytes，18 docs 重嵌完成 |
 | 05-00b | 302 篇 KOL 存量 catch-up (新 pipeline) | LightRAG 图谱含全部 KOL 历史文章，benchmark 报告（中文检索不退化 + 跨模态命中）通过 |
 
 **阻塞后续 Wave**: Wave 1 之后的所有 RSS/ingest 代码都假设新的 embedding 基座已就位。Wave 0 未通过 success criteria 前不启动 Wave 1。
