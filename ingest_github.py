@@ -18,18 +18,22 @@ except ImportError as e:
     print(f"Import error: {e}")
     sys.exit(1)
 
-# Phase 5 D-01: shared embedding function (gemini-embedding-2 + in-band multimodal).
-from lightrag_embedding import embedding_func
+# Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
+from lib import embedding_func
 
 nest_asyncio.apply()
 
 from config import RAG_WORKING_DIR, load_env
 load_env()
 
+# Phase 7: centralized model selection + key management.
+# D-05: ingest_github preserves the preview model via GITHUB_INGEST_LLM (not INGESTION_LLM).
+from lib import GITHUB_INGEST_LLM, current_key, get_limiter
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ingest_github")
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# Phase 7: GEMINI_API_KEY now accessed via lib.current_key() — supports rotation.
 
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 os.makedirs(RAG_WORKING_DIR, exist_ok=True)
@@ -40,21 +44,26 @@ ENTITY_REGISTRY_FILE = Path(__file__).parent / "entity_registry.json"
 # --- LightRAG setup (matches ingest_wechat.py exactly) ---
 
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-    return await gemini_model_complete(
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        api_key=GEMINI_API_KEY,
-        model_name="gemini-3.1-flash-lite-preview",
-        **kwargs,
-    )
+    """LightRAG LLM wrapper with Phase 7 lib/ rate limiting and key rotation.
+
+    D-05: Uses GITHUB_INGEST_LLM (preview model preserved for GitHub ingestion).
+    """
+    async with get_limiter(GITHUB_INGEST_LLM):
+        return await gemini_model_complete(
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            api_key=current_key(),
+            model_name=GITHUB_INGEST_LLM,
+            **kwargs,
+        )
 
 async def get_rag() -> LightRAG:
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
-        llm_model_name="gemini-3.1-flash-lite-preview",
+        llm_model_name=GITHUB_INGEST_LLM,
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
@@ -285,8 +294,6 @@ if __name__ == "__main__":
         print("Example: python ingest_github.py https://github.com/NousResearch/hermes-agent")
         sys.exit(1)
 
-    if not GEMINI_API_KEY:
-        print("Error: GEMINI_API_KEY not set. Add it to ~/.hermes/.env")
-        sys.exit(1)
-
+    # Phase 7: key presence is validated lazily by lib.current_key() —
+    # load_keys() raises RuntimeError with a remediation message if none are set.
     asyncio.run(ingest_github(sys.argv[1]))
