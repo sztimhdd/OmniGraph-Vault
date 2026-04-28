@@ -16,8 +16,11 @@ except ImportError as e:
     print(f"Import error: {e}")
     sys.exit(1)
 
-# Phase 5 D-01: shared embedding function (gemini-embedding-2 + in-band multimodal).
-from lightrag_embedding import embedding_func
+# Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
+from lib import embedding_func
+
+# Phase 7: centralized model selection + key management.
+from lib import INGESTION_LLM, VISION_LLM, current_key, get_limiter, generate_sync
 
 nest_asyncio.apply()
 
@@ -37,7 +40,7 @@ def load_env():
 
 load_env()
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# Phase 7: GEMINI_API_KEY now accessed via lib.current_key() — supports rotation.
 BASE_IMAGE_DIR = os.path.expanduser("./data/images")
 RAG_WORKING_DIR = os.path.expanduser("./data/lightrag_storage")
 
@@ -49,21 +52,26 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
 # --- LightRAG Setup ---
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-    return await gemini_model_complete(
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        api_key=GEMINI_API_KEY,
-        model_name="gemini-2.5-flash-lite",
-        **kwargs,
-    )
+    """LightRAG LLM wrapper with Phase 7 lib/ rate limiting and key rotation."""
+    async with get_limiter(INGESTION_LLM):
+        return await gemini_model_complete(
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            api_key=current_key(),
+            model_name=INGESTION_LLM,
+            **kwargs,
+        )
 
 async def get_rag():
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
-        llm_model_name="gemini-2.5-flash-lite",
+        llm_model_name=INGESTION_LLM,
+        # Phase 4 throttle guardrails preserved (embedding RPM limits).
+        embedding_func_max_async=1,
+        embedding_batch_num=20,
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
@@ -71,14 +79,18 @@ async def get_rag():
 
 # --- Image Processing ---
 def describe_image(image_path):
+    """Describe an image via lib.generate_sync (Amendment 5 multimodal path)."""
     try:
-        vision_client = genai.Client(api_key=GEMINI_API_KEY)
-        img = Image.open(image_path)
-        response = vision_client.models.generate_content(
-            model='gemini-2.5-flash-lite',
-            contents=["Describe this image in detail for a knowledge graph. Return only the description.", img]
+        from google.genai import types
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
+        return generate_sync(
+            VISION_LLM,
+            contents=[
+                "Describe this image in detail for a knowledge graph. Return only the description.",
+                types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+            ],
         )
-        return response.text
     except Exception as e:
         return f"Error describing image: {e}"
 
@@ -161,12 +173,11 @@ async def ingest_pdf(pdf_path):
     print(f"Local Path: {pdf_dir}")
 
 if __name__ == "__main__":
-    if not GEMINI_API_KEY:
-        print("Error: GEMINI_API_KEY not found in environment.")
-        sys.exit(1)
+    # Phase 7: key presence is validated lazily by lib.current_key() —
+    # load_keys() raises RuntimeError with a remediation message if none are set.
     if len(sys.argv) < 2:
         print("Usage: python multimodal_ingest.py <pdf_path>")
         sys.exit(1)
-    
+
     pdf_path = sys.argv[1]
     asyncio.run(ingest_pdf(pdf_path))
