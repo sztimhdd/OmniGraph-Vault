@@ -139,16 +139,11 @@ def main() -> int:
     _emit(f"model: {MODEL}")
     _emit()
 
-    # Probe 1 — Batch API
-    batch_available, batch_detail = probe_batch_api(client)
-    _emit(f"batch_api_available: {str(batch_available).lower()}")
-    _emit(f'batch_detail: "{batch_detail}"')
+    # IMPORTANT: multimodal probe runs BEFORE the RPM burn so it is not
+    # blocked by free-tier quota exhaustion. A single embed_content call
+    # followed by a short cool-down is cheap.
 
-    # Probe 2 — RPM ceiling
-    rpm_ceiling = probe_rpm(client)
-    _emit(f"rpm_ceiling: {rpm_ceiling}")
-
-    # Probe 3 — multimodal smoke
+    # Probe 1 — multimodal smoke (must run before RPM probe)
     try:
         mm_works, mm_detail = probe_multimodal(client)
     except Exception:
@@ -156,6 +151,19 @@ def main() -> int:
         mm_detail = traceback.format_exc().splitlines()[-1]
     _emit(f"multimodal_works: {str(mm_works).lower()}")
     _emit(f'multimodal_detail: "{mm_detail}"')
+
+    # Cool-down between probes so a 429 from the RPM burn doesn't bleed
+    # back into later probes if the script is re-run.
+    time.sleep(2.0)
+
+    # Probe 2 — Batch API
+    batch_available, batch_detail = probe_batch_api(client)
+    _emit(f"batch_api_available: {str(batch_available).lower()}")
+    _emit(f'batch_detail: "{batch_detail}"')
+
+    # Probe 3 — RPM ceiling (burns ~100 calls of free-tier quota)
+    rpm_ceiling = probe_rpm(client)
+    _emit(f"rpm_ceiling: {rpm_ceiling}")
 
     # Recommendation
     if mm_works and rpm_ceiling >= 30:
