@@ -29,13 +29,16 @@ except ImportError as e:
     print("Python path:", sys.path)
     sys.exit(1)
 
-# Phase 5 D-01: shared embedding function (gemini-embedding-2 + in-band multimodal).
-from lightrag_embedding import embedding_func
+# Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
+from lib import embedding_func
 
 nest_asyncio.apply()
 
-from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR, ENRICHMENT_MIN_LENGTH, INGEST_LLM_MODEL
+from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR, ENRICHMENT_MIN_LENGTH
 load_env()
+
+# Phase 7: centralized model selection + key management
+from lib import INGESTION_LLM, current_key, get_limiter
 
 from image_pipeline import (
     download_images, localize_markdown, describe_images, save_markdown_with_images,
@@ -44,7 +47,7 @@ from image_pipeline import (
 
 def _is_mcp_endpoint(url: str) -> bool:
     return bool(url) and url.rstrip("/").endswith("/mcp")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# Phase 7: GEMINI_API_KEY now accessed via lib.current_key() — supports rotation
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
 
 DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
@@ -92,36 +95,21 @@ os.makedirs(RAG_WORKING_DIR, exist_ok=True)
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
 # --- LightRAG Setup ---
-# --- Rate Limiting for Gemini Free Tier ---
-# 3.1-flash-lite-preview: 30 RPM → 2s interval safe.
-# LightRAG's llm_model_max_async=2 already serializes within this.
-_llm_lock = asyncio.Lock()
-_last_llm_time = 0.0
-_LLM_MIN_INTERVAL = 2.0  # 30 RPM safe margin
-
 
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-    """LightRAG LLM wrapper with RPM guard.
+    """LightRAG LLM wrapper with Phase 7 lib/ rate limiting and key rotation.
 
-    Uses ingress-level GEMINI_API_KEY. Key fallback (429 → backup) and
-    503 retry are handled by config.gemini_call() which is called
-    indirectly via gemini_model_complete. For direct RPM enforcement,
-    we add a lightweight lock here before the LightRAG library call.
+    Phase 7 D-03 (Wave 1): hand-rolled asyncio.Lock + time-tracking replaced
+    by lib.get_limiter(INGESTION_LLM) (leaky-bucket per model). Key access
+    via lib.current_key() supports multi-account rotation.
     """
-    global _last_llm_time
-    async with _llm_lock:
-        now = time.time()
-        elapsed = now - _last_llm_time
-        if _last_llm_time > 0 and elapsed < _LLM_MIN_INTERVAL:
-            wait = _LLM_MIN_INTERVAL - elapsed
-            await asyncio.sleep(wait)
-        _last_llm_time = time.time()
+    async with get_limiter(INGESTION_LLM):
         return await gemini_model_complete(
             prompt,
             system_prompt=system_prompt,
             history_messages=history_messages,
-            api_key=GEMINI_API_KEY,
-            model_name=INGEST_LLM_MODEL,
+            api_key=current_key(),
+            model_name=INGESTION_LLM,
             **kwargs,
         )
 
@@ -136,7 +124,7 @@ async def get_rag():
         working_dir=RAG_WORKING_DIR,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
-        llm_model_name=INGEST_LLM_MODEL,
+        llm_model_name=INGESTION_LLM,
         # Throttle concurrency to fit Gemini free-tier quotas:
         # gemini-embedding-*: 100 RPM → serialize embeddings with max_async=1
         # flash/flash-lite LLM: 250/20 RPD → cap LLM concurrency at 2
@@ -526,7 +514,7 @@ async def extract_entities(text):
         from config import gemini_call
         prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
         response = gemini_call(
-            model=INGEST_LLM_MODEL,
+            model=INGESTION_LLM,
             contents=[prompt],
         )
         entities = [e.strip() for e in response.text.split(',')]
