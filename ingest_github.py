@@ -9,16 +9,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import subprocess
-import numpy as np
 import nest_asyncio
 
 try:
     from lightrag.lightrag import LightRAG, QueryParam
-    from lightrag.llm.gemini import gemini_model_complete, gemini_embed
-    from lightrag.utils import wrap_embedding_func_with_attrs
+    from lightrag.llm.gemini import gemini_model_complete
 except ImportError as e:
     print(f"Import error: {e}")
     sys.exit(1)
+
+# Phase 5 D-01: shared embedding function (gemini-embedding-2 + in-band multimodal).
+from lightrag_embedding import embedding_func
 
 nest_asyncio.apply()
 
@@ -46,18 +47,6 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
         api_key=GEMINI_API_KEY,
         model_name="gemini-3.1-flash-lite-preview",
         **kwargs,
-    )
-
-@wrap_embedding_func_with_attrs(
-    embedding_dim=768,
-    send_dimensions=True,
-    max_token_size=2048,
-    model_name="gemini-embedding-001",
-)
-async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
-    return await gemini_embed.func(
-        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001",
-        embedding_dim=768,
     )
 
 async def get_rag() -> LightRAG:

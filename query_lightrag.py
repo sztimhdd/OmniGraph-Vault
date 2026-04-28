@@ -3,11 +3,12 @@ import cognee_wrapper
 
 import asyncio
 import sys
-import numpy as np
 from lightrag.lightrag import LightRAG, QueryParam
-from lightrag.llm.gemini import gemini_model_complete, gemini_embed
-from lightrag.utils import wrap_embedding_func_with_attrs
+from lightrag.llm.gemini import gemini_model_complete
 from config import RAG_WORKING_DIR, load_env
+
+# Phase 5 D-01: shared embedding function (gemini-embedding-2 + in-band multimodal).
+from lightrag_embedding import embedding_func
 
 # Force standard Gemini API mode (not Vertex AI)
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
@@ -25,19 +26,6 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
         api_key=GEMINI_API_KEY,
         model_name="gemini-2.5-flash-lite",
         **kwargs,
-    )
-
-@wrap_embedding_func_with_attrs(
-    embedding_dim=768,
-    send_dimensions=True,
-    max_token_size=2048,
-    model_name="gemini-embedding-001",
-)
-async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
-    """Wrapper for Gemini embedding function."""
-    return await gemini_embed.func(
-        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001",
-        embedding_dim=768,
     )
 
 async def query_and_synthesize(query_text: str):

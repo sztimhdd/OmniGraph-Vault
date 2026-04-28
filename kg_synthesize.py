@@ -13,7 +13,6 @@ DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 import asyncio
-import numpy as np
 import time
 
 # Set Cognee env vars BEFORE import so LLMConfig() picks them up at construction
@@ -37,22 +36,20 @@ print(f"Cognee Status: Provider={llm_config.llm_provider}, Model={llm_config.llm
 
 import cognee_wrapper
 from lightrag.lightrag import LightRAG, QueryParam
-from lightrag.llm.gemini import gemini_model_complete, gemini_embed
-from lightrag.utils import wrap_embedding_func_with_attrs
+from lightrag.llm.gemini import gemini_model_complete
+
+# Phase 5 D-01: shared embedding function (gemini-embedding-2 + in-band multimodal).
+from lightrag_embedding import embedding_func
 
 # Constants
 from config import RAG_WORKING_DIR
-MODEL_NAME = "gemini-2.5-flash-lite" 
+MODEL_NAME = "gemini-2.5-flash-lite"
 
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
     return await gemini_model_complete(
         prompt, system_prompt=system_prompt, history_messages=history_messages,
         api_key=GEMINI_API_KEY, model_name=MODEL_NAME, **kwargs,
     )
-
-@wrap_embedding_func_with_attrs(embedding_dim=768, send_dimensions=True, max_token_size=2048, model_name="gemini-embedding-001")
-async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
-    return await gemini_embed.func(texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001", embedding_dim=768)
 
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
     rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=llm_model_func, embedding_func=embedding_func, llm_model_name=MODEL_NAME)

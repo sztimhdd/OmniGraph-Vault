@@ -17,19 +17,20 @@ from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 import html2text
 from google import genai
-import numpy as np
 import cognee_wrapper
 from apify_client import ApifyClient
 
 # For LightRAG
 try:
     from lightrag.lightrag import LightRAG, QueryParam
-    from lightrag.llm.gemini import gemini_model_complete, gemini_embed
-    from lightrag.utils import wrap_embedding_func_with_attrs
+    from lightrag.llm.gemini import gemini_model_complete
 except ImportError as e:
     print(f"Import error: {e}")
     print("Python path:", sys.path)
     sys.exit(1)
+
+# Phase 5 D-01: shared embedding function (gemini-embedding-2 + in-band multimodal).
+from lightrag_embedding import embedding_func
 
 nest_asyncio.apply()
 
@@ -124,33 +125,11 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
             **kwargs,
         )
 
-# --- Embedding Rate Limiting ---
-# gemini-embedding-001: 100 RPM → 1.0s interval for 60 RPM safe margin.
-# LightRAG batches 20 texts per call (embedding_batch_num=20) and runs
-# max_async=1 (serial). This guard ensures calls don't cluster within a second.
-_embed_lock = asyncio.Lock()
-_last_embed_time = 0.0
-_EMBED_MIN_INTERVAL = 1.0  # 60 RPM, safe below 100 RPM limit
+# Embedding throttling is handled by LightRAG's embedding_func_max_async=1 +
+# embedding_batch_num=20 (see get_rag below). The shared embedding_func from
+# lightrag_embedding uses gemini-embedding-2 which has the same 100 RPM free
+# tier as -001; those LightRAG-level knobs already keep us within the window.
 
-@wrap_embedding_func_with_attrs(
-    embedding_dim=768,
-    send_dimensions=True,
-    max_token_size=2048,
-    model_name="gemini-embedding-001",
-)
-async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
-    global _last_embed_time
-    async with _embed_lock:
-        now = time.time()
-        elapsed = now - _last_embed_time
-        if _last_embed_time > 0 and elapsed < _EMBED_MIN_INTERVAL:
-            wait = _EMBED_MIN_INTERVAL - elapsed
-            await asyncio.sleep(wait)
-        _last_embed_time = time.time()
-        return await gemini_embed.func(
-            texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001",
-            embedding_dim=768,
-        )
 
 async def get_rag():
     rag = LightRAG(
