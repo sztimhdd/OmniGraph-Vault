@@ -1,0 +1,12 @@
+{
+  "queries": [
+    {"id": "cn-1", "type": "chinese_text", "text": "Hermes Agent 的架构设计"},
+    {"id": "cn-2", "type": "chinese_text", "text": "OpenClaw 的技术栈"},
+    {"id": "cn-3", "type": "chinese_text", "text": "LightRAG 知识图谱检索机制"},
+    {"id": "cn-4", "type": "chinese_text", "text": "Agent Harness 工程实践"},
+    {"id": "cross-1", "type": "cross_modal", "text": "LightRAG 系统架构图"},
+    {"id": "cross-2", "type": "cross_modal", "text": "知识图谱节点示意图"},
+    {"id": "en-1", "type": "english_text", "text": "What is agentic RAG"},
+    {"id": "en-2", "type": "english_text", "text": "LightRAG delete-by-id API"}
+  ]
+}
