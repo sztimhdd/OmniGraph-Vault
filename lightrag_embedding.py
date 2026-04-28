@@ -7,22 +7,22 @@ their own.
 Design highlights (see ``.planning/phases/05-pipeline-automation/05-RESEARCH.md``
 for full derivation):
 
-- Uses ``gemini-embedding-2`` with ``output_dimensionality=768`` so the
-  existing NanoVectorDB storage files (which record ``embedding_dim: 768``)
-  keep working — the Phase 4 delete-by-id + re-ainsert migration path stays
-  valid (D-17).
+- Uses ``gemini-embedding-2`` with ``output_dimensionality=3072`` — the native
+  full-capacity dim. At 3072 the API auto-normalizes vectors; we still L2-norm
+  client-side so behavior is identical across any ``_OUTPUT_DIM`` choice.
+  Changing this dim requires wiping NanoVectorDB storage (see Task 0.4
+  wave0_reembed.py — ``AssertionError`` on init otherwise).
 - Distinguishes query calls from document upsert calls via the LightRAG-internal
   ``_priority=5`` kwarg (Pattern 1 / Pitfall 5). ``_priority`` is popped so it
   never leaks to the Gemini client.
 - In-band multimodal: text chunks that contain
   ``http://localhost:8765/<hash>/<n>.jpg`` have the image bytes fetched and
   sent as ``types.Part.from_bytes`` in the same ``contents`` list. Gemini
-  returns one aggregated 768-dim vector per item (cookbook Cell 22).
+  returns one aggregated 3072-dim vector per item (cookbook Cell 22).
 - Applies task prefixes per D-05: ``"title: none | text: "`` for documents,
-  ``"task: search result | query: "`` for queries. The legacy ``task-type``
-  parameter is not used (forbidden for ``-2`` per Pitfall 3).
-- L2-normalizes the output because ``output_dimensionality < 3072`` is not
-  auto-normalized by the API.
+  ``"task: search result | query: "`` for queries. The legacy discriminator
+  parameter referenced in earlier Gemini APIs is not used (forbidden for
+  ``-2`` per Pitfall 3).
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ _IMAGE_URL_PATTERN = re.compile(
 _DOC_PREFIX = "title: none | text: "
 _QUERY_PREFIX = "task: search result | query: "
 _DEFAULT_MODEL = "gemini-embedding-2"
-_OUTPUT_DIM = 768
+_OUTPUT_DIM = 3072  # native full-capacity dim; any change requires NanoVectorDB wipe (Task 0.4)
 _MAX_IMAGES_PER_REQUEST = 6  # Gemini hard cap per embed_content call
 _IMAGE_FETCH_TIMEOUT_S = 5.0
 
@@ -95,7 +95,7 @@ def _build_contents(text: str, is_query: bool) -> list:
     model_name=_DEFAULT_MODEL,
 )
 async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
-    """Embed ``texts`` via ``gemini-embedding-2`` and return a (N, 768) float32 ndarray.
+    """Embed ``texts`` via ``gemini-embedding-2`` and return a (N, 3072) float32 ndarray.
 
     LightRAG uses this function for BOTH upsert and query paths. The only
     discriminator is ``_priority=5`` which query calls inject; we pop it so
@@ -125,8 +125,9 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
 
     out = np.vstack(vectors)
 
-    # L2-normalize rows. ``gemini-embedding-2`` only auto-normalizes at
-    # dim=3072; any truncated dim (e.g. 768) must be normalized client-side.
+    # L2-normalize rows. At ``_OUTPUT_DIM=3072`` Gemini already returns
+    # unit-norm vectors, so this is idempotent; keeping it makes the function
+    # correct for any chosen ``_OUTPUT_DIM``.
     norms = np.linalg.norm(out, axis=1, keepdims=True)
     norms = np.where(norms == 0, 1.0, norms)
     return out / norms

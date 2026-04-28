@@ -2,7 +2,7 @@
 
 All tests run locally with mocks (no network). Verifies:
 
-1. Document path returns a (N, 768) float32 np.ndarray.
+1. Document path returns a (N, 3072) float32 np.ndarray.
 2. Query path (``_priority=5``) applies the query prefix but keeps the shape.
 3. ``_priority`` is popped from kwargs and NOT forwarded to the Gemini client.
 4. An ``http://localhost:8765/.../x.jpg`` URL in the text triggers
@@ -26,7 +26,7 @@ def _gemini_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
 
 
-def _fake_embed_response(num: int, dim: int = 768) -> MagicMock:
+def _fake_embed_response(num: int, dim: int = 3072) -> MagicMock:
     """Build a response shaped like ``client.aio.models.embed_content``'s output."""
     response = MagicMock()
     embeddings = []
@@ -48,7 +48,7 @@ def _patched_client(embed_response: MagicMock) -> MagicMock:
 
 @pytest.mark.unit
 async def test_document_path_returns_correct_shape() -> None:
-    """Test 1: embedding_func(["hello"]) with no _priority returns (1, 768) float32."""
+    """Test 1: embedding_func(["hello"]) with no _priority returns (1, 3072) float32."""
     import lightrag_embedding
 
     mock_client = _patched_client(_fake_embed_response(1))
@@ -56,20 +56,20 @@ async def test_document_path_returns_correct_shape() -> None:
         out = await lightrag_embedding.embedding_func(["hello"])
 
     assert isinstance(out, np.ndarray)
-    assert out.shape == (1, 768)
+    assert out.shape == (1, 3072)
     assert out.dtype == np.float32
 
 
 @pytest.mark.unit
 async def test_query_path_applies_query_prefix() -> None:
-    """Test 2: _priority=5 applies query prefix, still returns (1, 768)."""
+    """Test 2: _priority=5 applies query prefix, still returns (1, 3072)."""
     import lightrag_embedding
 
     mock_client = _patched_client(_fake_embed_response(1))
     with patch.object(lightrag_embedding.genai, "Client", return_value=mock_client):
         out = await lightrag_embedding.embedding_func(["hello"], _priority=5)
 
-    assert out.shape == (1, 768)
+    assert out.shape == (1, 3072)
     # Inspect the call to verify the query prefix was prepended.
     call = mock_client.aio.models.embed_content.call_args_list[0]
     contents = call.kwargs["contents"]
@@ -141,7 +141,7 @@ async def test_output_is_l2_normalized() -> None:
     with patch.object(lightrag_embedding.genai, "Client", return_value=mock_client):
         out = await lightrag_embedding.embedding_func(["a", "b", "c"])
 
-    assert out.shape == (3, 768)
+    assert out.shape == (3, 3072)
     norms = np.linalg.norm(out, axis=1)
     for n in norms:
         assert abs(n - 1.0) < 1e-5, f"row norm {n} not close to 1.0"
