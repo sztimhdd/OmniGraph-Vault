@@ -4,6 +4,9 @@ Trimmed copy of query_lightrag.py — returns raw LightRAG retrieval text only,
 no synthesis layer, no memory layer (per PRD D-G09). See
 .planning/phases/06-graphify-addon-code-graph/06-RESEARCH.md §Pattern 3 for
 the rationale and line-level source lineage.
+
+Phase 5 alignment: uses the shared lightrag_embedding.py module (gemini-embedding-2,
+3072 dims) so it reads the same NanoVectorDB index as all other query paths.
 """
 
 from __future__ import annotations
@@ -12,13 +15,11 @@ import asyncio
 import os
 import sys
 
-import numpy as np
-
 from lightrag.lightrag import LightRAG, QueryParam
-from lightrag.llm.gemini import gemini_model_complete, gemini_embed
-from lightrag.utils import wrap_embedding_func_with_attrs
+from lightrag.llm.gemini import gemini_model_complete
 
 from config import RAG_WORKING_DIR, load_env
+from lightrag_embedding import embedding_func as _embedding_func
 
 # Force standard Gemini API mode (not Vertex AI) — matches query_lightrag.py.
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
@@ -33,7 +34,7 @@ async def _llm_model_func(
     history_messages: list | None = None,
     **kwargs,
 ) -> str:
-    """Gemini LLM completion wrapper — same signature as query_lightrag.py L19."""
+    """Gemini LLM completion wrapper — same signature as query_lightrag.py."""
     return await gemini_model_complete(
         prompt,
         system_prompt=system_prompt,
@@ -41,22 +42,6 @@ async def _llm_model_func(
         api_key=GEMINI_API_KEY,
         model_name="gemini-2.5-flash-lite",
         **kwargs,
-    )
-
-
-@wrap_embedding_func_with_attrs(
-    embedding_dim=768,
-    send_dimensions=True,
-    max_token_size=2048,
-    model_name="gemini-embedding-001",
-)
-async def _embedding_func(texts: list[str], **kwargs) -> np.ndarray:
-    """Gemini embedding wrapper — same signature as query_lightrag.py L36."""
-    return await gemini_embed.func(
-        texts,
-        api_key=GEMINI_API_KEY,
-        model="gemini-embedding-001",
-        embedding_dim=768,
     )
 
 
