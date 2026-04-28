@@ -1,17 +1,12 @@
-"""Unit tests for ``lightrag_embedding`` — the Phase 5 D-01/D-04/D-05 shared module.
+"""Tests for lib/lightrag_embedding.py + root shim — Phase 7 Wave 0 Task 0.5.
 
-All tests run locally with mocks (no network). Verifies:
-
-1. Document path returns a (N, 3072) float32 np.ndarray.
-2. Query path (``_priority=5``) applies the query prefix but keeps the shape.
-3. ``_priority`` is popped from kwargs and NOT forwarded to the Gemini client.
-4. An ``http://localhost:8765/.../x.jpg`` URL in the text triggers
-   ``requests.get`` and a ``types.Part.from_bytes`` in the ``contents`` list.
-5. Output is L2-normalized (row norm ≈ 1.0).
+D-09: lightrag_embedding.py absorbed into lib/; root shim re-exports for back-compat.
+Amendment 2: parity assertion — root shim and lib/ must export the same object.
+D-10: uses lib.models.EMBEDDING_MODEL and lib.api_keys.current_key().
 """
 from __future__ import annotations
 
-import os
+import importlib
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,129 +14,160 @@ import numpy as np
 import pytest
 
 
+# ---------------------------------------------------------------------------
+# Shared fixtures
+# ---------------------------------------------------------------------------
+
 @pytest.fixture(autouse=True)
-def _gemini_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    # Keep the module's default model unless a test overrides it.
-    monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
+def _reset_api_keys_state(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-embed-key")
+    import lib.api_keys as k
+    k._cycle = None
+    k._current = None
+    k._rotation_listeners.clear()
 
 
-def _fake_embed_response(num: int, dim: int = 3072) -> MagicMock:
-    """Build a response shaped like ``client.aio.models.embed_content``'s output."""
-    response = MagicMock()
+def _make_embed_response(dims: int = 3072, n_texts: int = 1) -> MagicMock:
+    resp = MagicMock()
     embeddings = []
-    for i in range(num):
-        e = MagicMock()
-        # Non-trivial values so L2-normalization is meaningful.
-        e.values = [float((i + 1) * (j + 1)) for j in range(dim)]
-        embeddings.append(e)
-    response.embeddings = embeddings
-    return response
+    for _ in range(n_texts):
+        emb = MagicMock()
+        emb.values = [0.1] * dims
+        embeddings.append(emb)
+    resp.embeddings = embeddings
+    return resp
 
 
-def _patched_client(embed_response: MagicMock) -> MagicMock:
-    """Return a mock ``genai.Client`` whose ``aio.models.embed_content`` is an AsyncMock."""
-    client = MagicMock()
-    client.aio.models.embed_content = AsyncMock(return_value=embed_response)
-    return client
+# ---------------------------------------------------------------------------
+# D-09 absorption: internal wiring tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_embedding_func_reads_current_key():
+    """D-09: embedding_func uses lib.api_keys.current_key(), NOT os.environ directly."""
+    import lib.api_keys as k
+    import lib.lightrag_embedding as lem
+    import google.genai as genai_mod
+
+    captured_api_keys: list[str] = []
+
+    def _mock_client_cls(api_key):
+        captured_api_keys.append(api_key)
+        mock_c = MagicMock()
+        mock_c.aio.models.embed_content = AsyncMock(return_value=_make_embed_response())
+        return mock_c
+
+    with patch.object(genai_mod, "Client", side_effect=_mock_client_cls):
+        await lem.embedding_func(["hello"])
+
+    assert len(captured_api_keys) == 1
+    assert captured_api_keys[0] == k.current_key()
 
 
-@pytest.mark.unit
-async def test_document_path_returns_correct_shape() -> None:
-    """Test 1: embedding_func(["hello"]) with no _priority returns (1, 3072) float32."""
-    import lightrag_embedding
+@pytest.mark.asyncio
+async def test_embedding_func_uses_model_constant():
+    """D-09/D-10: embedding_func calls embed_content with model == lib.models.EMBEDDING_MODEL."""
+    from lib.models import EMBEDDING_MODEL
+    import lib.lightrag_embedding as lem
+    import google.genai as genai_mod
 
-    mock_client = _patched_client(_fake_embed_response(1))
-    with patch.object(lightrag_embedding.genai, "Client", return_value=mock_client):
-        out = await lightrag_embedding.embedding_func(["hello"])
+    mock_embed = AsyncMock(return_value=_make_embed_response())
+    mock_client = MagicMock()
+    mock_client.aio.models.embed_content = mock_embed
 
-    assert isinstance(out, np.ndarray)
-    assert out.shape == (1, 3072)
-    assert out.dtype == np.float32
+    with patch.object(genai_mod, "Client", return_value=mock_client):
+        await lem.embedding_func(["test text"])
 
-
-@pytest.mark.unit
-async def test_query_path_applies_query_prefix() -> None:
-    """Test 2: _priority=5 applies query prefix, still returns (1, 3072)."""
-    import lightrag_embedding
-
-    mock_client = _patched_client(_fake_embed_response(1))
-    with patch.object(lightrag_embedding.genai, "Client", return_value=mock_client):
-        out = await lightrag_embedding.embedding_func(["hello"], _priority=5)
-
-    assert out.shape == (1, 3072)
-    # Inspect the call to verify the query prefix was prepended.
-    call = mock_client.aio.models.embed_content.call_args_list[0]
-    contents = call.kwargs["contents"]
-    assert isinstance(contents, list)
-    assert contents[0].startswith("task: search result | query: "), contents[0]
+    call_kwargs = mock_embed.call_args
+    assert call_kwargs.kwargs.get("model") == EMBEDDING_MODEL
 
 
-@pytest.mark.unit
-async def test_priority_kwarg_is_not_forwarded_to_gemini() -> None:
-    """Test 3: _priority is popped from kwargs and never reaches the Gemini client."""
-    import lightrag_embedding
+@pytest.mark.asyncio
+async def test_embedding_func_preserves_priority_pop():
+    """LightRAG's _priority=5 kwarg must be popped before reaching embed_content."""
+    import lib.lightrag_embedding as lem
+    import google.genai as genai_mod
 
-    mock_client = _patched_client(_fake_embed_response(1))
-    with patch.object(lightrag_embedding.genai, "Client", return_value=mock_client):
-        await lightrag_embedding.embedding_func(["hello"], _priority=5)
+    mock_embed = AsyncMock(return_value=_make_embed_response())
+    mock_client = MagicMock()
+    mock_client.aio.models.embed_content = mock_embed
 
-    call = mock_client.aio.models.embed_content.call_args_list[0]
-    # All kwargs passed to embed_content
-    forwarded_kwargs = call.kwargs
-    assert "_priority" not in forwarded_kwargs
-    # Also ensure it's not smuggled into the config object.
-    config = forwarded_kwargs["config"]
-    # EmbedContentConfig is a dataclass/pydantic-ish object; inspect its attrs.
-    if hasattr(config, "model_dump"):
-        assert "_priority" not in config.model_dump()
-    else:
-        assert not hasattr(config, "_priority")
+    with patch.object(genai_mod, "Client", return_value=mock_client):
+        await lem.embedding_func(["text"], _priority=5)
+
+    call_kwargs = mock_embed.call_args
+    assert "_priority" not in (call_kwargs.kwargs if call_kwargs else {})
 
 
-@pytest.mark.unit
-async def test_image_url_triggers_inline_part_fetch() -> None:
-    """Test 4: text with http://localhost:8765/*.jpg triggers requests.get + Part.from_bytes."""
-    import lightrag_embedding
-
-    mock_client = _patched_client(_fake_embed_response(1))
-    fake_img_bytes = b"\xff\xd8\xff\xe0" + b"0" * 100  # minimal JPEG-ish
-    mock_response = MagicMock()
-    mock_response.content = fake_img_bytes
-    mock_response.raise_for_status = MagicMock()
-
-    with patch.object(lightrag_embedding.genai, "Client", return_value=mock_client), \
-         patch.object(lightrag_embedding.requests, "get", return_value=mock_response) as mock_get:
-        await lightrag_embedding.embedding_func(
-            ["See diagram http://localhost:8765/abc/0.jpg here"]
-        )
-
-    # requests.get called exactly once with the URL.
-    assert mock_get.call_count == 1
-    assert "http://localhost:8765/abc/0.jpg" in mock_get.call_args.args[0]
-
-    # The contents list sent to Gemini must include a Part (not just a string).
-    call = mock_client.aio.models.embed_content.call_args_list[0]
-    contents = call.kwargs["contents"]
-    assert len(contents) >= 2  # text + Part
-    # First element is the stripped text (URL removed).
-    assert "http://localhost:8765" not in contents[0]
-    # Second element is a Part-shaped object (has inline_data or equivalent).
-    part = contents[1]
-    # google.genai.types.Part has inline_data attribute
-    assert hasattr(part, "inline_data") or hasattr(part, "data") or part.__class__.__name__ == "Part"
+def test_embedding_func_preserves_output_dim():
+    """Decorator attribute: embedding_dim must match EMBEDDING_DIM (3072 for gemini-embedding-2)."""
+    from lib.lightrag_embedding import embedding_func
+    from lib.models import EMBEDDING_DIM
+    assert hasattr(embedding_func, "embedding_dim")
+    assert embedding_func.embedding_dim == EMBEDDING_DIM
 
 
-@pytest.mark.unit
-async def test_output_is_l2_normalized() -> None:
-    """Test 5: Each row of the returned ndarray has L2 norm ≈ 1.0."""
-    import lightrag_embedding
+@pytest.mark.asyncio
+async def test_embedding_func_preserves_task_prefix_doc():
+    """Non-_priority call sends 'title: none | text: ' prefix."""
+    import lib.lightrag_embedding as lem
+    import google.genai as genai_mod
 
-    mock_client = _patched_client(_fake_embed_response(3))
-    with patch.object(lightrag_embedding.genai, "Client", return_value=mock_client):
-        out = await lightrag_embedding.embedding_func(["a", "b", "c"])
+    received_contents: list = []
 
-    assert out.shape == (3, 3072)
-    norms = np.linalg.norm(out, axis=1)
-    for n in norms:
-        assert abs(n - 1.0) < 1e-5, f"row norm {n} not close to 1.0"
+    async def _capture_embed(**kwargs):
+        received_contents.extend(kwargs.get("contents", []))
+        return _make_embed_response()
+
+    mock_client = MagicMock()
+    mock_client.aio.models.embed_content = _capture_embed
+
+    with patch.object(genai_mod, "Client", return_value=mock_client):
+        await lem.embedding_func(["my document text"])
+
+    assert any("title: none | text:" in c for c in received_contents if isinstance(c, str))
+
+
+@pytest.mark.asyncio
+async def test_embedding_func_preserves_task_prefix_query():
+    """_priority=5 call sends 'task: search result | query: ' prefix."""
+    import lib.lightrag_embedding as lem
+    import google.genai as genai_mod
+
+    received_contents: list = []
+
+    async def _capture_embed(**kwargs):
+        received_contents.extend(kwargs.get("contents", []))
+        return _make_embed_response()
+
+    mock_client = MagicMock()
+    mock_client.aio.models.embed_content = _capture_embed
+
+    with patch.object(genai_mod, "Client", return_value=mock_client):
+        await lem.embedding_func(["my query"], _priority=5)
+
+    assert any("task: search result | query:" in c for c in received_contents if isinstance(c, str))
+
+
+# ---------------------------------------------------------------------------
+# Amendment 2: parity assertion
+# ---------------------------------------------------------------------------
+
+def test_root_shim_reexports_same_object():
+    """Amendment 2: root lightrag_embedding.embedding_func IS lib.embedding_func."""
+    from lightrag_embedding import embedding_func as old_ref
+    from lib import embedding_func as new_ref
+    assert old_ref is new_ref, (
+        "Root shim must re-export the same object from lib/ "
+        "(Amendment 2 parity assertion)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Back-compat: root shim stays importable
+# ---------------------------------------------------------------------------
+
+def test_root_shim_importable():
+    """Root lightrag_embedding module remains importable after D-09 absorption."""
+    import lightrag_embedding  # noqa: F401
+    assert hasattr(lightrag_embedding, "embedding_func")

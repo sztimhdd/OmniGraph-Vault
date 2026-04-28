@@ -28,6 +28,7 @@ from .api_keys import (
 )
 from .rate_limit import get_limiter
 from .llm_client import generate, generate_sync, aembed
+from .lightrag_embedding import embedding_func
 
 __all__ = [
     "INGESTION_LLM",
@@ -47,4 +48,5 @@ __all__ = [
     "generate",
     "generate_sync",
     "aembed",
+    "embedding_func",
 ]
