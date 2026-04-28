@@ -27,6 +27,7 @@ from .api_keys import (
     refresh_cognee,
 )
 from .rate_limit import get_limiter
+from .llm_client import generate, generate_sync, aembed
 
 __all__ = [
     "INGESTION_LLM",
@@ -43,4 +44,7 @@ __all__ = [
     "load_keys",
     "refresh_cognee",
     "get_limiter",
+    "generate",
+    "generate_sync",
+    "aembed",
 ]
