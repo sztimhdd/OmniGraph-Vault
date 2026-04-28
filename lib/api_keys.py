@@ -36,12 +36,24 @@ def load_keys() -> list[str]:
         if keys:
             return keys
 
-    # D-04: Fold OMNIGRAPH_GEMINI_KEY + GEMINI_API_KEY_BACKUP into combined pool
-    primary = os.environ.get("OMNIGRAPH_GEMINI_KEY", "").strip()
+    # D-04: Fold OMNIGRAPH_GEMINI_KEY + GEMINI_API_KEY_BACKUP into combined pool.
+    # Plan 05-00c: also fold GEMINI_API_KEY into this pool when BACKUP is present —
+    # users configure the pair as (GEMINI_API_KEY, GEMINI_API_KEY_BACKUP) directly,
+    # without the OMNIGRAPH_GEMINI_KEY alias.
+    omnigraph_primary = os.environ.get("OMNIGRAPH_GEMINI_KEY", "").strip()
     backup = os.environ.get("GEMINI_API_KEY_BACKUP", "").strip()
-    if primary or backup:
+    gemini_primary = os.environ.get("GEMINI_API_KEY", "").strip()
+    if omnigraph_primary or backup:
+        primary = omnigraph_primary or gemini_primary  # prefer OMNIGRAPH_, fall back to GEMINI_API_KEY
         combined = [k for k in (primary, backup) if k]
-        return combined
+        # De-duplicate while preserving order (primary then backup).
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for k in combined:
+            if k not in seen:
+                seen.add(k)
+                ordered.append(k)
+        return ordered
 
     # Single-key fallback
     single = os.environ.get("GEMINI_API_KEY", "").strip()

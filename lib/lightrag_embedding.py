@@ -14,6 +14,17 @@ D-09 changes (surgical only):
   ``EMBEDDING_MODEL`` (constant from lib.models; default = "gemini-embedding-2")
 - ``_DEFAULT_MODEL`` constant removed (now in lib.models as EMBEDDING_MODEL)
 
+Plan 05-00c Task 0c.2 changes (surgical only):
+- Per-text rotation loop: on 429 the same text is retried against the next
+  key in the pool via ``rotate_key()``. All keys 429 -> RuntimeError.
+  Non-429 errors propagate immediately (no rotation on 5xx / network).
+- Happy-path round-robin: after each successful embed, ``rotate_key()``
+  advances the cursor so successive texts spread across the pool. When
+  keys live on separate GCP projects this effectively doubles the
+  per-minute embed budget.
+- ``_ROTATION_HITS`` counter tracks per-key successful call count — used
+  by smoke tests to assert both keys were exercised.
+
 Design highlights (see ``.planning/phases/05-pipeline-automation/05-RESEARCH.md``
 for full derivation):
 
@@ -47,7 +58,9 @@ from google import genai
 from google.genai import types
 from lightrag.utils import wrap_embedding_func_with_attrs
 
-from .api_keys import current_key
+from google.genai.errors import ClientError
+
+from .api_keys import current_key, load_keys, rotate_key
 from .models import EMBEDDING_MODEL, EMBEDDING_DIM, EMBEDDING_MAX_TOKENS
 
 
@@ -60,6 +73,23 @@ _QUERY_PREFIX = "task: search result | query: "
 _OUTPUT_DIM = EMBEDDING_DIM  # native full-capacity dim (3072); change requires NanoVectorDB wipe
 _MAX_IMAGES_PER_REQUEST = 6  # Gemini hard cap per embed_content call
 _IMAGE_FETCH_TIMEOUT_S = 5.0
+
+# Plan 05-00c Task 0c.2: key-pool rotation.
+# The pool itself (_KEY_POOL conceptually) lives in lib.api_keys.load_keys()
+# — folds GEMINI_API_KEY + GEMINI_API_KEY_BACKUP into a round-robin cycle.
+# current_key() reads the head; rotate_key() advances.
+# _ROTATION_HITS tracks per-key successful call count for smoke-test telemetry.
+# Consumed by scripts/wave0c_smoke.py to assert both keys rotated at least once.
+_ROTATION_HITS: dict[str, int] = {}
+
+
+def _is_429(exc: BaseException) -> bool:
+    """Return True for Gemini 429 / RESOURCE_EXHAUSTED. Rotation-only; 5xx/network propagate."""
+    if not isinstance(exc, ClientError):
+        return False
+    if getattr(exc, "code", None) == 429:
+        return True
+    return "RESOURCE_EXHAUSTED" in str(exc)
 
 
 def _fetch_image_part(url: str) -> types.Part | None:
@@ -101,6 +131,32 @@ def _build_contents(text: str, is_query: bool) -> list:
     return [prefix + clean_text, part]
 
 
+async def _embed_once(contents: list, model: str) -> np.ndarray:
+    """Place ONE embed_content call against the current rotation key.
+
+    Plan 05-00c Task 0c.2: wraps the physical API call so ``embedding_func``
+    can retry on 429 with the next key. On a successful call, records the
+    key in ``_ROTATION_HITS`` for smoke-test telemetry.
+
+    Propagates ClientError and any other exception to the caller — the
+    rotation loop in ``embedding_func`` decides whether to rotate (429) or
+    re-raise (everything else).
+    """
+    api_key = current_key()
+    client = genai.Client(api_key=api_key)
+    response = await client.aio.models.embed_content(
+        model=model,
+        contents=contents,
+        config=types.EmbedContentConfig(output_dimensionality=_OUTPUT_DIM),
+    )
+    # Record successful call for telemetry; only counts successes so a
+    # partially-exhausted key doesn't mask the fact that the OTHER key is
+    # doing all the real work.
+    _ROTATION_HITS[api_key] = _ROTATION_HITS.get(api_key, 0) + 1
+    vec = np.asarray(response.embeddings[0].values, dtype=np.float32)
+    return vec
+
+
 @wrap_embedding_func_with_attrs(
     embedding_dim=EMBEDDING_DIM,
     send_dimensions=True,
@@ -114,28 +170,47 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
     discriminator is ``_priority=5`` which query calls inject; we pop it so
     it is never forwarded to the Gemini client.
 
-    D-09: uses lib.api_keys.current_key() (rotation-aware) and
-    lib.models.EMBEDDING_MODEL instead of direct os.environ reads.
+    Plan 05-00c Task 0c.2: each text is embedded with per-call rotation
+    + 429 failover. If the current key returns 429, ``rotate_key()`` is
+    called and the same text is retried with the next key. If every key in
+    the pool returns 429 for a single text, RuntimeError is raised.
+    Non-429 errors propagate immediately (no rotation).
     """
     is_query = kwargs.pop("_priority", None) == 5
-
-    api_key = current_key()  # D-09: rotation-aware; replaces direct env read
-    model = EMBEDDING_MODEL  # D-09/D-10: sourced from lib.models
-
-    client = genai.Client(api_key=api_key)
+    model = EMBEDDING_MODEL
+    pool_size = len(load_keys())
 
     vectors: list[np.ndarray] = []
     for text in texts:
         contents = _build_contents(text, is_query)
-        response = await client.aio.models.embed_content(
-            model=model,
-            contents=contents,
-            config=types.EmbedContentConfig(output_dimensionality=_OUTPUT_DIM),
-        )
-        # One aggregated embedding per ``contents`` payload — text-only OR
-        # text+image both collapse to exactly one vector.
-        vec = np.asarray(response.embeddings[0].values, dtype=np.float32)
+
+        # Per-text rotation loop: try up to pool_size keys. On 429, rotate
+        # and retry the SAME text with the next key. On any other error,
+        # propagate immediately. If every key 429s, raise RuntimeError.
+        vec: np.ndarray | None = None
+        last_err: BaseException | None = None
+        for _ in range(pool_size):
+            try:
+                vec = await _embed_once(contents, model)
+                break
+            except Exception as exc:  # noqa: BLE001
+                if _is_429(exc):
+                    last_err = exc
+                    rotate_key()  # advance to next key and retry SAME text
+                    continue
+                raise  # non-429 — propagate immediately
+
+        if vec is None:
+            raise RuntimeError(
+                f"All {pool_size} Gemini keys exhausted (429)"
+            ) from last_err
+
         vectors.append(vec)
+
+        # Successful embed: advance rotation cursor for the NEXT text so
+        # load spreads across keys even in the happy-path (round-robin).
+        if pool_size > 1:
+            rotate_key()
 
     out = np.vstack(vectors)
 
