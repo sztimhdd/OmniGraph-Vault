@@ -30,9 +30,7 @@ OmniGraph-Vault 交付两个 **Skill**，运行在 **Hermes** 和 **OpenClaw** �
 │   · 依赖关系                     · 使用指南          │
 │   · 节点详情                     · 最佳实践          │
 │   · 最短路径                     · 踩坑经验          │
-│   后端：Graphify 图谱引擎         后端：RAG Engine     │
-│                                  Corpora (Agent     │
-│                                  Engine)           │
+│   后端：Graphify 图谱引擎         后端：LightRAG       │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -68,15 +66,14 @@ OmniGraph-Vault 交付两个 **Skill**，运行在 **Hermes** 和 **OpenClaw** �
          │                        │
 ┌────────┴────────┐      ┌────────┴────────┐
 │   Code Graph     │      │  Domain Graph    │
-│  (Graphify JSON) │      │  (Agent Engine   │
-│                  │      │   RAG Corpora)   │
-│ • Function nodes │      │                  │
-│ • Class hierarchy│      │ • Design intent  │
-│ • Call chains    │      │ • Usage guides   │
-│ • Module deps    │      │ • Best practices │
-│ • Import graphs  │      │ • Pitfalls       │
-└─────────────────┘      │ • Concept links  │
-                          └──────────────────┘
+│  (Graphify JSON) │      │  (LightRAG)      │
+│                  │      │                  │
+│ • Function nodes │      │ • Design intent  │
+│ • Class hierarchy│      │ • Usage guides   │
+│ • Call chains    │      │ • Best practices │
+│ • Module deps    │      │ • Pitfalls       │
+│ • Import graphs  │      │ • Concept links  │
+└─────────────────┘      └──────────────────┘
                                    │
                           ┌────────┴────────┐
                           │  Bridge Nodes    │
@@ -199,11 +196,18 @@ Use this skill when the user asks:
 ## Behavior
 
 1. Accept a natural-language query from the user/agent.
-2. Call the RAG Engine Corpora API:
-   POST /api/v1/rag/search
-   { "query": "<query>", "top_k": 5 }
-3. Return the top 5 results with source attribution (WeChat article title, date, URL).
+2. Call LightRAG in hybrid mode (same backend as existing `kg_synthesize.py`):
+   ```python
+   from lightrag import LightRAG, QueryParam
+   rag = await get_rag()
+   result = await rag.aquery(query, param=QueryParam(mode="hybrid"))
+   ```
+3. Return the top results with source attribution (WeChat article title, date, URL).
 4. For cross-article questions, compose a synthesis from multiple sources.
+
+LightRAG is already running, populated with 300+ WeChat articles, and proven
+end-to-end by existing skills (`omnigraph_ingest`, `omnigraph_query`). No new
+infrastructure needed.
 
 ## Integration
 
@@ -212,34 +216,20 @@ The agent may also call `graphify_skill` in the same session for
 code-structure queries.
 ```
 
-**RAG Engine API Contract:**
+**LightRAG Query Contract (existing, no changes):**
 
+```python
+# Same backend as omnigraph_query / kg_synthesize.py
+rag = await get_rag()
+result = await rag.aquery(
+    "streaming tool output design rationale",
+    param=QueryParam(mode="hybrid")
+)
+# Returns: chunk references with entity-anchored context from 300+ articles
 ```
-POST /api/v1/rag/search
-Content-Type: application/json
 
-{
-  "query": "streaming tool output design rationale",
-  "top_k": 5,
-  "mode": "hybrid"
-}
-
-Response:
-{
-  "results": [
-    {
-      "score": 0.89,
-      "content": "OpenClaw 选择 AsyncGenerator...",
-      "source": {
-        "title": "OpenClaw 架构深度解析",
-        "url": "https://mp.weixin.qq.com/s/...",
-        "date": "2026-03-15"
-      },
-      "entities": ["AsyncGenerator", "streaming", "tool output"]
-    }
-  ]
-}
-```
+No new API. No new deployment. `omnigraph_search` is a thin skill wrapper
+around the existing LightRAG query path.
 
 ---
 
@@ -255,8 +245,7 @@ Response:
 │   │   └── claude-code/        # git clone cache
 │   └── graph.json               # Built code graph
 │
-├── lightrag_storage/            # Existing (LightRAG → migrating to
-│                                 # Agent Engine RAG Corpora)
+├── lightrag_storage/            # Existing: Domain graph (unchanged)
 ├── enrichment/                  # Existing: Zhihu enrichment
 └── images/                      # Existing: Article images
 ```
@@ -320,7 +309,7 @@ claw skills list | grep graphify         # Expected: graphify_skill | enabled
 | # | Task | File | Verify |
 |---|------|------|--------|
 | 1 | 创建 SKILL.md | `skills/omnigraph_search/SKILL.md` | 语法检查通过 |
-| 2 | 创建 API 适配器 | `skills/omnigraph_search/search.py` | 独立脚本可调 RAG Engine |
+| 2 | 创建 LightRAG 查询脚本 | `skills/omnigraph_search/query.py` | 独立脚本可返回 LightRAG 结果 |
 | 3 | Skill 注册 | 按 Hermes/OpenClaw skill 注册流程 | `skills list` 可见 |
 | 4 | 单元测试 | `tests/test_omnigraph_search.py` | pytest 通过 |
 
@@ -405,10 +394,10 @@ mv graph.json.tmp graph.json
 
 ### 7.1 Unit Tests
 
-`omnigraph_search` skill 的 API 适配器需要 pytest 覆盖：
-- RAG Engine API 调用（mock 响应）
+`omnigraph_search` skill 的 LightRAG 查询脚本需要 pytest 覆盖：
+- LightRAG hybrid 查询（mock `get_rag` 和 `aquery`）
 - 结果格式化（entity 字段、source 引用）
-- 错误处理（API 不可用时的降级）
+- 错误处理（LightRAG 不可用时的降级）
 
 ### 7.2 Demo Scenario 1: Streaming Tool Output
 
@@ -457,7 +446,7 @@ acceptance:
 [ ] graphify_skill installed and functional on Hermes
 [ ] graphify_skill installed and functional on OpenClaw
 [ ] omnigraph_search SKILL.md exists and skill is discoverable
-[ ] omnigraph_search calls RAG Engine API and returns results
+[ ] omnigraph_search returns LightRAG query results
 [ ] Agent autonomously uses both skills in Demo 1 (streaming output)
 [ ] Agent autonomously uses both skills in Demo 2 (self-evolution)
 [ ] Code output architecturally consistent with OpenClaw/Hermes
@@ -478,7 +467,7 @@ acceptance:
 | D-G06 | Atomic graph swap (tmp → rename) | 防止 skill 读到半写状态的 graph.json。 |
 | D-G07 | Bridge nodes deferred to Phase 3 | Agent 在 Phase 1-2 中自主路由；桥接节点是优化项而非硬需求。 |
 | D-G08 | No Rust fork in graph | Fork 是正在构建的产品，不是知识来源。图谱只涵盖参考实现。 |
-| D-G09 | omnigraph_search 对接 RAG Engine | Agent Engine Corpora 已经是知识层存储；不重复建设。 |
+| D-G09 | omnigraph_search 对接 LightRAG | LightRAG 已运行中，知识层无新部署。 |
 | D-S10 | OpenClaw as first-class platform | 与 Hermes 地位等同。skill 注册流程双平台兼容。 |
 
 ---
@@ -492,7 +481,7 @@ acceptance:
 | Agent 不自主同时使用两个 skill | Medium | 丧失跨图谱优势 | Demo 场景测试；必要时加桥接节点 |
 | openclaw/claude-code 仓库改名/迁移 | Low | `git pull` 断 | Cron 容忍 pull 失败，保留旧图谱 |
 | Graph JSON 超出 skill context | Low | 查询超时 | 监控文件大小；>10MB 加节点过滤 |
-| RAG Engine API 不可用 | Low | omnigraph_search 返回空 | Skill 返回错误提示，不阻塞 Agent |
+| LightRAG 不可用 | Low | omnigraph_search 返回空 | Skill 返回错误提示，不阻塞 Agent |
 
 ---
 
