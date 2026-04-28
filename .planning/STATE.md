@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: milestone
-status: verifying
-stopped_at: "06-00: Tasks 0.1 and 0.2 complete; Task 0.3 checkpoint:human-verify pending SSH probe by orchestrator"
+status: executing
+stopped_at: "06-00: complete — scaffold + graphifyy + D-S10 hermes-only"
 last_updated: "2026-04-28T16:11:23.940Z"
 last_activity: 2026-04-28
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 1
-  total_plans: 15
+  total_plans: 24
   completed_plans: 9
   percent: 100
 ---
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Large-scale batch KOL ingestion (Phase 4 closed)
+**Current focus:** Phase 05 — pipeline-automation
 
 ## Current Position
 
-Phase: 4 — knowledge-enrichment-zhihu — **CLOSED** (merged to main in `72cf92c`, 2026-04-28)
-Plan: 8 of 8 complete; code shipped and live-validated on Hermes.
-Status: Phase complete — ready for verification
+Phase: 06 (graphify-addon-code-graph) — EXECUTING
+Plan: 1 of 7 complete (06-00)
+Status: Wave 1 done — Wave 2 next (06-01 + 06-03 parallel)
 
-**Phase 6: graphify-addon-code-graph — PLANNED (not started).** 7 plans created 2026-04-28 by Claude Code. PRD v3.0 authoritative at `specs/PRDTDD_GRAPHIFY_ADDON.md`. Plans cover Wave 0 scaffold (06-00), skill install + T1 clone (06-01), graph seed (06-02), omnigraph_search implementation (06-03+06-03b), weekly cron (06-04), demo transcripts + acceptance (06-05).
+**Phase 6: graphify-addon-code-graph — IN PROGRESS.** Wave 1 (06-00) complete: scaffold created, graphifyy==0.5.3 installed, D-S10=hermes-only (claw absent on remote). Wave 2 pending: 06-01 (graphify skill install on remote) + 06-03 (omnigraph_search implementation).
 
 Last activity: 2026-04-28
 
@@ -106,7 +106,7 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-04-28T16:11:23.932Z
-Stopped at: 06-00: Tasks 0.1 and 0.2 complete; Task 0.3 checkpoint:human-verify pending SSH probe by orchestrator
+Last session: 2026-04-28
+Stopped at: Wave 1 (06-00) complete — proceeding to Wave 2
 Resume file: None
 Next command: begin next phase — options are Phase 5 (pipeline automation + RSS + daily digest, PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`) or large-scale batch KOL ingestion stabilization.

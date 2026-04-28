@@ -22,7 +22,18 @@
 
 ## Next
 
-- **Phase 5: pipeline automation + RSS + daily digest** — PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`. RSS module (Karpathy HN 2025, 92 feeds), `orchestrate_daily.py`, `daily_digest.py`, Telegram delivery. Depends on Phase 4 (closed) and working embedding capacity.
+- **Phase 5: pipeline automation + RSS + daily digest** — PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`; 18 locked decisions in `05-CONTEXT.md`. Wave 0 migrates embeddings to gemini-embedding-2 (multimodal, unblocks Phase 4's 100-RPM quota), then keyword+depth KOL catch-up, then RSS pipeline (92 Karpathy feeds), `orchestrate_daily.py`, `daily_digest.py`, Telegram delivery, cron deployment, 3-day observation.
+  - **Goal:** Unattended daily pipeline — scan 56 WeChat KOL + 92 Karpathy RSS, classify for depth, enrich deep via Zhihu 好问, ingest into LightRAG, deliver Telegram daily digest.
+  - **Plans:** 9 plans (planned 2026-04-28; revised 2026-04-28 to add 05-03b rss-ingest)
+    - [ ] 05-00-embedding-migration-and-consolidation-PLAN.md — Wave 0: spike + shared `lightrag_embedding.py` + 6-file consolidation + 18-doc re-embed + benchmark + PRD typo fix
+    - [ ] 05-00b-kol-catch-up-filtered-PLAN.md — Wave 0: classify all 302 KOL articles + multi-keyword `--topic-filter` + Batch API or sync fallback ingest
+    - [ ] 05-01-rss-schema-and-opml-PLAN.md — Wave 1: RSS SQLite schema + bundled Karpathy OPML + seed 92 feeds + deps
+    - [ ] 05-02-rss-fetch-PLAN.md — Wave 1: `enrichment/rss_fetch.py` with pre-filter, dedup, feed-level fault tolerance
+    - [ ] 05-03-rss-classify-PLAN.md — Wave 1: `enrichment/rss_classify.py` with bilingual prompt (EN→CN in-prompt per D-08)
+    - [ ] 05-03b-rss-ingest-PLAN.md — Wave 1: `enrichment/rss_ingest.py` (EN→CN body translation per D-09) + `run_enrich_for_id.py` env-var bridge for `enrich_article` skill (fixes RSS ingest gap)
+    - [ ] 05-04-orchestrate-daily-PLAN.md — Wave 2: 9-step state machine with Telegram-alert on critical failure
+    - [ ] 05-05-daily-digest-PLAN.md — Wave 2: TOP 5 Markdown digest + Telegram delivery + atomic local archive
+    - [ ] 05-06-cron-deploy-and-observation-PLAN.md — Wave 3: register 6 new cron jobs + 3-day observation + STATE/ROADMAP close
 - **Phase 6: graphify-addon-code-graph** — PRD at `specs/PRDTDD_GRAPHIFY_ADDON.md` (v3.0, authoritative); pre-plan brief at `.planning/phases/06-graphify-addon-code-graph/06-CONTEXT.md`. Add code-graph query capability alongside existing domain-graph by shipping two Skills: `graphify` (zero-code install from `graphifyy` 0.5.3 on Hermes + conditionally OpenClaw, T1 repos only: openclaw + claude-code) and `omnigraph_search` (thin LightRAG wrapper). Plus weekly AST-only cron refresh via `graphify update` (relies on Graphify's built-in `to_json()` shrink guard — no custom tmp-rename). Bridge nodes deferred. Independent of Phase 5.
   - **Goal:** Agent autonomously routes to both `graphify` (code structure) and `omnigraph_search` (design rationale) in mixed queries; weekly cron keeps the code graph fresh on remote.
   - **Plans:** 7 plans (planned 2026-04-28; replanned 2026-04-28 to split 06-03 into 06-03 + 06-03b)
