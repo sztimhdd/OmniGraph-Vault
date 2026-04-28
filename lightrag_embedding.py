@@ -19,8 +19,8 @@ for full derivation):
   sent as ``types.Part.from_bytes`` in the same ``contents`` list. Gemini
   returns one aggregated 768-dim vector per item (cookbook Cell 22).
 - Applies task prefixes per D-05: ``"title: none | text: "`` for documents,
-  ``"task: search result | query: "`` for queries. ``task_type`` is not used
-  (forbidden for ``-2`` per Pitfall 3).
+  ``"task: search result | query: "`` for queries. The legacy ``task-type``
+  parameter is not used (forbidden for ``-2`` per Pitfall 3).
 - L2-normalizes the output because ``output_dimensionality < 3072`` is not
   auto-normalized by the API.
 """
