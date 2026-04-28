@@ -36,14 +36,19 @@ def test_localize_markdown_replaces_urls():
 
 @pytest.mark.unit
 def test_describe_images_batch_calls_sleep_between(tmp_path: Path, mocker, monkeypatch):
+    """Phase 7 D-06: mocks lib.generate_sync (the unified multimodal call path).
+
+    Previously patched image_pipeline.genai.Client + image_pipeline.Image.open;
+    after Phase 7 Amendment 5 migration the call goes through lib.generate_sync
+    which accepts types.Part.from_bytes natively.
+    """
     monkeypatch.setenv("GEMINI_API_KEY", "test")
     p1 = tmp_path / "1.jpg"; p1.write_bytes(b"x")
     p2 = tmp_path / "2.jpg"; p2.write_bytes(b"y")
     mock_sleep = mocker.patch("image_pipeline.time.sleep")
-    mock_client = MagicMock()
-    mock_client.models.generate_content.return_value.text = "desc"
-    mocker.patch("image_pipeline.genai.Client", return_value=mock_client)
-    mocker.patch("image_pipeline.Image.open", return_value=MagicMock())
+    # image_pipeline.describe_images imports lib.generate_sync lazily inside the
+    # function body, so patch the lib symbol at its canonical location.
+    mocker.patch("lib.generate_sync", return_value="desc")
     result = describe_images([p1, p2])
     assert result[p1] == "desc" and result[p2] == "desc"
     mock_sleep.assert_called_once_with(4)  # exactly one sleep between 2 images
@@ -51,15 +56,15 @@ def test_describe_images_batch_calls_sleep_between(tmp_path: Path, mocker, monke
 
 @pytest.mark.unit
 def test_describe_images_per_image_error_isolation(tmp_path: Path, mocker, monkeypatch):
+    """Phase 7 D-06: mocks lib.generate_sync — see sibling test above."""
     monkeypatch.setenv("GEMINI_API_KEY", "test")
     p1 = tmp_path / "1.jpg"; p1.write_bytes(b"x")
     p2 = tmp_path / "2.jpg"; p2.write_bytes(b"y")
     mocker.patch("image_pipeline.time.sleep")
-    client = MagicMock()
-    r_ok = MagicMock(); r_ok.text = "desc"
-    client.models.generate_content.side_effect = [Exception("api boom"), r_ok]
-    mocker.patch("image_pipeline.genai.Client", return_value=client)
-    mocker.patch("image_pipeline.Image.open", return_value=MagicMock())
+    mocker.patch(
+        "lib.generate_sync",
+        side_effect=[Exception("api boom"), "desc"],
+    )
     result = describe_images([p1, p2])
     assert "Error describing image" in result[p1]
     assert result[p2] == "desc"

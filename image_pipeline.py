@@ -12,7 +12,6 @@ import time
 from pathlib import Path
 
 import requests
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -65,24 +64,35 @@ def localize_markdown(
 def describe_images(paths: list[Path]) -> dict[Path, str]:
     """Batch-describe via Gemini Vision. Rate-limits 4s between calls (D-15).
 
-    Uses gemini_call() from config for key fallback + 503 retry + RPM guard.
-    Model defaulted via IMAGE_DESCRIPTION_MODEL config key.
+    Phase 7 HIGH 2 + Amendment 5: explicitly wired to lib.VISION_LLM via
+    lib.generate_sync (unified multimodal path — no direct genai.Client hedge).
+    Rate limit + retry + key rotation apply uniformly through lib/.
+
+    Intentional model-default change (R3 GA migration): the pre-Phase-7
+    config.IMAGE_DESCRIPTION_MODEL was "gemini-3.1-flash-lite-preview"; the new
+    lib.VISION_LLM constant is "gemini-2.5-flash-lite" (GA). Rollback is a code
+    edit to lib/models.py:VISION_LLM (Amendment 1 — pure constants; git-as-deploy
+    IS the rollback).
     """
-    from config import gemini_call, IMAGE_DESCRIPTION_MODEL
+    from lib import VISION_LLM, generate_sync
+    from google.genai import types
 
     result: dict[Path, str] = {}
     paths_list = list(paths)
     for i, path in enumerate(paths_list):
         try:
-            img = Image.open(path)
-            response = gemini_call(
-                model=IMAGE_DESCRIPTION_MODEL,
+            # Load bytes directly and pass via types.Part.from_bytes — Amendment 5
+            # one-code-path-through-lib contract; lib.generate_sync accepts
+            # contents as str OR list-of-parts natively.
+            image_bytes = Path(path).read_bytes()
+            response_text = generate_sync(
+                VISION_LLM,
                 contents=[
                     "Describe this image in detail for a knowledge graph. Return only the description.",
-                    img,
+                    types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
                 ],
             )
-            result[path] = response.text
+            result[path] = response_text
         except Exception as e:
             result[path] = f"Error describing image: {e}"
         if i + 1 < len(paths_list):
