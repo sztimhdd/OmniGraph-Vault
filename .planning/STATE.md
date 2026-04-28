@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: milestone
 status: executing
-stopped_at: "06-00: complete — scaffold + graphifyy + D-S10 hermes-only"
-last_updated: "2026-04-28T16:11:23.940Z"
+stopped_at: "06-03: complete — omnigraph_search skill implemented; Wave 3 (06-02 graph seed) next"
+last_updated: "2026-04-28T16:50:00.000Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 4
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 06 (graphify-addon-code-graph) — EXECUTING
-Plan: 1 of 7 complete (06-00)
-Status: Wave 1 done — Wave 2 next (06-01 + 06-03 parallel)
+Plan: 3 of 7 complete (06-00, 06-01, 06-03)
+Status: Wave 2 done — Wave 3 next (06-02 graph seed — human-in-loop, Hermes running task)
 
 **Phase 6: graphify-addon-code-graph — IN PROGRESS.** Wave 1 (06-00) complete: scaffold created, graphifyy==0.5.3 installed, D-S10=hermes-only (claw absent on remote). Wave 2 pending: 06-01 (graphify skill install on remote) + 06-03 (omnigraph_search implementation).
 
@@ -56,6 +56,8 @@ Progress: [██████████] 100% (8 of 8 plans complete, merged)
 
 *Updated after each plan completion*
 | Phase 06-graphify-addon-code-graph P00 | 5 | 2 tasks | 11 files |
+| Phase 06-graphify-addon-code-graph P01 | 25 | 3 tasks | 2 files |
+| Phase 06-graphify-addon-code-graph P03 | 9 | 4 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -76,7 +78,9 @@ Recent decisions affecting current work:
 - 04-05: Pure-Markdown Hermes skill (D-02); task 5.3 remote connectivity smoke-test passed; full E2E skill invocation deferred (requires interactive Hermes session after deploy)
 - 04-06: enrich_article top-level skill (D-01/D-02); 208-line SKILL.md with 4-step orchestration + per-question for-loop; deployed via scp (remote has untracked zhihu-haowen-enrich blocking git checkout); `hermes skills list` confirmed `enrich_article | local | local | enabled`
 - [Phase 06-graphify-addon-code-graph]: graphifyy==0.5.3 installed with tree-sitter grammars; binary invoked via python -m graphify on Windows
-- [Phase 06-graphify-addon-code-graph]: D-S10 scope (hermes-only vs hermes-and-claw) deferred to Task 0.3 SSH probe by orchestrator
+- [Phase 06-graphify-addon-code-graph]: D-S10 scope = hermes-only (claw absent on remote, confirmed by SSH probe)
+- [Phase 06-graphify-addon-code-graph]: D-G09 honored: omnigraph_search/query.py mirrors query_lightrag.py with no Cognee, no get_rag() helper
+- [Phase 06-graphify-addon-code-graph]: Added omnigraph_search/__init__.py to enable python -m invocation (required for package module)
 
 ### Pending Todos
 
@@ -107,6 +111,6 @@ None tracked.
 ## Session Continuity
 
 Last session: 2026-04-28
-Stopped at: Wave 1 (06-00) complete — proceeding to Wave 2
+Stopped at: Wave 2 complete (06-01 + 06-03) — 06-02 graph seed dispatched to Hermes
 Resume file: None
 Next command: begin next phase — options are Phase 5 (pipeline automation + RSS + daily digest, PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`) or large-scale batch KOL ingestion stabilization.
