@@ -12,6 +12,7 @@ Creates data/kol_scan.db on first run. Scan only — no classification, no inges
 import argparse
 import logging
 import os
+import random
 import sqlite3
 import sys
 import time
@@ -32,7 +33,7 @@ from spiders.wechat_spider import (
 )
 
 DB_PATH = PROJECT_ROOT / "data" / "kol_scan.db"
-SESSION_LIMIT = 45  # stop proactively before WeChat ret=200013 (~60 req threshold)
+SESSION_LIMIT = 54  # 1 req/acct for 54 KOLs; WeChat real limit ~60 (2026-04-27 calibrated)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -254,6 +255,10 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
         if not rows:
             logger.error("No accounts in DB")
             sys.exit(1)
+
+        # Shuffle account order so SESSION_LIMIT truncation affects different
+        # accounts each day instead of always skipping the same Z-prefix ones.
+        random.shuffle(rows)
 
         total_accounts = len(rows)
         if resume:
