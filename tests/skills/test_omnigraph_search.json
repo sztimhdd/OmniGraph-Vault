@@ -1,0 +1,48 @@
+[
+  {
+    "description": "golden path: design-intent question triggers omnigraph_search (REQ-03)",
+    "input": "why was OpenClaw streaming tool output designed this way?",
+    "expect_contains": ["query.sh"],
+    "expect_not_contains": ["graphify", "kg_synthesize"]
+  },
+  {
+    "description": "code-structure routes to graphify, NOT omnigraph_search",
+    "input": "what is the signature of stream_query and who calls it?",
+    "expect_contains": ["graphify"],
+    "expect_not_contains": ["omnigraph_search"]
+  },
+  {
+    "description": "long-form synthesis routes to omnigraph_query, NOT omnigraph_search",
+    "input": "write me a detailed markdown report with inline images about LightRAG internals",
+    "expect_contains": ["omnigraph_query"],
+    "expect_not_contains": ["omnigraph_search"]
+  },
+  {
+    "description": "ingest request routes to omnigraph_ingest, NOT omnigraph_search",
+    "input": "add https://mp.weixin.qq.com/s/abc to my knowledge base",
+    "expect_contains": ["omnigraph_ingest"],
+    "expect_not_contains": ["omnigraph_search"]
+  },
+  {
+    "description": "graph stats routes to omnigraph_status, NOT omnigraph_search",
+    "input": "how many nodes are in my knowledge graph?",
+    "expect_contains": ["omnigraph_status"],
+    "expect_not_contains": ["omnigraph_search"]
+  },
+  {
+    "description": "delete routes to omnigraph_manage, NOT omnigraph_search",
+    "input": "delete the entity 'FastAPI' from my KB",
+    "expect_contains": ["omnigraph_manage"],
+    "expect_not_contains": ["omnigraph_search"]
+  },
+  {
+    "description": "guard clause: missing GEMINI_API_KEY surfaces actionable error",
+    "input": "search for agent routing patterns — but GEMINI_API_KEY is not set",
+    "expect_contains": ["GEMINI_API_KEY", ".env"]
+  },
+  {
+    "description": "explicit mode override: user requests local mode",
+    "input": "search my KB for agent routing patterns in local mode",
+    "expect_contains": ["query.sh", "local"]
+  }
+]
