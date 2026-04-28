@@ -101,6 +101,72 @@ Three additional decisions lock the Phase 7 response:
 
 - **D-11:** **`config.py` re-exports `INGEST_LLM_MODEL`, `IMAGE_DESCRIPTION_MODEL`, `ENRICHMENT_LLM_MODEL` as shims pointing to `lib.models`.** Wave 2 Task 2.7 replaces these constant definitions with `INGEST_LLM_MODEL = lib.models.INGESTION_LLM` (etc.). Callers that haven't migrated in their own wave keep working via the shim. Wave 4 optionally sweeps the shims; leaving them indefinitely is acceptable since they're one-liners. `GITHUB_INGEST_LLM` from D-05 stays distinct (preview model for GitHub only).
 
+### Post-Hermes-Review Amendments (added 2026-04-28)
+
+Hermes reviewed Phase 7 plans at [`07-REVIEW-HERMES.md`](./07-REVIEW-HERMES.md) and flagged overengineering in 3 areas + 1 guardrail gap + 1 broken-promise. The following amendments **supersede earlier decision text** above; original records kept for audit trail.
+
+- **D-02 SUPERSEDED:** **Pure constants, NO model env overrides.** `lib/models.py` holds bare strings (not `os.environ.get(...)` calls) for `INGESTION_LLM`, `VISION_LLM`, `SYNTHESIS_LLM`, `EMBEDDING_MODEL`, `GITHUB_INGEST_LLM`. Single-user + git-as-deploy means `git revert && push && pull-on-remote` IS the rollback mechanism; env overrides were speculative future-proofing with zero near-term use case. **D-08 (`OMNIGRAPH_RPM_<MODEL>`) remains** — that override has a real future use case (free→paid tier upgrade).
+
+  ```python
+  # lib/models.py — correct shape post-amendment
+  INGESTION_LLM = "gemini-2.5-flash-lite"
+  VISION_LLM    = "gemini-2.5-flash-lite"
+  SYNTHESIS_LLM = "gemini-2.5-flash-lite"
+  EMBEDDING_MODEL = "gemini-embedding-2"
+  GITHUB_INGEST_LLM = "gemini-3.1-flash-lite-preview"
+  ```
+
+- **D-09 AMENDED:** Add **output-parity assertion** to Wave 0 Task 0.7 acceptance criteria. Without it, a key-access or model-string regression in the refactored `lightrag_embedding` surfaces only in Wave 1 smoke test, by which time 5+ subsequent tasks sit on top. Required new acceptance:
+
+  ```python
+  python -c "from lightrag_embedding import embedding_func as old_ref; \
+             from lib import embedding_func as new_ref; \
+             assert old_ref is new_ref; \
+             print('parity ok')"
+  ```
+
+- **D-11 SUPERSEDED:** **Shims get deleted in Wave 4, not kept indefinitely.** Once Waves 1-3 migrate every caller, `config.INGEST_LLM_MODEL` / `IMAGE_DESCRIPTION_MODEL` / `ENRICHMENT_LLM_MODEL` / `gemini_call()` have zero readers. Keeping them is dead code that creates two sources of truth for model names and a structural inversion (config.py → lib/) that should flow the other way. Wave 4 sweeper task verifies via grep that all callers migrated, then deletes them atomically.
+
+- **Cognee bridge REARCHITECTED:** **No formal `lib/cognee_bridge.py` module.** Hermes's 3 critiques stand: fragile to Cognee updates, encoded race condition, 35 lines of scaffolding around 2 lines of business logic. Replace with inline logic in `lib/api_keys.py:rotate_key()`:
+
+  ```python
+  # lib/api_keys.py rotate_key() — correct shape
+  def rotate_key() -> str:
+      global _current
+      _current = next(_cycle)
+      os.environ["COGNEE_LLM_API_KEY"] = _current  # future Cognee reads pick this up
+      return _current
+  ```
+
+  Plus a 5-line helper for long-running processes whose Cognee config was `@lru_cache`'d before rotation:
+
+  ```python
+  # lib/api_keys.py (or lib/__init__.py)
+  def refresh_cognee() -> None:
+      """Invalidate Cognee's cached LLM config so a rotated key propagates.
+      Call at top of long-running process loops (kg_synthesize.py, cognee_batch_processor.py).
+      Short-lived scripts don't need this — they import after lib/ init, so os.environ is fresh.
+      """
+      from cognee.infrastructure.llm.config import get_llm_config
+      get_llm_config.cache_clear()
+  ```
+
+  Wave 3 migrations of `cognee_wrapper.py` / `cognee_batch_processor.py` / `kg_synthesize.py` call `refresh_cognee()` at appropriate entry points. No observer pattern, no listener registration, no `on_rotate` callback infra.
+
+- **`generate_sync` multimodal FIXED:** The original Wave 2 Task 2.5 hedge ("fall back to direct `genai.Client` if multimodal") is a broken promise — it creates two code paths for the same subsystem. Replace with native multimodal support in `lib/llm_client.generate_sync`:
+
+  ```python
+  def generate_sync(model: str, contents, **kwargs) -> str:
+      """Sync LLM call. contents may be a string OR a list of parts (text + images).
+      google-genai SDK accepts [text, types.Part.from_bytes(...)] natively.
+      """
+      ...
+  ```
+
+  `image_pipeline.py` migration then becomes: `generate_sync(VISION_LLM, contents=[prompt_text, types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")])`. One code path through `lib/`, rate limit + retry + rotation apply uniformly.
+
+- **Asymmetric wrapping RATIONALE DOCUMENTED:** Add a paragraph to `lib/__init__.py` docstring explaining why LLM calls are wrapped from outside LightRAG's `gemini_model_complete` (thin proxy — we layer limits/retry/rotation around it) while `embedding_func` is owned entirely by us (LightRAG's embedding contract requires in-band multimodal logic, task prefixes, and `_priority` kwarg that can't be layered externally).
+
 ### Claude's Discretion
 
 Planner + executor decide:
