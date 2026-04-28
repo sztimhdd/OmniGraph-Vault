@@ -23,6 +23,12 @@ import tempfile
 import traceback
 from pathlib import Path
 
+# Repo-root on sys.path so `import config` works when executed as
+# `python scripts/wave0c_smoke.py` from repo root.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from config import RAG_WORKING_DIR, load_env
 
 load_env()
