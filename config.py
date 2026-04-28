@@ -1,5 +1,4 @@
 import os
-import time
 import logging
 from pathlib import Path
 
@@ -16,8 +15,11 @@ CANONICAL_MAP_FILE = BASE_DIR / "canonical_map.json"
 CDP_URL = os.environ.get("CDP_URL", "http://localhost:9223")
 FIRECRAWL_API_KEY=os.environ.get("FIRECRAWL_API_KEY", "")
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_API_KEY_BACKUP = os.environ.get("GEMINI_API_KEY_BACKUP", "")
+# Phase 7 D-04 + BLOCKER 2 resolution:
+#   GEMINI_API_KEY / GEMINI_API_KEY_BACKUP module attributes removed.
+#   Access keys via lib.current_key(); lib.api_keys.load_keys() reads
+#   OMNIGRAPH_GEMINI_KEYS / OMNIGRAPH_GEMINI_KEY / GEMINI_API_KEY_BACKUP /
+#   GEMINI_API_KEY env vars (precedence order) on first call.
 
 # Env
 ENV_PATH = Path.home() / ".hermes" / ".env"
@@ -43,6 +45,14 @@ os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 os.environ.pop("GOOGLE_CLOUD_LOCATION", None)
 
 # === Phase 4: Knowledge Enrichment ===
+
+# D-11: Phase 7 model constants delegated to lib.models. These shims preserve
+# the public API (`from config import INGEST_LLM_MODEL` etc.) while making
+# lib.models the single source of truth. Callers migrate at their own pace.
+# Amendment 3: shims are TEMPORARY — Wave 4 Task 4.7 is the atomic sweeper
+# that deletes them after every caller has migrated.
+from lib.models import INGESTION_LLM, VISION_LLM
+
 # Master switch. Per D-07 this is always True in production; the key exists
 # so that individual invocations can set ENRICHMENT_ENABLED=0 to bypass.
 ENRICHMENT_ENABLED = os.environ.get("ENRICHMENT_ENABLED", "1") != "0"
@@ -53,19 +63,13 @@ ENRICHMENT_MIN_LENGTH = 2000
 # Maximum questions per article.
 ENRICHMENT_MAX_QUESTIONS = 3
 
-# LLM for extract_questions. D-12-REVISED: flash (250/day), not flash-lite
-# (20/day). Live E2E test 2026-04-27 proved flash-lite quota insufficient.
-# 2026-04-27: Switched to 3.1-flash-lite (5,000 RPD, 30 RPM) for all enrichment.
-ENRICHMENT_LLM_MODEL = os.environ.get("ENRICHMENT_LLM_MODEL", "gemini-3.1-flash-lite-preview")
-
-# LLM for the ingest path: LightRAG entity extraction + image-vision in
-# ingest_wechat.py / image_pipeline.py. Separate from ENRICHMENT_LLM_MODEL
-# so either path can be tuned independently.
-INGEST_LLM_MODEL = os.environ.get("INGEST_LLM_MODEL", "gemini-3.1-flash-lite-preview")
-
-# Model for image descriptions in image_pipeline. 3.1-flash-lite confirmed
-# Vision-capable 2026-04-27.
-IMAGE_DESCRIPTION_MODEL = os.environ.get("IMAGE_DESCRIPTION_MODEL", "gemini-3.1-flash-lite-preview")
+# D-11 shims (TEMPORARY — deleted by Wave 4 Amendment 3 sweeper).
+# Intentional R3 GA migration: old default gemini-3.1-flash-lite-preview now
+# maps to gemini-2.5-flash-lite (lib.INGESTION_LLM / VISION_LLM GA).
+# Rollback: edit lib/models.py (Amendment 1 — pure constants; git-as-deploy IS the rollback).
+ENRICHMENT_LLM_MODEL = INGESTION_LLM       # D-11 shim (TEMPORARY — deleted by Wave 4 Amendment 3 sweeper)
+INGEST_LLM_MODEL = INGESTION_LLM           # D-11 shim (TEMPORARY — deleted by Wave 4 Amendment 3 sweeper)
+IMAGE_DESCRIPTION_MODEL = VISION_LLM       # D-11 shim (TEMPORARY — deleted by Wave 4 Amendment 3 sweeper)
 
 # Enable google_search grounding tool on the extract_questions call (D-12).
 ENRICHMENT_GROUNDING_ENABLED = True
@@ -87,115 +91,42 @@ IMAGE_SERVER_BASE_URL = "http://localhost:8765"
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Gemini API wrapper with key fallback, retry, and RPM guard
+#  Phase 7 D-11: gemini_call shim — delegates to lib.generate_sync
 # ═══════════════════════════════════════════════════════════════════════
-
-# Global state for cross-call RPM enforcement (process-wide).
-_last_gemini_call_ts = 0.0
-
-# 3.1-flash-lite-preview: 30 RPM → minimum 2.0s between calls.
-# Image pipeline's D-15 4s sleep also applies per-image, so 2s here is a
-# safety net for call sites that don't have their own sleep (extract_questions,
-# LightRAG entity extraction, etc.).
-_RPM_GUARD_INTERVAL = float(os.environ.get("GEMINI_RPM_GUARD_INTERVAL", "2.0"))
+# Previous implementation (~90 lines) handled RPM guard, key fallback, and
+# 429/503 retry inline. All of that is now owned by lib.llm_client.generate
+# (tenacity @retry + aiolimiter + rotate_key). rpm_guard() is removed; callers
+# should migrate to lib.get_limiter + lib.generate/generate_sync directly.
+# This shim is TEMPORARY — deleted by Wave 4 Amendment 3 sweeper.
 
 
-def rpm_guard():
-    """Block until at least _RPM_GUARD_INTERVAL seconds have elapsed since the
-    last call to rpm_guard(). Call BEFORE every Gemini API request."""
-    global _last_gemini_call_ts
-    elapsed = time.time() - _last_gemini_call_ts
-    if elapsed < _RPM_GUARD_INTERVAL:
-        time.sleep(_RPM_GUARD_INTERVAL - elapsed)
-    _last_gemini_call_ts = time.time()
+class _GeminiCallResponse:
+    """Back-compat wrapper so legacy callers can still access ``response.text``."""
+    __slots__ = ("text",)
+
+    def __init__(self, text: str):
+        self.text = text
 
 
-def gemini_call(
-    model: str = "gemini-3.1-flash-lite-preview",
-    contents=None,
-    config=None,
-    primary_key: str | None = None,
-    backup_key: str | None = None,
-    max_429_retries: int = 1,
-    max_503_retries: int = 3,
-    base_delay: float = 5.0,
-):
-    """Single Gemini API call with RPM guard, key fallback, and retry.
+def gemini_call(model, prompt=None, contents=None, config=None, **kwargs):
+    """DEPRECATED Phase 7 D-11 shim: delegates to lib.generate_sync.
 
-    Args:
-        model: Model name.
-        contents: genai content (text, PIL.Image, or list thereof).
-        config: Optional genai.types.GenerateContentConfig (for grounding etc.).
-        primary_key: Override default GEMINI_API_KEY.
-        backup_key: Override default GEMINI_API_KEY_BACKUP.
-        max_429_retries: Max retries with backup key on 429 (default 1).
-        max_503_retries: Max exponential-backoff retries on 503/504.
-        base_delay: Starting delay for 503 backoff (doubles each retry).
-
-    Returns:
-        genai GenerateContentResponse.
-
-    Raises:
-        RuntimeError: All keys exhausted or non-retryable error.
+    The original retry + rpm_guard + 429/503 loop is now handled by
+    lib.llm_client.generate (tenacity @retry + aiolimiter + rotate_key).
+    Returns a thin wrapper with a ``.text`` attribute for back-compat with
+    pre-Phase-7 callers (enrichment.extract_questions, ingest_wechat.extract_entities).
+    Remove after all callers migrate (Wave 4 Amendment 3 sweeper).
     """
-    from google import genai
+    from lib import generate_sync
 
-    if primary_key is None:
-        primary_key = GEMINI_API_KEY
-    if backup_key is None:
-        backup_key = GEMINI_API_KEY_BACKUP
-
-    attempt = 0
-    current_key = primary_key
-
-    while True:
-        rpm_guard()
-
-        try:
-            client = genai.Client(api_key=current_key)
-            response = client.models.generate_content(
-                model=model,
-                contents=contents,
-                config=config,
-            )
-            return response
-        except Exception as e:
-            status_str = str(e)
-
-            # 401: auth failure → don't retry
-            if "401" in status_str or "UNAUTHENTICATED" in status_str:
-                raise RuntimeError(
-                    f"Gemini auth failed with key {'primary' if current_key == primary_key else 'backup'}: {e}"
-                ) from e
-
-            # 429: quota exhausted → swap to backup (once)
-            if ("429" in status_str or "RESOURCE_EXHAUSTED" in status_str) and current_key == primary_key:
-                if backup_key and max_429_retries > 0:
-                    logger.warning("Gemini 429 on primary key — switching to backup")
-                    current_key = backup_key
-                    max_429_retries -= 1
-                    continue
-                else:
-                    raise RuntimeError(
-                        f"Gemini 429 exhausted — no backup key available: {e}"
-                    ) from e
-
-            # 503 / 504: server overload → exponential backoff
-            if "503" in status_str or "504" in status_str or "UNAVAILABLE" in status_str:
-                attempt += 1
-                if attempt <= max_503_retries:
-                    delay = base_delay * (2 ** (attempt - 1))
-                    logger.warning(
-                        "Gemini %s on attempt %d/%d — retrying in %.1fs",
-                        "503" if "503" in status_str else "504",
-                        attempt, max_503_retries, delay,
-                    )
-                    time.sleep(delay)
-                    continue
-                else:
-                    raise RuntimeError(
-                        f"Gemini 503/504 after {max_503_retries} retries: {e}"
-                    ) from e
-
-            # Unknown error → don't retry
-            raise RuntimeError(f"Gemini unrecoverable error: {e}") from e
+    # Historical callers passed content list via ``contents=[prompt, img]``;
+    # lib.generate_sync accepts ``(model, prompt, **kwargs)``. Map accordingly:
+    if contents is not None and prompt is None:
+        prompt = contents[0] if contents else ""
+        extra_contents = contents[1:]
+        if extra_contents:
+            kwargs.setdefault("contents", extra_contents)
+    if config is not None:
+        kwargs["config"] = config
+    text = generate_sync(model, prompt, **kwargs)
+    return _GeminiCallResponse(text=text)

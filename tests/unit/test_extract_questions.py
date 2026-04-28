@@ -16,6 +16,21 @@ def _set_gemini_key(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
 
 
+def _patch_lib_generate(mocker, return_text: str):
+    """Phase 7 D-06: patch lib.llm_client.generate (async; called by generate_sync).
+
+    Captures call kwargs so tests can inspect the ``config=`` kwarg passed
+    through config.gemini_call → lib.generate_sync → lib.generate.
+    """
+    async def _fake(model, contents, **kwargs):
+        _fake.last_call = {"model": model, "contents": contents, "kwargs": kwargs}
+        return return_text
+
+    _fake.last_call = None
+    mocker.patch("lib.llm_client.generate", side_effect=_fake)
+    return _fake
+
+
 @pytest.mark.unit
 def test_extract_questions_calls_google_search_tool(mocker, monkeypatch):
     """D-12: the google_search grounding tool must be attached to the request."""
@@ -25,20 +40,14 @@ def test_extract_questions_calls_google_search_tool(mocker, monkeypatch):
     import enrichment.extract_questions as eq
     importlib.reload(eq)
 
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.text = '[{"question": "q1", "context": "c1"}]'
-    mock_client.models.generate_content.return_value = mock_response
-    mocker.patch("google.genai.Client", return_value=mock_client)
+    fake_gen = _patch_lib_generate(mocker, '[{"question": "q1", "context": "c1"}]')
 
     result = eq.extract_questions("a" * 3000, max_q=2)
 
     assert result == [{"question": "q1", "context": "c1"}]
-    call = mock_client.models.generate_content.call_args
-    config = call.kwargs.get("config") or call.args[2] if len(call.args) > 2 else call.kwargs.get("config")
-    assert config is not None, "config must be passed to generate_content"
+    config = fake_gen.last_call["kwargs"].get("config")
+    assert config is not None, "config must be passed through to lib.generate"
     assert config.tools, "tools must be non-empty when grounding is enabled"
-    # Verify google_search tool is present by checking the tool object type name
     tool_types = [type(t.google_search).__name__ for t in config.tools if hasattr(t, "google_search") and t.google_search is not None]
     assert any(t == "GoogleSearch" for t in tool_types), (
         f"Expected GoogleSearch tool in config.tools; found: {[type(t).__name__ for t in config.tools]}"
@@ -53,18 +62,12 @@ def test_extract_questions_skips_grounding_when_disabled(mocker, monkeypatch):
     import enrichment.extract_questions as eq
     importlib.reload(eq)
 
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.text = '[{"question": "q1", "context": "c1"}]'
-    mock_client.models.generate_content.return_value = mock_response
-    mocker.patch("google.genai.Client", return_value=mock_client)
+    fake_gen = _patch_lib_generate(mocker, '[{"question": "q1", "context": "c1"}]')
 
     result = eq.extract_questions("a" * 3000, max_q=2)
 
     assert result == [{"question": "q1", "context": "c1"}]
-    call = mock_client.models.generate_content.call_args
-    # config should be None when grounding is disabled
-    config = call.kwargs.get("config")
+    config = fake_gen.last_call["kwargs"].get("config")
     assert config is None or not getattr(config, "tools", None), (
         "No tools should be passed when grounding is disabled"
     )
@@ -78,17 +81,14 @@ def test_extract_questions_respects_max_q(mocker, monkeypatch):
     import enrichment.extract_questions as eq
     importlib.reload(eq)
 
-    mock_client = MagicMock()
-    mock_response = MagicMock()
     # Return 4 items; max_q=3 should truncate
-    mock_response.text = (
+    _patch_lib_generate(
+        mocker,
         '[{"question":"q1","context":"c1"},'
         '{"question":"q2","context":"c2"},'
         '{"question":"q3","context":"c3"},'
-        '{"question":"q4","context":"c4"}]'
+        '{"question":"q4","context":"c4"}]',
     )
-    mock_client.models.generate_content.return_value = mock_response
-    mocker.patch("google.genai.Client", return_value=mock_client)
 
     result = eq.extract_questions("a" * 3000, max_q=3)
     assert len(result) == 3
@@ -118,11 +118,7 @@ def test_cli_success_writes_atomic_json(tmp_path: Path, mocker, capsys, monkeypa
     """Happy path: questions.json written atomically, no .tmp leftover, stdout ok."""
     monkeypatch.setenv("ENRICHMENT_GROUNDING_ENABLED", "0")
 
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.text = '[{"question":"Q","context":"C"}]'
-    mock_client.models.generate_content.return_value = mock_response
-    mocker.patch("google.genai.Client", return_value=mock_client)
+    _patch_lib_generate(mocker, '[{"question":"Q","context":"C"}]')
 
     from enrichment.extract_questions import main
 
@@ -155,9 +151,10 @@ def test_cli_gemini_error_returns_1(tmp_path: Path, mocker, capsys, monkeypatch)
     """Gemini API errors must produce exit 1 and status=error JSON on stdout."""
     monkeypatch.setenv("ENRICHMENT_GROUNDING_ENABLED", "0")
 
-    mock_client = MagicMock()
-    mock_client.models.generate_content.side_effect = RuntimeError("boom")
-    mocker.patch("google.genai.Client", return_value=mock_client)
+    async def _boom(*a, **kw):
+        raise RuntimeError("boom")
+
+    mocker.patch("lib.llm_client.generate", side_effect=_boom)
 
     from enrichment.extract_questions import main
 
