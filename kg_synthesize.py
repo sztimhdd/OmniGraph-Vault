@@ -10,27 +10,30 @@ if sys.stdout.encoding != "utf-8":
 from config import RAG_WORKING_DIR, load_env, CANONICAL_MAP_FILE
 load_env()
 DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+# Phase 7: centralized model selection + key management (must load before cognee import
+# so its LLMConfig singleton sees COGNEE_LLM_API_KEY on first construction).
+from lib import SYNTHESIS_LLM, current_key, get_limiter
 
 import asyncio
 import time
 
-# Set Cognee env vars BEFORE import so LLMConfig() picks them up at construction
-os.environ["COGNEE_LLM_API_KEY"] = GEMINI_API_KEY
-os.environ["LITELLM_API_KEY"] = GEMINI_API_KEY
-os.environ["LLM_API_KEY"] = GEMINI_API_KEY  # Cognee 1.0 unified key
+# Set Cognee env vars BEFORE import so LLMConfig() picks them up at construction.
+# Amendment 4: rotate_key() will write os.environ["COGNEE_LLM_API_KEY"] inline on
+# rotation; Wave 3 adds refresh_cognee() at loop entry to invalidate @lru_cache.
+_initial_key = current_key()
+os.environ["COGNEE_LLM_API_KEY"] = _initial_key
+os.environ["LITELLM_API_KEY"] = _initial_key
+os.environ["LLM_API_KEY"] = _initial_key  # Cognee 1.0 unified key
 
 import cognee
-if not GEMINI_API_KEY:
-    print("Error: GEMINI_API_KEY not found.")
-    sys.exit(1)
 
 # FORCE CONFIGURATION (runtime, in case env didn't set it on LLMConfig singleton)
 from cognee.infrastructure.llm.config import get_llm_config
 llm_config = get_llm_config()
-llm_config.llm_api_key = GEMINI_API_KEY
+llm_config.llm_api_key = current_key()
 llm_config.llm_provider = "gemini"
-llm_config.llm_model = "gemini-2.5-flash-lite"
+llm_config.llm_model = SYNTHESIS_LLM
 
 print(f"Cognee Status: Provider={llm_config.llm_provider}, Model={llm_config.llm_model}")
 
@@ -38,21 +41,22 @@ import cognee_wrapper
 from lightrag.lightrag import LightRAG, QueryParam
 from lightrag.llm.gemini import gemini_model_complete
 
-# Phase 5 D-01: shared embedding function (gemini-embedding-2 + in-band multimodal).
-from lightrag_embedding import embedding_func
+# Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
+from lib import embedding_func
 
 # Constants
 from config import RAG_WORKING_DIR
-MODEL_NAME = "gemini-2.5-flash-lite"
 
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-    return await gemini_model_complete(
-        prompt, system_prompt=system_prompt, history_messages=history_messages,
-        api_key=GEMINI_API_KEY, model_name=MODEL_NAME, **kwargs,
-    )
+    """LightRAG LLM wrapper with Phase 7 lib/ rate limiting and key rotation."""
+    async with get_limiter(SYNTHESIS_LLM):
+        return await gemini_model_complete(
+            prompt, system_prompt=system_prompt, history_messages=history_messages,
+            api_key=current_key(), model_name=SYNTHESIS_LLM, **kwargs,
+        )
 
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
-    rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=llm_model_func, embedding_func=embedding_func, llm_model_name=MODEL_NAME)
+    rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=llm_model_func, embedding_func=embedding_func, llm_model_name=SYNTHESIS_LLM)
     if hasattr(rag, "initialize_storages"): await rag.initialize_storages()
         
     await asyncio.sleep(2)
