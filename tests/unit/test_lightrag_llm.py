@@ -150,8 +150,15 @@ async def test_deepseek_model_env_override(monkeypatch):
 
 
 def test_missing_api_key_raises_runtime_error(monkeypatch):
-    """If DEEPSEEK_API_KEY is absent, module import raises RuntimeError."""
+    """If DEEPSEEK_API_KEY is absent, module import raises RuntimeError.
+
+    Bypasses ~/.hermes/.env auto-load by monkeypatching HOME to a non-existent
+    directory so _load_hermes_env() is a no-op.
+    """
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    # Redirect HOME so ~/.hermes/.env doesn't leak into this test.
+    monkeypatch.setenv("HOME", "/nonexistent-home-for-test")
+    monkeypatch.setenv("USERPROFILE", "Z:\\nonexistent-home-for-test")  # Windows
     import sys
     sys.modules.pop("lib.llm_deepseek", None)
 

@@ -35,12 +35,42 @@ silently attempt API calls with no credentials.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from openai import AsyncOpenAI
 
 
 _DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 _DEFAULT_MODEL = "deepseek-v4-flash"
+
+
+def _load_hermes_env() -> None:
+    """Populate os.environ from ~/.hermes/.env WITHOUT overwriting existing values.
+
+    Mirrors cognee_wrapper.py's pattern. Required because lib.llm_deepseek is
+    imported BEFORE many scripts call config.load_env(), so DEEPSEEK_API_KEY
+    would otherwise be absent at module init.
+    """
+    env_path = Path.home() / ".hermes" / ".env"
+    if not env_path.exists():
+        return
+    try:
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            k = k.strip()
+            v = v.strip().strip("'").strip('"')
+            if k and k not in os.environ:
+                os.environ[k] = v
+    except Exception:
+        # Silent-fall-through: callers will get the same RuntimeError if the
+        # key isn't set, which is the clear diagnostic we want.
+        pass
+
+
+_load_hermes_env()
 
 
 def _require_api_key() -> str:
