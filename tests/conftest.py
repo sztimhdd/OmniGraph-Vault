@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for Phase 4 enrichment tests."""
+"""Shared pytest fixtures for OmniGraph-Vault tests."""
 from __future__ import annotations
 import json
 from pathlib import Path
@@ -59,3 +59,45 @@ def mock_requests_get(mocker):
     m.return_value.status_code = 200
     m.return_value.content = b"\xff\xd8\xff\xe0FAKE_JPEG_BYTES"
     return m
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 lib/ fixtures (D-06: mock at lib.llm_client level)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mock_lib_llm(mocker):
+    """Mock at lib.llm_client.generate / lib.llm_client.aembed / lib.llm_client.generate_sync (D-06).
+
+    Replaces per-call-site google.genai.Client patches. Any test importing a
+    production module can patch here once and cover every LLM touchpoint.
+    Note: _fake_generate uses `contents` param (Amendment 5).
+    """
+    from lib.models import EMBEDDING_DIM
+
+    async def _fake_generate(model, contents, **kwargs):
+        return "stub lib generate response"
+
+    async def _fake_aembed(model, texts, **kwargs):
+        return [[0.0] * EMBEDDING_DIM for _ in texts]
+
+    gen = mocker.patch("lib.llm_client.generate", side_effect=_fake_generate)
+    aem = mocker.patch("lib.llm_client.aembed", side_effect=_fake_aembed)
+    sync_gen = mocker.patch("lib.llm_client.generate_sync", return_value="stub sync generate response")
+    return {"generate": gen, "aembed": aem, "generate_sync": sync_gen}
+
+
+@pytest.fixture
+def reset_lib_state(monkeypatch):
+    """Reset lib/ module-level state between tests (rotation cycle, limiter registry)."""
+    import lib.api_keys as k
+    import lib.rate_limit as r
+    k._cycle = None
+    k._current = None
+    k._rotation_listeners.clear()
+    r._limiters.clear()
+    # Also reset llm_client cached client
+    import lib.llm_client as lc
+    lc._client = None
+    lc._client_key = None
+    yield
