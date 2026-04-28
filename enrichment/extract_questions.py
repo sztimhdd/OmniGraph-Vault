@@ -49,23 +49,17 @@ def extract_questions(article_text: str, max_q: int = DEFAULT_MAX_QUESTIONS) -> 
 
     Raises on API error or unparseable response.
     Parses best-effort JSON array from response.text.
+    Uses gemini_call() from config for key fallback + retry + RPM guard.
     """
-    from google import genai
     from google.genai import types
-
-    # CRITICAL: Hermes env has GOOGLE_GENAI_USE_VERTEXAI=true globally.
-    # This forces genai.Client to use Vertex AI which rejects API keys.
-    # Must unset before creating any client. See test report 04-06.
-    os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
-
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    from config import gemini_call
 
     config = None
     if GROUNDING_ENABLED:
         tools = [types.Tool(google_search=types.GoogleSearch())]
         config = types.GenerateContentConfig(tools=tools)
 
-    response = client.models.generate_content(
+    response = gemini_call(
         model=DEFAULT_MODEL,
         contents=[_PROMPT_TMPL.format(max_q=max_q, article=article_text)],
         config=config,
