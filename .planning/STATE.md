@@ -12,7 +12,10 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 Phase: 4 — knowledge-enrichment-zhihu — **CLOSED** (merged to main in `72cf92c`, 2026-04-28)
 Plan: 8 of 8 complete; code shipped and live-validated on Hermes.
 Status: Closed. Criteria 11/12 (LightRAG graph growth + no new `failed` statuses) are environmentally blocked by Gemini free-tier 100-RPM embedding quota. This is an infra-track item, **not** Phase 4 unfinished work — reopening requires paid-tier or local embedding swap, both out of scope for this phase.
-Last activity: 2026-04-28 — Phase 4 merged to main, STATE/ROADMAP updated to reflect closure.
+
+**Phase 6: graphify-addon-code-graph — PLANNED (not started).** 7 plans created 2026-04-28 by Claude Code. PRD v3.0 authoritative at `specs/PRDTDD_GRAPHIFY_ADDON.md`. Plans cover Wave 0 scaffold (06-00), skill install + T1 clone (06-01), graph seed (06-02), omnigraph_search implementation (06-03+06-03b), weekly cron (06-04), demo transcripts + acceptance (06-05).
+
+Last activity: 2026-04-28 — Phase 6 plans committed to main, awaiting orchestrator execution.
 
 Progress: [██████████] 100% (8 of 8 plans complete, merged)
 
