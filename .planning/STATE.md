@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: milestone
 status: executing
-stopped_at: "06-03: complete — omnigraph_search skill implemented; Wave 3 (06-02 graph seed) next"
-last_updated: "2026-04-28T16:50:00.000Z"
+stopped_at: Completed 06-graphify-addon-code-graph/06-03b-PLAN.md
+last_updated: "2026-04-28T17:46:29.205Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 24
-  completed_plans: 9
+  total_plans: 21
+  completed_plans: 13
   percent: 100
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 06 (graphify-addon-code-graph) — EXECUTING
-Plan: 3 of 7 complete (06-00, 06-01, 06-03)
-Status: Wave 2 done — Wave 3 next (06-02 graph seed — human-in-loop, Hermes running task)
+Plan: 4 of 7 complete (06-00, 06-01, 06-03)
+Status: Ready to execute
 
 **Phase 6: graphify-addon-code-graph — IN PROGRESS.** Wave 1 (06-00) complete: scaffold created, graphifyy==0.5.3 installed, D-S10=hermes-only (claw absent on remote). Wave 2 pending: 06-01 (graphify skill install on remote) + 06-03 (omnigraph_search implementation).
 
@@ -58,6 +58,7 @@ Progress: [██████████] 100% (8 of 8 plans complete, merged)
 | Phase 06-graphify-addon-code-graph P00 | 5 | 2 tasks | 11 files |
 | Phase 06-graphify-addon-code-graph P01 | 25 | 3 tasks | 2 files |
 | Phase 06-graphify-addon-code-graph P03 | 9 | 4 tasks | 6 files |
+| Phase 06-graphify-addon-code-graph P03b | 1 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,8 @@ Recent decisions affecting current work:
 - [Phase 06-graphify-addon-code-graph]: D-S10 scope = hermes-only (claw absent on remote, confirmed by SSH probe)
 - [Phase 06-graphify-addon-code-graph]: D-G09 honored: omnigraph_search/query.py mirrors query_lightrag.py with no Cognee, no get_rag() helper
 - [Phase 06-graphify-addon-code-graph]: Added omnigraph_search/__init__.py to enable python -m invocation (required for package module)
+- [Phase 06-graphify-addon-code-graph]: D-06-03b-01: omnigraph_search/query.py must import lightrag_embedding.embedding_func (3072-dim) not inline gemini_embed (768-dim) to read Phase-5-migrated NanoVectorDB
+- [Phase 06-graphify-addon-code-graph]: D-06-03b-02: SKILL.md routing redirects need explicit response templates (not vague do-not-self-reference rules) for reliable LLM routing in skill_runner tests
 
 ### Pending Todos
 
@@ -110,7 +113,7 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-04-28
-Stopped at: Wave 2 complete (06-01 + 06-03) — 06-02 graph seed dispatched to Hermes
+Last session: 2026-04-28T17:46:29.199Z
+Stopped at: Completed 06-graphify-addon-code-graph/06-03b-PLAN.md
 Resume file: None
 Next command: begin next phase — options are Phase 5 (pipeline automation + RSS + daily digest, PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`) or large-scale batch KOL ingestion stabilization.
