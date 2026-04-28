@@ -31,14 +31,20 @@ if ENV_PATH.exists():
                 key, value = line.split("=", 1)
                 os.environ[key.strip()] = value.strip().strip("'").strip('"')
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-os.environ["COGNEE_LLM_API_KEY"] = GEMINI_API_KEY
-os.environ["LITELLM_API_KEY"] = GEMINI_API_KEY
-os.environ["OPENAI_API_KEY"] = GEMINI_API_KEY
-os.environ["LLM_API_KEY"] = GEMINI_API_KEY        # Cognee 1.0 unified key
+# Phase 7: key sourcing centralized in lib/. rotate_key() writes os.environ["COGNEE_LLM_API_KEY"]
+# inline (Amendment 4) — no bridge module. Long-running processes additionally call
+# refresh_cognee() at loop entry to invalidate Cognee's @lru_cache.
+from lib import INGESTION_LLM, current_key
 
+_initial_key = current_key()
+os.environ["COGNEE_LLM_API_KEY"] = _initial_key
+os.environ["LITELLM_API_KEY"] = _initial_key
+os.environ["OPENAI_API_KEY"] = _initial_key
+os.environ["LLM_API_KEY"] = _initial_key        # Cognee 1.0 unified key
+
+# Cognee handshake env mutations (NOT Gemini API auth — these configure Cognee's LLM backend)
 os.environ["LLM_PROVIDER"] = "gemini"
-os.environ["LLM_MODEL"] = "gemini-2.5-flash"
+os.environ["LLM_MODEL"] = INGESTION_LLM
 os.environ["EMBEDDING_PROVIDER"] = "gemini"
 os.environ["EMBEDDING_MODEL"] = "gemini-embedding-2"
 os.environ["EMBEDDING_DIMENSIONS"] = "768"
@@ -51,12 +57,15 @@ logger = logging.getLogger("cognee_wrapper")
 
 try:
     import cognee
-    # Enforce configuration at the module level — use LLMConfig singleton directly
+    # Enforce configuration at the module level — use LLMConfig singleton directly.
+    # Amendment 4: rotation propagates via os.environ["COGNEE_LLM_API_KEY"] set inside
+    # rotate_key(); the initial llm_api_key assignment is still needed because
+    # get_llm_config() was already @lru_cache'd before this import.
     from cognee.infrastructure.llm.config import get_llm_config
     llm_config = get_llm_config()
-    llm_config.llm_api_key = GEMINI_API_KEY
+    llm_config.llm_api_key = current_key()
     llm_config.llm_provider = "gemini"
-    llm_config.llm_model = "gemini-2.5-flash"
+    llm_config.llm_model = INGESTION_LLM
 except ImportError:
     logger.error("Cognee not found in wrapper.")
     cognee = None
