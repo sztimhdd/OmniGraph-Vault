@@ -1,8 +1,9 @@
-# PRD/TDD: Graphify Code Graph Addon for OmniGraph-Vault
+# OMNIGRAPH_PRD_v3.0.md
 
-> **Audience:** Claude Code — use this document as the single source of truth to implement the addon.
-> **Repository:** [OmniGraph-Vault](https://github.com/sztimhdd/OmniGraph-Vault)
-> **Status:** Design complete — ready for implementation.
+> **产品形态：Skill（Hermes + OpenClaw），非 MCP**
+> **受众：** Claude Code — implement from this document as single source of truth.
+> **仓库：** [OmniGraph-Vault](https://github.com/sztimhdd/OmniGraph-Vault)
+> **状态：** Design complete — ready for Week 1 implementation.
 
 ---
 
@@ -10,123 +11,233 @@
 
 ### 1.1 What This Is
 
-A **zero-code MCP addon** that adds code-structure query capability to OmniGraph-Vault's existing domain-knowledge graph. It answers the question:
+OmniGraph-Vault 交付两个 **Skill**，运行在 **Hermes** 和 **OpenClaw** 平台上。它们回答：
 
-> *"I know WHY OpenClaw designed streaming tool output this way (from WeChat articles in the domain graph). Now show me HOW it's implemented — the exact function, its callers, and its dependencies."*
+> *"我知道 OpenClaw 为什么设计了 streaming tool output（来自知识层的微信文章）。现在给我看它怎么实现的——具体函数、调用者、依赖链。"*
 
-### 1.2 Target User
+### 1.2 两个核心 Skill
 
-**Not a human developer.** The consumer is **Claude Code** — an AI coding agent tasked with implementing features in a Rust fork of OpenClaw. Claude Code uses this addon's MCP tools autonomously during coding sessions.
+```
+┌─────────────────────────────────────────────────┐
+│                                                 │
+│   graphify_skill                 omnigraph_search│
+│   ─────────────                  ─────────────── │
+│   平台：Hermes + OpenClaw        平台：Hermes+OpenClaw│
+│   来源：Graphify 原生 install    来源：自研（唯一新开发）│
+│   工作量：零                     工作量：需开发       │
+│   功能：代码图谱查询              功能：知识层查询      │
+│   · 调用链                       · 设计意图          │
+│   · 依赖关系                     · 使用指南          │
+│   · 节点详情                     · 最佳实践          │
+│   · 最短路径                     · 踩坑经验          │
+│   后端：Graphify 图谱引擎         后端：RAG Engine     │
+│                                  Corpora (Agent     │
+│                                  Engine)           │
+└─────────────────────────────────────────────────┘
+```
 
-### 1.3 Competitive Positioning
+### 1.3 Target User
 
-| Competitor | What It Offers | OmniGraph + Graphify Advantage |
-|------------|---------------|-------------------------------|
-| **Context7** | API docs lookup | Adds design-intent from WeChat articles + causal reasoning in graph edges |
-| **Tavily** | Web search | WeChat closed ecosystem — content only available through our manual ingestion |
-| **Sourcegraph Cody** | Code search + jump-to-def | Adds cross-project semantic matching + article-to-code bridging |
+**用户：Hermes / OpenClaw 平台上的 AI Agent。** 典型终端用户是开发者，但直接调用 Skill 的是 Agent 本身——Agent 自主决策调用 `graphify_skill` 还是 `omnigraph_search`（或者两者组合），然后合成答案返回给开发者。
 
-**Unique selling point:** When Claude Code asks "how does OpenClaw handle streaming tool output?", it receives: (a) design rationale from domain articles, (b) exact function signatures from code graph, (c) call-chain traversal, and (d) cross-project comparisons (OpenClaw vs Hermes). No competitor combines these four layers.
+### 1.4 Competitive Positioning
 
-### 1.4 Core Metric
+| Competitor | What It Offers | OmniGraph Advantage |
+|------------|---------------|---------------------|
+| **Context7** | API docs lookup | + 微信文章的设计意图 + 图结构因果推理 |
+| **Tavily** | Web search | 微信封闭生态——内容仅通过我们的手动摄入可获得 |
+| **Sourcegraph Cody** | Code search + jump-to-def | + 跨项目语义匹配 + 文章→代码桥接 |
 
-**Claude Code output quality improvement on OpenClaw/Hermes implementation tasks**, measured qualitatively: code architectural consistency, fewer hallucinations about API behavior, correct integration patterns.
+**USP：** 当 Agent 收到 "OpenClaw 的 streaming tool output 怎么实现" 时，它从两个 Skill 获得四层信息：(a) 设计理由（领域文章），(b) 精确函数签名（代码图谱），(c) 调用链遍历，(d) 跨项目对比（OpenClaw vs Hermes）。无竞品能组合这四层。
+
+### 1.5 Core Metric
+
+**Agent 在 OpenClaw/Hermes 实现任务上的代码质量提升**——定性衡量：架构一致性、API 行为幻觉减少、集成模式正确。
 
 ---
 
 ## 2. Architecture
 
-### 2.1 Dual-Graph / Dual-Tool Design
+### 2.1 Dual-Graph / Dual-Skill Design
 
 ```
-                      Claude Code
-                     /            \
-        search_knowledge          lookup_code
-        (LightRAG MCP)            (Graphify MCP)
-              │                        │
-     ┌────────┴────────┐      ┌────────┴────────┐
-     │  Domain Graph    │      │   Code Graph     │
-     │  (LightRAG)      │      │  (Graphify JSON)  │
-     │                  │      │                   │
-     │ • Design intent  │      │ • Function nodes  │
-     │ • Usage guides   │      │ • Class hierarchy │
-     │ • Best practices │      │ • Call chains     │
-     │ • Pitfalls       │      │ • Module deps     │
-     │ • Concept links  │      │ • Import graphs   │
-     └──────────────────┘      └───────────────────┘
-              │                        │
-              └────────┬───────────────┘
-                       │
-              ┌────────┴────────┐
-              │  Bridge Nodes    │
-              │  (future Phase)  │
-              │  pre-link domain │
-              │  concepts → code │
-              │  entities        │
-              └─────────────────┘
+           Hermes / OpenClaw Agent
+           /                      \
+    graphify_skill          omnigraph_search
+    (Graphify 原生)         (自研，RAG Engine 后端)
+         │                        │
+┌────────┴────────┐      ┌────────┴────────┐
+│   Code Graph     │      │  Domain Graph    │
+│  (Graphify JSON) │      │  (Agent Engine   │
+│                  │      │   RAG Corpora)   │
+│ • Function nodes │      │                  │
+│ • Class hierarchy│      │ • Design intent  │
+│ • Call chains    │      │ • Usage guides   │
+│ • Module deps    │      │ • Best practices │
+│ • Import graphs  │      │ • Pitfalls       │
+└─────────────────┘      │ • Concept links  │
+                          └──────────────────┘
+                                   │
+                          ┌────────┴────────┐
+                          │  Bridge Nodes    │
+                          │  (future Phase)  │
+                          │  pre-link domain │
+                          │  concepts → code │
+                          │  entities        │
+                          └─────────────────┘
 ```
 
-### 2.2 Why Two Graphs, Not One
+### 2.2 Why Two Skills, Not One
 
 | Decision | Reasoning |
 |----------|-----------|
-| **Separate stores** | Domain entities (opinions, entities, arguments) and code entities (functions, classes, modules) use fundamentally different grammars. Merging creates semantic noise. |
-| **Separate MCP tools** | Claude Code selects the right tool for the right task. Mixed-tool queries are composed by Claude Code, not by our pipeline. |
-| **Physical separation** | LightRAG stores entities internally; Graphify outputs graph.json. No shared database, no coupling. |
+| **Separate storage** | 领域实体（观点、论据）和代码实体（函数、类）使用不同的语法空间。合并产生语义噪音。 |
+| **Separate skills** | Agent 为不同任务选择正确的 skill。混合查询由 Agent 组合完成，不经我们的管线。 |
+| **Physical separation** | Graphify 输出 graph.json；RAG Engine 管理 Corpora。无共享数据库，无耦合。 |
 
-### 2.3 Claude Code's Autonomous Routing Logic
+### 2.3 Agent Autonomous Routing Logic
 
 ```
-User: "Implement streaming tool output in my Rust fork, like OpenClaw"
+用户在 Hermes/OpenClaw 中：
+"openclaw streaming tool output 怎么实现"
+    ↓
+Agent 自主决策调用：
+  graphify_skill    → 代码结构/调用链（语法层）
+  omnigraph_search  → 设计意图/最佳实践（语义层）
+    ↓
+合并两路结果 → 回答
+```
 
-Claude Code reasoning:
-  1. "I need design rationale" → search_knowledge("streaming tool output 设计")
-     → Returns: WeChat article explaining AsyncGenerator choice, perf tradeoffs
-  2. "I have the design. Now find implementation" → lookup_code.get_node("stream_query")
-     → Returns: function signature, file path, docstring
-  3. "What else calls this?" → lookup_code.get_neighbors("stream_query")
-     → Returns: callers (agent_loop, router) + callees (token_stream, response_builder)
-  4. Combine → implement in Rust with Tokio
+**具体推理链：**
+
+```
+1. "我需要设计理由" → omnigraph_search("streaming tool output 设计")
+   → 返回：解释 AsyncGenerator 选择、性能权衡的微信文章
+2. "已有设计。找实现" → graphify_skill.get_node("stream_query")
+   → 返回：函数签名、文件路径、docstring
+3. "谁调用了这个？" → graphify_skill.get_neighbors("stream_query")
+   → 返回：调用者（agent_loop, router）+ 被调用者（token_stream, response_builder）
+4. 综合 → Agent 用 Rust/Tokio 实现
 ```
 
 ---
 
-## 3. Graphify MCP Tool Interface
+## 3. Skill Specifications
 
-### 3.1 Exposed Tools
+### 3.1 `graphify_skill`（Graphify 原生，零开发）
 
-Graphify's `python -m graphify.serve graphify-out/graph.json` exposes exactly four MCP tools. No wrapper code needed.
+**安装方式：**
+```bash
+# 在 Hermes 上
+graphify install --platform hermes
 
-| Tool | Signature | Description | Claude Code Use Case |
-|------|-----------|-------------|---------------------|
-| `query_graph` | `(query: str) → list[Node]` | Natural-language graph search | "find all auth-related functions" |
-| `get_node` | `(node_id: str) → Node` | Fetch single node by ID | "show me stream_query's signature" |
-| `get_neighbors` | `(node_id: str) → list[Node]` | Incoming + outgoing edges | "who calls stream_query, what does it call" |
-| `shortest_path` | `(source: str, target: str) → list[Node]` | BFS between two nodes | "how does auth connect to the agent loop" |
+# 在 OpenClaw 上
+graphify install --platform claw
+```
 
-### 3.2 Node Schema (from Graphify output)
+**暴露的查询能力：**
+
+| Capability | Description | Agent Use Case |
+|-----------|-------------|----------------|
+| `query_graph` | 自然语言图谱搜索 | "找所有 auth 相关函数" |
+| `get_node` | 按 ID 获取单个节点 | "stream_query 的签名是什么" |
+| `get_neighbors` | 入边 + 出边 | "谁调用了 stream_query，它调用了谁" |
+| `shortest_path` | 两点间 BFS | "auth 怎么连到 agent loop" |
+
+**Node Schema (from Graphify output):**
 
 ```json
 {
   "id": "openclaw::router::Router::route",
-  "type": "function",           // function | class | module | variable
+  "type": "function",
   "name": "route",
   "file": "src/router.ts",
   "line": 145,
   "signature": "async route(request: Request): Promise<Response>",
   "docstring": "Routes incoming tool requests to registered handlers.",
   "language": "typescript",
-  "parent": "openclaw::router::Router"  // containing class/module
+  "parent": "openclaw::router::Router"
 }
 ```
 
-### 3.3 Edge Schema
+**Edge Schema:**
 
 ```json
 {
   "source": "openclaw::agent_loop::execute",
   "target": "openclaw::router::Router::route",
-  "type": "calls"              // calls | inherits | imports | contains
+  "type": "calls"
+}
+```
+
+### 3.2 `omnigraph_search` Skill（自研，需开发）
+
+**唯一需要新写的 skill。** 后端对接 RAG Engine Corpora（Agent Engine）。
+
+**SKILL.md 骨架：**
+
+```markdown
+---
+name: omnigraph_search
+description: Search OmniGraph domain knowledge — design intent, guides, best practices, pitfalls for OpenClaw/Hermes development.
+platforms: [hermes, openclaw]
+---
+
+# OmniGraph Search
+
+Query OmniGraph-Vault's domain knowledge graph for design rationale,
+usage patterns, and implementation guidance.
+
+## When to Use
+
+Use this skill when the user asks:
+- "Why was X designed this way?"
+- "What's the best practice for Y?"
+- "How does OpenClaw handle Z?"
+- "What are the pitfalls when integrating A with B?"
+
+## Behavior
+
+1. Accept a natural-language query from the user/agent.
+2. Call the RAG Engine Corpora API:
+   POST /api/v1/rag/search
+   { "query": "<query>", "top_k": 5 }
+3. Return the top 5 results with source attribution (WeChat article title, date, URL).
+4. For cross-article questions, compose a synthesis from multiple sources.
+
+## Integration
+
+This skill is called by the Hermes/OpenClaw agent autonomously.
+The agent may also call `graphify_skill` in the same session for
+code-structure queries.
+```
+
+**RAG Engine API Contract:**
+
+```
+POST /api/v1/rag/search
+Content-Type: application/json
+
+{
+  "query": "streaming tool output design rationale",
+  "top_k": 5,
+  "mode": "hybrid"
+}
+
+Response:
+{
+  "results": [
+    {
+      "score": 0.89,
+      "content": "OpenClaw 选择 AsyncGenerator...",
+      "source": {
+        "title": "OpenClaw 架构深度解析",
+        "url": "https://mp.weixin.qq.com/s/...",
+        "date": "2026-03-15"
+      },
+      "entities": ["AsyncGenerator", "streaming", "tool output"]
+    }
+  ]
 }
 ```
 
@@ -138,15 +249,16 @@ Graphify's `python -m graphify.serve graphify-out/graph.json` exposes exactly fo
 
 ```
 ~/.hermes/omonigraph-vault/
-├── graphify/                    # NEW: Graphify working directory
+├── graphify/                    # Graphify working directory
 │   ├── repos/                   # Cloned T1 repositories
 │   │   ├── openclaw/           # git clone cache
 │   │   └── claude-code/        # git clone cache
-│   └── graph.json               # Built code graph (Graphify output)
+│   └── graph.json               # Built code graph
 │
-├── lightrag_storage/            # Existing: Domain graph (unchanged)
-├── enrichment/                  # Existing: Zhihu enrichment (unchanged)
-└── images/                      # Existing: Article images (unchanged)
+├── lightrag_storage/            # Existing (LightRAG → migrating to
+│                                 # Agent Engine RAG Corpora)
+├── enrichment/                  # Existing: Zhihu enrichment
+└── images/                      # Existing: Article images
 ```
 
 ### 4.2 T1 Repository Scope
@@ -154,52 +266,75 @@ Graphify's `python -m graphify.serve graphify-out/graph.json` exposes exactly fo
 | Repository | URL | Reason | Priority |
 |-----------|-----|--------|:--------:|
 | openclaw | `https://github.com/openclaw/openclaw` | Core framework — Rust fork's primary reference | P0 |
-| claude-code | `https://github.com/anthropics/claude-code` | Claude Code internals — understanding the consumer | P0 |
+| claude-code | `https://github.com/anthropics/claude-code` | Claude Code internals | P0 |
 
-**Expansion rule:** Add a repository only when Claude Code manually searches its source ≥3 times in one session. Never pre-emptively add T3 repos (AutoGen, LangGraph) — marginal utility approaches zero.
+**Expansion rule:** Add only when Agent manually searches source ≥3 times in one session. Never pre-emptively add T3 repos — marginal utility → 0.
 
 ### 4.3 Update Strategy
 
 ```
-cron: 0 3 * * 0  (every Sunday 3am)
-command: graphify refresh && python -m graphify.build
+cron: 0 3 * * 0  (weekly Sunday 3am)
+command: graphify refresh && graphify build
 ```
 
-- **Frequency reasoning:** OpenClaw/Hermes ship 5-10 commits/week. Weekly snapshots capture feature-level changes without excessive compute.
-- **Atomic swap:** Build to `graph.json.tmp` → validate → `mv graph.json.tmp graph.json`. Graphify MCP server auto-reloads on file change (or restart via cron).
+- **Frequency:** 5-10 commits/week. Weekly captures feature changes without excessive compute.
+- **Atomic swap:** Build to `graph.json.tmp` → validate → `mv graph.json.tmp graph.json`.
 
 ---
 
 ## 5. Implementation Plan
 
-### 5.1 Zero-Code Philosophy
+### 5.1 Week 1 Deliverables
 
-Graphify MCP is integrated declaratively — no Python wrapper, no adapter code, no custom MCP server. The only "implementation" is configuration and cron.
+| # | Deliverable | Verification |
+|---|------------|-------------|
+| 1 | `graphify install --platform hermes` 跑通 | Hermes `skills list` 显示 `graphify` |
+| 2 | `graphify install --platform claw` 跑通 | OpenClaw `skills list` 显示 `graphify` |
+| 3 | `omnigraph_search` SKILL.md 骨架 | Skill 文件存在，Agent 可发现 |
+| 4 | `omnigraph_search` 调用 RAG Engine API | `/api/v1/rag/search` 返回结果 |
+| 5 | 端到端测试：用户提问 → Agent 调用两个 skill → 合并回答 | 用 Demo 1 场景验证 |
 
-### 5.2 Phase 1: Initial T1 Build (Task List)
+### 5.2 Phase 1: Graphify Skill Installation (Week 1, Day 1-2)
 
-| # | Task | Command | Verify |
-|---|------|---------|--------|
-| 1 | Install Graphify | `pip install graphify` | `graphify --version` |
-| 2 | Clone openclaw | `graphify clone https://github.com/openclaw/openclaw` | `ls repos/openclaw/` non-empty |
-| 3 | Clone claude-code | `graphify clone https://github.com/anthropics/claude-code` | `ls repos/claude-code/` non-empty |
-| 4 | Build graph | `graphify build` | `graph.json` exists, > 1MB |
-| 5 | Validate Node Count | `python -c "import json; g=json.load(open('graph.json')); print(len(g['nodes']))"` | > 500 nodes |
-| 6 | Start MCP server | `python -m graphify.serve graph.json &` | `curl localhost:PORT/health` or process alive |
-| 7 | Register in .mcp.json | See §6.1 | `claude mcp list` shows `lookup_code` |
-| 8 | Smoke test query | `claude mcp call lookup_code get_node '{"node_id":"Router"}'` | Returns node data |
+```bash
+# Step 1: Build code graph for T1 repos
+graphify clone https://github.com/openclaw/openclaw
+graphify clone https://github.com/anthropics/claude-code
+graphify build                          # → graph.json
 
-### 5.3 Phase 2: Weekly Cron (Task List)
+# Step 2: Install as Hermes skill
+graphify install --platform hermes
+
+# Step 3: Install as OpenClaw skill
+graphify install --platform claw
+
+# Step 4: Verify
+hermes skills list | grep graphify       # Expected: graphify_skill | enabled
+claw skills list | grep graphify         # Expected: graphify_skill | enabled
+```
+
+### 5.3 Phase 2: omnigraph_search Skill (Week 1, Day 3-4)
+
+**唯一的新开发工作。** 创建 `skills/omnigraph_search/SKILL.md` 和关联的 API 适配器。
+
+| # | Task | File | Verify |
+|---|------|------|--------|
+| 1 | 创建 SKILL.md | `skills/omnigraph_search/SKILL.md` | 语法检查通过 |
+| 2 | 创建 API 适配器 | `skills/omnigraph_search/search.py` | 独立脚本可调 RAG Engine |
+| 3 | Skill 注册 | 按 Hermes/OpenClaw skill 注册流程 | `skills list` 可见 |
+| 4 | 单元测试 | `tests/test_omnigraph_search.py` | pytest 通过 |
+
+### 5.4 Phase 3: Weekly Cron (Week 2)
 
 | # | Task | Verify |
 |---|------|--------|
-| 1 | Create `scripts/graphify-refresh.sh` | `bash -n` passes |
-| 2 | Register cron job | `crontab -l` shows entry |
-| 3 | Simulate refresh | Run script manually, verify graph.json timestamp updates |
+| 1 | 创建 `scripts/graphify-refresh.sh` | `bash -n` 通过 |
+| 2 | 注册 cron job | `crontab -l` 可见 |
+| 3 | 模拟刷新 | 手动跑脚本，验证 graph.json 时间戳更新 |
 
-### 5.4 Phase 3: Bridge Nodes (Future — Not In Scope Now)
+### 5.5 Phase 4: Bridge Nodes (Future — Not In Scope Now)
 
-When domain graph entities reference specific code symbols (e.g., a WeChat article discusses `OpenClaw.Router`), pre-compute cross-graph links:
+当领域图谱实体引用了具体代码符号（如微信文章讨论 `OpenClaw.Router`），预计算跨图谱链接：
 
 ```
 Domain Graph                          Code Graph
@@ -210,31 +345,29 @@ Entity: "Router"  ────bridge────→    Node: openclaw::router::R
   }
 ```
 
-Bridge nodes eliminate Claude Code's guesswork when routing between tools. Implementation deferred until T1 build is validated with Demo scenarios.
+桥接节点消除 Agent 在两个 skill 间路由时的猜测成本。延期至 Phase 1-2 验证通过后实施。
 
 ---
 
 ## 6. Integration Details
 
-### 6.1 MCP Registration
+### 6.1 Skill Registration
 
-Add to Claude Code's `.mcp.json`:
+`graphify_skill` 和 `omnigraph_search` 按各平台的 Skill 注册流程安装：
 
-```json
-{
-  "mcpServers": {
-    "lookup_code": {
-      "type": "stdio",
-      "command": "python3",
-      "args": ["-m", "graphify.serve", "~/.hermes/omonigraph-vault/graphify/graph.json"]
-    }
-  }
-}
+```
+# Hermes
+skills:
+  external_dirs:
+    - /path/to/graphify/skills          # graphify install 自动配置
+    - /home/sztimhdd/OmniGraph-Vault/skills   # omnigraph_search
+
+# OpenClaw
+claw skills register /path/to/graphify/claw-skill
+claw skills register /home/sztimhdd/OmniGraph-Vault/skills/omnigraph_search
 ```
 
-`search_knowledge` is already registered via the existing OmniGraph-Vault MCP server (not changed by this addon).
-
-### 6.2 Cron Job
+### 6.2 Weekly Cron Job
 
 ```bash
 # scripts/graphify-refresh.sh
@@ -258,15 +391,11 @@ with open('graph.json.tmp') as f:
 assert len(g['nodes']) > 100, 'Graph too small, refusing to swap'
 "
 mv graph.json.tmp graph.json
-
-# Restart MCP server (if managed by systemd)
-systemctl --user restart graphify-mcp || true
 ```
 
 ### 6.3 Cron Registration
 
 ```bash
-# Add to crontab
 (crontab -l 2>/dev/null; echo "0 3 * * 0 $HOME/OmniGraph-Vault/scripts/graphify-refresh.sh") | crontab -
 ```
 
@@ -276,12 +405,10 @@ systemctl --user restart graphify-mcp || true
 
 ### 7.1 Unit Tests
 
-No Python code to test. Graphify is integrated declaratively.
-
-**What IS tested:**
-- `graphify-refresh.sh` syntax (`bash -n`)
-- Graph JSON schema validation after build
-- MCP tool invocation round-trip
+`omnigraph_search` skill 的 API 适配器需要 pytest 覆盖：
+- RAG Engine API 调用（mock 响应）
+- 结果格式化（entity 字段、source 引用）
+- 错误处理（API 不可用时的降级）
 
 ### 7.2 Demo Scenario 1: Streaming Tool Output
 
@@ -289,13 +416,13 @@ No Python code to test. Graphify is integrated declaratively.
 
 ```yaml
 setup:
-  - search_knowledge already populated with WeChat articles about OpenClaw architecture
-  - lookup_code registered and pointing to fresh graph.json
+  - omnigraph_search has WeChat articles about OpenClaw architecture
+  - graphify_skill installed with fresh graph.json
 
-expected_claude_code_behavior:
-  1. "I need context" → calls search_knowledge("streaming tool output design")
-  2. "I have the why. Now the how" → calls lookup_code.get_node("stream_query")
-  3. "Who interacts with this?" → calls lookup_code.get_neighbors("stream_query")
+expected_agent_behavior:
+  1. "I need context" → calls omnigraph_search("streaming tool output design")
+  2. "I have the why. Now the how" → calls graphify_skill.get_node("stream_query")
+  3. "Who interacts with this?" → calls graphify_skill.get_neighbors("stream_query")
   4. Combines results → produces Rust/Tokio implementation consistent with OpenClaw's design
 
 acceptance:
@@ -309,12 +436,12 @@ acceptance:
 > **Task:** Add Hermes-style self-evolution to the Rust fork.
 
 ```yaml
-expected_claude_code_behavior:
-  1. calls search_knowledge("hermes self evolution genetic optimizer prompt")
+expected_agent_behavior:
+  1. calls omnigraph_search("hermes self evolution genetic optimizer prompt")
      → Returns: article about optimizer selection, parameter tuning, pitfalls
-  2. calls lookup_code.query_graph("evolution optimizer")
+  2. calls graphify_skill.query_graph("evolution optimizer")
      → Returns: genetic_optimizer, prompt_evaluator modules
-  3. calls lookup_code.shortest_path("genetic_optimizer", "agent_loop")
+  3. calls graphify_skill.shortest_path("genetic_optimizer", "agent_loop")
      → Returns: exact files and interfaces to modify for integration
   4. Implements with knowledge of: which libraries, how to integrate, what to avoid
 
@@ -327,12 +454,14 @@ acceptance:
 ### 7.4 Acceptance Gate
 
 ```
-[ ] lookup_code MCP tool responds to all 4 Graphify tools
-[ ] search_knowledge + lookup_code used together in at least one Claude Code session
-[ ] Claude Code output on Demo 1 is architecturally consistent with OpenClaw
-[ ] Claude Code output on Demo 2 uses article-recommended libraries and avoids documented pitfalls
+[ ] graphify_skill installed and functional on Hermes
+[ ] graphify_skill installed and functional on OpenClaw
+[ ] omnigraph_search SKILL.md exists and skill is discoverable
+[ ] omnigraph_search calls RAG Engine API and returns results
+[ ] Agent autonomously uses both skills in Demo 1 (streaming output)
+[ ] Agent autonomously uses both skills in Demo 2 (self-evolution)
+[ ] Code output architecturally consistent with OpenClaw/Hermes
 [ ] Weekly cron successfully rebuilds graph.json
-[ ] No Python wrapper code exists (zero-code integration preserved)
 ```
 
 ---
@@ -341,14 +470,16 @@ acceptance:
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
-| D-G01 | Zero wrapper code | Graphify MCP tools cover all query patterns. Wrapper code adds maintenance burden with no functional gain. |
-| D-G02 | Separate storage from domain graph | Code and domain entities use different grammars; merging creates noise and complicates Claude Code's tool selection. |
-| D-G03 | T1 only (openclaw + claude-code) | Marginal utility of T2/T3 repos is near zero. Claude Code rarely queries them. |
-| D-G04 | Weekly cron, not per-commit | 5-10 commits/week is sufficient for feature tracking. Per-commit rebuilds waste compute. |
-| D-G05 | Atomic graph swap (tmp → rename) | Prevents MCP server from reading half-written graph.json. |
-| D-G06 | Bridge nodes deferred to Phase 3 | Claude Code handles routing autonomously in Phase 1-2. Bridge nodes are an optimization, not a requirement. |
-| D-G07 | No Rust fork in graph | The fork is the product being built, not a knowledge source. Graph covers reference implementations only. |
-| D-G08 | Claude Code as user persona | All tool design and acceptance criteria are framed around Claude Code's autonomous usage patterns, not human query behavior. |
+| D-G01 | Skill over MCP | Hermes/OpenClaw 原生支持 skill；消除 MCP wrapper 维护负担。 |
+| D-G02 | graphify_skill zero-code | Graphify 原生 `install --platform hermes/claw` 无需任何适配。 |
+| D-G03 | Separate storage from domain graph | 代码和领域实体使用不同语法；合并产生噪音。 |
+| D-G04 | T1 only (openclaw + claude-code) | T2/T3 的边际效用接近零。Agent 很少查询它们。 |
+| D-G05 | Weekly cron, not per-commit | 每周 5-10 次提交足够跟踪 feature。逐次提交的 rebuild 浪费算力。 |
+| D-G06 | Atomic graph swap (tmp → rename) | 防止 skill 读到半写状态的 graph.json。 |
+| D-G07 | Bridge nodes deferred to Phase 3 | Agent 在 Phase 1-2 中自主路由；桥接节点是优化项而非硬需求。 |
+| D-G08 | No Rust fork in graph | Fork 是正在构建的产品，不是知识来源。图谱只涵盖参考实现。 |
+| D-G09 | omnigraph_search 对接 RAG Engine | Agent Engine Corpora 已经是知识层存储；不重复建设。 |
+| D-S10 | OpenClaw as first-class platform | 与 Hermes 地位等同。skill 注册流程双平台兼容。 |
 
 ---
 
@@ -356,35 +487,38 @@ acceptance:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|:----------:|:------:|------------|
-| Graphify MCP tool signature changes | Low | MCP registration breaks | Pin Graphify version in requirements.txt |
-| Weekly cron fails silently | Medium | Stale code graph | Add minimum node count assertion in refresh script |
-| Claude Code doesn't autonomously use both tools | Medium | Loses cross-graph benefit | Demo scenario testing proves or disproves; add bridge nodes if needed |
-| openclaw/claude-code repos rename or move | Low | `git pull` breaks | Cron script tolerates pull failure, keeps stale graph |
-| Graph JSON too large for MCP context | Low | Tool calls time out | Monitor graph.json size; add node filtering if > 10MB |
+| Graphify skill 接口不稳定 | Low | Skill 失效 | Pin Graphify 版本 |
+| Weekly cron 静默失败 | Medium | 过期图谱 | Refresh 脚本加最小节点数断言 |
+| Agent 不自主同时使用两个 skill | Medium | 丧失跨图谱优势 | Demo 场景测试；必要时加桥接节点 |
+| openclaw/claude-code 仓库改名/迁移 | Low | `git pull` 断 | Cron 容忍 pull 失败，保留旧图谱 |
+| Graph JSON 超出 skill context | Low | 查询超时 | 监控文件大小；>10MB 加节点过滤 |
+| RAG Engine API 不可用 | Low | omnigraph_search 返回空 | Skill 返回错误提示，不阻塞 Agent |
 
 ---
 
 ## 10. Appendix: Graphify Quick Reference
 
 ```bash
-# Install
+# 安装
 pip install graphify
 
-# Clone + build
+# 克隆 + 建图
 graphify clone https://github.com/openclaw/openclaw
 graphify clone https://github.com/anthropics/claude-code
 graphify build                          # → graph.json
 
-# Serve as MCP
-python -m graphify.serve graph.json     # exposes 4 tools via stdio
+# 安装为 Skill
+graphify install --platform hermes      # 一键安装到 Hermes
+graphify install --platform claw        # 一键安装到 OpenClaw
 
-# Update
-graphify refresh                        # git pull all clones
-graphify build                          # rebuild graph
+# 更新
+graphify refresh                        # git pull 所有克隆
+graphify build                          # 重建图谱
 ```
 
-**MCP tools exposed:** `query_graph`, `get_node`, `get_neighbors`, `shortest_path`
+**graphify_skill 能力：** `query_graph`, `get_node`, `get_neighbors`, `shortest_path`
 
 ---
 
-*Document version: 1.0 · 2026-04-27*
+*Document version: 3.0 · 2026-04-27*
+*产品形态：Skill（Hermes + OpenClaw），非 MCP*
