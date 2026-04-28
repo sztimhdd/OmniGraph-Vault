@@ -1,3 +1,19 @@
+"""Cognee memory-layer wrapper.
+
+Plan 05-00c Task 0c.5 — Cognee binding decision: KEEP ON GEMINI.
+
+Rationale (see .planning/phases/05-pipeline-automation/05-00c-audit.md §3):
+1. Cognee's generate_content volume is tiny — entity disambiguation uses
+   few-token prompts per entity, nothing like LightRAG's chunk summarization.
+2. Key rotation already propagates to Cognee via Phase 7 D-04 mechanism:
+   lib.api_keys.rotate_key() writes os.environ['COGNEE_LLM_API_KEY'] inline,
+   and lib.api_keys.refresh_cognee() invalidates Cognee's @lru_cache'd config.
+3. Swapping Cognee to DeepSeek would require changing Cognee's internal model
+   registry (litellm-based), risking token-budget / tokenizer mismatches for a
+   negligible quota win.
+
+This file is intentionally NOT modified by Plan 05-00c.
+"""
 import os
 import sys
 import asyncio
