@@ -18,3 +18,4 @@ requests
 pytest>=7.4
 pytest-asyncio>=0.23
 pytest-mock>=3.12
+graphifyy==0.5.3
