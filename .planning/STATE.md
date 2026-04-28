@@ -37,6 +37,10 @@ Progress: [██████████] 100% (8 of 8 plans complete, merged)
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- 2026-04-28 — Phase 6 added: graphify-addon-code-graph. PRD v3.0 at `specs/PRDTDD_GRAPHIFY_ADDON.md`; pre-plan brief at `.planning/phases/06-graphify-addon-code-graph/06-CONTEXT.md`. Invariants D-G01..D-S10 locked. Independent of Phase 5.
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table and `.planning/phases/04-knowledge-enrichment-zhihu/04-CONTEXT.md`.
