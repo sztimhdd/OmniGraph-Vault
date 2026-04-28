@@ -17,13 +17,17 @@ import re
 import sys
 from pathlib import Path
 
+from lib import INGESTION_LLM, generate_sync
+
 logger = logging.getLogger(__name__)
 
 # Module-level constants — read from env at import time.
 # Tests reload this module after monkeypatching env vars to pick up changes.
 DEFAULT_MIN_LENGTH = int(os.environ.get("ENRICHMENT_MIN_LENGTH", "2000"))
 DEFAULT_MAX_QUESTIONS = int(os.environ.get("ENRICHMENT_MAX_QUESTIONS", "3"))
-DEFAULT_MODEL = os.environ.get("ENRICHMENT_LLM_MODEL", "gemini-2.5-flash-lite")
+# Phase 7: ENRICHMENT_LLM and INGESTION_LLM both resolve to gemini-2.5-flash-lite;
+# INGESTION_LLM used here for semantic clarity (enrichment is an ingestion-adjacent step).
+DEFAULT_MODEL = os.environ.get("ENRICHMENT_LLM_MODEL", INGESTION_LLM)
 DEFAULT_BASE_DIR = Path(
     os.environ.get(
         "ENRICHMENT_DIR",
@@ -49,23 +53,20 @@ def extract_questions(article_text: str, max_q: int = DEFAULT_MAX_QUESTIONS) -> 
 
     Raises on API error or unparseable response.
     Parses best-effort JSON array from response.text.
-    Uses gemini_call() from config for key fallback + retry + RPM guard.
+    Uses lib.generate_sync() for key rotation + rate limit + retry (Phase 7).
     """
     from google.genai import types
-    from config import gemini_call
 
     config = None
     if GROUNDING_ENABLED:
         tools = [types.Tool(google_search=types.GoogleSearch())]
         config = types.GenerateContentConfig(tools=tools)
 
-    response = gemini_call(
-        model=DEFAULT_MODEL,
-        contents=[_PROMPT_TMPL.format(max_q=max_q, article=article_text)],
+    text = generate_sync(
+        DEFAULT_MODEL,
+        [_PROMPT_TMPL.format(max_q=max_q, article=article_text)],
         config=config,
-    )
-
-    text = response.text or ""
+    ) or ""
     # Strip code fences / surrounding prose and parse JSON array
     match = re.search(r"\[.*\]", text, re.DOTALL)
     if not match:
