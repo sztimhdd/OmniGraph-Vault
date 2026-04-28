@@ -29,6 +29,7 @@ from .api_keys import (
 from .rate_limit import get_limiter
 from .llm_client import generate, generate_sync, aembed
 from .lightrag_embedding import embedding_func
+from .llm_deepseek import deepseek_model_complete
 
 __all__ = [
     "INGESTION_LLM",
@@ -49,4 +50,5 @@ __all__ = [
     "generate_sync",
     "aembed",
     "embedding_func",
+    "deepseek_model_complete",
 ]

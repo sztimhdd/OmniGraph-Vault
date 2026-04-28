@@ -21,3 +21,4 @@ pytest-mock>=3.12
 graphifyy==0.5.3
 aiolimiter>=1.2.1,<2.0
 tenacity>=9.0.0,<9.2.0
+openai>=1.50.0
