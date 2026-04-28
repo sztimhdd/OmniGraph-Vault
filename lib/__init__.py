@@ -26,6 +26,7 @@ from .api_keys import (
     load_keys,
     refresh_cognee,
 )
+from .rate_limit import get_limiter
 
 __all__ = [
     "INGESTION_LLM",
@@ -41,4 +42,5 @@ __all__ = [
     "on_rotate",
     "load_keys",
     "refresh_cognee",
+    "get_limiter",
 ]
