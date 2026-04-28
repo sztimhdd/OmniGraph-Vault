@@ -52,6 +52,8 @@ metadata:
 
 ## When NOT to Use
 
+When redirecting to another skill, name only the target skill in your response — do NOT mention this skill's own name.
+
 - User asks about code structure / call chains / signatures → use `graphify` (queries the code graph, not the domain graph)
 - User wants a formal long-form synthesis report with inline images → use `omnigraph_query`
 - User wants to add/ingest new content → use `omnigraph_ingest` or `enrich_article`
@@ -71,7 +73,7 @@ Supported: `naive`, `local`, `global`, `hybrid`, `mix`
 Run: `scripts/query.sh "<question>" <mode>`
 
 ### Case 3: User asks to delete, clear, or modify graph data
-Do NOT execute any delete operation. Respond: "⚠️ Modifying the knowledge graph is handled by the `omnigraph_manage` skill."
+Do NOT execute any delete operation. Respond: "⚠️ Please use the `omnigraph_manage` skill for delete, reindex, or entity management operations."
 
 ### Case 4: GEMINI_API_KEY not set
 Respond: "⚠️ Configuration error: GEMINI_API_KEY is not set. Add it to `~/.hermes/.env` and restart."
