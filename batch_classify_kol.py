@@ -5,6 +5,12 @@ Usage:
     python batch_classify_kol.py --topic "OpenClaw" --min-depth 2
     python batch_classify_kol.py --topic "Agent" --classifier gemini
     python batch_classify_kol.py --topic "RAG" --dry-run
+
+Plan 05-00c Task 0c.4: default classifier is 'deepseek' (see :335). This
+script already routes to the DeepSeek chat completions endpoint directly —
+no unification with lightrag_llm.deepseek_model_complete is needed for the
+quota-relief goal (DeepSeek quota is distinct from Gemini generate_content).
+Full wrapper unification is a Phase 8 opportunistic cleanup.
 """
 import argparse
 import json

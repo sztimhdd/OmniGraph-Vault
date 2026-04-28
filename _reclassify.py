@@ -3,6 +3,9 @@
 
 Usage:
     python _reclassify.py <summary.json> <topic> <min_depth> [--classifier deepseek|gemini]
+
+Plan 05-00c Task 0c.4: default classifier is 'deepseek' (see :91). Direct
+DeepSeek HTTP call — no unification needed with lightrag_llm.
 """
 import json, os, sys, requests, time, logging
 

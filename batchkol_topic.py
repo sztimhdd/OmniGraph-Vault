@@ -19,6 +19,12 @@ Rate limits enforced:
 
 NOTE: The old batchingestkolmvp.py pattern (hardcoded article list, no topic filter,
 per-article LLM spend) is deprecated. Use this script or batch_ingest_from_spider.py.
+
+Plan 05-00c Task 0c.4: default classifier is 'deepseek' (see :576). This script
+routes to the DeepSeek chat completions endpoint directly for classification.
+The ingestion sub-step (Pass 3) subprocesses out to ingest_wechat.py, which
+was swapped to deepseek_model_complete in Task 0c.3 — so the FULL pipeline
+(classify + ingest) now uses only Deepseek for LLM, Gemini only for embeds.
 """
 import argparse
 import json

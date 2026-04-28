@@ -12,6 +12,11 @@ If --topic-filter or --exclude-topics is set, classifies all titles via
 DeepSeek (default) or Gemini API and filters before ingesting.
 For each passing article, calls: python ingest_wechat.py "<url>"
 Writes summary JSON to data/coldstart_run_{timestamp}.json
+
+Plan 05-00c Task 0c.4: default classifier is 'deepseek' (see :606). This
+script subprocesses out to ingest_wechat.py, which was swapped to
+deepseek_model_complete in Task 0c.3 — so the ingestion leg is also on
+Deepseek. Full pipeline now uses Deepseek for LLM, Gemini only for embeds.
 """
 import argparse
 import json
