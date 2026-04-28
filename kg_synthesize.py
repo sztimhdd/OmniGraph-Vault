@@ -13,7 +13,7 @@ DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
 
 # Phase 7: centralized model selection + key management (must load before cognee import
 # so its LLMConfig singleton sees COGNEE_LLM_API_KEY on first construction).
-from lib import SYNTHESIS_LLM, current_key, get_limiter
+from lib import SYNTHESIS_LLM, current_key, get_limiter, refresh_cognee
 
 import asyncio
 import time
@@ -56,6 +56,7 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
         )
 
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
+    refresh_cognee()  # Amendment 4: invalidate Cognee @lru_cache so rotated keys land on long-running synthesis
     rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=llm_model_func, embedding_func=embedding_func, llm_model_name=SYNTHESIS_LLM)
     if hasattr(rag, "initialize_storages"): await rag.initialize_storages()
         
