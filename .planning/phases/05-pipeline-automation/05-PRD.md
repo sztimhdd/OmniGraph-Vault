@@ -39,7 +39,7 @@
 │  07:55  健康检查 (CDP + 凭证刷新)                              │
 │  08:00  KOL 扫描 ──→ articles 表 (已有)                       │
 │  08:15  KOL 分类 ──→ classifications 表                       │
-│  08:30  统一增厚 ──→ Phase 4 enrich × 深度文章                 │
+│  08:30  统一增厚 ──→ Phase 4 enrich (KOL + RSS 深度文章)    │
 │  09:00  统一摄入 ──→ LightRAG                                 │
 │  09:30  日推生成 ──→ Telegram「今日精品」                      │
 │                                                              │
@@ -202,7 +202,14 @@ depth_score = 1 → 跳过 (非深度内容)
 excluded = 1  → 跳过 (广告/招聘/纯转载)
 ```
 
-#### 3.1.6 RSS 摄入器 (`rss_ingest.py`)
+**RSS 文章的增厚适配:**
+
+`extract_questions.py` 需要在 Phase 5 中支持英文输入：
+1. 检测输入语言（英文/中文）
+2. 如果是英文 → 提取英文问题 → 翻译为中文 → 送入好问
+3. 如果是中文 → 原有流程不变
+
+翻译可以在 prompt 中一步完成：要求 Gemini 直接输出中文问题，无需单独的翻译步骤。
 
 **复用 `batch_ingest_from_spider.py` 的摄入逻辑**：
 
@@ -210,7 +217,7 @@ excluded = 1  → 跳过 (广告/招聘/纯转载)
 - 调用 Phase 4 `enrich_article` skill（可选，取决于是否需要知乎增厚）
 - 调用 LightRAG `ainsert()` 摄入
 
-注意：英文 RSS 文章不适合知乎好问增厚。RSS 路径跳过 enrichen 步骤，直接 markdown → LightRAG。
+注意：英文 RSS 文章同样经过增厚流程。`extract_questions.py` 提取英文问题后，先翻译为中文再送入好问；好问返回的中文综述 + 知乎原答案作为独立段落嵌入英文原文下方。技术问题的语言鸿沟几乎为零——Agent 架构、RAG 模式、Transformer 优化这些概念是语言无关的。
 
 ---
 
@@ -329,7 +336,7 @@ hermes cronjob add --name "daily-classify-kol" --schedule "15 8 * * *" \
   --prompt "run batch_classify_kol.py --topic Agent --topic LLM --min-depth 2" \
   --model deepseek-v4-flash
 hermes cronjob add --name "daily-enrich" --schedule "30 8 * * *" \
-  --prompt "run the enrich_article skill for all articles with depth_score >= 2" \
+  --prompt "run the enrich_article skill for all KOL + RSS articles with depth_score >= 2" \
   --model deepseek-v4-flash
 hermes cronjob add --name "daily-ingest" --schedule "0 9 * * *" \
   --prompt "run batch_ingest_from_spider.py --from-db" \
@@ -465,6 +472,7 @@ ssh ... "cd ~/OmniGraph-Vault && venv/bin/python enrichment/orchestrate_daily.py
 |------|----------|
 | RSS 92 feeds 全部可解析 | `SELECT COUNT(DISTINCT feed_id) FROM rss_articles` ≥ 80% |
 | 深度文章过滤有效 | 日推中 depth_score ≥ 2 的文章，人工抽检 5 篇确认 |
+| 英文 RSS 增厚有效 | 抽检 3 篇英文 RSS → 好问返回中文综述 + 知乎原答案 URL 有效 |
 | 全流程无人值守 | 连续 3 天观测 Telegram 日推正常送达 |
 | 图数据增长 | LightRAG `list_entities.py` 日新增 ≥ 10 entities |
 
@@ -487,7 +495,7 @@ langdetect>=1.0        # 语言检测 (RSS 预筛选)
 | RSS feed 失效 (404/域名过期) | 20% | 单 feed 容错 + `error_count` 跟踪，连续 7 天失败 → 自动禁用 |
 | RSS 内容非技术 (个人随笔/政治) | 15% | LLM 分类器 + excluded 标记 |
 | 92 RSS 全量抓取超时 (3-5 min) | 低 | 2s 间隔 + feedparser 超时 30s/feed |
-| 英文 RSS 不适合中文好问增厚 | 100% | RSS 路径跳过 enrich，直接摄入 |
+| 好问对英文技术问题的中文综述质量不足 | 15% | 技术概念语言无关；如质量持续差，RSS 可回退到跳过增厚 |
 | 日推撞上微信反爬导致 KOL 侧缺数据 | 30% | KOL 和 RSS 独立抓取，一侧失败不影响另一侧 |
 
 ---
