@@ -19,10 +19,9 @@ os.environ.pop("GOOGLE_API_KEY", None)
 os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 os.environ.pop("GOOGLE_CLOUD_LOCATION", None)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-if not GEMINI_API_KEY:
-    print("GEMINI_API_KEY not set in ~/.hermes/.env")
-    import sys; sys.exit(1)
+# Phase 7: centralized model + key management via lib/. Amendment 4: refresh_cognee()
+# called at top of poll loop to invalidate Cognee @lru_cache on rotation.
+from lib import INGESTION_LLM, generate_sync, refresh_cognee
 
 # Free tier limits for gemini-2.5-flash-lite: 15 RPM, 250K TPM, 1000 RPD
 # Use 5s between requests to stay safely under the 15 RPM rolling window
@@ -35,7 +34,6 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-from google import genai
 from google.genai import types
 from config import ENTITY_BUFFER_DIR, CANONICAL_MAP_FILE
 BUFFER_DIR = str(ENTITY_BUFFER_DIR)
@@ -116,7 +114,7 @@ Existing canonical map:
 Entities to canonicalize:
 {entities}"""
 
-async def process_buffer_file(filepath, gemini_client):
+async def process_buffer_file(filepath):
     try:
         with open(filepath, 'r') as f:
             data = json.load(f)
@@ -142,13 +140,13 @@ async def process_buffer_file(filepath, gemini_client):
             entities=json.dumps(new_entities)
         )
 
-        response = gemini_client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json")
+        response_text = generate_sync(
+            INGESTION_LLM,
+            prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
 
-        new_mappings = json.loads(response.text)
+        new_mappings = json.loads(response_text)
         updates = 0
         for raw_name, canonical_name in new_mappings.items():
             if raw_name not in canonical_map and raw_name != canonical_name:
@@ -168,7 +166,7 @@ async def process_buffer_file(filepath, gemini_client):
         logger.error(f"Error processing {filepath}: {e}")
 
 
-async def process_db_entities(client, db_entities: list[str]) -> None:
+async def process_db_entities(db_entities: list[str]) -> None:
     """Canonicalize entities from extracted_entities table (no entity_buffer file)."""
     try:
         canonical_map = _load_canonical_map()
@@ -182,13 +180,13 @@ async def process_db_entities(client, db_entities: list[str]) -> None:
             entities=json.dumps(new_entities)
         )
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json")
+        response_text = generate_sync(
+            INGESTION_LLM,
+            prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
 
-        new_mappings = json.loads(response.text)
+        new_mappings = json.loads(response_text)
         updates = 0
         for raw_name, canonical_name in new_mappings.items():
             if raw_name not in canonical_map and raw_name != canonical_name:
@@ -205,6 +203,9 @@ async def process_db_entities(client, db_entities: list[str]) -> None:
 
 
 async def run_batch():
+    # Amendment 4: invalidate Cognee @lru_cache at loop entry so rotated keys propagate.
+    refresh_cognee()
+
     os.makedirs(BUFFER_DIR, exist_ok=True)
 
     # DB-first entity discovery: check extracted_entities not yet canonicalized
@@ -229,7 +230,7 @@ async def run_batch():
         logger.info("No new entities to process.")
         return
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    # Key sourcing + rate limit + retry + rotation all handled inside lib.generate_sync.
     logger.info("Processing: %d entity_buffer files, %d DB-only entities", len(files), len(db_entities))
 
     for i, file in enumerate(files):
@@ -237,13 +238,13 @@ async def run_batch():
         if i > 0:
             logger.info("Rate limit: waiting %ss (free tier: 15 RPM)", _RATE_LIMIT_SECONDS)
             time.sleep(_RATE_LIMIT_SECONDS)
-        await process_buffer_file(filepath, client)
+        await process_buffer_file(filepath)
 
     if db_entities:
         if files:
             logger.info("Rate limit: waiting %ss before DB entity processing", _RATE_LIMIT_SECONDS)
             time.sleep(_RATE_LIMIT_SECONDS)
-        await process_db_entities(client, db_entities)
+        await process_db_entities(db_entities)
 
 if __name__ == "__main__":
     import asyncio
