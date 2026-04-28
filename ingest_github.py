@@ -13,13 +13,14 @@ import nest_asyncio
 
 try:
     from lightrag.lightrag import LightRAG, QueryParam
-    from lightrag.llm.gemini import gemini_model_complete
 except ImportError as e:
     print(f"Import error: {e}")
     sys.exit(1)
 
 # Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
 from lib import embedding_func
+# Plan 05-00c Task 0c.3: route LightRAG LLM to Deepseek.
+from lightrag_llm import deepseek_model_complete
 
 nest_asyncio.apply()
 
@@ -42,28 +43,16 @@ ENTITY_REGISTRY_FILE = Path(__file__).parent / "entity_registry.json"
 
 
 # --- LightRAG setup (matches ingest_wechat.py exactly) ---
-
-async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-    """LightRAG LLM wrapper with Phase 7 lib/ rate limiting and key rotation.
-
-    D-05: Uses GITHUB_INGEST_LLM (preview model preserved for GitHub ingestion).
-    """
-    async with get_limiter(GITHUB_INGEST_LLM):
-        return await gemini_model_complete(
-            prompt,
-            system_prompt=system_prompt,
-            history_messages=history_messages,
-            api_key=current_key(),
-            model_name=GITHUB_INGEST_LLM,
-            **kwargs,
-        )
+# Plan 05-00c Task 0c.3: LightRAG LLM routes to Deepseek via shared wrapper.
+# D-05 preview-model preservation is superseded for LightRAG-driven LLM calls
+# (ingestion uses deepseek-v4-flash for all plans in Phase 5+).
 
 async def get_rag() -> LightRAG:
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
-        llm_model_func=llm_model_func,
+        llm_model_func=deepseek_model_complete,
         embedding_func=embedding_func,
-        llm_model_name=GITHUB_INGEST_LLM,
+        llm_model_name="deepseek-v4-flash",
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()

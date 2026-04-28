@@ -11,15 +11,16 @@ import json
 # For LightRAG
 try:
     from lightrag.lightrag import LightRAG
-    from lightrag.llm.gemini import gemini_model_complete
 except ImportError as e:
     print(f"Import error: {e}")
     sys.exit(1)
 
 # Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
 from lib import embedding_func
+# Plan 05-00c Task 0c.3: LightRAG LLM routes to Deepseek via shared wrapper.
+from lightrag_llm import deepseek_model_complete
 
-# Phase 7: centralized model selection + key management.
+# VISION_LLM stays on Gemini — the describe_image() multimodal path is Gemini-only.
 from lib import INGESTION_LLM, VISION_LLM, current_key, get_limiter, generate_sync
 
 nest_asyncio.apply()
@@ -51,25 +52,15 @@ os.makedirs(RAG_WORKING_DIR, exist_ok=True)
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
 # --- LightRAG Setup ---
-async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-    """LightRAG LLM wrapper with Phase 7 lib/ rate limiting and key rotation."""
-    async with get_limiter(INGESTION_LLM):
-        return await gemini_model_complete(
-            prompt,
-            system_prompt=system_prompt,
-            history_messages=history_messages,
-            api_key=current_key(),
-            model_name=INGESTION_LLM,
-            **kwargs,
-        )
-
+# Plan 05-00c Task 0c.3: LightRAG LLM routes to Deepseek; VISION_LLM stays on
+# Gemini (multimodal image description is a Gemini-only path).
 async def get_rag():
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
-        llm_model_func=llm_model_func,
+        llm_model_func=deepseek_model_complete,
         embedding_func=embedding_func,
-        llm_model_name=INGESTION_LLM,
-        # Phase 4 throttle guardrails preserved (embedding RPM limits).
+        llm_model_name="deepseek-v4-flash",
+        # Phase 4 throttle guardrails preserved (Gemini embedding RPM limits).
         embedding_func_max_async=1,
         embedding_batch_num=20,
     )

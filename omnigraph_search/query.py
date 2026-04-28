@@ -16,33 +16,19 @@ import os
 import sys
 
 from lightrag.lightrag import LightRAG, QueryParam
-from lightrag.llm.gemini import gemini_model_complete
 
 from config import RAG_WORKING_DIR, load_env
 from lightrag_embedding import embedding_func as _embedding_func
+# Plan 05-00c Task 0c.3: LightRAG LLM routes to Deepseek via shared wrapper.
+from lightrag_llm import deepseek_model_complete
 
 # Force standard Gemini API mode (not Vertex AI) — matches query_lightrag.py.
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
 load_env()
+# GEMINI_API_KEY is still required for EMBEDDING (_embedding_func). LLM now
+# uses DEEPSEEK_API_KEY, validated at lib.llm_deepseek import time.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-
-
-async def _llm_model_func(
-    prompt: str,
-    system_prompt: str | None = None,
-    history_messages: list | None = None,
-    **kwargs,
-) -> str:
-    """Gemini LLM completion wrapper — same signature as query_lightrag.py."""
-    return await gemini_model_complete(
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=list(history_messages or []),
-        api_key=GEMINI_API_KEY,
-        model_name="gemini-2.5-flash-lite",
-        **kwargs,
-    )
 
 
 async def search(query_text: str, mode: str = "hybrid") -> str:
@@ -57,16 +43,17 @@ async def search(query_text: str, mode: str = "hybrid") -> str:
         Response string from LightRAG.aquery.
 
     Raises:
-        ValueError: If GEMINI_API_KEY is not present in the environment.
+        ValueError: If GEMINI_API_KEY is not present in the environment
+            (required for the embedding path).
     """
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY not found in environment.")
 
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
-        llm_model_func=_llm_model_func,
+        llm_model_func=deepseek_model_complete,
         embedding_func=_embedding_func,
-        llm_model_name="gemini-2.5-flash-lite",
+        llm_model_name="deepseek-v4-flash",
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()

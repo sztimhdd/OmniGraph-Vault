@@ -23,7 +23,6 @@ from apify_client import ApifyClient
 # For LightRAG
 try:
     from lightrag.lightrag import LightRAG, QueryParam
-    from lightrag.llm.gemini import gemini_model_complete
 except ImportError as e:
     print(f"Import error: {e}")
     print("Python path:", sys.path)
@@ -31,13 +30,17 @@ except ImportError as e:
 
 # Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
 from lib import embedding_func
+# Plan 05-00c Task 0c.3: route LightRAG LLM to Deepseek — releases Gemini
+# generate_content pool so embedding quota is the only shared axis.
+from lightrag_llm import deepseek_model_complete
 
 nest_asyncio.apply()
 
 from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR, ENRICHMENT_MIN_LENGTH
 load_env()
 
-# Phase 7: centralized model selection + key management
+# Plan 05-00c: INGESTION_LLM (Gemini name) kept for VISION + logging only;
+# LightRAG LLM now goes through deepseek_model_complete.
 from lib import INGESTION_LLM, current_key, get_limiter
 
 from image_pipeline import (
@@ -95,23 +98,10 @@ os.makedirs(RAG_WORKING_DIR, exist_ok=True)
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
 # --- LightRAG Setup ---
-
-async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-    """LightRAG LLM wrapper with Phase 7 lib/ rate limiting and key rotation.
-
-    Phase 7 D-03 (Wave 1): hand-rolled asyncio.Lock + time-tracking replaced
-    by lib.get_limiter(INGESTION_LLM) (leaky-bucket per model). Key access
-    via lib.current_key() supports multi-account rotation.
-    """
-    async with get_limiter(INGESTION_LLM):
-        return await gemini_model_complete(
-            prompt,
-            system_prompt=system_prompt,
-            history_messages=history_messages,
-            api_key=current_key(),
-            model_name=INGESTION_LLM,
-            **kwargs,
-        )
+# Plan 05-00c Task 0c.3: LightRAG LLM_func is now deepseek_model_complete from
+# lightrag_llm. Embedding stays on Gemini (via lib.embedding_func, rotation +
+# 429 failover from Task 0c.2). INGESTION_LLM is retained for any Gemini-side
+# call (e.g., VISION) outside the LightRAG path.
 
 # Embedding throttling is handled by LightRAG's embedding_func_max_async=1 +
 # embedding_batch_num=20 (see get_rag below). The shared embedding_func from
@@ -122,12 +112,12 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
 async def get_rag():
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
-        llm_model_func=llm_model_func,
+        llm_model_func=deepseek_model_complete,
         embedding_func=embedding_func,
-        llm_model_name=INGESTION_LLM,
-        # Throttle concurrency to fit Gemini free-tier quotas:
+        llm_model_name="deepseek-v4-flash",
+        # Throttle concurrency to fit Gemini free-tier EMBED quota:
         # gemini-embedding-*: 100 RPM → serialize embeddings with max_async=1
-        # flash/flash-lite LLM: 250/20 RPD → cap LLM concurrency at 2
+        # Deepseek LLM has its own rate limit profile; keep llm_model_max_async=2
         embedding_func_max_async=1,
         embedding_batch_num=20,
         llm_model_max_async=2,
