@@ -20,7 +20,13 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _reset_api_keys_state(monkeypatch):
+    # Plan 05-00c: isolate pool to ONE key so rotation advances don't shift
+    # current_key() away from the expected test-embed-key on remote envs
+    # (where ~/.hermes/.env defines GEMINI_API_KEY_BACKUP).
     monkeypatch.setenv("GEMINI_API_KEY", "test-embed-key")
+    monkeypatch.delenv("GEMINI_API_KEY_BACKUP", raising=False)
+    monkeypatch.delenv("OMNIGRAPH_GEMINI_KEY", raising=False)
+    monkeypatch.delenv("OMNIGRAPH_GEMINI_KEYS", raising=False)
     import lib.api_keys as k
     k._cycle = None
     k._current = None
