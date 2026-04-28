@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Phase 4 — knowledge-enrichment-zhihu
+**Current focus:** Large-scale batch KOL ingestion (Phase 4 closed)
 
 ## Current Position
 
-Phase: 4 of 4 (knowledge-enrichment-zhihu) — **COMPLETE**
-Plan: 8 of 8 in current phase (all plans 04-00 through 04-07 complete)
-Status: Phase 4 CODE COMPLETE — 4 of 6 Wave 4 blocked criteria flipped to PASS; criteria 11/12 environmentally blocked by Gemini free-tier 100-RPM embedding quota (paid-tier resolution path documented). See `docs/testing/04-07-validation-results.md`.
-Last activity: 2026-04-27 — Wave 5 live-validated; ready to merge gsd/phase-04 to main.
+Phase: 4 — knowledge-enrichment-zhihu — **CLOSED** (merged to main in `72cf92c`, 2026-04-28)
+Plan: 8 of 8 complete; code shipped and live-validated on Hermes.
+Status: Closed. Criteria 11/12 (LightRAG graph growth + no new `failed` statuses) are environmentally blocked by Gemini free-tier 100-RPM embedding quota. This is an infra-track item, **not** Phase 4 unfinished work — reopening requires paid-tier or local embedding swap, both out of scope for this phase.
+Last activity: 2026-04-28 — Phase 4 merged to main, STATE/ROADMAP updated to reflect closure.
 
-Progress: [██████████] 100% (8 of 8 plans complete)
+Progress: [██████████] 100% (8 of 8 plans complete, merged)
 
 ## Performance Metrics
 
@@ -77,7 +77,7 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-04-27
-Stopped at: Phase 4 complete on `gsd/phase-04` (HEAD `0faab0c`). Remaining work: merge to main (pending).
-Resume file: `docs/testing/04-07-validation-results.md`
-Next command: merge gsd/phase-04 → main (--no-ff) and push.
+Last session: 2026-04-28
+Stopped at: Phase 4 merged to main (`72cf92c`) and closed. STATE/ROADMAP updated.
+Resume file: `docs/testing/04-07-validation-results.md` (historical)
+Next command: begin next phase — options are Phase 5 (pipeline automation + RSS + daily digest, PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`) or large-scale batch KOL ingestion stabilization.
