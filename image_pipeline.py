@@ -13,7 +13,6 @@ from pathlib import Path
 
 import requests
 from PIL import Image
-from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -64,18 +63,20 @@ def localize_markdown(
 
 
 def describe_images(paths: list[Path]) -> dict[Path, str]:
-    """Batch-describe via Gemini Vision. Rate-limits 4s between calls (D-15)."""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return {p: "Error describing image: GEMINI_API_KEY not set" for p in paths}
+    """Batch-describe via Gemini Vision. Rate-limits 4s between calls (D-15).
+
+    Uses gemini_call() from config for key fallback + 503 retry + RPM guard.
+    Model defaulted via IMAGE_DESCRIPTION_MODEL config key.
+    """
+    from config import gemini_call, IMAGE_DESCRIPTION_MODEL
+
     result: dict[Path, str] = {}
     paths_list = list(paths)
     for i, path in enumerate(paths_list):
         try:
-            client = genai.Client(api_key=api_key)
             img = Image.open(path)
-            response = client.models.generate_content(
-                model="gemini-2.5-flash-lite",
+            response = gemini_call(
+                model=IMAGE_DESCRIPTION_MODEL,
                 contents=[
                     "Describe this image in detail for a knowledge graph. Return only the description.",
                     img,

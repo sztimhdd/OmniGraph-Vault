@@ -92,12 +92,21 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
 # --- LightRAG Setup ---
 # --- Rate Limiting for Gemini Free Tier ---
+# 3.1-flash-lite-preview: 30 RPM → 2s interval safe.
+# LightRAG's llm_model_max_async=2 already serializes within this.
 _llm_lock = asyncio.Lock()
 _last_llm_time = 0.0
-_LLM_MIN_INTERVAL = 15.0  # 4 RPM, safe below 5 RPM free tier limit
+_LLM_MIN_INTERVAL = 2.0  # 30 RPM safe margin
 
 
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
+    """LightRAG LLM wrapper with RPM guard.
+
+    Uses ingress-level GEMINI_API_KEY. Key fallback (429 → backup) and
+    503 retry are handled by config.gemini_call() which is called
+    indirectly via gemini_model_complete. For direct RPM enforcement,
+    we add a lightweight lock here before the LightRAG library call.
+    """
     global _last_llm_time
     async with _llm_lock:
         now = time.time()
@@ -115,6 +124,14 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
             **kwargs,
         )
 
+# --- Embedding Rate Limiting ---
+# gemini-embedding-001: 100 RPM → 1.0s interval for 60 RPM safe margin.
+# LightRAG batches 20 texts per call (embedding_batch_num=20) and runs
+# max_async=1 (serial). This guard ensures calls don't cluster within a second.
+_embed_lock = asyncio.Lock()
+_last_embed_time = 0.0
+_EMBED_MIN_INTERVAL = 1.0  # 60 RPM, safe below 100 RPM limit
+
 @wrap_embedding_func_with_attrs(
     embedding_dim=768,
     send_dimensions=True,
@@ -122,10 +139,18 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
     model_name="gemini-embedding-001",
 )
 async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
-    return await gemini_embed.func(
-        texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001",
-        embedding_dim=768,
-    )
+    global _last_embed_time
+    async with _embed_lock:
+        now = time.time()
+        elapsed = now - _last_embed_time
+        if _last_embed_time > 0 and elapsed < _EMBED_MIN_INTERVAL:
+            wait = _EMBED_MIN_INTERVAL - elapsed
+            await asyncio.sleep(wait)
+        _last_embed_time = time.time()
+        return await gemini_embed.func(
+            texts, api_key=GEMINI_API_KEY, model="gemini-embedding-001",
+            embedding_dim=768,
+        )
 
 async def get_rag():
     rag = LightRAG(
@@ -519,11 +544,11 @@ def process_content(html):
 async def extract_entities(text):
     """Extract entities using Gemini for canonicalization."""
     try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        from config import gemini_call
         prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
-        response = client.models.generate_content(
+        response = gemini_call(
             model=INGEST_LLM_MODEL,
-            contents=[prompt]
+            contents=[prompt],
         )
         entities = [e.strip() for e in response.text.split(',')]
         return [e for e in entities if e]
