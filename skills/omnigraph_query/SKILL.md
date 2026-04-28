@@ -18,7 +18,9 @@ description: |
   report — use omnigraph_synthesize. Do NOT use when the user asks about graph health
   or node counts — use omnigraph_status. Do NOT use when the user wants to delete or
   manage entities — use omnigraph_manage. Do NOT use for general web search — leave
-  that to the agent's default search capability.
+  that to the agent's default search capability. Do NOT use when the user wants raw
+  entity-attributed retrieval without synthesis — use `omnigraph_search` instead
+  (same backend, simpler output, no synthesis).
 compatibility: |
   Requires: GEMINI_API_KEY in ~/.hermes/.env, Python venv at $OMNIGRAPH_ROOT/venv.
   Image server on port 8765 recommended for inline images in synthesis output.
@@ -53,6 +55,7 @@ metadata:
 - User wants a formal long-form synthesis report → use `omnigraph_synthesize` instead
 - User asks about graph health, node counts, or pipeline status → use `omnigraph_status` instead
 - User wants to delete entities or manage the graph → use `omnigraph_manage` instead
+- User wants raw entity-attributed retrieval without long-form synthesis → use `omnigraph_search` instead
 - User wants general web search (not personal KB) → leave to agent default
 
 ## Image Server Note
@@ -144,3 +147,4 @@ For full script interface (env vars, exit codes, all modes), see
 - To generate a long-form synthesis report: `omnigraph_synthesize`
 - To check graph health and statistics: `omnigraph_status`
 - To delete or manage graph entities: `omnigraph_manage`
+- For raw entity-attributed retrieval without synthesis: `omnigraph_search`

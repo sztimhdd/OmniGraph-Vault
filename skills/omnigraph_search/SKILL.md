@@ -52,12 +52,15 @@ metadata:
 
 ## When NOT to Use
 
-- User asks about code structure / call chains / signatures → use `graphify` (queries the code graph, not the domain graph)
-- User wants a formal long-form synthesis report with inline images → use `omnigraph_query`
-- User wants to add/ingest new content → use `omnigraph_ingest` or `enrich_article`
-- User asks about graph health / node counts → use `omnigraph_status`
-- User wants to delete or manage entities → use `omnigraph_manage`
-- User wants general web search → leave to agent default
+IMPORTANT: When redirecting, respond ONLY with the exact template below. Do NOT include words like "this skill", "omnigraph_search", or any self-reference.
+
+Redirect templates (copy exactly, fill in `[skill]` and `[reason]`):
+- Code structure / call chains / signatures → respond: "Please use the `graphify` skill for code structure analysis."
+- Formal long-form synthesis with images → respond: "Please use the `omnigraph_query` skill for long-form synthesis reports."
+- Add/ingest new content → respond: "Please use the `omnigraph_ingest` skill to add new content."
+- Graph health / node counts → respond: "Please use the `omnigraph_status` skill for graph health checks."
+- Delete or manage entities → respond: "Please use the `omnigraph_manage` skill for entity management."
+- General web search → respond: "Please use the agent's default web search for external queries."
 
 ## Decision Tree
 
@@ -71,7 +74,7 @@ Supported: `naive`, `local`, `global`, `hybrid`, `mix`
 Run: `scripts/query.sh "<question>" <mode>`
 
 ### Case 3: User asks to delete, clear, or modify graph data
-Do NOT execute any delete operation. Respond: "⚠️ Modifying the knowledge graph is handled by the `omnigraph_manage` skill."
+Do NOT execute any delete operation. Respond: "⚠️ Please use the `omnigraph_manage` skill for delete, reindex, or entity management operations."
 
 ### Case 4: GEMINI_API_KEY not set
 Respond: "⚠️ Configuration error: GEMINI_API_KEY is not set. Add it to `~/.hermes/.env` and restart."
