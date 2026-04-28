@@ -115,13 +115,43 @@ def backup_full_docs() -> None:
 
 
 def wipe_vdb_and_full_docs() -> list[Path]:
-    """Delete vdb_*.json and kv_store_full_docs.json. Returns list of removed paths."""
+    """Delete all LightRAG persistent state files in ``STORAGE``.
+
+    A 768 -> 3072 dim migration requires wiping ALL graph state, not just the
+    three ``vdb_*.json`` files. LightRAG tracks doc-level dedup in
+    ``kv_store_doc_status.json``; if that file survives, every re-ainsert of a
+    pre-existing doc is rejected as a duplicate and no new 3072-dim embedding
+    is ever computed for it.
+
+    Files removed:
+      - ``vdb_chunks.json`` / ``vdb_entities.json`` / ``vdb_relationships.json``
+      - Every ``kv_store_*.json`` (doc_status, text_chunks, full_docs, entities,
+        relations, entity_chunks, relation_chunks, llm_response_cache)
+      - ``graph_chunk_entity_relation.graphml`` (entity IDs become stale)
+
+    Preserved:
+      - ``kv_store_full_docs.json.bak`` (the backup used to re-ingest from)
+    """
     removed: list[Path] = []
-    for p in VDB_FILES + [FULL_DOCS_PATH]:
+    # vdb files
+    for p in VDB_FILES:
         if p.exists():
             p.unlink()
             removed.append(p)
             print(f"Wiped {p}")
+    # kv_store files — all of them, except the .bak backup
+    for p in sorted(STORAGE.glob("kv_store_*.json")):
+        if p.name.endswith(".bak"):
+            continue
+        p.unlink()
+        removed.append(p)
+        print(f"Wiped {p}")
+    # graph file (entity UUIDs are re-generated on rebuild)
+    graphml = STORAGE / "graph_chunk_entity_relation.graphml"
+    if graphml.exists():
+        graphml.unlink()
+        removed.append(graphml)
+        print(f"Wiped {graphml}")
     return removed
 
 
@@ -249,6 +279,17 @@ async def main(dry_run: bool, one_doc: str | None, i_understand: bool) -> int:
     before = read_vdb_counts(STORAGE)
     print(f"BEFORE: {before}")
 
+    # Files that the real wipe_vdb_and_full_docs() would delete.
+    # Kept here purely so --dry-run and the --i-understand refusal message
+    # show the same list that wipe_vdb_and_full_docs() actually touches.
+    wipe_preview: list[Path] = list(VDB_FILES)
+    wipe_preview.extend(
+        p for p in sorted(STORAGE.glob("kv_store_*.json")) if not p.name.endswith(".bak")
+    )
+    graphml = STORAGE / "graph_chunk_entity_relation.graphml"
+    if graphml.exists():
+        wipe_preview.append(graphml)
+
     if dry_run:
         print("\n--dry-run: no filesystem mutations, no LightRAG construction")
         for doc_id, doc in doc_map.items():
@@ -258,14 +299,14 @@ async def main(dry_run: bool, one_doc: str | None, i_understand: bool) -> int:
                 f"({len(content)} chars)"
             )
         print(f"\nWould wipe these files (not deleting in dry-run):")
-        for p in VDB_FILES + [FULL_DOCS_PATH]:
+        for p in wipe_preview:
             print(f"  {p}")
         return 0
 
     if not i_understand:
         print("\nREFUSING to wipe NanoVectorDB storage without --i-understand.", file=sys.stderr)
         print("The following files WOULD be deleted on a real run:", file=sys.stderr)
-        for p in VDB_FILES + [FULL_DOCS_PATH]:
+        for p in wipe_preview:
             print(f"  {p}", file=sys.stderr)
         print("\nRe-run with --i-understand to confirm.", file=sys.stderr)
         return 1
