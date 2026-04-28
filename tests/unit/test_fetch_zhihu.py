@@ -106,16 +106,16 @@ def test_fetch_zhihu_writes_expected_artifacts(tmp_path: Path, mocker):
     async def fake_fetch(url):
         return html_fixture
 
-    # Mock image_pipeline network + Gemini calls
+    # Mock image_pipeline network + Gemini calls.
+    # Phase 7 D-06: image_pipeline now calls lib.generate_sync (Amendment 5
+    # unified multimodal) instead of config.gemini_call via genai.Client —
+    # patch the lib symbol that image_pipeline imports lazily.
     mocker.patch(
         "image_pipeline.requests.get",
         return_value=MagicMock(status_code=200, content=b"FAKE_JPEG"),
     )
     mocker.patch("image_pipeline.time.sleep")
-    mock_client = MagicMock()
-    mock_client.models.generate_content.return_value.text = "stub description"
-    mocker.patch("image_pipeline.genai.Client", return_value=mock_client)
-    mocker.patch("image_pipeline.Image.open", return_value=MagicMock())
+    mocker.patch("lib.generate_sync", return_value="stub description")
 
     summary = asyncio.run(
         fetch_zhihu(
@@ -155,15 +155,13 @@ def test_fetch_zhihu_image_namespacing(tmp_path: Path, mocker):
     async def fake_fetch(url):
         return html
 
+    # Phase 7 D-06: patch lib.generate_sync (the new Amendment 5 multimodal path).
     mocker.patch(
         "image_pipeline.requests.get",
         return_value=MagicMock(status_code=200, content=b"FAKE_JPEG"),
     )
     mocker.patch("image_pipeline.time.sleep")
-    mock_client = MagicMock()
-    mock_client.models.generate_content.return_value.text = "desc"
-    mocker.patch("image_pipeline.genai.Client", return_value=mock_client)
-    mocker.patch("image_pipeline.Image.open", return_value=MagicMock())
+    mocker.patch("lib.generate_sync", return_value="desc")
 
     asyncio.run(
         fetch_zhihu(
