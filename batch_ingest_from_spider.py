@@ -40,11 +40,11 @@ except ImportError:
     yaml = None  # type: ignore
 
 try:
-    from google import genai
     from google.genai import types as genai_types
 except ImportError:
-    genai = None
     genai_types = None
+
+from lib import INGESTION_LLM, generate_sync
 
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -155,25 +155,6 @@ def get_deepseek_api_key() -> str | None:
     return None
 
 
-def get_gemini_api_key() -> str | None:
-    """Resolve Gemini API key from env var or ~/.hermes/.env."""
-    key = os.environ.get("GEMINI_API_KEY")
-    if key:
-        return key
-    dotenv_path = Path.home() / ".hermes" / ".env"
-    if dotenv_path.exists():
-        try:
-            for line in dotenv_path.read_text().splitlines():
-                line = line.strip()
-                if line.startswith("GEMINI_API_KEY="):
-                    val = line.split("=", 1)[1].strip().strip("\"'")
-                    if val:
-                        return val
-        except Exception:
-            pass
-    return None
-
-
 def _build_filter_prompt(
     titles: list[str],
     topic_filter: list[str] | None,
@@ -264,21 +245,17 @@ def _call_deepseek(prompt: str, api_key: str) -> list[dict] | None:
 
 def _call_gemini(prompt: str) -> list[dict] | None:
     """Call Gemini API and parse JSON response. Returns None on failure."""
-    if genai is None:
+    if genai_types is None:
         logger.warning("google-genai package not available — cannot call Gemini API")
         return None
-    api_key = get_gemini_api_key()
-    if not api_key:
-        logger.warning("No Gemini API key found")
-        return None
     try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
+        # lib.generate_sync handles key resolution + rotation + rate limit + retry.
+        text = generate_sync(
+            INGESTION_LLM,
+            prompt,
             config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
         )
-        return json.loads(response.text)
+        return json.loads(text)
     except Exception as exc:
         logger.warning("Gemini API call failed: %s", exc)
         return None
@@ -298,8 +275,13 @@ def batch_classify_articles(
     """
     is_gemini = classifier == "gemini"
     if is_gemini:
-        api_key = get_gemini_api_key()
-        if not api_key:
+        # Gemini key resolution is owned by lib.current_key() — fall back to pass-through
+        # if the pool is empty (same fail-open semantics as before).
+        try:
+            from lib import current_key
+            current_key()
+            api_key = "lib-managed"  # sentinel — real key supplied by generate_sync
+        except Exception:
             logger.warning("No Gemini API key found — passing all articles through")
             return articles, []
     else:
