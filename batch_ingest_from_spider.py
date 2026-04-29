@@ -68,8 +68,8 @@ logger = logging.getLogger(__name__)
 VENV_PYTHON = str(PROJECT_ROOT / "venv" / "Scripts" / "python.exe")
 INGEST_SCRIPT = str(PROJECT_ROOT / "ingest_wechat.py")
 
-SLEEP_BETWEEN_ARTICLES = 60
-GEMINI_BATCH_SLEEP = 5.0   # Gemini free tier: 15 RPM
+SLEEP_BETWEEN_ARTICLES = 10  # Phase 5-00c: DeepSeek LLM + 2-key Gemini embedding rotation (not 15 RPM Gemini)
+GEMINI_BATCH_SLEEP = 2.0   # DeepSeek: no RPM concern; light pause for API stability
 DB_PATH = PROJECT_ROOT / "data" / "kol_scan.db"
 
 
@@ -86,12 +86,16 @@ def ingest_article(url: str, dry_run: bool) -> bool:
         logger.info("  [dry-run] would ingest: %s", url)
         return True
 
-    result = subprocess.run(
-        [get_python_exe(), INGEST_SCRIPT, url],
-        capture_output=False,
-        timeout=300,
-    )
-    return result.returncode == 0
+    try:
+        result = subprocess.run(
+            [get_python_exe(), INGEST_SCRIPT, url],
+            capture_output=False,
+            timeout=600,
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        logger.warning("TIMEOUT (600s) — skipping: %s", url[:80])
+        return False
 
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"

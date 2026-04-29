@@ -7,8 +7,8 @@ D-08 (OMNIGRAPH_RPM_<MODEL>) remains — that is for future paid-tier upgrade
 and lives in lib/rate_limit.py.
 """
 
-INGESTION_LLM    = "gemini-2.5-flash-lite"
-VISION_LLM       = "gemini-2.5-flash-lite"
+INGESTION_LLM    = "gemini-2.5-flash"
+VISION_LLM       = "gemini-3.1-flash-lite-preview"
 SYNTHESIS_LLM    = "gemini-2.5-flash-lite"
 # D-05: GitHub ingestion preserves preview model.
 GITHUB_INGEST_LLM = "gemini-3.1-flash-lite-preview"
