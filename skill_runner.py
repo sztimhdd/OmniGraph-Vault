@@ -148,7 +148,10 @@ def _build_system_prompt(skill: SkillDef, load_references: list[str]) -> str:
 
 # ── Gemini call ───────────────────────────────────────────────────────────────
 
-_GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
+# Test harness keeps this as a string literal (NOT from lib.models) to stay independent
+# of production model changes — updating INGESTION_LLM should not break skill tests.
+# Per 07-RESEARCH § Open Questions #4 (test independence).
+_GEMINI_MODEL = "gemini-2.5-flash-lite"
 _MAX_RETRIES = 3
 
 
@@ -156,11 +159,11 @@ def call_gemini(system_prompt: str, user_message: str, history: list[dict] | Non
     import time
     from google import genai
     from google.genai import types
+    from lib import current_key
 
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not set -- check ~/.hermes/.env")
-    client = genai.Client(api_key=api_key)
+    # Key resolution goes through lib.current_key() (rotation-aware); model is kept
+    # as a literal for test-harness independence (see _GEMINI_MODEL comment above).
+    client = genai.Client(api_key=current_key())
 
     contents: list[types.Content] = []
     if history:
