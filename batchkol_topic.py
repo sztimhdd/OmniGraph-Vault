@@ -49,11 +49,11 @@ except ImportError:
     requests = None
 
 try:
-    from google import genai
     from google.genai import types as genai_types
 except ImportError:
-    genai = None
     genai_types = None
+
+from lib import INGESTION_LLM, generate_sync
 
 try:
     import kol_config
@@ -187,28 +187,19 @@ def _get_deepseek_api_key() -> str | None:
     return None
 
 
-def _get_gemini_api_key() -> str | None:
-    """Gemini API key is already in os.environ via config.load_env()."""
-    return os.environ.get("GEMINI_API_KEY")
-
-
 def _call_gemini(prompt: str) -> list[dict] | None:
     """Call Gemini API and parse JSON response. Returns None on failure."""
-    if genai is None:
+    if genai_types is None:
         logger.warning("google-genai package not available — cannot call Gemini API")
         return None
-    api_key = _get_gemini_api_key()
-    if not api_key:
-        logger.warning("No Gemini API key found")
-        return None
     try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
+        # lib.generate_sync handles key resolution + rotation + rate limit + retry.
+        text = generate_sync(
+            INGESTION_LLM,
+            prompt,
             config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
         )
-        return json.loads(response.text)
+        return json.loads(text)
     except Exception as exc:
         logger.warning("Gemini API call failed: %s", exc)
         return None
