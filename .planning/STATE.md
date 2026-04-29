@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 7 Wave 4 COMPLETE (07-04-SUMMARY.md landed). Amendment 3 sweeper deleted config.py D-11 shims + gemini_call; lib.models is single source of truth. 12 atomic commits, 109/109 pytest green with DEEPSEEK_API_KEY=dummy. Both Hermes FLAGs (standalone Cognee rotation, DEEPSEEK eager-import) documented in Deploy.md + CLAUDE.md. Phase 7 is closed; Phase 5 Wave 0 replanning can proceed.
-last_updated: "2026-04-29T14:00:00.000Z"
+stopped_at: "Plan 05-00 COMPLETE; Plan 05-00b PARTIAL (9/31 ingested, 22 blocked by subprocess pipe deadlock bug — NOT quota). Next action: run Plan 05-00b properly to clear the 22 stuck articles; prerequisites are the subprocess fix + multi-keyword filter support + schema reconciliation."
+last_updated: "2026-04-29T15:26:21.987Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 30
   completed_plans: 22
   percent: 100
@@ -25,13 +25,13 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 07 (model-key-management) — EXECUTING
-Plan: 2 of 5
+Phase: 07
+Plan: Not started
 Status: Ready to execute
 
 **Phase 6: graphify-addon-code-graph — IN PROGRESS.** Wave 1 (06-00) complete: scaffold created, graphifyy==0.5.3 installed, D-S10=hermes-only (claw absent on remote). Wave 2 pending: 06-01 (graphify skill install on remote) + 06-03 (omnigraph_search implementation).
 
-Last activity: 2026-04-29 - Completed quick task 260429-got: multi-keyword --topic-filter in batch_ingest_from_spider.py (D-11)
+Last activity: 2026-04-29
 
 Progress: [██████████] 100% (8 of 8 plans complete, merged)
 

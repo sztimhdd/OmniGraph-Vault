@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last Updated:** 2026-04-28 (Phase 7 added)
+**Last Updated:** 2026-04-29 (Phase 7 complete)
 
 ## Done
 
@@ -14,6 +14,7 @@
 - 4 Hermes skills: omnigraph_ingest, omnigraph_query, omnigraph_architect, hermes_claude_code_bridge
 - Skill runner with test suites
 - **Phase 4: knowledge-enrichment-zhihu (2026-04-27)** — 8 plans shipped across 5 waves. Per-article pipeline: Gemini+grounding question extraction → per-question zhida.zhihu.com CDP drive via `zhihu-haowen-enrich` Hermes skill → Zhihu source fetch with image filter + Vision → merge inline summaries → LightRAG ingest (1 WeChat + up to 3 Zhihu docs with D-08 backlinks) + SQLite state machine. Code complete and live-validated; Gemini free-tier embedding quota is the only non-code blocker for full LightRAG graph growth (paid-tier unblocks).
+- **Phase 7: model & key management (2026-04-29)** — 5 plans across 4 waves. Repo-root `lib/` package (models, api_keys, rate_limit, llm_client, lightrag_embedding) consolidates 18 production files behind a 13-symbol public API. `OMNIGRAPH_GEMINI_KEY` primary + `GEMINI_API_KEY` fallback + optional `OMNIGRAPH_GEMINI_KEYS` pool for multi-account rotation; per-model `AsyncLimiter` singletons with `OMNIGRAPH_RPM_<MODEL>` overrides; tenacity retry on 429/503 with key rotation; Amendment 4 Cognee propagation (inline `os.environ["COGNEE_LLM_API_KEY"]` write + `refresh_cognee()` cache-clear — no bridge module). Amendment 3 sweeper deleted D-11 shims, `gemini_call()`, `_GeminiCallResponse` from `config.py`. Hermes ACCEPT verdict across both review rounds; gsd-verifier passed 17/17 must-haves; 109/109 tests green.
 
 ## Current
 
@@ -44,11 +45,6 @@
     - [x] 06-03b-PLAN.md — omnigraph_search validation: cross-ref edit in `omnigraph_query` SKILL.md + skill_runner validate + test-file + local & remote live smoke (Tasks 3.5–3.6)
     - [x] 06-04-PLAN.md — Weekly cron `scripts/graphify-refresh.sh` + crontab install on remote
     - [ ] 06-05-PLAN.md — Demo 1 + Demo 2 transcripts + consolidated acceptance sign-off across REQ-01..REQ-08
-- **Phase 7: model & key management** — REQUIREMENTS at `.planning/phases/07-model-key-management/07-REQUIREMENTS.md`. Centralize Gemini model selection, API key loading (+ optional multi-account rotation), per-model rate limiting, and 429/503 retry into a repo-root `lib/` module. Migrate all 18 production files off direct `GEMINI_API_KEY` + hardcoded model strings. Single-vendor (Gemini) scope; new SDK (`google-genai`, not deprecated `google-generativeai`).
-  - **Goal:** Model change is one edit; 429s no longer crash runs; key rotation works across Google accounts/projects; `OMNIGRAPH_GEMINI_KEY` env var replaces generic `GEMINI_API_KEY` (with fallback).
-  - **Sequencing note:** Phase 5 includes an embedding model switch to `embedding-002`. If Phase 7 lands first, that switch becomes a one-line change in `lib/models.py`. If Phase 5 ships first, the embedding switch is done the old way and Phase 7 absorbs it into the registry later. Independent of Phase 6.
-  - **Locked decisions:** scoped env var `OMNIGRAPH_GEMINI_KEY` + fallback `GEMINI_API_KEY` + optional pool `OMNIGRAPH_GEMINI_KEYS`; `aiolimiter` + `tenacity` dependencies; repo-root `lib/` (not exposed as skill); all 18 files in one phase.
-
 - **Infra track (parallel):** resolve Gemini free-tier embedding quota — Phase 4's criteria 11/12 are blocked on this. Options: paid Tier 1, local `sentence-transformers`, or per-entity semaphore. Not reopening Phase 4; this is standalone infra work.
 
 **Phase 4 canonical refs** (historical):
