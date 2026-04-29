@@ -13,11 +13,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 try:
-    from google import genai
     from google.genai import types as genai_types
 except ImportError:
-    genai = None
     genai_types = None
+
+from lib import INGESTION_LLM, generate_sync
 
 API_URL = "https://api.deepseek.com/chat/completions"
 
@@ -55,38 +55,17 @@ def call_deepseek(prompt, api_key):
     return json.loads(content)
 
 
-def get_gemini_api_key():
-    key = os.environ.get("GEMINI_API_KEY")
-    if key:
-        return key
-    auth_path = os.path.expanduser("~/.hermes/auth.json")
-    if os.path.exists(auth_path):
-        try:
-            with open(auth_path) as f:
-                pool = json.load(f).get("credential_pool", {})
-            for cred in pool.get("gemini", []):
-                if cred.get("access_token"):
-                    return cred["access_token"]
-        except Exception:
-            pass
-    return None
-
-
 def call_gemini(prompt):
-    if genai is None:
+    if genai_types is None:
         logger.error("google-genai package not available")
         sys.exit(1)
-    api_key = get_gemini_api_key()
-    if not api_key:
-        logger.error("GEMINI_API_KEY not set")
-        sys.exit(1)
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-2.5-flash-lite",
-        contents=prompt,
+    # lib.generate_sync handles key resolution + rotation + rate limit + retry.
+    text = generate_sync(
+        INGESTION_LLM,
+        prompt,
         config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
     )
-    return json.loads(response.text)
+    return json.loads(text)
 
 
 def main():
