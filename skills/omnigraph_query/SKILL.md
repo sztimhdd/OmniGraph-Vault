@@ -22,14 +22,22 @@ description: |
   entity-attributed retrieval without synthesis — use `omnigraph_search` instead
   (same backend, simpler output, no synthesis).
 compatibility: |
-  Requires: GEMINI_API_KEY in ~/.hermes/.env, Python venv at $OMNIGRAPH_ROOT/venv.
+  Requires: OMNIGRAPH_GEMINI_KEY (preferred) or GEMINI_API_KEY (fallback) in ~/.hermes/.env;
+  Python venv at $OMNIGRAPH_ROOT/venv.
   Image server on port 8765 recommended for inline images in synthesis output.
+required_environment_variables:
+  - name: OMNIGRAPH_GEMINI_KEY
+    prompt: "Gemini API key for OmniGraph-Vault (get from https://aistudio.google.com/apikey)"
+    help: "Required for LLM, embedding, and vision calls. Falls back to GEMINI_API_KEY if unset; for multi-account rotation set OMNIGRAPH_GEMINI_KEYS (comma-separated)."
+    required_for: full functionality
 metadata:
   openclaw:
+    skillKey: omnigraph-vault
+    primaryEnv: OMNIGRAPH_GEMINI_KEY
     os: ["darwin", "linux", "win32"]
     requires:
       bins: ["bash", "python"]
-      config: ["GEMINI_API_KEY"]
+      config: ["OMNIGRAPH_GEMINI_KEY"]
 ---
 
 # omnigraph_query
