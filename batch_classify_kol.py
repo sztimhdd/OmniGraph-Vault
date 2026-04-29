@@ -38,11 +38,11 @@ except ImportError:
     _yaml_lib = None
 
 try:
-    from google import genai
     from google.genai import types as genai_types
 except ImportError:
-    genai = None
     genai_types = None
+
+from lib import INGESTION_LLM, generate_sync
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
@@ -165,10 +165,6 @@ def get_deepseek_api_key() -> str | None:
     return None
 
 
-def get_gemini_api_key() -> str | None:
-    return os.environ.get("GEMINI_API_KEY")
-
-
 def _build_prompt(titles: list[str], topic_filter: str, min_depth: int, digests: list[str] | None = None) -> str:
     entries = []
     for i, title in enumerate(titles):
@@ -221,21 +217,17 @@ def _call_deepseek(prompt: str, api_key: str) -> list[dict] | None:
 
 
 def _call_gemini(prompt: str) -> list[dict] | None:
-    if genai is None:
+    if genai_types is None:
         logger.warning("google-genai package not available — cannot call Gemini API")
         return None
-    api_key = get_gemini_api_key()
-    if not api_key:
-        logger.warning("No Gemini API key found")
-        return None
     try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
+        # lib.generate_sync handles key resolution + rotation + rate limit + retry.
+        text = generate_sync(
+            INGESTION_LLM,
+            prompt,
             config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
         )
-        return json.loads(response.text)
+        return json.loads(text)
     except Exception as exc:
         logger.warning("Gemini API call failed: %s", exc)
         return None
