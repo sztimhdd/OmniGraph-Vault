@@ -39,9 +39,10 @@ nest_asyncio.apply()
 from config import RAG_WORKING_DIR, BASE_IMAGE_DIR, load_env, CDP_URL, ENTITY_BUFFER_DIR, ENRICHMENT_MIN_LENGTH
 load_env()
 
-# Plan 05-00c: INGESTION_LLM (Gemini name) kept for VISION + logging only;
-# LightRAG LLM now goes through deepseek_model_complete.
-from lib import INGESTION_LLM, current_key, get_limiter
+# Phase 5-00b: extract_entities now on DeepSeek (R4). INGESTION_LLM previously
+# imported here for that call has been removed — Gemini VISION continues via
+# image_pipeline.describe_images which owns its own model selection.
+from lib import current_key, get_limiter
 
 from image_pipeline import (
     download_images, localize_markdown, describe_images, save_markdown_with_images,
@@ -499,11 +500,16 @@ def process_content(html):
 
 
 async def extract_entities(text):
-    """Extract entities using Gemini for canonicalization."""
+    """Extract entities via DeepSeek for canonicalization.
+
+    Phase 5-00b R4 fix: was on Gemini INGESTION_LLM (via lib.generate_sync),
+    which coupled entity extraction to the same Gemini quota pool used by
+    VISION and embeddings. Swapped to DeepSeek so Gemini only services VISION
+    (gemini-3.1-flash-lite-preview @ 1500 RPD) + embeddings (dual-key rotation).
+    """
     try:
-        from lib import generate_sync
         prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
-        response_text = generate_sync(INGESTION_LLM, prompt)
+        response_text = await deepseek_model_complete(prompt)
         entities = [e.strip() for e in response_text.split(',')]
         return [e for e in entities if e]
     except Exception as e:
