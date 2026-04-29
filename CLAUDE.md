@@ -156,6 +156,12 @@ Query → kg_synthesize.py
 
 Set in `~/.hermes/.env`. Cognee-specific vars (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, etc.) are hardcoded in each script that uses Cognee.
 
+**Phase 7 scoped env vars** (added 2026-04-28): the preferred Gemini key variable is `OMNIGRAPH_GEMINI_KEY` (namespaced, won't collide with Hermes's own LLM vars). `GEMINI_API_KEY` remains as a fallback for local dev. For multi-account rotation set `OMNIGRAPH_GEMINI_KEYS` (comma-separated; only useful across different Google accounts / GCP projects). Model names are pure string constants in `lib/models.py` (NOT env-overridable per Amendment 1 — rollback is `git revert`). Per-model RPM caps ARE env-overridable via `OMNIGRAPH_RPM_*` (D-08 retained for paid-tier upgrade). Embedding default is `gemini-embedding-2` (D-10). Full deploy table in `Deploy.md`.
+
+**Phase 5 DeepSeek cross-coupling (Hermes FLAG 2):** `lib/__init__.py` eagerly imports `deepseek_model_complete`, which raises at import time if `DEEPSEEK_API_KEY` is unset. Gemini-only workloads still need `DEEPSEEK_API_KEY` set (use `DEEPSEEK_API_KEY=dummy` if you don't have a real one). This is a documented Phase 5 side-effect; soft-fail is a future Phase 5 follow-up, not a Phase 7 fix.
+
+**Standalone Cognee rotation caveat (Hermes FLAG 1):** `cognee_wrapper.py` seeds Cognee's config once at import. Long-running callers of `lib.rotate_key()` that import `cognee_wrapper` directly must also call `lib.refresh_cognee()` after rotation, or accept stale-key risk. Production paths (`cognee_batch_processor.run_batch`, `kg_synthesize.synthesize_response`) already call `refresh_cognee()` at the right entry points — ad-hoc scripts need to do so themselves. See `Deploy.md` § Known limitation.
+
 ---
 
 ## Development Conventions

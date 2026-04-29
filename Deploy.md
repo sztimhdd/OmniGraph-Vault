@@ -10,6 +10,76 @@ The authoritative guide for deploying OmniGraph-Vault skills into a running Herm
 
 ---
 
+## Environment Variables (Phase 7)
+
+OmniGraph-Vault uses scoped `OMNIGRAPH_*` env vars. All are read from `~/.hermes/.env`.
+
+### Required
+
+| Var | Purpose | Fallback |
+|---|---|---|
+| `OMNIGRAPH_GEMINI_KEY` | Primary Gemini API key. | `GEMINI_API_KEY` (legacy) |
+| `DEEPSEEK_API_KEY` | Required by `lib/llm_deepseek.py` at import time (Phase 5 Plan 05-00c). | none — must be set |
+
+**Hermes FLAG 2 (Phase 5 cross-coupling).** `lib/__init__.py` eagerly imports
+`deepseek_model_complete`, which raises at import time if `DEEPSEEK_API_KEY` is
+unset. Gemini-only workloads still need this variable set — use a placeholder if
+you genuinely don't have a DeepSeek key: `DEEPSEEK_API_KEY=dummy`. A future
+Phase 5 follow-up will soft-fail the DeepSeek import; until then this is a
+documentation-only caveat.
+
+### Optional — multi-account rotation
+
+| Var | Purpose |
+|---|---|
+| `OMNIGRAPH_GEMINI_KEYS` | Comma-separated pool. Only useful across different Google accounts / GCP projects (quotas are per-project). |
+
+Legacy `GEMINI_API_KEY_BACKUP` is automatically folded into the pool if set (no deprecation window needed — your existing key keeps working).
+
+### Model names (not env-overridable — Amendment 1)
+
+Pure string constants in `lib/models.py`. Rollback path is `git revert && push && pull-on-remote`.
+
+| Constant | Value |
+|---|---|
+| `INGESTION_LLM` | `gemini-2.5-flash-lite` |
+| `VISION_LLM` | `gemini-2.5-flash-lite` |
+| `SYNTHESIS_LLM` | `gemini-2.5-flash-lite` |
+| `EMBEDDING_MODEL` | `gemini-embedding-2` (D-10 — matches deployed lightrag_embedding default) |
+| `GITHUB_INGEST_LLM` | `gemini-3.1-flash-lite-preview` (preserved per phase D-05) |
+
+### Optional — RPM overrides (paid tier, D-08 retained)
+
+Free-tier defaults in `lib/models.py::RATE_LIMITS_RPM`. Override per model:
+
+```
+OMNIGRAPH_RPM_GEMINI_2_5_FLASH_LITE=300   # Tier 1 cap
+OMNIGRAPH_RPM_GEMINI_EMBEDDING_2=1500
+```
+
+See `.env.template` for the full template.
+
+### Known limitation — standalone Cognee rotation (Hermes FLAG 1)
+
+`cognee_wrapper.py` seeds Cognee's LLM config once at import via `current_key()`.
+For long-running production callers the rotation chain works correctly:
+
+- `cognee_batch_processor.run_batch()` calls `refresh_cognee()` at every poll
+  iteration.
+- `kg_synthesize.synthesize_response()` calls `refresh_cognee()` at every CLI
+  invocation entry.
+
+**Standalone scripts that long-live past a `rotate_key()` event (e.g. ad-hoc
+Python REPL sessions that `import cognee_wrapper` and never exit) will see a
+stale key after rotation.** Workaround: call `lib.refresh_cognee()` yourself
+after any manual rotation event, or restart the process. Short-lived CLI
+scripts are unaffected because they import after `os.environ` is already fresh.
+
+This limitation was flagged in `07-REVIEW-HERMES-WAVES-2-3.md §2` and is
+documented here for ops awareness — no code fix required in Phase 7.
+
+---
+
 ## 1. System Requirements
 
 | Requirement | Minimum |
