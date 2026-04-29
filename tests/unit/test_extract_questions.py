@@ -20,7 +20,7 @@ def _patch_lib_generate(mocker, return_text: str):
     """Phase 7 D-06: patch lib.llm_client.generate (async; called by generate_sync).
 
     Captures call kwargs so tests can inspect the ``config=`` kwarg passed
-    through config.gemini_call → lib.generate_sync → lib.generate.
+    through lib.generate_sync → lib.generate.
     """
     async def _fake(model, contents, **kwargs):
         _fake.last_call = {"model": model, "contents": contents, "kwargs": kwargs}

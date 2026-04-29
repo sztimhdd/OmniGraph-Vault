@@ -107,9 +107,8 @@ def test_fetch_zhihu_writes_expected_artifacts(tmp_path: Path, mocker):
         return html_fixture
 
     # Mock image_pipeline network + Gemini calls.
-    # Phase 7 D-06: image_pipeline now calls lib.generate_sync (Amendment 5
-    # unified multimodal) instead of config.gemini_call via genai.Client —
-    # patch the lib symbol that image_pipeline imports lazily.
+    # Phase 7 D-06: image_pipeline calls lib.generate_sync (Amendment 5
+    # unified multimodal) — patch the lib symbol that image_pipeline imports lazily.
     mocker.patch(
         "image_pipeline.requests.get",
         return_value=MagicMock(status_code=200, content=b"FAKE_JPEG"),

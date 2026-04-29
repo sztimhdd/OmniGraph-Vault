@@ -501,13 +501,10 @@ def process_content(html):
 async def extract_entities(text):
     """Extract entities using Gemini for canonicalization."""
     try:
-        from config import gemini_call
+        from lib import generate_sync
         prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
-        response = gemini_call(
-            model=INGESTION_LLM,
-            contents=[prompt],
-        )
-        entities = [e.strip() for e in response.text.split(',')]
+        response_text = generate_sync(INGESTION_LLM, prompt)
+        entities = [e.strip() for e in response_text.split(',')]
         return [e for e in entities if e]
     except Exception as e:
         print(f"Warning: Entity extraction failed: {e}")

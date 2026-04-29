@@ -69,7 +69,7 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
     Rate limit + retry + key rotation apply uniformly through lib/.
 
     Intentional model-default change (R3 GA migration): the pre-Phase-7
-    config.IMAGE_DESCRIPTION_MODEL was "gemini-3.1-flash-lite-preview"; the new
+    IMAGE_DESCRIPTION_MODEL was "gemini-3.1-flash-lite-preview"; the new
     lib.VISION_LLM constant is "gemini-2.5-flash-lite" (GA). Rollback is a code
     edit to lib/models.py:VISION_LLM (Amendment 1 — pure constants; git-as-deploy
     IS the rollback).
