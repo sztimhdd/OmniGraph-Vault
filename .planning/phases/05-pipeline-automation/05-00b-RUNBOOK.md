@@ -10,7 +10,7 @@ created: 2026-04-29
 
 ## Context recap (read first — 2 min)
 
-- **Goal:** ingest the remaining 22 keyword-matched KOL articles (`{openclaw, hermes, agent, harness}` ∧ `depth_score ≥ 2`) into LightRAG so Plan 05-00b is 31/31 complete.
+- **Goal:** ingest the remaining 22 keyword-matched KOL articles (`{Agent, Hermes, OpenClaw, Harness}` ∧ `depth_score ≥ 2`) into LightRAG so Plan 05-00b is 31/31 complete. Topic labels are case-sensitive per `classifications.topic`; see Gotcha 1 below.
 - **What already shipped:**
   - 05-00c: Deepseek LLM + 2-key Gemini embedding rotation — proven on real workloads.
   - 05-00: graph at 3072 dim (29 docs / 263 nodes / 301 edges) via your Hermes-side run.
@@ -40,7 +40,7 @@ ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && git pull --ff-only"
 ### 2. Multi-keyword CLI parses correctly
 
 ```bash
-ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && source venv/bin/activate && python batch_ingest_from_spider.py --from-db --topic-filter 'openclaw,hermes,agent,harness' --min-depth 2 --dry-run 2>&1 | head -30"
+ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && source venv/bin/activate && python batch_ingest_from_spider.py --from-db --topic-filter 'Agent,Hermes,OpenClaw,Harness' --min-depth 2 --dry-run 2>&1 | head -30"
 ```
 
 Expect:
@@ -100,10 +100,59 @@ with urllib.request.urlopen(req, timeout=10) as r:
 
 Expect: `models: ['deepseek-v4-flash', 'deepseek-v4-pro']`.
 
-## Main run (~15–25 min depending on article size + RPM)
+## CLI gotchas (⚠ READ BEFORE MAIN RUN — learned from the Hermes-side run)
+
+### Gotcha 1 — `--topic-filter` is case-sensitive
+
+The SQL predicate is `WHERE c.topic IN ({placeholders})` at `batch_ingest_from_spider.py:553`, which is **case-sensitive in SQLite by default** (no `COLLATE NOCASE` applied).
+
+The classifier stores topic values **capitalized** — e.g. `'Agent'`, not `'agent'` — because that's what you pass in via `batch_classify_kol.py --topic Agent`. So:
 
 ```bash
-ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && source venv/bin/activate && python batch_ingest_from_spider.py --from-db --topic-filter 'openclaw,hermes,agent,harness' --min-depth 2 2>&1 | tee /tmp/wave0b_run.log"
+# ✅ CORRECT — matches 'Agent' rows in classifications
+--topic-filter 'Agent,Hermes,OpenClaw,Harness'
+
+# ❌ WRONG — zero matches; silently returns empty set
+--topic-filter 'agent,hermes,openclaw,harness'
+```
+
+**Rule of thumb:** case each keyword to match what you passed to the classifier. If unsure, query first:
+
+```bash
+ssh -p 49221 sztimhdd@ohca.ddns.net "sqlite3 ~/OmniGraph-Vault/data/kol_scan.db 'SELECT DISTINCT topic FROM classifications WHERE relevant=1 ORDER BY topic;'"
+```
+
+Then paste the exact topic labels into `--topic-filter`.
+
+**Follow-up improvement (not blocking):** switch line 553 to `WHERE LOWER(c.topic) IN ({placeholders})` and `.lower()` each keyword in Python before binding. Small surgical change, eliminates the whole class of case mismatch bugs. File a quick-task if this keeps biting.
+
+### Gotcha 2 — `SLEEP_BETWEEN_ARTICLES = 60` is over-conservative post-05-00c
+
+`batch_ingest_from_spider.py:71` hardcodes `SLEEP_BETWEEN_ARTICLES = 60` with a comment `# Gemini free tier: 15 RPM`. That 60s delay was sized for the **old** single-key Gemini Flash LLM path, which hit 15 RPM on free tier.
+
+**That constraint no longer applies post-Plan 05-00c:**
+- LLM calls go to Deepseek (independent RPM pool; measured ~plenty for serial ingest)
+- Embedding calls use 2-key Gemini rotation (~200 RPM combined on free tier)
+- A 22-article run at 60s/article = 22 min of *pure sleep* on top of actual work
+
+**Recommended override before the main run:** drop to `10s` (or `5s` if the run feels smooth).
+
+Option A — sed the constant on remote before running (fastest):
+
+```bash
+ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && sed -i 's/^SLEEP_BETWEEN_ARTICLES = 60$/SLEEP_BETWEEN_ARTICLES = 10  # reduced from 60 post-05-00c (DeepSeek+dual-key rotation)/' batch_ingest_from_spider.py && grep '^SLEEP_BETWEEN_ARTICLES' batch_ingest_from_spider.py"
+```
+
+Expect: prints the new line so you can eyeball the change. Verify with a dry-run before the main run.
+
+Option B — full code fix (belongs in a follow-up quick-task): make it CLI-configurable via `--sleep-between-articles N` with default 10.
+
+**Caveat:** if any of the 22 articles is a giant (>30K chars content), per-doc LightRAG work can itself take 3–5 min. Don't drop `SLEEP_BETWEEN_ARTICLES` below 5s — the dedup/rotation layer doesn't protect against wall-clock bursts on a single doc.
+
+## Main run (~5–10 min with SLEEP_BETWEEN_ARTICLES=10; ~25 min with default 60)
+
+```bash
+ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && source venv/bin/activate && python batch_ingest_from_spider.py --from-db --topic-filter 'Agent,Hermes,OpenClaw,Harness' --min-depth 2 2>&1 | tee /tmp/wave0b_run.log"
 ```
 
 What you should see:
@@ -129,7 +178,7 @@ JOIN classifications c ON i.article_id = c.article_id
 WHERE i.status = \"ok\"
   AND date(i.created_at) = date(\"now\", \"localtime\")
   AND c.depth_score >= 2
-  AND c.topic IN (\"openclaw\",\"hermes\",\"agent\",\"harness\")
+  AND c.topic IN (\"Agent\",\"Hermes\",\"OpenClaw\",\"Harness\")
 \"\"\"
 print(\"articles ingested today:\", conn.execute(q).fetchone()[0])
 '"
@@ -186,7 +235,7 @@ Treat as complete if ≥ 20 landed. Add the 1–2 failures to SUMMARY as known g
 ## If scope expands (e.g., add `claude-code` keyword later)
 
 ```bash
-python batch_ingest_from_spider.py --from-db --topic-filter 'openclaw,hermes,agent,harness,claude-code' --min-depth 2
+python batch_ingest_from_spider.py --from-db --topic-filter 'Agent,Hermes,OpenClaw,Harness,ClaudeCode' --min-depth 2
 ```
 
 Dedup prevents re-ingesting the existing 31; new `claude-code`-tagged matches flow through cleanly. This is D-11 "re-runnable as keyword scope grows" — now a one-command operation.
