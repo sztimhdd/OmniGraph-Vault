@@ -113,4 +113,4 @@ No other files modified. `.planning/quick/260429-got-extend-batch-ingest-from-sp
 - FOUND: batch_ingest_from_spider.py (6 edits applied, verified by re-read of lines 177–206, 358–370, 543–588, 615–644)
 - FOUND: .planning/quick/260429-got-extend-batch-ingest-from-spider-py-to-su/260429-got-SUMMARY.md (this file)
 - FOUND: import succeeds, --help output unchanged, multi-keyword and single-keyword dry-runs both trace to the expected DB-not-found guard without raising
-- Commit hash: 2987f27 (feat(quick-260429): multi-keyword --topic-filter in batch_ingest_from_spider)
+- Commit hash: 4bf1613 (feat(quick-260429): multi-keyword --topic-filter in batch_ingest_from_spider) — note: stored hash lags HEAD by one amend cycle; see `git log -1 -- .planning/quick/260429-got-extend-batch-ingest-from-spider-py-to-su/260429-got-SUMMARY.md` for canonical value
