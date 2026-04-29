@@ -176,7 +176,7 @@ def get_gemini_api_key() -> str | None:
 
 def _build_filter_prompt(
     titles: list[str],
-    topic_filter: str | None,
+    topic_filter: list[str] | None,
     exclude_topics: str | None,
     digests: list[str] | None = None,
 ) -> str:
@@ -187,8 +187,9 @@ def _build_filter_prompt(
     """
     topic_instruction = ""
     if topic_filter:
+        keywords_quoted = ", ".join(f'"{k}"' for k in topic_filter)
         topic_instruction = (
-            f'- relevant: true/false — is this article substantially about "{topic_filter}"?\n'
+            f"- relevant: true/false — is this article substantially about ANY of: {keywords_quoted}?\n"
         )
     if exclude_topics:
         topic_instruction += (
@@ -285,7 +286,7 @@ def _call_gemini(prompt: str) -> list[dict] | None:
 
 def batch_classify_articles(
     articles: list[dict],
-    topic_filter: str | None,
+    topic_filter: list[str] | None,
     exclude_topics: str | None,
     min_depth: int,
     classifier: str = "deepseek",
@@ -359,7 +360,8 @@ def batch_classify_articles(
 
         filter_reasons: list[str] = []
         if topic_filter and not relevant:
-            filter_reasons.append(f"off-topic (not about {topic_filter})")
+            keywords_str = ", ".join(topic_filter)
+            filter_reasons.append(f"off-topic (not about any of: {keywords_str})")
         if exclude_topics and excluded:
             filter_reasons.append(f"excluded topic ({reason or exclude_topics})")
         if depth_score < min_depth:
@@ -421,7 +423,7 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
 
     _load_hermes_env()
 
-    topic_filter = kwargs.get("topic_filter")
+    topic_filter = kwargs.get("topic_filter")  # list[str] | None after main() split
     exclude_topics = kwargs.get("exclude_topics")
     min_depth = kwargs.get("min_depth", 2)
     account_filter = kwargs.get("account_filter")
@@ -540,8 +542,10 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
     logger.info("Done — %d ok, %d failed, %d filtered, %d skipped", ok, fail, filt, len(summary) - ok - fail - filt)
 
 
-def ingest_from_db(topic: str, min_depth: int, dry_run: bool) -> None:
-    """Ingest articles that passed classification for a topic. Reads from kol_scan.db."""
+def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) -> None:
+    """Ingest articles that passed classification for a topic (or list of topics). Reads from kol_scan.db."""
+    topics = [topic] if isinstance(topic, str) else topic
+
     if not DB_PATH.exists():
         logger.error("DB not found: %s. Run batch_scan_kol.py first.", DB_PATH)
         sys.exit(1)
@@ -558,22 +562,23 @@ def ingest_from_db(topic: str, min_depth: int, dry_run: bool) -> None:
     """)
     conn.commit()
 
-    rows = conn.execute("""
+    placeholders = ",".join("?" for _ in topics)
+    rows = conn.execute(f"""
         SELECT a.id, a.title, a.url, acc.name, c.depth_score
         FROM articles a
         JOIN accounts acc ON a.account_id = acc.id
         JOIN classifications c ON a.id = c.article_id
-        WHERE c.topic = ? AND c.relevant = 1 AND c.depth_score >= ?
+        WHERE c.topic IN ({placeholders}) AND c.relevant = 1 AND c.depth_score >= ?
           AND a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
         ORDER BY c.depth_score DESC, a.id
-    """, (topic, min_depth)).fetchall()
+    """, (*topics, min_depth)).fetchall()
 
     if not rows:
-        logger.info("No passed articles found for topic '%s' (min_depth=%d)", topic, min_depth)
+        logger.info("No passed articles found for topics %s (min_depth=%d)", topics, min_depth)
         conn.close()
         return
 
-    logger.info("%d articles to ingest for topic '%s'", len(rows), topic)
+    logger.info("%d articles to ingest for topics %s", len(rows), topics)
     processed = 0
     for i, (art_id, title, url, account, depth) in enumerate(rows, 1):
         logger.info("[%d/%d] [%s] (depth=%s) %s", i, len(rows), account, depth, title)
@@ -614,17 +619,24 @@ def main() -> None:
                         help="Ingest articles already classified in kol_scan.db (requires --topic-filter)")
     args = parser.parse_args()
 
+    # Convert comma-separated string to list; strip whitespace; drop empty strings
+    topic_keywords: list[str] | None = None
+    if args.topic_filter:
+        topic_keywords = [k.strip() for k in args.topic_filter.split(",") if k.strip()]
+        if not topic_keywords:
+            topic_keywords = None
+
     if args.from_db:
-        if not args.topic_filter:
+        if not topic_keywords:
             logger.error("--topic-filter is required with --from-db")
             sys.exit(1)
-        ingest_from_db(args.topic_filter, args.min_depth, args.dry_run)
+        ingest_from_db(topic_keywords, args.min_depth, args.dry_run)
     else:
         run(
             days_back=args.days_back,
             max_articles=args.max_articles,
             dry_run=args.dry_run,
-            topic_filter=args.topic_filter,
+            topic_filter=topic_keywords,
             exclude_topics=args.exclude_topics,
             min_depth=args.min_depth,
             account_filter=args.account,
