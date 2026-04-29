@@ -26,7 +26,7 @@
   - **Goal:** Unattended daily pipeline — scan 56 WeChat KOL + 92 Karpathy RSS, classify for depth, enrich deep via Zhihu 好问, ingest into LightRAG, deliver Telegram daily digest.
   - **Plans:** 9 plans (planned 2026-04-28; revised 2026-04-28 to add 05-03b rss-ingest)
     - [x] 05-00-embedding-migration-and-consolidation-PLAN.md — Wave 0: spike + shared `lightrag_embedding.py` + 6-file consolidation + 18-doc re-embed + benchmark + PRD typo fix
-    - [ ] 05-00b-kol-catch-up-filtered-PLAN.md — Wave 0: classify all 302 KOL articles + multi-keyword `--topic-filter` + Batch API or sync fallback ingest
+    - [x] 05-00b-kol-catch-up-filtered-PLAN.md — Wave 0: classify all 302 KOL articles + multi-keyword `--topic-filter` + Batch API or sync fallback ingest
     - [ ] 05-01-rss-schema-and-opml-PLAN.md — Wave 1: RSS SQLite schema + bundled Karpathy OPML + seed 92 feeds + deps
     - [ ] 05-02-rss-fetch-PLAN.md — Wave 1: `enrichment/rss_fetch.py` with pre-filter, dedup, feed-level fault tolerance
     - [ ] 05-03-rss-classify-PLAN.md — Wave 1: `enrichment/rss_classify.py` with bilingual prompt (EN→CN in-prompt per D-08)

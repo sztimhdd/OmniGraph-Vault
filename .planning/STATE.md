@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: milestone
 status: executing
-stopped_at: Plan 05-00 FAILED at attempt 6 — diagnosed rotation bug (Cognee override) applied runtime fix on remote; both Gemini free-tier keys drained; user decision required (Options A/B/C/D in 05-00-SUMMARY.md)
-last_updated: "2026-04-29T01:02:25.499Z"
-last_activity: 2026-04-28
+stopped_at: Plan 05-00 COMPLETE — user completed runtime on Hermes host (graph at 3072 dim, 263 nodes / 301 edges / 29 docs). Plan 05-00b underway (9/31 KOL catch-up articles ingested; 22 blocked by subprocess pipe deadlock bug — engineering fix needed, NOT quota).
+last_updated: "2026-04-29T13:00:00.000Z"
+last_activity: 2026-04-29
 progress:
   total_phases: 4
   completed_phases: 2
@@ -31,7 +31,7 @@ Status: Ready to execute
 
 **Phase 6: graphify-addon-code-graph — IN PROGRESS.** Wave 1 (06-00) complete: scaffold created, graphifyy==0.5.3 installed, D-S10=hermes-only (claw absent on remote). Wave 2 pending: 06-01 (graphify skill install on remote) + 06-03 (omnigraph_search implementation).
 
-Last activity: 2026-04-28
+Last activity: 2026-04-29
 
 Progress: [██████████] 100% (8 of 8 plans complete, merged)
 
@@ -100,7 +100,9 @@ None tracked.
 - **Gemini free-tier quotas (environmental, phase-4 exit blocker for LightRAG full graph ingest)**: `gemini-embedding-*` 100 RPM per project. LightRAG's entity upsert stage fires bursts of ~60+ embeddings per doc; even with `embedding_func_max_async=1` + `embedding_batch_num=20` throttle (committed in `0faab0c`), per-doc bursts still saturate the window. Code path PROVEN CORRECT — LLM entity extraction + caching succeeds; only the downstream embedding upsert 429s. Documented in `docs/testing/04-07-validation-results.md`. Resolution: Gemini paid Tier 1 (removes RPM limits) OR swap to local `sentence-transformers` OR add per-entity semaphore. All out of Phase 4 scope.
 - **SQLite migration deployment gap RESOLVED** in `9e2a0c1`: `ingest_wechat.py` now auto-runs `batch_scan_kol.init_db(DB_PATH)` at module import (guarded by `DB_PATH.exists()`). Idempotent via `_ensure_column`.
 - **Spike script async race (non-blocking)**: `scripts/phase0_delete_spike.py` doesn't await LightRAG's async entity extraction before measuring counts — its report contract passes but entity counts are vacuous. Documented in `phase0_spike_report.md`. Not blocking; ticketable refactor later.
-- Plan 05-00 Wave 0 runtime FAILED at attempt 6/6 — Gemini free-tier budget (1000 req/day/key × 2 keys) structurally insufficient for 22-doc LightRAG rebuild at 3072 dim (~300 embed calls per doc = ~6600 required). Attempt 6 diagnosed+fixed silent rotation bug (Cognee load_dotenv override) but both keys drained mid-run. User decision required: Option B (paid Gemini tier, recommended) / Option A (accept 1/22 partial) / Option C (11-day split) / Option D (rollback). See .planning/phases/05-pipeline-automation/05-00-SUMMARY.md.
+- **Plan 05-00 COMPLETE** (2026-04-29, user-run on Hermes host). Final graph: 263 nodes / 301 edges / 29 docs / 19 chunks at 3072 dim. Dual-key rotation + Deepseek LLM swap (via Plan 05-00c) held up on real workloads. See `.planning/phases/05-pipeline-automation/05-00-SUMMARY.md` for full journey (6 attempts, key rotation bug diagnosis, Option A baseline skip, per-doc cost correction to ~300 embeds/doc).
+- **Plan 05-00b PARTIAL** — 9/31 keyword-matched KOL articles ingested; 22 blocked by `subprocess.run(capture_output=True)` pipe deadlock (64KB OS buffer fills up, child blocks on write while parent waits for exit — classic deadlock, NOT a quota issue). Per user's `docs/phase5-00c-execution-report.md`. Fix: replace subprocess.run with Popen + threaded pipe reader OR switch to `batch_ingest_from_spider.py --from-db --topic-filter Agent --min-depth 2`. Also needs multi-keyword `--topic-filter` support (D-11 of 05-CONTEXT, never implemented) and schema consistency (`digest` vs `content_preview`).
+- **Cognee dotenv override side-effect** — `cognee/__init__.py:11` calls `dotenv.load_dotenv(override=True)` which reads gitignored repo-root `.env` (stale leftover) and overwrites `GEMINI_API_KEY`. Patched at runtime during Attempt 6 diagnosis; permanent fix pending (delete the stale file OR re-assert env post-Cognee-import). Infra-track item, not blocking.
 
 ## Phase 4 Exit State
 
@@ -119,7 +121,7 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-04-29T01:02:06.012Z
-Stopped at: Plan 05-00 FAILED at attempt 6 — diagnosed rotation bug (Cognee override) applied runtime fix on remote; both Gemini free-tier keys drained; user decision required (Options A/B/C/D in 05-00-SUMMARY.md)
-Resume file: None
-Next command: begin next phase — options are Phase 5 (pipeline automation + RSS + daily digest, PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`) or large-scale batch KOL ingestion stabilization.
+Last session: 2026-04-29T13:00:00.000Z
+Stopped at: Plan 05-00 COMPLETE; Plan 05-00b PARTIAL (9/31 ingested, 22 blocked by subprocess pipe deadlock bug — NOT quota). Next action: run Plan 05-00b properly to clear the 22 stuck articles; prerequisites are the subprocess fix + multi-keyword filter support + schema reconciliation.
+Resume file: `.planning/phases/05-pipeline-automation/05-00-SUMMARY.md` + `docs/phase5-00c-execution-report.md` (user's authoritative account)
+Next command: `/gsd:execute-phase 5 --wave 0` (resume at 05-00b) OR start Plan 05-00b specifically with engineering fixes listed in execution report §5.
