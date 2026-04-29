@@ -29,3 +29,21 @@ RATE_LIMITS_RPM: dict[str, int] = {
     "gemini-embedding-001":          60,
     "gemini-embedding-2":            100,
 }
+
+# Phase 5-00b R2 regression guard. Free-tier requests-per-DAY caps verified
+# 2026-04-29. A Phase 7 lib/models.py edit silently swapped INGESTION_LLM +
+# VISION_LLM to flash-lite (20 RPD) — killing 5-hr batches on the 5th article.
+# tests/test_models_rpd_floor.py asserts production LLMs stay above the floor.
+RATE_LIMITS_RPD: dict[str, int] = {
+    "gemini-2.5-pro":                 50,
+    "gemini-2.5-flash":              250,
+    "gemini-2.5-flash-lite":          20,    # ⚠ below PRODUCTION_RPD_FLOOR — do NOT use for ingestion/vision
+    "gemini-3.1-flash-lite-preview": 1500,
+    "gemini-embedding-001":         1000,
+    "gemini-embedding-2":           1000,
+}
+
+# Minimum RPD for a model to be allowed on the ingestion hot path (INGESTION_LLM,
+# VISION_LLM). 250 reflects "can process a ~200-article batch in one day with
+# room for retries". Enforced by tests/test_models_rpd_floor.py.
+PRODUCTION_RPD_FLOOR: int = 250
