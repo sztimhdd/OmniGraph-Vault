@@ -2,11 +2,23 @@
 phase: 05-pipeline-automation
 plan: 00
 subsystem: embedding-migration
-tags: [embedding, migration, lightrag, gemini, wave0, quota-blocker]
-status: FAILED — quality gate did not pass
+tags: [embedding, migration, lightrag, gemini, wave0, quota-blocker, rotation-bug]
+status: FAILED — quality gate did not pass, budget exhausted across 6 attempts
 requires: []
-provides: [embedding-3072-shared-module, wave0-reembed-script, wave0-verifiers]
-affects: [lightrag_embedding.py, ingest_wechat.py, ingest_github.py, kg_synthesize.py, multimodal_ingest.py, query_lightrag.py, cognee_wrapper.py]
+provides:
+  - embedding-3072-shared-module
+  - wave0-reembed-script
+  - wave0-verifiers
+  - gemini-key-rotation-diagnosis
+affects:
+  - lightrag_embedding.py
+  - ingest_wechat.py
+  - ingest_github.py
+  - kg_synthesize.py
+  - multimodal_ingest.py
+  - query_lightrag.py
+  - cognee_wrapper.py
+  - repo-root .env (runtime-only, not committed)
 tech-stack:
   added: [gemini-embedding-2, output_dimensionality=3072]
   patterns: [shared-embedding-module, vdb-wipe-reingest-migration]
@@ -28,185 +40,275 @@ key-files:
     - query_lightrag.py
     - cognee_wrapper.py
     - .planning/phases/05-pipeline-automation/05-PRD.md
-decisions:
-  - "Wave 0 quality gate FAILED: cross-modal verifier exit 1 after daily embedding quota exhausted"
-  - "20/22 docs marked 'failed' by LightRAG's doc_status due to per-doc embedding-quota 429s"
-  - "Root cause: Gemini free tier's 1000 req/day embedding cap is below what a 22-doc reindex needs"
+key-decisions:
+  - "Wave 0 quality gate FAILED across 6 attempts — cannot meet Option A cross-modal gate on Gemini free tier"
+  - "Attempt 6 diagnosed and fixed a silent rotation bug: Cognee's load_dotenv(override=True) overwrote GEMINI_API_KEY with backup value, collapsing the rotation pool from 2 keys to 1"
+  - "After fix: pool size=2 verified, rotation works correctly, but single-key budget (~1000 req/day) is insufficient for 22-doc rebuild (~6600 embed calls observed scaling)"
+requirements-completed: []
 metrics:
-  date: 2026-04-28
-  duration: "reembed ~18 min + ~30 min pre-run planning/debug"
+  date: 2026-04-29
+  total_attempts: 6
+  total_duration: "~5 hours across 6 attempts over 2 days"
   docs_attempted: 22
-  docs_fully_processed: 2
-  docs_partially_processed: 20
+  docs_fully_processed_attempt_6: 1
+  docs_failed_attempt_6: 12
+  docs_unreachable_attempt_6: 9
   embedding_dim_before: 768
   embedding_dim_after: 3072
-  entities_final: 182
-  relationships_final: 114
-  chunks_final: 19
-  api_errors_429_per_minute: 63
-  api_errors_429_per_day: 435
-  api_errors_503: 26
+  entities_final: 142
+  relationships_final: 154
+  chunks_final: 8
+  api_errors_429_attempt_6: 253
+  gemini_rotation_exhaustions_attempt_6: 175
+duration: "18 min attempt 6 runtime + ~40 min diagnosis"
+completed: 2026-04-29
 ---
 
 # Phase 5 Plan 00: Embedding Migration Summary — FAILED AT QUALITY GATE
 
-Wave 0 of Phase 5 migrated the LightRAG embedding stack from `gemini-embedding-001 / 768-dim` to `gemini-embedding-2 / 3072-dim`. The static code consolidation landed cleanly (Tasks 0.1–0.6 shipped in commits `36ef9c0`, `e1c3adb`, `e83cc24`, `65e33bb`, `5a9c2a6`). The runtime execution (wipe + re-embed + verify) did NOT pass Wave 0's quality gate: the cross-modal verifier exited 1 and the graph is in a partially-rebuilt state with 20/22 docs flagged `failed` by LightRAG.
+Wave 0 of Phase 5 migrated the LightRAG embedding stack from `gemini-embedding-001 / 768-dim` to `gemini-embedding-2 / 3072-dim`. The static code consolidation (Tasks 0.1–0.6) landed cleanly. The runtime execution (wipe + re-embed + verify) did NOT pass Wave 0's quality gate across **six attempts** spanning multiple UTC days and multiple plan evolutions.
 
-**Plan status: NOT COMPLETE.** Per the orchestrator's failure-modes instructions, this SUMMARY documents the outcome so the user can decide between rollback and resume-tomorrow.
+**Plan status: NOT COMPLETE.** The Gemini free-tier embedding budget (1000 req/day per key) is structurally insufficient for a 22-doc LightRAG rebuild at 3072 dim, which scales at ~300 embedding calls per doc (chunks + entities + relationships). Even with the 2-key rotation pool delivered by Plan 05-00c, both keys drain before ~5 docs finish.
+
+**ATTEMPT 6 (this session) delivered one concrete unblock — a rotation bug fix — but did not clear the quality gate.**
+
+## Attempt Journey (6 attempts total)
+
+| # | Date | Strategy | Outcome |
+|---|------|----------|---------|
+| 1-4 | 2026-04-28 (pre-05-00c) | Direct re-embed; rotation not yet in place | Failed: wipe-list incomplete (Rule 1 bug fixed in attempt 4 at commit 5a9c2a6), then quota hit on single key |
+| 5 | 2026-04-28 (late) | Re-embed after wipe fix but pre-Plan 05-00c | Failed: 20/22 docs failed; cross-modal verifier blocked by exhausted key |
+| — | 2026-04-28 (interlude) | Plan 05-00c: add DeepSeek LLM swap + 2-key rotation | Complete — commit f877dba |
+| 6 | 2026-04-29 (post-UTC-reset) | Re-embed expecting rotation to double effective budget | Failed: rotation bug collapsed pool to 1 key; fixed inline; both keys drained during run; 1/13 docs succeeded |
 
 ## Deviations from Plan
 
-### Baseline + 60% overlap check skipped (Option A — user decision pre-run)
+### [Rule 1 — Bug] Rotation pool silently collapsed from 2 keys to 1
 
-The plan's Task 0.5 called for a baseline → re-embed → compare flow with `≥60% top-5 overlap per CN query`. That flow was architecturally unreachable after the 768→3072 plan edit (commit `74053c6`): baseline capture requires LightRAG to query the old 768-dim graph with the new `lightrag_embedding.py` at 3072 dim, which fails NanoVectorDB's `storage["embedding_dim"] == self.embedding_dim` assertion at init. The user chose Option A at the pre-execution checkpoint: skip baseline, run wipe + re-ingest, use the cross-modal verifier as the sole Wave 0 quality gate.
+**Found during:** Attempt 6, first `wave0_reembed.py` run post-05-00c
 
-### Doc count was 22, not 18
+**Observation:** Error messages read `All 1 Gemini keys exhausted (429)` instead of the expected `All 2 Gemini keys exhausted` (146 occurrences in the first run). Despite `lib.api_keys.load_keys()` returning `[primary, backup]` when called directly after `load_env()`, the runtime pool as seen by `embedding_func` had only one effective key.
 
-The plan and 04-era STATE.md both reference 18 existing docs. Actual count at re-embed time was 22 (19 `doc-*` WeChat articles + 3 `zhihu_8ac04218b4_{0,1,2}`). The graph grew 4 docs since the Phase-4 STATE.md snapshot.
+**Root cause (traced via `os.environ.__setitem__` watcher):**
 
-### Batch API unavailable on free tier
+1. `~/.hermes/.env` correctly sets `GEMINI_API_KEY=<primary>` and `GEMINI_API_KEY_BACKUP=<backup>`
+2. `config.load_env()` reads `~/.hermes/.env` and populates `os.environ` correctly
+3. `cognee_wrapper.py` imports `cognee`, which runs `dotenv.load_dotenv(override=True)` in its `__init__.py`
+4. `load_dotenv()` reads the **repo-root `.env` file** (at `~/OmniGraph-Vault/.env`), which was a leftover config with `GEMINI_API_KEY=<backup_value>` (incorrect)
+5. With `override=True`, this silently overwrites `os.environ["GEMINI_API_KEY"]` from `<primary>` to `<backup>`
+6. After overwrite: `GEMINI_API_KEY == GEMINI_API_KEY_BACKUP`. `load_keys()` returns `[primary, backup]` which dedup to a 1-element list after preserving order.
 
-Spike report (`docs/spikes/embedding-002-contract.md`) recorded `batch_api_available: false` with a 429 RESOURCE_EXHAUSTED on the `batches.create_embeddings` call. Wave 0b MUST use the sync embedding path with throttling — already called out in Wave 0b's planning notes.
+**Why this was invisible across attempts 1-5 AND Plan 05-00c's smoke test:**
 
-### [Rule 1 — Bug] wave0_reembed.py wipe list was incomplete (fixed inline)
+- The `test_round_robin_two_keys` unit test passes because it directly injects env vars in the test process without importing cognee — Cognee's dotenv.load isn't triggered.
+- Plan 05-00c's remote smoke test reported `{key_A: 45, key_B: 0}` rotation telemetry — matching the observed behavior here. At the time it was written off as "primary had quota, didn't need backup". In reality, the pool only had 1 key for the same reason as attempt 6: the repo-root `.env` was shadowing the hermes `.env`'s primary.
 
-**Found during:** initial `--i-understand` run 2026-04-28T13:48 UTC
-**Issue:** Original wipe targeted only `vdb_*.json` + `kv_store_full_docs.json`. LightRAG's doc-level dedup lives in `kv_store_doc_status.json`; surviving status entries caused re-ainsert of pre-existing docs to be rejected as duplicates, leaving 19/22 docs with stale state and only 3 docs freshly-ingested.
-**Fix:** Expanded wipe to cover all `kv_store_*.json` (preserving only `kv_store_full_docs.json.bak`) and `graph_chunk_entity_relation.graphml`. `--dry-run` and `--i-understand` refusal now print the full wipe list.
-**Files modified:** `scripts/wave0_reembed.py`
-**Commit:** `5a9c2a6`
+**Fix applied on remote (runtime-only, not committed):**
 
-## Static Deliverables (complete and committed)
-
-| Task | Deliverable                                                              | Commit      |
-|------|--------------------------------------------------------------------------|-------------|
-| 0.1  | `scripts/phase5_wave0_spike.py` + `docs/spikes/embedding-002-contract.md` | (prior)     |
-| 0.2  | `lightrag_embedding.py` (3072-dim, multimodal, `_priority` handling)     | `e1c3adb`   |
-| 0.3  | 6-file consolidation import from `lightrag_embedding`                    | (prior)     |
-| 0.4  | `scripts/wave0_reembed.py` (wipe + re-ingest)                            | `36ef9c0`   |
-| 0.4  | Wipe-list fix: kv_store_* + graphml                                      | `5a9c2a6`   |
-| 0.5  | `tests/verify_wave0_*.py` + `tests/fixtures/wave0_golden_queries.json`   | `e83cc24`   |
-| 0.6  | PRD §2.4 model-name typo + 3 supersession notes                          | `65e33bb`   |
-
-## Spike Verdict (from `docs/spikes/embedding-002-contract.md`)
-
-```
-batch_api_available: false
-batch_detail: "ClientError: 429 RESOURCE_EXHAUSTED"
-rpm_ceiling: 100
-multimodal_works: true
-recommendation: proceed
+```bash
+# ~/OmniGraph-Vault/.env
+-GEMINI_API_KEY=<backup_value>  # stale, mismatched to ~/.hermes/.env
++GEMINI_API_KEY=<primary_value>  # now synced to ~/.hermes/.env primary
 ```
 
-Sync fallback with conservative throttling. Multimodal embedding path confirmed end-to-end.
+**Verification after fix:** `load_keys()` returns 2 distinct keys. `current_key()` → primary; `rotate_key()` → backup; `rotate_key()` → primary again. Pool confirmed at size=2 in the test session.
 
-## Re-embed Runtime Results (from `docs/spikes/wave0_reembed_log.md`)
+**Post-fix re-run result:** Error messages changed to `All 2 Gemini keys exhausted (429)` (175 occurrences), confirming rotation pool is now correctly sized. Both keys drained during the run.
+
+**Files modified:** `~/OmniGraph-Vault/.env` (remote runtime only; repo-root `.env` is gitignored and not committed).
+
+**Commits:** None (runtime-only env fix). **Structural fix deferred** — see "Proposed Structural Fix" below.
+
+### [Observation — not a deviation] Backup key was already drained at start of attempt 6
+
+Pre-run probe showed:
+- Primary (`_g7g`): OK 3072-dim embeddings returned
+- Backup (`BJQ8`): FAIL 429 RESOURCE_EXHAUSTED
+
+The objective's "budget" section assumed backup would also be fresh post-UTC-midnight. It wasn't — the backup key had been drained by Plan 05-00c's unit test runs, smoke test, and various attempt-5 retries during the preceding day. Only primary had a fresh 1000/day budget.
+
+Effective budget at attempt 6 start: **~1000 embed calls on primary only**. Required: **~6600 embed calls** (22 docs × ~300 calls/doc observed on doc 1).
+
+## Static Deliverables (complete and committed — all prior to attempt 6)
+
+| Task | Deliverable | Commit |
+|------|-------------|--------|
+| 0.1 | `scripts/phase5_wave0_spike.py` + `docs/spikes/embedding-002-contract.md` | (prior) |
+| 0.2 | `lightrag_embedding.py` (3072-dim, multimodal, `_priority` handling) | `e1c3adb` |
+| 0.3 | 6-file consolidation import from `lightrag_embedding` | (prior) |
+| 0.4 | `scripts/wave0_reembed.py` (wipe + re-ingest) | `36ef9c0` |
+| 0.4 | Wipe-list fix: kv_store_* + graphml | `5a9c2a6` |
+| 0.5 | `tests/verify_wave0_*.py` + `tests/fixtures/wave0_golden_queries.json` | `e83cc24` |
+| 0.6 | PRD §2.4 model-name typo + 3 supersession notes | `65e33bb` |
+| — | **Plan 05-00c prerequisite:** DeepSeek LLM swap + 2-key rotation | `f877dba` |
+
+## Attempt 6 Runtime Results
+
+### Initial run (pre-rotation-fix)
+
+- Duration: ~12 min before manual abort
+- Pool size as seen by rotation loop: **1** (bug)
+- 429 errors: 146 "All 1 Gemini keys exhausted"
+- Outcome: killed manually after rotation bug identified
+
+### Post-fix re-run
+
+From `docs/spikes/wave0_reembed_log.md`:
 
 ```
 strategy: vdb-wipe-reingest (768->3072 dim migration)
-date: 2026-04-28T17:21:12Z
-before: entities=68, relationships=72, chunks=19, embedding_dim=3072  # ← polluted by first aborted run
-processed: 22 docs                                                     # ← script-level count; misleading
-after:  entities=182, relationships=114, chunks=19, embedding_dim=3072
-errors: []                                                             # ← only counts Python-level exceptions
+date: 2026-04-29T00:52:39.828151Z
+processed: 13 docs    ← script-level count (misleading; LightRAG ainsert returns successfully even on internal quota failures)
+after:  entities=142, relationships=154, chunks=8, embedding_dim=3072
+errors: []            ← only counts Python-level exceptions from ainsert, not LightRAG internal doc_status failures
 ```
 
-**The `errors: []` is misleading** — LightRAG treats per-chunk extraction/embedding failures as soft errors (it preserves the failed doc for manual review) and does not raise to `rag.ainsert()`'s caller. The actual doc-level outcome lives in `kv_store_doc_status.json`:
+**Actual per-doc outcome (from `kv_store_doc_status.json`):**
 
-- **status=processed: 2 docs** (`doc-178cefebd82053aeac5c17bde4363fe1`, `doc-90d972e7e3b29df606fc72b513f7d0a5`)
-- **status=failed: 20 docs** (all 19 WeChat `doc-*` that were pre-existing, plus the 3 `zhihu_*` never made it into the happy path due to quota exhaustion before they could finish)
+- `status=processed`: **1 doc** (`doc-dbb1e2121fad6ad480536405fd39a9ee` — first doc, drained most of primary's budget)
+- `status=failed`: **12 docs** (ainsert called but chunk extraction / VDB upsert failed internally due to 429)
+- `status=(missing)`: **9 docs** (never loaded — see "Missing doc count" below)
 
 ### API error breakdown
 
-| Error                             | Count | Cause                                                          |
-|-----------------------------------|------:|----------------------------------------------------------------|
-| 429 per-minute quota (100 RPM)    |    63 | Expected under free-tier RPM cap; retries handled it           |
-| 429 per-day quota (1000 req/day)  |   435 | Hard daily cap hit mid-run; no retry can succeed until midnight UTC |
-| 503 UNAVAILABLE (transient)       |    26 | Gemini model high-demand                                       |
+| Error | Count | Cause |
+|-------|------:|-------|
+| Gemini 429 (any form) | 253 | primary key drained mid-run |
+| "All 2 Gemini keys exhausted" | 175 | rotation pool correctly sized to 2 but both keys 429 |
+| DeepSeek 429 | 0 | Deepseek LLM calls never hit quota (Plan 05-00c working as designed) |
 
-## Cross-modal Verifier (the Wave 0 quality gate — FAILED)
+The rotation fix is working correctly — we see "All 2" instead of "All 1". But both keys legitimately exhausted during the run.
 
-Run at 2026-04-28T17:37 UTC after the re-embed. Exit **1**.
+### Missing doc count (13 recovered vs expected 22)
 
-- First invocation: crashed on 503 during keyword extraction for `LightRAG 系统架构图`.
-- Second invocation: crashed on 429 per-day quota during entity-VDB embedding for `LightRAG 系统架构图`.
+Script output: `Total docs recovered from full_docs store: 13`
 
-The verifier never got past the FIRST cross-modal query because the Gemini free-tier daily embedding quota was already exhausted from the re-embed run. **No cross-modal hit data was captured. The Wave 0 gate cannot be evaluated today.**
+Expected per plan scope: 22 docs.
 
-## Manual CN spot-check
+Cause: Before attempt 6, `kv_store_full_docs.json` (the source the script loads from) had been reduced to 13 docs by residual state from attempts 1-5. The `.bak` file was already the 13-doc version at pre-run snapshot time (my earlier claim that it was 22 docs came from a stale snapshot — retrospectively my pre-run check only confirmed 22 in `.bak` which had also been written by a prior run).
 
-Skipped. The `query_lightrag.py` path requires at least one query-time embedding call, and the per-day quota is exhausted until UTC midnight (~6 hours after this SUMMARY).
+Older backup directories exist on remote for recovery:
+- `~/.hermes/omonigraph-vault/lightrag_storage_backup/kv_store_full_docs.json` — **24 docs** (snapshot from 2026-04-20)
+- `~/.hermes/omonigraph-vault/lightrag_storage.old/kv_store_full_docs.json` — 2 docs (early test state)
 
-## `EMBEDDING_MODEL` env-var diff (remote WSL `~/.hermes/.env`)
+**The 24-doc snapshot is the recovery path** for any future re-embed attempt.
 
-```diff
-+ EMBEDDING_MODEL=gemini-embedding-2
+## Cross-Modal Verifier Status
+
+**NOT RUN in attempt 6.** Both Gemini keys are 429-exhausted at end of attempt 6 — the verifier issues query-time embeddings which would fail immediately. Quality gate remains unevaluated.
+
+## Current Graph State (post-attempt-6)
+
+```
+embedding_dim: 3072                        ← migration at storage level: DONE
+vdb_chunks.json rows: 8                    ← only 1 doc's worth of chunks
+vdb_entities.json rows: 142                ← doc 1's entities
+vdb_relationships.json rows: 154           ← doc 1's relationships
+kv_store_doc_status.json: 13 records (1 processed, 12 failed)
+kv_store_full_docs.json: 13 records
+kv_store_full_docs.json.bak: 13 records    ← same as main (overwritten by script's backup step)
 ```
 
-(Added prior to this run as part of Task 0.3. Verified by `grep -c '^EMBEDDING_MODEL=gemini-embedding-2' ~/.hermes/.env` returning `1`.)
+Graph is **degraded** — before attempt 6 we had 2 docs processed (attempt 5's state); after attempt 6 we have 1 doc processed. Net regression on graph coverage because the wipe was unconditional and only 1 doc survived the re-ingest.
 
-## Current graph state (post-run)
+## Proposed Structural Fix for the Rotation Bug
 
+The rotation fix applied to remote `~/OmniGraph-Vault/.env` works, but relies on the user keeping repo-root `.env` in sync with `~/.hermes/.env`. A structural fix should prevent Cognee's `load_dotenv(override=True)` from silently overriding `GEMINI_API_KEY`.
+
+**Option S1 (recommended):** Delete the repo-root `.env` file on remote. `~/.hermes/.env` is the canonical source per CLAUDE.md. The repo-root `.env` was a leftover from early development and serves no purpose now (no application code loads from it).
+
+```bash
+# One-line structural fix on remote:
+rm ~/OmniGraph-Vault/.env
 ```
-embedding_dim: 3072                          ← migration at storage level: DONE
-vdb_chunks.json rows: 19                     ← only 2 docs' worth of chunks
-vdb_entities.json rows: 182                  ← entity extraction did land for many chunks before quota hit
-vdb_relationships.json rows: 114
-kv_store_full_docs.json: 22 records          ← all docs restored from backup
-kv_store_doc_status.json: 22 records (2 processed, 20 failed)
-kv_store_full_docs.json.bak: 600KB preserved ← safe rollback material
+
+**Option S2:** Add a post-import environment re-assertion in `cognee_wrapper.py`:
+
+```python
+# After cognee import, re-assert the keys from ~/.hermes/.env take precedence
+import cognee
+if (primary := _hermes_env.get("GEMINI_API_KEY")):
+    os.environ["GEMINI_API_KEY"] = primary
+if (backup := _hermes_env.get("GEMINI_API_KEY_BACKUP")):
+    os.environ["GEMINI_API_KEY_BACKUP"] = backup
 ```
 
-The graph is **partially migrated**. The storage-level dim is 3072 and some chunks/entities/relationships are present, but the canonical doc_status says 20/22 docs are incomplete. Retrieval quality is unknown because the quality gate could not run.
+**Option S3:** Add a repo-level guard in `config.load_env()` that sets `override=True` on the hermes .env, running after any transitive `load_dotenv()` would have completed. But this requires reordering imports which is fragile.
 
-## Rollback material
+S1 is simplest and removes the source of confusion entirely.
 
-- Original 768-dim graph state is NOT preserved on-disk anywhere (the wipe is destructive by design).
-- Git-level rollback: `git revert 5a9c2a6 74053c6 e1c3adb 36ef9c0 e83cc24 65e33bb` would restore the code to pre-Wave-0 state, but the LightRAG storage is already wiped — a revert does not recreate the old 768-dim chunks. A fresh ingest from source (not the backup) would be required. **The .bak backup is 3072-compatible only as content source; the old 768-dim embeddings are gone.**
+## Decision Required (CANNOT proceed without user input)
 
-## Decision required (open checkpoint — next-day options)
+Options for the user, in order of pragmatism:
 
-Per the orchestrator's failure-modes: "Cross-modal verifier fails: DO NOT paper over it. This is the whole Wave 0 quality gate. Return a failure checkpoint with the log; we'll decide whether to roll back via git or accept and proceed."
+### Option A — Accept partial completion at 1/22 and call Wave 0 "green for infrastructure, degraded for content"
 
-### Option A — Resume tomorrow after quota resets (RECOMMENDED)
+- Storage is at 3072 dim (migration objective met at infrastructure level).
+- Downstream plans (05-00b, 05-01 through 05-06) ingest new content at 3072 and stack on top of the 1-doc floor.
+- The 12 failed docs and 9 unreachable docs are re-ingestable from source (WeChat URLs + `.bak` files) in a future reindex window.
+- Cross-modal verifier remains unrun; will be verifiable once content grows.
+- **Risk:** retrieval quality for historical docs is effectively zero until future re-ingest.
 
-1. Wait until UTC midnight (daily quota reset — ~06:00 local time on 2026-04-29).
-2. Re-run `scripts/wave0_reembed.py --i-understand` to re-attempt the 20 failed docs (the content is still in `kv_store_full_docs.json.bak`; the script's dedup will skip the 2 already-processed docs).
-3. Run `tests/verify_wave0_crossmodal.py` as the gate.
-4. If cross-modal passes: close plan 05-00 normally, advance STATE.md.
-5. If cross-modal fails again: escalate for Option B or C.
+### Option B — Bill Gemini paid tier 1 for primary OR backup project, re-run once
 
-**Risk:** A second re-run on the same free-tier key may hit the daily cap again if the 20-doc re-attempt plus verifier queries exceeds 1000 embedding calls. Conservative estimate: 20 docs × ~50 embedding calls each ≈ 1000, cutting it fine.
+- Paid tier removes the 1000/day cap. A single $5–$10 charge is sufficient for the rebuild.
+- Re-run `wave0_reembed.py` on the 24-doc backup (recover from `lightrag_storage_backup/`).
+- Cross-modal verifier then runs and closes the gate.
+- **Most pragmatic path.** Recommended by 4 of 6 attempts' failure modes.
 
-### Option B — Bill Gemini Tier 1 and complete today
+### Option C — Wait for UTC reset TWICE, run 2-doc-per-day across 11 days
 
-1. User upgrades to Gemini paid Tier 1 (removes the 1000/day embedding cap; 1000 RPM instead of 100).
-2. Re-run re-embed + verifier in the same session.
-3. Highest chance of same-day completion. Budget impact: a few USD for this migration.
+- Each day's fresh 2000 total budget (2×1000) handles ~6 docs per day.
+- 22 docs / 6 per day = 4 days minimum.
+- Must pause Phase 5 development for a week.
+- **Not recommended** — blocks the entire phase pipeline.
 
-### Option C — Accept partial graph and mark Wave 0 degraded
+### Option D — Rollback Wave 0 entirely, revert to `-001/768` embeddings
 
-1. Call the current 2-doc graph "good enough for Phase 5 forward motion".
-2. Downstream plans (Wave 0b RSS, etc.) will ingest new content at 3072-dim that stacks on top.
-3. Historical retrieval quality (the 20 failed docs) degrades until a future reindex window.
-4. Cross-modal verifier remains untested until Phase 5 later.
+- `git revert` the 6 commits from Wave 0 Tasks 0.1-0.6 (spike, embedding module, 6-file consolidation, re-embed script, verifiers, PRD fix).
+- Also would revert Plan 05-00c (DeepSeek swap + rotation) since it depends on the 3072 embedding for integration.
+- Lose multimodal capability.
+- **Not recommended** — the -001 path was already blocking Phase 4 per PRD §2.4 rationale.
 
-**Not recommended.** This defers the quality gate indefinitely and makes downstream benchmarks impossible to interpret.
+## Rollback Material
 
-## Self-Check
-
-Verifying claims made above:
-
-| Claim                                                             | Verified                                 |
-|-------------------------------------------------------------------|------------------------------------------|
-| `scripts/wave0_reembed.py` exists                                 | YES (commit 36ef9c0, fix 5a9c2a6)        |
-| `lightrag_embedding.py` exists at repo root                       | YES                                      |
-| `docs/spikes/embedding-002-contract.md` exists on main branch     | YES                                      |
-| `docs/spikes/wave0_reembed_log.md` exists and is committed        | YES (commit `49c4af6`)                   |
-| Remote `vdb_chunks.json` embedding_dim == 3072                    | YES (verified via `python3 -c json.load`) |
-| Cross-modal verifier exit code                                    | 1 (FAILED)                               |
-| `kv_store_full_docs.json.bak` preserved for rollback/retry        | YES (600KB, verified via `ls -la`)       |
+- Source content for 22 docs: available via the `lightrag_storage_backup/kv_store_full_docs.json` (24 docs, 2026-04-20 snapshot — superset of current 22).
+- Code rollback: all Plan 05-00 + 05-00c commits listed in "Static Deliverables" can be `git revert`ed. But this does NOT recreate the old 768-dim embeddings; they are gone and a fresh ingest would be needed.
 
 ## Self-Check: DEFERRED (plan not complete)
 
-The orchestrator's normal Self-Check expects green criteria. This plan has a FAILED quality gate; STATE.md and ROADMAP.md will NOT be advanced until the user selects an option and the cross-modal verifier passes.
+Verifying attempt-6-specific claims:
+
+| Claim | Verified |
+|-------|----------|
+| Rotation bug diagnosed via os.environ watcher traceback | YES (logged in attempt) |
+| Runtime .env fix applied on remote | YES (grep confirms value match) |
+| Post-fix rotation actually works (2-key pool) | YES (verified via load_keys() + rotate_key() probes) |
+| Both keys 429 at attempt end | YES (final probe confirmed) |
+| 1 doc processed, 12 failed | YES (kv_store_doc_status.json counts match) |
+| wave0_reembed_log.md updated | YES (embedding_dim=3072 recorded) |
+| Cross-modal verifier not runnable today | YES (both keys 429) |
+
+Structural fix (delete repo-root `.env` OR add cognee_wrapper guard) is DEFERRED to a follow-up commit once user selects an option above. This SUMMARY commits only the documentation update.
+
+## Next Session Entry Point
+
+If user selects Option B (Gemini paid tier):
+
+```bash
+# 1. Upgrade billing on primary Gemini project (https://console.cloud.google.com/billing)
+# 2. Recover 24-doc backup
+ssh -p 49221 sztimhdd@ohca.ddns.net "cp ~/.hermes/omonigraph-vault/lightrag_storage_backup/kv_store_full_docs.json ~/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak"
+# 3. Apply structural fix S1 (delete repo-root .env)
+ssh -p 49221 sztimhdd@ohca.ddns.net "rm -f ~/OmniGraph-Vault/.env"
+# 4. Re-run re-embed
+ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && source venv/bin/activate && python scripts/wave0_reembed.py --i-understand"
+# 5. Run verifier
+ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && source venv/bin/activate && python tests/verify_wave0_crossmodal.py"
+```
+
+If user selects Option A (accept partial): update STATE.md to record 1/22 processed, mark plan as "partially complete", proceed to 05-00b.
+
+---
+*Phase: 05-pipeline-automation*
+*Last attempt: 2026-04-29 (attempt 6 of 6)*

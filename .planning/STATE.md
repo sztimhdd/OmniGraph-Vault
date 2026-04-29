@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-00c Plan (DeepSeek pipeline swap + 2-key rotation); Wave 0 runtime now retryable
-last_updated: "2026-04-29T00:05:20.907Z"
+stopped_at: Plan 05-00 FAILED at attempt 6 — diagnosed rotation bug (Cognee override) applied runtime fix on remote; both Gemini free-tier keys drained; user decision required (Options A/B/C/D in 05-00-SUMMARY.md)
+last_updated: "2026-04-29T01:02:25.499Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 4
@@ -100,6 +100,7 @@ None tracked.
 - **Gemini free-tier quotas (environmental, phase-4 exit blocker for LightRAG full graph ingest)**: `gemini-embedding-*` 100 RPM per project. LightRAG's entity upsert stage fires bursts of ~60+ embeddings per doc; even with `embedding_func_max_async=1` + `embedding_batch_num=20` throttle (committed in `0faab0c`), per-doc bursts still saturate the window. Code path PROVEN CORRECT — LLM entity extraction + caching succeeds; only the downstream embedding upsert 429s. Documented in `docs/testing/04-07-validation-results.md`. Resolution: Gemini paid Tier 1 (removes RPM limits) OR swap to local `sentence-transformers` OR add per-entity semaphore. All out of Phase 4 scope.
 - **SQLite migration deployment gap RESOLVED** in `9e2a0c1`: `ingest_wechat.py` now auto-runs `batch_scan_kol.init_db(DB_PATH)` at module import (guarded by `DB_PATH.exists()`). Idempotent via `_ensure_column`.
 - **Spike script async race (non-blocking)**: `scripts/phase0_delete_spike.py` doesn't await LightRAG's async entity extraction before measuring counts — its report contract passes but entity counts are vacuous. Documented in `phase0_spike_report.md`. Not blocking; ticketable refactor later.
+- Plan 05-00 Wave 0 runtime FAILED at attempt 6/6 — Gemini free-tier budget (1000 req/day/key × 2 keys) structurally insufficient for 22-doc LightRAG rebuild at 3072 dim (~300 embed calls per doc = ~6600 required). Attempt 6 diagnosed+fixed silent rotation bug (Cognee load_dotenv override) but both keys drained mid-run. User decision required: Option B (paid Gemini tier, recommended) / Option A (accept 1/22 partial) / Option C (11-day split) / Option D (rollback). See .planning/phases/05-pipeline-automation/05-00-SUMMARY.md.
 
 ## Phase 4 Exit State
 
@@ -118,7 +119,7 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-04-29T00:05:20.901Z
-Stopped at: Completed 05-00c Plan (DeepSeek pipeline swap + 2-key rotation); Wave 0 runtime now retryable
+Last session: 2026-04-29T01:02:06.012Z
+Stopped at: Plan 05-00 FAILED at attempt 6 — diagnosed rotation bug (Cognee override) applied runtime fix on remote; both Gemini free-tier keys drained; user decision required (Options A/B/C/D in 05-00-SUMMARY.md)
 Resume file: None
 Next command: begin next phase — options are Phase 5 (pipeline automation + RSS + daily digest, PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`) or large-scale batch KOL ingestion stabilization.
