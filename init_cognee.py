@@ -1,7 +1,11 @@
 import os
 import sys
 import asyncio
-os.environ['GOOGLE_API_KEY'] = os.environ.get('GEMINI_API_KEY', '')
+
+# Phase 7: key sourcing via lib/. rotate_key() writes os.environ["COGNEE_LLM_API_KEY"] inline.
+from lib import current_key
+
+os.environ['GOOGLE_API_KEY'] = current_key()
 os.environ['LLM_PROVIDER'] = 'gemini'
 os.environ['LLM_MODEL'] = 'gemini/gemini-1.5-pro'
 os.environ['EMBEDDING_PROVIDER'] = 'gemini'
