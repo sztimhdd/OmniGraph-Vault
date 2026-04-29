@@ -511,7 +511,14 @@ async def extract_entities(text):
         return []
 
 # --- Main Logic ---
-async def ingest_article(url):
+async def ingest_article(url, rag=None):
+    """Ingest a single WeChat article.
+
+    Phase 5-00b refactor: accepts an optional pre-initialized LightRAG instance
+    so batch orchestrators can share one rag across many articles (eliminates
+    15-30s per-article init overhead). If ``rag`` is None, falls back to the
+    per-call init path — preserves the single-URL CLI contract.
+    """
     print(f"--- Starting Ingestion: {url} ---")
     
     article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
@@ -544,9 +551,10 @@ async def ingest_article(url):
             json.dump(buffer_data, f)
         print(f'Buffered {len(raw_entities)} entities (from cache).')
         _persist_entities_to_sqlite(url, raw_entities)
-        
+
         try:
-            rag = await get_rag()
+            if rag is None:
+                rag = await get_rag()
             await rag.ainsert(full_content)
         except Exception as e:
             print(f"LightRAG insert failed: {e}")
@@ -627,8 +635,9 @@ async def ingest_article(url):
 
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
-    rag = await get_rag()
-    
+    if rag is None:
+        rag = await get_rag()
+
     # Cognee integration: Buffered
     try:
         raw_entities = await extract_entities(full_content)
@@ -697,7 +706,12 @@ async def ingest_article(url):
         except Exception as e:
             print(f"DB update failed: {e}")
 
-async def ingest_pdf(file_path):
+async def ingest_pdf(file_path, rag=None):
+    """Ingest a local PDF.
+
+    Phase 5-00b refactor: matches ingest_article signature — optional shared
+    ``rag`` instance for batch orchestrators; self-initializes if None.
+    """
     print(f"--- Starting PDF Ingestion: {file_path} ---")
     if not os.path.exists(file_path):
         print(f"Error: File {file_path} not found.")
@@ -754,7 +768,8 @@ async def ingest_pdf(file_path):
 
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
-    rag = await get_rag()
+    if rag is None:
+        rag = await get_rag()
 
     # Cognee integration: Buffered
     try:
