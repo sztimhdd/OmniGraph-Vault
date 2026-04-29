@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: milestone
 status: executing
-stopped_at: Plan 05-00 COMPLETE — user completed runtime on Hermes host (graph at 3072 dim, 263 nodes / 301 edges / 29 docs). Plan 05-00b underway (9/31 KOL catch-up articles ingested; 22 blocked by subprocess pipe deadlock bug — engineering fix needed, NOT quota).
-last_updated: "2026-04-29T13:00:00.000Z"
+stopped_at: Phase 7 Wave 4 COMPLETE (07-04-SUMMARY.md landed). Amendment 3 sweeper deleted config.py D-11 shims + gemini_call; lib.models is single source of truth. 12 atomic commits, 109/109 pytest green with DEEPSEEK_API_KEY=dummy. Both Hermes FLAGs (standalone Cognee rotation, DEEPSEEK eager-import) documented in Deploy.md + CLAUDE.md. Phase 7 is closed; Phase 5 Wave 0 replanning can proceed.
+last_updated: "2026-04-29T14:00:00.000Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 30
-  completed_plans: 21
+  completed_plans: 22
   percent: 100
 ---
 
@@ -60,6 +60,8 @@ Progress: [██████████] 100% (8 of 8 plans complete, merged)
 | Phase 06-graphify-addon-code-graph P03 | 9 | 4 tasks | 6 files |
 | Phase 06-graphify-addon-code-graph P04 | 17 | 2 tasks | 1 files |
 | Phase 07-model-key-management P02 | 20m | 7 tasks | 9 files |
+| Phase 07-model-key-management P03 | 25m | 7 tasks | 6 files |
+| Phase 07-model-key-management P04 | 45m | 10 tasks | 19 files |
 | Phase 05 P00c | 21 min | 6 tasks | 13 files |
 
 ## Accumulated Context
@@ -88,6 +90,10 @@ Recent decisions affecting current work:
 - [Phase 06]: to_json() shrink guard satisfies D-G06 atomic-swap intent — no custom tmp-rename needed
 - [Phase 07-model-key-management]: D-11 config.py shims landed as wrapper (not delete) — 2 remaining callers access response.text via _GeminiCallResponse back-compat
 - [Phase 07-model-key-management]: enrichment/*.py files have zero direct Gemini calls — skipped source migration per Simplicity First; only D-06 test patch target updates landed
+- [Phase 07-model-key-management] Wave 4 (07-04): Amendment 3 sweeper DELETED config.py D-11 shims + gemini_call + _GeminiCallResponse wrapper. lib.models is single source of truth. D-11 original "retain shims indefinitely" text officially superseded.
+- [Phase 07-model-key-management] Wave 4: ingest_wechat.extract_entities was last gemini_call caller at start of Wave 4; migrated to lib.generate_sync in pre-sweep commit before Task 4.7 sweeper ran.
+- [Phase 07-model-key-management] Wave 4: Hermes FLAGs (standalone Cognee rotation caveat + DEEPSEEK_API_KEY import-time coupling) landed as documentation-only in Deploy.md + CLAUDE.md per review verdict.
+- [Phase 07-model-key-management] Wave 4: skill_runner._GEMINI_MODEL kept as string literal per Open Q #4 (test-harness independence from production INGESTION_LLM drift).
 - [Phase 05]: Plan 05-00c: LightRAG LLM routed to DeepSeek (deepseek-v4-flash); Gemini embed now has 2-key rotation + 429 failover across GEMINI_API_KEY + GEMINI_API_KEY_BACKUP; Cognee stays on Gemini (negligible volume, Phase 7 D-04 propagation already suffices); Wave 0 runtime (05-00) is now unblocked
 
 ### Pending Todos
