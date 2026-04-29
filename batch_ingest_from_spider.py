@@ -19,10 +19,10 @@ deepseek_model_complete in Task 0c.3 — so the ingestion leg is also on
 Deepseek. Full pipeline now uses Deepseek for LLM, Gemini only for embeds.
 """
 import argparse
+import asyncio
 import json
 import logging
 import sqlite3
-import subprocess
 import sys
 import time
 import os
@@ -65,36 +65,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-VENV_PYTHON = str(PROJECT_ROOT / "venv" / "Scripts" / "python.exe")
-INGEST_SCRIPT = str(PROJECT_ROOT / "ingest_wechat.py")
-
 SLEEP_BETWEEN_ARTICLES = 10  # Phase 5-00c: DeepSeek LLM + 2-key Gemini embedding rotation (not 15 RPM Gemini)
 GEMINI_BATCH_SLEEP = 2.0   # DeepSeek: no RPM concern; light pause for API stability
 DB_PATH = PROJECT_ROOT / "data" / "kol_scan.db"
 
 
-def get_python_exe() -> str:
-    """Use venv python if available, else current interpreter."""
-    if Path(VENV_PYTHON).exists():
-        return VENV_PYTHON
-    return sys.executable
+async def ingest_article(url: str, dry_run: bool, rag) -> bool:
+    """Ingest a single URL in-process against the shared LightRAG instance.
 
-
-def ingest_article(url: str, dry_run: bool) -> bool:
-    """Call ingest_wechat.py for a single URL. Returns True on success."""
+    Phase 5-00b refactor: replaces subprocess-per-article pattern. Shared ``rag``
+    (created once by the caller) eliminates 15-30s per-article LightRAG init
+    overhead. Per-article try/except isolates failures — one bad article never
+    kills the batch. ``asyncio.wait_for`` replaces subprocess timeout semantics;
+    CancelledError propagates cleanly to in-flight HTTP clients.
+    """
     if dry_run:
         logger.info("  [dry-run] would ingest: %s", url)
         return True
 
     try:
-        result = subprocess.run(
-            [get_python_exe(), INGEST_SCRIPT, url],
-            capture_output=False,
+        import ingest_wechat
+        await asyncio.wait_for(
+            ingest_wechat.ingest_article(url, rag=rag),
             timeout=600,
         )
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
+        return True
+    except asyncio.TimeoutError:
         logger.warning("TIMEOUT (600s) — skipping: %s", url[:80])
+        return False
+    except Exception as exc:
+        logger.warning("Ingest failed (%s): %s — skipping: %s",
+                       exc.__class__.__name__, exc, url[:80])
         return False
 
 
@@ -402,7 +403,7 @@ def print_filter_summary(passed: list[dict], filtered_out: list[dict]) -> None:
     print("\n".join(lines))
 
 
-def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
+async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     summary: list[dict] = []
     processed = 0
@@ -474,36 +475,49 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
         filtered_out = []
 
     # Phase 3: Ingest survivors
-    total = len(passed)
-    for i, article in enumerate(passed, 1):
-        title = article.get("title", "(no title)")
-        url = article.get("url", "")
-        account_name = article.get("account", "?")
+    # Phase 5-00b: initialize LightRAG ONCE and share across all articles.
+    # Skip init entirely for dry-run (no ainsert calls).
+    rag = None
+    if not dry_run and passed:
+        from ingest_wechat import get_rag
+        logger.info("Initializing shared LightRAG instance (one-time)...")
+        rag = await get_rag()
 
-        logger.info("[%d/%d] [%s] %s", i, total, account_name, title)
+    try:
+        total = len(passed)
+        for i, article in enumerate(passed, 1):
+            title = article.get("title", "(no title)")
+            url = article.get("url", "")
+            account_name = article.get("account", "?")
 
-        if not url:
-            logger.warning("  Skipping — no URL")
+            logger.info("[%d/%d] [%s] %s", i, total, account_name, title)
+
+            if not url:
+                logger.warning("  Skipping — no URL")
+                summary.append({
+                    "account": account_name,
+                    "title": title,
+                    "url": "",
+                    "status": "skipped_no_url",
+                })
+                continue
+
+            success = await ingest_article(url, dry_run, rag)
             summary.append({
                 "account": account_name,
                 "title": title,
-                "url": "",
-                "status": "skipped_no_url",
+                "url": url,
+                "status": "dry_run" if dry_run else ("ok" if success else "failed"),
             })
-            continue
 
-        success = ingest_article(url, dry_run)
-        summary.append({
-            "account": account_name,
-            "title": title,
-            "url": url,
-            "status": "dry_run" if dry_run else ("ok" if success else "failed"),
-        })
-
-        processed += 1
-        if not dry_run and processed < total:
-            logger.info("  Sleeping %ds (rate limit: 15 RPM free tier)...", SLEEP_BETWEEN_ARTICLES)
-            time.sleep(SLEEP_BETWEEN_ARTICLES)
+            processed += 1
+            if not dry_run and processed < total:
+                logger.info("  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...", SLEEP_BETWEEN_ARTICLES)
+                await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
+    finally:
+        if rag is not None:
+            logger.info("Finalizing LightRAG storages (flushing vdb + graphml)...")
+            await rag.finalize_storages()
 
     # Add filtered-out articles to summary with their filter status
     for art in filtered_out:
@@ -528,8 +542,13 @@ def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
     logger.info("Done — %d ok, %d failed, %d filtered, %d skipped", ok, fail, filt, len(summary) - ok - fail - filt)
 
 
-def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) -> None:
-    """Ingest articles that passed classification for a topic (or list of topics). Reads from kol_scan.db."""
+async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) -> None:
+    """Ingest articles that passed classification for a topic (or list of topics). Reads from kol_scan.db.
+
+    Phase 5-00b: in-process orchestration with shared LightRAG instance.
+    Rag is created once (skipped for dry-run) and finalized in ``finally``
+    so Ctrl+C during a long batch still flushes vdb + graphml cleanly.
+    """
     topics = [topic] if isinstance(topic, str) else topic
 
     if not DB_PATH.exists():
@@ -565,29 +584,41 @@ def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) -> Non
         return
 
     logger.info("%d articles to ingest for topics %s", len(rows), topics)
-    processed = 0
-    for i, (art_id, title, url, account, depth) in enumerate(rows, 1):
-        logger.info("[%d/%d] [%s] (depth=%s) %s", i, len(rows), account, depth, title)
 
-        if not url:
-            logger.warning("  Skipping — no URL")
-            conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')", (art_id,))
+    # Phase 5-00b: initialize LightRAG ONCE; skip for dry-run.
+    rag = None
+    if not dry_run:
+        from ingest_wechat import get_rag
+        logger.info("Initializing shared LightRAG instance (one-time)...")
+        rag = await get_rag()
+
+    try:
+        processed = 0
+        for i, (art_id, title, url, account, depth) in enumerate(rows, 1):
+            logger.info("[%d/%d] [%s] (depth=%s) %s", i, len(rows), account, depth, title)
+
+            if not url:
+                logger.warning("  Skipping — no URL")
+                conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')", (art_id,))
+                conn.commit()
+                continue
+
+            success = await ingest_article(url, dry_run, rag)
+            status = "dry_run" if dry_run else ("ok" if success else "failed")
+            conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, ?)", (art_id, status))
             conn.commit()
-            continue
 
-        success = ingest_article(url, dry_run)
-        status = "dry_run" if dry_run else ("ok" if success else "failed")
-        conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, ?)", (art_id, status))
-        conn.commit()
+            processed += 1
+            if not dry_run and processed < len(rows):
+                logger.info("  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...", SLEEP_BETWEEN_ARTICLES)
+                await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
 
-        processed += 1
-        if not dry_run and processed < len(rows):
-            logger.info("  Sleeping %ds (Gemini Flash 15 RPM limit)...", SLEEP_BETWEEN_ARTICLES)
-            time.sleep(SLEEP_BETWEEN_ARTICLES)
-
-    ok = sum(1 for r in rows if True)  # count is tracked via status in DB
-    logger.info("Done — %d articles processed", len(rows))
-    conn.close()
+        logger.info("Done — %d articles processed", len(rows))
+    finally:
+        if rag is not None:
+            logger.info("Finalizing LightRAG storages (flushing vdb + graphml)...")
+            await rag.finalize_storages()
+        conn.close()
 
 
 def main() -> None:
@@ -616,9 +647,9 @@ def main() -> None:
         if not topic_keywords:
             logger.error("--topic-filter is required with --from-db")
             sys.exit(1)
-        ingest_from_db(topic_keywords, args.min_depth, args.dry_run)
+        coro = ingest_from_db(topic_keywords, args.min_depth, args.dry_run)
     else:
-        run(
+        coro = run(
             days_back=args.days_back,
             max_articles=args.max_articles,
             dry_run=args.dry_run,
@@ -628,6 +659,15 @@ def main() -> None:
             account_filter=args.account,
             classifier=args.classifier,
         )
+
+    # Phase 5-00b: async orchestration — rag lifecycle owned by the coroutine.
+    # On Ctrl+C, KeyboardInterrupt propagates into the coroutine's finally
+    # block where rag.finalize_storages() flushes vdb + graphml.
+    try:
+        asyncio.run(coro)
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user (Ctrl+C) — storages finalized in coroutine finally block")
+        sys.exit(130)
 
 
 if __name__ == "__main__":
