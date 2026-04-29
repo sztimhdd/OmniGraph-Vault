@@ -1,16 +1,14 @@
 import os
 import sys
 
-# Load API Key from .env BEFORE importing cognee
-env_path = os.path.expanduser("~/.hermes/.env")
-if os.path.exists(env_path):
-    with open(env_path, "r") as f:
-        for line in f:
-            if "GEMINI_API_KEY" in line:
-                key = line.split("=")[1].strip()
-                os.environ["LLM_API_KEY"] = key
-                os.environ["GOOGLE_API_KEY"] = key
-                os.environ["GEMINI_API_KEY"] = key
+# Phase 7: key sourcing via lib/. lib.api_keys.load_keys() reads ~/.hermes/.env
+# via config.load_env (or directly via os.environ). rotate_key() writes
+# os.environ["COGNEE_LLM_API_KEY"] inline on rotation.
+from lib import current_key
+
+_key = current_key()
+os.environ["LLM_API_KEY"] = _key
+os.environ["GOOGLE_API_KEY"] = _key
 
 os.environ["LLM_PROVIDER"] = "gemini"
 os.environ["LLM_MODEL"] = "gemini/gemini-1.5-pro"
