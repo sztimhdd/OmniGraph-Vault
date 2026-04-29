@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 07-02-PLAN.md (Wave 2: 7 files migrated, 7 commits, 95/0 pytest)"
-last_updated: "2026-04-28T23:50:21.656Z"
+stopped_at: Completed 05-00c Plan (DeepSeek pipeline swap + 2-key rotation); Wave 0 runtime now retryable
+last_updated: "2026-04-29T00:05:20.907Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 30
-  completed_plans: 19
+  completed_plans: 21
   percent: 100
 ---
 
@@ -60,6 +60,7 @@ Progress: [██████████] 100% (8 of 8 plans complete, merged)
 | Phase 06-graphify-addon-code-graph P03 | 9 | 4 tasks | 6 files |
 | Phase 06-graphify-addon-code-graph P04 | 17 | 2 tasks | 1 files |
 | Phase 07-model-key-management P02 | 20m | 7 tasks | 9 files |
+| Phase 05 P00c | 21 min | 6 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,7 @@ Recent decisions affecting current work:
 - [Phase 06]: to_json() shrink guard satisfies D-G06 atomic-swap intent — no custom tmp-rename needed
 - [Phase 07-model-key-management]: D-11 config.py shims landed as wrapper (not delete) — 2 remaining callers access response.text via _GeminiCallResponse back-compat
 - [Phase 07-model-key-management]: enrichment/*.py files have zero direct Gemini calls — skipped source migration per Simplicity First; only D-06 test patch target updates landed
+- [Phase 05]: Plan 05-00c: LightRAG LLM routed to DeepSeek (deepseek-v4-flash); Gemini embed now has 2-key rotation + 429 failover across GEMINI_API_KEY + GEMINI_API_KEY_BACKUP; Cognee stays on Gemini (negligible volume, Phase 7 D-04 propagation already suffices); Wave 0 runtime (05-00) is now unblocked
 
 ### Pending Todos
 
@@ -116,7 +118,7 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-04-28T23:50:21.652Z
-Stopped at: Completed 07-02-PLAN.md (Wave 2: 7 files migrated, 7 commits, 95/0 pytest)
+Last session: 2026-04-29T00:05:20.901Z
+Stopped at: Completed 05-00c Plan (DeepSeek pipeline swap + 2-key rotation); Wave 0 runtime now retryable
 Resume file: None
 Next command: begin next phase — options are Phase 5 (pipeline automation + RSS + daily digest, PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`) or large-scale batch KOL ingestion stabilization.
