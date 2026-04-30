@@ -65,4 +65,40 @@ topics. No re-scraping needed to re-classify.
 | DeepSeek default classifier, Gemini free option | Cost optimization; fail-open on both | Good |
 | Two Skills (ingest + query) not one unified | Clearer intent mapping | Working |
 
-*Last updated: 2026-04-27*
+## Current Milestone: v3.1 Single-Article Ingest Stability
+
+**Goal:** Rebuild and locally verify the single-article ingestion pipeline against `test/fixtures/gpt55_article/` so that text ingest + graph connectivity completes in <2 min with no crash. This unblocks Phase 5 Wave 1+ (RSS, daily digest, cron) and is the immediate prerequisite gate.
+
+**Target features (6-scope, Hermes-adjusted):**
+
+- Image pipeline correctness: `min(w,h)<300` filter, inter-image sleep=0, per-image logging
+- Scrape-first full-text classification (DeepSeek) — stop relying on unreliable WeChat `digest`
+- LightRAG state management: pre-batch buffer flush + rollback on async timeout
+- Text-first ingest (ingest/enrich decoupling): article body into LightRAG immediately, Vision runs asynchronously to append image sub-docs
+- LLM timeout alignment: env `LLM_TIMEOUT=600`, DeepSeek client-side timeout, dynamic per-chunk scaling
+- E2E verification harness: fixture benchmark with <2min text-ingest gate + stage-level timing report
+
+**Explicit carve-outs (moved to future milestones):**
+
+- v3.2 (Phase 5 Wave 1 Batch Reliability): checkpoint/resume, Vision cascade circuit breaker, regression fixtures, operator runbook
+- v3.3 (independent infra): Vertex AI SA migration + GCP project isolation
+- Phase 5-00b full re-run on Hermes (belongs in Phase 5)
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
+*Last updated: 2026-04-30 (Milestone v3.1 started)*

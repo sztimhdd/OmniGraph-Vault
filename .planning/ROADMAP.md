@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last Updated:** 2026-04-29 (Phase 7 complete)
+**Last Updated:** 2026-04-30 (Milestone v3.1 phases 8-11 added)
 
 ## Done
 
@@ -52,3 +52,79 @@
 - `docs/enrichment-prd.md` — full PRD
 - `.planning/phases/04-knowledge-enrichment-zhihu/04-CONTEXT.md` — 16 locked decisions
 - `docs/testing/04-07-validation-results.md` — live-validation report
+
+---
+
+## Milestone v3.1 Next — Single-Article Ingest Stability
+
+**Milestone goal:** Rebuild and locally verify the single-article ingestion pipeline against `test/fixtures/gpt55_article/` so that text ingest + graph connectivity completes in <2 min with no crash. Unblocks Phase 5 Wave 1+ (RSS, daily digest, cron).
+
+**Milestone gate:** E2E benchmark run against local fixture produces `benchmark_result.json` with `gate_pass: true`, zero unhandled exceptions, and <2min text-ingest wall-clock.
+
+### Phases
+
+- [ ] **Phase 8: Image Pipeline Correctness** — fix `min(w,h)<300` filter, make inter-image sleep configurable (default 0), add per-image + aggregate logging
+- [ ] **Phase 9: Timeout Control + LightRAG State Management** — align LLM_TIMEOUT=600, DeepSeek client timeout, dynamic per-chunk outer `wait_for`; flush LightRAG buffer pre-batch; rollback partial inserts on timeout; change `get_rag()` API contract
+- [ ] **Phase 10: Scrape-First Classification + Text-First Ingest Decoupling** — scrape full body before classify (drop `digest` reliance), DeepSeek classifier on full text with SQLite persistence, text `ainsert` ingest decoupled from async Vision worker appending image sub-docs
+- [ ] **Phase 11: E2E Verification Gate** — fixture CLI ingest, stage-level timing report, SiliconFlow balance check, semantic graph query, `benchmark_result.json` with machine-readable schema; milestone closes here
+
+### Phase Details
+
+### Phase 8: Image Pipeline Correctness
+**Goal**: Image download + filter phase produces deterministic, well-logged output on the gpt55 fixture (28 images) with correct filter semantics
+**Depends on**: Nothing (self-contained module changes in `image_pipeline.py`)
+**Requirements**: IMG-01, IMG-02, IMG-03, IMG-04
+**Success Criteria** (what must be TRUE):
+  1. Running image filter on gpt55 fixture keeps only images where `min(w,h) >= 300`; a synthetic 100×800 banner is filtered out (previously kept by `w<300 AND h<300` bug)
+  2. Inter-image Vision sleep is configurable via a module-level constant with default `0` seconds; sleep=5 still works when set
+  3. Each image processed emits a single structured log line containing URL, dimensions, provider name, wall-clock ms, and outcome tag (`success` | `error:<type>`)
+  4. Image phase completion emits an aggregate line with counts `{input, kept, filtered}` and total wall-clock timing
+**Plans**: TBD
+
+### Phase 9: Timeout Control + LightRAG State Management
+**Goal**: LightRAG state is reset cleanly per run, per-article work is budget-bounded, and timeouts leave the graph consistent (no orphan nodes, no replayed embed quota waste)
+**Depends on**: Phase 8 (not strictly required, but logically first since state+timeout underpin later phases)
+**Requirements**: TIMEOUT-01, TIMEOUT-02, TIMEOUT-03, STATE-01, STATE-02, STATE-03, STATE-04
+**Success Criteria** (what must be TRUE):
+  1. `LLM_TIMEOUT` env var (default 600s) is read by LightRAG's health_check and propagates to per-chunk LLM calls; DeepSeek async client has an explicit 120s request timeout
+  2. Per-article outer `asyncio.wait_for` budget is computed as `max(120 + 30 × chunk_count, 900)` and is independent of image count
+  3. `get_rag()` either returns a fresh instance per call or accepts a `flush=True` parameter; a unit test demonstrates the old singleton-with-buffered-state replay bug no longer occurs
+  4. When `asyncio.wait_for` kills an article mid-ingest, partially inserted entities/chunks for that article are rolled back; re-ingesting the same article after rollback produces zero orphan nodes and no duplicate primary-key errors
+  5. Running `batch_ingest` twice back-to-back on the same fixture produces identical graph state the second time (idempotent — proves both the pre-batch flush and rollback paths work together)
+**Plans**: TBD
+
+### Phase 10: Scrape-First Classification + Text-First Ingest Decoupling
+**Goal**: The ingestion pipeline scrapes full article body first, classifies on full text via DeepSeek with SQLite persistence, ingests text into LightRAG immediately, and defers Vision work to an async worker that appends image sub-docs — failure of Vision never blocks or invalidates text ingest
+**Depends on**: Phase 9 (rollback + timeout infrastructure; async Vision sub-doc append depends on clean state contract)
+**Requirements**: CLASS-01, CLASS-02, CLASS-03, CLASS-04, ARCH-01, ARCH-02, ARCH-03, ARCH-04
+**Success Criteria** (what must be TRUE):
+  1. `batch_ingest_from_spider.py --from-db` scrapes the full article body before classification; the unreliable WeChat `digest` field is no longer consulted for classification input
+  2. DeepSeek classifier returns `{depth: 1-3, topics: [...], rationale: "..."}` on full article body and the result is persisted to a `classifications` SQLite table with `article_id`, `depth`, `topics`, `rationale`, `classified_at` BEFORE any ingest decision
+  3. Scrape phase reuses the existing `spiders/wechat_spider.py` anti-abuse parameters (`SESSION_LIMIT=54`, `RATE_LIMIT_SLEEP_ACCOUNTS=5.0`, `RATE_LIMIT_COOLDOWN=60.0`, rotating UA pool, `_ua_cooldown()`); the batch-path spec is preserved even though v3.1 gate runs on local fixture
+  4. Article body + image file paths are `ainsert`-ed into LightRAG FIRST and return successfully before any Vision API call is made; a semantic `aquery` against the fresh graph returns chunks from the article immediately after text-ingest returns
+  5. Vision descriptions are linked back via a new `ainsert` append (one image sub-doc per image or per article, referencing parent article by `file_path`) — no re-embed of existing text chunks
+  6. When SiliconFlow/OpenRouter/Gemini Vision are ALL simulated down (via mock/env toggle), text ingest still succeeds and the resulting graph is queryable; Vision worker failure is logged but does not propagate as an exception into the main ingest flow
+**Plans**: TBD
+
+### Phase 11: E2E Verification Gate
+**Goal**: Full-pipeline local benchmark against `test/fixtures/gpt55_article/` completes in <2 min text-ingest wall-clock with zero crashes, a semantically queryable graph, and a machine-readable result file suitable for CI regression — milestone v3.1 closes when `gate_pass: true` is observed
+**Depends on**: Phase 8, Phase 9, Phase 10 (composes their work into the end-to-end gate)
+**Requirements**: E2E-01, E2E-02, E2E-03, E2E-04, E2E-05, E2E-06, E2E-07
+**Success Criteria** (what must be TRUE):
+  1. A local CLI invocation ingests `test/fixtures/gpt55_article/` as a single article from disk with no network WeChat scrape required; `metadata.json` (url, title) is the input source
+  2. Text-ingest phase (scrape → classify → image-filter → LightRAG `ainsert` return, excluding async Vision wait) completes in <2 minutes wall-clock on the dev machine; benchmark fails loud if exceeded
+  3. The benchmark emits a stage-level timing report with exactly five labelled wall-clock sections: `scrape`, `classify`, `image-download`, `text-ingest`, `async-vision-start` (the last is annotated and NOT counted toward the <2min gate)
+  4. Post-ingest, `aquery(query="GPT-5.5 benchmark results", mode="hybrid")` returns top-3 chunks with at least one chunk where `file_path` matches the ingested fixture article OR chunk content references it
+  5. Benchmark calls SiliconFlow `GET /v1/user/info` with `Authorization: Bearer $SILICONFLOW_API_KEY`, parses `balance`, and compares against estimated cost (~¥0.036/article × batch size); emits a structured warning (non-fatal for single-article v3.1 gate) if balance is below threshold
+  6. Benchmark completes with zero unhandled exceptions and zero process crashes from CLI invocation through `benchmark_result.json` write
+  7. `benchmark_result.json` is written to a known path with the exact schema `{article_hash, stage_timings_ms: {scrape, classify, image_download, text_ingest, async_vision_start}, counters: {images_input, images_kept, images_filtered, chunks_extracted, entities_ingested}, gate_pass: bool, errors: []}` — CI can diff this file across future runs
+**Plans**: TBD
+
+### Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 8. Image Pipeline Correctness | 0/? | Not started | - |
+| 9. Timeout Control + LightRAG State | 0/? | Not started | - |
+| 10. Scrape-First Classification + Text-First Ingest | 0/? | Not started | - |
+| 11. E2E Verification Gate | 0/? | Not started | - |

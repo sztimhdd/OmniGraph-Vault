@@ -1,39 +1,49 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: milestone
-status: executing
-stopped_at: "Plan 05-00 COMPLETE; Plan 05-00b PARTIAL (9/31 ingested, 22 blocked by subprocess pipe deadlock bug — NOT quota). Next action: run Plan 05-00b properly to clear the 22 stuck articles; prerequisites are the subprocess fix + multi-keyword filter support + schema reconciliation."
-last_updated: "2026-04-29T15:26:21.987Z"
-last_activity: 2026-04-29
+milestone: v3.1
+milestone_name: single-article-ingest-stability
+status: phase_planned
+stopped_at: "Milestone v3.1 roadmap created (Phases 8-11). Ready for /gsd:plan-phase 8 to break down Image Pipeline Correctness."
+last_updated: "2026-04-30T00:00:00.000Z"
+last_activity: 2026-04-30
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 30
-  completed_plans: 22
-  percent: 100
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-27)
+See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Phase 07 — model-key-management
+**Current focus:** Milestone v3.1 — Single-Article Ingest Stability (prerequisite to Phase 5 Wave 1+)
 
 ## Current Position
 
-Phase: 07
-Plan: Not started
-Status: Ready to execute
+Phase: **Phase 8 — Image Pipeline Correctness**
+Plan: — (not yet planned; run `/gsd:plan-phase 8`)
+Status: Phase planned, awaiting plan decomposition
+Last activity: 2026-04-30 — Milestone v3.1 roadmap created
 
-**Phase 6: graphify-addon-code-graph — IN PROGRESS.** Wave 1 (06-00) complete: scaffold created, graphifyy==0.5.3 installed, D-S10=hermes-only (claw absent on remote). Wave 2 pending: 06-01 (graphify skill install on remote) + 06-03 (omnigraph_search implementation).
+**Milestone v3.1 goal:** Rebuild and locally verify single-article ingestion against `test/fixtures/gpt55_article/` — text ingest + graph connectivity in <2 min with no crash; async Vision worker appends image sub-docs after ingest path returns. This unblocks Phase 5 Wave 1+ (RSS, daily digest, cron).
 
-Last activity: 2026-04-29
+**v3.1 phase structure (26 REQs across 4 phases):**
 
-Progress: [██████████] 100% (8 of 8 plans complete, merged)
+- **Phase 8: Image Pipeline Correctness** — IMG-01..04 (4 REQs); self-contained module changes in `image_pipeline.py`
+- **Phase 9: Timeout Control + LightRAG State Management** — TIMEOUT-01..03 + STATE-01..04 (7 REQs); foundation for rollback semantics
+- **Phase 10: Scrape-First Classification + Text-First Ingest Decoupling** — CLASS-01..04 + ARCH-01..04 (8 REQs); core pipeline rebuild
+- **Phase 11: E2E Verification Gate** — E2E-01..07 (7 REQs); milestone close, <2min text-ingest + `benchmark_result.json`
+
+**Carve-outs (future milestones):**
+
+- v3.2 Batch Reliability: checkpoint/resume, Vision cascade circuit breaker, regression fixtures, operator runbook
+- v3.3 Infra: Vertex AI SA migration + GCP project isolation
+- Phase 5-00b full re-run on Hermes (belongs in Phase 5, unblocked by v3.1)
 
 ## Performance Metrics
 
@@ -68,6 +78,7 @@ Progress: [██████████] 100% (8 of 8 plans complete, merged)
 
 ### Roadmap Evolution
 
+- 2026-04-30 — Milestone v3.1 started. 26 requirements drafted (v1 after Hermes review pass). Roadmap derived: 4 phases (8-11) grouped as image-pipeline / state+timeout / ingest-decoupling / E2E-gate. Phase 11 is the milestone-close gate (<2min text ingest + `benchmark_result.json`).
 - 2026-04-28 — Phase 6 added: graphify-addon-code-graph. PRD v3.0 at `specs/PRDTDD_GRAPHIFY_ADDON.md`; pre-plan brief at `.planning/phases/06-graphify-addon-code-graph/06-CONTEXT.md`. Invariants D-G01..D-S10 locked. Independent of Phase 5.
 
 ### Decisions
@@ -95,6 +106,8 @@ Recent decisions affecting current work:
 - [Phase 07-model-key-management] Wave 4: Hermes FLAGs (standalone Cognee rotation caveat + DEEPSEEK_API_KEY import-time coupling) landed as documentation-only in Deploy.md + CLAUDE.md per review verdict.
 - [Phase 07-model-key-management] Wave 4: skill_runner._GEMINI_MODEL kept as string literal per Open Q #4 (test-harness independence from production INGESTION_LLM drift).
 - [Phase 05]: Plan 05-00c: LightRAG LLM routed to DeepSeek (deepseek-v4-flash); Gemini embed now has 2-key rotation + 429 failover across GEMINI_API_KEY + GEMINI_API_KEY_BACKUP; Cognee stays on Gemini (negligible volume, Phase 7 D-04 propagation already suffices); Wave 0 runtime (05-00) is now unblocked
+- [Milestone v3.1]: 26 REQs across IMG / CLASS / STATE / ARCH / TIMEOUT / E2E groups; ARCH-03 resolved as append-sub-doc (NOT re-embed) per Hermes review; STATE-04 added to change `get_rag()` API contract (root cause of STATE-01 history-debt replay); E2E-07 added to codify `benchmark_result.json` schema for CI regression
+- [Milestone v3.1]: Phase boundaries derived from tight-coupling analysis — TIMEOUT+STATE together (outer wait_for triggers rollback; flush contract prevents replay), CLASS+ARCH together (scrape-first enables full-text classify which enables text-first ingest), IMG standalone (self-contained), E2E last (depends on all prior work)
 
 ### Pending Todos
 
@@ -109,6 +122,7 @@ None tracked.
 - **Plan 05-00 COMPLETE** (2026-04-29, user-run on Hermes host). Final graph: 263 nodes / 301 edges / 29 docs / 19 chunks at 3072 dim. Dual-key rotation + Deepseek LLM swap (via Plan 05-00c) held up on real workloads. See `.planning/phases/05-pipeline-automation/05-00-SUMMARY.md` for full journey (6 attempts, key rotation bug diagnosis, Option A baseline skip, per-doc cost correction to ~300 embeds/doc).
 - **Plan 05-00b PARTIAL** — 9/31 keyword-matched KOL articles ingested; 22 blocked by `subprocess.run(capture_output=True)` pipe deadlock in the user's ad-hoc batch runner (`batch_ingest_from_spider.py` itself uses `capture_output=False` and is NOT susceptible). Per user's `docs/phase5-00c-execution-report.md`. Remaining unblockers: multi-keyword `--topic-filter` (DONE — quick-task 260429-got, commit `4bf1613`); schema consistency (`digest` vs `content_preview`); and actually running the remaining 22 articles via `batch_ingest_from_spider.py --from-db --topic-filter "openclaw,hermes,agent,harness" --min-depth 2`.
 - **Cognee dotenv override side-effect** — `cognee/__init__.py:11` calls `dotenv.load_dotenv(override=True)` which reads gitignored repo-root `.env` (stale leftover) and overwrites `GEMINI_API_KEY`. Patched at runtime during Attempt 6 diagnosis; permanent fix pending (delete the stale file OR re-assert env post-Cognee-import). Infra-track item, not blocking.
+- **v3.1 gate is LOCAL fixture only** — CLASS-03 WeChat anti-abuse params are spec-correctness for the BATCH path Phase 5 will invoke; v3.1 tests against `test/fixtures/gpt55_article/` so WeChat rate-limiting is not exercised. Watch for temptation to "verify" CLASS-03 with a live WeChat scrape during Phase 10.
 
 ### Quick Tasks Completed
 
@@ -133,7 +147,7 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-04-29T13:00:00.000Z
-Stopped at: Plan 05-00 COMPLETE; Plan 05-00b PARTIAL (9/31 ingested, 22 blocked by subprocess pipe deadlock bug — NOT quota). Next action: run Plan 05-00b properly to clear the 22 stuck articles; prerequisites are the subprocess fix + multi-keyword filter support + schema reconciliation.
-Resume file: `.planning/phases/05-pipeline-automation/05-00-SUMMARY.md` + `docs/phase5-00c-execution-report.md` (user's authoritative account)
-Next command: `/gsd:execute-phase 5 --wave 0` (resume at 05-00b) OR start Plan 05-00b specifically with engineering fixes listed in execution report §5.
+Last session: 2026-04-30T00:00:00.000Z
+Stopped at: Milestone v3.1 roadmap created (Phases 8-11). Ready for plan decomposition.
+Resume file: `.planning/ROADMAP.md` (Milestone v3.1 Next section) + `.planning/REQUIREMENTS.md` (26 REQs with traceability)
+Next command: `/gsd:plan-phase 8` (break down Phase 8: Image Pipeline Correctness)
