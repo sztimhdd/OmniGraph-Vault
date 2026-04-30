@@ -633,7 +633,7 @@ async def ingest_article(url, rag=None):
     # WeChat articles average 10-20 images; ~50% are emoticons/QR/icons < 150px.
     # Gemini 3.1 Flash Lite free tier = 500 RPD, so saving 5-10 calls/article matters.
     from PIL import Image as PILImage
-    _MIN_IMG_DIM = 150
+    _MIN_IMG_DIM = 300
     filtered_out = 0
     for url, path in list(url_to_path.items()):
         try:
