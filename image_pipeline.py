@@ -62,40 +62,49 @@ def localize_markdown(
 
 
 def describe_images(paths: list[Path]) -> dict[Path, str]:
-    """Batch-describe via Gemini Vision. Rate-limits 4s between calls (D-15).
+    """Batch-describe via GLM-4.5V (OpenRouter). Rate-limits 4s between calls (D-15).
 
-    Phase 7 HIGH 2 + Amendment 5: explicitly wired to lib.VISION_LLM via
-    lib.generate_sync (unified multimodal path — no direct genai.Client hedge).
-    Rate limit + retry + key rotation apply uniformly through lib/.
+    Phase 5-00b: switched from Gemini Vision to GLM-4.5V.
+    Gemini 3.1 Flash Lite free tier = 500 RPD (exhausted on both projects).
+    GLM-4.5V = $0.0001/call via OpenRouter, no daily quota cap."""
+    import base64, requests
+    from io import BytesIO
 
-    Intentional model-default change (R3 GA migration): the pre-Phase-7
-    IMAGE_DESCRIPTION_MODEL was "gemini-3.1-flash-lite-preview"; the new
-    lib.VISION_LLM constant is "gemini-2.5-flash-lite" (GA). Rollback is a code
-    edit to lib/models.py:VISION_LLM (Amendment 1 — pure constants; git-as-deploy
-    IS the rollback).
-    """
-    from lib import VISION_LLM, generate_sync
-    from google.genai import types
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not openrouter_key:
+        return {p: "Error describing image: OPENROUTER_API_KEY not set" for p in paths}
 
     result: dict[Path, str] = {}
-    paths_list = list(paths)
-    for i, path in enumerate(paths_list):
+    for i, path in enumerate(paths):
         try:
-            # Load bytes directly and pass via types.Part.from_bytes — Amendment 5
-            # one-code-path-through-lib contract; lib.generate_sync accepts
-            # contents as str OR list-of-parts natively.
-            image_bytes = Path(path).read_bytes()
-            response_text = generate_sync(
-                VISION_LLM,
-                contents=[
-                    "Describe this image in detail for a knowledge graph. Return only the description.",
-                    types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
-                ],
+            img = Image.open(path)
+            buf = BytesIO()
+            fmt = "PNG" if path.suffix.lower() == ".png" else "JPEG"
+            img.save(buf, format=fmt)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            mime = f"image/{fmt.lower()}"
+
+            resp = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "z-ai/glm-4.5v",
+                    "messages": [{"role": "user", "content": [
+                        {"type": "text", "text": "Describe this image in detail for a knowledge graph. Return only the description."},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
+                    ]}],
+                    "max_tokens": 300,
+                },
+                timeout=30,
             )
-            result[path] = response_text
+            if resp.status_code == 200:
+                content = resp.json()["choices"][0]["message"]["content"] or ""
+                result[path] = content.strip()
+            else:
+                result[path] = f"Error describing image: HTTP {resp.status_code}"
         except Exception as e:
             result[path] = f"Error describing image: {e}"
-        if i + 1 < len(paths_list):
+        if i + 1 < len(paths):
             time.sleep(_DESCRIBE_INTER_IMAGE_SLEEP_SECS)
     return result
 
