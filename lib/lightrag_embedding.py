@@ -82,6 +82,16 @@ _IMAGE_FETCH_TIMEOUT_S = 5.0
 # Consumed by scripts/wave0c_smoke.py to assert both keys rotated at least once.
 _ROTATION_HITS: dict[str, int] = {}
 
+# Phase 5-00b: embedding exhaustion cooldown.
+# When both keys 429 consecutively, the per-minute quota is gone.
+# Without a cooldown, LightRAG's retry loop burns ~200 calls/doc on 429s
+# that all fail. A single 5-minute pause lets the RPM window reset so the
+# next batch of embeddings has a clean slate.
+import asyncio as _asyncio
+import time as _time
+_GLOBAL_COOLDOWN_UNTIL = 0.0
+_COOLDOWN_SECONDS = 300  # 5 min — safe margin above Gemini's per-minute reset
+
 
 def _is_429(exc: BaseException) -> bool:
     """Return True for Gemini 429 / RESOURCE_EXHAUSTED. Rotation-only; 5xx/network propagate."""
@@ -201,6 +211,14 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
                 raise  # non-429 — propagate immediately
 
         if vec is None:
+            # All keys exhausted — cooldown before failing so LightRAG's
+            # retry doesn't immediately hit the same wall.
+            global _GLOBAL_COOLDOWN_UNTIL
+            now = _time.time()
+            if now < _GLOBAL_COOLDOWN_UNTIL:
+                wait = _GLOBAL_COOLDOWN_UNTIL - now
+                await _asyncio.sleep(wait)
+            _GLOBAL_COOLDOWN_UNTIL = _time.time() + _COOLDOWN_SECONDS
             raise RuntimeError(
                 f"All {pool_size} Gemini keys exhausted (429)"
             ) from last_err
