@@ -20,6 +20,10 @@ _cycle: Iterator[str] | None = None
 _current: str | None = None
 _rotation_listeners: list[Callable[[str], None]] = []
 
+# Phase 7: embedding-dedicated key pool (separate GCP projects)
+_embedding_cycle: Iterator[str] | None = None
+_current_embedding: str | None = None
+
 
 def load_keys() -> list[str]:
     """Return the list of Gemini API keys to use in rotation.
@@ -105,6 +109,51 @@ def rotate_key() -> str:
 def on_rotate(fn: Callable[[str], None]) -> None:
     """Register a callback fired after rotate_key(). Optional — most code doesn't need it."""
     _rotation_listeners.append(fn)
+
+
+# ── Embedding-dedicated key pool (Phase 7) ─────────────────────────────
+# Physically isolated from LLM/Vision keys. Embedding calls on Gemini free
+# tier have their own 1000 RPD per project — mixing them with LLM calls
+# causes premature 429 exhaustion.
+
+
+def load_embedding_keys() -> list[str]:
+    """Return embedding-dedicated keys. Falls back to LLM pool if no dedicated keys set.
+
+    Precedence:
+    1. OMNIGRAPH_EMBEDDING_KEYS (comma-separated) — dedicated pool
+    2. Same as load_keys() — fallback to shared LLM pool
+    """
+    pool = os.environ.get("OMNIGRAPH_EMBEDDING_KEYS", "").strip()
+    if pool:
+        keys = [k.strip() for k in pool.split(",") if k.strip()]
+        if keys:
+            logger.info("embedding pool: %d dedicated key(s)", len(keys))
+            return keys
+    # Fall back to shared LLM pool
+    return load_keys()
+
+
+def _init_embedding_cycle() -> None:
+    global _embedding_cycle, _current_embedding
+    if _embedding_cycle is None:
+        _embedding_cycle = itertools.cycle(load_embedding_keys())
+        _current_embedding = next(_embedding_cycle)
+
+
+def current_embedding_key() -> str:
+    """Return the currently active embedding API key."""
+    _init_embedding_cycle()
+    assert _current_embedding is not None
+    return _current_embedding
+
+
+def rotate_embedding_key() -> str:
+    """Advance to next embedding key in pool (independent from LLM rotation)."""
+    global _current_embedding
+    _init_embedding_cycle()
+    _current_embedding = next(_embedding_cycle)  # type: ignore[arg-type]
+    return _current_embedding
 
 
 def refresh_cognee() -> None:

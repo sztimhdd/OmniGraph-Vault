@@ -36,7 +36,7 @@ def _get_client() -> genai.Client:
     global _client, _client_key
     key = current_key()
     if _client is None or _client_key != key:
-        _client = genai.Client(api_key=key)
+        _client = genai.Client(api_key=key, vertexai=False)
         _client_key = key
     return _client
 

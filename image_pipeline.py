@@ -16,7 +16,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 # Rate-limit between Gemini Vision describe_images calls (D-15).
-_DESCRIBE_INTER_IMAGE_SLEEP_SECS = 4
+_DESCRIBE_INTER_IMAGE_SLEEP_SECS = 2  # Phase 7: reduced from 4s — SiliconFlow has no RPM cap
 
 # Local image server base — matches ingest_wechat.py historical value.
 _DEFAULT_IMAGE_BASE_URL = "http://localhost:8765"
@@ -61,50 +61,125 @@ def localize_markdown(
     return md
 
 
-def describe_images(paths: list[Path]) -> dict[Path, str]:
-    """Batch-describe via GLM-4.5V (OpenRouter). Rate-limits 4s between calls (D-15).
+def _describe_via_gemini(image_bytes: bytes, mime: str = "image/jpeg") -> str:
+    """Describe one image via Gemini Vision (free tier, key rotation).
+    Raises on failure — caller handles fallback."""
+    from lib import VISION_LLM, generate_sync
+    from google.genai import types
+    return generate_sync(
+        VISION_LLM,
+        contents=[
+            "Describe this image in detail for a knowledge graph. Return only the description.",
+            types.Part.from_bytes(data=image_bytes, mime_type=mime),
+        ],
+    )
 
-    Phase 5-00b: switched from Gemini Vision to GLM-4.5V.
-    Gemini 3.1 Flash Lite free tier = 500 RPD (exhausted on both projects).
-    GLM-4.5V = $0.0001/call via OpenRouter, no daily quota cap."""
-    import base64, requests
-    from io import BytesIO
 
+def _describe_via_openrouter(image_bytes: bytes, mime: str = "image/jpeg") -> str:
+    """Describe one image via GLM-4.5V (OpenRouter). $0.0001/call, last resort."""
+    import base64
     openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
     if not openrouter_key:
-        return {p: "Error describing image: OPENROUTER_API_KEY not set" for p in paths}
+        raise RuntimeError("OPENROUTER_API_KEY not set")
+    b64 = base64.b64encode(image_bytes).decode()
+    fmt = "png" if "png" in mime else "jpeg"
+    resp = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
+        json={
+            "model": "z-ai/glm-4.5v",
+            "messages": [{"role": "user", "content": [
+                {"type": "text", "text": "Describe this image in detail for a knowledge graph. Return only the description."},
+                {"type": "image_url", "image_url": {"url": f"data:image/{fmt};base64,{b64}"}}
+            ]}],
+            "max_tokens": 300,
+        },
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"OpenRouter HTTP {resp.status_code}: {resp.text[:200]}")
+    content = resp.json()["choices"][0]["message"]["content"] or ""
+    return content.strip()
+
+
+def _describe_via_siliconflow(image_bytes: bytes, mime: str = "image/jpeg") -> str:
+    """Describe one image via Qwen3-VL-32B (SiliconFlow). ¥0.0013/image, best open-source vision."""
+    import base64
+    sf_key = os.environ.get("SILICONFLOW_API_KEY", "")
+    if not sf_key:
+        raise RuntimeError("SILICONFLOW_API_KEY not set")
+    b64 = base64.b64encode(image_bytes).decode()
+    fmt = "png" if "png" in mime else "jpeg"
+    resp = requests.post(
+        "https://api.siliconflow.cn/v1/chat/completions",
+        headers={"Authorization": f"Bearer {sf_key}", "Content-Type": "application/json"},
+        json={
+            "model": "Qwen/Qwen3-VL-32B-Instruct",
+            "messages": [{"role": "user", "content": [
+                {"type": "text", "text": "Describe this image in detail for a knowledge graph. Return only the description."},
+                {"type": "image_url", "image_url": {"url": f"data:image/{fmt};base64,{b64}"}}
+            ]}],
+            "max_tokens": 300,
+        },
+        timeout=60,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"SiliconFlow HTTP {resp.status_code}: {resp.text[:200]}")
+    content = resp.json()["choices"][0]["message"]["content"] or ""
+    return content.strip()
+
+
+def _describe_one(path: Path, provider: str) -> str:
+    """Describe a single image. provider: 'gemini' | 'siliconflow' | 'openrouter' | 'auto'.
+    'auto' tries Gemini → SiliconFlow → OpenRouter in cascade."""
+    image_bytes = Path(path).read_bytes()
+    suffix = path.suffix.lower()
+    mime = "image/png" if suffix == ".png" else "image/jpeg"
+
+    if provider == "gemini":
+        return _describe_via_gemini(image_bytes, mime)
+    elif provider == "siliconflow":
+        return _describe_via_siliconflow(image_bytes, mime)
+    elif provider == "openrouter":
+        return _describe_via_openrouter(image_bytes, mime)
+    else:  # auto — cascade: Gemini → Qwen3-VL(SiliconFlow) → GLM-4.5V(OpenRouter)
+        try:
+            return _describe_via_gemini(image_bytes, mime)
+        except Exception as gemini_err:
+            msg = str(gemini_err).lower()
+            if "429" in msg or "quota" in msg or "exhausted" in msg:
+                logger.info("Gemini Vision 429 → falling back to Qwen3-VL-32B (SiliconFlow)")
+            else:
+                logger.warning("Gemini Vision failed (%s) → falling back to SiliconFlow", gemini_err)
+            try:
+                return _describe_via_siliconflow(image_bytes, mime)
+            except Exception as sf_err:
+                logger.warning("SiliconFlow failed (%s) → last resort: OpenRouter/GLM-4.5V", sf_err)
+                return _describe_via_openrouter(image_bytes, mime)
+
+
+def describe_images(paths: list[Path]) -> dict[Path, str]:
+    """Batch-describe images with automatic 3-provider cascade.
+
+    Controlled by env VISION_PROVIDER: 'gemini' | 'siliconflow' | 'openrouter' | 'auto' (default).
+    - gemini: free tier with key rotation (lib.generate_sync). 429s propagate as errors.
+    - siliconflow: Qwen3-VL-32B at ¥0.0013/image, best open-source vision.
+    - openrouter: GLM-4.5V at $0.0001/call, last resort.
+    - auto: Gemini → Qwen3-VL(SiliconFlow) → GLM-4.5V(OpenRouter).
+      Maximizes free Gemini, falls back to best quality, then cheapest."""
+    provider = os.environ.get("VISION_PROVIDER", "auto").strip().lower()
+    if provider not in ("gemini", "siliconflow", "openrouter", "auto"):
+        logger.warning("Unknown VISION_PROVIDER=%r — falling back to 'auto'", provider)
+        provider = "auto"
 
     result: dict[Path, str] = {}
-    for i, path in enumerate(paths):
+    paths_list = list(paths)
+    for i, path in enumerate(paths_list):
         try:
-            img = Image.open(path)
-            buf = BytesIO()
-            fmt = "PNG" if path.suffix.lower() == ".png" else "JPEG"
-            img.save(buf, format=fmt)
-            b64 = base64.b64encode(buf.getvalue()).decode()
-            mime = f"image/{fmt.lower()}"
-
-            resp = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
-                json={
-                    "model": "z-ai/glm-4.5v",
-                    "messages": [{"role": "user", "content": [
-                        {"type": "text", "text": "Describe this image in detail for a knowledge graph. Return only the description."},
-                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
-                    ]}],
-                    "max_tokens": 300,
-                },
-                timeout=30,
-            )
-            if resp.status_code == 200:
-                content = resp.json()["choices"][0]["message"]["content"] or ""
-                result[path] = content.strip()
-            else:
-                result[path] = f"Error describing image: HTTP {resp.status_code}"
+            result[path] = _describe_one(path, provider)
         except Exception as e:
             result[path] = f"Error describing image: {e}"
-        if i + 1 < len(paths):
+        if i + 1 < len(paths_list):
             time.sleep(_DESCRIBE_INTER_IMAGE_SLEEP_SECS)
     return result
 

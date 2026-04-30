@@ -60,7 +60,11 @@ from lightrag.utils import wrap_embedding_func_with_attrs
 
 from google.genai.errors import ClientError
 
-from .api_keys import current_key, load_keys, rotate_key
+from .api_keys import (
+    current_embedding_key,
+    load_embedding_keys,
+    rotate_embedding_key,
+)
 from .models import EMBEDDING_MODEL, EMBEDDING_DIM, EMBEDDING_MAX_TOKENS
 
 
@@ -152,8 +156,8 @@ async def _embed_once(contents: list, model: str) -> np.ndarray:
     rotation loop in ``embedding_func`` decides whether to rotate (429) or
     re-raise (everything else).
     """
-    api_key = current_key()
-    client = genai.Client(api_key=api_key)
+    api_key = current_embedding_key()
+    client = genai.Client(api_key=api_key, vertexai=False)
     response = await client.aio.models.embed_content(
         model=model,
         contents=contents,
@@ -188,7 +192,7 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
     """
     is_query = kwargs.pop("_priority", None) == 5
     model = EMBEDDING_MODEL
-    pool_size = len(load_keys())
+    pool_size = len(load_embedding_keys())
 
     vectors: list[np.ndarray] = []
     for text in texts:
@@ -206,7 +210,7 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
             except Exception as exc:  # noqa: BLE001
                 if _is_429(exc):
                     last_err = exc
-                    rotate_key()  # advance to next key and retry SAME text
+                    rotate_embedding_key()  # advance to next key and retry SAME text
                     continue
                 raise  # non-429 — propagate immediately
 
@@ -228,7 +232,7 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
         # Successful embed: advance rotation cursor for the NEXT text so
         # load spreads across keys even in the happy-path (round-robin).
         if pool_size > 1:
-            rotate_key()
+            rotate_embedding_key()
 
     out = np.vstack(vectors)
 

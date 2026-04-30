@@ -87,7 +87,7 @@ async def ingest_article(url: str, dry_run: bool, rag) -> bool:
         import ingest_wechat
         await asyncio.wait_for(
             ingest_wechat.ingest_article(url, rag=rag),
-            timeout=600,
+            timeout=1200,
         )
         return True
     except asyncio.TimeoutError:

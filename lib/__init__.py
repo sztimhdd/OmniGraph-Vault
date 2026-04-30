@@ -25,6 +25,9 @@ from .api_keys import (
     on_rotate,
     load_keys,
     refresh_cognee,
+    current_embedding_key,
+    rotate_embedding_key,
+    load_embedding_keys,
 )
 from .rate_limit import get_limiter
 from .llm_client import generate, generate_sync, aembed
@@ -45,6 +48,9 @@ __all__ = [
     "on_rotate",
     "load_keys",
     "refresh_cognee",
+    "current_embedding_key",
+    "rotate_embedding_key",
+    "load_embedding_keys",
     "get_limiter",
     "generate",
     "generate_sync",
