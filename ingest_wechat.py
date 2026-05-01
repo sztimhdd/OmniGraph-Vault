@@ -9,11 +9,14 @@ os.environ.setdefault("LLM_TIMEOUT", "600")
 import sys
 import json
 import hashlib
+import logging
 import requests
 import re
 import time
 import sqlite3
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -187,11 +190,13 @@ def get_pending_doc_id(article_hash: str) -> str | None:
     return _PENDING_DOC_IDS.get(article_hash)
 
 
-# D-10.06 (ARCH-02): async Vision worker. Plan 10-01 creates this as a STUB.
-# Plan 10-02 fills in the body: describe_images cascade + sub-doc ainsert
-# (D-10.07) + failure-tolerant exception handling (D-10.08). Keeping the stub
-# ensures the split shape (D-10.05 / ARCH-01) can be merged and tested in
-# isolation from the worker semantics.
+# D-10.06 (ARCH-02): async Vision worker — implemented by plan 10-02.
+# Describes images via the existing Gemini → SiliconFlow → OpenRouter cascade
+# (image_pipeline.describe_images), builds a markdown sub-doc per D-10.07, and
+# appends it via rag.ainsert with a distinct doc_id (f"wechat_{hash}_images").
+# All exceptions are swallowed so parent doc ingest is never invalidated
+# (D-10.08 / ARCH-04). Phase 8 IMG-04 aggregate log emits from the finally
+# block, unified with the rest of the image pipeline observability.
 async def _vision_worker_impl(
     *,
     rag,
@@ -202,18 +207,71 @@ async def _vision_worker_impl(
     download_input_count: int = 0,
     download_failed: int = 0,
 ) -> None:
-    """STUB — plan 10-02 implements the real body. Returns immediately.
+    """Background Vision worker — D-10.06 / D-10.07 / D-10.08 (ARCH-02..04).
 
     Args:
-        rag: LightRAG instance (sub-doc ainsert target, filled by plan 10-02).
+        rag: LightRAG instance — sub-doc ainsert target.
         article_hash: identity for the sub-doc doc_id (f"wechat_{hash}_images").
         url_to_path: {remote_url: local_path} map — feeds describe_images.
         title: article title for sub-doc markdown header.
-        filter_stats: FilterStats from image_pipeline.filter_small_images.
+        filter_stats: FilterStats from image_pipeline.filter_small_images,
+            forwarded to emit_batch_complete (Phase 8 IMG-04 preservation).
         download_input_count: total URLs attempted in the download stage.
         download_failed: URLs that failed download.
+
+    Never raises. All exceptions are logged and swallowed so the parent doc
+    ainsert (already completed) remains queryable.
     """
-    return None
+    t0 = time.perf_counter()
+    describe_stats: dict | None = None
+    try:
+        # D-10.06 Step 1: describe images via the cascading provider chain.
+        paths_list = list(url_to_path.values())
+        descriptions = describe_images(paths_list) if paths_list else {}
+        describe_stats = get_last_describe_stats()
+
+        # D-10.07 Step 2: build the sub-doc from successful descriptions only.
+        # Index (N) is preserved — empty descriptions are OMITTED, not renumbered.
+        lines = [f"# Images for {title}", ""]
+        successful = 0
+        for i, (url_img, path) in enumerate(url_to_path.items()):
+            desc = descriptions.get(path, "")
+            if desc and desc.strip():
+                lines.append(f"- [image {i}]: {desc}")
+                successful += 1
+
+        if successful == 0:
+            logger.info(
+                "vision_subdoc_skipped article_hash=%s reason=%s",
+                article_hash,
+                "no_images" if not url_to_path else "all_failed",
+            )
+        else:
+            # D-10.06 Step 3: append sub-doc via ainsert (D-10.07 — NOT re-embed).
+            sub_doc_content = "\n".join(lines) + "\n"
+            sub_doc_id = f"wechat_{article_hash}_images"
+            await rag.ainsert(sub_doc_content, ids=[sub_doc_id])
+
+    except Exception as exc:  # D-10.08: ALL exceptions swallowed
+        logger.warning(
+            "Vision worker failed for article_hash=%s: %s — text ingest unaffected",
+            article_hash,
+            exc,
+            exc_info=True,
+        )
+    finally:
+        # Phase 8 IMG-04 aggregate log — always fires (success OR failure).
+        # Emission failure is never fatal to the worker.
+        try:
+            emit_batch_complete(
+                filter_stats=filter_stats,
+                download_input_count=download_input_count,
+                download_failed=download_failed,
+                describe_stats=describe_stats,
+                total_ms=int((time.perf_counter() - t0) * 1000),
+            )
+        except Exception:
+            pass
 
 
 # --- Scraping Methods ---
