@@ -106,8 +106,14 @@ def _persist_entities_to_sqlite(url: str, entities: list[str]) -> None:
 os.makedirs(BASE_IMAGE_DIR, exist_ok=True)
 os.makedirs(RAG_WORKING_DIR, exist_ok=True)
 
-# Force standard Gemini API mode (not Vertex AI)
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
+# Gemini API mode selection:
+# - Default (no GOOGLE_APPLICATION_CREDENTIALS): force free-tier Gemini API mode.
+# - Vertex opt-in (GOOGLE_APPLICATION_CREDENTIALS set): let the google.genai
+#   client respect Vertex mode. Phase 11 D-11.08 / Plan 11-02 added this guard
+#   so the benchmark harness (and any future caller) can route embedding calls
+#   to Vertex AI when SA JSON credentials are explicitly provided.
+if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
 # --- LightRAG Setup ---
 # Plan 05-00c Task 0c.3: LightRAG LLM_func is now deepseek_model_complete from

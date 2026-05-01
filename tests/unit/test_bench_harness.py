@@ -260,7 +260,7 @@ def test_build_result_json_gate_pass_false_when_any_gate_false(bench_module):
 
 
 def test_write_result_atomic_tmp_rename(bench_module, tmp_path):
-    """_write_result() writes to <path>.tmp, then os.rename to final path."""
+    """_write_result() writes to <path>.tmp, then os.replace to final path."""
     out = tmp_path / "out.json"
     bench_module._write_result(out, {"hello": "world"})
 
@@ -270,16 +270,33 @@ def test_write_result_atomic_tmp_rename(bench_module, tmp_path):
     assert data == {"hello": "world"}
 
 
+def test_write_result_overwrites_existing_target(bench_module, tmp_path):
+    """_write_result() atomically overwrites an existing target file.
+
+    Plan 11-02 fix (Rule 1 - Bug): os.rename on Windows raises
+    FileExistsError when the target exists; os.replace overwrites on both
+    platforms. Second run of the benchmark MUST overwrite the prior JSON.
+    """
+    out = tmp_path / "out.json"
+    out.write_text('{"original": true}', encoding="utf-8")
+
+    bench_module._write_result(out, {"new": "data"})
+
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data == {"new": "data"}
+    assert not (tmp_path / "out.json.tmp").exists()
+
+
 def test_write_result_cleans_tmp_on_failure(bench_module, tmp_path, monkeypatch):
     """On mid-write exception, tmp file is cleaned up AND final path is NOT modified."""
     out = tmp_path / "out.json"
     out.write_text('{"original": true}', encoding="utf-8")
 
-    # Patch os.rename to raise
-    def _raising_rename(src, dst):
-        raise OSError("simulated rename failure")
+    # Patch os.replace to raise (Plan 11-02: was os.rename before the fix)
+    def _raising_replace(src, dst):
+        raise OSError("simulated replace failure")
 
-    monkeypatch.setattr("os.rename", _raising_rename)
+    monkeypatch.setattr("os.replace", _raising_replace)
 
     with pytest.raises(OSError):
         bench_module._write_result(out, {"new": "data"})

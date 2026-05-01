@@ -6,7 +6,13 @@ logger = logging.getLogger(__name__)
 
 # Base paths
 BASE_DIR = Path.home() / ".hermes" / "omonigraph-vault"
-RAG_WORKING_DIR = BASE_DIR / "lightrag_storage"
+# Phase 11 Plan 11-02: RAG_WORKING_DIR env override — lets the benchmark
+# harness route LightRAG state into an isolated directory without polluting
+# the user's production knowledge graph. Existing production storage is
+# unaffected when the env var is unset.
+RAG_WORKING_DIR = Path(os.environ["RAG_WORKING_DIR"]) \
+    if os.environ.get("RAG_WORKING_DIR") \
+    else BASE_DIR / "lightrag_storage"
 BASE_IMAGE_DIR = BASE_DIR / "images"
 SYNTHESIS_OUTPUT = BASE_DIR / "synthesis_output.md"
 ENTITY_BUFFER_DIR = BASE_DIR / "entity_buffer"
@@ -37,12 +43,21 @@ def load_env():
 
 load_env()
 
-# Force Gemini API mode — the env may have GOOGLE_GENAI_USE_VERTEXAI=true
-# which routes all genai.Client calls to Vertex AI (requires billing)
-os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
-os.environ.pop("GOOGLE_API_KEY", None)
-os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
-os.environ.pop("GOOGLE_CLOUD_LOCATION", None)
+# Phase 11 D-11.08 (Plan 11-02): preserve Vertex AI opt-in env vars.
+# Previously this block unconditionally cleared GOOGLE_* env vars to force
+# the free-tier Gemini API mode. With the Vertex AI opt-in in
+# lib.lightrag_embedding._is_vertex_mode(), explicit GOOGLE_APPLICATION_CREDENTIALS
+# + GOOGLE_CLOUD_PROJECT enable the Vertex embedding path (required to
+# meet the E2E-02 <2min gate on free-tier dev machines).
+#
+# Guard: only pop GOOGLE_* vars when GOOGLE_APPLICATION_CREDENTIALS is NOT
+# set. If the caller explicitly enabled Vertex mode (SA JSON present),
+# honor that choice and leave GOOGLE_CLOUD_PROJECT/LOCATION intact.
+if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+    os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
+    os.environ.pop("GOOGLE_API_KEY", None)
+    os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+    os.environ.pop("GOOGLE_CLOUD_LOCATION", None)
 
 # === Phase 4: Knowledge Enrichment ===
 

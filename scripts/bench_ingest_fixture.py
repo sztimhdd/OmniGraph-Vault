@@ -47,6 +47,14 @@ from typing import Any, Iterator
 # chain. setdefault preserves any explicit override.
 os.environ.setdefault("LLM_TIMEOUT", "600")
 
+# Ensure project root is on sys.path so late imports of ingest_wechat,
+# batch_classify_kol, image_pipeline, config resolve when this script is
+# invoked directly (Python places the script's dir — scripts/ — on sys.path
+# by default, not the project root).
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 logger = logging.getLogger(__name__)
 
 
@@ -194,7 +202,11 @@ def _write_result(path: Path, result: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
-        os.rename(tmp_path, path)
+        # os.replace: cross-platform atomic rename that ALSO overwrites
+        # an existing destination (Windows os.rename fails when target
+        # exists; POSIX os.rename silently overwrites). os.replace
+        # normalizes behavior per https://docs.python.org/3/library/os.html
+        os.replace(tmp_path, path)
     except Exception:
         # Clean up the tmp file so no partial write is left behind
         with contextlib.suppress(OSError):
