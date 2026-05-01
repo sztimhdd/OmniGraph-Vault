@@ -642,6 +642,89 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
     logger.info("Done — %d ok, %d failed, %d filtered, %d skipped", ok, fail, filt, len(summary) - ok - fail - filt)
 
 
+async def _classify_full_body(
+    conn: sqlite3.Connection,
+    article_id: int,
+    url: str,
+    title: str,
+    body: str | None,
+    api_key: str,
+) -> dict | None:
+    """Scrape-first per-article classification (D-10.01 / D-10.02 / D-10.04).
+
+    Flow:
+      1. If ``body`` is empty, scrape on-demand via
+         ``ingest_wechat.scrape_wechat_ua`` (reuses UA rotation + _ua_cooldown
+         — D-10.03; no new rate-limit constants introduced), convert the
+         returned HTML to markdown via ``ingest_wechat.process_content``,
+         and persist the body to ``articles.body`` for reuse.
+      2. Build a full-body DeepSeek prompt via
+         ``batch_classify_kol._build_fullbody_prompt`` and call DeepSeek via
+         ``_call_deepseek_fullbody``.
+      3. On SUCCESS, write a classifications row (new columns: depth, topics,
+         rationale; legacy columns: depth_score, topic, reason for back-compat)
+         BEFORE returning. Caller decides whether to ingest based on the
+         returned dict.
+      4. On FAILURE (scrape fails OR DeepSeek returns None), return ``None``
+         without writing any classifications row. Caller MUST NOT ingest —
+         no fail-open (distinguishes from batch-scan behavior).
+
+    Returns:
+      The classification dict ``{"depth", "topics", "rationale"}`` on success;
+      ``None`` on any failure.
+    """
+    # 1. Scrape on demand if body absent (D-10.01). Late import avoids
+    # LightRAG init at module load for callers that only need the classifier.
+    if not body:
+        import ingest_wechat
+
+        scraped = await ingest_wechat.scrape_wechat_ua(url)
+        if not scraped or not scraped.get("content_html"):
+            logger.warning(
+                "scrape-on-demand failed for %s — skipping classify", url[:80]
+            )
+            return None
+        body, _ = ingest_wechat.process_content(scraped["content_html"])
+        conn.execute(
+            "UPDATE articles SET body = ? WHERE id = ?", (body, article_id)
+        )
+        conn.commit()
+
+    # 2. Call DeepSeek on the full body (D-10.02).
+    from batch_classify_kol import _build_fullbody_prompt, _call_deepseek_fullbody
+
+    prompt = _build_fullbody_prompt(title, body)
+    result = _call_deepseek_fullbody(prompt, api_key)
+    if result is None:
+        logger.warning(
+            "DeepSeek classify failed for %s — skipping (no fail-open, D-10.04)",
+            url[:80],
+        )
+        return None
+
+    # 3. Persist classifications row BEFORE returning (D-10.04 strict ordering).
+    depth = result.get("depth", 2)
+    topics = result.get("topics", []) or []
+    rationale = result.get("rationale", "")
+    # Legacy columns: first topic → old `topic` col; depth → old `depth_score`.
+    legacy_topic = topics[0] if topics else "unknown"
+    conn.execute(
+        """INSERT OR REPLACE INTO classifications
+           (article_id, topic, depth_score, depth, topics, rationale, relevant)
+           VALUES (?, ?, ?, ?, ?, ?, 1)""",
+        (
+            article_id,
+            legacy_topic,
+            depth if isinstance(depth, int) else 2,
+            depth if isinstance(depth, int) else None,
+            json.dumps(topics, ensure_ascii=False),
+            rationale,
+        ),
+    )
+    conn.commit()
+    return result
+
+
 async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) -> None:
     """Ingest articles that passed classification for a topic (or list of topics). Reads from kol_scan.db.
 
@@ -655,6 +738,8 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
         logger.error("DB not found: %s. Run batch_scan_kol.py first.", DB_PATH)
         sys.exit(1)
 
+    _load_hermes_env()
+
     conn = sqlite3.connect(str(DB_PATH))
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ingestions (
@@ -667,23 +752,29 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
     """)
     conn.commit()
 
+    # D-10.01 / D-10.04: schema-additive migration for scrape-first flow.
+    _ensure_fullbody_columns(conn)
+
+    # Phase 10 plan 10-00: scrape-first SELECT — classification happens per-article
+    # inside the loop, so we no longer pre-filter by `c.depth_score >= min_depth`.
+    # Unclassified articles have NULL depth_score; they are classified on the fly.
     placeholders = ",".join("?" for _ in topics)
     rows = conn.execute(f"""
-        SELECT a.id, a.title, a.url, acc.name, c.depth_score
+        SELECT a.id, a.title, a.url, acc.name, c.depth_score, a.body
         FROM articles a
         JOIN accounts acc ON a.account_id = acc.id
-        JOIN classifications c ON a.id = c.article_id
-        WHERE c.topic IN ({placeholders}) AND c.relevant = 1 AND c.depth_score >= ?
+        LEFT JOIN classifications c ON a.id = c.article_id
+        WHERE (c.topic IS NULL OR c.topic IN ({placeholders}))
           AND a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
-        ORDER BY c.depth_score DESC, a.id
-    """, (*topics, min_depth)).fetchall()
+        ORDER BY a.id
+    """, tuple(topics)).fetchall()
 
     if not rows:
-        logger.info("No passed articles found for topics %s (min_depth=%d)", topics, min_depth)
+        logger.info("No articles found for topics %s", topics)
         conn.close()
         return
 
-    logger.info("%d articles to ingest for topics %s", len(rows), topics)
+    logger.info("%d articles to process (scrape-first) for topics %s", len(rows), topics)
 
     # Phase 5-00b: initialize LightRAG ONCE; skip for dry-run.
     rag = None
@@ -696,14 +787,48 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
 
     try:
         processed = 0
-        for i, (art_id, title, url, account, depth) in enumerate(rows, 1):
-            logger.info("[%d/%d] [%s] (depth=%s) %s", i, len(rows), account, depth, title)
+        api_key = get_deepseek_api_key()
+        for i, (art_id, title, url, account, depth, body) in enumerate(rows, 1):
+            logger.info("[%d/%d] [%s] (prior depth=%s) %s", i, len(rows), account, depth, title)
 
             if not url:
                 logger.warning("  Skipping — no URL")
                 conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')", (art_id,))
                 conn.commit()
                 continue
+
+            # D-10.01..04: scrape-first per-article classify. Runs BEFORE
+            # the Phase 9 ingest_article call. No fail-open — skip on classify error.
+            if not dry_run and api_key:
+                cls_result = await _classify_full_body(
+                    conn=conn,
+                    article_id=art_id,
+                    url=url,
+                    title=title,
+                    body=body,
+                    api_key=api_key,
+                )
+                if cls_result is None:
+                    logger.info("  classify failed — skipping ingest (D-10.04 no fail-open)")
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
+                        (art_id,),
+                    )
+                    conn.commit()
+                    continue
+                cls_depth = cls_result.get("depth", 0)
+                if not isinstance(cls_depth, int) or cls_depth < min_depth:
+                    logger.info(
+                        "  depth=%s < min_depth=%d — skipping ingest",
+                        cls_depth,
+                        min_depth,
+                    )
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
+                        (art_id,),
+                    )
+                    conn.commit()
+                    continue
 
             success = await ingest_article(url, dry_run, rag)
             status = "dry_run" if dry_run else ("ok" if success else "failed")
