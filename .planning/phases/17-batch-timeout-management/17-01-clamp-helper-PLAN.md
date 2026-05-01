@@ -1,4 +1,5 @@
 ---
+revised: "2026-05-01 — v3.1 closure alignment (commit 2b38e98). Narrative updated: batch-start-budget illustrative values align with 28800s default (v3.1 §3 Hermes 441s/article baseline). Clamp-logic test inputs at 3600 retained as probes of the clamp formula at a specific boundary (still valid with new default)."
 phase: 17-batch-timeout-management
 plan: 01
 type: execute

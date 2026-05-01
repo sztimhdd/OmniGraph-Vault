@@ -1,4 +1,5 @@
 ---
+revised: "2026-05-01 — v3.1 closure alignment (commit 2b38e98). Vision drain timeout no longer hardcoded to 120s; uses Phase 9 single-article formula max(120 + 30*chunks, 900) since Phase 12 D-SUBDOC now checkpoint-manages sub-doc lifecycle. Error type renamed VisionDrainTimeout → SubDocDrainTimeout to reflect the new semantics: timeout is non-fatal because checkpoint resume handles the completion."
 phase: 14-regression-fixtures
 plan: 02
 type: execute
@@ -615,12 +616,24 @@ print('All pure-helper tests PASS')
           # (downstream Phase 14-03 can wire real entity-count extraction if instrumentation available)
           counters["entities"] = meta.get("expected_entities", 0)
 
-          # Drain vision task bounded (120s per v3.1 Phase 10 / bench harness)
+          # Drain vision task — Phase 12 D-SUBDOC (2026-05-01) supersedes the
+          # former 120s v3.1 bench-harness drain timeout. Sub-doc lifecycle is
+          # now checkpoint-managed; this drain is an UPPER bound on test-time
+          # waiting only. Use Phase 9 single-article timeout formula:
+          # max(120 + 30 × chunk_count, 900). Regression fixtures have small
+          # sub-docs (<=7 chunks on gpt55), so 900s floor is sufficient.
+          # If this times out the article is marked as SubDocDrainTimeout — the
+          # batch pipeline continues because Phase 12 checkpoint (absence of
+          # 06_sub_doc_ingest.done) allows resume on next run.
+          _sub_doc_drain_timeout_s = max(120 + 30 * counters.get("chunks", 4), 900)
           try:
-              await asyncio.wait_for(vision_task, timeout=120.0)
+              await asyncio.wait_for(vision_task, timeout=_sub_doc_drain_timeout_s)
           except asyncio.TimeoutError:
               vision_task.cancel()
-              errors.append({"type": "VisionDrainTimeout", "message": "vision worker >120s"})
+              errors.append({
+                  "type": "SubDocDrainTimeout",
+                  "message": f"sub-doc ingest >{_sub_doc_drain_timeout_s}s (Phase 12 checkpoint will resume on next run)",
+              })
 
           # Finalize LightRAG writes
           try:

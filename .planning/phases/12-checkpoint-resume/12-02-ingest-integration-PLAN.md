@@ -1,4 +1,5 @@
 ---
+revised: "2026-05-01 — v3.1 closure alignment (commit 2b38e98). Added stage 6 sub_doc_ingest to checkpoint state machine per D-SUBDOC decision in 12-CONTEXT.md (absorbs v3.1 closure Finding 1 from docs/MILESTONE_v3.1_CLOSURE.md §6.1). Must-haves updated to include sub-doc ingest guard and resume path."
 phase: 12-checkpoint-resume
 plan: 02
 type: execute
@@ -16,11 +17,14 @@ user_setup: []
 
 must_haves:
   truths:
-    - "ingest_article(url) wraps each of the 5 stages (scrape, classify, image_download, text_ingest, vision_worker) with has_stage/read_stage/write_stage calls"
+    - "ingest_article(url) wraps each of the 6 stages (scrape, classify, image_download, text_ingest, vision_worker, sub_doc_ingest) with has_stage/read_stage/write_stage calls"
     - "On a second invocation with the same URL, completed stages are SKIPPED (log shows 'checkpoint hit: {stage}')"
     - "Failure at stage N leaves checkpoints 1..N-1 on disk and stage N absent — next run resumes from N"
     - "metadata.json is upserted at every stage completion with updated_at + last_completed_stage"
     - "vision_worker checkpoint writes per-image 05_vision/{image_id}.json (not a single .done marker)"
+    - "sub_doc_ingest stage writes 06_sub_doc_ingest.done ONLY after sub-doc LightRAG ainsert returns AND entity extraction for all sub-doc chunks completes (D-SUBDOC 2026-05-01)"
+    - "sub_doc_ingest stage is SKIPPED (marker written immediately) when 05_vision/ has zero success markers — no Vision descriptions means nothing to sub-doc-ingest; the marker prevents resume-loop"
+    - "sub_doc_ingest re-run reads cached 05_vision/*.json (no re-Vision-API-calls); this is the Finding-1 remediation path for articles whose sub-doc was abandoned by the former 120s drain_timeout"
   artifacts:
     - path: "ingest_wechat.py"
       provides: "ingest_article with checkpoint read/write wrapping the 5 stages"
@@ -76,6 +80,7 @@ STAGE_FILES = {
     "image_download": "03_images/manifest.json",
     "text_ingest":    "04_text_ingest.done",
     "vision_worker":  "05_vision/",
+    "sub_doc_ingest": "06_sub_doc_ingest.done",  # NEW 2026-05-01 D-SUBDOC
 }
 ```
 
@@ -84,7 +89,8 @@ Current ingest_article stage map (from ingest_wechat.py lines 667-922):
 2. **classify**: Currently ABSENT inside ingest_article itself — classification lives in batch_ingest_from_spider.py (title-level) and Phase 10's scrape_first_classify (body-level). For Phase 12, classify step writes a placeholder record at the checkpoint (see Task 1 step 4).
 3. **image_download**: `download_images` + `filter_small_images` (lines 799-810). Produces `url_to_path: dict[str, Path]` and `filter_stats`. Manifest = list of `{url, local_path, dimensions, filter_reason}`.
 4. **text_ingest**: `rag.ainsert(full_content, ids=[doc_id])` (line 844). Mark `.done` AFTER this returns.
-5. **vision_worker**: spawned as `asyncio.create_task(_vision_worker_impl(...))` (line 856). Each image's description goes into `05_vision/{image_id}.json` — NO aggregate `.done`.
+5. **vision_worker**: spawned as `asyncio.create_task(_vision_worker_impl(...))` (line 856). Each image's description goes into `05_vision/{image_id}.json` — partial completion acceptable.
+6. **sub_doc_ingest** (NEW 2026-05-01 D-SUBDOC — absorbs v3.1 closure Finding 1): sub-doc LightRAG `ainsert` + entity extraction for all sub-doc chunks. Writes `06_sub_doc_ingest.done` marker on success. v3.1 Hermes prod run showed this needs ~5 min (only 2/7 chunks completed in the former 120s drain_timeout). Stage inherits Phase 9 single-article timeout `max(120 + 30 × chunks, 900)`. If `05_vision/` has zero success markers, marker is written immediately (no-op — nothing to sub-doc-ingest).
 
 Hash note: current code computes `article_hash = hashlib.md5(url.encode()).hexdigest()[:10]` at line 689 for the images/{hash} dir. This is the LEGACY image hash. Phase 12 introduces a PARALLEL `ckpt_hash = get_article_hash(url)` (SHA256[:16]) used ONLY under checkpoints/{ckpt_hash}/. Both coexist — do NOT rename the legacy one.
 </interfaces>
@@ -298,9 +304,62 @@ vision_task = asyncio.create_task(_vision_worker_impl(
 ))
 ```
 
-8. **Surgical self-check**: grep the diff for any line NOT related to checkpoint wiring. Remove those. Every new line traces to a CKPT-* requirement.
+8. **Stage 6 — sub_doc_ingest (NEW 2026-05-01 D-SUBDOC — absorbs v3.1 Finding 1)**. Add a new guarded stage AFTER the vision_task is created. The sub-doc stage runs synchronously inside `ingest_article` (not as an async task) so its success maps 1:1 to a checkpoint marker. This is the remediation path for articles whose former `drain_timeout=120s` abandoned sub-doc entity extraction.
 
-9. Run existing tests to confirm no regression:
+   **Pattern (after the `vision_task = asyncio.create_task(...)` line in step 7):**
+
+   ```python
+   # Stage 6: sub_doc_ingest (D-SUBDOC 2026-05-01).
+   # Await the async Vision worker result so we know which images got descriptions,
+   # then run a SYNCHRONOUS sub-doc ainsert bounded by single-article timeout
+   # formula max(120 + 30 × chunk_count, 900) instead of the legacy 120s drain.
+   if has_stage(ckpt_hash, "sub_doc_ingest"):
+       logger.info("checkpoint hit: sub_doc_ingest (hash=%s)", ckpt_hash)
+   else:
+       try:
+           # Wait for Vision worker to finish (cancel any drain_timeout — sub-doc
+           # lifecycle is now checkpoint-owned, not timer-bounded).
+           await vision_task
+       except Exception as e:
+           logger.warning("vision_task raised on await (sub-doc will skip): %s", e)
+
+       # Read cached Vision descriptions from 05_vision/*.json. No re-Vision-API-calls.
+       from lib.checkpoint import list_vision_markers  # new helper
+       vision_successes = list_vision_markers(ckpt_hash)  # returns [{image_id, provider, description, ...}]
+
+       if vision_successes:
+           # Build sub-doc text from cached descriptions + ainsert once.
+           # Inherits Phase 9 single-article timeout: max(120 + 30 × chunks, 900).
+           sub_doc_text = _build_sub_doc_from_vision(title, vision_successes)
+           single_article_timeout = max(120 + 30 * estimate_chunk_count(sub_doc_text), 900)
+           try:
+               await asyncio.wait_for(
+                   rag.ainsert(sub_doc_text, ids=[f"{doc_id}__subdoc"]),
+                   timeout=single_article_timeout,
+               )
+               write_stage(ckpt_hash, "sub_doc_ingest")  # empty marker
+               write_metadata(ckpt_hash, {"last_completed_stage": "sub_doc_ingest"})
+           except asyncio.TimeoutError:
+               logger.warning(
+                   "sub_doc_ingest timeout after %ds (hash=%s) — will retry on resume",
+                   single_article_timeout, ckpt_hash,
+               )
+               # Do NOT write marker; next run will resume this stage only.
+       else:
+           # No Vision successes — sub-doc has nothing to ingest. Write marker
+           # immediately so resume logic does not loop on this article forever.
+           logger.info("no vision successes, skipping sub_doc_ingest (hash=%s)", ckpt_hash)
+           write_stage(ckpt_hash, "sub_doc_ingest")
+           write_metadata(ckpt_hash, {"last_completed_stage": "sub_doc_ingest"})
+   ```
+
+   **Phase 13 coordination:** Phase 13 Vision Cascade will populate `provider` / `latency_ms` in each `05_vision/*.json` with real values. Phase 12's step 7 currently writes `"provider": "cascade"` as a placeholder — Phase 13 replaces this.
+
+   **`lib/checkpoint.py` addition:** `list_vision_markers(article_hash) -> list[dict]` reads every `05_vision/*.json` file and returns the parsed dicts. If the `05_vision/` dir is missing or empty, returns `[]`. This is a small read-only helper; extend 12-00 Task 1's module API.
+
+9. **Surgical self-check**: grep the diff for any line NOT related to checkpoint wiring. Remove those. Every new line traces to a CKPT-* requirement.
+
+10. Run existing tests to confirm no regression:
 
 ```
 .venv/Scripts/python -m pytest tests/unit/test_text_first_ingest.py tests/unit/test_vision_worker.py tests/unit/test_scrape_first_classify.py -v
@@ -319,6 +378,8 @@ If `test_vision_worker.py` breaks due to the new `ckpt_hash` parameter, update i
     - `grep -q "has_stage(ckpt_hash, \"classify\")" ingest_wechat.py`
     - `grep -q "has_stage(ckpt_hash, \"image_download\")" ingest_wechat.py`
     - `grep -q "has_stage(ckpt_hash, \"text_ingest\")" ingest_wechat.py`
+    - `grep -q "has_stage(ckpt_hash, \"sub_doc_ingest\")" ingest_wechat.py` (D-SUBDOC 2026-05-01 — absorbs v3.1 Finding 1)
+    - `grep -q "list_vision_markers" ingest_wechat.py` (sub-doc reads cached Vision descriptions)
     - `grep -q "write_vision_description" ingest_wechat.py`
     - `grep -q "write_metadata(ckpt_hash" ingest_wechat.py` (metadata updated at least once)
     - `grep -q "checkpoint hit:" ingest_wechat.py` (log message for skips)
@@ -327,7 +388,7 @@ If `test_vision_worker.py` breaks due to the new `ckpt_hash` parameter, update i
     - `.venv/Scripts/python -m pytest tests/unit/test_text_first_ingest.py tests/unit/test_vision_worker.py tests/unit/test_scrape_first_classify.py -v` exits 0 (no regression)
   </acceptance_criteria>
 
-  <done>All 5 stages guarded by has_stage/write_stage; existing Phase 10 tests still pass after fixture adjustments for the new ckpt_hash parameter; legacy MD5 image hash untouched.</done>
+  <done>All 6 stages guarded by has_stage/write_stage (scrape, classify, image_download, text_ingest, vision_worker, sub_doc_ingest); existing Phase 10 tests still pass after fixture adjustments for the new ckpt_hash parameter; legacy MD5 image hash untouched; D-SUBDOC (v3.1 Finding 1 remediation) wired through.</done>
 </task>
 
 <task type="auto" tdd="true">

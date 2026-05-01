@@ -1,4 +1,5 @@
 ---
+revised: "2026-05-01 — v3.1 closure alignment (commit 2b38e98). Default BATCH_TIMEOUT 3600 → 28800 across code fallback, CLI help, and assertions. Tests that set explicit total_budget=3600 (metric-emission tests) retained — they probe metric shape at an arbitrary budget, not the default."
 phase: 17-batch-timeout-management
 plan: 02
 type: execute
@@ -12,7 +13,7 @@ requirements: [BTIMEOUT-01, BTIMEOUT-03, BTIMEOUT-04]
 
 must_haves:
   truths:
-    - "OMNIGRAPH_BATCH_TIMEOUT_SEC env var (default 3600) + --batch-timeout CLI flag are read at batch start"
+    - "OMNIGRAPH_BATCH_TIMEOUT_SEC env var (default 28800) + --batch-timeout CLI flag are read at batch start"
     - "Batch loop tracks batch_start via time.time() before first article"
     - "Each article timeout is clamped via clamp_article_timeout(single, remaining_budget)"
     - "Completed article wall-clock time is appended to completed_article_times list"
@@ -109,8 +110,9 @@ From Phase 12 `lib/checkpoint.py` (may or may not exist at merge time):
 - `flush_partial_checkpoint(article_hash: str) -> None` (hypothetical; may be `finalize_stage` or similar)
 
 Env var pattern from Phase 7 (from CLAUDE.md):
-- `os.environ.get("OMNIGRAPH_BATCH_TIMEOUT_SEC", str(args.batch_timeout or 3600))`
+- `os.environ.get("OMNIGRAPH_BATCH_TIMEOUT_SEC", str(args.batch_timeout or 28800))`
 - Namespaced `OMNIGRAPH_*`; env wins if both env and CLI set.
+- Default 28800s (8h) covers 56-article batch at 441s/article Hermes baseline (v3.1 closure §3).
 </interfaces>
 </context>
 
@@ -166,7 +168,8 @@ Env var pattern from Phase 7 (from CLAUDE.md):
         """Resolve the total batch budget (OMNIGRAPH_BATCH_TIMEOUT_SEC wins over CLI).
 
         Phase 7 env var idiom: namespaced OMNIGRAPH_* prefix. If env unset, use CLI
-        value; if CLI also None, default to 3600.
+        value; if CLI also None, default to 28800 (8h — covers 56-article batch at 441s
+        Hermes baseline per v3.1 closure §3).
         """
         env_val = os.environ.get("OMNIGRAPH_BATCH_TIMEOUT_SEC")
         if env_val:
@@ -176,7 +179,7 @@ Env var pattern from Phase 7 (from CLAUDE.md):
                 logger.warning(
                     "OMNIGRAPH_BATCH_TIMEOUT_SEC=%r is not an int — falling back", env_val
                 )
-        return int(cli_value) if cli_value else 3600
+        return int(cli_value) if cli_value else 28800
 
 
     def _build_batch_timeout_metrics(
@@ -431,7 +434,7 @@ Env var pattern from Phase 7 (from CLAUDE.md):
     ```python
     parser.add_argument(
         "--batch-timeout", type=int, default=None,
-        help="Total batch budget in seconds (default 3600; overridden by OMNIGRAPH_BATCH_TIMEOUT_SEC env var)",
+        help="Total batch budget in seconds (default 28800 = 8h, covers 56-article batch at 441s/article Hermes baseline; overridden by OMNIGRAPH_BATCH_TIMEOUT_SEC env var)",
     )
     ```
 
@@ -453,7 +456,7 @@ Env var pattern from Phase 7 (from CLAUDE.md):
     - Add new external dependencies
   </action>
   <verify>
-    <automated>python -c "import batch_ingest_from_spider as b; assert callable(b._bucket_article_time) and b._bucket_article_time(30) == '0-60s' and b._bucket_article_time(150) == '60-300s' and b._bucket_article_time(1200) == '900s+' and b._resolve_batch_timeout(None) == 3600; print('OK')"</automated>
+    <automated>python -c "import batch_ingest_from_spider as b; assert callable(b._bucket_article_time) and b._bucket_article_time(30) == '0-60s' and b._bucket_article_time(150) == '60-300s' and b._bucket_article_time(1200) == '900s+' and b._resolve_batch_timeout(None) == 28800; print('OK')"</automated>
   </verify>
   <acceptance_criteria>
     - `grep -q 'from lib.batch_timeout import' batch_ingest_from_spider.py` passes
@@ -465,7 +468,7 @@ Env var pattern from Phase 7 (from CLAUDE.md):
     - `grep -q 'argparse.*--batch-timeout\|"--batch-timeout"' batch_ingest_from_spider.py` passes
     - `DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -c "import batch_ingest_from_spider; print('OK')"` passes (import smoke)
     - Bucket function smoke passes: `python -c "import batch_ingest_from_spider as b; assert b._bucket_article_time(30) == '0-60s' and b._bucket_article_time(1200) == '900s+'"`
-    - `_resolve_batch_timeout` fallback: `python -c "import batch_ingest_from_spider as b; assert b._resolve_batch_timeout(None) == 3600 and b._resolve_batch_timeout(7200) == 7200"`
+    - `_resolve_batch_timeout` fallback: `python -c "import batch_ingest_from_spider as b; assert b._resolve_batch_timeout(None) == 28800 and b._resolve_batch_timeout(7200) == 7200"`
     - Existing Phase 8 regression tests still green: `DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -m pytest tests/unit/test_image_pipeline.py -v` (22 passed)
     - Existing Phase 9 tests still green: `DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -m pytest tests/unit/test_timeout_budget.py tests/unit/test_lightrag_timeout.py tests/unit/test_lightrag_llm.py -v`
   </acceptance_criteria>
@@ -490,10 +493,10 @@ Env var pattern from Phase 7 (from CLAUDE.md):
     - `_bucket_article_time(899.9) == '300-900s'`
     - `_bucket_article_time(900) == '900s+'`
     - `_bucket_article_time(5000) == '900s+'`
-    - `_resolve_batch_timeout(None)` returns `3600` when env unset
+    - `_resolve_batch_timeout(None)` returns `28800` when env unset
     - `_resolve_batch_timeout(7200)` returns `7200` when env unset (CLI used)
     - `_resolve_batch_timeout(7200)` returns env value when `OMNIGRAPH_BATCH_TIMEOUT_SEC=1800` set (env wins)
-    - `_resolve_batch_timeout(None)` returns `3600` when env is invalid (`"not-an-int"`)
+    - `_resolve_batch_timeout(None)` returns `28800` when env is invalid (`"not-an-int"`)
     - `_build_batch_timeout_metrics` with zero completed articles → `avg_article_time_sec is None`
     - `_build_batch_timeout_metrics` with 3 articles completed → `avg_article_time_sec` matches mean
     - `_build_batch_timeout_metrics` emits all 11 top-level keys from the locked schema
@@ -545,7 +548,7 @@ Env var pattern from Phase 7 (from CLAUDE.md):
 
     def test_resolve_batch_timeout_default(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("OMNIGRAPH_BATCH_TIMEOUT_SEC", raising=False)
-        assert b._resolve_batch_timeout(None) == 3600
+        assert b._resolve_batch_timeout(None) == 28800  # 8h — v3.1 closure §3 Hermes baseline × 56 + headroom
 
 
     def test_resolve_batch_timeout_cli_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -560,7 +563,7 @@ Env var pattern from Phase 7 (from CLAUDE.md):
 
     def test_resolve_batch_timeout_invalid_env_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("OMNIGRAPH_BATCH_TIMEOUT_SEC", "not-an-int")
-        assert b._resolve_batch_timeout(None) == 3600
+        assert b._resolve_batch_timeout(None) == 28800
         assert b._resolve_batch_timeout(5400) == 5400
 
 

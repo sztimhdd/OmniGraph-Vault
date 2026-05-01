@@ -1,6 +1,7 @@
 # Phase 17: Batch Timeout Management - Context
 
 **Gathered:** 2026-04-30
+**Revised:** 2026-05-01 based on v3.1 closure (commit 2b38e98). Changes: (1) Default BATCH_TIMEOUT 3600s → 28800s (8h) to cover 56-article batch at 441s/article Hermes baseline instead of the obsolete 60s/article estimate; (2) Worked example rewritten with real article-timing data from `docs/MILESTONE_v3.1_CLOSURE.md` §3; (3) v3.1 dependency note updated from "pending" to "closed @ 2b38e98".
 **Status:** Ready for planning
 **Source:** PRD supplement (user-provided Phase 12 from v3.2 prompt, labeled Phase 17 in roadmap)
 
@@ -50,8 +51,9 @@ This phase does NOT change this formula. It only COMPOSES with it.
 ### Batch-Level Budget (BTIMEOUT-01) — NEW DESIGN
 
 **Total batch budget:**
-- Configurable via CLI flag `--batch-timeout` on `batch_ingest_from_spider.py`, default `3600` (1 hour)
+- Configurable via CLI flag `--batch-timeout` on `batch_ingest_from_spider.py`, default `28800` (8 hours — covers a 56-article batch at the Hermes DeepSeek 441s/article baseline from v3.1 closure with safety margin)
 - Environment override: `OMNIGRAPH_BATCH_TIMEOUT_SEC` (same fallback pattern as `OMNIGRAPH_RPM_*` from Phase 7)
+- **Baseline context (v3.1 closure 2026-05-01):** 56 articles × 441s = 24,696s ≈ 6.86h on production DeepSeek. 28,800s default provides ~17% headroom. For smaller batches (e.g., 8-article smoke test) operators can set `--batch-timeout 3600`; for larger batches (100+) operators should scale proportionally (`N × 500s + 3600s` rule of thumb).
 
 **Remaining budget calculation:**
 ```python
@@ -118,18 +120,18 @@ async def ingest_with_timeout(url: str, timeout_sec: int, rag) -> ArticleResult:
 ```json
 {
   "batch_timeout_metrics": {
-    "total_batch_budget_sec": 3600,
-    "total_elapsed_sec": 2850,
-    "batch_progress_vs_budget": 0.79,
+    "total_batch_budget_sec": 28800,
+    "total_elapsed_sec": 22500,
+    "batch_progress_vs_budget": 0.78,
     "total_articles": 56,
-    "completed_articles": 52,
+    "completed_articles": 51,
     "timed_out_articles": 3,
-    "not_started_articles": 1,
-    "avg_article_time_sec": 54.8,
+    "not_started_articles": 2,
+    "avg_article_time_sec": 441.2,
     "timeout_histogram": {
-      "0-60s":     12,
-      "60-300s":   28,
-      "300-900s":  12,
+      "0-60s":     0,
+      "60-300s":   2,
+      "300-900s":  49,
       "900s+":     3
     },
     "clamped_timeouts": 2,
@@ -137,6 +139,8 @@ async def ingest_with_timeout(url: str, timeout_sec: int, rag) -> ArticleResult:
   }
 }
 ```
+
+**Bucket-to-baseline alignment:** Hermes DeepSeek baseline is 441s/article, which lands in the `300-900s` bucket. Expect the vast majority of articles in that bucket on prod. `900s+` bucket entries are anomalies worth investigating (stuck entity merge, LLM quota pause, network retry exhaustion). `0-60s` / `60-300s` entries at scale indicate either silent-failure regressions (cf. v3.1 closure §8.1 "15-18s text_ingest is假象") or materially lighter articles.
 
 **Integration:** Append `batch_timeout_metrics` to the existing `batch_validation_report.json` (Phase 14) under a new top-level key.
 
@@ -192,22 +196,33 @@ async def ingest_with_timeout(url: str, timeout_sec: int, rag) -> ArticleResult:
 
 ### Worked Example (for design doc)
 
-**Scenario:** 56-article batch, total budget 3600s, avg article takes 60s.
+**Scenario:** 56-article batch, total budget 28,800s (8h default), avg article takes 441s (Hermes DeepSeek baseline from v3.1 closure 2026-05-01).
 
 | Article # | Elapsed | Remaining | single_timeout | clamped_timeout | Actual time | Note |
 |-----------|---------|-----------|----------------|-----------------|-------------|------|
-| 1 | 0s | 3600s | 900s | 900s (no clamp) | 45s | OK |
-| 20 | 1200s | 2400s | 900s | 900s (no clamp) | 70s | OK |
-| 40 | 2600s | 1000s | 900s | 900s (no clamp) | 55s | Still OK |
-| 50 | 3200s | 400s | 900s | **340s (clamped)** | 340s (TIMEOUT) | Safety margin 60s preserved |
-| 51 | 3540s | 60s | 900s | **0s (budget out)** | 60s (fallback timeout) | Checkpoint captures state |
+| 1 | 0s | 28,800s | 900s | 900s (no clamp) | 441s | OK — baseline |
+| 20 | 8,820s | 19,980s | 900s | 900s (no clamp) | 450s | OK |
+| 40 | 17,640s | 11,160s | 900s | 900s (no clamp) | 430s | OK |
+| 50 | 22,050s | 6,750s | 900s | 900s (no clamp) | 600s (slow merge) | OK but trending |
+| 54 | 24,450s | 4,350s | 900s | 900s (no clamp) | 441s | OK |
+| 55 | 24,891s | 3,909s | 900s | 900s (no clamp) | 441s | OK |
+| 56 | 25,332s | 3,468s | 900s | 900s (no clamp) | 441s | OK — finishes at ~25,773s |
+
+**Observation:** At the baseline (56 × 441s = 24,696s), the 28,800s budget is never tight — clamp never fires. Clamp kicks in only on degraded batches where avg article time climbs >500s. This is intentional: 28,800s default is a safety ceiling, not a tight budget. For operators running smaller/exploratory batches (e.g., 8-article regression), set `--batch-timeout 3600` to get the original clamp-at-edges behavior:
+
+| Article # | Elapsed | Remaining | single_timeout | clamped_timeout | Actual time | Note |
+|-----------|---------|-----------|----------------|-----------------|-------------|------|
+| 1 | 0s | 3,600s | 900s | 900s (no clamp) | 441s | OK |
+| 6 | 2,646s | 954s | 900s | 894s (just-clamped) | 441s | OK, margin preserved |
+| 8 | 3,528s | 72s | 900s | **12s (budget out)** | 12s (fallback timeout) | TIMEOUT — checkpoint captures state for next batch run |
 
 ### Reference Pseudocode (for design doc)
 
 ```python
 # batch_ingest_from_spider.py (pseudocode)
 
-BATCH_TIMEOUT = int(os.environ.get("OMNIGRAPH_BATCH_TIMEOUT_SEC", args.batch_timeout or 3600))
+# Default 28800s (8h) covers 56-article batch @ 441s/article (v3.1 Hermes baseline).
+BATCH_TIMEOUT = int(os.environ.get("OMNIGRAPH_BATCH_TIMEOUT_SEC", args.batch_timeout or 28800))
 SAFETY_MARGIN = 60
 
 batch_start = time.time()

@@ -1,8 +1,9 @@
 # Phase 13: Vision Cascade with Circuit Breaker (B2) - Context
 
 **Gathered:** 2026-04-30
+**Revised:** 2026-05-01 based on v3.1 closure (commit 2b38e98). Changes: (1) v3.1 Phase 8/10 dependencies updated from "pending" to "closed @ 2b38e98"; (2) **New locked decision D-BENCH-PRECHECK: Bench script precheck env-read bug fix** — absorbs v3.1 closure Finding 2 (`scripts/bench_ingest_fixture.py::_balance_precheck()` emits `balance_precheck_skipped` because its local `os.environ.get("SILICONFLOW_API_KEY")` fires before `~/.hermes/.env` is loaded into the process; the production Vision path reads the key correctly, verified by 28/28 SiliconFlow successes in the same Hermes run). See `docs/HERMES_E2E_VERIFICATION_v3.1_20260501.md` §5.
 **Status:** Ready for planning
-**Source:** PRD Express Path (`.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B2)
+**Source:** PRD Express Path (`.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B2) + v3.1 closure Finding 2 (routed per `docs/MILESTONE_v3.1_CLOSURE.md` §6.2)
 
 <domain>
 ## Phase Boundary
@@ -20,12 +21,26 @@
 - Operator runbook text (Phase 15)
 - OpenRouter or Gemini client changes beyond wiring them into the cascade
 
-**Dependency:** Phase 12 (checkpoint directory structure + atomic writes) — provider_status persists there.
+**Dependencies:**
+- Phase 12 (checkpoint directory structure + atomic writes) — `provider_status.json` persists under the checkpoint dir.
+- v3.1 Phase 8 (`describe_images` / `filter_images` in `image_pipeline.py`) — **closed 2026-05-01 @ commit 2b38e98** (see `docs/MILESTONE_v3.1_CLOSURE.md` §4 Phase 8 scorecard: IMG-01..IMG-04 delivered).
+- v3.1 Phase 10 async `_vision_worker_impl` and text-first `ainsert()` — **closed 2026-05-01 @ commit 2b38e98** (ARCH-01..ARCH-04 delivered).
 
 **Current state (to be replaced):**
 - `image_pipeline.py` currently cascades Gemini → SiliconFlow → OpenRouter (wrong order, per PRD)
 - No per-provider failure tracking
 - Single 503 from any provider propagates as exception, blocking article
+- `scripts/bench_ingest_fixture.py::_balance_precheck()` (v3.1 artifact) has env-read bug — see D-BENCH-PRECHECK below
+
+### D-BENCH-PRECHECK (2026-05-01): Bench precheck delegates to lib module (absorbs v3.1 Finding 2)
+
+**Problem:** `scripts/bench_ingest_fixture.py::_balance_precheck()` at line ~253 reads `os.environ.get("SILICONFLOW_API_KEY", "").strip()` directly. When bench runs without `~/.hermes/.env` pre-loaded into the process env (e.g., fresh shell invocation), this returns empty → precheck returns `balance_precheck_skipped` even though the key exists in `~/.hermes/.env`. Confirmed by Hermes 2026-05-01 E2E run: 28/28 SiliconFlow Vision succeeded (production code-path loads key correctly) while precheck skipped.
+
+**Locked decision:**
+- `lib/siliconflow_balance.check_siliconflow_balance()` (new in 13-01) is the SOURCE OF TRUTH for balance checks. It uses the same env-loading mechanism as `config.py` — import `config` at module load so `~/.hermes/.env` is auto-sourced into `os.environ` before any key reads.
+- `scripts/bench_ingest_fixture.py::_balance_precheck()` is refactored to DELEGATE to `lib.siliconflow_balance.check_siliconflow_balance()` — no direct `os.environ` reads, no re-implementation of the HTTP call, no duplication of error classification. The bench script keeps its four branches (`balance_precheck_skipped`, `balance_warning status=ok`, `balance_warning status=insufficient_for_batch`, `balance_precheck_failed`) as a thin mapper over the lib call.
+- Regression test: run `DEEPSEEK_API_KEY=dummy SILICONFLOW_API_KEY=<test> python scripts/bench_ingest_fixture.py --fixture test/fixtures/gpt55_article/` with `~/.hermes/.env` absent — precheck MUST return `balance_warning` (not `balance_precheck_skipped`). Without the env loaded, the process env fallback should still resolve the key passed on the command line.
+- **Correct-by-construction guarantee:** since `lib.siliconflow_balance` imports `config` (which loads `~/.hermes/.env`), any caller of `check_siliconflow_balance()` automatically gets the env loaded. Future callers cannot reproduce this bug unless they bypass the lib module.
 
 </domain>
 

@@ -1,10 +1,17 @@
 # Milestone v3.2 — Batch Reliability + Infra (Milestone B + C)
 
+**Revision history:** v1 (2026-04-30, initial plan commit 0bdec26) → **v2 (2026-05-01, post v3.1 closure alignment):** absorbed v3.1 closure findings + baseline. Specific changes:
+- Predecessor status: "must be gate-passing first" → "closed 2026-05-01 @ commit 2b38e98 (26/26 REQs delivered; E2E-02 gate revised <120s → <600s based on real baseline)"
+- Phase 17 default BATCH_TIMEOUT 3600s → 28800s (8h); worked example rewritten with 441s/article Hermes baseline
+- Phase 12: added locked decision D-SUBDOC — sub-doc lifecycle moves into checkpoint state machine (absorbs v3.1 closure Finding 1: `vision_worker_drain_timeout=120s` insufficient, only 2/7 sub-doc chunks completed in Hermes prod run)
+- Phase 13: added locked decision D-BENCH-PRECHECK — `lib/siliconflow_balance.py` imports `config` at module load; `scripts/bench_ingest_fixture.py::_balance_precheck()` delegates to lib (absorbs v3.1 closure Finding 2: env-read bug in bench precheck)
+- Phase 14-02 validate script: drain timeout formula aligned with Phase 9, error renamed `VisionDrainTimeout` → `SubDocDrainTimeout`
+
 ## Overview
 
 **Milestone Goal:** Enable Phase 5 Wave 1 (RSS + KOL batch ingestion, 56+ articles) to complete reliably with partial failure recovery, intelligent fallback, comprehensive regression validation, and long-term infrastructure for quota isolation.
 
-**Predecessor:** Milestone v3.1 (Single-Article Ingest Stability) must be gate-passing first.
+**Predecessor:** Milestone v3.1 (Single-Article Ingest Stability) — **closed 2026-05-01 @ commit 2b38e98** (see `docs/MILESTONE_v3.1_CLOSURE.md`). 26/26 REQs delivered on both dev and production stacks; E2E-02 gate revised to <600s based on real Hermes DeepSeek baseline of 441s/article.
 
 **Success Criteria:**
 - 56+ article batch completes with zero unhandled exceptions
@@ -426,7 +433,7 @@
 ## Implementation Dependencies
 
 ```
-Milestone A (Single-Article Ingest Stability) [PREREQUISITE — must be gate-passing]
+Milestone A (Single-Article Ingest Stability) [PREREQUISITE — closed 2026-05-01 @ commit 2b38e98]
   ↓
 Milestone B (Batch Reliability + Infra)
   ├─ B5 Vertex AI Infrastructure Prep [CAN RUN IN PARALLEL WITH B1–B4 — design/doc only]
@@ -468,4 +475,58 @@ B1 is lowest-level infrastructure; B2 builds on B1; B3 validates B1+B2; B4 docum
 - **Provider Diversity:** Batch log shows SiliconFlow used for 95%+ of images (circuit breaker only triggered on explicit failures)
 - **Operator Confidence:** Runbook walkthrough completes without questions; operator can interpret checkpoint state & recover from failure manually
 - **Regression Coverage:** All 5 fixtures pass; CI pipeline gates on regression report
+
+---
+
+## v3.2 READINESS CHECKLIST (2026-05-01)
+
+Before entering `/gsd:execute-phase` on any v3.2 phase, confirm all boxes are checked. Each box has a grep-verifiable evidence anchor.
+
+- [x] **Phase 12 absorbs drain_timeout finding (v3.1 closure §6.1)** — sub-doc lifecycle is a checkpoint stage, not a drain-timer bounded task
+  - Evidence: `grep -q "06_sub_doc_ingest" .planning/phases/12-checkpoint-resume/12-CONTEXT.md` passes
+  - Evidence: `grep -q "D-SUBDOC" .planning/phases/12-checkpoint-resume/12-CONTEXT.md` passes
+  - Evidence: `grep -q "sub_doc_ingest" .planning/phases/12-checkpoint-resume/12-02-ingest-integration-PLAN.md` passes
+  - Evidence: `grep -q "list_vision_markers" .planning/phases/12-checkpoint-resume/12-00-checkpoint-lib-PLAN.md` passes
+
+- [x] **Phase 13 absorbs balance precheck env-read finding (v3.1 closure §6.2)** — bench script delegates to lib.siliconflow_balance; lib imports config
+  - Evidence: `grep -q "D-BENCH-PRECHECK" .planning/phases/13-vision-cascade/13-CONTEXT.md` passes
+  - Evidence: `grep -q "test_bench_precheck_delegation" .planning/phases/13-vision-cascade/13-01-siliconflow-balance-PLAN.md` passes
+  - Evidence: Task 3 exists in `.planning/phases/13-vision-cascade/13-01-siliconflow-balance-PLAN.md` with scripts/bench_ingest_fixture.py in files_modified
+
+- [x] **All gate numbers aligned to 441s / <600s baseline** — no stale 120s / <2min / 60s-avg-article references in v3.2 gate context
+  - Evidence: `grep -rn "avg.*60s.*article\|60s.*avg.*article" .planning/phases/1[2-7]*/` returns 0 hits OR only historical-context mentions
+  - Evidence: Phase 17 default BATCH_TIMEOUT is 28800 in 17-CONTEXT.md / 17-00 PLAN / 17-02 PLAN
+  - Evidence: Worked examples in 17-CONTEXT.md and 17-00 PLAN use 441s/article baseline
+
+- [x] **Phase 14 fixture profiles — all 4 types present** (sparse_image / dense_image / text_only / mixed_quality)
+  - Evidence: `grep -c "sparse_image_article\|dense_image_article\|text_only_article\|mixed_quality_article" .planning/phases/14-regression-fixtures/14-01-fixture-creation-PLAN.md` returns ≥4
+  - Evidence: Phase 14 scope unchanged — fixture profiles from original plan preserved
+
+- [x] **v3.1 dependency annotations updated from "pending" to "closed @ 2b38e98"** in all phase CONTEXTs
+  - Evidence: `grep -rn "must be gate-passing first" .planning/phases/1[2-7]*/ .planning/MILESTONE_v3.2_*.md` returns 0 hits (replaced with "closed 2026-05-01")
+  - Evidence: Phase 12 and Phase 13 CONTEXTs explicitly reference commit `2b38e98`
+
+### Pre-execute sanity run
+
+Before running `/gsd:execute-phase` on any v3.2 phase, operator should run:
+
+```bash
+# Confirm v3.1 closure is on main and merged
+git log --oneline -1 | grep "v3.1.*close\|2b38e98"
+
+# Confirm v3.2 planning artifacts are present + revision-marked
+grep -l "Revised 2026-05-01\|revised:.*2026-05-01" .planning/phases/12-checkpoint-resume/*.md \
+    .planning/phases/13-vision-cascade/*.md \
+    .planning/phases/14-regression-fixtures/14-02-validate-script-PLAN.md \
+    .planning/phases/17-batch-timeout-management/*.md
+
+# Confirm findings are absorbed
+grep -q "D-SUBDOC" .planning/phases/12-checkpoint-resume/12-CONTEXT.md
+grep -q "D-BENCH-PRECHECK" .planning/phases/13-vision-cascade/13-CONTEXT.md
+
+# Confirm Phase 17 default is 28800
+grep -q "default 28800" .planning/phases/17-batch-timeout-management/17-00-design-doc-PLAN.md
+```
+
+All four checks must pass before execute-phase kicks off.
 

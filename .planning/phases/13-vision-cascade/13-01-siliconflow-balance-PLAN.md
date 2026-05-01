@@ -1,4 +1,5 @@
 ---
+revised: "2026-05-01 — v3.1 closure alignment (commit 2b38e98). Added D-BENCH-PRECHECK: `lib/siliconflow_balance.py` imports `config` at module load to guarantee `~/.hermes/.env` is sourced before any key reads; `scripts/bench_ingest_fixture.py::_balance_precheck()` is refactored to delegate to `check_siliconflow_balance()` (no direct os.environ reads). Absorbs v3.1 closure Finding 2 from docs/MILESTONE_v3.1_CLOSURE.md §6.2."
 phase: 13-vision-cascade
 plan: 01
 type: execute
@@ -7,6 +8,8 @@ depends_on: []
 files_modified:
   - lib/siliconflow_balance.py
   - tests/unit/test_siliconflow_balance.py
+  - scripts/bench_ingest_fixture.py
+  - tests/unit/test_bench_precheck_delegation.py
 autonomous: true
 requirements:
   - CASC-06
@@ -19,6 +22,8 @@ must_haves:
     - "should_switch_to_openrouter(balance) returns True when balance < ¥0.05 (hard cutoff)"
     - "Missing SILICONFLOW_API_KEY raises a clear error with remediation message"
     - "HTTP failures (timeout, 5xx) raise BalanceCheckError so caller can degrade gracefully without crashing the batch"
+    - "lib/siliconflow_balance.py imports config at module load so ~/.hermes/.env is sourced into os.environ before any key reads (D-BENCH-PRECHECK, absorbs v3.1 Finding 2)"
+    - "scripts/bench_ingest_fixture.py::_balance_precheck() delegates to lib.siliconflow_balance.check_siliconflow_balance() with NO direct os.environ.get('SILICONFLOW_API_KEY') call; the four output branches (skipped / warning-ok / warning-insufficient / failed) are preserved as a thin mapper"
   artifacts:
     - path: "lib/siliconflow_balance.py"
       provides: "Balance API wrapper + cost estimation + warning thresholds"
@@ -28,6 +33,13 @@ must_haves:
       provides: "Unit tests with mocked requests.get covering success/timeout/HTTP errors/missing key/threshold math"
       contains: "def test_"
       min_lines: 100
+    - path: "scripts/bench_ingest_fixture.py"
+      provides: "_balance_precheck() refactored to delegate to lib.siliconflow_balance (D-BENCH-PRECHECK)"
+      contains: "from lib.siliconflow_balance import"
+    - path: "tests/unit/test_bench_precheck_delegation.py"
+      provides: "Regression test: bench precheck no longer emits balance_precheck_skipped when SILICONFLOW_API_KEY is only in ~/.hermes/.env (not process env)"
+      contains: "def test_"
+      min_lines: 40
   key_links:
     - from: "lib/siliconflow_balance.py"
       to: "requests.get"
@@ -37,6 +49,10 @@ must_haves:
       to: "lib.siliconflow_balance.check_siliconflow_balance"
       via: "mocked via mocker.patch('lib.siliconflow_balance.requests.get')"
       pattern: "mocker\\.patch.*siliconflow_balance"
+    - from: "scripts/bench_ingest_fixture.py::_balance_precheck"
+      to: "lib.siliconflow_balance.check_siliconflow_balance"
+      via: "direct delegation — no re-implementation of HTTP call or env-read"
+      pattern: "from lib.siliconflow_balance import check_siliconflow_balance"
 ---
 
 <objective>
@@ -287,6 +303,204 @@ Cover all 12 behaviors. Each test ≤20 lines. Use `pytest.raises(BalanceCheckEr
     - `grep -q 'Decimal' tests/unit/test_siliconflow_balance.py` exits 0 (uses Decimal for precise math assertions)
   </acceptance_criteria>
   <done>≥10 unit tests pass. Balance API covered for success/timeout/HTTP-error/missing-key/malformed-json. Threshold math verified with Decimal precision including boundary conditions.</done>
+</task>
+
+<task type="auto" tdd="true">
+  <name>Task 3: Refactor bench precheck to delegate to lib (D-BENCH-PRECHECK — absorbs v3.1 Finding 2)</name>
+  <files>
+    - scripts/bench_ingest_fixture.py
+    - tests/unit/test_bench_precheck_delegation.py
+  </files>
+
+  <read_first>
+    - scripts/bench_ingest_fixture.py lines 240-290 (current `_balance_precheck()` implementation)
+    - lib/siliconflow_balance.py (just created — the `check_siliconflow_balance()` + `BalanceCheckError` public API)
+    - config.py (env-loading mechanism — confirm `lib/siliconflow_balance.py` imports this)
+    - docs/HERMES_E2E_VERIFICATION_v3.1_20260501.md §5 (symptom description)
+    - docs/MILESTONE_v3.1_CLOSURE.md §6.2 (routing rationale)
+    - .planning/phases/13-vision-cascade/13-CONTEXT.md § D-BENCH-PRECHECK
+  </read_first>
+
+  <action>
+**Step 1 — Ensure `lib/siliconflow_balance.py` imports `config` at module load (edit Task 1's module):**
+
+In `lib/siliconflow_balance.py`, add at top of file (after stdlib imports, before `import requests`):
+
+```python
+# Trigger ~/.hermes/.env load before any SILICONFLOW_API_KEY reads.
+# This is the correct-by-construction guarantee for D-BENCH-PRECHECK
+# (absorbs v3.1 closure Finding 2).
+import config  # noqa: F401 — import for side effect (dotenv load)
+```
+
+Acceptance: `grep -q 'import config' lib/siliconflow_balance.py`.
+
+**Step 2 — Refactor `_balance_precheck()` in `scripts/bench_ingest_fixture.py` (lines 241-290):**
+
+Replace the current body (which reads `os.environ` directly and makes its own HTTP call) with a thin mapper that calls into the lib module. Preserve the four output branches verbatim for backward compatibility of `benchmark_result.json` warnings.
+
+```python
+def _balance_precheck() -> dict[str, Any]:
+    """Balance precheck — delegates to lib.siliconflow_balance (D-BENCH-PRECHECK 2026-05-01).
+
+    Before 2026-05-01 this function did its own os.environ read and HTTP call,
+    which produced balance_precheck_skipped when SILICONFLOW_API_KEY was only
+    in ~/.hermes/.env (not in process env). The lib module now imports `config`
+    at module load so env is always sourced. See docs/MILESTONE_v3.1_CLOSURE.md §6.2.
+
+    Four branches (per D-11.05) preserved for benchmark_result.json stability:
+        1. Key unset (even after .env load) → event=balance_precheck_skipped
+        2. balance >= ESTIMATED_COST_CNY → event=balance_warning, status=ok
+        3. balance < ESTIMATED_COST_CNY → event=balance_warning, status=insufficient_for_batch
+        4. HTTP / JSON / timeout error → event=balance_precheck_failed
+    Non-fatal for v3.1 gate — always returns a dict, never raises.
+    """
+    from lib.siliconflow_balance import (
+        check_siliconflow_balance,
+        BalanceCheckError,
+        MissingKeyError,  # lib raises this when key still missing after .env load
+    )
+    try:
+        balance = check_siliconflow_balance()  # Decimal, e.g. Decimal("5.43")
+    except MissingKeyError:
+        return {
+            "event": "balance_precheck_skipped",
+            "provider": "siliconflow",
+            "reason": "api_key_unset",
+        }
+    except BalanceCheckError as e:
+        return {
+            "event": "balance_precheck_failed",
+            "provider": "siliconflow",
+            "error": str(e),
+        }
+
+    status = "ok" if float(balance) >= ESTIMATED_COST_CNY else "insufficient_for_batch"
+    return {
+        "event": "balance_warning",
+        "provider": "siliconflow",
+        "balance_cny": float(balance),
+        "estimated_cost_cny": ESTIMATED_COST_CNY,
+        "status": status,
+    }
+```
+
+Remove the direct `os.environ.get("SILICONFLOW_API_KEY", ...)` call. Remove the `urllib.request` HTTP code block. Remove `SILICONFLOW_URL` and `BALANCE_TIMEOUT_S` constants (now owned by lib module). Keep `ESTIMATED_COST_CNY` since that's bench-specific.
+
+**Step 3 — Add regression test:**
+
+Create `tests/unit/test_bench_precheck_delegation.py`:
+
+```python
+"""Regression test for D-BENCH-PRECHECK (v3.1 closure Finding 2).
+
+Before 2026-05-01: bench _balance_precheck() read os.environ directly and
+emitted balance_precheck_skipped when SILICONFLOW_API_KEY was only in
+~/.hermes/.env (not loaded into process env). Production Vision path worked
+correctly; only the precheck helper was buggy.
+
+This test verifies the fix: bench precheck delegates to lib.siliconflow_balance,
+which imports config to auto-load .env. No direct os.environ reads remain.
+"""
+from __future__ import annotations
+
+from decimal import Decimal
+from unittest.mock import patch
+
+import pytest
+
+
+pytestmark = pytest.mark.unit
+
+
+def test_bench_precheck_no_longer_reads_os_environ_directly():
+    """Regression: grep the bench source for the old anti-pattern."""
+    bench_src = open("scripts/bench_ingest_fixture.py").read()
+
+    # The direct os.environ.get("SILICONFLOW_API_KEY"...) pattern MUST be gone
+    # from _balance_precheck(). Any remaining os.environ read would reintroduce
+    # the Hermes 2026-05-01 bug.
+    precheck_start = bench_src.index("def _balance_precheck")
+    precheck_end = bench_src.index("\ndef ", precheck_start + 1)
+    precheck_body = bench_src[precheck_start:precheck_end]
+    assert 'os.environ.get("SILICONFLOW_API_KEY"' not in precheck_body, \
+        "_balance_precheck must delegate to lib.siliconflow_balance (D-BENCH-PRECHECK)"
+    assert "from lib.siliconflow_balance import" in precheck_body, \
+        "_balance_precheck must import from lib.siliconflow_balance"
+
+
+def test_bench_precheck_warning_branch():
+    """When lib returns Decimal, bench emits balance_warning with status=ok."""
+    from scripts.bench_ingest_fixture import _balance_precheck
+    with patch("lib.siliconflow_balance.check_siliconflow_balance", return_value=Decimal("10.00")):
+        result = _balance_precheck()
+    assert result["event"] == "balance_warning"
+    assert result["status"] == "ok"
+    assert result["balance_cny"] == 10.0
+
+
+def test_bench_precheck_insufficient_branch():
+    """When balance < ESTIMATED_COST_CNY, bench emits insufficient_for_batch."""
+    from scripts.bench_ingest_fixture import _balance_precheck
+    with patch("lib.siliconflow_balance.check_siliconflow_balance", return_value=Decimal("0.001")):
+        result = _balance_precheck()
+    assert result["event"] == "balance_warning"
+    assert result["status"] == "insufficient_for_batch"
+
+
+def test_bench_precheck_skipped_branch_when_key_missing():
+    """When lib raises MissingKeyError, bench emits balance_precheck_skipped."""
+    from scripts.bench_ingest_fixture import _balance_precheck
+    from lib.siliconflow_balance import MissingKeyError
+    with patch("lib.siliconflow_balance.check_siliconflow_balance",
+               side_effect=MissingKeyError("SILICONFLOW_API_KEY not set")):
+        result = _balance_precheck()
+    assert result["event"] == "balance_precheck_skipped"
+    assert result["reason"] == "api_key_unset"
+
+
+def test_bench_precheck_failed_branch_on_http_error():
+    """When lib raises BalanceCheckError, bench emits balance_precheck_failed."""
+    from scripts.bench_ingest_fixture import _balance_precheck
+    from lib.siliconflow_balance import BalanceCheckError
+    with patch("lib.siliconflow_balance.check_siliconflow_balance",
+               side_effect=BalanceCheckError("HTTP 500")):
+        result = _balance_precheck()
+    assert result["event"] == "balance_precheck_failed"
+    assert "HTTP 500" in result["error"]
+```
+
+**Step 4 — Add `MissingKeyError` to the lib module:**
+
+In `lib/siliconflow_balance.py`, alongside `BalanceCheckError`, add a distinct exception so the bench mapper can route `balance_precheck_skipped` vs `balance_precheck_failed` cleanly:
+
+```python
+class MissingKeyError(BalanceCheckError):
+    """SILICONFLOW_API_KEY missing even after ~/.hermes/.env load.
+    Subclasses BalanceCheckError so existing `except BalanceCheckError` catches still work.
+    """
+```
+
+`check_siliconflow_balance()` raises `MissingKeyError("SILICONFLOW_API_KEY not set in env or ~/.hermes/.env")` when both lookups fail. Update Task 1's error-handling path accordingly.
+  </action>
+
+  <verify>
+    <automated>.venv/Scripts/python -m pytest tests/unit/test_bench_precheck_delegation.py -v</automated>
+  </verify>
+
+  <acceptance_criteria>
+    - `grep -q 'from lib.siliconflow_balance import' scripts/bench_ingest_fixture.py`
+    - `grep -c 'os.environ.get("SILICONFLOW_API_KEY"' scripts/bench_ingest_fixture.py` returns 0 (pattern removed from bench)
+    - `grep -q 'import config' lib/siliconflow_balance.py`
+    - `grep -q 'class MissingKeyError' lib/siliconflow_balance.py`
+    - `.venv/Scripts/python -m pytest tests/unit/test_bench_precheck_delegation.py -v` exits 0
+    - `.venv/Scripts/python -m pytest tests/unit/test_siliconflow_balance.py -v` still passes (Task 1+2 tests unchanged)
+    - `DEEPSEEK_API_KEY=dummy .venv/Scripts/python -c "import scripts.bench_ingest_fixture; print('OK')"` imports clean (no module-level env read errors)
+  </acceptance_criteria>
+
+  <done>
+    Bench precheck delegates to lib.siliconflow_balance; no direct os.environ.get("SILICONFLOW_API_KEY") reads remain in bench script; lib imports config at module load to guarantee ~/.hermes/.env is sourced; regression test enforces both via grep assertion + mocked branch tests; v3.1 closure Finding 2 absorbed.
+  </done>
 </task>
 
 </tasks>

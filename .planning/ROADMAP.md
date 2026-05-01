@@ -132,11 +132,13 @@
 
 ## Milestone v3.2 Planned — Batch Reliability + Infra
 
-**Milestone goal:** Enable Phase 5 Wave 1 (RSS + KOL batch ingestion, 56+ articles) to complete reliably with partial failure recovery, intelligent Vision fallback, comprehensive regression validation, and long-term infrastructure for quota isolation. Predecessor: Milestone v3.1 must be gate-passing first.
+**Milestone goal:** Enable Phase 5 Wave 1 (RSS + KOL batch ingestion, 56+ articles) to complete reliably with partial failure recovery, intelligent Vision fallback, comprehensive regression validation, and long-term infrastructure for quota isolation. Predecessor: Milestone v3.1 — **closed 2026-05-01 @ commit 2b38e98** (26/26 REQs, see `docs/MILESTONE_v3.1_CLOSURE.md`).
+
+**Planning revised 2026-05-01 post v3.1 closure** — baseline = 441s/article (Hermes DeepSeek prod), E2E-02 gate 600s, 2 findings absorbed (Phase 12 sub-doc lifecycle via D-SUBDOC, Phase 13 bench precheck via D-BENCH-PRECHECK), Phase 17 default BATCH_TIMEOUT 3600s → 28800s (8h, covers 56 × 441s batch).
 
 **Milestone gate:** 56+ article batch completes with zero unhandled exceptions; transient failures auto-recover without re-scraping prior articles; 5 regression fixtures pass; CLAUDE.md + OPERATOR_RUNBOOK.md + DEPLOY.md complete; SiliconFlow balance warnings trigger at key checkpoints; Vertex AI migration spec + SA template documented.
 
-**Source of truth:** `.planning/MILESTONE_v3.2_REQUIREMENTS.md` (frozen 2026-04-30).
+**Source of truth:** `.planning/MILESTONE_v3.2_REQUIREMENTS.md` (v2 revised 2026-05-01; see revision history at top of file).
 
 ### Phases
 

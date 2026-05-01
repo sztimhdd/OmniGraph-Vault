@@ -1,4 +1,5 @@
 ---
+revised: "2026-05-01 — v3.1 closure alignment (commit 2b38e98). Default BATCH_TIMEOUT 3600s → 28800s; worked example uses 441s/article Hermes baseline from docs/MILESTONE_v3.1_CLOSURE.md §3."
 phase: 17-batch-timeout-management
 plan: 00
 type: execute
@@ -144,7 +145,7 @@ Phase 14 report schema (to reference in § Monitoring Metrics):
     ## Batch Budget Model
 
     [Introduce three quantities (BTIMEOUT-01):]
-    - **Total batch budget** — `OMNIGRAPH_BATCH_TIMEOUT_SEC` env var (default 3600s);
+    - **Total batch budget** — `OMNIGRAPH_BATCH_TIMEOUT_SEC` env var (default 28800s — 8h, sized to cover 56-article batch at 441s/article Hermes DeepSeek baseline from v3.1 closure 2026-05-01; for exploratory 8-article runs operators may set `--batch-timeout 3600`);
       overridable by `--batch-timeout` CLI flag. Env var wins if both set.
     - **Remaining budget** — computed dynamically:
       ```python
@@ -186,7 +187,20 @@ Phase 14 report schema (to reference in § Monitoring Metrics):
 
     | Article # | Elapsed | Remaining | single_timeout | clamped_timeout | Actual time | Note |
     |-----------|---------|-----------|----------------|-----------------|-------------|------|
-    | 1 | 0s | 3600s | 900s | 900s (no clamp) | 45s | OK |
+    | 1 | 0s | 28,800s | 900s | 900s (no clamp) | 441s | OK — baseline |
+    | 20 | 8,820s | 19,980s | 900s | 900s (no clamp) | 450s | OK |
+    | 40 | 17,640s | 11,160s | 900s | 900s (no clamp) | 430s | OK |
+    | 56 | 25,332s | 3,468s | 900s | 900s (no clamp) | 441s | OK — finishes at ~25,773s, well under budget |
+
+    **Baseline context:** 56 articles × 441s = 24,696s ≈ 6.86h on Hermes DeepSeek (v3.1 closure §3). 28,800s budget provides ~17% headroom — clamp only fires on degraded batches where avg article time climbs >500s.
+
+    **Alternative scenario — exploratory 8-article batch, operators set `--batch-timeout 3600`:**
+
+    | Article # | Elapsed | Remaining | single_timeout | clamped_timeout | Actual time | Note |
+    |-----------|---------|-----------|----------------|-----------------|-------------|------|
+    | 1 | 0s | 3,600s | 900s | 900s (no clamp) | 441s | OK |
+    | 6 | 2,646s | 954s | 900s | 894s (just-clamped) | 441s | OK, margin preserved |
+    | 8 | 3,528s | 72s | 900s | **12s (budget out)** | 12s (fallback timeout) | TIMEOUT — checkpoint captures state for next batch |
     | 20 | 1200s | 2400s | 900s | 900s (no clamp) | 70s | OK |
     | 40 | 2600s | 1000s | 900s | 900s (no clamp) | 55s | Still OK |
     | 50 | 3200s | 400s | 900s | **340s (clamped)** | 340s (TIMEOUT) | Safety margin 60s preserved |
@@ -227,7 +241,7 @@ Phase 14 report schema (to reference in § Monitoring Metrics):
     ```json
     {
       "batch_timeout_metrics": {
-        "total_batch_budget_sec": 3600,
+        "total_batch_budget_sec": 28800,
         "total_elapsed_sec": 2850,
         "batch_progress_vs_budget": 0.79,
         "total_articles": 56,

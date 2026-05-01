@@ -1,4 +1,5 @@
 ---
+revised: "2026-05-01 — v3.1 closure alignment (commit 2b38e98). Added stage 6 `sub_doc_ingest` to STAGE_FILES + added `list_vision_markers()` helper to public API. Absorbs v3.1 closure Finding 1 (sub-doc lifecycle moves into checkpoint state machine; see 12-CONTEXT.md D-SUBDOC)."
 phase: 12-checkpoint-resume
 plan: 00
 type: execute
@@ -88,7 +89,8 @@ STAGE_FILES: dict[str, str] = {
     "classify":       "02_classify.json",
     "image_download": "03_images/manifest.json",  # presence of manifest = stage complete
     "text_ingest":    "04_text_ingest.done",
-    "vision_worker":  "05_vision/",               # directory; NO .done — partial OK
+    "vision_worker":  "05_vision/",               # directory; per-image success markers (partial OK)
+    "sub_doc_ingest": "06_sub_doc_ingest.done",   # NEW 2026-05-01 D-SUBDOC: terminal marker when sub-doc LightRAG ainsert + entity extraction complete
 }
 
 def get_article_hash(url: str) -> str: ...
@@ -127,8 +129,15 @@ def reset_all() -> None: ...
 def list_checkpoints() -> list[dict]: ...
     # For each subdir under BASE_DIR/checkpoints/:
     #   {hash, url, title, last_stage, age_seconds, status: "complete"|"in_flight"}
-    # last_stage = highest stage marker present (scrape < classify < image_download < text_ingest).
-    # status = "complete" if text_ingest marker present, else "in_flight".
+    # last_stage = highest stage marker present (scrape < classify < image_download < text_ingest < sub_doc_ingest).
+    # status = "complete" if sub_doc_ingest marker present, else "in_flight". (Pre-2026-05-01 this used text_ingest; sub_doc_ingest is the new terminal marker per D-SUBDOC.)
+
+def list_vision_markers(article_hash: str) -> list[dict]: ...
+    # NEW 2026-05-01 (D-SUBDOC). Reads every 05_vision/*.json file and returns the
+    # parsed dicts ordered by filename. Returns [] if 05_vision/ missing or empty.
+    # Consumed by Phase 12-02 (ingest_wechat sub_doc_ingest stage) and Phase 13-02
+    # (image_pipeline provider usage aggregation).
+    # Each dict shape: {"image_id", "provider", "description", "latency_ms", "timestamp"}.
 ```
 </interfaces>
 </context>
