@@ -144,7 +144,8 @@ async def ingest_pdf(pdf_path):
     
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
-    rag = await get_rag()
+    # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
+    rag = await get_rag(flush=True)
     await rag.ainsert(final_content)
     
     # Save metadata

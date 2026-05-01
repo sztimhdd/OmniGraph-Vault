@@ -199,7 +199,8 @@ async def _do_full_run(doc_map: dict[str, dict]) -> tuple[int, list[str]]:
     # Import here so wipe happens before LightRAG is constructed (dim assertion).
     from ingest_wechat import get_rag  # noqa: WPS433 - intentional late import
 
-    rag = await get_rag()
+    # D-09.07: flush=False preserves historical "reuse prior state" semantics for this spike.
+    rag = await get_rag(flush=False)
 
     errors: list[str] = []
     processed = 0
@@ -252,7 +253,8 @@ async def _run_one_doc_against_tmp(doc_id: str, doc_map: dict[str, dict]) -> int
     try:
         from ingest_wechat import get_rag  # noqa: WPS433
 
-        rag = await get_rag()
+        # D-09.07: flush=False preserves historical "reuse prior state" semantics for this spike.
+        rag = await get_rag(flush=False)
         content = doc_map[doc_id]["content"]
         print(f"[one-doc] ainsert {doc_id} ({len(content)} chars)")
         await rag.ainsert(content)

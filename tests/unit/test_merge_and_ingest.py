@@ -146,7 +146,8 @@ def test_zhihu_docs_use_deterministic_ids_and_enriches_backlink(tmp_path: Path, 
     rag = MagicMock()
     rag.ainsert = AsyncMock(return_value="t")
 
-    async def fake_get_rag():
+    async def fake_get_rag(flush: bool = True):
+        # D-09.07: accept flush kwarg to match new get_rag signature.
         return rag
 
     mocker.patch("ingest_wechat.get_rag", new=fake_get_rag)

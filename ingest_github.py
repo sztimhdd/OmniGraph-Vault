@@ -255,7 +255,8 @@ async def ingest_github(url: str) -> None:
     print(f"Segments fetched: {[name for name, c in segments if c]} (combined hash {content_hash})")
 
     # Insert each segment separately
-    rag = await get_rag()
+    # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
+    rag = await get_rag(flush=True)
     for seg_name, seg_content in segments:
         if seg_content:
             print(f"  Inserting segment: {seg_name} ({len(seg_content)} chars)")

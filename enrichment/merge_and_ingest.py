@@ -131,7 +131,8 @@ async def _ingest_to_lightrag(
     """Call rag.ainsert for the enriched WeChat MD + each Zhihu doc with D-08 metadata."""
     # Late import so tests can monkeypatch ingest_wechat.get_rag without importing lightrag
     from ingest_wechat import get_rag
-    rag = await get_rag()
+    # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
+    rag = await get_rag(flush=True)
 
     # Parent WeChat doc — let LightRAG auto-assign the document ID
     await rag.ainsert(wechat_md)

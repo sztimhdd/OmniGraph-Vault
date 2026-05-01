@@ -118,7 +118,29 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 # tier as -001; those LightRAG-level knobs already keep us within the window.
 
 
-async def get_rag():
+async def get_rag(flush: bool = True) -> "LightRAG":
+    """Build a LightRAG instance for this process / batch.
+
+    D-09.07 (STATE-04) — breaking change from the pre-Phase-9 no-arg stateful
+    singleton. Each call returns a FRESH LightRAG instance (no module-level
+    cache). ``flush`` controls whether in-memory pending buffers are cleared:
+
+    - flush=True (PRODUCTION DEFAULT, D-09.04 / STATE-01): fresh instance,
+      cleared buffers. Prior crashed runs CANNOT replay old entities → no
+      wasted embed quota.
+    - flush=False: fresh instance, on-disk state intact, no explicit buffer
+      clear. Only for tests and one-off spikes that need to observe the old
+      stateful behavior.
+
+    The distinction between True/False today is observable: True discards any
+    in-memory pending state from prior ``get_rag()`` calls in THIS process
+    (there is no cache — we always build a fresh object). For now flush=False
+    is equivalent to flush=True (no module-level cache exists); the parameter
+    is reserved for future "reuse prior instance" semantics if needed.
+
+    Returns:
+        LightRAG: initialized via ``await rag.initialize_storages()``.
+    """
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
         llm_model_func=deepseek_model_complete,
@@ -133,7 +155,37 @@ async def get_rag():
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
+    # D-09.04 (STATE-01): flush=True is a no-op today because we always build
+    # a fresh object. If a future refactor introduces a module-level cache
+    # OR LightRAG exposes an explicit "drop pending queue" API, the flush
+    # branch below MUST clear that state. The parameter reserves the contract.
+    if flush:
+        # Intentional no-op today — see docstring. Fresh-per-call suffices.
+        pass
     return rag
+
+
+# D-09.05 (STATE-02) — pending doc_id tracker for rollback-on-timeout.
+# Orchestrators consult this after asyncio.wait_for raises TimeoutError
+# to call rag.adelete_by_doc_id(doc_id) → partial state cleanup.
+# Cleared on successful ainsert completion AND on rollback completion.
+_PENDING_DOC_IDS: dict[str, str] = {}
+
+
+def _register_pending_doc_id(article_hash: str, doc_id: str) -> None:
+    """Track a doc_id so rollback can delete partial state on timeout (D-09.05)."""
+    _PENDING_DOC_IDS[article_hash] = doc_id
+
+
+def _clear_pending_doc_id(article_hash: str) -> None:
+    """Drop tracker after successful ainsert OR after rollback (D-09.05)."""
+    _PENDING_DOC_IDS.pop(article_hash, None)
+
+
+def get_pending_doc_id(article_hash: str) -> str | None:
+    """Public accessor — used by batch_ingest_from_spider on TimeoutError (D-09.05)."""
+    return _PENDING_DOC_IDS.get(article_hash)
+
 
 # --- Scraping Methods ---
 
@@ -568,11 +620,19 @@ async def ingest_article(url, rag=None):
 
         try:
             if rag is None:
-                rag = await get_rag()
-            await rag.ainsert(full_content)
+                # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
+                rag = await get_rag(flush=True)
+            # D-09.05: deterministic doc_id lets rollback remove partial state on timeout.
+            doc_id = f"wechat_{article_hash}"
+            _register_pending_doc_id(article_hash, doc_id)
+            await rag.ainsert(full_content, ids=[doc_id])
+            # Clear only on successful completion — on CancelledError / TimeoutError
+            # the orchestrator reads the tracker via get_pending_doc_id() to roll back,
+            # then calls _clear_pending_doc_id() itself.
+            _clear_pending_doc_id(article_hash)
         except Exception as e:
             print(f"LightRAG insert failed: {e}")
-        
+
         print(f"✅ Cached article processed (scrape skipped)")
         return
     
@@ -671,7 +731,8 @@ async def ingest_article(url, rag=None):
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
     if rag is None:
-        rag = await get_rag()
+        # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
+        rag = await get_rag(flush=True)
 
     # Cognee integration: Buffered
     try:
@@ -686,7 +747,14 @@ async def ingest_article(url, rag=None):
         print(f'Warning: Entity buffering failed: {e}')
         raw_entities = []
 
-    await rag.ainsert(full_content)
+    # D-09.05: deterministic doc_id lets rollback remove partial state on timeout.
+    doc_id = f"wechat_{article_hash}"
+    _register_pending_doc_id(article_hash, doc_id)
+    await rag.ainsert(full_content, ids=[doc_id])
+    # Clear only on successful completion — on CancelledError / TimeoutError the
+    # orchestrator reads the tracker via get_pending_doc_id() to roll back, then
+    # calls _clear_pending_doc_id() itself.
+    _clear_pending_doc_id(article_hash)
 
     # Cognee episodic memory: fire-and-forget article metadata
     # Per 2026 RAG best practices — dual-store: LightRAG (semantic) + Cognee (episodic)
@@ -804,7 +872,8 @@ async def ingest_pdf(file_path, rag=None):
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
     if rag is None:
-        rag = await get_rag()
+        # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
+        rag = await get_rag(flush=True)
 
     # Cognee integration: Buffered
     try:

@@ -108,7 +108,8 @@ async def _run_spike() -> bool:
 
     fixture_text = FIXTURE_PATH.read_text(encoding="utf-8")
 
-    rag = await get_rag()
+    # D-09.07: flush=False preserves historical "reuse prior state" semantics for this spike.
+    rag = await get_rag(flush=False)
 
     # Step 1: initial ainsert
     try:

@@ -114,13 +114,26 @@ async def ingest_article(url: str, dry_run: bool, rag) -> bool:
     overhead. Per-article try/except isolates failures — one bad article never
     kills the batch. ``asyncio.wait_for`` replaces subprocess timeout semantics;
     CancelledError propagates cleanly to in-flight HTTP clients.
+
+    D-09.05 (STATE-02): on ``asyncio.TimeoutError``, roll back partial state via
+    ``rag.adelete_by_doc_id(doc_id)``. ``doc_id`` is computed inside
+    ``ingest_wechat`` BEFORE ``ainsert`` starts and exposed via
+    ``ingest_wechat.get_pending_doc_id()``. Rollback failure is logged, not
+    raised — the orchestrator returns ``False`` cleanly in all error paths.
     """
     if dry_run:
         logger.info("  [dry-run] would ingest: %s", url)
         return True
 
+    import hashlib
+    import ingest_wechat
+
+    # Compute the same article_hash ingest_wechat uses to track doc_id.
+    # Kept here so the rollback handler doesn't need to inspect ingest_wechat
+    # internals on the error path.
+    article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+
     try:
-        import ingest_wechat
         # D-09.03: 900s floor covers a worst-case single-chunk 800s DeepSeek call.
         # When Plan 09-01 / Phase 10 decouple scrape from ingest, the inner
         # rag.ainsert wrap can use the chunk-count-aware budget via
@@ -134,6 +147,21 @@ async def ingest_article(url: str, dry_run: bool, rag) -> bool:
         return True
     except asyncio.TimeoutError:
         logger.warning("TIMEOUT (%ds) — skipping: %s", _SINGLE_CHUNK_FLOOR_S, url[:80])
+        # D-09.05: rollback partial state if ainsert registered a doc_id.
+        doc_id = ingest_wechat.get_pending_doc_id(article_hash)
+        if doc_id and rag is not None:
+            try:
+                logger.info("  Rolling back partial doc_id=%s (STATE-02)", doc_id)
+                await rag.adelete_by_doc_id(doc_id)
+                logger.info("  Rollback complete — graph consistent (STATE-02)")
+            except Exception as rb_exc:
+                logger.error(
+                    "  Rollback FAILED for doc_id=%s: %s — graph may be inconsistent",
+                    doc_id,
+                    rb_exc,
+                )
+            finally:
+                ingest_wechat._clear_pending_doc_id(article_hash)
         return False
     except Exception as exc:
         logger.warning("Ingest failed (%s): %s — skipping: %s",
@@ -522,8 +550,10 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
     rag = None
     if not dry_run and passed:
         from ingest_wechat import get_rag
-        logger.info("Initializing shared LightRAG instance (one-time)...")
-        rag = await get_rag()
+        # D-09.04 (STATE-01): flush=True discards any in-memory pending buffer
+        # from a prior crashed run → no replay → no wasted embed quota.
+        logger.info("Initializing fresh LightRAG instance (flush=True; STATE-01)...")
+        rag = await get_rag(flush=True)
 
     try:
         total = len(passed)
@@ -631,8 +661,10 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
     rag = None
     if not dry_run:
         from ingest_wechat import get_rag
-        logger.info("Initializing shared LightRAG instance (one-time)...")
-        rag = await get_rag()
+        # D-09.04 (STATE-01): flush=True discards any in-memory pending buffer
+        # from a prior crashed run → no replay → no wasted embed quota.
+        logger.info("Initializing fresh LightRAG instance (flush=True; STATE-01)...")
+        rag = await get_rag(flush=True)
 
     try:
         processed = 0
