@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Next — Single-Article Ingest Stability
-current_plan: "1 / Total Plans in Phase: 3"
-status: in-progress
-stopped_at: Completed 10-00-PLAN.md — scrape-first classification live; Plan 10-01 (text-first ingest split) up next.
-last_updated: "2026-05-01T01:19:20Z"
-last_activity: 2026-05-01 — Plan 10-00 complete (CLASS-01..04 landed; 9 new unit tests; Phase 8 (22) + Phase 9 (21) regression still green)
+current_plan: "2 / Total Plans in Phase: 3"
+status: Plan 11-00 complete — Plan 11-02 (integration run) and Plan 11-01 (Vertex AI opt-in) queued
+stopped_at: Completed 11-00-PLAN.md — bench harness scaffold + 16 unit tests green; Plan 11-01 (Vertex AI opt-in) and Plan 11-02 (integration run) up next
+last_updated: "2026-04-29T00:00:00.000Z"
+last_activity: 2026-04-29 — Plan 11-00 complete (E2E-01/03/05/07 scaffold; 16 new unit tests; 178 passing / 10 pre-existing failures unchanged)
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 7
-  completed_plans: 4
+  completed_phases: 2
+  total_plans: 10
+  completed_plans: 7
 ---
 
 # Project State
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: **Phase 10 — Classification + Ingest Decoupling** — IN PROGRESS (1/3 plans complete)
-Current Plan: 1 / Total Plans in Phase: 3
-Plan: **10-00 — Scrape-First Classification (CLASS-01..04)** — COMPLETE
-Status: Ready for Plan 10-01 (Text-First Ingest Split — ARCH-01 / D-10.05)
-Last activity: 2026-05-01 — Plan 10-00 complete (CLASS-01..04 landed; 9 new unit tests; Phase 8 + 9 regression 43/43 still green)
+Phase: **Phase 11 — E2E Verification Gate** — IN PROGRESS (1/3 plans complete)
+Current Plan: 2 / Total Plans in Phase: 3
+Plan: **11-00 — Bench Harness + Schema + SiliconFlow Balance Precheck (E2E-01, 03, 05, 07)** — COMPLETE
+Status: Plan 11-02 (integration run, real LightRAG) and Plan 11-01 (Vertex AI opt-in) queued — 11-01 is Wave 1 parallel, 11-02 is Wave 2.
+Last activity: 2026-04-29 — Plan 11-00 complete (bench harness scaffold + 16 new unit tests; full suite 178 passed / 10 pre-existing failures unchanged).
 
 **Milestone v3.1 goal:** Rebuild and locally verify single-article ingestion against `test/fixtures/gpt55_article/` — text ingest + graph connectivity in <2 min with no crash; async Vision worker appends image sub-docs after ingest path returns. This unblocks Phase 5 Wave 1+ (RSS, daily digest, cron).
 
@@ -77,6 +77,7 @@ Last activity: 2026-05-01 — Plan 10-00 complete (CLASS-01..04 landed; 9 new un
 | Phase 09 P00 | 6min | 3 tasks | 5 files |
 | Phase 09 P01 | 9min | 2 tasks | 11 files |
 | Phase 10 P00 | 6min | 3 tasks | 4 files |
+| Phase 11 P00 | 18min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,8 @@ Recent decisions affecting current work:
 - [Phase 10]: Plan 10-00: scrape-first classify flow locked — classification reads full body (not digest), writes classifications row BEFORE ingest decision, no fail-open on DeepSeek failure. Schema migration is ADDITIVE (D-10.04 option a): new `classifications.{depth, topics, rationale}` + `articles.body` columns coexist with legacy columns for batch-scan back-compat.
 - [Phase 10]: Plan 10-00: full-body DeepSeek prompt returns a single JSON OBJECT `{depth: 1-3, topics: [...], rationale: str}` (distinguishes from legacy batch prompt's JSON array). Truncation budget `FULLBODY_TRUNCATION_CHARS=8000` per D-10.02.
 - [Phase 10]: Plan 10-00: `ingest_from_db` SELECT changed from INNER JOIN to LEFT JOIN on classifications (per-article classify happens inside the loop); depth filtering moved from SQL WHERE clause to post-classify Python check.
+- [Phase 11]: Plan 11-00: `scripts/bench_ingest_fixture.py` scaffolded with pure helpers (`_read_fixture`, `_compute_article_hash`, `_utc_now_iso`, `_build_result_json`, `_write_result`, `_balance_precheck`, `_time_stage`). stdlib-only HTTP for balance precheck (no new `requests` dep). Atomic write via tmp + os.rename + on-failure cleanup. PRD-exact 9-key schema. Stage stubs await `asyncio.sleep(0)` so timings are near-zero in stub mode — Plan 11-02 replaces stubs with real LightRAG invocations. 16 unit tests added; regression 162 → 178 passing.
+- [Phase 11]: Plan 11-00: SiliconFlow balance precheck catches URLError, HTTPError, JSONDecodeError, ValueError, TimeoutError, OSError — always returns a dict, never raises; caller appends to `warnings[]`. Field path `data.balance` documented with TODO to reconfirm against live response in 11-02 (non-fatal if shape differs — `balance_precheck_failed` branch catches).
 
 ### Pending Todos
 

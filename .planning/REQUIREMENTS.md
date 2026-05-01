@@ -46,13 +46,13 @@
 
 ### E2E Verification (E2E)
 
-- [ ] **E2E-01**: `test/fixtures/gpt55_article/` can be ingested as a single article via a local CLI that reads from disk (no network WeChat scrape required)
+- [x] **E2E-01**: `test/fixtures/gpt55_article/` can be ingested as a single article via a local CLI that reads from disk (no network WeChat scrape required)
 - [ ] **E2E-02**: text ingest phase (scrape/classify/image-filter/LightRAG `ainsert`, excluding async Vision worker wait) completes in <2 min wall-clock on dev machine
-- [ ] **E2E-03**: benchmark run produces a stage-level timing report with exactly these 5 sections (wall-clock each): `scrape` / `classify` / `image-download` / `text-ingest` (the `ainsert` call returning) / `async-vision-start` (time-to-spawn of the background worker, annotated, NOT counted toward gate)
+- [x] **E2E-03**: benchmark run produces a stage-level timing report with exactly these 5 sections (wall-clock each): `scrape` / `classify` / `image-download` / `text-ingest` (the `ainsert` call returning) / `async-vision-start` (time-to-spawn of the background worker, annotated, NOT counted toward gate)
 - [ ] **E2E-04**: post-ingest LightRAG graph is semantically queryable — `aquery(query="GPT-5.5 benchmark results", mode="hybrid")` returns top-3 chunks where at least 1 chunk references the ingested GPT-5.5 article (via `file_path` field or chunk content match)
-- [ ] **E2E-05**: benchmark calls SiliconFlow `GET /v1/user/info` (with `Authorization: Bearer $SILICONFLOW_API_KEY`) and parses `balance` from response; if below estimated batch cost (current ¥5.43 observed, estimated ~¥0.036/article × planned batch size), emits a structured warning (non-fatal for single-article v3.1 gate; fatal for batch invocations)
+- [x] **E2E-05**: benchmark calls SiliconFlow `GET /v1/user/info` (with `Authorization: Bearer $SILICONFLOW_API_KEY`) and parses `balance` from response; if below estimated batch cost (current ¥5.43 observed, estimated ~¥0.036/article × planned batch size), emits a structured warning (non-fatal for single-article v3.1 gate; fatal for batch invocations)
 - [ ] **E2E-06**: benchmark run has zero unhandled exceptions or process crashes from start to finish
-- [ ] **E2E-07**: benchmark writes a machine-readable `benchmark_result.json` (schema: `{article_hash, stage_timings_ms: {scrape, classify, image_download, text_ingest, async_vision_start}, counters: {images_input, images_kept, images_filtered, chunks_extracted, entities_ingested}, gate_pass: bool, errors: []}`) at a known path so CI can regress against it in future runs
+- [x] **E2E-07**: benchmark writes a machine-readable `benchmark_result.json` (schema: `{article_hash, stage_timings_ms: {scrape, classify, image_download, text_ingest, async_vision_start}, counters: {images_input, images_kept, images_filtered, chunks_extracted, entities_ingested}, gate_pass: bool, errors: []}`) at a known path so CI can regress against it in future runs
 
 ---
 
@@ -104,13 +104,13 @@ All 26 v3.1 REQs mapped to exactly one phase (100% coverage). Plans TBD — popu
 | ARCH-02 | Phase 10 | TBD | Not started |
 | ARCH-03 | Phase 10 | TBD | Not started |
 | ARCH-04 | Phase 10 | TBD | Not started |
-| E2E-01 | Phase 11 | TBD | Not started |
-| E2E-02 | Phase 11 | TBD | Not started |
-| E2E-03 | Phase 11 | TBD | Not started |
-| E2E-04 | Phase 11 | TBD | Not started |
-| E2E-05 | Phase 11 | TBD | Not started |
-| E2E-06 | Phase 11 | TBD | Not started |
-| E2E-07 | Phase 11 | TBD | Not started |
+| E2E-01 | Phase 11 | 11-00 | Complete |
+| E2E-02 | Phase 11 | 11-02 | Not started |
+| E2E-03 | Phase 11 | 11-00 (scaffold) + 11-02 (populate) | Complete (scaffold); values in 11-02 |
+| E2E-04 | Phase 11 | 11-02 | Not started |
+| E2E-05 | Phase 11 | 11-00 | Complete |
+| E2E-06 | Phase 11 | 11-02 | Not started |
+| E2E-07 | Phase 11 | 11-00 | Complete |
 
 **Coverage summary:**
 
