@@ -19,10 +19,10 @@
 
 ### Classification (CLASS)
 
-- [ ] **CLASS-01**: `batch_ingest_from_spider.py --from-db` flow scrapes full article body BEFORE classification (no reliance on WeChat `digest` field which is unreliable — empirically `digest=N/A` for test fixture, truncated and ad-laden in random samples)
-- [ ] **CLASS-02**: DeepSeek classifies on full article body; returns `{depth: 1-3, topics: [...]}` with rationale
-- [ ] **CLASS-03**: scrape phase reuses existing `spiders/wechat_spider.py` anti-abuse parameters (`SESSION_LIMIT=54`, `RATE_LIMIT_SLEEP_ACCOUNTS=5.0`, `RATE_LIMIT_COOLDOWN=60.0`, random shuffle). Full-text scraping adds per-article delay only (reuses existing rotating `_UA_POOL` and `_ua_cooldown()`). NOTE: v3.1 gate runs against local fixture — WeChat rate limiting is BATCH-scenario-only and does not block v3.1 gate; this REQ is for spec-correctness of the batch path Phase 5 will invoke
-- [ ] **CLASS-04**: classifier output persisted to `classifications` SQLite table with `article_id`, `depth`, `topics`, `rationale`, `classified_at` BEFORE any ingest decision
+- [x] **CLASS-01**: `batch_ingest_from_spider.py --from-db` flow scrapes full article body BEFORE classification (no reliance on WeChat `digest` field which is unreliable — empirically `digest=N/A` for test fixture, truncated and ad-laden in random samples)
+- [x] **CLASS-02**: DeepSeek classifies on full article body; returns `{depth: 1-3, topics: [...]}` with rationale
+- [x] **CLASS-03**: scrape phase reuses existing `spiders/wechat_spider.py` anti-abuse parameters (`SESSION_LIMIT=54`, `RATE_LIMIT_SLEEP_ACCOUNTS=5.0`, `RATE_LIMIT_COOLDOWN=60.0`, random shuffle). Full-text scraping adds per-article delay only (reuses existing rotating `_UA_POOL` and `_ua_cooldown()`). NOTE: v3.1 gate runs against local fixture — WeChat rate limiting is BATCH-scenario-only and does not block v3.1 gate; this REQ is for spec-correctness of the batch path Phase 5 will invoke
+- [x] **CLASS-04**: classifier output persisted to `classifications` SQLite table with `article_id`, `depth`, `topics`, `rationale`, `classified_at` BEFORE any ingest decision
 
 ### LightRAG State (STATE)
 

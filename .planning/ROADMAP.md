@@ -126,5 +126,5 @@
 |-------|----------------|--------|-----------|
 | 8. Image Pipeline Correctness | 0/? | Not started | - |
 | 9. Timeout Control + LightRAG State | 0/? | Not started | - |
-| 10. Scrape-First Classification + Text-First Ingest | 0/? | Not started | - |
+| 10. Scrape-First Classification + Text-First Ingest | 1/3 | In Progress|  |
 | 11. E2E Verification Gate | 0/? | Not started | - |
