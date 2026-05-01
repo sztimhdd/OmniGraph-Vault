@@ -79,7 +79,7 @@
   2. Inter-image Vision sleep is configurable via a module-level constant with default `0` seconds; sleep=5 still works when set
   3. Each image processed emits a single structured log line containing URL, dimensions, provider name, wall-clock ms, and outcome tag (`success` | `error:<type>`)
   4. Image phase completion emits an aggregate line with counts `{input, kept, filtered}` and total wall-clock timing
-**Plans**: TBD
+**Plans**: 3 plans — 11-00 (bench harness + schema + balance precheck), 11-01 (Vertex AI opt-in conditional enabler for <2min gate), 11-02 (integration run + aquery validation + milestone gate closure)
 
 ### Phase 9: Timeout Control + LightRAG State Management
 **Goal**: LightRAG state is reset cleanly per run, per-article work is budget-bounded, and timeouts leave the graph consistent (no orphan nodes, no replayed embed quota waste)
@@ -91,7 +91,7 @@
   3. `get_rag()` either returns a fresh instance per call or accepts a `flush=True` parameter; a unit test demonstrates the old singleton-with-buffered-state replay bug no longer occurs
   4. When `asyncio.wait_for` kills an article mid-ingest, partially inserted entities/chunks for that article are rolled back; re-ingesting the same article after rollback produces zero orphan nodes and no duplicate primary-key errors
   5. Running `batch_ingest` twice back-to-back on the same fixture produces identical graph state the second time (idempotent — proves both the pre-batch flush and rollback paths work together)
-**Plans**: TBD
+**Plans**: 3 plans — 11-00 (bench harness + schema + balance precheck), 11-01 (Vertex AI opt-in conditional enabler for <2min gate), 11-02 (integration run + aquery validation + milestone gate closure)
 
 ### Phase 10: Scrape-First Classification + Text-First Ingest Decoupling
 **Goal**: The ingestion pipeline scrapes full article body first, classifies on full text via DeepSeek with SQLite persistence, ingests text into LightRAG immediately, and defers Vision work to an async worker that appends image sub-docs — failure of Vision never blocks or invalidates text ingest
@@ -118,7 +118,7 @@
   5. Benchmark calls SiliconFlow `GET /v1/user/info` with `Authorization: Bearer $SILICONFLOW_API_KEY`, parses `balance`, and compares against estimated cost (~¥0.036/article × batch size); emits a structured warning (non-fatal for single-article v3.1 gate) if balance is below threshold
   6. Benchmark completes with zero unhandled exceptions and zero process crashes from CLI invocation through `benchmark_result.json` write
   7. `benchmark_result.json` is written to a known path with the exact schema `{article_hash, stage_timings_ms: {scrape, classify, image_download, text_ingest, async_vision_start}, counters: {images_input, images_kept, images_filtered, chunks_extracted, entities_ingested}, gate_pass: bool, errors: []}` — CI can diff this file across future runs
-**Plans**: TBD
+**Plans**: 3 plans — 11-00 (bench harness + schema + balance precheck), 11-01 (Vertex AI opt-in conditional enabler for <2min gate), 11-02 (integration run + aquery validation + milestone gate closure)
 
 ### Progress
 
@@ -127,4 +127,4 @@
 | 8. Image Pipeline Correctness | 0/? | Not started | - |
 | 9. Timeout Control + LightRAG State | 0/? | Not started | - |
 | 10. Scrape-First Classification + Text-First Ingest | 1/3 | In Progress|  |
-| 11. E2E Verification Gate | 0/? | Not started | - |
+| 11. E2E Verification Gate | 0/3 | Planned | - |
