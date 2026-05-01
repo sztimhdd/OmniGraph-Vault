@@ -302,22 +302,27 @@ def _describe_via_siliconflow(image_bytes: bytes, mime: str = "image/jpeg") -> s
     return content.strip()
 
 
-def _describe_one(path: Path, provider: str) -> str:
+def _describe_one(path: Path, provider: str) -> tuple[str, str]:
     """Describe a single image. provider: 'gemini' | 'siliconflow' | 'openrouter' | 'auto'.
-    'auto' tries Gemini → SiliconFlow → OpenRouter in cascade."""
+    'auto' tries Gemini → SiliconFlow → OpenRouter in cascade.
+
+    Phase 8 IMG-04: returns (description, provider_used) so describe_images can
+    accumulate provider_mix stats. provider_used is one of
+    "gemini" | "siliconflow" | "openrouter".
+    """
     image_bytes = Path(path).read_bytes()
     suffix = path.suffix.lower()
     mime = "image/png" if suffix == ".png" else "image/jpeg"
 
     if provider == "gemini":
-        return _describe_via_gemini(image_bytes, mime)
+        return _describe_via_gemini(image_bytes, mime), "gemini"
     elif provider == "siliconflow":
-        return _describe_via_siliconflow(image_bytes, mime)
+        return _describe_via_siliconflow(image_bytes, mime), "siliconflow"
     elif provider == "openrouter":
-        return _describe_via_openrouter(image_bytes, mime)
+        return _describe_via_openrouter(image_bytes, mime), "openrouter"
     else:  # auto — cascade: Gemini → Qwen3-VL(SiliconFlow) → GLM-4.5V(OpenRouter)
         try:
-            return _describe_via_gemini(image_bytes, mime)
+            return _describe_via_gemini(image_bytes, mime), "gemini"
         except Exception as gemini_err:
             msg = str(gemini_err).lower()
             if "429" in msg or "quota" in msg or "exhausted" in msg:
@@ -325,10 +330,10 @@ def _describe_one(path: Path, provider: str) -> str:
             else:
                 logger.warning("Gemini Vision failed (%s) → falling back to SiliconFlow", gemini_err)
             try:
-                return _describe_via_siliconflow(image_bytes, mime)
+                return _describe_via_siliconflow(image_bytes, mime), "siliconflow"
             except Exception as sf_err:
                 logger.warning("SiliconFlow failed (%s) → last resort: OpenRouter/GLM-4.5V", sf_err)
-                return _describe_via_openrouter(image_bytes, mime)
+                return _describe_via_openrouter(image_bytes, mime), "openrouter"
 
 
 def describe_images(paths: list[Path]) -> dict[Path, str]:
@@ -339,21 +344,85 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
     - siliconflow: Qwen3-VL-32B at ¥0.0013/image, best open-source vision.
     - openrouter: GLM-4.5V at $0.0001/call, last resort.
     - auto: Gemini → Qwen3-VL(SiliconFlow) → GLM-4.5V(OpenRouter).
-      Maximizes free Gemini, falls back to best quality, then cheapest."""
+      Maximizes free Gemini, falls back to best quality, then cheapest.
+
+    Phase 8 IMG-02/03/04:
+    - Per-call stats exposed via get_last_describe_stats() (Option A — signature preserved).
+    - Per-image JSON-lines event emitted for every path (outcome=success|vision_error|timeout).
+    - Inter-image sleep defaults to 0s; override via VISION_INTER_IMAGE_SLEEP env.
+    """
+    global _last_describe_stats
     provider = os.environ.get("VISION_PROVIDER", "auto").strip().lower()
     if provider not in ("gemini", "siliconflow", "openrouter", "auto"):
         logger.warning("Unknown VISION_PROVIDER=%r — falling back to 'auto'", provider)
         provider = "auto"
 
+    sleep_secs = float(
+        os.environ.get("VISION_INTER_IMAGE_SLEEP", _DESCRIBE_INTER_IMAGE_SLEEP_SECS)
+    )
+
     result: dict[Path, str] = {}
     paths_list = list(paths)
+    provider_mix: dict[str, int] = {}
+    vision_success = 0
+    vision_error = 0
+    vision_timeout = 0
+
     for i, path in enumerate(paths_list):
+        t0 = time.perf_counter()
         try:
-            result[path] = _describe_one(path, provider)
+            desc, provider_used = _describe_one(path, provider)
+            result[path] = desc
+            vision_success += 1
+            provider_mix[provider_used] = provider_mix.get(provider_used, 0) + 1
+            _emit_log({
+                "event": "image_processed",
+                "ts": _now_iso(),
+                "url": None,  # not available here; correlate via local_path
+                "local_path": str(path),
+                "dims": None,
+                "bytes": path.stat().st_size if path.exists() else None,
+                "provider": provider_used,
+                "ms": int((time.perf_counter() - t0) * 1000),
+                "outcome": OUTCOME_SUCCESS,
+                "error": None,
+            })
         except Exception as e:
             result[path] = f"Error describing image: {e}"
-        if i + 1 < len(paths_list):
-            time.sleep(_DESCRIBE_INTER_IMAGE_SLEEP_SECS)
+            # Outcome taxonomy: timeout vs vision_error (D-08.05).
+            err_text = str(e).lower()
+            is_timeout = (
+                "timeout" in err_text
+                or isinstance(e, TimeoutError)
+                or (hasattr(requests, "Timeout") and isinstance(e, requests.Timeout))
+            )
+            if is_timeout:
+                vision_timeout += 1
+                outcome = OUTCOME_TIMEOUT
+            else:
+                vision_error += 1
+                outcome = OUTCOME_VISION_ERROR
+            _emit_log({
+                "event": "image_processed",
+                "ts": _now_iso(),
+                "url": None,
+                "local_path": str(path),
+                "dims": None,
+                "bytes": path.stat().st_size if path.exists() else None,
+                "provider": None,  # provider unknown on failure (could be any in cascade)
+                "ms": int((time.perf_counter() - t0) * 1000),
+                "outcome": outcome,
+                "error": str(e),
+            })
+        if i + 1 < len(paths_list) and sleep_secs > 0:
+            time.sleep(sleep_secs)
+
+    _last_describe_stats = {
+        "provider_mix": provider_mix,
+        "vision_success": vision_success,
+        "vision_error": vision_error,
+        "vision_timeout": vision_timeout,
+    }
     return result
 
 
