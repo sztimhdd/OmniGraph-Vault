@@ -66,7 +66,7 @@
 - [ ] **Phase 8: Image Pipeline Correctness** — fix `min(w,h)<300` filter, make inter-image sleep configurable (default 0), add per-image + aggregate logging
 - [ ] **Phase 9: Timeout Control + LightRAG State Management** — align LLM_TIMEOUT=600, DeepSeek client timeout, dynamic per-chunk outer `wait_for`; flush LightRAG buffer pre-batch; rollback partial inserts on timeout; change `get_rag()` API contract
 - [x] **Phase 10: Scrape-First Classification + Text-First Ingest Decoupling** — scrape full body before classify (drop `digest` reliance), DeepSeek classifier on full text with SQLite persistence, text `ainsert` ingest decoupled from async Vision worker appending image sub-docs (plans 10-00, 10-01, 10-02 all delivered; 61 unit tests passing cumulatively)
-- [ ] **Phase 11: E2E Verification Gate** — fixture CLI ingest, stage-level timing report, SiliconFlow balance check, semantic graph query, `benchmark_result.json` with machine-readable schema; milestone closes here
+- [x] **Phase 11: E2E Verification Gate** — fixture CLI ingest, stage-level timing report, SiliconFlow balance check, semantic graph query, `benchmark_result.json` with machine-readable schema; milestone closes here (completed 2026-05-01)
 
 ### Phase Details
 
@@ -120,6 +120,111 @@
   7. `benchmark_result.json` is written to a known path with the exact schema `{article_hash, stage_timings_ms: {scrape, classify, image_download, text_ingest, async_vision_start}, counters: {images_input, images_kept, images_filtered, chunks_extracted, entities_ingested}, gate_pass: bool, errors: []}` — CI can diff this file across future runs
 **Plans**: 3 plans — 11-00 (bench harness + schema + balance precheck), 11-01 (Vertex AI opt-in conditional enabler for <2min gate), 11-02 (integration run + aquery validation + milestone gate closure)
 
+---
+
+## Milestone v3.2 Planned — Batch Reliability + Infra
+
+**Milestone goal:** Enable Phase 5 Wave 1 (RSS + KOL batch ingestion, 56+ articles) to complete reliably with partial failure recovery, intelligent Vision fallback, comprehensive regression validation, and long-term infrastructure for quota isolation. Predecessor: Milestone v3.1 must be gate-passing first.
+
+**Milestone gate:** 56+ article batch completes with zero unhandled exceptions; transient failures auto-recover without re-scraping prior articles; 5 regression fixtures pass; CLAUDE.md + OPERATOR_RUNBOOK.md + DEPLOY.md complete; SiliconFlow balance warnings trigger at key checkpoints; Vertex AI migration spec + SA template documented.
+
+**Source of truth:** `.planning/MILESTONE_v3.2_REQUIREMENTS.md` (frozen 2026-04-30).
+
+### Phases
+
+- [ ] **Phase 12: Checkpoint/Resume Mechanism (B1)** — 5-stage persistent checkpoints (scrape/classify/image-download/text-ingest/vision-worker) at `~/.hermes/omonigraph-vault/checkpoints/{article_hash}/` with atomic writes and resume-from-last-completed logic
+- [ ] **Phase 13: Vision Cascade with Circuit Breaker (B2)** — SiliconFlow→OpenRouter→Gemini cascade with per-provider state tracking, 3-consecutive-failure circuit breaker, 503/429/timeout error classification, SiliconFlow balance monitoring
+- [ ] **Phase 14: Regression Test Fixtures (B3)** — 5 fixture profiles (gpt55, sparse_image, dense_image, text_only, mixed_quality) + `validate_regression_batch.py` producing `batch_validation_report.json`
+- [ ] **Phase 15: Documentation & Operator Runbook (B4)** — CLAUDE.md additions (checkpoint/cascade/balance), `docs/OPERATOR_RUNBOOK.md` (pre-batch checklist, failure scenarios, manual intervention), Deploy.md updates
+- [ ] **Phase 16: Vertex AI Infrastructure Preparation (B5)** — `docs/VERTEX_AI_MIGRATION_SPEC.md` + `credentials/vertex_ai_service_account_example.json` template + `scripts/estimate_vertex_ai_cost.py` (no code changes; design-only)
+- [ ] **Phase 17: Batch Timeout Management** — Extend Phase 9 per-article timeout formula to batch-level: dynamic remaining-budget calculation, single/batch interlock, checkpoint-flush interaction, monitoring metrics (avg_article_time, batch_progress_vs_budget, timeout_histogram)
+
+### Phase Details
+
+### Phase 12: Checkpoint/Resume Mechanism
+**Goal**: Persist article ingestion state at 5 stage boundaries so transient failures resume without re-scraping or re-processing prior stages; support manual reset per-hash or batch-wide
+**Depends on**: v3.1 Phase 9 (`get_rag(flush=True)` contract, rollback semantics), v3.1 Phase 10 (`ainsert` decoupled from Vision)
+**Requirements**: CKPT-01 (stage boundaries), CKPT-02 (format), CKPT-03 (resume logic), CKPT-04 (atomicity), CKPT-05 (manual reset scripts)
+**Success Criteria** (what must be TRUE):
+  1. Single article with injected failure at stage 3 (image-download) resumes correctly at stage 4 (text-ingest) without re-running scrape/classify/image-download
+  2. Checkpoint files are written atomically (`.tmp` then `os.rename()`); a crash mid-write leaves no corrupted partial files
+  3. `python scripts/checkpoint_reset.py --hash {article_hash}` removes checkpoint dir; full re-run succeeds cleanly
+  4. `python scripts/checkpoint_status.py` lists all in-flight checkpoints with current stage annotation
+  5. Checkpoint directory schema matches MILESTONE_v3.2_REQUIREMENTS.md §B1.2 exactly (5 files/dirs + metadata.json)
+**Plans**: 4 plans
+  - [ ] 12-00-checkpoint-lib-PLAN.md — Wave 1: lib/checkpoint.py public API + unit tests (CKPT-01, CKPT-02, CKPT-04)
+  - [ ] 12-01-cli-tools-PLAN.md — Wave 2: scripts/checkpoint_reset.py (+ --confirm guard) and scripts/checkpoint_status.py + CLI tests (CKPT-05)
+  - [ ] 12-02-ingest-integration-PLAN.md — Wave 2: wrap ingest_wechat.py::ingest_article 5 stages with checkpoint read/write + stage-skip integration tests (CKPT-01, CKPT-03)
+  - [ ] 12-03-batch-integration-and-e2e-PLAN.md — Wave 3: batch_ingest_from_spider.py skip guard + end-to-end failure-injection tests (Gate 1 acceptance) (CKPT-03, CKPT-05)
+
+### Phase 13: Vision Cascade with Circuit Breaker
+**Goal**: Image description cascades SiliconFlow→OpenRouter→Gemini with per-provider state tracking and automatic circuit breaker; a single provider 503 never kills the article
+**Depends on**: Phase 12 (uses checkpoint dir to persist `provider_status` across batch restarts)
+**Requirements**: CASC-01 (cascade order), CASC-02 (state tracking), CASC-03 (circuit breaker), CASC-04 (error code classification), CASC-05 (logging), CASC-06 (SiliconFlow balance management)
+**Success Criteria** (what must be TRUE):
+  1. SiliconFlow 503 → auto-cascade to OpenRouter without exception propagation
+  2. After 3 consecutive SiliconFlow failures within a batch, `circuit_open = True` and SiliconFlow is skipped for subsequent images until recovery retry succeeds
+  3. `batch_validation_report.json` `provider_usage` reflects actual cascade attempts per provider
+  4. Pre-batch SiliconFlow balance check emits structured warning if balance < estimated remaining cost
+  5. Gemini is used only as last resort when both SiliconFlow and OpenRouter circuits are open
+  6. 429 on SiliconFlow immediately cascades to OpenRouter; 4xx auth errors do NOT count toward circuit breaker
+**Plans**: 4 plans (planned 2026-04-30)
+  - [ ] 13-00-vision-cascade-core-PLAN.md — Wave 1: lib/vision_cascade.py (VisionCascade class, CascadeResult, AttemptRecord, AllProvidersExhausted429Error) + unit tests for state machine, error classification, circuit breaker, atomic persist
+  - [ ] 13-01-siliconflow-balance-PLAN.md — Wave 1 (parallel): lib/siliconflow_balance.py (check_siliconflow_balance, estimate_cost, should_warn, should_switch_to_openrouter) + unit tests for HTTP paths + threshold math
+  - [ ] 13-02-image-pipeline-integration-PLAN.md — Wave 2: rewire image_pipeline.describe_images() to use VisionCascade; pre-batch + mid-batch balance checks; batch-end alerts; preserves public signature + unit tests
+  - [ ] 13-03-integration-tests-PLAN.md — Wave 3: tests/integration/test_vision_cascade_e2e.py simulating 503/429/timeout/recovery/balance sequences with HTTP-layer mocks only (no real API keys)
+
+### Phase 14: Regression Test Fixtures
+**Goal**: 5 fixture profiles covering distinct article characteristics (image density, text length, image quality) validate the batch pipeline end-to-end; JSON report schema supports CI regression tracking
+**Depends on**: Phase 12 (checkpoint infra), Phase 13 (cascade), v3.1 Phase 11 (bench harness pattern)
+**Requirements**: REGR-01 (5 fixtures), REGR-02 (schema), REGR-03 (validation script), REGR-04 (report schema), REGR-05 (CI integration)
+**Success Criteria** (what must be TRUE):
+  1. `test/fixtures/sparse_image_article/`, `dense_image_article/`, `text_only_article/`, `mixed_quality_article/` exist with matching `metadata.json` + content
+  2. `python scripts/validate_regression_batch.py --fixtures ... --output batch_validation_report.json` completes on all 5 fixtures
+  3. `batch_validation_report.json` matches MILESTONE_v3.2_REQUIREMENTS.md §B3.4 schema exactly
+  4. Script exit code 0 on all-pass, 1 on any failure
+  5. `dense_image_article` (45 images) filters correctly (post-IMG-01 fix) and all survive Vision cascade
+  6. `text_only_article` (0 images) skips Vision entirely with no null pointer errors
+**Plans**: TBD
+
+### Phase 15: Documentation & Operator Runbook
+**Goal**: Humans can operate the batch pipeline without reading code; CLAUDE.md + OPERATOR_RUNBOOK.md + DEPLOY.md cover deployment, monitoring, recovery, and upgrade paths
+**Depends on**: Nothing for drafting (can run in parallel with Phase 12-14); facts documented must reflect Phase 12-13 final APIs before merge
+**Requirements**: DOC-01 (CLAUDE.md additions), DOC-02 (OPERATOR_RUNBOOK.md), DOC-03 (DEPLOY.md updates)
+**Success Criteria** (what must be TRUE):
+  1. CLAUDE.md contains Checkpoint Mechanism + Vision Cascade + SiliconFlow Balance Management + Batch Execution + Known Limitations sections
+  2. `docs/OPERATOR_RUNBOOK.md` contains Pre-Batch Checklist + Batch Execution commands + Failure Scenarios table + Manual Intervention + Monitoring Points
+  3. `Deploy.md` updated with SiliconFlow vs Gemini trade-off table and "Recommended Upgrade Path" pointing to Vertex AI spec
+  4. Runbook walkthrough with at least one failure scenario passes human review (no questions remaining)
+**Plans**: 3 plans
+  - [ ] 15-00-claude-md-additions-PLAN.md — Insert 5 new sections (Checkpoint, Vision Cascade, Balance, Batch Execution, Known Limitations) into CLAUDE.md after Lessons Learned
+  - [ ] 15-01-operator-runbook-PLAN.md — Create docs/OPERATOR_RUNBOOK.md with Pre-Batch Checklist, Batch Execution, Failure Scenarios table, Manual Intervention, Monitoring Points
+  - [ ] 15-02-deploy-md-updates-PLAN.md — Append SiliconFlow-vs-Gemini trade-off, Vertex AI Infrastructure Plan, Recommended Upgrade Path sections to Deploy.md
+
+### Phase 16: Vertex AI Infrastructure Preparation
+**Goal**: Design and document the migration path from Gemini API free tier to Vertex AI OAuth2 with cross-project quota isolation; no code changes required in this milestone
+**Depends on**: Nothing (fully parallel with all other v3.2 phases)
+**Requirements**: VERT-01 (migration spec), VERT-02 (SA template), VERT-03 (CLAUDE.md + Deploy.md updates), VERT-04 (cost estimation script)
+**Success Criteria** (what must be TRUE):
+  1. `docs/VERTEX_AI_MIGRATION_SPEC.md` documents GCP project setup, service account naming, OAuth2 token refresh pattern, pricing comparison, and backward-compat design
+  2. `credentials/vertex_ai_service_account_example.json` provided as a template (no real credentials)
+  3. CLAUDE.md § "Vertex AI Migration Path" explains the free-tier quota coupling problem and upgrade criteria
+  4. `scripts/estimate_vertex_ai_cost.py --articles N --avg-images-per-article M` outputs cost breakdown (embedding + vision + LLM totals)
+  5. Zero production code paths modified — all changes are in `docs/`, `credentials/`, `scripts/`
+**Plans**: TBD
+
+### Phase 17: Batch Timeout Management
+**Goal**: Extend v3.1 Phase 9's per-article `asyncio.wait_for` budget to batch-level: batch tracks dynamic remaining budget, single-article timeout interacts gracefully with checkpoint flush, monitoring metrics published
+**Depends on**: Phase 12 (checkpoint flush interaction), v3.1 Phase 9 (single-article timeout formula `max(120 + 30 × chunk_count, 900)`)
+**Requirements**: BTIMEOUT-01 (batch time tracking), BTIMEOUT-02 (single/batch interlock), BTIMEOUT-03 (checkpoint-flush timeout interaction), BTIMEOUT-04 (monitoring metrics)
+**Success Criteria** (what must be TRUE):
+  1. Batch run emits per-article timing: `avg_article_time`, `batch_progress_vs_budget`, `timeout_histogram` (e.g., buckets 0–60s / 60–300s / 300–900s / 900s+)
+  2. Remaining batch budget is computed dynamically: `budget = total_batch_budget − elapsed`; per-article timeout clamped to `min(single_article_timeout, remaining_budget − safety_margin)`
+  3. Checkpoint flush on timeout is NOT counted toward single-article budget (flush is post-timeout bookkeeping)
+  4. Batch reports final summary with budget utilization, per-stage wall-clock breakdown
+  5. Spec-level design delivered in this milestone; implementation may defer to post-v3.2 if needed — phase definition explicitly marks implementation scope vs design scope
+**Plans**: TBD
+
 ### Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -127,4 +232,10 @@
 | 8. Image Pipeline Correctness | 0/? | Not started | - |
 | 9. Timeout Control + LightRAG State | 0/? | Not started | - |
 | 10. Scrape-First Classification + Text-First Ingest | 1/3 | In Progress|  |
-| 11. E2E Verification Gate | 1/3 | In Progress|  |
+| 11. E2E Verification Gate | 3/3 | Complete   | 2026-05-01 |
+| 12. Checkpoint/Resume Mechanism | 0/? | Not started | - |
+| 13. Vision Cascade with Circuit Breaker | 0/? | Not started | - |
+| 14. Regression Test Fixtures | 0/? | Not started | - |
+| 15. Documentation & Operator Runbook | 0/? | Not started | - |
+| 16. Vertex AI Infrastructure Preparation | 0/? | Not started | - |
+| 17. Batch Timeout Management | 0/? | Not started | - |
