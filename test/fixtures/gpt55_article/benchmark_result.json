@@ -1,12 +1,12 @@
 {
   "article_hash": "7d500c2dd9",
-  "fixture_path": "test\\fixtures\\gpt55_article",
-  "timestamp_utc": "2026-05-01T12:52:39.668634Z",
+  "fixture_path": "test/fixtures/gpt55_article",
+  "timestamp_utc": "2026-05-01T12:43:17.657920Z",
   "stage_timings_ms": {
-    "scrape": 2,
-    "classify": 1624,
-    "image_download": 58,
-    "text_ingest": 620218,
+    "scrape": 0,
+    "classify": 2451,
+    "image_download": 61,
+    "text_ingest": 441102,
     "async_vision_start": 0
   },
   "counters": {
@@ -27,6 +27,10 @@
       "event": "balance_precheck_skipped",
       "provider": "siliconflow",
       "reason": "api_key_unset"
+    },
+    {
+      "event": "vision_worker_drain_timeout",
+      "timeout_s": 120.0
     }
   ],
   "errors": []
