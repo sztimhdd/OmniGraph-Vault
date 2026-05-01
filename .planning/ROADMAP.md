@@ -223,7 +223,10 @@
   3. Checkpoint flush on timeout is NOT counted toward single-article budget (flush is post-timeout bookkeeping)
   4. Batch reports final summary with budget utilization, per-stage wall-clock breakdown
   5. Spec-level design delivered in this milestone; implementation may defer to post-v3.2 if needed — phase definition explicitly marks implementation scope vs design scope
-**Plans**: TBD
+**Plans**: 3 plans (planned 2026-04-30)
+  - [ ] 17-00-design-doc-PLAN.md — Wave 1 (independent): docs/BATCH_TIMEOUT_DESIGN.md with 8 mandatory sections (BTIMEOUT-01..04 design)
+  - [ ] 17-01-clamp-helper-PLAN.md — Wave 1 (parallel): lib/batch_timeout.py `clamp_article_timeout()` + `get_remaining_budget()` + `BATCH_SAFETY_MARGIN_S` + 11 unit tests (BTIMEOUT-02)
+  - [ ] 17-02-batch-instrumentation-PLAN.md — Wave 2 (depends on 17-01): batch_ingest_from_spider.py instrumentation (env var + CLI flag + clamp call + metric emission) + 18 unit tests (BTIMEOUT-01, BTIMEOUT-03, BTIMEOUT-04)
 
 ### Progress
 
@@ -238,4 +241,4 @@
 | 14. Regression Test Fixtures | 0/? | Not started | - |
 | 15. Documentation & Operator Runbook | 0/? | Not started | - |
 | 16. Vertex AI Infrastructure Preparation | 0/? | Not started | - |
-| 17. Batch Timeout Management | 0/? | Not started | - |
+| 17. Batch Timeout Management | 0/3 | Not started | - |
