@@ -346,42 +346,40 @@ async def test_run_drains_pending_vision_tasks(monkeypatch, _fake_rag):
     """D-10.09: run() awaits pending Vision tasks before finalize_storages."""
     import batch_ingest_from_spider
 
-    # Spawn a fake Vision task before run's finally block runs.
     drained: list[str] = []
 
     async def _fake_vision_work():
         await asyncio.sleep(0.2)
         drained.append("done")
 
-    # Patch ingest_article (used inside run) so it only spawns the Vision task and returns.
+    # Patch ingest_article so it spawns a Vision task and returns ok.
     async def _fake_ingest_article(url, dry_run, rag):
         asyncio.create_task(_fake_vision_work())
         return True
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
 
-    # Patch get_rag, kol_config, fetch — we only need to exercise the finally block.
+    # Patch get_rag — late-imported inside run().
     async def _fake_get_rag(flush=True):
         return _fake_rag
 
-    monkeypatch.setattr(
-        "ingest_wechat.get_rag", _fake_get_rag
-    )
+    monkeypatch.setattr("ingest_wechat.get_rag", _fake_get_rag)
 
-    # Stub _get_kol_accounts + fetch_recent_articles_for_account to deliver exactly one article.
+    # Stub kol_config + list_articles so run() delivers exactly one article.
+    fake_config = MagicMock()
+    fake_config.FAKEIDS = {"acct1": "fakeid1"}
+    fake_config.TOKEN = "tok"
+    fake_config.COOKIE = "cookie"
+    monkeypatch.setattr(batch_ingest_from_spider, "kol_config", fake_config)
     monkeypatch.setattr(
         batch_ingest_from_spider,
-        "_get_kol_accounts",
-        MagicMock(return_value=[{"biz": "b1", "name": "acct1"}]),
-    )
-
-    def _fake_fetch(*args, **kwargs):
-        return [{"title": "t", "url": "https://mp.weixin.qq.com/s/x", "account": "acct1"}]
-
-    monkeypatch.setattr(
-        batch_ingest_from_spider, "fetch_recent_articles_for_account", _fake_fetch
+        "list_articles",
+        lambda **kw: [{"title": "t", "url": "https://mp.weixin.qq.com/s/x"}],
     )
     monkeypatch.setattr(batch_ingest_from_spider, "SLEEP_BETWEEN_ARTICLES", 0)
+    monkeypatch.setattr(batch_ingest_from_spider, "RATE_LIMIT_SLEEP_ACCOUNTS", 0)
+    # Avoid loading ~/.hermes/.env in CI context.
+    monkeypatch.setattr(batch_ingest_from_spider, "_load_hermes_env", lambda: None)
 
     await batch_ingest_from_spider.run(
         days_back=30, max_articles=1, dry_run=False
@@ -403,16 +401,21 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
 
     import batch_ingest_from_spider
 
-    # Build a minimal SQLite DB with one classified article ready to ingest.
+    # Build a minimal SQLite DB matching the schema ingest_from_db SELECTs.
     db_path = tmp_path / "kol_scan.db"
     conn = sqlite3.connect(db_path)
     conn.executescript(
         """
+        CREATE TABLE accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            fakeid TEXT
+        );
         CREATE TABLE articles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER,
             title TEXT,
             url TEXT UNIQUE,
-            account TEXT,
             body TEXT,
             enriched INTEGER DEFAULT 0,
             content_hash TEXT,
@@ -420,28 +423,25 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
         );
         CREATE TABLE classifications (
             article_id INTEGER,
-            depth INTEGER,
             depth_score INTEGER,
-            topics TEXT,
+            depth INTEGER,
             topic TEXT,
-            rationale TEXT,
+            topics TEXT,
             reason TEXT,
+            rationale TEXT,
             classified_at TEXT
-        );
-        CREATE TABLE ingestions (
-            article_id INTEGER PRIMARY KEY,
-            status TEXT
         );
         """
     )
+    conn.execute("INSERT INTO accounts(name, fakeid) VALUES (?, ?)", ("acct1", "fakeid1"))
     conn.execute(
-        "INSERT INTO articles(title, url, account, body) VALUES (?, ?, ?, ?)",
-        ("T", "https://mp.weixin.qq.com/s/x", "acct1", "body text"),
+        "INSERT INTO articles(account_id, title, url, body) VALUES (?, ?, ?, ?)",
+        (1, "T", "https://mp.weixin.qq.com/s/x", "body text with enough content"),
     )
     conn.execute(
-        "INSERT INTO classifications(article_id, depth, topics, rationale) "
-        "VALUES (?, ?, ?, ?)",
-        (1, 2, '["AI agents"]', "has topic"),
+        "INSERT INTO classifications(article_id, depth_score, depth, topic, topics, rationale) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (1, 2, 2, "AI agents", '["AI agents"]', "has topic"),
     )
     conn.commit()
     conn.close()
@@ -465,8 +465,16 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
 
     monkeypatch.setattr("ingest_wechat.get_rag", _fake_get_rag)
     monkeypatch.setattr(batch_ingest_from_spider, "SLEEP_BETWEEN_ARTICLES", 0)
-    # Disable the scrape-first classifier pre-flight — classifications row already present.
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "dummy")
+    monkeypatch.setattr(batch_ingest_from_spider, "_load_hermes_env", lambda: None)
+    # Skip classifier pre-flight; classification row already present.
+    monkeypatch.setattr(
+        batch_ingest_from_spider,
+        "_classify_full_body",
+        AsyncMock(return_value={"depth": 2, "topics": ["AI agents"], "rationale": "ok"}),
+    )
+    monkeypatch.setattr(
+        batch_ingest_from_spider, "get_deepseek_api_key", lambda: "dummy"
+    )
 
     await batch_ingest_from_spider.ingest_from_db(
         topic=["AI agents"], min_depth=1, dry_run=False
@@ -481,7 +489,7 @@ async def test_drain_timeout_cancels_stragglers(monkeypatch, _fake_rag):
     """D-10.09: tasks exceeding drain deadline are cancelled; finalize_storages still runs."""
     import batch_ingest_from_spider
 
-    # Patch the drain timeout to a very short value so the test doesn't sleep 120s.
+    # Shorten the drain timeout so the test doesn't sleep 120s.
     monkeypatch.setattr(batch_ingest_from_spider, "VISION_DRAIN_TIMEOUT", 0.1)
 
     straggler_ref: dict = {}
@@ -503,19 +511,20 @@ async def test_drain_timeout_cancels_stragglers(monkeypatch, _fake_rag):
         return _fake_rag
 
     monkeypatch.setattr("ingest_wechat.get_rag", _fake_get_rag)
+
+    fake_config = MagicMock()
+    fake_config.FAKEIDS = {"acct1": "fakeid1"}
+    fake_config.TOKEN = "tok"
+    fake_config.COOKIE = "cookie"
+    monkeypatch.setattr(batch_ingest_from_spider, "kol_config", fake_config)
     monkeypatch.setattr(
         batch_ingest_from_spider,
-        "_get_kol_accounts",
-        MagicMock(return_value=[{"biz": "b1", "name": "acct1"}]),
-    )
-    monkeypatch.setattr(
-        batch_ingest_from_spider,
-        "fetch_recent_articles_for_account",
-        lambda *a, **k: [
-            {"title": "t", "url": "https://mp.weixin.qq.com/s/x", "account": "acct1"}
-        ],
+        "list_articles",
+        lambda **kw: [{"title": "t", "url": "https://mp.weixin.qq.com/s/x"}],
     )
     monkeypatch.setattr(batch_ingest_from_spider, "SLEEP_BETWEEN_ARTICLES", 0)
+    monkeypatch.setattr(batch_ingest_from_spider, "RATE_LIMIT_SLEEP_ACCOUNTS", 0)
+    monkeypatch.setattr(batch_ingest_from_spider, "_load_hermes_env", lambda: None)
 
     await batch_ingest_from_spider.run(
         days_back=30, max_articles=1, dry_run=False

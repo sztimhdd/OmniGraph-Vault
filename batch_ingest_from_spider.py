@@ -79,6 +79,57 @@ SLEEP_BETWEEN_ARTICLES = 10  # Phase 5-00c: DeepSeek LLM + 2-key Gemini embeddin
 GEMINI_BATCH_SLEEP = 2.0   # DeepSeek: no RPM concern; light pause for API stability
 DB_PATH = PROJECT_ROOT / "data" / "kol_scan.db"
 
+# D-10.09: aggregate deadline for draining pending Vision worker tasks before
+# rag.finalize_storages(). 120s covers the worst-case backlog of ~30 articles
+# @ ~4s/article describe time. Tests override this to a small value via monkeypatch.
+VISION_DRAIN_TIMEOUT = 120.0
+
+
+async def _drain_pending_vision_tasks() -> None:
+    """Drain Vision worker tasks lingering on the event loop (D-10.09 / ARCH-04).
+
+    Called from the `finally:` block of run() and ingest_from_db() BEFORE
+    rag.finalize_storages(). Without this, sub-doc ainsert may race with the
+    storage-flush and be lost.
+
+    Tasks still pending after VISION_DRAIN_TIMEOUT are cancelled; the caller
+    then proceeds to finalize_storages regardless. `asyncio.all_tasks()`
+    returns every task on the loop — the filter excludes the current coroutine
+    and any already-done tasks, leaving only the fire-and-forget Vision workers
+    spawned by ingest_wechat.ingest_article.
+    """
+    pending = [
+        t
+        for t in asyncio.all_tasks()
+        if t is not asyncio.current_task() and not t.done()
+    ]
+    if not pending:
+        return
+    logger.info(
+        "Draining %d pending Vision task(s) (%.0fs deadline; D-10.09)...",
+        len(pending),
+        VISION_DRAIN_TIMEOUT,
+    )
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*pending, return_exceptions=True),
+            timeout=VISION_DRAIN_TIMEOUT,
+        )
+        logger.info("Vision tasks drained cleanly")
+    except asyncio.TimeoutError:
+        still_pending = [t for t in pending if not t.done()]
+        logger.warning(
+            "Vision drain timeout — %d/%d task(s) still pending (cancelling)",
+            len(still_pending),
+            len(pending),
+        )
+        for t in still_pending:
+            t.cancel()
+        # Give cancelled tasks a brief moment to process CancelledError so
+        # their observable side effects (log lines, test assertions) complete.
+        if still_pending:
+            await asyncio.gather(*still_pending, return_exceptions=True)
+
 
 # D-09.03 (TIMEOUT-03): per-article outer budget formula.
 # Inner LightRAG per-chunk LLM timeout is LLM_TIMEOUT=600 (D-09.01) — set via
@@ -616,6 +667,8 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
                 await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
     finally:
         if rag is not None:
+            # D-10.09: drain pending Vision worker tasks before flushing storages.
+            await _drain_pending_vision_tasks()
             logger.info("Finalizing LightRAG storages (flushing vdb + graphml)...")
             await rag.finalize_storages()
 
@@ -843,6 +896,8 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
         logger.info("Done — %d articles processed", len(rows))
     finally:
         if rag is not None:
+            # D-10.09: drain pending Vision worker tasks before flushing storages.
+            await _drain_pending_vision_tasks()
             logger.info("Finalizing LightRAG storages (flushing vdb + graphml)...")
             await rag.finalize_storages()
         conn.close()
