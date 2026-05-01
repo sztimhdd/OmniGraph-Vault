@@ -26,6 +26,16 @@ import sqlite3
 import sys
 import time
 import os
+
+# D-09.01 (TIMEOUT-01): LightRAG reads LLM_TIMEOUT at dataclass-definition time
+# (lightrag/lightrag.py:432: `default=int(os.getenv("LLM_TIMEOUT", 180))`).
+# Must be set BEFORE any import chain that transitively loads LightRAG. The
+# `from ingest_wechat import get_rag` late-imports below execute AFTER module
+# init, so putting this at module top guarantees the env var is visible when
+# LightRAG's @dataclass fields evaluate their defaults.
+# setdefault preserves any explicit override from shell env or ~/.hermes/.env.
+os.environ.setdefault("LLM_TIMEOUT", "600")
+
 from datetime import datetime
 from pathlib import Path
 
@@ -70,6 +80,32 @@ GEMINI_BATCH_SLEEP = 2.0   # DeepSeek: no RPM concern; light pause for API stabi
 DB_PATH = PROJECT_ROOT / "data" / "kol_scan.db"
 
 
+# D-09.03 (TIMEOUT-03): per-article outer budget formula.
+# Inner LightRAG per-chunk LLM timeout is LLM_TIMEOUT=600 (D-09.01) — set via
+# setdefault at top of file.
+_CHUNK_SIZE_CHARS = 4800        # ~1200 tokens × 4 chars/token; LightRAG default chunk size
+_BASE_BUDGET_S = 120
+_PER_CHUNK_S = 30
+_SINGLE_CHUNK_FLOOR_S = 900     # guarantees one slow 800s DeepSeek chunk completes
+
+
+def _compute_article_budget_s(full_content: str) -> int:
+    """Compute outer asyncio.wait_for budget for an article (D-09.03).
+
+    Two-layer timeout semantics:
+      - Outer (this budget): governs whole-article ingest call.
+      - Inner (LLM_TIMEOUT=600 via D-09.01): governs each per-chunk LLM call.
+
+    Formula: max(BASE + PER_CHUNK * chunk_count, FLOOR).
+
+    chunk_count is derived from ``len(full_content) // _CHUNK_SIZE_CHARS``
+    (floor, minimum 1). Linear scaling matters more than exact token math;
+    ~4800 chars ≈ 1200 tokens ≈ LightRAG's default chunk_token_size.
+    """
+    chunk_count = max(1, len(full_content) // _CHUNK_SIZE_CHARS)
+    return max(_BASE_BUDGET_S + _PER_CHUNK_S * chunk_count, _SINGLE_CHUNK_FLOOR_S)
+
+
 async def ingest_article(url: str, dry_run: bool, rag) -> bool:
     """Ingest a single URL in-process against the shared LightRAG instance.
 
@@ -85,13 +121,19 @@ async def ingest_article(url: str, dry_run: bool, rag) -> bool:
 
     try:
         import ingest_wechat
+        # D-09.03: 900s floor covers a worst-case single-chunk 800s DeepSeek call.
+        # When Plan 09-01 / Phase 10 decouple scrape from ingest, the inner
+        # rag.ainsert wrap can use the chunk-count-aware budget via
+        # _compute_article_budget_s(full_content). For now, the floor suffices
+        # because `url` is all we have here — full_content is unknown until
+        # after scrape completes inside ingest_wechat.ingest_article.
         await asyncio.wait_for(
             ingest_wechat.ingest_article(url, rag=rag),
-            timeout=1200,
+            timeout=_SINGLE_CHUNK_FLOOR_S,
         )
         return True
     except asyncio.TimeoutError:
-        logger.warning("TIMEOUT (600s) — skipping: %s", url[:80])
+        logger.warning("TIMEOUT (%ds) — skipping: %s", _SINGLE_CHUNK_FLOOR_S, url[:80])
         return False
     except Exception as exc:
         logger.warning("Ingest failed (%s): %s — skipping: %s",
