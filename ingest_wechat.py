@@ -46,7 +46,7 @@ from lib import current_key, get_limiter
 
 from image_pipeline import (
     download_images, localize_markdown, describe_images, save_markdown_with_images,
-    filter_small_images,
+    filter_small_images, get_last_describe_stats, emit_batch_complete,
 )
 
 
@@ -628,8 +628,11 @@ async def ingest_article(url, rag=None):
     # Localize + describe images via shared pipeline (D-15)
     unique_img_urls = list(dict.fromkeys([u for u in img_urls if u.startswith('http')]))
     print(f"Found {len(unique_img_urls)} unique potential images. Downloading and describing...")
+    # Phase 8 IMG-04: aggregate batch-complete log (D-08.02).
+    _img_batch_t0 = time.perf_counter()
     url_to_path = download_images(unique_img_urls, Path(article_dir))
-    
+    download_failed = len(unique_img_urls) - len(url_to_path)
+
     # Phase 8 IMG-01: filter small images via shared pipeline (D-08.01, D-08.03).
     min_dim = int(os.environ.get("IMAGE_FILTER_MIN_DIM", 300))
     url_to_path, filter_stats = filter_small_images(url_to_path, min_dim=min_dim)
@@ -637,8 +640,17 @@ async def ingest_article(url, rag=None):
         f"Filtered {filter_stats.filtered_too_small} small images "
         f"(<{min_dim}px) — {filter_stats.kept} remaining"
     )
-    
+
+    # Phase 8 IMG-02/04: describe signature unchanged (Option A); stats via accessor.
     descriptions = describe_images(list(url_to_path.values()))
+    describe_stats = get_last_describe_stats()
+    emit_batch_complete(
+        filter_stats=filter_stats,
+        download_input_count=len(unique_img_urls),
+        download_failed=download_failed,
+        describe_stats=describe_stats,
+        total_ms=int((time.perf_counter() - _img_batch_t0) * 1000),
+    )
     full_content = localize_markdown(full_content, url_to_path, article_hash=article_hash)
     processed_images = []
     for i, (url_img, path) in enumerate(url_to_path.items()):

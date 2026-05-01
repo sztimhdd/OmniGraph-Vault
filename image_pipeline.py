@@ -80,6 +80,38 @@ def get_last_describe_stats() -> dict | None:
     return _last_describe_stats
 
 
+def emit_batch_complete(
+    *,
+    filter_stats: "FilterStats",
+    download_input_count: int,
+    download_failed: int,
+    describe_stats: dict | None,
+    total_ms: int,
+) -> None:
+    """Emit the aggregate image_batch_complete JSON-lines event (IMG-04 / D-08.02).
+
+    describe_stats can be None (e.g., if the batch had 0 images to describe);
+    the helper normalizes missing keys to 0 / {} to keep the wire format stable.
+    """
+    ds = describe_stats or {}
+    _emit_log({
+        "event": "image_batch_complete",
+        "ts": _now_iso(),
+        "counts": {
+            "input": download_input_count,
+            "kept": filter_stats.kept,
+            "filtered_too_small": filter_stats.filtered_too_small,
+            "download_failed": download_failed,
+            "size_read_failed": filter_stats.size_read_failed,
+            "vision_success": ds.get("vision_success", 0),
+            "vision_error": ds.get("vision_error", 0),
+            "vision_timeout": ds.get("vision_timeout", 0),
+        },
+        "total_ms": total_ms,
+        "provider_mix": ds.get("provider_mix", {}),
+    })
+
+
 @dataclass(frozen=True)
 class FilterStats:
     """Stats from filter_small_images — wire format per CONTEXT D-08.01.
