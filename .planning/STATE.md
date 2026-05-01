@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.1
-milestone_name: single-article-ingest-stability
-status: phase_planned
-stopped_at: "Milestone v3.1 roadmap created (Phases 8-11). Ready for /gsd:plan-phase 8 to break down Image Pipeline Correctness."
-last_updated: "2026-04-30T00:00:00.000Z"
-last_activity: 2026-04-30
+milestone_name: Next — Single-Article Ingest Stability
+current_plan: "1 / Total Plans in Phase: 2"
+status: executing
+stopped_at: Completed 09-00-PLAN.md — Timeout layer (TIMEOUT-01/02/03). Ready for 09-01 STATE-01..04.
+last_updated: "2026-05-01T00:41:09.878Z"
+last_activity: 2026-04-30 — Plan 09-00 complete (TIMEOUT-01/02/03 landed; 10 new unit tests; Phase 8 regression 22/22 still green)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 4
+  completed_plans: 2
 ---
 
 # Project State
@@ -25,10 +25,11 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: **Phase 8 — Image Pipeline Correctness**
-Plan: — (not yet planned; run `/gsd:plan-phase 8`)
-Status: Phase planned, awaiting plan decomposition
-Last activity: 2026-04-30 — Milestone v3.1 roadmap created
+Phase: **Phase 9 — Timeout Control + LightRAG State Management**
+Current Plan: 1 / Total Plans in Phase: 2
+Plan: **09-01 — State Management (STATE-01..04)** — next, ready to execute
+Status: In Progress — Plan 09-00 (TIMEOUT layer) complete
+Last activity: 2026-04-30 — Plan 09-00 complete (TIMEOUT-01/02/03 landed; 10 new unit tests; Phase 8 regression 22/22 still green)
 
 **Milestone v3.1 goal:** Rebuild and locally verify single-article ingestion against `test/fixtures/gpt55_article/` — text ingest + graph connectivity in <2 min with no crash; async Vision worker appends image sub-docs after ingest path returns. This unblocks Phase 5 Wave 1+ (RSS, daily digest, cron).
 
@@ -73,6 +74,7 @@ Last activity: 2026-04-30 — Milestone v3.1 roadmap created
 | Phase 07-model-key-management P03 | 25m | 7 tasks | 6 files |
 | Phase 07-model-key-management P04 | 45m | 10 tasks | 19 files |
 | Phase 05 P00c | 21 min | 6 tasks | 13 files |
+| Phase 09 P00 | 6min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -108,6 +110,9 @@ Recent decisions affecting current work:
 - [Phase 05]: Plan 05-00c: LightRAG LLM routed to DeepSeek (deepseek-v4-flash); Gemini embed now has 2-key rotation + 429 failover across GEMINI_API_KEY + GEMINI_API_KEY_BACKUP; Cognee stays on Gemini (negligible volume, Phase 7 D-04 propagation already suffices); Wave 0 runtime (05-00) is now unblocked
 - [Milestone v3.1]: 26 REQs across IMG / CLASS / STATE / ARCH / TIMEOUT / E2E groups; ARCH-03 resolved as append-sub-doc (NOT re-embed) per Hermes review; STATE-04 added to change `get_rag()` API contract (root cause of STATE-01 history-debt replay); E2E-07 added to codify `benchmark_result.json` schema for CI regression
 - [Milestone v3.1]: Phase boundaries derived from tight-coupling analysis — TIMEOUT+STATE together (outer wait_for triggers rollback; flush contract prevents replay), CLASS+ARCH together (scrape-first enables full-text classify which enables text-first ingest), IMG standalone (self-contained), E2E last (depends on all prior work)
+- [Phase 09]: Plan 09-00: TIMEOUT-02 idiom = bare float 'timeout=120.0' (no httpx dependency); openai SDK interprets as total request timeout
+- [Phase 09]: Plan 09-00: TIMEOUT-03 wrap site = CONTEXT option (c), 900s floor at url-only call site. Full chunk-count scaling deferred to Phase 10 when scrape/ingest decouple.
+- [Phase 09]: Plan 09-00: _compute_article_budget_s exposed at module scope (not closure) so Plan 09-01 / Phase 10 can consume once full_content is known
 
 ### Pending Todos
 
@@ -147,7 +152,7 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-04-30T00:00:00.000Z
-Stopped at: Milestone v3.1 roadmap created (Phases 8-11). Ready for plan decomposition.
-Resume file: `.planning/ROADMAP.md` (Milestone v3.1 Next section) + `.planning/REQUIREMENTS.md` (26 REQs with traceability)
+Last session: 2026-05-01T00:40:44.688Z
+Stopped at: Completed 09-00-PLAN.md — Timeout layer (TIMEOUT-01/02/03). Ready for 09-01 STATE-01..04.
+Resume file: None
 Next command: `/gsd:plan-phase 8` (break down Phase 8: Image Pipeline Correctness)

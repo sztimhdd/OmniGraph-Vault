@@ -40,9 +40,9 @@
 
 ### Timeout & LLM Control (TIMEOUT)
 
-- [ ] **TIMEOUT-01**: `LLM_TIMEOUT` env var controls LightRAG's health_check timeout ceiling; default 600s (up from current 180s that collides with DeepSeek's 800s worst-case single-chunk)
-- [ ] **TIMEOUT-02**: DeepSeek async client configured with explicit request timeout (default 120s) — prevents single-chunk runaway from stalling the batch
-- [ ] **TIMEOUT-03**: per-article outer `asyncio.wait_for` budget scales with text chunk count (formula `max(base=120 + 30 × chunk_count, SINGLE_CHUNK_FLOOR=900)`), NOT image count — images affect Vision stage. Two-layer timeout semantics: outer `wait_for` governs the whole-article budget; inner `LLM_TIMEOUT=600` (TIMEOUT-01) governs each LightRAG per-chunk call. Floor guarantees a single slow DeepSeek chunk (worst-case 800s) can still complete
+- [x] **TIMEOUT-01**: `LLM_TIMEOUT` env var controls LightRAG's health_check timeout ceiling; default 600s (up from current 180s that collides with DeepSeek's 800s worst-case single-chunk)
+- [x] **TIMEOUT-02**: DeepSeek async client configured with explicit request timeout (default 120s) — prevents single-chunk runaway from stalling the batch
+- [x] **TIMEOUT-03**: per-article outer `asyncio.wait_for` budget scales with text chunk count (formula `max(base=120 + 30 × chunk_count, SINGLE_CHUNK_FLOOR=900)`), NOT image count — images affect Vision stage. Two-layer timeout semantics: outer `wait_for` governs the whole-article budget; inner `LLM_TIMEOUT=600` (TIMEOUT-01) governs each LightRAG per-chunk call. Floor guarantees a single slow DeepSeek chunk (worst-case 800s) can still complete
 
 ### E2E Verification (E2E)
 
