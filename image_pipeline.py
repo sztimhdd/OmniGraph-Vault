@@ -98,22 +98,53 @@ class FilterStats:
 def download_images(urls: list[str], dest_dir: Path) -> dict[str, Path]:
     """Download each URL to dest_dir/{i}.jpg. Return {remote_url: local_path}
     for successes only (non-200 responses and exceptions are silently skipped
-    with a warning log)."""
+    with a warning log).
+
+    Phase 8 IMG-03: emits per-image JSON-lines log on failure only. Successful
+    downloads are not logged here — the downstream stage (filter or describe)
+    owns the per-image event for kept images. This matches D-08.02 "ms measures
+    wall-clock of the STAGE that owns this event."
+    """
     dest_dir.mkdir(parents=True, exist_ok=True)
     result: dict[str, Path] = {}
     for i, url in enumerate(urls):
+        t0 = time.perf_counter()
         try:
             resp = requests.get(url, timeout=10)
             if resp.status_code != 200:
                 logger.warning(
                     "Image %d download failed: HTTP %d for %s", i, resp.status_code, url
                 )
+                _emit_log({
+                    "event": "image_processed",
+                    "ts": _now_iso(),
+                    "url": url,
+                    "local_path": None,
+                    "dims": None,
+                    "bytes": None,
+                    "provider": None,
+                    "ms": int((time.perf_counter() - t0) * 1000),
+                    "outcome": OUTCOME_DOWNLOAD_FAILED,
+                    "error": f"HTTP {resp.status_code}",
+                })
                 continue
             path = dest_dir / f"{i}.jpg"
             path.write_bytes(resp.content)
             result[url] = path
         except Exception as e:
             logger.warning("Image %d error: %s", i, e)
+            _emit_log({
+                "event": "image_processed",
+                "ts": _now_iso(),
+                "url": url,
+                "local_path": None,
+                "dims": None,
+                "bytes": None,
+                "provider": None,
+                "ms": int((time.perf_counter() - t0) * 1000),
+                "outcome": OUTCOME_DOWNLOAD_FAILED,
+                "error": str(e),
+            })
     return result
 
 
@@ -134,18 +165,47 @@ def filter_small_images(
     filtered_too_small = 0
     size_read_failed = 0
     for url, path in url_to_path.items():
+        # Phase 8 IMG-03: per-image stage timing for JSON-lines log.
+        per_t0 = time.perf_counter()
         try:
             with PILImage.open(path) as im:
                 w, h = im.size
+            file_bytes = path.stat().st_size
         except Exception as e:
             logger.warning("PIL open failed for %s (%s) — keeping image", path, e)
             size_read_failed += 1
             kept[url] = path  # D-08.01: PIL failure degrades to KEEP
+            _emit_log({
+                "event": "image_processed",
+                "ts": _now_iso(),
+                "url": url,
+                "local_path": str(path),
+                "dims": None,
+                "bytes": None,
+                "provider": None,
+                "ms": int((time.perf_counter() - per_t0) * 1000),
+                "outcome": OUTCOME_SIZE_READ_FAILED,
+                "error": str(e),
+            })
             continue
         if min(w, h) < min_dim:
             filtered_too_small += 1
             path.unlink(missing_ok=True)
+            _emit_log({
+                "event": "image_processed",
+                "ts": _now_iso(),
+                "url": url,
+                "local_path": str(path),
+                "dims": f"{w}x{h}",
+                "bytes": file_bytes,
+                "provider": None,
+                "ms": int((time.perf_counter() - per_t0) * 1000),
+                "outcome": OUTCOME_FILTERED_TOO_SMALL,
+                "error": None,
+            })
         else:
+            # Kept images produce NO event here — describe_images owns the
+            # success/vision_error/timeout outcome per D-08.02.
             kept[url] = path
     stats = FilterStats(
         input=len(url_to_path),
