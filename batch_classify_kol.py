@@ -216,6 +216,100 @@ def _call_deepseek(prompt: str, api_key: str) -> list[dict] | None:
         return None
 
 
+# Phase 10 plan 10-00 (D-10.02): full-body classifier prompt + call helper.
+# These live alongside the legacy batch-scan helpers (`_build_prompt` +
+# `_call_deepseek`) because the batch-scan path still uses the old schema.
+# New {depth, topics, rationale} schema is scrape-first-only.
+FULLBODY_TRUNCATION_CHARS = 8000  # D-10.02 suggested budget; avoids DeepSeek context blowup
+
+
+def _build_fullbody_prompt(
+    title: str,
+    body: str,
+    topic_filter: list[str] | None = None,
+) -> str:
+    """Build a DeepSeek prompt that classifies one article on its FULL BODY.
+
+    D-10.02: the prompt MUST feed the article body (truncated to
+    FULLBODY_TRUNCATION_CHARS) — NOT the WeChat digest — and instruct the
+    model to return a single JSON object with ``depth`` (1-3), ``topics``
+    (list of strings), and ``rationale`` (string).
+
+    Unlike `_build_prompt` (batch-scan path, returns JSON array), this
+    helper builds a single-article prompt — the caller is expected to call
+    DeepSeek once per article (scrape-first path is per-article anyway).
+    """
+    truncated_body = body[:FULLBODY_TRUNCATION_CHARS]
+    topic_hint = ""
+    if topic_filter:
+        keywords = ", ".join(f'"{k}"' for k in topic_filter)
+        topic_hint = (
+            f"\n\nThe user is filtering by topics: {keywords}. If the article is "
+            f"substantively about any of these, include them in the topics list."
+        )
+
+    return f"""You are a technical article curator. Classify the following article.
+
+Return ONLY a single JSON object with three keys:
+- depth: integer 1-3 (1 = shallow news blurb / brief announcement, 2 = moderate analysis, 3 = deep technical deep-dive)
+- topics: a list of 3-5 key concepts, domains, or technologies the article is substantively about (short strings, e.g. ["AI agents", "retrieval-augmented generation"])
+- rationale: a one-sentence explanation of the depth score{topic_hint}
+
+Title: {title}
+
+Body:
+{truncated_body}
+
+Return ONLY a JSON object of the shape {{"depth": <1-3>, "topics": [...], "rationale": "..."}}. No other text, no markdown fences."""
+
+
+def _call_deepseek_fullbody(prompt: str, api_key: str) -> dict | None:
+    """Call DeepSeek with a full-body prompt; parse a single JSON object.
+
+    D-10.02 / D-10.04: returns ``{"depth": int, "topics": list[str],
+    "rationale": str}`` on success. Returns ``None`` on ANY error —
+    orchestrator MUST skip the article (no fail-open).
+    """
+    if requests is None:
+        logger.warning("requests library not available — cannot call DeepSeek API")
+        return None
+    try:
+        resp = requests.post(
+            DEEPSEEK_API_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": DEEPSEEK_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.0,
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"].strip()
+        if content.startswith("```"):
+            start = content.find("\n") + 1
+            end = content.rfind("```")
+            if end > start:
+                content = content[start:end].strip()
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict):
+            logger.warning(
+                "DeepSeek fullbody returned non-object: %s", type(parsed).__name__
+            )
+            return None
+        # Minimal shape check — depth + topics are load-bearing.
+        if "depth" not in parsed or "topics" not in parsed:
+            logger.warning("DeepSeek fullbody missing required keys: %s", list(parsed.keys()))
+            return None
+        return parsed
+    except Exception as exc:
+        logger.warning("DeepSeek fullbody API call failed: %s", exc)
+        return None
+
+
 def _call_gemini(prompt: str) -> list[dict] | None:
     if genai_types is None:
         logger.warning("google-genai package not available — cannot call Gemini API")

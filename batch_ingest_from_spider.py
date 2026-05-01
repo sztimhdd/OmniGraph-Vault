@@ -173,6 +173,34 @@ DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
 
 
+def _ensure_fullbody_columns(conn: sqlite3.Connection) -> None:
+    """Additive schema migration for Phase 10 plan 10-00 (D-10.01 + D-10.04).
+
+    Adds ``articles.body`` and ``classifications.{depth, topics, rationale}``
+    columns if missing. Idempotent — safe to call on every run-start.
+
+    Pattern: per-column PRAGMA table_info guard + individual ALTER TABLE,
+    mirroring ``batch_scan_kol._ensure_column``. SQLite before 3.35 does not
+    support ``ADD COLUMN IF NOT EXISTS``, so we check before altering.
+    """
+    def _ensure(table: str, column: str, type_def: str) -> None:
+        cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_def}")
+
+    # D-10.01: articles.body holds scrape-on-demand persisted content so the
+    # classifier reads the same body the ingester will later ingest.
+    _ensure("articles", "body", "TEXT")
+
+    # D-10.04: new classifications columns for the scrape-first schema.
+    # Old columns (depth_score, topic, reason) are retained for batch-scan compat.
+    _ensure("classifications", "depth", "INTEGER")
+    _ensure("classifications", "topics", "TEXT")       # JSON-serialized list
+    _ensure("classifications", "rationale", "TEXT")
+
+    conn.commit()
+
+
 def _load_hermes_env() -> None:
     """Load env vars from ~/.hermes/.env if not already set."""
     dotenv_paths = [
