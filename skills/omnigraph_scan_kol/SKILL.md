@@ -60,7 +60,7 @@ always ensure you're in the repo root first.
    - Wait 3s for redirect to dashboard
    - Verify with `browser_snapshot` (look for user content)
    - Then run scan as in step 3.
-5. **If clicking login still shows re-login page** → cookies truly expired, notify user via Telegram: "WeChat MP session expired. Please open mp.weixin.qq.com in your browser, scan the QR code, then say 'scan KOL'."
+5. **If clicking login still shows re-login page** → cookies truly expired, enter **QR Code Login Flow** (below). This flow captures the WeChat login QR code via CDP, sends it to Telegram, polls until the user scans, then resumes the scan automatically.
 
 ### Retry on rate limit
 
@@ -68,8 +68,9 @@ If `scan_kol.sh` exits with SESSION_ERROR (ret=200013 mid-scan), wait 30 minutes
 
 ### Trigger: cron fires
 
-Same as above, but on cookie-level failure, deliver Telegram notification
-(since user may not be watching the chat).
+Same as above, but on cookie-level failure, enter **QR Code Login Flow** — capture
+QR code via CDP, send to Telegram, poll for scan, then resume automatically.
+No manual intervention needed.
 
 ## Guard Clauses
 
@@ -112,8 +113,7 @@ browser_snapshot()
   2. Wait 3s for redirect
   3. `browser_snapshot()` again
   4. Dashboard visible → session recovered, proceed to Step 3.
-  5. Still "请重新登录" → cookies truly expired → send Telegram:
-     "⚠️ WeChat MP cookie 已过期，请手动扫码登录 mp.weixin.qq.com" → STOP.
+  5. Still "请重新登录" → cookies truly expired → enter **QR Code Login Flow** (see full procedure below). After login succeeds, proceed to Step 3 (credential extraction). If login times out → STOP.
 - **CDP unreachable** (browser_navigate fails) → send Telegram:
   "⚠️ CDP 浏览器不可达（端口 9223）" → STOP.
 
@@ -193,6 +193,88 @@ When it fails, include the exact error code and remediation. On failure,
 
 If the verification scan returns ret=200013, wait 30 minutes then re-run the full
 Health Check from Step 1. If the retry also fails, stop and notify.
+
+## QR Code Login Flow (CDP → Telegram → Poll → Resume)
+
+When WeChat MP cookies have fully expired and the health check reaches
+"cookies truly expired," Hermes performs an automated QR-code login recovery
+instead of stopping and waiting for manual intervention.
+
+### Step Q1: Navigate to the WeChat MP login page
+
+From any state where "请重新登录" is visible, navigate to the login entry:
+
+```
+browser_navigate("https://mp.weixin.qq.com/")
+```
+
+If the page redirects to a login page (URL contains `qrcode` or the snapshot
+shows a QR code image), proceed to Q2.
+
+If the page shows an unusual state (CAPTCHA, error page, blank), take a
+screenshot via `browser_vision`, send it to Telegram with the message:
+"⚠️ WeChat MP 登录页面异常，见截图", and STOP.
+
+### Step Q2: Capture and send the QR code
+
+```
+browser_vision(question="Is there a QR code visible on this page? If yes, what is around it?")
+```
+
+This returns both the AI analysis and a `screenshot_path`. Then:
+
+```
+send_message(target="telegram", message="📱 WeChat MP 登录已过期，请用微信扫描下方二维码登录（5分钟内有效）\nMEDIA:<screenshot_path>")
+```
+
+If `browser_vision` does not return a `screenshot_path`, use `browser_cdp` to
+capture a screenshot of the mp.weixin.qq.com tab:
+
+```
+browser_cdp(method="Page.captureScreenshot", params={"format": "png"}, target_id="<tab-id>")
+```
+
+Save the base64 data to a temp file via Python, then send via
+`send_message(target="telegram", message="📱 ...  MEDIA:/tmp/wx_qr.png")`.
+
+### Step Q3: Poll for successful login
+
+After sending the QR code, start a polling loop:
+
+```
+repeat up to 30 times (5 minutes total, every 10 seconds):
+  1. browser_snapshot(full=false)
+  2. Check if snapshot contains dashboard indicators:
+     - "AI老兵日记" (username)
+     - "新的创作" (button text)
+     - "原创" (stats label)
+  3. If dashboard found → login succeeded! Break out of loop → go to Q4.
+  4. Check if QR code has expired (snapshot shows "二维码已过期" or similar):
+     → Go back to Step Q1 to get a new QR code (max 2 refreshes total).
+     On the 2nd refresh, send Telegram "⚠️ 二维码再次过期，请尽快扫码" and continue.
+  5. Wait 10 seconds, then next iteration.
+```
+
+**Edge cases during polling:**
+- **Page navigated away** (e.g., WeChat auto-redirect): `browser_navigate("https://mp.weixin.qq.com/")` and continue polling.
+- **CDP connection lost**: Send Telegram "⚠️ CDP 连接中断，无法完成登录" → STOP.
+- **Timeout (5 min / 30 polls)**: Send Telegram "⏰ 扫码超时（5分钟），请稍后手动触发 scan KOL" → STOP.
+
+### Step Q4: Post-login credential extraction
+
+Login succeeded — the dashboard is now visible. Proceed to the normal
+**Health Check Step 3** (extract credentials via CDP → write to kol_config.py).
+
+Then run the single-account test scan (Health Check Step 5) to verify
+credentials work. If test passes → report success and continue to main scan.
+
+### Step Q5: Report login recovery
+
+```
+send_message(target="telegram", message="✅ WeChat MP 登录已恢复，继续执行 KOL 扫描...")
+```
+
+Then proceed to run `bash ./skills/omnigraph_scan_kol/scripts/scan_kol.sh`.
 
 ## Anti-Crawl & Reliability
 
