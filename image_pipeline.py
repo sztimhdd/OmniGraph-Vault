@@ -8,8 +8,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -17,10 +19,65 @@ import requests
 logger = logging.getLogger(__name__)
 
 # Rate-limit between Gemini Vision describe_images calls (D-15).
-_DESCRIBE_INTER_IMAGE_SLEEP_SECS = 2  # Phase 7: reduced from 4s — SiliconFlow has no RPM cap
+_DESCRIBE_INTER_IMAGE_SLEEP_SECS = 0  # Phase 8 IMG-02: was 2; SiliconFlow has no RPM cap
 
 # Local image server base — matches ingest_wechat.py historical value.
 _DEFAULT_IMAGE_BASE_URL = "http://localhost:8765"
+
+# Phase 8 IMG-03 / D-08.05: canonical outcome taxonomy (6 values).
+OUTCOME_SUCCESS = "success"
+OUTCOME_DOWNLOAD_FAILED = "download_failed"
+OUTCOME_FILTERED_TOO_SMALL = "filtered_too_small"
+OUTCOME_SIZE_READ_FAILED = "size_read_failed"
+OUTCOME_VISION_ERROR = "vision_error"
+OUTCOME_TIMEOUT = "timeout"
+
+
+def _now_iso() -> str:
+    """Return current UTC time as ISO-8601 string with millisecond precision."""
+    now = datetime.now(timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+
+
+def _emit_log(event: dict) -> None:
+    """Emit one JSON-lines event to stderr, or to VISION_LOG_PATH file if set.
+
+    Atomic append: open('a') per call so concurrent-writer races are harmless
+    at the line level (OS-level write-atomicity for <PIPE_BUF bytes).
+    """
+    line = json.dumps(event, ensure_ascii=False)
+    log_path = os.environ.get("VISION_LOG_PATH", "").strip()
+    if log_path:
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+            return
+        except OSError as e:
+            # Fallback to stderr on file write failure — do not crash pipeline
+            print(f"[_emit_log] VISION_LOG_PATH write failed: {e}", file=sys.stderr)
+    print(line, file=sys.stderr)
+
+
+# Phase 8 IMG-04: stats from the most recent describe_images() call. Caller
+# retrieves via get_last_describe_stats() after describe_images() returns.
+# None until first call. Not thread-safe — single-ingest-at-a-time assumption
+# matches current batch orchestrator (one article at a time).
+_last_describe_stats: dict | None = None
+
+
+def get_last_describe_stats() -> dict | None:
+    """Return stats from the most recent describe_images() call, or None if
+    describe_images() has never been called in this process.
+
+    Shape:
+        {
+            "provider_mix": {"gemini": N, "siliconflow": N, "openrouter": N},
+            "vision_success": int,
+            "vision_error": int,
+            "vision_timeout": int,
+        }
+    """
+    return _last_describe_stats
 
 
 @dataclass(frozen=True)
