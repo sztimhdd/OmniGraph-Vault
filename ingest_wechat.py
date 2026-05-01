@@ -187,6 +187,35 @@ def get_pending_doc_id(article_hash: str) -> str | None:
     return _PENDING_DOC_IDS.get(article_hash)
 
 
+# D-10.06 (ARCH-02): async Vision worker. Plan 10-01 creates this as a STUB.
+# Plan 10-02 fills in the body: describe_images cascade + sub-doc ainsert
+# (D-10.07) + failure-tolerant exception handling (D-10.08). Keeping the stub
+# ensures the split shape (D-10.05 / ARCH-01) can be merged and tested in
+# isolation from the worker semantics.
+async def _vision_worker_impl(
+    *,
+    rag,
+    article_hash: str,
+    url_to_path: dict,
+    title: str,
+    filter_stats=None,
+    download_input_count: int = 0,
+    download_failed: int = 0,
+) -> None:
+    """STUB — plan 10-02 implements the real body. Returns immediately.
+
+    Args:
+        rag: LightRAG instance (sub-doc ainsert target, filled by plan 10-02).
+        article_hash: identity for the sub-doc doc_id (f"wechat_{hash}_images").
+        url_to_path: {remote_url: local_path} map — feeds describe_images.
+        title: article title for sub-doc markdown header.
+        filter_stats: FilterStats from image_pipeline.filter_small_images.
+        download_input_count: total URLs attempted in the download stage.
+        download_failed: URLs that failed download.
+    """
+    return None
+
+
 # --- Scraping Methods ---
 
 # Rotating UA pool — avoids detection by varying WeChat client fingerprints
@@ -577,13 +606,25 @@ async def extract_entities(text):
         return []
 
 # --- Main Logic ---
-async def ingest_article(url, rag=None):
+async def ingest_article(url, rag=None) -> "asyncio.Task | None":
     """Ingest a single WeChat article.
 
     Phase 5-00b refactor: accepts an optional pre-initialized LightRAG instance
     so batch orchestrators can share one rag across many articles (eliminates
     15-30s per-article init overhead). If ``rag`` is None, falls back to the
     per-call init path — preserves the single-URL CLI contract.
+
+    Phase 10 D-10.05 (ARCH-01): split into text-first + async Vision worker.
+    This function now returns AFTER ``rag.ainsert(full_content, ids=[doc_id])``
+    completes with image REFERENCE lines only (descriptions deferred). A
+    background ``asyncio.create_task(_vision_worker_impl(...))`` is spawned to
+    fill in image descriptions via a sub-doc (plan 10-02 body).
+
+    Returns:
+        asyncio.Task: handle for the background Vision worker when images were
+            present and the worker was spawned.
+        None: if zero images OR cache-hit branch (descriptions already
+            embedded in cached final_content.md) OR error before spawn.
     """
     print(f"--- Starting Ingestion: {url} ---")
     
@@ -634,8 +675,10 @@ async def ingest_article(url, rag=None):
             print(f"LightRAG insert failed: {e}")
 
         print(f"✅ Cached article processed (scrape skipped)")
-        return
-    
+        # D-10.05: cache-hit path has descriptions already embedded in the
+        # cached final_content.md — NO Vision worker is spawned. Return None.
+        return None
+
     print("Starting ingestion process...")
     
     # 1. UA spoofing (primary — fast, free, reliable)
@@ -692,11 +735,11 @@ async def ingest_article(url, rag=None):
     article_dir = os.path.join(BASE_IMAGE_DIR, article_hash)
     os.makedirs(article_dir, exist_ok=True)
 
-    # Localize + describe images via shared pipeline (D-15)
+    # Localize image URLs via shared pipeline (D-15). Download + filter stay
+    # synchronous (fast: HTTP I/O + local PIL reads); DESCRIBE is deferred to
+    # the Vision worker (D-10.05 / D-10.06) so the ainsert hot-path returns fast.
     unique_img_urls = list(dict.fromkeys([u for u in img_urls if u.startswith('http')]))
-    print(f"Found {len(unique_img_urls)} unique potential images. Downloading and describing...")
-    # Phase 8 IMG-04: aggregate batch-complete log (D-08.02).
-    _img_batch_t0 = time.perf_counter()
+    print(f"Found {len(unique_img_urls)} unique potential images. Downloading + filtering...")
     url_to_path = download_images(unique_img_urls, Path(article_dir))
     download_failed = len(unique_img_urls) - len(url_to_path)
 
@@ -708,25 +751,15 @@ async def ingest_article(url, rag=None):
         f"(<{min_dim}px) — {filter_stats.kept} remaining"
     )
 
-    # Phase 8 IMG-02/04: describe signature unchanged (Option A); stats via accessor.
-    descriptions = describe_images(list(url_to_path.values()))
-    describe_stats = get_last_describe_stats()
-    emit_batch_complete(
-        filter_stats=filter_stats,
-        download_input_count=len(unique_img_urls),
-        download_failed=download_failed,
-        describe_stats=describe_stats,
-        total_ms=int((time.perf_counter() - _img_batch_t0) * 1000),
-    )
+    # Phase 10 D-10.05 (ARCH-01): parent doc body contains image REFERENCE
+    # lines only. Image DESCRIPTIONS arrive via sub-doc inserted by the
+    # background _vision_worker_impl (spawned below after parent ainsert).
     full_content = localize_markdown(full_content, url_to_path, article_hash=article_hash)
     processed_images = []
     for i, (url_img, path) in enumerate(url_to_path.items()):
-        desc = descriptions.get(path, "")
         local_url = f"http://localhost:8765/{article_hash}/{path.name}"
-        full_content += f"\n\n[Image {i} Reference]: {local_url}\n[Image {i} Description]: {desc}\n"
-        processed_images.append({"index": i, "description": desc, "local_url": local_url})
-    image_success_count = len(url_to_path)
-    image_fail_count = len(unique_img_urls) - image_success_count
+        full_content += f"\n\n[Image {i} Reference]: {local_url}"
+        processed_images.append({"index": i, "local_url": local_url})
 
     # Ingest into LightRAG
     print("Ingesting into LightRAG...")
@@ -755,6 +788,22 @@ async def ingest_article(url, rag=None):
     # orchestrator reads the tracker via get_pending_doc_id() to roll back, then
     # calls _clear_pending_doc_id() itself.
     _clear_pending_doc_id(article_hash)
+
+    # D-10.05 / D-10.06 (ARCH-01 / ARCH-02): spawn Vision worker AFTER parent
+    # ainsert returns. The worker fills in image descriptions via a sub-doc
+    # (plan 10-02 body). Returned task handle is passed up to the caller —
+    # tests await it; production orchestrator fires-and-forgets per D-10.09.
+    vision_task: "asyncio.Task | None" = None
+    if url_to_path:
+        vision_task = asyncio.create_task(_vision_worker_impl(
+            rag=rag,
+            article_hash=article_hash,
+            url_to_path=url_to_path,
+            title=title,
+            filter_stats=filter_stats,
+            download_input_count=len(unique_img_urls),
+            download_failed=download_failed,
+        ))
 
     # Cognee episodic memory: fire-and-forget article metadata
     # Per 2026 RAG best practices — dual-store: LightRAG (semantic) + Cognee (episodic)
@@ -808,6 +857,12 @@ async def ingest_article(url, rag=None):
             conn.close()
         except Exception as e:
             print(f"DB update failed: {e}")
+
+    # D-10.05: return the Vision worker task handle so tests can await it.
+    # Production orchestrator in batch_ingest_from_spider does NOT await
+    # (fire-and-forget per D-10.09). None if zero images were present.
+    return vision_task
+
 
 async def ingest_pdf(file_path, rag=None):
     """Ingest a local PDF.
