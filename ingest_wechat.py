@@ -237,12 +237,16 @@ async def _vision_worker_impl(
         describe_stats = get_last_describe_stats()
 
         # D-10.07 Step 2: build the sub-doc from successful descriptions only.
-        # Index (N) is preserved — empty descriptions are OMITTED, not renumbered.
+        # Index (N) is preserved — empty / error descriptions are OMITTED,
+        # not renumbered. The error sentinel from image_pipeline.describe_images
+        # fallback ("Error describing image: ...") must be filtered so the
+        # sub-doc doesn't carry junk strings into LightRAG entity extraction.
         lines = [f"# Images for {title}", ""]
         successful = 0
         for i, (url_img, path) in enumerate(url_to_path.items()):
             desc = descriptions.get(path, "")
-            if desc and desc.strip():
+            stripped = desc.strip() if desc else ""
+            if stripped and not stripped.startswith("Error describing image:"):
                 lines.append(f"- [image {i}]: {desc}")
                 successful += 1
 
