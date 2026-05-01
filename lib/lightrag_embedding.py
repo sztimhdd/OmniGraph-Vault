@@ -49,6 +49,7 @@ layered externally.
 """
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 
@@ -145,28 +146,80 @@ def _build_contents(text: str, is_query: bool) -> list:
     return [prefix + clean_text, part]
 
 
+def _is_vertex_mode() -> bool:
+    """Return True iff BOTH Vertex AI env vars are set (non-empty).
+
+    D-11.08 (Plan 11-01) opt-in conditional. Evaluated at CALL TIME, not
+    import time — supports test monkeypatch toggling and preserves the
+    v3.3-migration-deferred scope. Empty strings count as unset so callers
+    can safely `monkeypatch.setenv(var, "")` to force free-tier mode.
+    """
+    return bool(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")) and \
+        bool(os.environ.get("GOOGLE_CLOUD_PROJECT"))
+
+
+def _make_client(api_key: str) -> "genai.Client":
+    """Construct a ``genai.Client`` for the current mode (D-11.08).
+
+    Vertex mode (both env vars set) uses SA JSON auth — ``api_key`` is not
+    forwarded. Free-tier mode uses the rotation-managed ``api_key`` as
+    before. Location defaults to ``us-central1`` when
+    ``GOOGLE_CLOUD_LOCATION`` is unset.
+    """
+    if _is_vertex_mode():
+        return genai.Client(
+            vertexai=True,
+            project=os.environ["GOOGLE_CLOUD_PROJECT"],
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        )
+    return genai.Client(api_key=api_key, vertexai=False)
+
+
+def _resolve_model(base_model: str) -> str:
+    """Map the free-tier model name to its Vertex AI equivalent (D-11.08).
+
+    Memory ref: ``vertex_ai_smoke_validated.md`` — ``gemini-embedding-2``
+    returns 404 on Vertex AI; ``gemini-embedding-2-preview`` is the working
+    multimodal model name. Only applied in Vertex mode AND only for the
+    exact free-tier name; all other model names pass through unchanged so
+    future callers can pin a specific Vertex-native model.
+    """
+    if _is_vertex_mode() and base_model == "gemini-embedding-2":
+        return "gemini-embedding-2-preview"
+    return base_model
+
+
 async def _embed_once(contents: list, model: str) -> np.ndarray:
-    """Place ONE embed_content call against the current rotation key.
+    """Place ONE embed_content call against the current rotation key OR Vertex SA.
 
     Plan 05-00c Task 0c.2: wraps the physical API call so ``embedding_func``
-    can retry on 429 with the next key. On a successful call, records the
-    key in ``_ROTATION_HITS`` for smoke-test telemetry.
+    can retry on 429 with the next key. On a successful call in free-tier
+    mode, records the key in ``_ROTATION_HITS`` for smoke-test telemetry.
+
+    D-11.08 (Plan 11-01): when ``_is_vertex_mode()``, constructs a Vertex AI
+    client (SA JSON auth) and resolves the model name to its -preview
+    variant; rotation telemetry is skipped in Vertex mode to avoid
+    polluting ``_ROTATION_HITS`` with spurious entries against a key the
+    client does not use.
 
     Propagates ClientError and any other exception to the caller — the
     rotation loop in ``embedding_func`` decides whether to rotate (429) or
     re-raise (everything else).
     """
-    api_key = current_embedding_key()
-    client = genai.Client(api_key=api_key, vertexai=False)
+    use_vertex = _is_vertex_mode()
+    api_key = "" if use_vertex else current_embedding_key()
+    client = _make_client(api_key)
+    resolved_model = _resolve_model(model)
     response = await client.aio.models.embed_content(
-        model=model,
+        model=resolved_model,
         contents=contents,
         config=types.EmbedContentConfig(output_dimensionality=_OUTPUT_DIM),
     )
-    # Record successful call for telemetry; only counts successes so a
-    # partially-exhausted key doesn't mask the fact that the OTHER key is
-    # doing all the real work.
-    _ROTATION_HITS[api_key] = _ROTATION_HITS.get(api_key, 0) + 1
+    # Rotation telemetry is meaningful only for the key-rotated free-tier
+    # path. In Vertex mode the SA handles auth and rotation is a no-op; skip
+    # the telemetry to avoid polluting _ROTATION_HITS with non-key entries.
+    if not use_vertex:
+        _ROTATION_HITS[api_key] = _ROTATION_HITS.get(api_key, 0) + 1
     vec = np.asarray(response.embeddings[0].values, dtype=np.float32)
     return vec
 
@@ -192,7 +245,10 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
     """
     is_query = kwargs.pop("_priority", None) == 5
     model = EMBEDDING_MODEL
-    pool_size = len(load_embedding_keys())
+    # D-11.08: in Vertex mode the client ignores api_key (SA auth), so key
+    # rotation is a no-op at the client level. Collapse the retry loop to 1
+    # attempt to avoid 2 identical retries on a spurious 429.
+    pool_size = 1 if _is_vertex_mode() else len(load_embedding_keys())
 
     vectors: list[np.ndarray] = []
     for text in texts:
