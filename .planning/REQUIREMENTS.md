@@ -26,10 +26,10 @@
 
 ### LightRAG State (STATE)
 
-- [ ] **STATE-01**: `batch_ingest` run start flushes LightRAG's buffered-but-unprocessed entities (so residual "history debt" from prior crashed runs does NOT replay and consume embed quota)
-- [ ] **STATE-02**: when `asyncio.wait_for` kills an article task, the pipeline rolls back any partially inserted entities/chunks for that article (graph stays consistent; embed quota not wasted on partial doc)
-- [ ] **STATE-03**: rollback is idempotent — re-running the same article after a rollback succeeds cleanly (no orphan nodes, no duplicate primary keys)
-- [ ] **STATE-04**: `get_rag()` either returns a fresh instance per call or accepts an explicit `flush=True` parameter to clear buffered state — the current global-singleton-with-state pattern is the root of STATE-01's "history debt" replay and needs an API contract change, not just a call-site flush
+- [x] **STATE-01**: `batch_ingest` run start flushes LightRAG's buffered-but-unprocessed entities (so residual "history debt" from prior crashed runs does NOT replay and consume embed quota)
+- [x] **STATE-02**: when `asyncio.wait_for` kills an article task, the pipeline rolls back any partially inserted entities/chunks for that article (graph stays consistent; embed quota not wasted on partial doc)
+- [x] **STATE-03**: rollback is idempotent — re-running the same article after a rollback succeeds cleanly (no orphan nodes, no duplicate primary keys)
+- [x] **STATE-04**: `get_rag()` either returns a fresh instance per call or accepts an explicit `flush=True` parameter to clear buffered state — the current global-singleton-with-state pattern is the root of STATE-01's "history debt" replay and needs an API contract change, not just a call-site flush
 
 ### Architecture / Ingest-Enrich Decoupling (ARCH)
 

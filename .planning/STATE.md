@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Next — Single-Article Ingest Stability
-current_plan: "1 / Total Plans in Phase: 2"
-status: executing
-stopped_at: Completed 09-00-PLAN.md — Timeout layer (TIMEOUT-01/02/03). Ready for 09-01 STATE-01..04.
-last_updated: "2026-05-01T00:41:09.878Z"
-last_activity: 2026-04-30 — Plan 09-00 complete (TIMEOUT-01/02/03 landed; 10 new unit tests; Phase 8 regression 22/22 still green)
+current_plan: "2 / Total Plans in Phase: 2"
+status: completed
+stopped_at: Completed 09-01-PLAN.md — Phase 9 complete. Ready for Phase 10.
+last_updated: "2026-05-01T00:58:24.171Z"
+last_activity: 2026-04-30 — Plan 09-01 complete (STATE-01/02/03/04 landed; 12 new unit tests; Phase 8 regression 22/22 still green; full suite 135 pass / 10 pre-existing fail)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: **Phase 9 — Timeout Control + LightRAG State Management**
-Current Plan: 1 / Total Plans in Phase: 2
-Plan: **09-01 — State Management (STATE-01..04)** — next, ready to execute
-Status: In Progress — Plan 09-00 (TIMEOUT layer) complete
-Last activity: 2026-04-30 — Plan 09-00 complete (TIMEOUT-01/02/03 landed; 10 new unit tests; Phase 8 regression 22/22 still green)
+Phase: **Phase 9 — Timeout Control + LightRAG State Management** — COMPLETE
+Current Plan: 2 / Total Plans in Phase: 2
+Plan: **09-01 — State Management (STATE-01..04)** — COMPLETE
+Status: Phase 9 complete — ready for Phase 10 (Scrape-first + Text-first decoupling)
+Last activity: 2026-04-30 — Plan 09-01 complete (STATE-01/02/03/04 landed; 12 new unit tests; Phase 8 regression 22/22 still green; full suite 135 pass / 10 pre-existing fail)
 
 **Milestone v3.1 goal:** Rebuild and locally verify single-article ingestion against `test/fixtures/gpt55_article/` — text ingest + graph connectivity in <2 min with no crash; async Vision worker appends image sub-docs after ingest path returns. This unblocks Phase 5 Wave 1+ (RSS, daily digest, cron).
 
@@ -75,6 +75,7 @@ Last activity: 2026-04-30 — Plan 09-00 complete (TIMEOUT-01/02/03 landed; 10 n
 | Phase 07-model-key-management P04 | 45m | 10 tasks | 19 files |
 | Phase 05 P00c | 21 min | 6 tasks | 13 files |
 | Phase 09 P00 | 6min | 3 tasks | 5 files |
+| Phase 09 P01 | 9min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,8 @@ Recent decisions affecting current work:
 - [Phase 09]: Plan 09-00: TIMEOUT-02 idiom = bare float 'timeout=120.0' (no httpx dependency); openai SDK interprets as total request timeout
 - [Phase 09]: Plan 09-00: TIMEOUT-03 wrap site = CONTEXT option (c), 900s floor at url-only call site. Full chunk-count scaling deferred to Phase 10 when scrape/ingest decouple.
 - [Phase 09]: Plan 09-00: _compute_article_budget_s exposed at module scope (not closure) so Plan 09-01 / Phase 10 can consume once full_content is known
+- [Phase 09]: Plan 09-01: Clear-on-success-only doc_id tracker (not try/finally) — orchestrator reads tracker after TimeoutError; cleanup in orchestrator finally after rollback. Avoids race where finally clears tracker before orchestrator reads it during cooperative cancellation.
+- [Phase 09]: Plan 09-01: get_rag(flush=True) is now the production contract at 7 production call sites; 3 spike scripts use flush=False for historical reuse-prior-state semantics. Source-grep test enforces no bare get_rag() calls survive.
 
 ### Pending Todos
 
@@ -152,7 +155,7 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-01T00:40:44.688Z
-Stopped at: Completed 09-00-PLAN.md — Timeout layer (TIMEOUT-01/02/03). Ready for 09-01 STATE-01..04.
+Last session: 2026-05-01T00:58:24.162Z
+Stopped at: Completed 09-01-PLAN.md — Phase 9 complete. Ready for Phase 10.
 Resume file: None
 Next command: `/gsd:plan-phase 8` (break down Phase 8: Image Pipeline Correctness)
