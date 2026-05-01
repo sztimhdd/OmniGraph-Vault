@@ -1,4 +1,11 @@
 import os
+
+# D-09.01 (TIMEOUT-01): LightRAG reads LLM_TIMEOUT at dataclass-definition time
+# (lightrag/lightrag.py:432: `default=int(os.getenv("LLM_TIMEOUT", 180))`).
+# Must be set BEFORE `from lightrag import ...` anywhere in the import chain.
+# setdefault preserves any explicit override from shell env or ~/.hermes/.env.
+os.environ.setdefault("LLM_TIMEOUT", "600")
+
 import sys
 import json
 import hashlib

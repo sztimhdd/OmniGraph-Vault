@@ -14,6 +14,12 @@ DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
 
 sys.stdout.reconfigure(encoding="utf-8")
 
+# D-09.01 (TIMEOUT-01): LightRAG reads LLM_TIMEOUT at dataclass-definition time
+# (lightrag/lightrag.py:432: `default=int(os.getenv("LLM_TIMEOUT", 180))`).
+# Must be set BEFORE `from lightrag import ...` anywhere in the import chain.
+# setdefault preserves any explicit override from shell env or ~/.hermes/.env.
+os.environ.setdefault("LLM_TIMEOUT", "600")
+
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 os.environ.setdefault("SSL_CERT_FILE", os.path.expanduser("~/.claude/certs/combined-ca-bundle.pem"))
 os.environ.setdefault("REQUESTS_CA_BUNDLE", os.path.expanduser("~/.claude/certs/combined-ca-bundle.pem"))
