@@ -200,6 +200,19 @@ When WeChat MP cookies have fully expired and the health check reaches
 "cookies truly expired," Hermes performs an automated QR-code login recovery
 instead of stopping and waiting for manual intervention.
 
+### Known Limitations
+
+- **WeChat QR codes cannot be scanned from a photo album or screenshot.** The
+  WeChat app's "Scan" function only works via live camera — pointing the phone
+  at a QR code image displayed on another screen or printed out WILL fail.
+  This is a WeChat security restriction, not a technical bug.
+- **Two-phone workaround:** Use one phone to display the QR code (open Telegram
+  and view the image Hermes sent), and a second phone with the WeChat app to
+  scan the first phone's screen. Confirmed working in live test 2026-05-01.
+- **CDP browser must be on a visible display.** The Edge instance running on the
+  Windows host at port 9223 must have a real screen — headless mode won't work
+  because WeChat checks for rendering surface.
+
 ### Step Q1: Navigate to the WeChat MP login page
 
 From any state where "请重新登录" is visible, navigate to the login entry:
