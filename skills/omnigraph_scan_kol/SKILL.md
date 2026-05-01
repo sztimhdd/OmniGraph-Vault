@@ -217,25 +217,43 @@ screenshot via `browser_vision`, send it to Telegram with the message:
 
 ### Step Q2: Capture and send the QR code
 
-```
-browser_vision(question="Is there a QR code visible on this page? If yes, what is around it?")
-```
+**CRITICAL — avoid `Page.captureScreenshot` base64 freeze:** The CDP
+screenshot method returns enormous base64 data (2MB+) that will freeze
+Hermes for 2+ minutes. The QR code expires in ~2 minutes, so any delay
+is fatal.
 
-This returns both the AI analysis and a `screenshot_path`. Then:
-
-```
-send_message(target="telegram", message="📱 WeChat MP 登录已过期，请用微信扫描下方二维码登录（5分钟内有效）\nMEDIA:<screenshot_path>")
-```
-
-If `browser_vision` does not return a `screenshot_path`, use `browser_cdp` to
-capture a screenshot of the mp.weixin.qq.com tab:
+**Correct approach — crop from the auto-saved browser_vision screenshot:**
 
 ```
-browser_cdp(method="Page.captureScreenshot", params={"format": "png"}, target_id="<tab-id>")
+# Step 1: Get QR code position from DOM (fast, no base64)
+browser_cdp(method="Runtime.evaluate",
+    params={"expression": "(function(){var q=document.querySelector('img.login__type__container__scan__qrcode'); if(!q) return 'not found'; var r=q.getBoundingClientRect(); return JSON.stringify({x:r.left, y:r.top, w:r.width, h:r.height});})()",
+    target_id="<tab-id>")
+
+# Step 2: Take a full-page screenshot via browser_vision (saves to disk automatically)
+browser_vision(question="Describe this page briefly")
+
+# Step 3: Crop the QR code from the screenshot using Python
+# Use execute_code or terminal python to:
+#   from PIL import Image
+#   img = Image.open("<screenshot_path from browser_vision>")
+#   scale = 1.875  # devicePixelRatio from Runtime.evaluate
+#   qr = img.crop((int(x*scale)-20, int(y*scale)-20, int((x+w)*scale)+20, int((y+h)*scale)+20))
+#   qr.save("/tmp/wx_qr.png")
+
+# Step 4: Send cropped QR code to Telegram
+send_message(target="telegram:Hai Hu (dm)",
+    message="📱 WeChat MP 登录已过期，请用微信扫描下方二维码登录（5分钟内有效）\nMEDIA:/tmp/wx_qr.png")
 ```
 
-Save the base64 data to a temp file via Python, then send via
-`send_message(target="telegram", message="📱 ...  MEDIA:/tmp/wx_qr.png")`.
+**If `browser_vision` 503s (model overload):** The screenshot is still saved to disk
+even when vision analysis fails — the `screenshot_path` is returned in the error.
+Use that path directly. Always save the screenshot_path for fallback.
+
+**Why `Page.captureScreenshot` is dangerous:** A full-viewport screenshot in base64
+at scale=2 on a 2560px display = ~3MB of base64 text. Hermes freezes trying to
+process this in the tool response. The QR code expires while Hermes is frozen.
+Always use the file-based approach above.
 
 ### Step Q3: Poll for successful login
 
@@ -259,6 +277,63 @@ repeat up to 30 times (5 minutes total, every 10 seconds):
 - **Page navigated away** (e.g., WeChat auto-redirect): `browser_navigate("https://mp.weixin.qq.com/")` and continue polling.
 - **CDP connection lost**: Send Telegram "⚠️ CDP 连接中断，无法完成登录" → STOP.
 - **Timeout (5 min / 30 polls)**: Send Telegram "⏰ 扫码超时（5分钟），请稍后手动触发 scan KOL" → STOP.
+
+### QR Code Capture Pitfalls (verified 2026-05-01 live test)
+
+These pitfalls were discovered during end-to-end testing of the QR flow and apply
+to any skill that captures login QR codes via CDP and sends them via Telegram.
+
+**Pitfall 1: `browser_vision` returns 503 (model overload).**
+
+`browser_vision` relies on Gemini Vision API which can return 503 under load.
+The screenshot is still saved to disk (the `screenshot_path` field is populated),
+but the AI analysis fails. **Fix:** Fall back to CDP `Runtime.evaluate` for DOM
+inspection to find the QR code element:
+
+```
+browser_cdp(method="Runtime.evaluate",
+  params={"expression":"document.querySelector('img[src*=\"qrcode\"]') ? 'QR found' : 'no QR'",
+          "returnByValue": true},
+  target_id="<tab-id>"
+)
+```
+
+If the QR code exists, use the already-captured screenshot file from the failed
+`browser_vision` call (the `screenshot_path` field) — proceed to Pitfall 2.
+
+**Pitfall 2: Telegram rejects screenshots with "Photo_invalid_dimensions".**
+
+Full-page screenshots (2040px+ wide at 1.875x devicePixelRatio) produce images
+that Telegram's photo API rejects. **Fix:** Use PIL to crop the screenshot to
+only the QR code area before sending:
+
+```python
+from PIL import Image
+img = Image.open(screenshot_path)
+# QR code position from CDP Runtime.evaluate: getBoundingClientRect()
+# Multiply by devicePixelRatio for actual pixels
+cropped = img.crop((x, y, x+w+40, y+h+40))  # 40px padding
+cropped.save("/tmp/wx_qr_code.png", "PNG")
+```
+
+Target output: ~20–30KB. Then send via `send_message(target="telegram", message="📱 ... MEDIA:/tmp/wx_qr_code.png")`.
+
+**Pitfall 3: `Page.captureScreenshot` returns enormous base64 that freezes the agent.**
+
+The CDP `Page.captureScreenshot` with a clip still returns the full data inline,
+and Hermes can freeze for 2+ minutes processing large base64 payloads. **Fix:**
+Do NOT use `Page.captureScreenshot`. Instead, use the screenshot file path from
+a prior `browser_vision` call and crop with PIL (Pitfall 2). If no
+`browser_vision` call was made, use `browser_vision` with a simple question to
+trigger screenshot capture (even if the AI analysis fails with 503, the file
+is saved).
+
+**Pitfall 4: DOM selectors for QR code vary by site.**
+
+The WeChat MP login page uses `img.login__type__container__scan__qrcode`.
+Other sites (Zhihu, etc.) use different selectors. Always verify via
+`Runtime.evaluate` before attempting to get coordinates. Fallback: search
+for any `img` with `qrcode` or `scanlogin` in the `src` attribute.
 
 ### Step Q4: Post-login credential extraction
 
