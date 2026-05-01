@@ -65,7 +65,7 @@
 
 - [ ] **Phase 8: Image Pipeline Correctness** — fix `min(w,h)<300` filter, make inter-image sleep configurable (default 0), add per-image + aggregate logging
 - [ ] **Phase 9: Timeout Control + LightRAG State Management** — align LLM_TIMEOUT=600, DeepSeek client timeout, dynamic per-chunk outer `wait_for`; flush LightRAG buffer pre-batch; rollback partial inserts on timeout; change `get_rag()` API contract
-- [ ] **Phase 10: Scrape-First Classification + Text-First Ingest Decoupling** — scrape full body before classify (drop `digest` reliance), DeepSeek classifier on full text with SQLite persistence, text `ainsert` ingest decoupled from async Vision worker appending image sub-docs
+- [x] **Phase 10: Scrape-First Classification + Text-First Ingest Decoupling** — scrape full body before classify (drop `digest` reliance), DeepSeek classifier on full text with SQLite persistence, text `ainsert` ingest decoupled from async Vision worker appending image sub-docs (plans 10-00, 10-01, 10-02 all delivered; 61 unit tests passing cumulatively)
 - [ ] **Phase 11: E2E Verification Gate** — fixture CLI ingest, stage-level timing report, SiliconFlow balance check, semantic graph query, `benchmark_result.json` with machine-readable schema; milestone closes here
 
 ### Phase Details
@@ -104,7 +104,7 @@
   4. Article body + image file paths are `ainsert`-ed into LightRAG FIRST and return successfully before any Vision API call is made; a semantic `aquery` against the fresh graph returns chunks from the article immediately after text-ingest returns
   5. Vision descriptions are linked back via a new `ainsert` append (one image sub-doc per image or per article, referencing parent article by `file_path`) — no re-embed of existing text chunks
   6. When SiliconFlow/OpenRouter/Gemini Vision are ALL simulated down (via mock/env toggle), text ingest still succeeds and the resulting graph is queryable; Vision worker failure is logged but does not propagate as an exception into the main ingest flow
-**Plans**: TBD
+**Plans**: 10-00 (scrape-first classifier), 10-01 (text-first ingest split), 10-02 (async Vision worker + sub-doc + drain) — all complete 2026-04-29
 
 ### Phase 11: E2E Verification Gate
 **Goal**: Full-pipeline local benchmark against `test/fixtures/gpt55_article/` completes in <2 min text-ingest wall-clock with zero crashes, a semantically queryable graph, and a machine-readable result file suitable for CI regression — milestone v3.1 closes when `gate_pass: true` is observed
