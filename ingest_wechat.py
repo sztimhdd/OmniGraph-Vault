@@ -46,6 +46,7 @@ from lib import current_key, get_limiter
 
 from image_pipeline import (
     download_images, localize_markdown, describe_images, save_markdown_with_images,
+    filter_small_images,
 )
 
 
@@ -629,24 +630,13 @@ async def ingest_article(url, rag=None):
     print(f"Found {len(unique_img_urls)} unique potential images. Downloading and describing...")
     url_to_path = download_images(unique_img_urls, Path(article_dir))
     
-    # Phase 5-00b: filter small images (< 150px) to reduce Vision API calls.
-    # WeChat articles average 10-20 images; ~50% are emoticons/QR/icons < 150px.
-    # Gemini 3.1 Flash Lite free tier = 500 RPD, so saving 5-10 calls/article matters.
-    from PIL import Image as PILImage
-    _MIN_IMG_DIM = 300
-    filtered_out = 0
-    for url, path in list(url_to_path.items()):
-        try:
-            with PILImage.open(path) as im:
-                w, h = im.size
-            if w < _MIN_IMG_DIM or h < _MIN_IMG_DIM:
-                del url_to_path[url]
-                path.unlink(missing_ok=True)
-                filtered_out += 1
-        except Exception:
-            pass  # Keep image if we can't read dimensions
-    if filtered_out:
-        print(f"Filtered {filtered_out} small images (<{_MIN_IMG_DIM}px) — {len(url_to_path)} remaining")
+    # Phase 8 IMG-01: filter small images via shared pipeline (D-08.01, D-08.03).
+    min_dim = int(os.environ.get("IMAGE_FILTER_MIN_DIM", 300))
+    url_to_path, filter_stats = filter_small_images(url_to_path, min_dim=min_dim)
+    print(
+        f"Filtered {filter_stats.filtered_too_small} small images "
+        f"(<{min_dim}px) — {filter_stats.kept} remaining"
+    )
     
     descriptions = describe_images(list(url_to_path.values()))
     full_content = localize_markdown(full_content, url_to_path, article_hash=article_hash)

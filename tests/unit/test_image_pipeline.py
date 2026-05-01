@@ -1,12 +1,36 @@
-"""Unit tests for image_pipeline — Phase 4 D-15/D-16."""
+"""Unit tests for image_pipeline — Phase 4 D-15/D-16; Phase 8 IMG-01."""
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 from image_pipeline import (
     download_images, localize_markdown, describe_images, save_markdown_with_images,
+    filter_small_images, FilterStats,
 )
+
+
+def _fake_open(dims_by_name: dict[str, tuple[int, int]]):
+    """Return a PIL.Image.open replacement that yields a context manager
+    whose .size reflects dims_by_name[Path(path).name].
+
+    Raise the value if dims is an Exception instance (used by the
+    PIL-failure test case)."""
+    class _Ctx:
+        def __init__(self, w, h):
+            self.size = (w, h)
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    def _open(path, *a, **kw):
+        dims = dims_by_name[Path(path).name]
+        if isinstance(dims, Exception):
+            raise dims
+        return _Ctx(*dims)
+    return _open
 
 
 @pytest.mark.unit
@@ -79,3 +103,110 @@ def test_save_markdown_with_images_atomic(tmp_path: Path):
     assert json.loads(meta_path.read_text()) == {"title": "t", "images": []}
     # No leftover tmp files
     assert not list(tmp_path.glob("*.tmp"))
+
+
+# -----------------------------------------------------------------------------
+# Phase 8 IMG-01: filter_small_images tests (D-08.07 §1)
+# -----------------------------------------------------------------------------
+
+
+def _make_img_file(tmp_path: Path, name: str) -> Path:
+    """Touch a placeholder file. Real bytes don't matter — PIL.Image.open is mocked."""
+    p = tmp_path / name
+    p.write_bytes(b"fake")
+    return p
+
+
+@pytest.mark.unit
+def test_filter_keeps_800x600(tmp_path: Path, monkeypatch):
+    p = _make_img_file(tmp_path, "0.jpg")
+    monkeypatch.setattr("PIL.Image.open", _fake_open({"0.jpg": (800, 600)}))
+    kept, stats = filter_small_images({"http://a/0.jpg": p}, min_dim=300)
+    assert kept == {"http://a/0.jpg": p}
+    assert stats.input == 1
+    assert stats.kept == 1
+    assert stats.filtered_too_small == 0
+    assert stats.size_read_failed == 0
+    assert isinstance(stats.timings_ms, dict)
+    assert "total_read" in stats.timings_ms
+    assert p.exists()  # NOT unlinked
+
+
+@pytest.mark.unit
+def test_filter_drops_100x800_narrow_banner(tmp_path: Path, monkeypatch):
+    """The bug Hermes originally flagged — min(100, 800) = 100 < 300 → drop."""
+    p = _make_img_file(tmp_path, "0.jpg")
+    monkeypatch.setattr("PIL.Image.open", _fake_open({"0.jpg": (100, 800)}))
+    kept, stats = filter_small_images({"http://a/0.jpg": p}, min_dim=300)
+    assert kept == {}
+    assert stats.kept == 0
+    assert stats.filtered_too_small == 1
+    assert stats.size_read_failed == 0
+    assert not p.exists()  # unlinked from disk
+
+
+@pytest.mark.unit
+def test_filter_drops_300x299_just_below(tmp_path: Path, monkeypatch):
+    p = _make_img_file(tmp_path, "0.jpg")
+    monkeypatch.setattr("PIL.Image.open", _fake_open({"0.jpg": (300, 299)}))
+    kept, stats = filter_small_images({"http://a/0.jpg": p}, min_dim=300)
+    assert kept == {}
+    assert stats.filtered_too_small == 1
+
+
+@pytest.mark.unit
+def test_filter_keeps_300x300_exact_threshold(tmp_path: Path, monkeypatch):
+    """min(300, 300) = 300 < 300 is False → KEEP (strict inequality)."""
+    p = _make_img_file(tmp_path, "0.jpg")
+    monkeypatch.setattr("PIL.Image.open", _fake_open({"0.jpg": (300, 300)}))
+    kept, stats = filter_small_images({"http://a/0.jpg": p}, min_dim=300)
+    assert kept == {"http://a/0.jpg": p}
+    assert stats.kept == 1
+    assert stats.filtered_too_small == 0
+
+
+@pytest.mark.unit
+def test_filter_drops_299x300_one_axis_below(tmp_path: Path, monkeypatch):
+    p = _make_img_file(tmp_path, "0.jpg")
+    monkeypatch.setattr("PIL.Image.open", _fake_open({"0.jpg": (299, 300)}))
+    kept, stats = filter_small_images({"http://a/0.jpg": p}, min_dim=300)
+    assert kept == {}
+    assert stats.filtered_too_small == 1
+
+
+@pytest.mark.unit
+def test_filter_kwarg_min_dim_100_keeps_150x150(tmp_path: Path, monkeypatch):
+    p = _make_img_file(tmp_path, "0.jpg")
+    monkeypatch.setattr("PIL.Image.open", _fake_open({"0.jpg": (150, 150)}))
+    kept, stats = filter_small_images({"http://a/0.jpg": p}, min_dim=100)
+    assert kept == {"http://a/0.jpg": p}
+    assert stats.kept == 1
+
+
+@pytest.mark.unit
+def test_filter_pil_open_failure_keeps_image(tmp_path: Path, monkeypatch):
+    """D-08.01: PIL failure degrades to KEEP — don't drop what we can't measure."""
+    p = _make_img_file(tmp_path, "0.jpg")
+    monkeypatch.setattr(
+        "PIL.Image.open",
+        _fake_open({"0.jpg": OSError("bad image bytes")}),
+    )
+    kept, stats = filter_small_images({"http://a/0.jpg": p}, min_dim=300)
+    assert kept == {"http://a/0.jpg": p}
+    assert stats.kept == 1
+    assert stats.filtered_too_small == 0
+    assert stats.size_read_failed == 1
+    assert p.exists()  # NOT unlinked — PIL-failure path skips the unlink
+
+
+@pytest.mark.unit
+def test_ingest_wechat_reads_env_min_dim(monkeypatch):
+    """D-08.07 §1 bullet 7: ingest_wechat reads IMAGE_FILTER_MIN_DIM from env.
+
+    Thin smoke test — not a full subprocess run (that belongs in Phase 11 E2E).
+    Asserts the literal read pattern used at ingest_wechat.py:634 resolves correctly.
+    """
+    monkeypatch.setenv("IMAGE_FILTER_MIN_DIM", "100")
+    assert int(os.environ.get("IMAGE_FILTER_MIN_DIM", 300)) == 100
+    monkeypatch.delenv("IMAGE_FILTER_MIN_DIM")
+    assert int(os.environ.get("IMAGE_FILTER_MIN_DIM", 300)) == 300

@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import requests
@@ -20,6 +21,21 @@ _DESCRIBE_INTER_IMAGE_SLEEP_SECS = 2  # Phase 7: reduced from 4s — SiliconFlow
 
 # Local image server base — matches ingest_wechat.py historical value.
 _DEFAULT_IMAGE_BASE_URL = "http://localhost:8765"
+
+
+@dataclass(frozen=True)
+class FilterStats:
+    """Stats from filter_small_images — wire format per CONTEXT D-08.01.
+
+    timings_ms is nested (not flat) to allow future sub-stage additions
+    (e.g. total_unlink_ms, total_stat_ms) without dataclass shape churn.
+    """
+
+    input: int
+    kept: int
+    filtered_too_small: int
+    size_read_failed: int
+    timings_ms: dict  # {"total_read": <int ms>}
 
 
 def download_images(urls: list[str], dest_dir: Path) -> dict[str, Path]:
@@ -42,6 +58,46 @@ def download_images(urls: list[str], dest_dir: Path) -> dict[str, Path]:
         except Exception as e:
             logger.warning("Image %d error: %s", i, e)
     return result
+
+
+def filter_small_images(
+    url_to_path: dict[str, Path],
+    *,
+    min_dim: int = 300,
+) -> tuple[dict[str, Path], FilterStats]:
+    """Filter images where min(width, height) < min_dim.
+
+    PIL open failure => keep image (can't measure => don't drop). Filtered-out
+    files are unlinked from disk to reclaim space. Returns (new_map, stats).
+    """
+    # Phase 8 IMG-01: min(w,h)<min_dim matches current or-logic; see CONTEXT §Specifics for pre-fix history
+    from PIL import Image as PILImage
+    t0 = time.perf_counter()
+    kept: dict[str, Path] = {}
+    filtered_too_small = 0
+    size_read_failed = 0
+    for url, path in url_to_path.items():
+        try:
+            with PILImage.open(path) as im:
+                w, h = im.size
+        except Exception as e:
+            logger.warning("PIL open failed for %s (%s) — keeping image", path, e)
+            size_read_failed += 1
+            kept[url] = path  # D-08.01: PIL failure degrades to KEEP
+            continue
+        if min(w, h) < min_dim:
+            filtered_too_small += 1
+            path.unlink(missing_ok=True)
+        else:
+            kept[url] = path
+    stats = FilterStats(
+        input=len(url_to_path),
+        kept=len(kept),
+        filtered_too_small=filtered_too_small,
+        size_read_failed=size_read_failed,
+        timings_ms={"total_read": int((time.perf_counter() - t0) * 1000)},
+    )
+    return kept, stats
 
 
 def localize_markdown(
