@@ -86,7 +86,18 @@ def _require_api_key() -> str:
 # Module-level singletons — read env once at import.
 _API_KEY = _require_api_key()
 _MODEL = os.environ.get("DEEPSEEK_MODEL", _DEFAULT_MODEL).strip() or _DEFAULT_MODEL
-_client: AsyncOpenAI = AsyncOpenAI(api_key=_API_KEY, base_url=_DEEPSEEK_BASE_URL)
+
+# D-09.02 (TIMEOUT-02): 120s request timeout prevents single-chunk runaway.
+# Outer per-article budget (D-09.03) scales with chunk_count; this inner
+# timeout kills any ONE chat.completions.create call that exceeds 120s so the
+# outer budget has room to retry or fail cleanly. Bare float form — the
+# openai>=1.0 SDK accepts float as total request timeout.
+_DEEPSEEK_TIMEOUT_S = 120.0
+_client: AsyncOpenAI = AsyncOpenAI(
+    api_key=_API_KEY,
+    base_url=_DEEPSEEK_BASE_URL,
+    timeout=_DEEPSEEK_TIMEOUT_S,
+)
 
 
 async def deepseek_model_complete(

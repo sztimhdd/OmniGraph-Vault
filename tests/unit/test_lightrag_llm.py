@@ -191,3 +191,31 @@ def test_root_shim_reexports_same_object():
     from lightrag_llm import deepseek_model_complete as shim_ref
     from lib.llm_deepseek import deepseek_model_complete as lib_ref
     assert shim_ref is lib_ref
+
+
+# ---------------------------------------------------------------------------
+# D-09.02 / TIMEOUT-02: AsyncOpenAI client-side timeout=120.0
+# ---------------------------------------------------------------------------
+
+
+def test_deepseek_client_has_120s_timeout():
+    """Module-level _client is constructed with timeout=120.0 (D-09.02).
+
+    The openai SDK stores the ``timeout`` kwarg on ``self.timeout`` (either as
+    a bare float or a wrapped ``httpx.Timeout``). We assert the observable
+    value is 120 regardless of the internal wrapper shape.
+    """
+    import lib.llm_deepseek as ld
+
+    client_timeout = getattr(ld._client, "timeout", None)
+    # Cross-version safety: bare float, httpx.Timeout, or a NOT_GIVEN-like sentinel.
+    if isinstance(client_timeout, (int, float)):
+        assert client_timeout == 120.0
+    else:
+        # httpx.Timeout case: `read` attr is the per-read deadline; some
+        # versions expose the total as `.timeout` instead.
+        read_val = getattr(client_timeout, "read", None)
+        total_val = getattr(client_timeout, "timeout", None)
+        assert read_val == 120.0 or total_val == 120.0, (
+            f"Expected 120.0 timeout on _client; got {client_timeout!r}"
+        )
