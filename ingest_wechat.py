@@ -1083,8 +1083,44 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
     print(f"Method: {method}")
     print(f"Local Path: {article_dir}")
     
-    # Update DB: store content_hash so batch processor can skip re-scrape
-    if DB_PATH.exists():
+    # Task 0.8 verification hook (Phase 5 Wave 0): confirm LightRAG actually
+    # persisted the parent doc BEFORE writing the optimistic content_hash marker.
+    # Prior behaviour was fire-and-forget: 57 DB rows marked ingested while
+    # LightRAG only had 8 ghost-free docs. Gating the DB write on
+    # `aget_docs_by_ids` status=="PROCESSED" eliminates that drift.
+    # Failure → leave content_hash NULL → batch re-scheduler retries next run
+    # (aligns with Phase 12 checkpoint/resume semantics).
+    doc_confirmed = False
+    try:
+        statuses = await rag.aget_docs_by_ids([doc_id])
+    except Exception as exc:
+        logger.warning(
+            "post-ainsert verification raised (doc=%s): %s — skipping content_hash write",
+            doc_id, exc,
+        )
+        statuses = None
+    if statuses and doc_id in statuses:
+        entry = statuses[doc_id]
+        status_val = getattr(entry, "status", None)
+        if status_val is None and isinstance(entry, dict):
+            status_val = entry.get("status")
+        if str(status_val).upper() == "PROCESSED":
+            doc_confirmed = True
+        else:
+            logger.warning(
+                "post-ainsert verification: doc %s status=%r (not PROCESSED) — skipping content_hash write",
+                doc_id, status_val,
+            )
+    elif statuses is not None:
+        logger.warning(
+            "post-ainsert verification: doc %s absent from aget_docs_by_ids — skipping content_hash write",
+            doc_id,
+        )
+
+    # Update DB: store content_hash so batch processor can skip re-scrape.
+    # Gated on doc_confirmed so unverified ingests leave content_hash NULL
+    # and get retried on the next batch run (Task 0.8 anti-ghost guarantee).
+    if DB_PATH.exists() and doc_confirmed:
         try:
             conn = sqlite3.connect(str(DB_PATH))
             conn.execute("UPDATE articles SET content_hash = ? WHERE url = ?", (article_hash, url))

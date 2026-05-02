@@ -34,10 +34,20 @@ def _deepseek_key(monkeypatch):
 
 @pytest.fixture
 def _fake_rag():
-    """MagicMock rag with AsyncMock ainsert — records calls for ordering assertions."""
+    """MagicMock rag with AsyncMock ainsert — records calls for ordering assertions.
+
+    Default `aget_docs_by_ids` returns a PROCESSED status for whichever doc_id
+    is queried, matching the Task 0.8 verification-hook happy path so the
+    existing suite does not short-circuit on the new content_hash gate.
+    Tests that exercise the unverified path override this with an explicit
+    `side_effect` or `return_value`.
+    """
     rag = MagicMock()
     rag.ainsert = AsyncMock()
     rag.adelete_by_doc_id = AsyncMock()
+    rag.aget_docs_by_ids = AsyncMock(
+        side_effect=lambda ids: {i: {"status": "PROCESSED"} for i in ids}
+    )
     return rag
 
 
@@ -348,3 +358,155 @@ def test_phase9_rollback_registry_symbols_still_present():
     assert callable(ingest_wechat._register_pending_doc_id)
     assert callable(ingest_wechat._clear_pending_doc_id)
     assert callable(ingest_wechat.get_pending_doc_id)
+
+
+# ---------------------------------------------------------------------------
+# Task 0.8 (Phase 5 Wave 0) — aget_docs_by_ids verification hook
+#
+# Three cases: (A) doc absent from status, (B) status != PROCESSED,
+# (C) status == PROCESSED happy path. Failure path skips content_hash write
+# so batch re-scheduler retries — Phase 12 checkpoint/resume semantics.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_task08_hook_skips_content_hash_when_doc_absent_from_status(
+    monkeypatch, _fake_rag, _isolated_image_dir, tmp_path
+):
+    """Task 0.8 case A: aget_docs_by_ids returns {} → content_hash NOT written."""
+    import ingest_wechat
+
+    db_path = tmp_path / "kol_scan.db"
+    import sqlite3
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "CREATE TABLE articles (id INTEGER PRIMARY KEY, url TEXT UNIQUE, content_hash TEXT, enriched INTEGER DEFAULT 0)"
+    )
+    conn.execute(
+        "CREATE TABLE ingestions (article_id INTEGER, status TEXT, PRIMARY KEY(article_id, status))"
+    )
+    url = "https://mp.weixin.qq.com/s/task08_case_a"
+    conn.execute("INSERT INTO articles(url) VALUES (?)", (url,))
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(ingest_wechat, "DB_PATH", db_path)
+
+    article_data = _make_article_data(url, img_urls=[])
+    _patch_common(monkeypatch, _fake_rag, article_data, {})
+
+    async def _noop_worker(**kwargs):
+        return None
+
+    monkeypatch.setattr(ingest_wechat, "_vision_worker_impl", _noop_worker)
+    # Override default fixture: return empty dict (doc absent).
+    _fake_rag.aget_docs_by_ids = AsyncMock(return_value={})
+
+    await ingest_wechat.ingest_article(url, rag=_fake_rag)
+
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT content_hash FROM articles WHERE url = ?", (url,)
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row[0] is None, (
+        f"content_hash should remain NULL when doc absent from aget_docs_by_ids; "
+        f"got {row[0]!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_task08_hook_skips_content_hash_when_status_not_processed(
+    monkeypatch, _fake_rag, _isolated_image_dir, tmp_path
+):
+    """Task 0.8 case B: status=='FAILED' → content_hash NOT written."""
+    import ingest_wechat
+
+    db_path = tmp_path / "kol_scan.db"
+    import sqlite3
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "CREATE TABLE articles (id INTEGER PRIMARY KEY, url TEXT UNIQUE, content_hash TEXT, enriched INTEGER DEFAULT 0)"
+    )
+    conn.execute(
+        "CREATE TABLE ingestions (article_id INTEGER, status TEXT, PRIMARY KEY(article_id, status))"
+    )
+    url = "https://mp.weixin.qq.com/s/task08_case_b"
+    conn.execute("INSERT INTO articles(url) VALUES (?)", (url,))
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(ingest_wechat, "DB_PATH", db_path)
+
+    article_data = _make_article_data(url, img_urls=[])
+    _patch_common(monkeypatch, _fake_rag, article_data, {})
+
+    async def _noop_worker(**kwargs):
+        return None
+
+    monkeypatch.setattr(ingest_wechat, "_vision_worker_impl", _noop_worker)
+    # Override default fixture: status is FAILED, not PROCESSED.
+    _fake_rag.aget_docs_by_ids = AsyncMock(
+        side_effect=lambda ids: {i: {"status": "FAILED"} for i in ids}
+    )
+
+    await ingest_wechat.ingest_article(url, rag=_fake_rag)
+
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT content_hash FROM articles WHERE url = ?", (url,)
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row[0] is None, (
+        f"content_hash should remain NULL when status != PROCESSED; got {row[0]!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_task08_hook_writes_content_hash_when_status_processed(
+    monkeypatch, _fake_rag, _isolated_image_dir, tmp_path
+):
+    """Task 0.8 case C: status=='PROCESSED' → content_hash IS written (happy path)."""
+    import ingest_wechat
+
+    db_path = tmp_path / "kol_scan.db"
+    import sqlite3
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "CREATE TABLE articles (id INTEGER PRIMARY KEY, url TEXT UNIQUE, content_hash TEXT, enriched INTEGER DEFAULT 0)"
+    )
+    conn.execute(
+        "CREATE TABLE ingestions (article_id INTEGER, status TEXT, PRIMARY KEY(article_id, status))"
+    )
+    url = "https://mp.weixin.qq.com/s/task08_case_c"
+    conn.execute("INSERT INTO articles(url) VALUES (?)", (url,))
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(ingest_wechat, "DB_PATH", db_path)
+
+    article_data = _make_article_data(url, img_urls=[])
+    _patch_common(monkeypatch, _fake_rag, article_data, {})
+
+    async def _noop_worker(**kwargs):
+        return None
+
+    monkeypatch.setattr(ingest_wechat, "_vision_worker_impl", _noop_worker)
+    # Default fixture already returns PROCESSED, but reassert explicitly for clarity.
+    _fake_rag.aget_docs_by_ids = AsyncMock(
+        side_effect=lambda ids: {i: {"status": "PROCESSED"} for i in ids}
+    )
+
+    await ingest_wechat.ingest_article(url, rag=_fake_rag)
+
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT content_hash FROM articles WHERE url = ?", (url,)
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row[0] is not None, (
+        "content_hash MUST be written when aget_docs_by_ids reports PROCESSED"
+    )
+    assert len(row[0]) >= 8, (
+        f"content_hash should be a non-trivial hash; got {row[0]!r}"
+    )
