@@ -351,3 +351,80 @@ Never update `~/.hermes/omonigraph-vault/` — it's runtime data, not source cod
 | CDP scraping fails | Edge not in debug mode | Start Edge: `msedge --remote-debugging-port=9223` |
 | GitHub ingest rate-limited | No `GITHUB_TOKEN` set | Add token to `~/.hermes/.env` (60 req/hr → 5000/hr) |
 | `rules_engine.json` not found | architect propose mode fails | Ensure file exists at repo root (28 rules) |
+
+---
+
+## SiliconFlow Paid Tier vs Gemini Free
+
+OmniGraph-Vault's Vision pipeline can run on either SiliconFlow Qwen3-VL-32B (paid tier) or the Gemini Vision free tier. Each has distinct cost, reliability, error-mode, and balance-handling trade-offs. The three-provider cascade in `lib/vision_cascade.py` uses both in order (SiliconFlow primary, Gemini fallback) so every production batch touches both at some volume.
+
+| Provider | Cost | Reliability | Error Mode | Balance |
+|----------|------|-------------|-----------|---------|
+| SiliconFlow Qwen3-VL-32B | ¥0.0013/img | High (paid tier) | 503 (server issue) | Hard cap — must refill |
+| Gemini Vision free tier | ¥0 | Medium (free tier 500 RPD) | 429 (quota exhausted) | Soft cap — waits for daily reset |
+| Vertex AI paid (future) | ¥ per usage | High (paid SLA) | Billing error only | Linked to GCP billing |
+
+**Operational implications:**
+
+- **SiliconFlow** is roughly 50–100× cheaper per image than a Vertex-AI paid tier, but requires you to watch the balance and refill before it hits zero. A depleted balance cascades all subsequent images onto Gemini.
+- **Gemini free tier** never errors on balance (there is no balance), but its 500-RPD ceiling is shared across the whole GCP project. A single large batch that falls through to Gemini can exhaust the day's quota and cause downstream embedding calls to 429.
+- **Vertex AI (future)** trades a higher per-image cost for predictable billing-backed reliability + per-project quota isolation. See the "Vertex AI Infrastructure Plan" section below for the migration design.
+
+---
+
+## Vertex AI Infrastructure Plan (Milestone B.5)
+
+This section freezes the design for migrating production deployments from the Gemini API key (free tier) to Vertex AI (paid tier, OAuth2). Code migration is deferred — the design is complete, and no code changes are in scope for the current milestone.
+
+**Current State**
+
+- Authentication: single `OMNIGRAPH_GEMINI_KEY` (free-tier API key) in `~/.hermes/.env`
+- Quota: 100 RPM embedding + 500 RPD vision, **shared across the same GCP project**
+- Scope: fine for dev/test and small batches; production batches routinely brush the shared-quota ceiling
+
+**Problem**
+
+Embedding 429 and LLM 429 share the same GCP project quota pool. When a batch pushes embedding calls toward the 100-RPM ceiling, subsequent LLM calls on the same key also start 429-ing — a single embedding spike can kill a batch mid-ingest. There is no way to isolate the quotas within one API key.
+
+**Solution Design (deferred to post-Milestone B — no code changes this milestone)**
+
+1. Create GCP Vertex AI project(s):
+   - **Option A (Recommended):** Two projects — one for embedding (`gemini-embedding-2`), one for LLM. DeepSeek stays on-prem. Per-project quota isolation means embedding 429 cannot affect LLM calls.
+   - **Option B:** One Vertex AI project with separate service accounts for embedding vs. LLM, each with its own isolated quota allocation.
+2. Migrate from `OMNIGRAPH_GEMINI_KEY` (API key) to a Vertex AI OAuth2 token.
+3. Update `lib/api_keys.py` + `lib/llm_client.py` to support the Vertex AI endpoint + service-account rotation.
+4. Backward-compat: keep the Gemini API key as fallback if Vertex AI is unavailable (dev machines, quick tests).
+
+**Acceptance Criteria for Milestone B.5 (design-only)**
+
+- `docs/VERTEX_AI_MIGRATION_SPEC.md` documents GCP project setup steps, service-account naming convention, OAuth2 token refresh pattern, and cost estimation per tier
+- `credentials/vertex_ai_service_account_example.json` template exists (no real credentials in repo)
+- `CLAUDE.md § Known Limitations` references the Vertex AI migration path (done in DOC-01)
+- `Deploy.md § Recommended Upgrade Path` (below) links to `docs/VERTEX_AI_MIGRATION_SPEC.md`
+- `scripts/estimate_vertex_ai_cost.py` estimates the cost for expected batch sizes
+
+**Timeline**
+
+Design + setup guide land in Milestone B.5. Code integration (the `lib/api_keys.py` + `lib/llm_client.py` changes) is deferred to post-Milestone B so the current milestone stays docs-only.
+
+---
+
+## Recommended Upgrade Path
+
+**For production deployments**, migrate to Vertex AI OAuth2 with cross-project quota isolation. This eliminates the shared-quota coupling that causes embedding 429s to cascade into LLM 429s, and provides paid-tier SLA for Vision throughput.
+
+See `docs/VERTEX_AI_MIGRATION_SPEC.md` (Milestone B.5 deliverable) for:
+- GCP project setup steps (Option A vs Option B)
+- Service-account naming convention + OAuth2 token refresh pattern
+- Cost estimation per expected batch size (via `scripts/estimate_vertex_ai_cost.py`)
+- Backward-compat strategy (Gemini API key fallback)
+
+**For dev/test deployments**, the current `OMNIGRAPH_GEMINI_KEY` (free tier) is sufficient. No action required — rate limits are documented in `CLAUDE.md § Known Limitations`.
+
+**Upgrade decision matrix:**
+
+| Deployment | Recommendation | Rationale |
+|------------|----------------|-----------|
+| Production (daily batches ≥ 50 articles) | Vertex AI OAuth2 (Option A) | Per-project quota isolation eliminates embedding-LLM coupling |
+| Production (occasional batches) | Vertex AI OAuth2 (Option B) | Single project, isolated service accounts — simpler ops, still quota-isolated |
+| Dev / Test / CI | Gemini API key (current) | Free tier sufficient; migration cost not justified |

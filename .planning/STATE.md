@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.1
-milestone_name: Next — Single-Article Ingest Stability
-current_plan: "3 / Total Plans in Phase: 3"
-status: "Milestone v3.1 harness delivered. benchmark_result.json produced with text_ingest_ms=18348 (6.5× under 120s budget), zero_crashes=true. gate_pass=false ONLY due to missing real DEEPSEEK_API_KEY in dev env (aquery response=None when LLM unavailable). Remediation: set real DEEPSEEK_API_KEY, rerun benchmark — no code changes required."
+milestone_name: — Single-Article Ingest Stability ✅ CLOSED
+current_plan: 1
+status: executing
 stopped_at: Completed 11-02-PLAN.md — milestone v3.1 gate harness delivered
-last_updated: "2026-05-01T02:36:13.377Z"
-last_activity: 2026-04-29 — Plan 11-02 complete (E2E-02/04/06 delivered; 6 new integration tests; 194 passing / 10 pre-existing failures unchanged).
+last_updated: "2026-05-02T00:41:16.418Z"
+last_activity: 2026-05-02 -- Phase 15 execution started
 progress:
   total_phases: 4
-  completed_phases: 4
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 10
+  completed_plans: 9
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Milestone v3.1 — Single-Article Ingest Stability (prerequisite to Phase 5 Wave 1+)
+**Current focus:** Phase 15 — docs-runbook
 
 ## Current Position
 
-Phase: **Phase 11 — E2E Verification Gate** — COMPLETE (3/3 plans)
-Current Plan: 3 / Total Plans in Phase: 3
-Plan: **11-02 — Real LightRAG Wiring + Milestone v3.1 Gate (E2E-02, 04, 06)** — COMPLETE
-Status: Milestone v3.1 harness delivered. benchmark_result.json produced with text_ingest_ms=18348 (6.5× under 120s budget), zero_crashes=true. gate_pass=false ONLY due to missing real DEEPSEEK_API_KEY in dev env (aquery response=None when LLM unavailable). Remediation: set real DEEPSEEK_API_KEY, rerun benchmark — no code changes required.
-Last activity: 2026-04-29 — Plan 11-02 complete (E2E-02/04/06 delivered; 6 new integration tests; 194 passing / 10 pre-existing failures unchanged).
+Phase: 15 (docs-runbook) — EXECUTING
+Current Plan: 1
+Plan: 1 of 3
+Status: Executing Phase 15
+Last activity: 2026-05-02 -- Phase 15 execution started
 
 **Milestone v3.1 goal:** Rebuild and locally verify single-article ingestion against `test/fixtures/gpt55_article/` — text ingest + graph connectivity in <2 min with no crash; async Vision worker appends image sub-docs after ingest path returns. This unblocks Phase 5 Wave 1+ (RSS, daily digest, cron).
 
