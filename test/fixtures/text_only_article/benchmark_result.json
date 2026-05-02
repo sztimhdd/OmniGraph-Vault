@@ -1,27 +1,27 @@
 {
-  "article_hash": "7d500c2dd9",
-  "fixture_path": "test/fixtures/gpt55_article",
-  "timestamp_utc": "2026-05-02T02:08:08.657170Z",
+  "article_hash": "b5b1febc8b",
+  "fixture_path": "/home/sztimhdd/OmniGraph-Vault/test/fixtures/text_only_article",
+  "timestamp_utc": "2026-05-02T04:44:29.661316Z",
   "stage_timings_ms": {
-    "scrape": 1,
-    "classify": 2068,
-    "image_download": 73,
-    "text_ingest": 405113,
+    "scrape": 0,
+    "classify": 1959,
+    "image_download": 0,
+    "text_ingest": 245930,
     "async_vision_start": 0
   },
   "counters": {
-    "images_input": 39,
-    "images_kept": 28,
-    "images_filtered": 11,
+    "images_input": 4,
+    "images_kept": 0,
+    "images_filtered": 4,
     "chunks_extracted": 1,
     "entities_ingested": -1
   },
   "gate": {
-    "text_ingest_under_2min": false,
+    "text_ingest_under_2min": true,
     "aquery_returns_fixture_chunk": true,
     "zero_crashes": true
   },
-  "gate_pass": false,
+  "gate_pass": true,
   "warnings": [
     {
       "event": "balance_warning",

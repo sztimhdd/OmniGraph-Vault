@@ -1,0 +1,33 @@
+{
+  "article_hash": "",
+  "fixture_path": "/home/sztimhdd/OmniGraph-Vault/test/fixtures/sparse_image_article",
+  "timestamp_utc": "2026-05-02T04:39:45.756212Z",
+  "stage_timings_ms": {
+    "scrape": 0,
+    "classify": 0,
+    "image_download": 0,
+    "text_ingest": 0,
+    "async_vision_start": 0
+  },
+  "counters": {
+    "images_input": 0,
+    "images_kept": 0,
+    "images_filtered": 0,
+    "chunks_extracted": 0,
+    "entities_ingested": 0
+  },
+  "gate": {
+    "text_ingest_under_2min": false,
+    "aquery_returns_fixture_chunk": false,
+    "zero_crashes": false
+  },
+  "gate_pass": false,
+  "warnings": [],
+  "errors": [
+    {
+      "stage": "main",
+      "type": "ModuleNotFoundError",
+      "message": "No module named 'aiolimiter'"
+    }
+  ]
+}
