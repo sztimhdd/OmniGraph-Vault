@@ -209,6 +209,8 @@ Finding: Task 0.7 URL binding is necessary but not sufficient — synthesis prom
 
 Fixes D + E are **incident-driven**, not plan-driven. Fixture smoke could not surface them. Wave 0's real-batch re-ingest caught them.
 
+**Sub-incident (discovered 2026-05-02 by GSD:quick session during Cognee fix)**: commit `0dc4b2b` (2026-05-02 02:58) had silently NULLed `_resolve_model()`'s Vertex-mode `gemini-embedding-2 → -preview` mapping with a comment "gemini-embedding-2-preview deprecated by Vertex AI". Empirical probe on 2026-05-02 disproved this — `gemini-embedding-2` still returns Vertex 404 NOT_FOUND; `-preview` is still the working name. The ~17-hour window between `0dc4b2b` and `8e4b132` left the LightRAG Vertex path silently broken for anyone who actually exercised it (Hermes's P0 re-ingest apparently tolerated it because the embedding init path hit a different resolution cache). Restored by GSD:quick in `8e4b132`. **Recorded as operational lesson**: any change to `_resolve_model()` or model-name constants should require an automated smoke-probe against real provider endpoints, not just visual review of a comment. Filed as a v3.3 hygiene item.
+
 ## D. Decisions locked / revised during this window
 
 ### D-07 REVISED 2026-05-02 + new D-19 (committed `315cf8c`)
