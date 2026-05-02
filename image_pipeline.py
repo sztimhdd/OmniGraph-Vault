@@ -2,6 +2,12 @@
 
 Extracted from ingest_wechat.py as part of Phase 4 refactor (D-15, D-16).
 All functions are sync; callers wrap in asyncio.to_thread if needed.
+
+Phase 13 (2026-05-02): describe_images now delegates to lib.vision_cascade
+with pre-batch + mid-batch SiliconFlow balance checks (CASC-01..06). The
+legacy VISION_PROVIDER env var is obsolete; the cascade is always
+siliconflow -> openrouter -> gemini unless balance is below the CNY 0.05
+switch threshold.
 """
 from __future__ import annotations
 
@@ -12,9 +18,22 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
 import requests
+
+from lib.siliconflow_balance import (
+    BalanceCheckError,
+    check_siliconflow_balance,
+    should_switch_to_openrouter,
+)
+from lib.vision_cascade import (
+    DEFAULT_PROVIDERS,
+    AllProvidersExhausted429Error,
+    CascadeResult,
+    VisionCascade,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -334,101 +353,140 @@ def _describe_via_siliconflow(image_bytes: bytes, mime: str = "image/jpeg") -> s
     return content.strip()
 
 
-def _describe_one(path: Path, provider: str) -> tuple[str, str]:
-    """Describe a single image. provider: 'gemini' | 'siliconflow' | 'openrouter' | 'auto'.
-    'auto' tries Gemini → SiliconFlow → OpenRouter in cascade.
-
-    Phase 8 IMG-04: returns (description, provider_used) so describe_images can
-    accumulate provider_mix stats. provider_used is one of
-    "gemini" | "siliconflow" | "openrouter".
-    """
-    image_bytes = Path(path).read_bytes()
-    suffix = path.suffix.lower()
-    mime = "image/png" if suffix == ".png" else "image/jpeg"
-
-    if provider == "gemini":
-        return _describe_via_gemini(image_bytes, mime), "gemini"
-    elif provider == "siliconflow":
-        return _describe_via_siliconflow(image_bytes, mime), "siliconflow"
-    elif provider == "openrouter":
-        return _describe_via_openrouter(image_bytes, mime), "openrouter"
-    else:  # auto — cascade: Gemini → Qwen3-VL(SiliconFlow) → GLM-4.5V(OpenRouter)
-        try:
-            return _describe_via_gemini(image_bytes, mime), "gemini"
-        except Exception as gemini_err:
-            msg = str(gemini_err).lower()
-            if "429" in msg or "quota" in msg or "exhausted" in msg:
-                logger.info("Gemini Vision 429 → falling back to Qwen3-VL-32B (SiliconFlow)")
-            else:
-                logger.warning("Gemini Vision failed (%s) → falling back to SiliconFlow", gemini_err)
-            try:
-                return _describe_via_siliconflow(image_bytes, mime), "siliconflow"
-            except Exception as sf_err:
-                logger.warning("SiliconFlow failed (%s) → last resort: OpenRouter/GLM-4.5V", sf_err)
-                return _describe_via_openrouter(image_bytes, mime), "openrouter"
-
-
 def describe_images(paths: list[Path]) -> dict[Path, str]:
-    """Batch-describe images with automatic 3-provider cascade.
+    """Batch-describe images via VisionCascade (SiliconFlow -> OpenRouter -> Gemini).
 
-    Controlled by env VISION_PROVIDER: 'gemini' | 'siliconflow' | 'openrouter' | 'auto' (default).
-    - gemini: free tier with key rotation (lib.generate_sync). 429s propagate as errors.
-    - siliconflow: Qwen3-VL-32B at ¥0.0013/image, best open-source vision.
-    - openrouter: GLM-4.5V at $0.0001/call, last resort.
-    - auto: Gemini → Qwen3-VL(SiliconFlow) → GLM-4.5V(OpenRouter).
-      Maximizes free Gemini, falls back to best quality, then cheapest.
+    Phase 13 CASC-01/05/06 rewire. Signature preserved for backward-compat with
+    multimodal_ingest.py and ingest_wechat.py. New behavior surfaced via
+    get_last_describe_stats().
 
-    Phase 8 IMG-02/03/04:
-    - Per-call stats exposed via get_last_describe_stats() (Option A — signature preserved).
-    - Per-image JSON-lines event emitted for every path (outcome=success|vision_error|timeout).
-    - Inter-image sleep defaults to 0s; override via VISION_INTER_IMAGE_SLEEP env.
+    Pre-batch balance check (once, unless OMNIGRAPH_VISION_SKIP_BALANCE_CHECK=1):
+      - Warns if SiliconFlow balance < estimated spend.
+      - If balance < CNY 0.05 -> construct cascade with providers=[openrouter, gemini].
+
+    Mid-batch (every 10th image): re-check balance; if below CNY 0.05 remove
+    SiliconFlow from the live cascade's provider list.
+
+    AllProvidersExhausted429Error stops the batch cleanly; callers see a
+    partial dict with a `batch_stopped_429=True` marker in describe stats.
     """
     global _last_describe_stats
-    provider = os.environ.get("VISION_PROVIDER", "auto").strip().lower()
-    if provider not in ("gemini", "siliconflow", "openrouter", "auto"):
-        logger.warning("Unknown VISION_PROVIDER=%r — falling back to 'auto'", provider)
-        provider = "auto"
 
+    result: dict[Path, str] = {}
+    paths_list = list(paths)
     sleep_secs = float(
         os.environ.get("VISION_INTER_IMAGE_SLEEP", _DESCRIBE_INTER_IMAGE_SLEEP_SECS)
     )
 
-    result: dict[Path, str] = {}
-    paths_list = list(paths)
+    if not paths_list:
+        _last_describe_stats = {
+            "provider_mix": {},
+            "vision_success": 0,
+            "vision_error": 0,
+            "vision_timeout": 0,
+            "circuit_opens": [],
+            "gemini_share": 0.0,
+            "batch_stopped_429": False,
+        }
+        return result
+
+    # CASC-06 pre-batch balance check
+    skip_balance = (
+        os.environ.get("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "").strip() == "1"
+    )
+    force_openrouter_primary = False
+    if not skip_balance:
+        try:
+            balance = check_siliconflow_balance()
+            estimated = Decimal(len(paths_list)) * Decimal("0.0013")
+            if balance < estimated:
+                logger.warning(
+                    "SiliconFlow balance CNY %.4f insufficient for CNY %.4f "
+                    "estimated spend -- top up or expect fallback to OpenRouter",
+                    float(balance),
+                    float(estimated),
+                )
+            if should_switch_to_openrouter(balance):
+                logger.warning(
+                    "SiliconFlow balance CNY %.4f below CNY 0.05 floor -- "
+                    "switching to OpenRouter-primary for this batch",
+                    float(balance),
+                )
+                force_openrouter_primary = True
+        except BalanceCheckError as e:
+            logger.warning(
+                "pre-batch balance check failed (%s); proceeding with default "
+                "cascade", e,
+            )
+
+    providers = (
+        ["openrouter", "gemini"]
+        if force_openrouter_primary
+        else list(DEFAULT_PROVIDERS)
+    )
+    cascade = VisionCascade(providers=providers, checkpoint_dir=None)
+
     provider_mix: dict[str, int] = {}
     vision_success = 0
     vision_error = 0
     vision_timeout = 0
+    batch_stopped_429 = False
 
     for i, path in enumerate(paths_list):
         t0 = time.perf_counter()
+        suffix = path.suffix.lower()
+        mime = "image/png" if suffix == ".png" else "image/jpeg"
+        image_id = f"img_{i:03d}"
+
         try:
-            desc, provider_used = _describe_one(path, provider)
-            result[path] = desc
-            vision_success += 1
-            provider_mix[provider_used] = provider_mix.get(provider_used, 0) + 1
-            _emit_log({
-                "event": "image_processed",
-                "ts": _now_iso(),
-                "url": None,  # not available here; correlate via local_path
-                "local_path": str(path),
-                "dims": None,
-                "bytes": path.stat().st_size if path.exists() else None,
-                "provider": provider_used,
-                "ms": int((time.perf_counter() - t0) * 1000),
-                "outcome": OUTCOME_SUCCESS,
-                "error": None,
-            })
-        except Exception as e:
+            image_bytes = path.read_bytes()
+        except OSError as e:
+            logger.warning("failed to read %s: %s", path, e)
             result[path] = f"Error describing image: {e}"
-            # Outcome taxonomy: timeout vs vision_error (D-08.05).
-            err_text = str(e).lower()
-            is_timeout = (
-                "timeout" in err_text
-                or isinstance(e, TimeoutError)
-                or (hasattr(requests, "Timeout") and isinstance(e, requests.Timeout))
+            vision_error += 1
+            continue
+
+        # CASC-06 mid-batch balance monitoring every 10 images
+        if not skip_balance and i > 0 and i % 10 == 0:
+            try:
+                balance = check_siliconflow_balance()
+                if (
+                    should_switch_to_openrouter(balance)
+                    and "siliconflow" in cascade.providers
+                ):
+                    logger.warning(
+                        "mid-batch balance CNY %.4f < CNY 0.05 -- removing "
+                        "SiliconFlow from cascade",
+                        float(balance),
+                    )
+                    cascade.providers = [
+                        p for p in cascade.providers if p != "siliconflow"
+                    ]
+            except BalanceCheckError:
+                pass  # non-fatal; keep going with current cascade
+
+        try:
+            cres: CascadeResult = cascade.describe(
+                image_id=image_id, image_bytes=image_bytes, mime=mime
             )
-            if is_timeout:
+        except AllProvidersExhausted429Error as e:
+            logger.error(
+                "BATCH STOP: %s -- all providers 429 on single image; check "
+                "quotas + balance", e,
+            )
+            batch_stopped_429 = True
+            result[path] = "Error describing image: all providers 429"
+            vision_error += 1
+            break
+
+        latency_ms = int((time.perf_counter() - t0) * 1000)
+        if cres.failed or cres.description is None:
+            result[path] = (
+                f"Error describing image: cascade failed "
+                f"(attempts={len(cres.attempts)})"
+            )
+            last = cres.attempts[-1] if cres.attempts else None
+            if last and last.result_code == "timeout":
                 vision_timeout += 1
                 outcome = OUTCOME_TIMEOUT
             else:
@@ -441,19 +499,64 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
                 "local_path": str(path),
                 "dims": None,
                 "bytes": path.stat().st_size if path.exists() else None,
-                "provider": None,  # provider unknown on failure (could be any in cascade)
-                "ms": int((time.perf_counter() - t0) * 1000),
+                "provider": None,
+                "ms": latency_ms,
                 "outcome": outcome,
-                "error": str(e),
+                "error": last.error if last else "no attempts",
             })
+        else:
+            result[path] = cres.description
+            vision_success += 1
+            provider_mix[cres.provider_used] = (
+                provider_mix.get(cres.provider_used, 0) + 1
+            )
+            _emit_log({
+                "event": "image_processed",
+                "ts": _now_iso(),
+                "url": None,
+                "local_path": str(path),
+                "dims": None,
+                "bytes": path.stat().st_size if path.exists() else None,
+                "provider": cres.provider_used,
+                "ms": latency_ms,
+                "outcome": OUTCOME_SUCCESS,
+                "error": None,
+            })
+
         if i + 1 < len(paths_list) and sleep_secs > 0:
             time.sleep(sleep_secs)
+
+    # CASC-05 batch-end aggregate + alerts
+    total_success = vision_success
+    gemini_share = (
+        (provider_mix.get("gemini", 0) / total_success)
+        if total_success > 0
+        else 0.0
+    )
+    circuit_opens = [
+        p for p, s in cascade.status.items() if s.get("circuit_open")
+    ]
+    if gemini_share > 0.05:
+        logger.warning(
+            "CASCADE ALERT: gemini used for %.1f%% of images (>5%% threshold) "
+            "-- upstream provider issues detected",
+            gemini_share * 100,
+        )
+    if circuit_opens:
+        logger.warning(
+            "CASCADE ALERT: circuits still open at batch end: %s -- review "
+            "provider_status.json",
+            circuit_opens,
+        )
 
     _last_describe_stats = {
         "provider_mix": provider_mix,
         "vision_success": vision_success,
         "vision_error": vision_error,
         "vision_timeout": vision_timeout,
+        "circuit_opens": circuit_opens,
+        "gemini_share": round(gemini_share, 4),
+        "batch_stopped_429": batch_stopped_429,
     }
     return result
 
