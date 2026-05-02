@@ -191,8 +191,14 @@ def _resolve_model(base_model: str) -> str:
     multimodal model name. Only applied in Vertex mode AND only for the
     exact free-tier name; all other model names pass through unchanged so
     future callers can pin a specific Vertex-native model.
+
+    2026-05-02: Restored after commit 0dc4b2b incorrectly removed the mapping.
+    Empirical probe against us-central1 confirmed ``gemini-embedding-2`` still
+    returns 404 NOT_FOUND; ``gemini-embedding-2-preview`` returns 3072-dim
+    vectors. The prior "deprecated" claim was incorrect.
     """
-    # 2026-05-02: gemini-embedding-2-preview deprecated by Vertex AI
+    if _is_vertex_mode() and base_model == "gemini-embedding-2":
+        return "gemini-embedding-2-preview"
     return base_model
 
 
