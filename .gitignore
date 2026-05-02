@@ -31,3 +31,10 @@ spiders/*.zip
 
 # Binary archives
 *.zip
+
+# Vertex AI service account keys — directory contents excluded, template tracked
+# NOTE: pattern is `credentials/*` (not `credentials/`) because git cannot re-include
+# a file whose parent directory is excluded by a dir-pattern. Using `credentials/*`
+# excludes files inside the dir but allows the negation to keep the template tracked.
+credentials/*
+!credentials/vertex_ai_service_account_example.json
