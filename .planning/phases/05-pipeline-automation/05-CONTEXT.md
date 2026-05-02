@@ -1,6 +1,7 @@
 # Phase 5: pipeline-automation - Context
 
 **Gathered:** 2026-04-28
+**Updated:** 2026-05-01 (post v3.1 close @ `2b38e98` + v3.2 close @ `40cba44` — infrastructure composition section added; existing D-01..D-18 decisions unchanged)
 **Status:** Ready for planning
 
 <domain>
@@ -83,6 +84,55 @@ The following are left for researcher/planner to decide:
 None — `gsd-tools todo match-phase 5` returned zero matches.
 
 </decisions>
+
+<infra_composition>
+## v3.1 / v3.2 Infrastructure Composition (added 2026-05-01)
+
+Between Phase 5 planning (2026-04-28) and Phase 5 execution, milestones **v3.1** (single-article ingest stability) and **v3.2** (batch reliability + infra) landed. Phase 5 plans MUST compose with the delivered libraries rather than reimplement equivalent logic. This section lists what exists on `main` at commit `40cba44` and how each Phase 5 plan should use it. **Original 18 decisions (D-01..D-18) are unchanged** — this section only adds composition guidance, not new locked decisions.
+
+### Delivered libraries (all importable, unit-tested, in production code path)
+
+| Module | Contract | Phase 5 composition point |
+|---|---|---|
+| `lib/checkpoint.py` | 6-stage per-article state machine: `scrape → classify → image_download → vision → text_ingest → sub_doc_ingest`. Markers `0[1-6]_<stage>.done` under `checkpoints/{ckpt_hash}/`. `ckpt_hash = sha256(url)[:16]` (parallel to legacy md5[:10]; does NOT replace). APIs: `has_stage(hash, stage)`, `mark_stage(hash, stage)`, `list_vision_markers(hash)`. | **05-03b** (RSS ingest) MUST wrap per-article ingest in checkpoint guards — same as v3.2 Phase 12 did for `ingest_wechat.py`. **05-04** step_7 inherits this automatically via `batch_ingest_from_spider.py`. |
+| `lib/vision_cascade.py` | SiliconFlow Qwen3-VL-32B → OpenRouter GLM-4.5V → Gemini Vision, with per-provider circuit breaker (consecutive-N failures → auto-skip for cooldown window). `image_pipeline.describe_images()` already delegates here. | **05-03b** images inherit automatically via `image_pipeline.describe_images()`. No new Vision code. |
+| `lib/batch_timeout.py` | `clamp_article_timeout(budget_total, articles_remaining, per_article_floor, per_article_ceiling)` — splits a total batch budget across remaining articles. Default `OMNIGRAPH_BATCH_TIMEOUT_SEC=28800` (8h, sized for 56 articles × 441s Hermes prod baseline). | **05-04** step_7 should wrap `batch_ingest_from_spider.py` invocation within this total budget (default 28800s). **05-06** cron `daily-ingest` inherits via `batch_ingest_from_spider.py` instrumentation. |
+| `lib/siliconflow_balance.py` | Module-load reads `~/.hermes/.env` (fixes v3.1 Finding 2 env-read bug). `check_balance() → BalanceStatus`. | **05-06** cron `daily-ingest` may call it at the top as pre-check (non-fatal warning if balance low); OPERATOR_RUNBOOK.md documents how to top up. No new balance code in Phase 5. |
+| `lib/lightrag_embedding.py` | Vertex AI opt-in (env-triggered: `GOOGLE_APPLICATION_CREDENTIALS` + `GOOGLE_CLOUD_PROJECT` set → Vertex; else Gemini Developer API). Model name `gemini-embedding-2` auto-remaps to `gemini-embedding-2-preview` on Vertex. | Already adopted by Wave 0 (05-00). RSS ingest (**05-03b**) uses the same embedding function via LightRAG — zero change needed. |
+
+### v3.1 contracts Phase 5 relies on
+
+| Contract | Where | Phase 5 usage |
+|---|---|---|
+| `get_rag(flush=True/False)` API + LLM_TIMEOUT=600 + per-article timeout `max(120+30×chunks, 900)` | Phase 9 | **05-03b** + **05-04** `batch_ingest_from_spider.py` invocation: no extra timeout wrapping needed on top of this. |
+| Scrape-first full-body classification writing to `classifications` SQLite table | Phase 10 (CLASS-04) | **05-03** writes to the parallel `rss_classifications` table per PRD §3.1.4 schema — same column pattern (`article_id`, `depth_score`, `topic`, `rationale`, `classified_at`). **Keep them as separate tables** (different `article_id` FK targets: `articles` vs `rss_articles`) but **mirror the column design** for operational consistency. |
+| Text-first `ainsert` decoupled from async Vision sub-doc worker | Phase 10 (ARCH-01..04) | **05-03b** gets this automatically by calling into the same `ingest_article()` entry point `ingest_wechat.py` uses. |
+
+### v3.2 operator surfaces referenced by Phase 5
+
+| Document | Owner | Phase 5 referrer |
+|---|---|---|
+| `docs/OPERATOR_RUNBOOK.md` (Phase 15) | Hermes ops | **05-06** Task 6.3 Phase 5 Exit State MUST point to this; 3-day observation anomalies reference its recovery procedures. |
+| `docs/Deploy.md` (Phase 15 updates) | Hermes ops | **05-06** env var list + SA rotation guidance lives here; Phase 5-specific env additions (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, OPML cache path) append here. |
+| `docs/VERTEX_AI_MIGRATION_SPEC.md` (Phase 16) | Design only | Referenced by **05-00** Wave 0 SUMMARY retroactively if embedding behavior matches. No Phase 5 code change. |
+| `lib/checkpoint.py` CLI tools (`scripts/checkpoint_status.py`, `scripts/checkpoint_resume.py`) | Phase 12 | **05-06** 3-day observation uses these to report resume-vs-fresh counts. |
+
+### What does NOT change in Phase 5
+
+- All 18 existing decisions (D-01..D-18) stand as-is.
+- PRD §3.1.4 `rss_classifications` schema stays separate from Phase 10 `classifications` (different source tables).
+- PRD §3.2 9-step orchestrator contract unchanged — composition with `lib/checkpoint.py` happens **inside** `batch_ingest_from_spider.py` (already wired in v3.2 Phase 12-03), not at the orchestrator layer.
+- OPML curation (**05-01**), RSS fetch (**05-02**), daily digest (**05-05**) are largely independent of v3.1/v3.2 infra — light touches only, documented per plan.
+
+### Pre-execution checklist for Phase 5
+
+Before `/gsd:execute-phase 5`:
+1. `lib/checkpoint.py`, `lib/vision_cascade.py`, `lib/batch_timeout.py`, `lib/siliconflow_balance.py` importable — `python -c "from lib import checkpoint, vision_cascade, batch_timeout, siliconflow_balance"` exits 0.
+2. `docs/OPERATOR_RUNBOOK.md` exists on main.
+3. v3.2 Hermes punch list P0 (4 regression fixtures scraped) complete — otherwise **05-06** 3-day observation starts without a trustworthy regression baseline.
+4. Hermes top-up on SiliconFlow is operational housekeeping — Phase 5 does not gate on it.
+
+</infra_composition>
 
 <canonical_refs>
 ## Canonical References
