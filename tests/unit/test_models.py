@@ -12,12 +12,12 @@ import importlib
 
 def test_ingestion_llm_is_pure_constant():
     from lib import INGESTION_LLM
-    assert INGESTION_LLM == "gemini-2.5-flash-lite"
+    assert INGESTION_LLM == "gemini-2.5-flash"
 
 
 def test_vision_llm_is_pure_constant():
     from lib import VISION_LLM
-    assert VISION_LLM == "gemini-2.5-flash-lite"
+    assert VISION_LLM == "gemini-3.1-flash-lite-preview"
 
 
 def test_synthesis_llm_is_pure_constant():
@@ -47,7 +47,7 @@ def test_no_model_env_override(monkeypatch):
     import lib.models as m
     importlib.reload(m)
     # The constant must still be the hard-coded value, not "foo-model".
-    assert m.INGESTION_LLM == "gemini-2.5-flash-lite"
+    assert m.INGESTION_LLM == "gemini-2.5-flash"
     assert m.INGESTION_LLM != "foo-model"
 
 
