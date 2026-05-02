@@ -323,15 +323,19 @@ def test_balance_precheck_api_key_unset(bench_module, monkeypatch):
 
 
 def test_balance_precheck_ok_branch(bench_module, monkeypatch):
-    """Branch B: balance >= estimated cost → status=ok."""
+    """Branch B: balance >= estimated cost -> status=ok.
+
+    Phase 13-01 (D-BENCH-PRECHECK): _balance_precheck now delegates to
+    lib.siliconflow_balance.check_siliconflow_balance(), which uses
+    requests.get. We mock at that boundary.
+    """
+    from decimal import Decimal
     monkeypatch.setenv("SILICONFLOW_API_KEY", "sk-test")
 
-    fake_resp = MagicMock()
-    fake_resp.read.return_value = json.dumps({"data": {"balance": "5.43"}}).encode("utf-8")
-    fake_resp.__enter__ = lambda self: self
-    fake_resp.__exit__ = lambda self, *a: False
-
-    with patch("urllib.request.urlopen", return_value=fake_resp):
+    with patch(
+        "lib.siliconflow_balance.check_siliconflow_balance",
+        return_value=Decimal("5.43"),
+    ):
         result = bench_module._balance_precheck()
 
     assert result["event"] == "balance_warning"
@@ -342,15 +346,14 @@ def test_balance_precheck_ok_branch(bench_module, monkeypatch):
 
 
 def test_balance_precheck_insufficient_branch(bench_module, monkeypatch):
-    """Branch C: balance < estimated cost → status=insufficient_for_batch."""
+    """Branch C: balance < estimated cost -> status=insufficient_for_batch."""
+    from decimal import Decimal
     monkeypatch.setenv("SILICONFLOW_API_KEY", "sk-test")
 
-    fake_resp = MagicMock()
-    fake_resp.read.return_value = json.dumps({"data": {"balance": 0.001}}).encode("utf-8")
-    fake_resp.__enter__ = lambda self: self
-    fake_resp.__exit__ = lambda self, *a: False
-
-    with patch("urllib.request.urlopen", return_value=fake_resp):
+    with patch(
+        "lib.siliconflow_balance.check_siliconflow_balance",
+        return_value=Decimal("0.001"),
+    ):
         result = bench_module._balance_precheck()
 
     assert result["event"] == "balance_warning"
@@ -359,12 +362,13 @@ def test_balance_precheck_insufficient_branch(bench_module, monkeypatch):
 
 
 def test_balance_precheck_url_error_branch(bench_module, monkeypatch):
-    """Branch D: urlopen raises URLError → event=balance_precheck_failed."""
+    """Branch D: lib raises BalanceCheckError -> event=balance_precheck_failed."""
+    from lib.siliconflow_balance import BalanceCheckError
     monkeypatch.setenv("SILICONFLOW_API_KEY", "sk-test")
 
     with patch(
-        "urllib.request.urlopen",
-        side_effect=urllib.error.URLError("boom"),
+        "lib.siliconflow_balance.check_siliconflow_balance",
+        side_effect=BalanceCheckError("boom"),
     ):
         result = bench_module._balance_precheck()
 
@@ -374,15 +378,14 @@ def test_balance_precheck_url_error_branch(bench_module, monkeypatch):
 
 
 def test_balance_precheck_json_decode_error(bench_module, monkeypatch):
-    """Branch D variant: non-JSON response → event=balance_precheck_failed."""
+    """Branch D variant: malformed response -> event=balance_precheck_failed."""
+    from lib.siliconflow_balance import BalanceCheckError
     monkeypatch.setenv("SILICONFLOW_API_KEY", "sk-test")
 
-    fake_resp = MagicMock()
-    fake_resp.read.return_value = b"not json"
-    fake_resp.__enter__ = lambda self: self
-    fake_resp.__exit__ = lambda self, *a: False
-
-    with patch("urllib.request.urlopen", return_value=fake_resp):
+    with patch(
+        "lib.siliconflow_balance.check_siliconflow_balance",
+        side_effect=BalanceCheckError("malformed balance response: not json"),
+    ):
         result = bench_module._balance_precheck()
 
     assert result["event"] == "balance_precheck_failed"

@@ -1,9 +1,26 @@
 """Shared pytest fixtures for OmniGraph-Vault tests."""
 from __future__ import annotations
 import json
+import os
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
+
+
+# Phase 13: guard against tests polluting ~/.hermes/omonigraph-vault/checkpoints/_batch/
+# by defaulting OMNIGRAPH_VISION_CHECKPOINT_DIR to a per-session tmp dir unless
+# a test explicitly overrides it via monkeypatch.
+@pytest.fixture(autouse=True, scope="session")
+def _isolate_vision_checkpoint_dir():
+    prior = os.environ.get("OMNIGRAPH_VISION_CHECKPOINT_DIR")
+    if prior is None:
+        td = tempfile.mkdtemp(prefix="ogv-vision-ckpt-")
+        os.environ["OMNIGRAPH_VISION_CHECKPOINT_DIR"] = td
+        yield
+        os.environ.pop("OMNIGRAPH_VISION_CHECKPOINT_DIR", None)
+    else:
+        yield
 
 
 @pytest.fixture

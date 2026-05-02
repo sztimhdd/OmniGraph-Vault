@@ -424,7 +424,13 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
         if force_openrouter_primary
         else list(DEFAULT_PROVIDERS)
     )
-    cascade = VisionCascade(providers=providers, checkpoint_dir=None)
+    # Test seam: allow tests to redirect checkpoint storage off the user's
+    # production ~/.hermes dir. Production leaves this unset.
+    _ckpt_override = os.environ.get(
+        "OMNIGRAPH_VISION_CHECKPOINT_DIR", ""
+    ).strip()
+    _ckpt_dir = Path(_ckpt_override) if _ckpt_override else None
+    cascade = VisionCascade(providers=providers, checkpoint_dir=_ckpt_dir)
 
     provider_mix: dict[str, int] = {}
     vision_success = 0
