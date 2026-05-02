@@ -284,6 +284,12 @@ Existing pipeline:
 - **Web digest UI** — out of scope per PRD §2.3.
 - **Sources beyond Zhihu for enrichment** (X threads, HN, blogs) — inherits Phase 4 boundary.
 
+### Discovered during Wave 0 close (2026-05-02) — deferred, not blocking
+
+- **118-image (dense-image) article edge case.** Wave 0 P0 re-ingest hung on a KOL article with 118 post-filter images. Root cause: LightRAG entity-merge Phase 1/2 scales with chunk count, and 118 `[Image N]` reference lines explode a single article into 30+ chunks × 441 s/chunk = ~4 h wall-clock single-article. Phase 9 outer `asyncio.wait_for` formula `max(120 + 30 × chunks, 900)` truncates at ~17 min and triggers Phase 12 checkpoint rollback — so the pipeline self-heals, but UX sees a "stuck 14 min" window and wastes the 17 min budget. **No per-article image cap exists.** Options (all deferred): (A) accept current 17 min ceiling; (B) hard-cap >50 images via `enriched=-3` skip state; (C) soft-cap: rank-by-area, keep top 50. Revisit after Wave 1 cron runs 1-2 weeks and we have data on how often 50+-image articles appear.
+- **Prompt-dependent image rendering (P2 finding).** Task 0.7 URL binding makes `localhost:8765/...` URLs appear in LightRAG retrieval context, but LightRAG's default `response_type="Detailed Markdown Article"` prompt does NOT instruct the LLM to preserve URLs in the output. `kg_synthesize.py` works because it uses a custom prompt with explicit `CRITICAL ... include as ![description](url) INLINE` directive (commit `0109c02`). **Implication matrix**: (a) daily digest `05-05` is safe — SQL+Markdown templating, no LLM synthesis pass; (b) `omnigraph_query` / `omnigraph_architect` skills need similar prompt directives if operators expect inline images in skill output — Phase 6-05 demo should verify or flag; (c) any future `response_type` LightRAG adds should be tested against this finding.
+- **Cognee restoration into `kg_synthesize`** (interim removal 2026-05-02 per `0109c02`). Parallel GSD:quick session fixed the Vertex model-name mismatch; post-landing the "past-query memory" feature can be restored OR left permanently removed. Decision deferred until the fix is on main + we can smoke-test whether lazy-import also solves the module-level event-loop blocking.
+
 ### Secondary gray areas (Claude's discretion during planning)
 
 These came up but didn't need user decision:

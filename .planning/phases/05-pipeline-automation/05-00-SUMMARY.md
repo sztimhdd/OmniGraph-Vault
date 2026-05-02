@@ -150,3 +150,122 @@ Final SUMMARY + STATE reconciliation: this commit.
 Plan 05-00 is complete. Next: **05-00b** (KOL catch-up filtered), already ~30% underway thanks to the user's Hermes-side run (classifications table populated via Deepseek; 9/31 keyword-matched articles ingested). Remaining scope is the subprocess-deadlock fix + completing the other 22 articles + multi-keyword `--topic-filter` implementation.
 
 Phase 5 current blockers are engineering bugs (subprocess deadlock, schema gap, multi-keyword filter), not quota — the Deepseek + rotation infrastructure from 05-00c is holding up well on real workloads.
+
+---
+
+# Wave 0 Close-Out Addendum — 2026-05-02
+
+**This section appends to the 2026-04-29 SUMMARY above, covering Tasks 0.7 + 0.8 and the final Wave 0 gate verification.**
+
+**Head at close:** `0109c02` on origin/main
+**Wave 0 verdict:** ✅ CLOSED at "3-article-sample + mechanism-validated" bar
+
+## A. Scope extensions added after 2026-04-29
+
+Between the original 2026-04-29 close (263 nodes / 29 docs) and the formal Wave 0 gate on 2026-05-02, two scope extensions landed:
+
+- **Task 0.7** (Hermes commit `2f576b1`): retrieval-binding fix — parent doc `[Image N from article 'TITLE']: URL` + sub-doc `[image N]: desc (URL)` so `kg_synthesize` can produce `![desc](url)` inline markdown.
+- **Task 0.8** (Claude commit `585aa3b` + Hermes commit `0109c02`): `aget_docs_by_ids` verification hook before DB `content_hash` write + full reset and re-ingest to eliminate the 57-row DB/LightRAG ghost-article drift discovered in the 2026-04-29 end state.
+
+The 2026-04-29 graph (263 nodes / 29 docs) was **fully wiped** during the 2026-05-02 full reset; post-reset graph state documented in §B below.
+
+## B. Final gate data — the 2026-05-02 three-gate pass
+
+### P0 — Re-ingest + anti-ghost hook
+
+| Metric | Value |
+|---|---|
+| Filter+classify scope | 67 KOL articles (post D-10 keyword filter) |
+| Ingested | **3** (halted at 4/67 — 118-image outlier hung LightRAG entity merge ~14 min) |
+| LightRAG docs after | **7** (3 parent + 4 async-Vision sub-docs from Phase 10 ARCH-02) |
+| DB `content_hash` written | **3** — exactly matches LightRAG → **0 ghost articles** |
+| `aget_docs_by_ids` skip events | Fired as designed on non-PROCESSED (left `content_hash=NULL` for batch retry) |
+| Async timeouts | **0** (Hermes commit `137d39f` async fix held under multi-image load) |
+
+### P1 — Embedding benchmarks
+
+| Gate | Target | Actual | Verdict |
+|---|---|---|---|
+| Chinese top-5 overlap (6 golden queries) | ≥ 60% avg | 60% (6/6 PASS) | ✅ formal; caveat: 3-article corpus thin; re-run after Wave 1 accumulation |
+| Cross-modal text→image hit | ≥ 1/5 | **2/2 hit** | ✅ 🎯 chunks contain `localhost:8765/...` — URL binding end-to-end validated |
+
+### P2 — Synthesis with inline images
+
+Initial attempt with `response_type="Detailed Markdown Article"`: retrieval delivered **16 image URLs** into LLM context, but default prompt did not instruct URL preservation → 0 inline images.
+
+Custom prompt with `CRITICAL ... include as ![description](url) INLINE` directive: **2/2 inline images** + 1466 chars output. **P2 PASS.**
+
+Finding: Task 0.7 URL binding is necessary but not sufficient — synthesis prompt must explicitly preserve URLs. Matters for query-time skills (`omnigraph_query`, `omnigraph_synthesize`); N/A for 05-05 daily digest (SQL+Markdown templating, no LLM synthesis pass).
+
+## C. Five substantive fixes landed during Wave 0 close window
+
+| # | Fix | Commit | Planned? |
+|---|---|---|---|
+| A | Multi-image `_build_contents` (`re.search` → `re.findall`, cap 6 images/chunk) | `2f576b1` | Yes (Task 0.2b) |
+| B | URL retrieval binding (parent Reference with title, sub-doc with `(localhost:8765/...)`) | `2f576b1` | Yes (Task 0.7) |
+| C | `aget_docs_by_ids` verification hook before `content_hash` write | `585aa3b` | Yes (Task 0.8 verification sub-task) |
+| D | `_fetch_image_part` + `_build_contents` → `async` with `run_in_executor` + `asyncio.gather` | `137d39f` | **No** — P0 run-time discovery; sync `requests.get` blocked asyncio loop under dense-image load |
+| E | `kg_synthesize.py`: DeepSeek synthesis + Cognee removed + image-preservation prompt | `0109c02` | **No** — three root causes surfaced together at P2 |
+
+Fixes D + E are **incident-driven**, not plan-driven. Fixture smoke could not surface them. Wave 0's real-batch re-ingest caught them.
+
+## D. Decisions locked / revised during this window
+
+### D-07 REVISED 2026-05-02 + new D-19 (committed `315cf8c`)
+
+Enrichment policy: KOL-only, RSS excluded, forward-only (no backfill of today's Wave 0 batch). See `05-CONTEXT.md` § infra_composition.
+
+### Phase 7 D-09 supersession (effective `0109c02`)
+
+Phase 7 D-09 pinned `SYNTHESIS_LLM = "gemini-2.5-flash"`. This conflicted with CLAUDE.md routing rule ("LLM → DeepSeek, Gemini only for Vision+Embedding"). Resolution: **production `kg_synthesize.py` uses DeepSeek V4 Pro** (Hermes) / **local dev uses Gemini 2.5-flash-lite via Vertex AI** (Claude dev machine, Umbrella workaround).
+
+**Local dev Umbrella workaround**: Windows dev cannot reach `api.deepseek.com` (TLS blocked). For local `kg_synthesize` smoke, monkey-patch routes synthesis through Gemini 2.5-flash-lite via Vertex AI. Production stays DeepSeek. Dev-only, does NOT ship.
+
+Phase 7 Done region NOT edited (closed); supersession recorded here. To be re-visited in v3.3 Vertex AI migration phase.
+
+### Cognee removal from `kg_synthesize.py` synthesize flow — **interim**
+
+`0109c02` dropped `import cognee` + `recall_previous_context()` / `remember_synthesis()` from `kg_synthesize.py`. Two root causes:
+
+1. Cognee's LiteLLM→Vertex AI chain used literal `"gemini-embedding-2"` → 404 (needs `-preview`).
+2. Cognee module-level import triggered async pipelines that blocked the event loop — newly discovered.
+
+Feature impact: `kg_synthesize` loses "past-query memory". Ingestion-side Cognee (`remember_article` in `ingest_wechat.py`, `cognee_batch_processor.py`) is **untouched** — entities still recorded.
+
+**A parallel GSD:quick session repairs the Vertex model name mismatch** by reusing `lib.lightrag_embedding._resolve_model()` from `cognee_wrapper.py`. Post-landing, follow-up decision: restore Cognee recall/remember into `kg_synthesize` OR leave removed. Tracked as Phase 5 backlog; does NOT gate Wave 0 close.
+
+## E. Wave 0 exit state — what Wave 1 inherits
+
+| Asset | State |
+|---|---|
+| `lib/lightrag_embedding.py` async multi-image embedding | ✅ main @ `137d39f` |
+| Shared `embedding_func` consolidation | ✅ (2026-04-29 Plan 05-00) |
+| `EMBEDDING_MODEL=gemini-embedding-2` on Hermes `~/.hermes/.env` | ✅ |
+| `_resolve_model()` `-preview` mapping (LightRAG path) | ✅ main @ `2f576b1` |
+| `_resolve_model()` `-preview` mapping (Cognee path) | ⏳ GSD:quick in-flight |
+| LightRAG `kv_store_full_docs.json` count | 7 (post-reset) |
+| DB `articles.content_hash IS NOT NULL` | 3 (aligned via Task 4.2 hook) |
+| `aget_docs_by_ids` hook in `ingest_wechat.py` | ✅ main @ `585aa3b`; 3 unit tests pass |
+| `kg_synthesize.py` inline `![](url)` | ✅ main @ `0109c02`; 2/2 validated |
+| 118-image edge case | Known; Phase 9 timeout truncates ~17 min; deferred item |
+| Prompt-dependent image rendering | Documented; query-time skills need directive, digest N/A |
+
+**Wave 1 unblocked.** Plans 05-01 → 05-03b may begin planning/execution.
+
+## F. What Wave 0 did NOT close (intentional deferral)
+
+- Full 67-article catch-up: halted at 3/67; remaining 63 will come in via Wave 1 daily-ingest cron naturally.
+- Cognee recall/remember in `kg_synthesize`: parallel GSD:quick fix in flight; restoration decision deferred.
+- P1 benchmark statistical rigor: 60% overlap on 3-article corpus is formally passing but thin. Re-run after Wave 1 accumulates ≥ 30 articles.
+
+## G. Honest Wave 0 assessment
+
+Task 0.8 re-ingest scoped as ~90 min routine full-reset. Actual cost ~7 h elapsed + ~$8-12 real API spend. It surfaced **2 bugs (D, E) that fixture smoke could not find**: multi-image async blocking only triggers at dense-image × concurrency; Cognee module-level blocking only surfaces when async loop is already loaded.
+
+Delta cost of real-batch vs fixture smoke ≈ $7-11 + 6 h. Value of bugs caught ≥ prevented 2 am Wave 1 cron incidents → real-batch was worth it.
+
+**Recorded for future:** for infra changes that alter async/concurrency behavior, a multi-article real-batch (even 5-10) is cheaper than discovering in Wave 1 cron. Don't conflate "Wave 0 benchmark validation" with "pre-production smoke" — both worth running.
+
+---
+
+*Wave 0 Close-Out Addendum 2026-05-02 · Authors: Claude (dev) + Hermes (prod) · Head `0109c02` on origin/main*
