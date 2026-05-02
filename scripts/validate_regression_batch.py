@@ -214,7 +214,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 async def _run_all(fixtures: list[Path]) -> dict[str, Any]:
     cascade = VisionCascade(
-        providers_in_order=["siliconflow", "openrouter", "gemini"],
+        providers=["siliconflow", "openrouter", "gemini"],
         checkpoint_dir=None,
     )
     articles: list[dict[str, Any]] = []
