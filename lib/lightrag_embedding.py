@@ -107,14 +107,19 @@ def _is_429(exc: BaseException) -> bool:
     return "RESOURCE_EXHAUSTED" in str(exc)
 
 
-def _fetch_image_part(url: str) -> types.Part | None:
+async def _fetch_image_part(url: str) -> types.Part | None:
     """Fetch an image URL and wrap it as a ``types.Part``.
 
-    Returns ``None`` on any error so the caller can degrade gracefully to
-    text-only embedding.
+    Runs the synchronous ``requests.get`` in a thread executor so it does
+    NOT block the asyncio event loop. Returns ``None`` on any error.
     """
+    import asyncio as _asyncio_mod
+    loop = _asyncio_mod.get_event_loop()
     try:
-        resp = requests.get(url, timeout=_IMAGE_FETCH_TIMEOUT_S)
+        resp = await loop.run_in_executor(
+            None,
+            lambda: requests.get(url, timeout=_IMAGE_FETCH_TIMEOUT_S),
+        )
         resp.raise_for_status()
     except Exception:
         return None
@@ -126,12 +131,12 @@ def _fetch_image_part(url: str) -> types.Part | None:
         return None
 
 
-def _build_contents(text: str, is_query: bool) -> list:
+async def _build_contents(text: str, is_query: bool) -> list:
     """Build the ``contents`` payload for a single text chunk.
 
-    Finds ALL image URLs in the chunk, fetches each, and sends them as
-    ``types.Part`` sidecars. Capped at ``_MAX_IMAGES_PER_REQUEST`` (Gemini
-    hard limit). Gemini produces one aggregated embedding per chunk.
+    Finds ALL image URLs in the chunk, fetches each IN PARALLEL via
+    ``asyncio.gather``, and sends them as ``types.Part`` sidecars.
+    Capped at ``_MAX_IMAGES_PER_REQUEST`` (Gemini hard limit).
     """
     prefix = _QUERY_PREFIX if is_query else _DOC_PREFIX
     urls = _IMAGE_URL_PATTERN.findall(text)
@@ -139,14 +144,12 @@ def _build_contents(text: str, is_query: bool) -> list:
         return [prefix + text]
 
     clean_text = _IMAGE_URL_PATTERN.sub("", text).strip()
-    parts: list = []
-    for url in urls[:_MAX_IMAGES_PER_REQUEST]:
-        part = _fetch_image_part(url)
-        if part is not None:
-            parts.append(part)
+    fetched = await _asyncio.gather(
+        *[_fetch_image_part(url) for url in urls[:_MAX_IMAGES_PER_REQUEST]]
+    )
+    parts: list = [p for p in fetched if p is not None]
 
     if not parts:
-        # Fall through to text-only on fetch failure — keep retrieval working.
         return [prefix + clean_text]
     return [prefix + clean_text] + parts
 
@@ -256,7 +259,7 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
 
     vectors: list[np.ndarray] = []
     for text in texts:
-        contents = _build_contents(text, is_query)
+        contents = await _build_contents(text, is_query)
 
         # Per-text rotation loop: try up to pool_size keys. On 429, rotate
         # and retry the SAME text with the next key. On any other error,
