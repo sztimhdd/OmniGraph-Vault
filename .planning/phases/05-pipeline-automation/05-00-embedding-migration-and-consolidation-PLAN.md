@@ -781,7 +781,32 @@ client.batches.create_embeddings(model=..., src=types.EmbeddingsBatchJobSource(.
     - ``kg_synthesize`` retrieval covers the full ingested corpus, not just 8 docs.
     - Cross-modal queries return image-URL chunks from the full re-ingested set.
   </acceptance_criteria>
-  <done>Not yet executed — gated on pipeline stabilization confirmation.</done>
+  <done>
+    **Verification hook (Task 0.8 sub-task) — code + tests COMPLETE 2026-05-02 (commit 585aa3b).**
+
+    `ingest_wechat.py` now calls `rag.aget_docs_by_ids([doc_id])` immediately
+    after `rag.ainsert(...)` returns and gates the entire DB write block
+    (`content_hash` + `enriched=-1` + `ingestions` row) on
+    `status == "PROCESSED"`. Non-PROCESSED responses (absent / failed / exception)
+    log a warning and leave `content_hash` NULL so the batch re-scheduler retries
+    — aligns with Phase 12 D-SUBDOC resume semantics.
+
+    Three unit tests added to `tests/unit/test_text_first_ingest.py`:
+    - `test_task08_hook_skips_content_hash_when_doc_absent_from_status`
+    - `test_task08_hook_skips_content_hash_when_status_not_processed`
+    - `test_task08_hook_writes_content_hash_when_status_processed`
+
+    All 3 pass locally (Windows dev). Zero regression on other unit tests
+    (pre-existing 2 failures in `test_text_first_ingest.py` confirmed via
+    `git stash` as present on HEAD before this change; not in scope).
+
+    **Remaining Task 0.8 actions (Hermes-only, R4 env ceiling):**
+    Full reset + re-ingest of 378 articles still PENDING — see
+    `docs/HERMES_PHASE5_WAVE0_PUNCH.md` for the operator runbook.
+    After Hermes completes re-ingest + Task 0.5 benchmarks (Tasks 4.3 / 4.4
+    in the v3.2-handoff prompt), this task closes and `05-00-SUMMARY.md`
+    is written.
+  </done>
 </task>
 
 </tasks>
