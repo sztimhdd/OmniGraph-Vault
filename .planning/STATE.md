@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1
-milestone_name: — Single-Article Ingest Stability ✅ CLOSED
-current_plan: 1
-status: executing
-stopped_at: Completed 11-02-PLAN.md — milestone v3.1 gate harness delivered
-last_updated: "2026-05-02T00:41:16.418Z"
-last_activity: 2026-05-02 -- Phase 15 execution started
+milestone: v3.2
+milestone_name: — Batch Reliability + Infra (autonomous-execution complete; pending Hermes-side gate-3 run)
+current_plan: 0
+status: awaiting-hermes-punch-list
+stopped_at: Milestone v3.2 autonomous run complete 2026-05-01 @ commit 2c9d310 (17/20 plans shipped; 3 punched to Hermes)
+last_updated: "2026-05-01T23:59:00.000Z"
+last_activity: 2026-05-01 -- v3.2 autonomous execution complete
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 10
-  completed_plans: 9
+  total_phases: 6
+  completed_phases: 5
+  total_plans: 20
+  completed_plans: 17
 ---
 
 # Project State
@@ -21,15 +21,19 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Phase 15 — docs-runbook
+**Current focus:** Awaiting Hermes to run `docs/HERMES_V3.2_PUNCH_LIST.md` items (P0 fixture scrape + P1 E2E regression run + P2 production Vision-cascade smoke)
 
 ## Current Position
 
-Phase: 15 (docs-runbook) — EXECUTING
-Current Plan: 1
-Plan: 1 of 3
-Status: Executing Phase 15
-Last activity: 2026-05-02 -- Phase 15 execution started
+Milestone: v3.2 (Batch Reliability + Infra) — AUTONOMOUS EXECUTION COMPLETE
+Phases shipped: 12, 13, 15, 16, 17 fully; 14 partial (14-02 harness ready; 14-01 + 14-03 punched to Hermes)
+Head commit: 2c9d310
+Status: Awaiting Hermes to close Gate 3 (fixture scrape + E2E batch run)
+Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed to origin/main
+
+**See:**
+- `docs/MILESTONE_v3.2_EXECUTION_REPORT.md` — full wave-by-wave run report
+- `docs/HERMES_V3.2_PUNCH_LIST.md` — what Hermes must do to close the milestone
 
 **Milestone v3.1 goal:** Rebuild and locally verify single-article ingestion against `test/fixtures/gpt55_article/` — text ingest + graph connectivity in <2 min with no crash; async Vision worker appends image sub-docs after ingest path returns. This unblocks Phase 5 Wave 1+ (RSS, daily digest, cron).
 
