@@ -259,7 +259,8 @@ async def _vision_worker_impl(
             desc = descriptions.get(path, "")
             stripped = desc.strip() if desc else ""
             if stripped and not stripped.startswith("Error describing image:"):
-                lines.append(f"- [image {i}]: {desc}")
+                local_url = f"http://localhost:8765/{article_hash}/{path.name}"
+                lines.append(f"- [image {i}]: {desc}  ({local_url})")
                 successful += 1
                 # Phase 12 CKPT-01: per-image Vision checkpoint (fire-and-forget).
                 # Never raises — write failures must not break the worker (D-10.08 contract).
@@ -974,11 +975,15 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
     # Phase 10 D-10.05 (ARCH-01): parent doc body contains image REFERENCE
     # lines only. Image DESCRIPTIONS arrive via sub-doc inserted by the
     # background _vision_worker_impl (spawned below after parent ainsert).
+    #
+    # Phase 5 Task 0.7 (2026-05-03): bare "[Image N Reference]: url" lines
+    # formed unretrievable chunks. Enriched with article title so hybrid
+    # search can surface them for kg_synthesize image-rich output.
     full_content = localize_markdown(full_content, url_to_path, article_hash=article_hash)
     processed_images = []
     for i, (url_img, path) in enumerate(url_to_path.items()):
         local_url = f"http://localhost:8765/{article_hash}/{path.name}"
-        full_content += f"\n\n[Image {i} Reference]: {local_url}"
+        full_content += f"\n\nImage {i} from article '{title}': {local_url}"
         processed_images.append({"index": i, "local_url": local_url})
 
     # Ingest into LightRAG

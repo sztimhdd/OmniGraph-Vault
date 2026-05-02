@@ -281,17 +281,30 @@ client.batches.create_embeddings(model=..., src=types.EmbeddingsBatchJobSource(.
             return None
 
     def _build_contents(text: str, is_query: bool) -> list:
+        """Build contents payload — ALL image URLs in the chunk are fetched and sent as Parts.
+
+        Phase 5 corr (2026-05-03): the original design only fetched the FIRST
+        image URL (re.search). When LightRAG chunks multiple [Image N Reference]
+        lines into one chunk, images 2+ were stripped from text but never
+        embedded. Fixed to findall → fetch all → send all as Parts, capped at
+        ``_MAX_IMAGES_PER_REQUEST = 6`` (Gemini hard limit).
+        """
         prefix = _QUERY_PREFIX if is_query else _DOC_PREFIX
-        match = _IMAGE_URL_PATTERN.search(text)
-        if match:
-            url = match.group(0)
+        urls = _IMAGE_URL_PATTERN.findall(text)
+        if not urls:
+            return [prefix + text]
+
+        clean_text = _IMAGE_URL_PATTERN.sub("", text).strip()
+        parts: list = []
+        for url in urls[:_MAX_IMAGES_PER_REQUEST]:
             part = _fetch_image_part(url)
-            clean_text = _IMAGE_URL_PATTERN.sub("", text).strip()
             if part is not None:
-                return [prefix + clean_text, part]
-            # Image fetch failed — fall through to text-only
+                parts.append(part)
+
+        if not parts:
+            # All fetches failed — fall through to text-only
             return [prefix + clean_text]
-        return [prefix + text]
+        return [prefix + clean_text] + parts
 
     @wrap_embedding_func_with_attrs(
         embedding_dim=_OUTPUT_DIM,
@@ -628,10 +641,158 @@ client.batches.create_embeddings(model=..., src=types.EmbeddingsBatchJobSource(.
 
 </tasks>
 
+<task type="auto">
+  <name>Task 0.7: Bind image URLs with descriptive text for retrieval (2026-05-03)</name>
+  <files>ingest_wechat.py, batch_ingest_from_spider.py</files>
+  <read_first>
+    - ingest_wechat.py lines 974-982 (image Reference line appending)
+    - kg_synthesize.py lines 93-101 (synthesis prompt expects image URLs in context)
+    - lib/lightrag_embedding.py `_IMAGE_URL_PATTERN` (matches localhost:8765 URLs)
+  </read_first>
+  <action>
+    **Problem:** Image Reference lines are appended at the document end as bare
+    ``[Image N Reference]: http://localhost:8765/...`` with zero descriptive
+    text. When LightRAG chunks these, they form isolated chunks that hybrid
+    search cannot retrieve. Even though inline images in the body (from
+    ``localize_markdown``) carry alt text, the Reference-line fallback chunks
+    are wasted — their image URLs are never surfaced in ``kg_synthesize``
+    results, producing text-only answers for queries that should be
+    image-rich.
+
+    **Fix:** Two-pronged approach:
+
+    1. **Parent doc Reference lines:** enrich with article title so bare-URL
+       chunks are at least minimally retrievable (fallback for queries matching
+       the article topic).
+
+    2. **Vision sub-doc:** include the ``localhost:8765`` image URL alongside
+       each vision-generated description. This is the primary retrieval path:
+       the description text makes the chunk semantically searchable, and the
+       URL lets ``kg_synthesize`` inline it as ``![desc](url)``.
+
+    In ``ingest_wechat.py``:
+
+    ```python
+    # (1) Parent doc — BEFORE (bare)
+    full_content += f"\\n\\n[Image {i} Reference]: {local_url}"
+    # (1) Parent doc — AFTER (title context fallback)
+    full_content += f"\\n\\nImage {i} from article '{title}': {local_url}"
+
+    # (2) Vision sub-doc — BEFORE (description only, no URL)
+    lines.append(f"- [image {i}]: {desc}")
+    # (2) Vision sub-doc — AFTER (description + URL for kg_synthesize inlining)
+    lines.append(f"- [image {i}]: {desc}  ({local_url})")
+    ```
+  </action>
+  <verify>
+    <automated>grep -c "from article '" ingest_wechat.py</automated>
+  </verify>
+  <acceptance_criteria>
+    - ``ingest_wechat.py`` no longer contains bare ``[Image N Reference]:`` lines.
+    - Reference lines include article title context.
+    - ``kg_synthesize.py`` query for article topic returns chunks with image URLs in context.
+  </acceptance_criteria>
+  <done>Image Reference lines enriched with article title; retrievable by hybrid search.</done>
+</task>
+
+<task type="manual">
+  <name>Task 0.8: Full reset + re-ingest after pipeline stabilization (2026-05-03)</name>
+  <files>lightrag_storage/*, data/kol_scan.db</files>
+  <read_first>
+    - ingest_wechat.py (current ingestion pipeline)
+    - lib/lightrag_embedding.py (3072-dim multimodal embedding)
+    - batch_ingest_from_spider.py (batch orchestrator)
+  </read_first>
+  <action>
+    **Problem:** SQLite DB ``articles.content_hash`` is an optimistic marker — it
+    is written the moment ``rag.ainsert()`` is called, without verification that
+    LightRAG actually persisted the document. This creates a growing gap between
+    what the DB *thinks* is ingested and what LightRAG *actually* stores:
+
+    | Source | Count | Notes |
+    |--------|-------|-------|
+    | ``kol_scan.db`` articles with ``content_hash IS NOT NULL`` | 57 | DB believes these are ingested |
+    | ``kv_store_full_docs.json`` | 8 | LightRAG actually has these |
+    | **Ghost articles** | **49** | Batch pipeline skips them, they don't exist in retrieval |
+
+    Root causes:
+    - Phase 5 Wave 0 wipe + re-ingest chain had silent failures (planned 18 → actual 8)
+    - No post-ainsert verification exists (no ``rag.aget_by_id()`` round-trip check)
+    - DB writes happen outside the retry/error path
+
+    **Fix: Full reset once the pipeline is stable.** After Tasks 0.1–0.7 are all
+    validated (multi-image embedding, description-URL binding, 3072-dim), execute
+    a clean-slate re-ingest:
+
+    ```bash
+    # 1. Wipe LightRAG vector storage
+    cd ~/.hermes/omonigraph-vault/lightrag_storage
+    rm -f vdb_chunks.json vdb_entities.json vdb_relationships.json \
+          kv_store_*.json graph_chunk_entity_relation.graphml full_docs.json
+
+    # 2. Reset DB ingestion markers
+    sqlite3 ~/OmniGraph-Vault/data/kol_scan.db \
+      "UPDATE articles SET content_hash = NULL WHERE content_hash IS NOT NULL"
+
+    # 3. Full batch re-ingest
+    cd ~/OmniGraph-Vault
+    venv/bin/python batch_ingest_from_spider.py
+    ```
+
+    **Verification mechanism (post-ainsert round-trip):** After each
+    ``rag.ainsert(content, ids=[doc_id])``, call
+    ``rag.aget_docs_by_ids([doc_id])`` to confirm the doc exists in LightRAG
+    BEFORE writing ``content_hash`` to the DB. This eliminates the
+    optimistic-marker gap permanently:
+
+    ```python
+    # In ingest_wechat.py, after rag.ainsert():
+    statuses = await rag.aget_docs_by_ids([doc_id])
+    if statuses and doc_id in statuses:
+        # Confirmed in LightRAG — safe to mark
+        conn.execute("UPDATE articles SET content_hash = ? WHERE url = ?",
+                     (article_hash, url))
+    else:
+        # Failed — leave content_hash NULL so batch retries
+        logger.warning("ainsert returned but doc %s not found in doc_status", doc_id)
+    ```
+
+    LightRAG uses the caller-supplied ``doc_id`` (e.g., ``wechat_{hash}``) as
+    the key in both ``full_docs`` and ``doc_status`` KV stores.
+    ``aget_docs_by_ids`` queries ``doc_status`` — a non-empty result with
+    status=PROCESSED means the document was fully ingested (chunks, entities,
+    relationships all persisted).
+
+    **Trigger condition:** Do NOT execute until all of these are confirmed:
+    - Task 0.1–0.3 (embedding consolidation, 3072-dim) ✅
+    - Task 0.5 (cross-modal benchmark passing) ✅
+    - Task 0.2b (``_build_contents`` multi-image fix) ✅
+    - Task 0.7 (image URL binding with descriptions) ✅
+    - At least 3 manual test articles ingested successfully end-to-end
+    - ``kg_synthesize`` produces image-rich markdown for a visual query
+
+    After reset, the DB count and LightRAG count should converge to within ±5%.
+  </action>
+  <verify>
+    Post-reset: ``wc -l`` on ``kv_store_full_docs.json`` keys ≈ ``SELECT COUNT(*) FROM articles WHERE content_hash IS NOT NULL`` ± 5%.
+  </verify>
+  <acceptance_criteria>
+    - Zero ghost articles: every ``content_hash IS NOT NULL`` row has a corresponding LightRAG doc.
+    - ``kg_synthesize`` retrieval covers the full ingested corpus, not just 8 docs.
+    - Cross-modal queries return image-URL chunks from the full re-ingested set.
+  </acceptance_criteria>
+  <done>Not yet executed — gated on pipeline stabilization confirmation.</done>
+</task>
+
+</tasks>
+
 <verification>
 - `docs/spikes/embedding-002-contract.md` exists with all four required keys and `recommendation: proceed`.
 - `lightrag_embedding.py` exports `embedding_func`; 5 files import from it; `cognee_wrapper.py` uses new model name; remote `.env` has `EMBEDDING_MODEL=gemini-embedding-2`.
-- `scripts/wave0_reembed.py` executed successfully on 18 docs.
+- Task 0.2b (2026-05-03): `_build_contents` upgraded from single-image `re.search` → multi-image `findall`, capped at `_MAX_IMAGES_PER_REQUEST=6`. Plan and code both updated.
+- Task 0.7 (2026-05-03): parent doc Reference lines enriched with article title; vision sub-doc lines include `localhost:8765` URLs alongside descriptions. Both paths now produce retrievable image-URL chunks for `kg_synthesize`.
+- Task 0.8 (2026-05-03): 57 ghost articles identified (DB `content_hash` optimistic-marker gap). Full reset procedure documented; gated on pipeline stabilization. DB `content_hash` zeroed — 0 articles marked ingested, ready for clean-slate re-ingest.
+- `scripts/wave0_reembed.py` executed on 18 docs (partial — only 8 survived in LightRAG; superseded by Task 0.8 full reset).
 - `tests/verify_wave0_benchmark.py` and `tests/verify_wave0_crossmodal.py` both exit 0 on remote.
 - PRD §2.4 typo fixed; 3 supersession notes added.
 </verification>
@@ -639,9 +800,11 @@ client.batches.create_embeddings(model=..., src=types.EmbeddingsBatchJobSource(.
 <success_criteria>
 - Spike report recommends "proceed".
 - All 6 duplicate embedding_func sites consolidated into 1 shared module + 1 env-var change in `cognee_wrapper.py`.
-- 18 LightRAG docs re-embedded at 3072 dim via NanoVectorDB wipe + re-ingest from full_docs.json backup; post-migration vdb_chunks.json shows `embedding_dim: 3072`.
-- Chinese retrieval top-5 overlap ≥ 60% per golden query (baseline captured on -001/768 BEFORE the wipe).
-- Cross-modal text→image retrieval hits ≥ 1 of 2 golden cross-modal queries.
+- `_build_contents` handles ALL image URLs per chunk (findall, capped at 6), not just the first one.
+- Image reference chunks are retrievable: parent doc carries article title context, vision sub-doc carries description + `localhost:8765` URL.
+- DB `content_hash` gap eliminated: 0 ghost articles; after full reset (Task 0.8), LightRAG doc count ≈ DB ingested count within ±5%.
+- Chinese retrieval top-5 overlap ≥ 60% per golden query.
+- Cross-modal text→image retrieval hits ≥ 1 of 2 golden cross-modal queries, now with vision-described sub-doc chunks carrying image URLs.
 - PRD typo fixed.
 </success_criteria>
 

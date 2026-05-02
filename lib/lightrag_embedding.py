@@ -129,21 +129,26 @@ def _fetch_image_part(url: str) -> types.Part | None:
 def _build_contents(text: str, is_query: bool) -> list:
     """Build the ``contents`` payload for a single text chunk.
 
-    Strips up to one image URL from the text and replaces it with a
-    ``types.Part`` sidecar so Gemini produces one aggregated embedding.
+    Finds ALL image URLs in the chunk, fetches each, and sends them as
+    ``types.Part`` sidecars. Capped at ``_MAX_IMAGES_PER_REQUEST`` (Gemini
+    hard limit). Gemini produces one aggregated embedding per chunk.
     """
     prefix = _QUERY_PREFIX if is_query else _DOC_PREFIX
-    match = _IMAGE_URL_PATTERN.search(text)
-    if match is None:
+    urls = _IMAGE_URL_PATTERN.findall(text)
+    if not urls:
         return [prefix + text]
 
-    url = match.group(0)
-    part = _fetch_image_part(url)
     clean_text = _IMAGE_URL_PATTERN.sub("", text).strip()
-    if part is None:
+    parts: list = []
+    for url in urls[:_MAX_IMAGES_PER_REQUEST]:
+        part = _fetch_image_part(url)
+        if part is not None:
+            parts.append(part)
+
+    if not parts:
         # Fall through to text-only on fetch failure — keep retrieval working.
         return [prefix + clean_text]
-    return [prefix + clean_text, part]
+    return [prefix + clean_text] + parts
 
 
 def _is_vertex_mode() -> bool:
