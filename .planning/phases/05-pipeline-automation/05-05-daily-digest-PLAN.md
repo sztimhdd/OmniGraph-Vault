@@ -11,7 +11,7 @@ autonomous: true
 requirements: [D-15, D-18]
 must_haves:
   truths:
-    - "`enrichment/daily_digest.py` selects today's depth>=2 articles (KOL + RSS) and sorts by depth_score DESC, content_length DESC, classified_at DESC"
+    - "`enrichment/daily_digest.py` selects today's depth>=2 articles via asymmetric UNION ALL: KOL branch (articles JOIN classifications) requires `enriched=2` per Phase 4 contract; RSS branch (rss_articles JOIN rss_classifications) has NO enriched filter per D-07 REVISED 2026-05-02 + D-19. Sort: depth_score DESC, content_length DESC, classified_at DESC."
     - "TOP 5 (configurable) rendered as Markdown per PRD section 3.3.2 sample format"
     - "Markdown includes title, category tag, source, 1-2 line excerpt, link"
     - "Telegram delivery via existing Phase 4 path (reuses TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)"
@@ -27,8 +27,8 @@ must_haves:
       min_lines: 50
   key_links:
     - from: "enrichment/daily_digest.py candidate query"
-      to: "articles + classifications + rss_articles + rss_classifications UNION"
-      via: "SQL with date(fetched_at)=date('now','localtime') AND depth>=2 AND enriched=2"
+      to: "articles + classifications UNION ALL rss_articles + rss_classifications"
+      via: "SQL per D-19 (2026-05-02): KOL branch requires enriched=2; RSS branch has NO enriched filter (RSS never enriched per D-07 REVISED). Both branches filter date(fetched_at)=date('now','localtime') AND depth_score>=2."
       pattern: "UNION"
     - from: "enrichment/daily_digest.py Telegram send"
       to: "Phase 4 delivery path via TELEGRAM_BOT_TOKEN env var"
@@ -48,6 +48,13 @@ Purpose: The user-visible daily deliverable. Without this, the full pipeline pro
 Output: digest generator with Telegram delivery and local archive, ready for cron registration in Plan 05-06.
 
 **v3.1/v3.2 composition note (added 2026-05-01):** On Telegram delivery failure (network error, rate-limit), log structured error with outcome tag `delivery_error` and continue (do NOT crash — archive is the durable record). The 3-day observation in Plan 05-06 Task 6.2 cross-references `docs/OPERATOR_RUNBOOK.md` for Telegram recovery procedures; nothing to add to digest code itself. Empty-state "skip delivery silently" decision is unchanged.
+
+**Enrichment-policy composition note (added 2026-05-02, per D-07 REVISED + D-19):** The digest candidate query is **NOT a symmetric UNION**. Two separate branches with different filters:
+
+- **KOL branch:** `SELECT ... FROM articles a JOIN classifications c ON c.article_id=a.id WHERE c.depth_score>=2 AND a.enriched=2 AND date(a.fetched_at)=date('now','localtime')` — requires `enriched=2` because KOL articles MUST have passed enrichment to be considered "deep" per original Phase 4 contract.
+- **RSS branch:** `SELECT ... FROM rss_articles a JOIN rss_classifications c ON c.article_id=a.id WHERE c.depth_score>=2 AND date(a.fetched_at)=date('now','localtime')` — **NO `enriched` filter**. RSS is never enriched (D-07 REVISED 2026-05-02), so gating on `enriched=2` would produce zero RSS candidates forever.
+
+Implementation: `UNION ALL` the two branches then ORDER/LIMIT. Sort criterion unchanged (depth_score DESC, content_length DESC, classified_at DESC). Markdown rendering: add a small source tag like `[KOL]` / `[RSS]` per candidate so reader knows which path the item took.
 </objective>
 
 <execution_context>

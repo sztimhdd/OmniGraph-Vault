@@ -10,31 +10,31 @@ files_modified:
   - tests/unit/test_rss_ingest.py
   - tests/unit/test_run_enrich_for_id.py
 autonomous: true
-requirements: [D-07, D-08, D-09, D-15, D-16]
+requirements: [D-07, D-08, D-09, D-15, D-16, D-19]
 must_haves:
   truths:
     - "English RSS articles are translated to Chinese BEFORE LightRAG ingest (D-09)"
-    - "All depth_score>=2 RSS articles flow through enrich_article skill then LightRAG ainsert"
-    - "`rss_articles.enriched` is set to 2 on success and -2 on all-questions-failure (mirrors Phase 4 D-11)"
+    - "Per D-07 REVISED 2026-05-02 + D-19: RSS articles do NOT invoke enrich_article. Direct path: translate (D-09) → LightRAG ainsert — no Zhihu 好问 layer."
+    - "`rss_articles.enriched` is set to 2 on successful LightRAG ainsert (signals 'digest-eligible') and -2 only if ainsert itself fails repeatedly. NO enrichment success/failure branching."
     - "`final_content.md` is written atomically (.tmp then rename) to ~/.hermes/omonigraph-vault/rss_content/<hash>/"
     - "Original English source is preserved as original.md for debug"
-    - "enrich_article skill is invoked via env-var contract (ARTICLE_PATH, ARTICLE_URL, ARTICLE_HASH), NOT CLI flags"
-    - "A shared bridge script `run_enrich_for_id.py` works for BOTH kol and rss sources"
+    - "A shared bridge script `run_enrich_for_id.py` still ships (for Task 05-04 step_6 KOL-only enrichment); `--source rss` branch exists but is a guarded no-op that logs 'RSS excluded per D-07 REVISED' and exits 0 without invoking enrich_article"
     - "`--dry-run` prints planned actions per row with no API calls"
+    - "Post-ainsert verification hook (Task 4.2 pattern): after `rag.ainsert(...)`, call `rag.aget_docs_by_ids([doc_id])` and require status=='PROCESSED' before setting `rss_articles.enriched=2` — prevents RSS ghosts just like WeChat (see ingest_wechat.py lines 1086-1120)"
   artifacts:
     - path: "enrichment/run_enrich_for_id.py"
-      provides: "Bridge that resolves ARTICLE_PATH/URL/HASH from DB + source type, then invokes enrich_article skill via env vars"
+      provides: "Bridge that resolves ARTICLE_PATH/URL/HASH from DB + source type, then invokes enrich_article skill via env vars. --source kol: normal path. --source rss: guarded no-op per D-07 REVISED 2026-05-02 + D-19."
       min_lines: 80
       contains: "ARTICLE_PATH"
     - path: "enrichment/rss_ingest.py"
-      provides: "EN-to-CN translation + enrich_article invocation + LightRAG ainsert for depth>=2 RSS articles"
-      min_lines: 160
+      provides: "EN-to-CN translation + LightRAG ainsert (with Task 4.2 verification hook) for depth>=2 RSS articles. NO enrich_article invocation per D-07 REVISED."
+      min_lines: 140
       contains: "rss_articles SET enriched"
     - path: "tests/unit/test_rss_ingest.py"
-      provides: "Unit tests for translation branch, ingest branch, enriched=2/-2 state updates, atomic write"
+      provides: "Unit tests for translation branch, direct-ainsert branch, aget_docs_by_ids verification gate, enriched=2/-2 state updates, atomic write"
       min_lines: 60
     - path: "tests/unit/test_run_enrich_for_id.py"
-      provides: "Unit tests for env-var setup and subprocess invocation for both kol and rss sources"
+      provides: "Unit tests for env-var setup (kol path) + guarded-noop behavior for --source rss"
       min_lines: 40
   key_links:
     - from: "enrichment/rss_ingest.py"
@@ -46,25 +46,21 @@ must_haves:
       via: "client.models.generate_content for english-only articles"
       pattern: "generate_content"
     - from: "enrichment/rss_ingest.py"
-      to: "enrichment/run_enrich_for_id.py"
-      via: "subprocess with --source rss --article-id <id>"
-      pattern: "run_enrich_for_id"
-    - from: "enrichment/run_enrich_for_id.py"
+      to: "lightrag.ainsert for Chinese final_content.md"
+      via: "LightRAG import pattern matching merge_and_ingest.py; reuse Task 4.2 aget_docs_by_ids verification hook from ingest_wechat.py"
+      pattern: "aget_docs_by_ids"
+    - from: "enrichment/run_enrich_for_id.py --source kol"
       to: "enrich_article Hermes skill"
       via: "os.environ injection + subprocess hermes skill run"
       pattern: "hermes.*skill.*run.*enrich_article"
-    - from: "enrichment/rss_ingest.py"
-      to: "lightrag.ainsert for Chinese final_content.md"
-      via: "LightRAG import pattern matching merge_and_ingest.py"
-      pattern: "ainsert"
 ---
 
 <objective>
-Close the RSS ingest gap: translate English RSS articles to Chinese (D-09), run them through the existing enrich_article skill (D-07), and ingest into LightRAG. Ship a shared bridge `run_enrich_for_id.py` that both KOL and RSS paths use to invoke `enrich_article` correctly via its env-var contract.
+Close the RSS ingest gap: translate English RSS articles to Chinese (D-09) and ingest directly into LightRAG (no Zhihu enrichment layer per D-07 REVISED 2026-05-02 + D-19). Ship `run_enrich_for_id.py` as the KOL-only enrichment bridge (invoked by 05-04 step_6 / daily-enrich cron); its `--source rss` branch exists as a guarded no-op for backwards-compat but actively refuses to invoke enrich_article.
 
-Purpose: Without this plan the 92 Karpathy RSS feeds half of Phase 5 is non-functional — fetched + classified articles never reach LightRAG, never appear in the digest. BLOCKER 1/2/3 from the checker report.
+Purpose: RSS reaches LightRAG via the shortest safe path — translate → verify → ainsert. Zhihu 好问 enrichment is a Chinese-corpus operation; layering it over English-origin RSS produces language-mismatched edges that degrade retrieval (see 05-CONTEXT.md D-07 REVISED 2026-05-02 rationale).
 
-Output: `enrichment/rss_ingest.py` produces LightRAG entries for depth>=2 RSS articles; `enrichment/run_enrich_for_id.py` is the canonical skill-invocation bridge for both sources.
+Output: `enrichment/rss_ingest.py` produces LightRAG entries for depth>=2 RSS articles with post-ainsert verification gate; `enrichment/run_enrich_for_id.py` is the canonical KOL-only enrichment bridge.
 </objective>
 
 <execution_context>
@@ -92,7 +88,9 @@ Output: `enrichment/rss_ingest.py` produces LightRAG entries for depth>=2 RSS ar
 - **Checkpoint guards are mandatory**: `rss_ingest.py`'s per-article loop MUST wrap each article's processing in the same 6-stage checkpoint pattern v3.2 Phase 12-02 applied to `ingest_wechat.py`. Stages relevant here: `scrape` (RSS fetch already done in 05-02 — treat as pre-completed), `classify` (05-03 already done), `image_download` (if the RSS body has images), `vision` (via `lib/vision_cascade.py` — automatic through `image_pipeline.describe_images()`), `text_ingest` (LightRAG `ainsert`), `sub_doc_ingest` (image sub-doc append if images). Use `lib.checkpoint.has_stage(ckpt_hash, stage)` + `mark_stage(ckpt_hash, stage)`. `ckpt_hash = lib.checkpoint.get_article_hash(url)` (sha256[:16]).
 - **No new Vision code**: Images in RSS articles go through `image_pipeline.describe_images()` — which v3.2 Phase 13-02 wired to `lib.vision_cascade.VisionCascade`. Cascade (SiliconFlow → OpenRouter → Gemini) + circuit breaker inherit automatically.
 - **No new timeout code**: `ainsert` inherits v3.1 Phase 9 LLM_TIMEOUT=600 + per-article timeout formula `max(120+30×chunks, 900)` via `get_rag(flush=False)`. Do NOT wrap in additional `asyncio.wait_for`.
-- **Translation path unchanged**: D-08/D-09 EN→CN translation happens as specified. Cascade/checkpoint are post-translation concerns.
+- **Translation path unchanged**: D-09 EN→CN body translation happens as specified (D-08 `extract_questions` prompt is N/A for RSS since enrichment is excluded). Cascade/checkpoint are post-translation concerns.
+- **Post-ainsert verification hook (Task 4.2 pattern, MANDATORY for RSS per D-19)**: After `rag.ainsert(content, ids=[doc_id])` returns, call `statuses = await rag.aget_docs_by_ids([doc_id])`. Require `statuses[doc_id]['status'] == 'PROCESSED'` before writing `rss_articles SET enriched=2`. On non-PROCESSED (absent / failed / exception): log warning, leave `rss_articles.enriched` at its prior value (0 or -2), let next batch retry. Pattern ported verbatim from `ingest_wechat.py:1086-1120` (commit 585aa3b). This is what prevents RSS from regrowing the same ghost-article drift that KOL had.
+- **Enrichment path excluded (D-07 REVISED 2026-05-02 + D-19)**: `rss_ingest.py` does NOT invoke `run_enrich_for_id.py --source rss`, does NOT call `enrich_article` skill, does NOT interact with `enrichment/{extract_questions,fetch_zhihu,merge_and_ingest}.py`. Direct path: translate → image_pipeline + checkpoint → ainsert → verify → mark `enriched=2`. If operator manually runs `run_enrich_for_id.py --source rss --article-id N` as a test, the guarded branch logs "RSS excluded per D-07 REVISED" and exits 0 without side-effects.
 </infra_composition>
 
 <interfaces>

@@ -28,7 +28,7 @@ must_haves:
   key_links:
     - from: "enrichment/orchestrate_daily.py Step 6 enrich_deep"
       to: "enrich_article Hermes skill"
-      via: "subprocess invoking `enrichment/run_enrich_for_id.py --source {kol|rss} --article-id <id>` (bridge translates DB row → env vars ARTICLE_PATH/URL/HASH and calls `hermes skill run enrich_article`) per D-07"
+      via: "subprocess invoking `enrichment/run_enrich_for_id.py --source kol --article-id <id>` (bridge translates DB row → env vars ARTICLE_PATH/URL/HASH and calls `hermes skill run enrich_article`) per D-07 REVISED 2026-05-02 — KOL only, RSS excluded"
       pattern: "enrich_article"
     - from: "enrichment/orchestrate_daily.py Step 7 ingest_all"
       to: "batch_ingest_from_spider.py"
@@ -209,25 +209,20 @@ Exact invocation shape: verify by reading skills/enrich_article/SKILL.md before 
         return _run(cmd, dry_run, critical=False)
 
     def step_6_enrich_deep(dry_run: bool) -> StepResult:
-        """Per D-07: all depth>=2 articles (KOL + RSS) go through enrich_article.
+        """Per D-07 (REVISED 2026-05-02) + D-19: KOL articles only, forward-only.
 
-        Discovery: query DB for unenriched depth>=2 articles from today. For each,
-        invoke `hermes skill run enrich_article --article-id <id>` via subprocess.
+        Discovery: query `articles` table (WeChat KOL source) for today's fresh
+        scans where depth>=2 AND enriched<2. RSS is excluded entirely per D-07
+        language-mismatch rationale. The `fetched_at = today` filter is the
+        forward-only guard per D-19 — historical shallow articles are NOT
+        retroactively enriched.
         """
         if dry_run:
-            return StepResult(True, "dry: would enrich depth>=2 articles")
+            return StepResult(True, "dry: would enrich today's KOL depth>=2 articles (RSS excluded per D-07)")
         conn = sqlite3.connect(DB)
-        # KOL side
         kol_ids = [r[0] for r in conn.execute(
             """SELECT DISTINCT a.id FROM articles a
                JOIN classifications c ON c.article_id = a.id
-               WHERE c.depth_score >= 2 AND COALESCE(a.enriched, 0) < 2
-                 AND date(a.fetched_at) = date('now','localtime')"""
-        ).fetchall()]
-        # RSS side
-        rss_ids = [r[0] for r in conn.execute(
-            """SELECT DISTINCT a.id FROM rss_articles a
-               JOIN rss_classifications c ON c.article_id = a.id
                WHERE c.depth_score >= 2 AND COALESCE(a.enriched, 0) < 2
                  AND date(a.fetched_at) = date('now','localtime')"""
         ).fetchall()]
@@ -242,12 +237,7 @@ Exact invocation shape: verify by reading skills/enrich_article/SKILL.md before 
                       "--source", "kol", "--article-id", str(aid)], False, critical=False)
             if r.success: enriched += 1
             else: failed += 1
-        for aid in rss_ids:
-            r = _run([str(PYTHON), "enrichment/run_enrich_for_id.py",
-                      "--source", "rss", "--article-id", str(aid)], False, critical=False)
-            if r.success: enriched += 1
-            else: failed += 1
-        return StepResult(True, f"enriched={enriched} failed={failed}")
+        return StepResult(True, f"enriched={enriched} failed={failed} (KOL only; RSS excluded per D-07)")
 
     def step_7_ingest_all(dry_run: bool) -> StepResult:
         # BLOCKER 3 fix: ingest BOTH KOL (batch_ingest_from_spider.py) AND RSS
@@ -355,6 +345,8 @@ Exact invocation shape: verify by reading skills/enrich_article/SKILL.md before 
     - `grep -q "batch_ingest_from_spider" enrichment/orchestrate_daily.py` returns 0 (KOL path preserved).
     - `grep -q "run_enrich_for_id" enrichment/orchestrate_daily.py` returns 0 (BLOCKER 2: uses the bridge, not hardcoded skill CLI flags).
     - `! grep -q "hermes.*skill.*run.*enrich_article.*--article-id" enrichment/orchestrate_daily.py` (BLOCKER 2: wrong CLI usage MUST be absent).
+    - `! grep -q -- "--source rss" enrichment/orchestrate_daily.py` (D-07 REVISED 2026-05-02 + D-19: step_6 must NOT enumerate RSS articles for enrichment).
+    - `! grep -q "rss_classifications" enrichment/orchestrate_daily.py` (D-19: step_6 queries `articles` + `classifications` only; zero RSS-table references in enrichment path).
     - `grep -q "_telegram_alert" enrichment/orchestrate_daily.py` returns 0 (BLOCKER 5: alert path present for step_9 to call).
   </acceptance_criteria>
   <done>Orchestrator state machine complete; ready for Plan 05-05 digest integration + Plan 05-06 cron.</done>

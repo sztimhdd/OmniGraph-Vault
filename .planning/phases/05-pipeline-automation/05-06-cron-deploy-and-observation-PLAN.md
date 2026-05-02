@@ -83,7 +83,7 @@ NEW — register these 6:
 1. rss-fetch           0 6  * * *  run enrichment/rss_fetch.py
 2. rss-classify        0 7  * * *  run enrichment/rss_classify.py
 3. daily-classify-kol  15 8 * * *  run batch_classify_kol.py --topic Agent --topic LLM --topic RAG --topic NLP --topic CV --min-depth 2 --days-back 1
-4. daily-enrich        30 8 * * *  run the enrich_article skill for all KOL and RSS articles with depth_score >= 2 fetched today
+4. daily-enrich        30 8 * * *  run the enrich_article skill for all KOL articles (WeChat source only; RSS excluded per D-07 REVISED 2026-05-02 + D-19) with depth_score >= 2 fetched today
 5. daily-ingest        0 9  * * *  run batch_ingest_from_spider.py --from-db --topic-filter openclaw,hermes,agent,harness --min-depth 2
 6. daily-digest        30 9 * * *  run enrichment/daily_digest.py
 
@@ -115,7 +115,7 @@ NOTE on "Hermes drives" (D-16): cron prompts describe intent in natural language
       1. `add_job "rss-fetch" "0 6 * * *" "run enrichment/rss_fetch.py"`
       2. `add_job "rss-classify" "0 7 * * *" "run enrichment/rss_classify.py"`
       3. `add_job "daily-classify-kol" "15 8 * * *" "run batch_classify_kol.py --topic Agent --topic LLM --topic RAG --topic NLP --topic CV --min-depth 2 --days-back 1"`
-      4. `add_job "daily-enrich" "30 8 * * *" "run the enrich_article skill for all KOL and RSS articles with depth_score >= 2 fetched today"`
+      4. `add_job "daily-enrich" "30 8 * * *" "run the enrich_article skill for all KOL articles (WeChat source only; RSS excluded per D-07 REVISED 2026-05-02 + D-19) with depth_score >= 2 fetched today"`
       5. `add_job "daily-ingest" "0 9 * * *" "run batch_ingest_from_spider.py --from-db --topic-filter openclaw,hermes,agent,harness --min-depth 2"`
       6. `add_job "daily-digest" "30 9 * * *" "run enrichment/daily_digest.py"`  # H-11 fix: removed `--deliver telegram` (daily_digest.py argparse does not accept it; delivery is unconditional without --dry-run)
     - After all `add_job` calls, print `=== hermes cronjob list ===` and then run `hermes cronjob list` to show the final state.

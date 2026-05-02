@@ -46,9 +46,9 @@ Phase 5 delivers an **unattended daily pipeline**: scan 56 WeChat KOL + 92 Karpa
 
 ### RSS enrichment policy
 
-- **D-07:** **Uniform contract with WeChat** (inherits Phase 4 D-07 "mandatory for all depth≥2"). All RSS articles classified `depth_score ≥ 2` go through Zhihu 好问 enrichment, regardless of source language. Agent/LLM/RAG/transformer concepts are language-neutral; 好问's Chinese corpus often has deeper coverage than English sources.
-- **D-08:** **EN→CN translation happens inside the `extract_questions` prompt** — one-step LLM call. `enrichment/extract_questions.py` receives English body + instruction "output questions in Chinese." No separate translation step. Matches Phase 4's one-LLM-call pattern (D-12).
-- **D-09:** **English RSS body is fully translated to Chinese before LightRAG ingest.** The final ingested doc is single-language Chinese (translated body + inline Chinese 好问 summaries + Chinese Zhihu answer docs as per Phase 4 D-08/D-09). Costs an extra LLM call per English article, in exchange for graph-wide language consistency. **Reconsiderable** if post-Wave-0 benchmarks show `gemini-embedding-2`'s cross-language retrieval is strong enough to eliminate the translation step.
+- **D-07 (REVISED 2026-05-02):** **WeChat KOL-only enrichment** — only `articles` rows with `depth_score >= 2` go through Zhihu 好问 enrichment. **RSS is explicitly excluded** regardless of depth. Rationale: 好问 is a Chinese-corpus source; enriching English RSS content by asking Chinese questions produces language-mismatched graph edges that degrade retrieval rather than enrich it. Original Phase 4 D-07 "uniform contract" superseded — empirical inspection (2026-05-02) confirmed Phase 4 enrichment had been dormant for ~1 month, which is why the asymmetry went unnoticed. If future benchmarks show CN↔EN enrichment edges are actually load-bearing, re-open as a separate decision.
+- **D-08:** **EN→CN translation still happens inside the `extract_questions` prompt** for KOL articles *that have English-quoted excerpts* — one-step LLM call. For RSS (now excluded from enrichment), N/A.
+- **D-09:** **English RSS body is still fully translated to Chinese before LightRAG ingest.** Graph-wide language consistency decision stands — it is independent of enrichment. Even without Zhihu layering, the final RSS doc in LightRAG is Chinese (translated body). `gemini-embedding-2` cross-language ability is the fallback if translation cost proves excessive; revisit per Wave 0 benchmark results.
 
 ### 302-article catch-up (Wave 0b)
 
@@ -64,6 +64,17 @@ Phase 5 delivers an **unattended daily pipeline**: scan 56 WeChat KOL + 92 Karpa
 - **D-16** (= Phase 4 D-01): Cron orchestration follows **"Hermes drives"** — cron jobs invoke Hermes skills which shell to Python helpers; Python does not call Hermes directly.
 - **D-17** (= Phase 4 D-14): LightRAG **delete-by-id + re-ainsert** path was proven in Phase 4. Reused verbatim for Wave 0 re-embedding of the 18 existing docs.
 - **D-18** (= Phase 4 D-13): Telegram delivery path is proven. Daily digest + cron failure alerts reuse it.
+
+### Enrichment reactivation policy (added 2026-05-02)
+
+- **D-19:** **Enrichment pipeline reactivation contract.** Phase 4's `enrich_article` skill + `enrichment/{extract_questions,fetch_zhihu,merge_and_ingest}.py` stack has been dormant since Phase 4 close (2026-04-27). Phase 5 reactivates it with **two explicit carve-outs**:
+  1. **Forward-only (no backfill).** Articles ingested BEFORE 2026-05-02 (including the Wave 0 re-ingest batch running today) stay at their current `enriched` state. Do not scan historical `articles WHERE enriched < 2` to retroactively enrich. `date(a.fetched_at) = date('now','localtime')` filter in step_6 / daily-enrich cron stays as-is (only today's fresh scans enrich).
+  2. **KOL only, RSS excluded** per D-07 revision. Any enrichment step (step_6 in orchestrator, daily-enrich cron, ad-hoc manual invocation) queries ONLY the `articles` table (WeChat KOL source), NEVER `rss_articles`.
+- **Implication for 05-03b:** RSS ingest does NOT invoke `enrich_article` / `run_enrich_for_id.py`. 05-03b becomes simpler — EN→CN translation + direct LightRAG `ainsert`, no enrichment bridge.
+- **Implication for 05-04 step_6:** SQL query drops the RSS UNION branch; only KOL articles enumerated.
+- **Implication for 05-05 digest:** KOL digest candidate must have `enriched = 2`; RSS digest candidate only needs `depth_score >= 2` (no enrichment requirement, since never attempted).
+- **Implication for 05-06 cron:** `daily-enrich` prompt narrowed to "KOL articles" wording only.
+- **Operational housekeeping:** WeChat QR session maintenance is a recurring operator action (~5min when token expires). `daily-scan-kol` cron stays registered and active — it is NOT deprecated. When QR expires, digest's KOL section thins until operator refreshes.
 
 ### Claude's Discretion
 
