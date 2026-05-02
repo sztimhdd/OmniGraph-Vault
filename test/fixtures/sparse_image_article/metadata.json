@@ -1,0 +1,10 @@
+{
+  "title": "DeepSeek-V4 深度解读：百万上下文背后的工程细节",
+  "url": "http://mp.weixin.qq.com/s?__biz=MzU5OTM2NjYwNg==&mid=2247516591&idx=1&sn=7bd89bc9c3e7676a61c64a045f511c22&chksm=feb4cf0ec9c34618ccbf278005e6b8928e2050b08f778b28acd5fec7a9093f73925e0d02bc77#rd",
+  "text_chars": 10865,
+  "total_images_raw": 10,
+  "images_after_filter": 10,
+  "expected_chunks": 2,
+  "expected_entities": 27,
+  "notes": "Profile: sparse_image"
+}

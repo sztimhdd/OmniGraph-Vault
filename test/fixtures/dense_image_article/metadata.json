@@ -1,0 +1,10 @@
+{
+  "title": "DeepSeek-V4开源，附论文细节解读&实测对比",
+  "url": "http://mp.weixin.qq.com/s?__biz=Mzg5MTU1NTE1OQ==&mid=2247499488&idx=1&sn=d38d7720c5e83c37a7d6d3916bca5ffc&chksm=cfc922d8f8beabceda40c3072e7bcfabfde7b2aead1280771c7b621b058ff346f39b6c79b7d4#rd",
+  "text_chars": 3534,
+  "total_images_raw": 20,
+  "images_after_filter": 24,
+  "expected_chunks": 1,
+  "expected_entities": 8,
+  "notes": "Profile: dense_image"
+}
