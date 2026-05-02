@@ -80,7 +80,7 @@ def check_siliconflow_balance() -> Decimal:
             f"SiliconFlow balance HTTP {resp.status_code}: {resp.text[:200]}"
         )
     try:
-        balance_str = resp.json()["data"]["balance"]
+        balance_str = resp.json()["data"]["totalBalance"]
         return Decimal(str(balance_str))
     except (KeyError, ValueError, TypeError) as e:
         raise BalanceCheckError(
