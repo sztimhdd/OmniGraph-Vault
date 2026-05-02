@@ -383,8 +383,12 @@ excludes article_id IN (SELECT article_id FROM ingestions WHERE status = 'ok')
 
     **Path B — Batch API unavailable (spike says `batch_api_available: false`):**
 
-    Document in the plan SUMMARY that Path A scripts are skeleton-only, and the actual Wave 0b execution is a single command:
+    Document in the plan SUMMARY that Path A scripts are skeleton-only, and the actual Wave 0b execution is:
     ```
+    # Pre-flight: clean zombie docs (prevents resume poison from prior runs)
+    ssh remote "cd ~/OmniGraph-Vault && venv/bin/python scripts/clean_lightrag_zombies.py"
+
+    # Actual ingest — v3.2 checkpoint/resume + try/finally _clear_pending_doc_id protect per-article
     ssh remote "cd ~/OmniGraph-Vault && venv/bin/python batch_ingest_from_spider.py \
       --from-db --topic-filter 'openclaw,hermes,agent,harness' --min-depth 2"
     ```

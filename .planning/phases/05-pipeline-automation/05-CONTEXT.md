@@ -97,8 +97,8 @@ Between Phase 5 planning (2026-04-28) and Phase 5 execution, milestones **v3.1**
 | `lib/checkpoint.py` | 6-stage per-article state machine: `scrape → classify → image_download → vision → text_ingest → sub_doc_ingest`. Markers `0[1-6]_<stage>.done` under `checkpoints/{ckpt_hash}/`. `ckpt_hash = sha256(url)[:16]` (parallel to legacy md5[:10]; does NOT replace). APIs: `has_stage(hash, stage)`, `mark_stage(hash, stage)`, `list_vision_markers(hash)`. | **05-03b** (RSS ingest) MUST wrap per-article ingest in checkpoint guards — same as v3.2 Phase 12 did for `ingest_wechat.py`. **05-04** step_7 inherits this automatically via `batch_ingest_from_spider.py`. |
 | `lib/vision_cascade.py` | SiliconFlow Qwen3-VL-32B → OpenRouter GLM-4.5V → Gemini Vision, with per-provider circuit breaker (consecutive-N failures → auto-skip for cooldown window). `image_pipeline.describe_images()` already delegates here. | **05-03b** images inherit automatically via `image_pipeline.describe_images()`. No new Vision code. |
 | `lib/batch_timeout.py` | `clamp_article_timeout(budget_total, articles_remaining, per_article_floor, per_article_ceiling)` — splits a total batch budget across remaining articles. Default `OMNIGRAPH_BATCH_TIMEOUT_SEC=28800` (8h, sized for 56 articles × 441s Hermes prod baseline). | **05-04** step_7 should wrap `batch_ingest_from_spider.py` invocation within this total budget (default 28800s). **05-06** cron `daily-ingest` inherits via `batch_ingest_from_spider.py` instrumentation. |
-| `lib/siliconflow_balance.py` | Module-load reads `~/.hermes/.env` (fixes v3.1 Finding 2 env-read bug). `check_balance() → BalanceStatus`. | **05-06** cron `daily-ingest` may call it at the top as pre-check (non-fatal warning if balance low); OPERATOR_RUNBOOK.md documents how to top up. No new balance code in Phase 5. |
-| `lib/lightrag_embedding.py` | Vertex AI opt-in (env-triggered: `GOOGLE_APPLICATION_CREDENTIALS` + `GOOGLE_CLOUD_PROJECT` set → Vertex; else Gemini Developer API). Model name `gemini-embedding-2` auto-remaps to `gemini-embedding-2-preview` on Vertex. | Already adopted by Wave 0 (05-00). RSS ingest (**05-03b**) uses the same embedding function via LightRAG — zero change needed. |
+| `lib/siliconflow_balance.py` | Module-load reads `~/.hermes/.env` (fixes v3.1 Finding 2 env-read bug). `check_siliconflow_balance() → Decimal`. Reads `data.totalBalance` (not gift `balance`). With `OMNIGRAPH_VISION_SKIP_BALANCE_CHECK=1`, pre-batch balance gating is disabled — cascade always tries SiliconFlow first and falls back only on actual errors. | **05-06** cron `daily-ingest` may call it at the top as pre-check (non-fatal warning if balance low); OPERATOR_RUNBOOK.md documents how to top up. No new balance code in Phase 5. |
+| `lib/lightrag_embedding.py` | Vertex AI opt-in (env-triggered: `GOOGLE_APPLICATION_CREDENTIALS` + `GOOGLE_CLOUD_PROJECT` set → Vertex; else Gemini Developer API). Model `gemini-embedding-2` (stable; `-preview` suffix removed 2026-05-02 — deprecated by Vertex AI). | Already adopted by Wave 0 (05-00). RSS ingest (**05-03b**) uses the same embedding function via LightRAG — zero change needed. |
 
 ### v3.1 contracts Phase 5 relies on
 
@@ -129,8 +129,26 @@ Between Phase 5 planning (2026-04-28) and Phase 5 execution, milestones **v3.1**
 Before `/gsd:execute-phase 5`:
 1. `lib/checkpoint.py`, `lib/vision_cascade.py`, `lib/batch_timeout.py`, `lib/siliconflow_balance.py` importable — `python -c "from lib import checkpoint, vision_cascade, batch_timeout, siliconflow_balance"` exits 0.
 2. `docs/OPERATOR_RUNBOOK.md` exists on main.
-3. v3.2 Hermes punch list P0 (4 regression fixtures scraped) complete — otherwise **05-06** 3-day observation starts without a trustworthy regression baseline.
-4. Hermes top-up on SiliconFlow is operational housekeeping — Phase 5 does not gate on it.
+3. **v3.2 E2E regression complete** — P0 fixture scrape + P1 Gate 3 + P2 cascade smoke + P3 unit tests all shipped (commits `2a8bde2` through `3c338f8`). 4-probe UAT harness at `scripts/probe_e2e_v3_2.py` validates checkpoint/resume + cascade + full 6-stage E2E.
+4. **UAT smoke gate**: before any Phase 5 batch ingest, run `python scripts/probe_e2e_v3_2.py --probe A,B --fixture text_only_article` (~7 min) to verify checkpoint/resume works in the target environment.
+5. **Zombie doc cleanup**: before each batch ingest command, run `python scripts/clean_lightrag_zombies.py` to purge PROCESSING/FAILED entries from `kv_store_doc_status.json`. Integrated into cron health-check (`e7afccd9931b`).
+6. Hermes top-up on SiliconFlow is operational housekeeping — Phase 5 does not gate on it. With `OMNIGRAPH_VISION_SKIP_BALANCE_CHECK=1`, cascade always tries SiliconFlow first.
+
+### UAT Smoke Gates (v3.2 regression probe integration)
+
+The 4-probe UAT harness (`scripts/probe_e2e_v3_2.py`) validates v3.2 infrastructure
+that Phase 5 depends on. Inject at these points:
+
+| Phase 5 step | UAT command | Time | Validates |
+|-------------|------------|------|-----------|
+| Pre-Wave 0 (embedding migration) | `--probe A,C --fixture gpt55_article` | ~2 min | Checkpoint file structure + vision cascade before changing embedding model |
+| Pre-Wave 0b (batch catch-up) | `--probe B --fixture text_only_article` | ~7 min | Resume mechanism survives environment drift |
+| Pre-05-06 (cron deploy) | `--probe A,B --fixture text_only_article` | ~7 min | Final smoke before unattended cron goes live |
+| 05-06 observation (daily) | `--probe D --fixture sparse_image_article` | ~15 min | Full 6-stage regression on schedule |
+
+Probe A (2s, no API) can run before every Phase 5 task as a cheap structural check.
+Probe B should run at least once per day during 3-day observation to catch
+checkpoint drift. See `docs/UAT_v3_2.md` for full documentation.
 
 </infra_composition>
 

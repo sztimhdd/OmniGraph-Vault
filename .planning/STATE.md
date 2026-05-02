@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.2
-milestone_name: — Batch Reliability + Infra (autonomous-execution complete; pending Hermes-side gate-3 run)
+milestone_name: — Batch Reliability + Infra (Hermes E2E regression complete 2026-05-02)
 current_plan: 0
-status: awaiting-hermes-punch-list
-stopped_at: Milestone v3.2 autonomous run complete 2026-05-01 @ commit 2c9d310 (17/20 plans shipped; 3 punched to Hermes)
-last_updated: "2026-05-01T23:59:00.000Z"
-last_activity: 2026-05-01 -- v3.2 autonomous execution complete
+status: ready-for-phase-5
+stopped_at: v3.2 E2E regression complete — 4/4 probes PASS, 3 commits pushed to main
+last_updated: "2026-05-02T06:00:00.000Z"
+last_activity: 2026-05-02 — Hermes closed v3.2 punch list + UAT harness delivered
 progress:
   total_phases: 6
   completed_phases: 5
