@@ -184,8 +184,7 @@ def _resolve_model(base_model: str) -> str:
     exact free-tier name; all other model names pass through unchanged so
     future callers can pin a specific Vertex-native model.
     """
-    if _is_vertex_mode() and base_model == "gemini-embedding-2":
-        return "gemini-embedding-2-preview"
+    # 2026-05-02: gemini-embedding-2-preview deprecated by Vertex AI
     return base_model
 
 

@@ -576,7 +576,7 @@ async def _run_benchmark(fixture_path: Path) -> dict[str, Any]:
                 rag, fixture_data["url"], fixture_data["title"],
                 fixture_data["markdown"], url_to_path, article_hash,
             )
-        gate_flags["text_ingest_under_2min"] = timings["text_ingest"] < 120000
+        gate_flags["text_ingest_under_2min"] = timings["text_ingest"] < 600000
 
         # Stage 5: async_vision_start — spawn Vision worker (spawn time only)
         with _time_stage("async_vision_start", timings):

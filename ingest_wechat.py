@@ -1007,11 +1007,13 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
         logger.info("checkpoint hit: text_ingest (hash=%s) — skipping rag.ainsert", ckpt_hash)
     else:
         _register_pending_doc_id(article_hash, doc_id)
-        await rag.ainsert(full_content, ids=[doc_id])
-        # Clear only on successful completion — on CancelledError / TimeoutError the
-        # orchestrator reads the tracker via get_pending_doc_id() to roll back, then
-        # calls _clear_pending_doc_id() itself.
-        _clear_pending_doc_id(article_hash)
+        try:
+            await rag.ainsert(full_content, ids=[doc_id])
+        finally:
+            # Always clear tracker — on success it's done, on failure the
+            # orchestrator's except-branch already did rollback (or will skip).
+            # Leaving a stale entry poisons future runs (102→141 zombie docs).
+            _clear_pending_doc_id(article_hash)
         write_stage(ckpt_hash, "text_ingest")  # marker only
         write_metadata(ckpt_hash, {"last_completed_stage": "text_ingest"})
 
