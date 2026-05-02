@@ -239,52 +239,50 @@ def _time_stage(name: str, timings: dict[str, int]) -> Iterator[None]:
 
 
 def _balance_precheck() -> dict[str, Any]:
-    """Call SiliconFlow /v1/user/info and emit a structured warning.
+    """Balance precheck -- delegates to lib.siliconflow_balance (D-BENCH-PRECHECK 2026-05-01).
 
-    Four branches (per D-11.05):
-        1. SILICONFLOW_API_KEY unset → event=balance_precheck_skipped
-        2. balance >= ESTIMATED_COST_CNY → event=balance_warning, status=ok
-        3. balance < ESTIMATED_COST_CNY → event=balance_warning,
+    Before 2026-05-01 this function did its own os.environ read and HTTP call,
+    which produced balance_precheck_skipped when SILICONFLOW_API_KEY was only
+    in ~/.hermes/.env (not in process env). The lib module now imports `config`
+    at module load so env is always sourced. See docs/MILESTONE_v3.1_CLOSURE.md §6.2.
+
+    Four branches (per D-11.05) preserved for benchmark_result.json stability:
+        1. Key unset (even after .env load) -> event=balance_precheck_skipped
+        2. balance >= ESTIMATED_COST_CNY -> event=balance_warning, status=ok
+        3. balance < ESTIMATED_COST_CNY -> event=balance_warning,
            status=insufficient_for_batch
-        4. HTTP / JSON / timeout error → event=balance_precheck_failed
-
-    Non-fatal for v3.1 gate — always returns a dict, never raises.
+        4. HTTP / JSON / timeout error -> event=balance_precheck_failed
+    Non-fatal for v3.1 gate -- always returns a dict, never raises.
     """
-    api_key = os.environ.get("SILICONFLOW_API_KEY", "").strip()
-    if not api_key:
+    from lib.siliconflow_balance import (
+        BalanceCheckError,
+        MissingKeyError,
+        check_siliconflow_balance,
+    )
+    try:
+        balance = check_siliconflow_balance()  # Decimal, e.g. Decimal("5.43")
+    except MissingKeyError:
         return {
             "event": "balance_precheck_skipped",
             "provider": "siliconflow",
             "reason": "api_key_unset",
         }
-
-    try:
-        req = urllib.request.Request(
-            SILICONFLOW_URL,
-            headers={"Authorization": f"Bearer {api_key}"},
-            method="GET",
-        )
-        with urllib.request.urlopen(req, timeout=BALANCE_TIMEOUT_S) as resp:  # noqa: S310
-            raw = resp.read()
-        payload = json.loads(raw)
-        # SiliconFlow response shape: {"data": {"balance": <str|number>}, ...}
-        balance_raw = payload.get("data", {}).get("balance", 0)
-        balance = float(balance_raw)
-        status = "ok" if balance >= ESTIMATED_COST_CNY else "insufficient_for_batch"
-        return {
-            "event": "balance_warning",
-            "provider": "siliconflow",
-            "balance_cny": balance,
-            "estimated_cost_cny": ESTIMATED_COST_CNY,
-            "status": status,
-        }
-    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError,
-            ValueError, TimeoutError, OSError) as exc:
+    except BalanceCheckError as e:
         return {
             "event": "balance_precheck_failed",
             "provider": "siliconflow",
-            "error": str(exc),
+            "error": str(e),
         }
+
+    balance_f = float(balance)
+    status = "ok" if balance_f >= ESTIMATED_COST_CNY else "insufficient_for_batch"
+    return {
+        "event": "balance_warning",
+        "provider": "siliconflow",
+        "balance_cny": balance_f,
+        "estimated_cost_cny": ESTIMATED_COST_CNY,
+        "status": status,
+    }
 
 
 # ---------------------------------------------------------------------------
