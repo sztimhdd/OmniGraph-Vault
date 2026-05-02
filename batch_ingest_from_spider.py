@@ -55,6 +55,7 @@ except ImportError:
     genai_types = None
 
 from lib import INGESTION_LLM, generate_sync
+from lib.checkpoint import get_article_hash, has_stage
 
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -653,6 +654,20 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
                 })
                 continue
 
+            # Phase 12 CKPT-03: batch-level checkpoint skip. Articles whose
+            # text_ingest marker already exists are skipped without re-entering
+            # the per-article ingest pipeline.
+            ckpt_hash = get_article_hash(url)
+            if has_stage(ckpt_hash, "text_ingest"):
+                logger.info("checkpoint-skip: already-ingested hash=%s url=%s", ckpt_hash, url)
+                summary.append({
+                    "account": account_name,
+                    "title": title,
+                    "url": url,
+                    "status": "skipped_ingested",
+                })
+                continue
+
             success = await ingest_article(url, dry_run, rag)
             summary.append({
                 "account": account_name,
@@ -847,6 +862,17 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
             if not url:
                 logger.warning("  Skipping — no URL")
                 conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')", (art_id,))
+                conn.commit()
+                continue
+
+            # Phase 12 CKPT-03: batch-level checkpoint skip (DB-driven loop).
+            ckpt_hash = get_article_hash(url)
+            if has_stage(ckpt_hash, "text_ingest"):
+                logger.info("checkpoint-skip: already-ingested hash=%s url=%s", ckpt_hash, url)
+                conn.execute(
+                    "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped_ingested')",
+                    (art_id,),
+                )
                 conn.commit()
                 continue
 

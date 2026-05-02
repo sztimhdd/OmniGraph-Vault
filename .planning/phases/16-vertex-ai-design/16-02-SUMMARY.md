@@ -35,7 +35,7 @@ All 11 checks pass:
 
 ## Deviations
 
-None. All three artifacts match plan verbatim.
+Plan's gitignore pattern (`credentials/`) was changed to `credentials/*` — the original dir-pattern approach cannot be negated for children (git limitation: "It is not possible to re-include a file if a parent directory of that file is excluded."). The corrected pattern semantically matches plan intent: real SA JSON keys under `credentials/` are ignored; the example template file is tracked. `git check-ignore` confirms the negation now resolves correctly. Added a NOTE comment in .gitignore explaining the constraint.
 
 ## Notes
 
