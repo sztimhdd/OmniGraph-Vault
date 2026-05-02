@@ -55,6 +55,11 @@ except ImportError:
     genai_types = None
 
 from lib import INGESTION_LLM, generate_sync
+from lib.batch_timeout import (
+    BATCH_SAFETY_MARGIN_S,
+    clamp_article_timeout,
+    get_remaining_budget,
+)
 from lib.checkpoint import get_article_hash, has_stage
 
 PROJECT_ROOT = Path(__file__).parent
@@ -158,7 +163,80 @@ def _compute_article_budget_s(full_content: str) -> int:
     return max(_BASE_BUDGET_S + _PER_CHUNK_S * chunk_count, _SINGLE_CHUNK_FLOOR_S)
 
 
-async def ingest_article(url: str, dry_run: bool, rag) -> bool:
+# --- Phase 17 (BTIMEOUT-04): batch-timeout metrics helpers ---
+
+_HISTOGRAM_BUCKETS: tuple[tuple[str, float], ...] = (
+    ("0-60s", 60.0),
+    ("60-300s", 300.0),
+    ("300-900s", 900.0),
+    # Anything above 900s falls into "900s+"
+)
+
+
+def _bucket_article_time(seconds: float) -> str:
+    """Classify an article wall-clock time into a histogram bucket (BTIMEOUT-04)."""
+    for label, upper in _HISTOGRAM_BUCKETS:
+        if seconds < upper:
+            return label
+    return "900s+"
+
+
+def _resolve_batch_timeout(cli_value: int | None) -> int:
+    """Resolve the total batch budget (OMNIGRAPH_BATCH_TIMEOUT_SEC wins over CLI).
+
+    Phase 7 env var idiom: namespaced OMNIGRAPH_* prefix. If env unset, use CLI
+    value; if CLI also None, default to 28800 (8h — covers 56-article batch at 441s
+    Hermes baseline per v3.1 closure §3).
+    """
+    env_val = os.environ.get("OMNIGRAPH_BATCH_TIMEOUT_SEC")
+    if env_val:
+        try:
+            return int(env_val)
+        except ValueError:
+            logger.warning(
+                "OMNIGRAPH_BATCH_TIMEOUT_SEC=%r is not an int — falling back", env_val
+            )
+    return int(cli_value) if cli_value else 28800
+
+
+def _build_batch_timeout_metrics(
+    total_budget: int,
+    batch_start: float,
+    completed_times: list[float],
+    total_articles: int,
+    timed_out: int,
+    clamped_count: int,
+    safety_margin_triggered: bool,
+    histogram: dict[str, int],
+) -> dict:
+    """Assemble the batch_timeout_metrics dict per design § Monitoring Metrics (BTIMEOUT-04)."""
+    elapsed = time.time() - batch_start
+    completed_count = len(completed_times)
+    not_started = total_articles - completed_count - timed_out
+    avg_article_time = (
+        sum(completed_times) / completed_count if completed_count > 0 else None
+    )
+    return {
+        "total_batch_budget_sec": total_budget,
+        "total_elapsed_sec": round(elapsed, 2),
+        "batch_progress_vs_budget": round(elapsed / total_budget, 4) if total_budget > 0 else None,
+        "total_articles": total_articles,
+        "completed_articles": completed_count,
+        "timed_out_articles": timed_out,
+        "not_started_articles": max(0, not_started),
+        "avg_article_time_sec": round(avg_article_time, 2) if avg_article_time else None,
+        "timeout_histogram": dict(histogram),
+        "clamped_timeouts": clamped_count,
+        "safety_margin_triggered": safety_margin_triggered,
+    }
+
+
+async def ingest_article(
+    url: str,
+    dry_run: bool,
+    rag,
+    effective_timeout: int | None = None,
+) -> tuple[bool, float]:
     """Ingest a single URL in-process against the shared LightRAG instance.
 
     Phase 5-00b refactor: replaces subprocess-per-article pattern. Shared ``rag``
@@ -172,10 +250,21 @@ async def ingest_article(url: str, dry_run: bool, rag) -> bool:
     ``ingest_wechat`` BEFORE ``ainsert`` starts and exposed via
     ``ingest_wechat.get_pending_doc_id()``. Rollback failure is logged, not
     raised — the orchestrator returns ``False`` cleanly in all error paths.
+
+    Phase 17 additions:
+      * Returns ``(success, wall_clock_seconds)`` instead of just ``bool`` so
+        the batch loop can record per-article durations into the histogram.
+      * If ``effective_timeout`` is provided (from the batch interlock via
+        ``clamp_article_timeout``), use it; otherwise fall back to Phase 9's
+        ``_SINGLE_CHUNK_FLOOR_S`` (900s) for backward compatibility.
+      * On ``asyncio.TimeoutError``, the checkpoint flush runs OUTSIDE the
+        ``asyncio.wait_for`` (BTIMEOUT-03); guarded with ``try/ImportError``
+        so the plan merges standalone if Phase 12 ``flush_partial_checkpoint``
+        is not yet available.
     """
     if dry_run:
         logger.info("  [dry-run] would ingest: %s", url)
-        return True
+        return True, 0.0
 
     import hashlib
     import ingest_wechat
@@ -184,21 +273,20 @@ async def ingest_article(url: str, dry_run: bool, rag) -> bool:
     # Kept here so the rollback handler doesn't need to inspect ingest_wechat
     # internals on the error path.
     article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+    timeout_s = effective_timeout if effective_timeout is not None else _SINGLE_CHUNK_FLOOR_S
 
+    t_start = time.time()
     try:
         # D-09.03: 900s floor covers a worst-case single-chunk 800s DeepSeek call.
-        # When Plan 09-01 / Phase 10 decouple scrape from ingest, the inner
-        # rag.ainsert wrap can use the chunk-count-aware budget via
-        # _compute_article_budget_s(full_content). For now, the floor suffices
-        # because `url` is all we have here — full_content is unknown until
-        # after scrape completes inside ingest_wechat.ingest_article.
+        # Phase 17 (BTIMEOUT-02): if the caller passed a clamped budget, use it.
         await asyncio.wait_for(
             ingest_wechat.ingest_article(url, rag=rag),
-            timeout=_SINGLE_CHUNK_FLOOR_S,
+            timeout=timeout_s,
         )
-        return True
+        return True, time.time() - t_start
     except asyncio.TimeoutError:
-        logger.warning("TIMEOUT (%ds) — skipping: %s", _SINGLE_CHUNK_FLOOR_S, url[:80])
+        wall = time.time() - t_start
+        logger.warning("TIMEOUT (%ds) — skipping: %s", timeout_s, url[:80])
         # D-09.05: rollback partial state if ainsert registered a doc_id.
         doc_id = ingest_wechat.get_pending_doc_id(article_hash)
         if doc_id and rag is not None:
@@ -214,11 +302,22 @@ async def ingest_article(url: str, dry_run: bool, rag) -> bool:
                 )
             finally:
                 ingest_wechat._clear_pending_doc_id(article_hash)
-        return False
+        # Phase 17 BTIMEOUT-03: checkpoint flush runs OUTSIDE wait_for (we're
+        # already past it in this except branch). If Phase 12 checkpoint infra
+        # exposes flush_partial_checkpoint, call it; otherwise skip silently.
+        try:
+            from lib.checkpoint import flush_partial_checkpoint  # type: ignore
+            await flush_partial_checkpoint(article_hash)
+        except ImportError:
+            pass  # Phase 12 flush API not yet available; skip silently.
+        except Exception as flush_exc:
+            logger.warning("Checkpoint flush failed: %s", flush_exc)
+        return False, wall
     except Exception as exc:
+        wall = time.time() - t_start
         logger.warning("Ingest failed (%s): %s — skipping: %s",
                        exc.__class__.__name__, exc, url[:80])
-        return False
+        return False, wall
 
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
@@ -635,6 +734,16 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
         logger.info("Initializing fresh LightRAG instance (flush=True; STATE-01)...")
         rag = await get_rag(flush=True)
 
+    # Phase 17 BTIMEOUT-01: batch-budget state
+    total_batch_budget = _resolve_batch_timeout(kwargs.get("batch_timeout"))
+    batch_start = time.time()
+    completed_times: list[float] = []
+    timeout_histogram: dict[str, int] = {label: 0 for label, _ in _HISTOGRAM_BUCKETS}
+    timeout_histogram["900s+"] = 0
+    timed_out_count = 0
+    clamped_count = 0
+    safety_margin_triggered = False
+
     try:
         total = len(passed)
         for i, article in enumerate(passed, 1):
@@ -668,24 +777,81 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
                 })
                 continue
 
-            success = await ingest_article(url, dry_run, rag)
+            # Phase 17 BTIMEOUT-02: clamp per-article timeout to batch budget.
+            remaining = get_remaining_budget(batch_start, total_batch_budget)
+            effective_timeout = clamp_article_timeout(
+                _SINGLE_CHUNK_FLOOR_S, remaining, BATCH_SAFETY_MARGIN_S
+            )
+            if effective_timeout < _SINGLE_CHUNK_FLOOR_S:
+                clamped_count += 1
+                logger.info(
+                    "  Clamped article timeout: %ds (remaining=%.0fs, margin=%ds)",
+                    effective_timeout, remaining, BATCH_SAFETY_MARGIN_S,
+                )
+            if remaining - BATCH_SAFETY_MARGIN_S <= 0:
+                safety_margin_triggered = True
+
+            success, wall = await ingest_article(
+                url, dry_run, rag, effective_timeout=effective_timeout
+            )
+            if dry_run:
+                status = "dry_run"
+            elif success:
+                status = "ok"
+                completed_times.append(wall)
+                timeout_histogram[_bucket_article_time(wall)] += 1
+            else:
+                status = "failed"
+                if wall >= effective_timeout:  # heuristic for wait_for kill
+                    timed_out_count += 1
+                    timeout_histogram["900s+"] += 1
+
             summary.append({
                 "account": account_name,
                 "title": title,
                 "url": url,
-                "status": "dry_run" if dry_run else ("ok" if success else "failed"),
+                "status": status,
             })
 
             processed += 1
             if not dry_run and processed < total:
                 logger.info("  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...", SLEEP_BETWEEN_ARTICLES)
                 await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
+
+            # Phase 17 BTIMEOUT-01: early-exit if budget fully exhausted.
+            if get_remaining_budget(batch_start, total_batch_budget) <= 0:
+                logger.warning(
+                    "Batch budget exhausted (%ds elapsed >= %ds) — stopping loop; "
+                    "remaining %d article(s) will show as not_started in metrics.",
+                    int(time.time() - batch_start), total_batch_budget, total - i,
+                )
+                break
     finally:
         if rag is not None:
             # D-10.09: drain pending Vision worker tasks before flushing storages.
             await _drain_pending_vision_tasks()
             logger.info("Finalizing LightRAG storages (flushing vdb + graphml)...")
             await rag.finalize_storages()
+
+        # Phase 17 BTIMEOUT-04: emit metrics (always, even on early exit).
+        metrics = _build_batch_timeout_metrics(
+            total_budget=total_batch_budget,
+            batch_start=batch_start,
+            completed_times=completed_times,
+            total_articles=len(passed),
+            timed_out=timed_out_count,
+            clamped_count=clamped_count,
+            safety_margin_triggered=safety_margin_triggered,
+            histogram=timeout_histogram,
+        )
+        logger.info("batch_timeout_metrics: %s", json.dumps(metrics))
+        metrics_path = PROJECT_ROOT / "data" / f"batch_timeout_metrics_{timestamp}.json"
+        metrics_path.parent.mkdir(exist_ok=True)
+        metrics_path.write_text(
+            json.dumps({"batch_timeout_metrics": metrics}, indent=2),
+            encoding="utf-8",
+        )
+        logger.info("Metrics written to %s", metrics_path)
 
     # Add filtered-out articles to summary with their filter status
     for art in filtered_out:
@@ -793,14 +959,24 @@ async def _classify_full_body(
     return result
 
 
-async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) -> None:
+async def ingest_from_db(
+    topic: str | list[str],
+    min_depth: int,
+    dry_run: bool,
+    batch_timeout: int | None = None,
+) -> None:
     """Ingest articles that passed classification for a topic (or list of topics). Reads from kol_scan.db.
 
     Phase 5-00b: in-process orchestration with shared LightRAG instance.
     Rag is created once (skipped for dry-run) and finalized in ``finally``
     so Ctrl+C during a long batch still flushes vdb + graphml cleanly.
+
+    Phase 17: accepts ``batch_timeout`` (seconds) for the batch-level budget
+    interlock; defaults resolved via ``_resolve_batch_timeout`` so the env var
+    ``OMNIGRAPH_BATCH_TIMEOUT_SEC`` still wins if set.
     """
     topics = [topic] if isinstance(topic, str) else topic
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     if not DB_PATH.exists():
         logger.error("DB not found: %s. Run batch_scan_kol.py first.", DB_PATH)
@@ -852,6 +1028,16 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
         # from a prior crashed run → no replay → no wasted embed quota.
         logger.info("Initializing fresh LightRAG instance (flush=True; STATE-01)...")
         rag = await get_rag(flush=True)
+
+    # Phase 17 BTIMEOUT-01: batch-budget state
+    total_batch_budget = _resolve_batch_timeout(batch_timeout)
+    batch_start = time.time()
+    completed_times: list[float] = []
+    timeout_histogram: dict[str, int] = {label: 0 for label, _ in _HISTOGRAM_BUCKETS}
+    timeout_histogram["900s+"] = 0
+    timed_out_count = 0
+    clamped_count = 0
+    safety_margin_triggered = False
 
     try:
         processed = 0
@@ -909,8 +1095,35 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
                     conn.commit()
                     continue
 
-            success = await ingest_article(url, dry_run, rag)
-            status = "dry_run" if dry_run else ("ok" if success else "failed")
+            # Phase 17 BTIMEOUT-02: clamp per-article timeout to batch budget.
+            remaining = get_remaining_budget(batch_start, total_batch_budget)
+            effective_timeout = clamp_article_timeout(
+                _SINGLE_CHUNK_FLOOR_S, remaining, BATCH_SAFETY_MARGIN_S
+            )
+            if effective_timeout < _SINGLE_CHUNK_FLOOR_S:
+                clamped_count += 1
+                logger.info(
+                    "  Clamped article timeout: %ds (remaining=%.0fs, margin=%ds)",
+                    effective_timeout, remaining, BATCH_SAFETY_MARGIN_S,
+                )
+            if remaining - BATCH_SAFETY_MARGIN_S <= 0:
+                safety_margin_triggered = True
+
+            success, wall = await ingest_article(
+                url, dry_run, rag, effective_timeout=effective_timeout
+            )
+            if dry_run:
+                status = "dry_run"
+            elif success:
+                status = "ok"
+                completed_times.append(wall)
+                timeout_histogram[_bucket_article_time(wall)] += 1
+            else:
+                status = "failed"
+                if wall >= effective_timeout:  # heuristic for wait_for kill
+                    timed_out_count += 1
+                    timeout_histogram["900s+"] += 1
+
             conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, ?)", (art_id, status))
             conn.commit()
 
@@ -919,6 +1132,15 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
                 logger.info("  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...", SLEEP_BETWEEN_ARTICLES)
                 await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
 
+            # Phase 17 BTIMEOUT-01: early-exit if budget fully exhausted.
+            if get_remaining_budget(batch_start, total_batch_budget) <= 0:
+                logger.warning(
+                    "Batch budget exhausted (%ds elapsed >= %ds) — stopping loop; "
+                    "remaining %d article(s) will show as not_started in metrics.",
+                    int(time.time() - batch_start), total_batch_budget, len(rows) - i,
+                )
+                break
+
         logger.info("Done — %d articles processed", len(rows))
     finally:
         if rag is not None:
@@ -926,6 +1148,26 @@ async def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) 
             await _drain_pending_vision_tasks()
             logger.info("Finalizing LightRAG storages (flushing vdb + graphml)...")
             await rag.finalize_storages()
+
+        # Phase 17 BTIMEOUT-04: emit metrics (always, even on early exit).
+        metrics = _build_batch_timeout_metrics(
+            total_budget=total_batch_budget,
+            batch_start=batch_start,
+            completed_times=completed_times,
+            total_articles=len(rows),
+            timed_out=timed_out_count,
+            clamped_count=clamped_count,
+            safety_margin_triggered=safety_margin_triggered,
+            histogram=timeout_histogram,
+        )
+        logger.info("batch_timeout_metrics: %s", json.dumps(metrics))
+        metrics_path = PROJECT_ROOT / "data" / f"batch_timeout_metrics_{timestamp}.json"
+        metrics_path.parent.mkdir(exist_ok=True)
+        metrics_path.write_text(
+            json.dumps({"batch_timeout_metrics": metrics}, indent=2),
+            encoding="utf-8",
+        )
+        logger.info("Metrics written to %s", metrics_path)
         conn.close()
 
 
@@ -942,6 +1184,10 @@ def main() -> None:
                         help="Classifier model: deepseek (default) or gemini")
     parser.add_argument("--from-db", action="store_true",
                         help="Ingest articles already classified in kol_scan.db (requires --topic-filter)")
+    parser.add_argument(
+        "--batch-timeout", type=int, default=None,
+        help="Total batch budget in seconds (default 28800 = 8h, covers 56-article batch at 441s/article Hermes baseline; overridden by OMNIGRAPH_BATCH_TIMEOUT_SEC env var)",
+    )
     args = parser.parse_args()
 
     # Convert comma-separated string to list; strip whitespace; drop empty strings
@@ -955,7 +1201,10 @@ def main() -> None:
         if not topic_keywords:
             logger.error("--topic-filter is required with --from-db")
             sys.exit(1)
-        coro = ingest_from_db(topic_keywords, args.min_depth, args.dry_run)
+        coro = ingest_from_db(
+            topic_keywords, args.min_depth, args.dry_run,
+            batch_timeout=args.batch_timeout,
+        )
     else:
         coro = run(
             days_back=args.days_back,
@@ -966,6 +1215,7 @@ def main() -> None:
             min_depth=args.min_depth,
             account_filter=args.account,
             classifier=args.classifier,
+            batch_timeout=args.batch_timeout,
         )
 
     # Phase 5-00b: async orchestration — rag lifecycle owned by the coroutine.

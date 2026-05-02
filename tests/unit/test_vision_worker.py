@@ -353,9 +353,10 @@ async def test_run_drains_pending_vision_tasks(monkeypatch, _fake_rag):
         drained.append("done")
 
     # Patch ingest_article so it spawns a Vision task and returns ok.
-    async def _fake_ingest_article(url, dry_run, rag):
+    # Phase 17: ingest_article now returns (success, wall_clock_seconds).
+    async def _fake_ingest_article(url, dry_run, rag, effective_timeout=None):
         asyncio.create_task(_fake_vision_work())
-        return True
+        return True, 0.0
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
 
@@ -454,9 +455,10 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
         await asyncio.sleep(0.2)
         drained.append("done")
 
-    async def _fake_ingest_article(url, dry_run, rag):
+    # Phase 17: ingest_article now returns (success, wall_clock_seconds).
+    async def _fake_ingest_article(url, dry_run, rag, effective_timeout=None):
         asyncio.create_task(_fake_vision_work())
-        return True
+        return True, 0.0
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
 
@@ -501,9 +503,10 @@ async def test_drain_timeout_cancels_stragglers(monkeypatch, _fake_rag):
             straggler_ref["cancelled"] = True
             raise
 
-    async def _fake_ingest_article(url, dry_run, rag):
+    # Phase 17: ingest_article now returns (success, wall_clock_seconds).
+    async def _fake_ingest_article(url, dry_run, rag, effective_timeout=None):
         straggler_ref["task"] = asyncio.create_task(_straggler())
-        return True
+        return True, 0.0
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
 
