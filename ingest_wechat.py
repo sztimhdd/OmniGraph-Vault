@@ -59,6 +59,17 @@ from image_pipeline import (
     filter_small_images, get_last_describe_stats, emit_batch_complete,
 )
 
+# Phase 12 checkpoint/resume — per-article stage persistence (CKPT-01/03, D-SUBDOC).
+from lib.checkpoint import (
+    get_article_hash as _ckpt_hash_fn,
+    has_stage,
+    read_stage,
+    write_stage,
+    write_vision_description,
+    write_metadata,
+    list_vision_markers,
+)
+
 
 def _is_mcp_endpoint(url: str) -> bool:
     return bool(url) and url.rstrip("/").endswith("/mcp")
@@ -212,6 +223,7 @@ async def _vision_worker_impl(
     filter_stats=None,
     download_input_count: int = 0,
     download_failed: int = 0,
+    ckpt_hash: str | None = None,
 ) -> None:
     """Background Vision worker — D-10.06 / D-10.07 / D-10.08 (ARCH-02..04).
 
@@ -249,6 +261,21 @@ async def _vision_worker_impl(
             if stripped and not stripped.startswith("Error describing image:"):
                 lines.append(f"- [image {i}]: {desc}")
                 successful += 1
+                # Phase 12 CKPT-01: per-image Vision checkpoint (fire-and-forget).
+                # Never raises — write failures must not break the worker (D-10.08 contract).
+                if ckpt_hash is not None:
+                    image_id = Path(path).stem  # "img_0" from "img_0.jpg"
+                    try:
+                        write_vision_description(ckpt_hash, image_id, {
+                            "provider": "cascade",  # Phase 13 will replace with real provider name
+                            "description": desc,
+                            "latency_ms": None,
+                            "timestamp": time.time(),
+                        })
+                    except Exception as e:
+                        logger.warning(
+                            "vision checkpoint write failed for %s: %s", image_id, e
+                        )
 
         if successful == 0:
             logger.info(
@@ -256,11 +283,27 @@ async def _vision_worker_impl(
                 article_hash,
                 "no_images" if not url_to_path else "all_failed",
             )
+            # Phase 12 D-SUBDOC: no Vision successes means nothing to sub-doc-ingest;
+            # write marker immediately so resume logic does not loop on this article.
+            if ckpt_hash is not None:
+                try:
+                    write_stage(ckpt_hash, "sub_doc_ingest")
+                    write_metadata(ckpt_hash, {"last_completed_stage": "sub_doc_ingest"})
+                except Exception as e:
+                    logger.warning("sub_doc_ingest marker write failed: %s", e)
         else:
             # D-10.06 Step 3: append sub-doc via ainsert (D-10.07 — NOT re-embed).
             sub_doc_content = "\n".join(lines) + "\n"
             sub_doc_id = f"wechat_{article_hash}_images"
             await rag.ainsert(sub_doc_content, ids=[sub_doc_id])
+            # Phase 12 D-SUBDOC (absorbs v3.1 Finding 1): sub-doc ainsert + entity
+            # extraction completed — write terminal marker. Never raises.
+            if ckpt_hash is not None:
+                try:
+                    write_stage(ckpt_hash, "sub_doc_ingest")
+                    write_metadata(ckpt_hash, {"last_completed_stage": "sub_doc_ingest"})
+                except Exception as e:
+                    logger.warning("sub_doc_ingest marker write failed: %s", e)
 
     except Exception as exc:  # D-10.08: ALL exceptions swallowed
         logger.warning(
@@ -695,11 +738,17 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
             embedded in cached final_content.md) OR error before spawn.
     """
     print(f"--- Starting Ingestion: {url} ---")
-    
+
+    # Phase 12 CKPT-01: compute SHA256-16 checkpoint hash (separate from legacy MD5
+    # image-dir hash below) and bootstrap metadata. Both hashes coexist — the MD5
+    # is the image-directory namespace; the SHA256 gates resume state.
+    ckpt_hash = _ckpt_hash_fn(url)
+    write_metadata(ckpt_hash, {"url": url})
+
     article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
     article_dir = os.path.join(BASE_IMAGE_DIR, article_hash)
     os.makedirs(article_dir, exist_ok=True)
-    
+
     # Cache check: if already scraped and stored, skip HTTP entirely
     cache_content = os.path.join(article_dir, "final_content.md")
     if os.path.exists(cache_content):
@@ -748,35 +797,74 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
         return None
 
     print("Starting ingestion process...")
-    
-    # 1. UA spoofing (primary — fast, free, reliable)
-    article_data = await scrape_wechat_ua(url)
-    
-    if not article_data:
-        # 2. Apify (backup)
-        article_data = await scrape_wechat_apify(url)
-        
-        # Check if Apify returned a verification/login page
-        if article_data:
-            content = article_data.get("markdown", "") + article_data.get("title", "")
-            is_short = len(content) < 500
-            has_block_keywords = any(kw in content for kw in ["环境异常", "请完成验证", "请登录"])
-            if is_short and has_block_keywords:
-                print(f"Apify returned verification/login page ({len(content)} chars), triggering fallback...")
-                article_data = None
-    
-    # 3. CDP fallback (last resort)
-    if not article_data:
-        if _is_mcp_endpoint(CDP_URL):
-            print("UA & Apify failed. Falling back to remote Playwright MCP...")
-            article_data = await scrape_wechat_mcp(url)
-        else:
-            print("UA & Apify failed. Falling back to local CDP...")
-            article_data = await scrape_wechat_cdp(url)
 
-    if not article_data:
-        print("Scraping failed (both Apify and browser fallback).")
-        return
+    # Phase 12 Stage 1: scrape (checkpoint guarded).
+    if has_stage(ckpt_hash, "scrape"):
+        logger.info("checkpoint hit: scrape (hash=%s)", ckpt_hash)
+        scraped_html = read_stage(ckpt_hash, "scrape")
+        # Reconstruct article_data in "resumed" shape — downstream method-switch
+        # routes method="resumed" to the else branch which uses content_html +
+        # process_content (same path as CDP/MCP — the most robust extractor).
+        soup = BeautifulSoup(scraped_html or "", "html.parser")
+        og = soup.find("meta", property="og:title")
+        _title = None
+        if og and og.has_attr("content"):
+            _title = og["content"]
+        elif soup.title and soup.title.string:
+            _title = soup.title.string.strip()
+        article_data = {
+            "method": "resumed",
+            "title": _title or "Untitled",
+            "content_html": scraped_html or "",
+            "publish_time": "",
+            "url": url,
+        }
+    else:
+        # 1. UA spoofing (primary — fast, free, reliable)
+        article_data = await scrape_wechat_ua(url)
+
+        if not article_data:
+            # 2. Apify (backup)
+            article_data = await scrape_wechat_apify(url)
+
+            # Check if Apify returned a verification/login page
+            if article_data:
+                content = article_data.get("markdown", "") + article_data.get("title", "")
+                is_short = len(content) < 500
+                has_block_keywords = any(kw in content for kw in ["环境异常", "请完成验证", "请登录"])
+                if is_short and has_block_keywords:
+                    print(f"Apify returned verification/login page ({len(content)} chars), triggering fallback...")
+                    article_data = None
+
+        # 3. CDP fallback (last resort)
+        if not article_data:
+            if _is_mcp_endpoint(CDP_URL):
+                print("UA & Apify failed. Falling back to remote Playwright MCP...")
+                article_data = await scrape_wechat_mcp(url)
+            else:
+                print("UA & Apify failed. Falling back to local CDP...")
+                article_data = await scrape_wechat_cdp(url)
+
+        if not article_data:
+            print("Scraping failed (both Apify and browser fallback).")
+            return
+
+        # Persist scrape stage: write raw HTML blob (apify returns markdown, so
+        # wrap it into a minimal HTML shell for uniform resume-parse path).
+        _method_for_blob = article_data.get("method", "unknown")
+        if _method_for_blob == "apify":
+            _html_blob = (
+                f"<html><head><title>{article_data.get('title','')}</title></head>"
+                f"<body><h1>{article_data.get('title','')}</h1>\n"
+                f"{article_data.get('markdown','')}</body></html>"
+            )
+        else:
+            _html_blob = article_data.get("content_html") or ""
+        write_stage(ckpt_hash, "scrape", _html_blob)
+        write_metadata(ckpt_hash, {
+            "title": article_data.get("title", "Untitled"),
+            "last_completed_stage": "scrape",
+        })
 
     method = article_data.get("method", "unknown")
     print(f"Scraping successful using method: {method}")
@@ -792,32 +880,96 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
         markdown, _img_urls = process_content(article_data["content_html"])
         # Merge UA-extracted data-src images with process_content images
         img_urls = article_data.get("img_urls", []) + _img_urls
-    else:  # CDP / MCP
-        title = article_data['title']
-        publish_time = article_data['publish_time']
-        markdown, img_urls = process_content(article_data['content_html'])
+    else:  # CDP / MCP / resumed
+        title = article_data.get('title', 'Untitled')
+        publish_time = article_data.get('publish_time', '')
+        markdown, img_urls = process_content(article_data.get('content_html', ''))
 
     full_content = f"# {title}\n\nURL: {url}\nTime: {publish_time}\n\n{markdown}"
-    
+
     article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
     article_dir = os.path.join(BASE_IMAGE_DIR, article_hash)
     os.makedirs(article_dir, exist_ok=True)
 
+    # Phase 12 Stage 2: classify (checkpoint guarded). Phase 12 writes a
+    # placeholder — Phase 13 can replace with a real classify call. The
+    # checkpoint PRESENCE is what CKPT-01/03 require.
+    if has_stage(ckpt_hash, "classify"):
+        logger.info("checkpoint hit: classify (hash=%s)", ckpt_hash)
+        classification = read_stage(ckpt_hash, "classify")
+    else:
+        classification = {
+            "depth": None,
+            "topics": [],
+            "rationale": "phase-12-placeholder",
+            "model": None,
+            "timestamp": time.time(),
+        }
+        write_stage(ckpt_hash, "classify", classification)
+        write_metadata(ckpt_hash, {"last_completed_stage": "classify"})
+
+    # Phase 12 Stage 3: image_download (checkpoint guarded).
     # Localize image URLs via shared pipeline (D-15). Download + filter stay
     # synchronous (fast: HTTP I/O + local PIL reads); DESCRIBE is deferred to
     # the Vision worker (D-10.05 / D-10.06) so the ainsert hot-path returns fast.
-    unique_img_urls = list(dict.fromkeys([u for u in img_urls if u.startswith('http')]))
-    print(f"Found {len(unique_img_urls)} unique potential images. Downloading + filtering...")
-    url_to_path = download_images(unique_img_urls, Path(article_dir))
-    download_failed = len(unique_img_urls) - len(url_to_path)
+    if has_stage(ckpt_hash, "image_download"):
+        logger.info("checkpoint hit: image_download (hash=%s)", ckpt_hash)
+        manifest = read_stage(ckpt_hash, "image_download") or []
+        url_to_path = {
+            entry["url"]: Path(entry["local_path"])
+            for entry in manifest
+            if entry.get("filter_reason") is None and entry.get("local_path")
+        }
+        unique_img_urls = [e["url"] for e in manifest]
+        download_failed = sum(
+            1 for e in manifest
+            if e.get("filter_reason") == "download_failed_or_filtered"
+        )
+        from image_pipeline import FilterStats as _FilterStats
+        kept_ct = len(url_to_path)
+        too_small_ct = sum(1 for e in manifest if e.get("filter_reason") == "too_small")
+        try:
+            filter_stats = _FilterStats(
+                input=len(manifest), kept=kept_ct,
+                filtered_too_small=too_small_ct,
+                size_read_failed=0, timings_ms={"total_read": 0},
+            )
+        except TypeError:
+            filter_stats = _FilterStats(
+                input=len(manifest), kept=kept_ct, filtered_too_small=too_small_ct,
+            )
+    else:
+        unique_img_urls = list(dict.fromkeys([u for u in img_urls if u.startswith('http')]))
+        print(f"Found {len(unique_img_urls)} unique potential images. Downloading + filtering...")
+        url_to_path = download_images(unique_img_urls, Path(article_dir))
+        download_failed = len(unique_img_urls) - len(url_to_path)
 
-    # Phase 8 IMG-01: filter small images via shared pipeline (D-08.01, D-08.03).
-    min_dim = int(os.environ.get("IMAGE_FILTER_MIN_DIM", 300))
-    url_to_path, filter_stats = filter_small_images(url_to_path, min_dim=min_dim)
-    print(
-        f"Filtered {filter_stats.filtered_too_small} small images "
-        f"(<{min_dim}px) — {filter_stats.kept} remaining"
-    )
+        # Phase 8 IMG-01: filter small images via shared pipeline (D-08.01, D-08.03).
+        min_dim = int(os.environ.get("IMAGE_FILTER_MIN_DIM", 300))
+        url_to_path, filter_stats = filter_small_images(url_to_path, min_dim=min_dim)
+        print(
+            f"Filtered {filter_stats.filtered_too_small} small images "
+            f"(<{min_dim}px) — {filter_stats.kept} remaining"
+        )
+
+        # Build + persist manifest for resume path.
+        manifest = []
+        for u in unique_img_urls:
+            entry = {"url": u, "local_path": None, "dimensions": None, "filter_reason": None}
+            if u in url_to_path:
+                p = url_to_path[u]
+                entry["local_path"] = str(p)
+                try:
+                    from PIL import Image as _PILImage
+                    with _PILImage.open(p) as im:
+                        entry["dimensions"] = list(im.size)
+                except Exception:
+                    pass
+            else:
+                entry["filter_reason"] = "download_failed_or_filtered"
+            manifest.append(entry)
+        write_stage(ckpt_hash, "image_download", manifest)
+        write_metadata(ckpt_hash, {"last_completed_stage": "image_download"})
 
     # Phase 10 D-10.05 (ARCH-01): parent doc body contains image REFERENCE
     # lines only. Image DESCRIPTIONS arrive via sub-doc inserted by the
@@ -848,15 +1000,23 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
         print(f'Warning: Entity buffering failed: {e}')
         raw_entities = []
 
+    # Phase 12 Stage 4: text_ingest (checkpoint guarded).
     # D-09.05: deterministic doc_id lets rollback remove partial state on timeout.
     doc_id = f"wechat_{article_hash}"
-    _register_pending_doc_id(article_hash, doc_id)
-    await rag.ainsert(full_content, ids=[doc_id])
-    # Clear only on successful completion — on CancelledError / TimeoutError the
-    # orchestrator reads the tracker via get_pending_doc_id() to roll back, then
-    # calls _clear_pending_doc_id() itself.
-    _clear_pending_doc_id(article_hash)
+    if has_stage(ckpt_hash, "text_ingest"):
+        logger.info("checkpoint hit: text_ingest (hash=%s) — skipping rag.ainsert", ckpt_hash)
+    else:
+        _register_pending_doc_id(article_hash, doc_id)
+        await rag.ainsert(full_content, ids=[doc_id])
+        # Clear only on successful completion — on CancelledError / TimeoutError the
+        # orchestrator reads the tracker via get_pending_doc_id() to roll back, then
+        # calls _clear_pending_doc_id() itself.
+        _clear_pending_doc_id(article_hash)
+        write_stage(ckpt_hash, "text_ingest")  # marker only
+        write_metadata(ckpt_hash, {"last_completed_stage": "text_ingest"})
 
+    # Phase 12 Stages 5+6: vision_worker (per-image markers) + sub_doc_ingest
+    # (terminal marker written by _vision_worker_impl on success/no-op).
     # D-10.05 / D-10.06 (ARCH-01 / ARCH-02): spawn Vision worker AFTER parent
     # ainsert returns. The worker fills in image descriptions via a sub-doc
     # (plan 10-02 body). Returned task handle is passed up to the caller —
@@ -871,7 +1031,18 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
             filter_stats=filter_stats,
             download_input_count=len(unique_img_urls),
             download_failed=download_failed,
+            ckpt_hash=ckpt_hash,
         ))
+    else:
+        # Phase 12 D-SUBDOC: no images means no sub-doc to ingest. Write the
+        # terminal marker immediately so resume logic does not loop on this
+        # article. Mirrors the Vision-worker "no successes" branch.
+        if not has_stage(ckpt_hash, "sub_doc_ingest"):
+            try:
+                write_stage(ckpt_hash, "sub_doc_ingest")
+                write_metadata(ckpt_hash, {"last_completed_stage": "sub_doc_ingest"})
+            except Exception as e:
+                logger.warning("sub_doc_ingest marker write failed: %s", e)
 
     # Cognee episodic memory: fire-and-forget article metadata
     # Per 2026 RAG best practices — dual-store: LightRAG (semantic) + Cognee (episodic)
