@@ -44,6 +44,29 @@
 
 </domain>
 
+<pre_execution_checks>
+## Pre-execution Checks (operational prerequisites — NOT code/plan constraints)
+
+These are operator responsibilities that must be satisfied before `/gsd:execute-phase 13` begins. They don't appear as plan tasks because they're account/billing state, not software.
+
+### SiliconFlow balance — MUST be ≥ ¥100 before execute kicks off
+
+**Current state (2026-05-01, pre-execute):** `chargeBalance = -¥56.07` (overdrawn). Verified via direct `curl https://api.siliconflow.cn/v1/user/info` in Hermes v3.1 E2E (see `docs/HERMES_E2E_VERIFICATION_v3.1_20260501.md` §5).
+
+**Why it matters for Phase 13:**
+- Circuit-breaker regression tests (13-03) deliberately exercise 503/429/timeout paths to validate cascade fallback. If SiliconFlow is in a real quota-exhaustion state due to negative balance, the test will hit the **billing** edge instead of the **circuit-breaker** edge, invalidating the test signal.
+- CASC-06 balance-monitoring code paths need a FUNCTIONING account to exercise — not a depleted one.
+- The fix-by-construction in D-BENCH-PRECHECK solves the env-read bug; it does NOT solve "account is overdrawn".
+
+**Required action before execute:**
+1. Top up SiliconFlow account to ≥ ¥100 (covers 5× full regression run at ¥0.0013/image × ~28 images/article × 5 fixtures ≈ ¥0.18 per dry run, with headroom for accidental batch triggers during integration testing).
+2. Verify: `curl -s https://api.siliconflow.cn/v1/user/info -H "Authorization: Bearer $SILICONFLOW_API_KEY" | jq '.data.chargeBalance'` returns positive float.
+3. Document the top-up date/amount in `.planning/phases/13-vision-cascade/13-VERIFICATION.md` (phase 13 verification log) at execute-phase kickoff.
+
+**If skipped:** 13-03 integration tests will emit false-positive circuit-breaker hits. The cascade itself will work in production (falls through to OpenRouter + Gemini fallbacks) but the test evidence will be noisy — expect re-runs.
+
+</pre_execution_checks>
+
 <decisions>
 ## Implementation Decisions (from PRD §B2)
 
