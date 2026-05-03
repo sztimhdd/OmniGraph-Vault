@@ -1,22 +1,12 @@
 """Tests for Cognee-path embedding model name handling in Vertex AI mode.
 
 Cognee has its own embedding chain (LiteLLM → Vertex AI) independent of
-``lib.lightrag_embedding``. In Vertex AI mode, ``cognee_wrapper`` routes the
-EMBEDDING_MODEL env var through the shared ``_resolve_model()`` helper so both
-chains stay in sync.
-
-Naming history — Vertex `gemini-embedding-2` is a PREVIEW-lifecycle model
-(Google has not declared GA). The catalog has flipped 3 times in 4 days:
-  - 2026-04-30 → 05-02 PM: ``-preview`` required.
-  - 2026-05-03 AM (commit 9069f59): Google dropped ``-preview``; unsuffixed worked.
-  - 2026-05-03 PM (current): Google re-added ``-preview`` (rollback). Unsuffixed
-    → 404. ``_resolve_model()`` maps ``-2`` → ``-2-preview`` again.
-See `lib/lightrag_embedding._resolve_model()` and `memory/vertex_ai_smoke_validated.md`.
-
-These tests pin the current behavior: Vertex-mode `_resolve_model()` returns
-`gemini-embedding-2-preview`. If the probe detects a 4th flip, update the
-alias table in `lib/lightrag_embedding._VERTEX_EMBEDDING_ALIAS` AND this
-assertion together.
+``lib.lightrag_embedding``. In Vertex AI mode on the ``global`` endpoint the
+canonical embedding name is GA ``gemini-embedding-2`` (GA since 2026-04-22);
+no alias layer is applied. See
+``.planning/phases/05-pipeline-automation/05-00-SUMMARY.md`` § C for the
+2026-04-30 → 05-03 correction history (the endpoint × model mismatch that
+preceded this fix).
 
 Subprocess isolation: ``cognee_wrapper`` imports the heavy ``cognee`` package
 at module load, and the env-var reassignment happens at import time. We spawn
@@ -76,16 +66,12 @@ def _run_import_and_print(env_overrides: dict[str, str]) -> str:
     raise AssertionError(f"EMBEDDING_MODEL line not found in stdout:\n{proc.stdout}")
 
 
-def test_vertex_mode_maps_to_preview(tmp_path) -> None:
-    """Vertex env vars set → EMBEDDING_MODEL env becomes ``gemini-embedding-2-preview``.
+def test_vertex_mode_preserves_ga_model_name(tmp_path) -> None:
+    """Vertex env vars set → EMBEDDING_MODEL env stays ``gemini-embedding-2``.
 
-    Post-2026-05-03-PM rollback: Google restored ``-preview`` as the
-    canonical Vertex embedding name; unsuffixed ``gemini-embedding-2`` now
-    returns 404. `_resolve_model()` maps ``-2`` → ``-2-preview`` in Vertex
-    mode via ``_VERTEX_EMBEDDING_ALIAS``.
-
-    If `scripts/vertex_live_probe.py` detects yet another flip, update the
-    alias table AND this assertion together.
+    GA behavior: ``gemini-embedding-2`` is GA on the ``global`` Vertex
+    endpoint (GA date 2026-04-22). No alias layer; the model name passes
+    through unchanged in both free-tier and Vertex modes.
     """
     # A placeholder SA file is enough — _is_vertex_mode() only checks the env
     # var is non-empty, not that the file is valid (genai.Client is not
@@ -96,7 +82,7 @@ def test_vertex_mode_maps_to_preview(tmp_path) -> None:
         "GOOGLE_APPLICATION_CREDENTIALS": str(fake_sa),
         "GOOGLE_CLOUD_PROJECT": "my-project-123",
     })
-    assert got == "gemini-embedding-2-preview"
+    assert got == "gemini-embedding-2"
 
 
 def test_free_tier_path_preserves_base_model_name() -> None:

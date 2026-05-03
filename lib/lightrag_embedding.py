@@ -1,51 +1,11 @@
-"""Shared embedding function for LightRAG — Phase 7 D-09 absorption.
+"""Shared embedding function for LightRAG.
 
-Moved from repo-root ``lightrag_embedding.py`` per D-09. The root module is
-now a 2-line shim that re-exports this function for backward compat.
-
-Single source of truth for Phase 5 D-01/D-03/D-04/D-05. All ingestion and
-query scripts import ``embedding_func`` from this module instead of defining
-their own.
-
-D-09 changes (surgical only):
-- api_key: was ``os.environ.get("GEMINI_API_KEY")`` → now ``current_key()``
-  (rotation-aware; uses lib.api_keys)
-- model: was ``os.environ.get("EMBEDDING_MODEL", _DEFAULT_MODEL)`` → now
-  ``EMBEDDING_MODEL`` (constant from lib.models; default = "gemini-embedding-2")
-- ``_DEFAULT_MODEL`` constant removed (now in lib.models as EMBEDDING_MODEL)
-
-Plan 05-00c Task 0c.2 changes (surgical only):
-- Per-text rotation loop: on 429 the same text is retried against the next
-  key in the pool via ``rotate_key()``. All keys 429 -> RuntimeError.
-  Non-429 errors propagate immediately (no rotation on 5xx / network).
-- Happy-path round-robin: after each successful embed, ``rotate_key()``
-  advances the cursor so successive texts spread across the pool. When
-  keys live on separate GCP projects this effectively doubles the
-  per-minute embed budget.
-- ``_ROTATION_HITS`` counter tracks per-key successful call count — used
-  by smoke tests to assert both keys were exercised.
-
-Design highlights (see ``.planning/phases/05-pipeline-automation/05-RESEARCH.md``
-for full derivation):
-
-- Uses ``gemini-embedding-2`` with ``output_dimensionality=3072`` — the native
-  full-capacity dim. At 3072 the API auto-normalizes vectors; we still L2-norm
-  client-side so behavior is identical across any ``_OUTPUT_DIM`` choice.
-  Changing this dim requires wiping NanoVectorDB storage.
-- Distinguishes query calls from document upsert calls via the LightRAG-internal
-  ``_priority=5`` kwarg (Pattern 1 / Pitfall 5). ``_priority`` is popped so it
-  never leaks to the Gemini client.
-- In-band multimodal: text chunks that contain
-  ``http://localhost:8765/<hash>/<n>.jpg`` have the image bytes fetched and
-  sent as ``types.Part.from_bytes`` in the same ``contents`` list. Gemini
-  returns one aggregated 3072-dim vector per item (cookbook Cell 22).
-- Applies task prefixes per D-05: ``"title: none | text: "`` for documents,
-  ``"task: search result | query: "`` for queries.
-
-Asymmetric wrapping note (lib/__init__.py docstring): LLM calls are wrapped
-from outside LightRAG (via lib.generate). Embeddings are owned here because
-LightRAG's embedding contract requires in-band multimodal logic that cannot be
-layered externally.
+Model routing (2026-05-03 correction): gemini-embedding-2 is GA as of
+2026-04-22 on the `global` endpoint. Use the unsuffixed name as-is;
+no alias layer. gemini-embedding-2-preview is regional-only
+(us-central1 etc.) and does not exist on the global endpoint; do not
+rely on it for production. See 05-00-SUMMARY.md § C for the full
+story of the endpoint × model naming confusion that preceded this fix.
 """
 from __future__ import annotations
 
@@ -183,41 +143,6 @@ def _make_client(api_key: str) -> "genai.Client":
     return genai.Client(api_key=api_key, vertexai=False)
 
 
-_VERTEX_EMBEDDING_ALIAS = {
-    "gemini-embedding-2": "gemini-embedding-2-preview",
-}
-
-
-def _resolve_model(base_model: str) -> str:
-    """Map the free-tier model name to its Vertex AI equivalent.
-
-    **`gemini-embedding-2` is in Google's Preview lifecycle** (not Stable per
-    https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/model-versions).
-    Google periodically attempts to promote it preview→stable (dropping the
-    suffix) and rolls back when issues surface. Our probe has seen 3 flips in
-    4 days (2026-04-30 / 05-02 / 05-03). Treat the catalog as UNSTABLE.
-
-    Timeline (see ``memory/vertex_ai_smoke_validated.md`` for detail):
-      - 2026-04-30 → 05-02 PM: ``-preview`` required; unsuffixed → 404.
-      - 2026-05-03 AM: Google dropped ``-preview`` (promotion attempt).
-        Commit 9069f59 removed the mapping, assuming this was GA.
-      - 2026-05-03 PM: Google re-added ``-preview`` (rollback). Unsuffixed
-        → 404 again. This commit restores the mapping.
-
-    Until Google officially announces GA on the Stable Models page,
-    ``-preview`` is the canonical Vertex name. ``_VERTEX_EMBEDDING_ALIAS``
-    centralizes the mapping so future flips are a 1-line change. If you
-    observe a 4th flip, DO NOT pin a new name without running
-    ``scripts/vertex_live_probe.py`` against real endpoints first — the
-    Phase 18 monthly probe (HYG-01) is the authoritative signal.
-
-    Only applied in Vertex mode; API-key (free-tier) mode is untouched.
-    """
-    if _is_vertex_mode():
-        return _VERTEX_EMBEDDING_ALIAS.get(base_model, base_model)
-    return base_model
-
-
 async def _embed_once(contents: list, model: str) -> np.ndarray:
     """Place ONE embed_content call against the current rotation key OR Vertex SA.
 
@@ -226,10 +151,10 @@ async def _embed_once(contents: list, model: str) -> np.ndarray:
     mode, records the key in ``_ROTATION_HITS`` for smoke-test telemetry.
 
     D-11.08 (Plan 11-01): when ``_is_vertex_mode()``, constructs a Vertex AI
-    client (SA JSON auth) and resolves the model name to its -preview
-    variant; rotation telemetry is skipped in Vertex mode to avoid
-    polluting ``_ROTATION_HITS`` with spurious entries against a key the
-    client does not use.
+    client (SA JSON auth); rotation telemetry is skipped in Vertex mode to
+    avoid polluting ``_ROTATION_HITS`` with spurious entries against a key
+    the client does not use. The model name is passed through as-is — on
+    the ``global`` endpoint ``gemini-embedding-2`` is GA (2026-04-22).
 
     Propagates ClientError and any other exception to the caller — the
     rotation loop in ``embedding_func`` decides whether to rotate (429) or
@@ -238,9 +163,8 @@ async def _embed_once(contents: list, model: str) -> np.ndarray:
     use_vertex = _is_vertex_mode()
     api_key = "" if use_vertex else current_embedding_key()
     client = _make_client(api_key)
-    resolved_model = _resolve_model(model)
     response = await client.aio.models.embed_content(
-        model=resolved_model,
+        model=model,
         contents=contents,
         config=types.EmbedContentConfig(output_dimensionality=_OUTPUT_DIM),
     )
