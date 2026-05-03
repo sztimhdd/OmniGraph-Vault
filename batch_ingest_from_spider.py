@@ -989,6 +989,7 @@ async def ingest_from_db(
     min_depth: int,
     dry_run: bool,
     batch_timeout: int | None = None,
+    max_articles: int | None = None,
 ) -> None:
     """Ingest articles that passed classification for a topic (or list of topics). Reads from kol_scan.db.
 
@@ -999,6 +1000,10 @@ async def ingest_from_db(
     Phase 17: accepts ``batch_timeout`` (seconds) for the batch-level budget
     interlock; defaults resolved via ``_resolve_batch_timeout`` so the env var
     ``OMNIGRAPH_BATCH_TIMEOUT_SEC`` still wins if set.
+
+    quick-260503-jn6 (JN6-02): ``max_articles`` caps the number of
+    SUCCESSFULLY-processed rows (skips for no-URL / checkpoint / classify /
+    depth do NOT count toward the cap). Default None = unlimited.
     """
     topics = [topic] if isinstance(topic, str) else topic
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1068,6 +1073,16 @@ async def ingest_from_db(
         processed = 0
         api_key = get_deepseek_api_key()
         for i, (art_id, title, url, account, depth, body) in enumerate(rows, 1):
+            # JN6-02: stop AFTER successfully-processed rows hit the cap.
+            # Skips (no URL, checkpoint, classify, depth) don't count, so the
+            # cap limits real ingest work — correct semantics for rate limiting.
+            if max_articles is not None and processed >= max_articles:
+                logger.info(
+                    "max-articles cap reached (%d); stopping --from-db loop.",
+                    max_articles,
+                )
+                break
+
             logger.info("[%d/%d] [%s] (prior depth=%s) %s", i, len(rows), account, depth, title)
 
             if not url:
@@ -1200,7 +1215,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Bulk ingest WeChat KOL articles into OmniGraph-Vault")
     parser.add_argument("--dry-run", action="store_true", help="List articles without ingesting")
     parser.add_argument("--days-back", type=int, default=90, help="How many days back to fetch (default: 90)")
-    parser.add_argument("--max-articles", type=int, default=50, help="Max articles per account (default: 50)")
+    parser.add_argument("--max-articles", type=int, default=50, help="Max articles: per-account in scan mode; total cap in --from-db mode (default: 50)")
     parser.add_argument("--topic-filter", type=str, default=None, help="Required topic to include (e.g. 'AI agents')")
     parser.add_argument("--exclude-topics", type=str, default=None, help="Comma-separated topics to exclude (e.g. 'OpenClaw,crypto')")
     parser.add_argument("--min-depth", type=int, default=2, choices=[1, 2, 3], help="Minimum depth score 1-3 (default: 2)")
@@ -1229,6 +1244,7 @@ def main() -> None:
         coro = ingest_from_db(
             topic_keywords, args.min_depth, args.dry_run,
             batch_timeout=args.batch_timeout,
+            max_articles=args.max_articles,
         )
     else:
         coro = run(
