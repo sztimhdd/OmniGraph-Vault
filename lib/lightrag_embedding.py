@@ -184,21 +184,15 @@ def _make_client(api_key: str) -> "genai.Client":
 
 
 def _resolve_model(base_model: str) -> str:
-    """Map the free-tier model name to its Vertex AI equivalent (D-11.08).
+    """Map the free-tier model name to its Vertex AI equivalent.
 
     Memory ref: ``vertex_ai_smoke_validated.md`` — ``gemini-embedding-2``
-    returns 404 on Vertex AI; ``gemini-embedding-2-preview`` is the working
-    multimodal model name. Only applied in Vertex mode AND only for the
-    exact free-tier name; all other model names pass through unchanged so
-    future callers can pin a specific Vertex-native model.
+    returns 404 on Vertex AI in some regions. ``gemini-embedding-2-preview``
+    was removed from Vertex AI catalog; ``gemini-embedding-2`` is now the
+    working name (confirmed 2026-05-03 against us-central1 with PAID tier SA).
 
-    2026-05-02: Restored after commit 0dc4b2b incorrectly removed the mapping.
-    Empirical probe against us-central1 confirmed ``gemini-embedding-2`` still
-    returns 404 NOT_FOUND; ``gemini-embedding-2-preview`` returns 3072-dim
-    vectors. The prior "deprecated" claim was incorrect.
+    Only applied in Vertex mode; API-key mode passes through unchanged.
     """
-    if _is_vertex_mode() and base_model == "gemini-embedding-2":
-        return "gemini-embedding-2-preview"
     return base_model
 
 
