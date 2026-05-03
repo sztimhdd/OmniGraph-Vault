@@ -34,7 +34,7 @@ Head commit: 599a08d
 Status: 05-04/05/06 code + SUMMARYs on origin/main; operator runs
   `bash scripts/register_phase5_cron.sh` on Hermes to arm the daily
   pipeline; first digest lands 09:30 local the day after cron goes live.
-Last activity: 2026-05-03 — Wave 2 autonomous partial-close landed
+Last activity: 2026-05-03 — Completed quick task 260503-lq7: Wave 1 post-E2E hygiene (RSS classify env cap + step_6 SQL fix)
   (orchestrate_daily 9-step state machine + daily_digest asymmetric UNION
   + 6-job cron register script). +18 unit tests (9 + 9), 51 unit tests
   total across Phase 5 Wave 1+2 green locally.
@@ -192,6 +192,7 @@ None tracked.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260429-got | Extend `batch_ingest_from_spider.py` --topic-filter to comma-separated multi-keyword (D-11) | 2026-04-29 | `4bf1613` | [260429-got-extend-batch-ingest-from-spider-py-to-su](./quick/260429-got-extend-batch-ingest-from-spider-py-to-su/) |
+| 260503-lq7 | Wave 1 post-E2E hygiene: RSS classify env cap + step_6 fetched_at/scanned_at fix | 2026-05-03 | `16f05ae` | [260503-lq7-wave-1-post-e2e-hygiene-rss-classify-env](./quick/260503-lq7-wave-1-post-e2e-hygiene-rss-classify-env/) |
 
 ## Phase 4 Exit State
 
