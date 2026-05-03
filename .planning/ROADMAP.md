@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last Updated:** 2026-05-02 (Phase 5 Wave 1 closed — plans 05-01/02/03/03b landed on origin/main; Hermes pulls for live verification)
+**Last Updated:** 2026-05-03 (Phase 5 Wave 2 partial-close — plans 05-04/05/06 Task 6.1 landed on origin/main; 3-day observation window (Task 6.2) pending operator run + user verdict)
 
 ## Done
 
@@ -33,9 +33,9 @@
     - [x] 05-02-rss-fetch-PLAN.md — **Wave 1 closed 2026-05-02 @ `e9bad10`**: `enrichment/rss_fetch.py` with feedparser + langdetect prefilter (≥500 chars, en/zh*) + per-feed fault tolerance + `error_count` state machine + URL UNIQUE dedup. 7 unit tests pass.
     - [x] 05-03-rss-classify-PLAN.md — **Wave 1 closed 2026-05-02 @ `e4b2932`**: `enrichment/rss_classify.py` on DeepSeek raw HTTP (Phase 7 D-09 supersession) + bilingual prompt with Chinese-only `reason` output (D-08) + `tests/conftest.py` DEEPSEEK_API_KEY dummy guard. 6 unit tests pass.
     - [x] 05-03b-rss-ingest-PLAN.md — **Wave 1 closed 2026-05-02 @ `f70a18b`**: `enrichment/rss_ingest.py` (DeepSeek EN→CN translate + Task 4.2 `aget_docs_by_ids` PROCESSED gate per D-19 + atomic `.tmp` writes; NO enrich_article invocation per D-07 REVISED) + `enrichment/run_enrich_for_id.py` (KOL bridge with env-var contract + RSS guarded no-op). 13 unit tests pass (5 bridge + 8 ingest).
-    - [ ] 05-04-orchestrate-daily-PLAN.md — Wave 2: 9-step state machine with Telegram-alert on critical failure
-    - [ ] 05-05-daily-digest-PLAN.md — Wave 2: TOP 5 Markdown digest + Telegram delivery + atomic local archive
-    - [ ] 05-06-cron-deploy-and-observation-PLAN.md — Wave 3: register 6 new cron jobs + 3-day observation + STATE/ROADMAP close
+    - [x] 05-04-orchestrate-daily-PLAN.md — **Wave 2 closed 2026-05-03 @ `1d55d0d`**: `enrichment/orchestrate_daily.py` (9-step state machine; step_4 critical; step_6 SQL scope = `articles`+`classifications` only; step_7 aggregates KOL+RSS; step_9 fires Telegram on step_8 failure). 9 unit tests pass.
+    - [x] 05-05-daily-digest-PLAN.md — **Wave 2 closed 2026-05-03 @ `3dd27df`**: `enrichment/daily_digest.py` asymmetric UNION ALL (KOL `enriched=2` required; RSS no-enriched-filter per D-07 REVISED) + Telegram delivery + atomic archive to `omonigraph-vault/digests/{date}.md` + empty-state skip. 9 unit tests pass.
+    - [~] 05-06-cron-deploy-and-observation-PLAN.md — **Task 6.1 shipped 2026-05-03 @ `599a08d`**: `scripts/register_phase5_cron.sh` idempotent 6-job register script using natural-language prompts per D-16 "Hermes drives"; preserves existing health-check + scan-kol. **Task 6.2 (3-day observation) is a user checkpoint** — operator runs the script on Hermes, watches 3 consecutive daily digests, then resumes with `approved` / `approved-with-notes` / `rejected`. **Task 6.3 (STATE/ROADMAP/VALIDATION finalization) pending Task 6.2 verdict.**
 - **Phase 6: graphify-addon-code-graph** — PRD at `specs/PRDTDD_GRAPHIFY_ADDON.md` (v3.0, authoritative); pre-plan brief at `.planning/phases/06-graphify-addon-code-graph/06-CONTEXT.md`. Add code-graph query capability alongside existing domain-graph by shipping two Skills: `graphify` (zero-code install from `graphifyy` 0.5.3 on Hermes + conditionally OpenClaw, T1 repos only: openclaw + claude-code) and `omnigraph_search` (thin LightRAG wrapper). Plus weekly AST-only cron refresh via `graphify update` (relies on Graphify's built-in `to_json()` shrink guard — no custom tmp-rename). Bridge nodes deferred. Independent of Phase 5.
   - **Goal:** Agent autonomously routes to both `graphify` (code structure) and `omnigraph_search` (design rationale) in mixed queries; weekly cron keeps the code graph fresh on remote.
   - **Plans:** 7 plans (planned 2026-04-28; replanned 2026-04-28 to split 06-03 into 06-03 + 06-03b)
