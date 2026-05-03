@@ -404,6 +404,8 @@ Until batch volume justifies the migration, stay on the split-provider approach:
 
 Only Gemini embedding still touches the GCP free-tier quota. If you observe repeated 429 errors on embedding calls during batch runs, it is time to trigger the migration.
 
+**Vertex endpoint + model pairing (for deployed Vertex paths):** The production-recommended value is `GOOGLE_CLOUD_LOCATION=global` (not `us-central1`). Hermes's `~/.hermes/.env` uses `global` to pool embedding quota across GCP projects. Embedding model naming is endpoint-dependent: gemini-embedding-2 is GA on global; gemini-embedding-2-preview is regional-only. Always match model to endpoint.
+
 ### When to Migrate
 
 Trigger the Vertex AI migration when **any** of these become routinely true:
