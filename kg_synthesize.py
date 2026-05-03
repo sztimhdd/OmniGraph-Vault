@@ -2,6 +2,7 @@ import os
 import json
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 if sys.stdout.encoding != "utf-8":
@@ -23,6 +24,54 @@ from lib.lightrag_embedding import embedding_func
 # Also: Cognee import was triggering async pipelines at module level (Vertex AI
 # 404 cascade), blocking the event loop. Cognee is now lazy-imported only when
 # recall/remember succeeds — which it never does on free-tier Vertex AI anyway.
+
+# HYG-03 (Phase 18-02): replacement for removed Cognee recall/remember flow.
+# Past-query memory is persisted as append-only JSONL. Never blocks synthesis —
+# read failures return empty list; write failures log a warning only.
+# Note: the parent dir name `omonigraph-vault` is the canonical typo (CLAUDE.md).
+QUERY_HISTORY_FILE = Path.home() / ".hermes" / "omonigraph-vault" / "query_history.jsonl"
+
+
+def _read_recent_query_history(limit: int = 10) -> list[str]:
+    """Return the most-recent N queries, newest first. Empty list on any failure."""
+    try:
+        if not QUERY_HISTORY_FILE.exists():
+            return []
+        with QUERY_HISTORY_FILE.open("r", encoding="utf-8") as f:
+            lines = f.readlines()
+        out: list[str] = []
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except Exception:
+                continue
+            q = entry.get("query") if isinstance(entry, dict) else None
+            if isinstance(q, str) and q:
+                out.append(q)
+                if len(out) >= limit:
+                    break
+        return out
+    except Exception:
+        return []
+
+
+def _append_query_history(query: str, mode: str, response_len: int) -> None:
+    """Atomic-per-line append to the query-history JSONL. Silent on failure."""
+    try:
+        QUERY_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "query": query,
+            "mode": mode,
+            "response_len": response_len,
+        }
+        with QUERY_HISTORY_FILE.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"Warning: query history append failed: {e}")
 
 
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
@@ -52,6 +101,16 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
         if raw in query_text:
             query_text = query_text.replace(raw, canonical)
 
+    # HYG-03: inject past-query history for context-aware synthesis.
+    history = _read_recent_query_history(limit=10)
+    history_block = ""
+    if history:
+        history_block = (
+            "Previous queries for context (most recent first):\n"
+            + "\n".join(f"- {q}" for q in history)
+            + "\n\n"
+        )
+
     # Instruction placed FIRST (before query) so LightRAG's internal template
     # does not overshadow it. Critical: the LLM must inline image URLs as
     # ![](url) markdown — without this, images in the context are dropped.
@@ -61,11 +120,12 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
         "http://localhost:8765/..., you MUST include them as "
         "![description](url) INLINE in your answer near the relevant text. "
         "Do NOT skip images. Do NOT drop URLs.\n\n"
-        f"Query: {query_text}"
+        + history_block
+        + f"Query: {query_text}"
     )
 
     param = QueryParam(mode=mode)
-    
+
     response = None
     for i in range(3):
         try:
@@ -75,6 +135,11 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
             print(f"Query attempt {i+1} failed: {e}")
             if i < 2: await asyncio.sleep(5)
             else: raise e
+
+    # HYG-03: record this query in history after successful synthesis.
+    # Never raises — _append_query_history handles its own errors.
+    if response:
+        _append_query_history(query_text, mode, len(response) if isinstance(response, str) else 0)
 
     return response
 
