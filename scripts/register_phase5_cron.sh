@@ -17,13 +17,11 @@
 
 set -euo pipefail
 
-# H-12: --model deepseek-v4-flash is the default identifier per PRD. If
-# the remote host rejects it, re-run with MODEL env override:
-#   MODEL=gemini-2.5-flash bash scripts/register_phase5_cron.sh
-MODEL="${MODEL:-deepseek-v4-flash}"
+# Model is controlled by the agent's config, not per-job, per H-12.
+# All 6 jobs use whatever model the agent is currently configured with.
 
 # Snapshot existing registrations once to short-circuit re-registration.
-EXISTING="$(hermes cronjob list 2>/dev/null || echo '')"
+EXISTING="$(hermes cron list 2>/dev/null || echo '')"
 
 add_job() {
   local name="$1"
@@ -36,11 +34,11 @@ add_job() {
   fi
 
   echo "ADD  ${name} @ ${schedule}"
-  hermes cronjob add \
+  hermes cron add \
     --name "${name}" \
-    --schedule "${schedule}" \
-    --prompt "${prompt}" \
-    --model "${MODEL}"
+    --workdir "${OMNIGRAPH_ROOT:-$HOME/OmniGraph-Vault}" \
+    "${schedule}" \
+    "${prompt}"
 }
 
 # -----------------------------------------------------------------------
@@ -81,5 +79,5 @@ add_job "daily-digest" \
 # Final state — show full cron table for operator verification.
 # -----------------------------------------------------------------------
 echo ""
-echo "=== hermes cronjob list ==="
-hermes cronjob list
+echo "=== hermes cron list ==="
+hermes cron list
