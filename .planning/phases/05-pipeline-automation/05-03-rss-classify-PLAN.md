@@ -57,20 +57,41 @@ Output: runnable classifier + unit tests for parse strictness, dedup, and fault 
 @enrichment/rss_schema.py
 
 <infra_composition>
-**v3.1/v3.2 infrastructure composition (added 2026-05-01):**
+**v3.1/v3.2 infrastructure composition (added 2026-05-01; extended 2026-05-02 post-Wave 0):**
 
 - The `rss_classifications` table stays a separate table (different FK target than Phase 10's `classifications` which points at `articles`). **But column design MUST mirror Phase 10's `classifications` schema** for operational consistency: columns `article_id`, `depth_score`, `topic`, `rationale`, `classified_at`. If the existing schema (from 05-01) differs, flag in SUMMARY — do NOT silently diverge.
 - v3.2 Phase 12 checkpoint stage `classify` is already marked by `batch_classify_kol.py` for KOL path. `enrichment/rss_classify.py` SHOULD mark `lib.checkpoint.mark_stage(ckpt_hash, "classify")` per RSS article it successfully classifies, using `ckpt_hash = lib.checkpoint.get_article_hash(rss_url)`. Non-fatal if skipped — 05-03b's ingest wrapper will re-mark anyway — but consistency is cleaner.
+- **Classifier LLM is DeepSeek, NOT Gemini (Wave 0 close-out, Phase 7 D-09 supersession 2026-05-02):** Per CLAUDE.md routing rule "LLM → DeepSeek, Gemini only for Vision + Embedding" and `batch_classify_kol.py` production state (`deepseek-chat` via raw HTTP). `rss_classify.py` MUST mirror `batch_classify_kol.py:_call_deepseek` + `get_deepseek_api_key` pattern — do NOT import `google.genai` for classification. Prompt enforces JSON-only output; code strips optional ```` ``` ```` fences before `json.loads`. See `05-00-SUMMARY.md` § D (Phase 7 D-09 supersession) for rationale.
 - No change to D-08 (EN→CN in prompt) or the batch_classify_kol reuse pattern.
 </infra_composition>
 
 <interfaces>
-From `batch_classify_kol.py` (existing classifier — read it as the reference for prompt + JSON-parse shape; DO NOT copy the whole file; reuse only what you need):
+From `batch_classify_kol.py` (existing production classifier — mirror this shape; DO NOT copy the whole file, reuse only what you need):
+
 ```python
-# Existing shape (abbreviated):
-def _classify_via_gemini(text: str, topic: str) -> dict:
-    """Returns {topic, depth_score, relevant, excluded, reason}."""
-    # ... prompt ... JSON parse ... depth_score int(1-3)
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+DEEPSEEK_MODEL = "deepseek-chat"
+
+def get_deepseek_api_key() -> str | None:
+    # checks DEEPSEEK_API_KEY env, then ~/.hermes/.env, then ~/.hermes/config.yaml providers.deepseek.api_key
+    ...
+
+def _call_deepseek(prompt: str, api_key: str) -> dict | None:
+    resp = requests.post(
+        DEEPSEEK_API_URL,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": DEEPSEEK_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.0},
+        timeout=120,
+    )
+    resp.raise_for_status()
+    content = resp.json()["choices"][0]["message"]["content"].strip()
+    # Strip optional ``` fences before json.loads
+    if content.startswith("```"):
+        start = content.find("\n") + 1
+        end = content.rfind("```")
+        if end > start:
+            content = content[start:end].strip()
+    return json.loads(content)
 ```
 
 Topic taxonomy (from `batch_classify_kol.py --topic` CLI usage in Phase 4 / Plan 05-00b Task 0b.1):
@@ -96,18 +117,20 @@ Depth score definition (PRD §3.1.5):
     - Test 5: `--max-articles N` limits the batch.
   </behavior>
   <read_first>
-    - batch_classify_kol.py (full file — extract the Gemini classifier call pattern + JSON parse + `_CLASSIFY_PROMPT` template)
+    - batch_classify_kol.py (full file — extract `_call_deepseek` + `get_deepseek_api_key` patterns; mirror the raw HTTP shape, JSON parse, and fence-stripping. NOTE: batch_classify_kol.py has both a Gemini branch and a DeepSeek branch via `--classifier`; rss_classify.py uses DeepSeek only.)
     - .planning/phases/05-pipeline-automation/05-PRD.md §3.1.5 (RSS classifier responsibilities)
     - .planning/phases/05-pipeline-automation/05-CONTEXT.md (D-08 EN→CN in prompt, not separate step)
+    - .planning/phases/05-pipeline-automation/05-00-SUMMARY.md § D (Phase 7 D-09 supersession → DeepSeek for classification; rationale)
     - enrichment/rss_schema.py (exact column list for INSERT)
   </read_first>
   <action>
-    Create `enrichment/rss_classify.py`:
+    Create `enrichment/rss_classify.py`. **LLM is DeepSeek via raw HTTP** (mirrors `batch_classify_kol.py`'s production pattern — do NOT use `google.genai`):
 
     ```python
-    """RSS article classifier — LLM tags each article with depth_score per topic.
+    """RSS article classifier — DeepSeek tags each article with depth_score per topic.
 
-    Reuses classification logic from batch_classify_kol.py but adapted for RSS:
+    Mirrors batch_classify_kol.py's DeepSeek pattern (raw HTTP to api.deepseek.com).
+    Adapted for RSS:
       - reads from rss_articles (not articles)
       - writes to rss_classifications
       - prompt asks LLM to output in Chinese regardless of source-article language (D-08)
@@ -129,14 +152,16 @@ Depth score definition (PRD §3.1.5):
     import sys
     import time
     from pathlib import Path
-    from typing import Any
 
-    from google import genai
-    from google.genai import types
+    import requests
+
+    # Reuse the key resolver from batch_classify_kol.py (env → ~/.hermes/.env → config.yaml)
+    from batch_classify_kol import get_deepseek_api_key
 
     DB = Path("data/kol_scan.db")
     DEFAULT_TOPICS = ("Agent", "LLM", "RAG", "NLP", "CV")
-    MODEL = os.environ.get("CLASSIFIER_MODEL", "gemini-2.5-flash-lite")
+    DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+    DEEPSEEK_MODEL = os.environ.get("CLASSIFIER_MODEL", "deepseek-chat")
     CLASSIFY_PROMPT = """
 你是技术文章分类器。给定一篇文章的标题和正文（可能是英文或中文），请对它在主题 "{topic}" 上做分类。
 
@@ -145,7 +170,7 @@ Depth score definition (PRD §3.1.5):
 - depth_score: 1=资讯/快讯，2=技术教程/分析，3=深度研究/架构拆解。
 - relevant: 0 或 1（是否与主题相关）。
 - excluded: 0 或 1（是否应被剔除，例如广告/招聘/纯转载）。
-- 只输出 JSON，不要任何其他文字。
+- 只输出 JSON，不要任何其他文字。不要代码块围栏，不要解释。
 
 输入：
 title: {title}
@@ -158,15 +183,31 @@ content: {content}
     logger = logging.getLogger("rss_classify")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    def _classify(client: Any, title: str, content: str, topic: str) -> dict:
-        prompt = CLASSIFY_PROMPT.format(topic=topic, title=title[:200], content=content[:4000])
-        response = client.models.generate_content(
-            model=MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json"),
+    def _call_deepseek(prompt: str, api_key: str) -> dict:
+        """Raw HTTP call to DeepSeek chat completions. Returns parsed JSON dict. Raises on malformed."""
+        resp = requests.post(
+            DEEPSEEK_API_URL,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": DEEPSEEK_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.0,
+            },
+            timeout=120,
         )
-        raw = response.text.strip()
-        data = json.loads(raw)
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"].strip()
+        # Strip optional ``` fences (DeepSeek sometimes wraps even when told not to)
+        if content.startswith("```"):
+            start = content.find("\n") + 1
+            end = content.rfind("```")
+            if end > start:
+                content = content[start:end].strip()
+        return json.loads(content)
+
+    def _classify(api_key: str, title: str, content: str, topic: str) -> dict:
+        prompt = CLASSIFY_PROMPT.format(topic=topic, title=title[:200], content=content[:4000])
+        data = _call_deepseek(prompt, api_key)
         # Strict parse
         depth = int(data["depth_score"])
         assert 1 <= depth <= 3
@@ -203,15 +244,20 @@ content: {content}
             max_articles: int | None, dry_run: bool) -> dict:
         conn = sqlite3.connect(DB)
         rows = _eligible_articles(conn, topics, article_id, max_articles)
-        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        api_key = None
+        if not dry_run:
+            api_key = get_deepseek_api_key()
+            if not api_key:
+                raise RuntimeError("DEEPSEEK_API_KEY not found in env / ~/.hermes/.env / config.yaml")
         stats = {"classified": 0, "failed": 0}
         for (aid, title, content) in rows:
             for topic in topics:
                 try:
-                    result = _classify(client, title, content, topic)
-                    logger.info(f"a={aid} t={topic} depth={result['depth_score']} exc={result['excluded']}")
                     if dry_run:
+                        logger.info(f"DRY: a={aid} t={topic}")
                         continue
+                    result = _classify(api_key, title, content, topic)
+                    logger.info(f"a={aid} t={topic} depth={result['depth_score']} exc={result['excluded']}")
                     try:
                         conn.execute(
                             """INSERT INTO rss_classifications
@@ -228,7 +274,7 @@ content: {content}
                 except Exception as ex:
                     logger.warning(f"classify failed a={aid} t={topic}: {ex}")
                     stats["failed"] += 1
-                time.sleep(0.3)  # gentle throttle; Flash Lite is 250 RPD free tier
+                time.sleep(0.3)  # gentle throttle
         conn.close()
         return stats
 
@@ -248,7 +294,7 @@ content: {content}
         main()
     ```
 
-    Create `tests/unit/test_rss_classify.py` with the 5 behavioral tests using `unittest.mock.patch("google.genai.Client", ...)` returning JSON-shaped stub responses.
+    Create `tests/unit/test_rss_classify.py` with the 5 behavioral tests using `unittest.mock.patch("enrichment.rss_classify._call_deepseek", ...)` returning JSON-shaped dict stub responses (the mock replaces the HTTP call + parse together — return already-parsed `dict`, e.g. `{"topic": "Agent", "depth_score": 2, "relevant": 1, "excluded": 0, "reason": "技术分析"}`). Also patch `enrichment.rss_classify.get_deepseek_api_key` to return a fake key for non-dry-run tests.
   </action>
   <verify>
     <automated>ssh remote "cd ~/OmniGraph-Vault &amp;&amp; venv/bin/python -m pytest tests/unit/test_rss_classify.py -v &amp;&amp; venv/bin/python enrichment/rss_classify.py --max-articles 2 --dry-run"</automated>
@@ -257,7 +303,9 @@ content: {content}
     - File `enrichment/rss_classify.py` exists; ≥ 140 lines.
     - `grep -q "请用中文回答" enrichment/rss_classify.py OR grep -q "必须用中文" enrichment/rss_classify.py` returns 0 (D-08 enforcement — Chinese-output instruction in prompt).
     - `grep -q "UNIQUE.*article_id.*topic\|IntegrityError" enrichment/rss_classify.py` returns 0 (dedup handled).
-    - `grep -q "response_mime_type.*application/json" enrichment/rss_classify.py` returns 0 (strict JSON).
+    - `grep -q "api.deepseek.com" enrichment/rss_classify.py` returns 0 (DeepSeek endpoint).
+    - `grep -q "from batch_classify_kol import get_deepseek_api_key" enrichment/rss_classify.py` returns 0 (reuses production key resolver).
+    - `! grep -q "google.genai\|from google import genai\|GEMINI_API_KEY" enrichment/rss_classify.py` — Gemini path MUST be absent per Phase 7 D-09 supersession (LLM → DeepSeek).
     - All 5 pytest tests pass.
     - `--max-articles 2 --dry-run` on remote exits 0 and prints classify results without writing.
     - Non-dry run after a fetch populates ≥ 1 row in `rss_classifications`.

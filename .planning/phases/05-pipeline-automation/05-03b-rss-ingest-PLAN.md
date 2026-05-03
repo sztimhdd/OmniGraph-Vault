@@ -15,7 +15,7 @@ must_haves:
   truths:
     - "English RSS articles are translated to Chinese BEFORE LightRAG ingest (D-09)"
     - "Per D-07 REVISED 2026-05-02 + D-19: RSS articles do NOT invoke enrich_article. Direct path: translate (D-09) → LightRAG ainsert — no Zhihu 好问 layer."
-    - "`rss_articles.enriched` is set to 2 on successful LightRAG ainsert (signals 'digest-eligible') and -2 only if ainsert itself fails repeatedly. NO enrichment success/failure branching."
+    - "`rss_articles.enriched` is set to 2 ONLY after both ainsert succeeds AND `aget_docs_by_ids` confirms status=='PROCESSED' (Task 4.2 anti-ghost gate). On ainsert exception OR non-PROCESSED status, `enriched` is left UNCHANGED at its prior value (0) so the next batch retries. `rss_ingest.py` does NOT write `-2`. NO enrichment success/failure branching."
     - "`final_content.md` is written atomically (.tmp then rename) to ~/.hermes/omonigraph-vault/rss_content/<hash>/"
     - "Original English source is preserved as original.md for debug"
     - "A shared bridge script `run_enrich_for_id.py` still ships (for Task 05-04 step_6 KOL-only enrichment); `--source rss` branch exists but is a guarded no-op that logs 'RSS excluded per D-07 REVISED' and exits 0 without invoking enrich_article"
@@ -31,7 +31,7 @@ must_haves:
       min_lines: 140
       contains: "rss_articles SET enriched"
     - path: "tests/unit/test_rss_ingest.py"
-      provides: "Unit tests for translation branch, direct-ainsert branch, aget_docs_by_ids verification gate, enriched=2/-2 state updates, atomic write"
+      provides: "Unit tests for DeepSeek translation branch, direct-ainsert branch, aget_docs_by_ids PROCESSED verification gate, enriched=2 state update on happy path, enriched left unchanged on non-PROCESSED, atomic write, absence of subprocess calls"
       min_lines: 60
     - path: "tests/unit/test_run_enrich_for_id.py"
       provides: "Unit tests for env-var setup (kol path) + guarded-noop behavior for --source rss"
@@ -42,9 +42,9 @@ must_haves:
       via: "sqlite3 SELECT"
       pattern: "rss_classifications"
     - from: "enrichment/rss_ingest.py"
-      to: "Gemini translate API (EN->CN) via google.genai"
-      via: "client.models.generate_content for english-only articles"
-      pattern: "generate_content"
+      to: "DeepSeek chat completions API (EN→CN translation) via raw HTTP"
+      via: "requests.post to api.deepseek.com/v1/chat/completions for english-only articles (Phase 7 D-09 supersession: LLM → DeepSeek)"
+      pattern: "api.deepseek.com"
     - from: "enrichment/rss_ingest.py"
       to: "lightrag.ainsert for Chinese final_content.md"
       via: "LightRAG import pattern matching merge_and_ingest.py; reuse Task 4.2 aget_docs_by_ids verification hook from ingest_wechat.py"
@@ -143,11 +143,11 @@ conn.execute(
   <name>Task 3b.1: Build `enrichment/run_enrich_for_id.py` — bridge for env-var skill invocation</name>
   <files>enrichment/run_enrich_for_id.py, tests/unit/test_run_enrich_for_id.py</files>
   <behavior>
-    - Test 1: `--source kol --article-id 1` resolves ARTICLE_PATH to `~/.hermes/omonigraph-vault/images/<hash>/final_content.md`, ARTICLE_URL from `articles.url`, ARTICLE_HASH from `articles.content_hash`.
-    - Test 2: `--source rss --article-id 1` resolves ARTICLE_PATH to `~/.hermes/omonigraph-vault/rss_content/<hash>/final_content.md`, ARTICLE_URL from `rss_articles.url`, ARTICLE_HASH = md5(url)[:12].
-    - Test 3: Non-zero exit when article not found in DB.
-    - Test 4: `subprocess.run` is called with `["hermes", "skill", "run", "enrich_article"]` and the env dict contains ARTICLE_PATH, ARTICLE_URL, ARTICLE_HASH — NOT as CLI flags.
-    - Test 5: Invalid `--source` value exits with clear error.
+    - Test 1 (KOL normal path): `--source kol --article-id 1` resolves ARTICLE_PATH to `~/.hermes/omonigraph-vault/images/<hash>/final_content.md`, ARTICLE_URL from `articles.url`, ARTICLE_HASH from `articles.content_hash`; `subprocess.run` IS called.
+    - Test 2 (RSS guarded no-op per D-07 REVISED 2026-05-02 + D-19): `--source rss --article-id 1` returns exit code 0 WITHOUT invoking `subprocess.run` (no enrich_article skill call), prints a log line containing "RSS excluded per D-07 REVISED". DB is NOT queried for the RSS article — the guard short-circuits before resolution.
+    - Test 3 (KOL not found): `--source kol --article-id 999` where id does not exist in `articles` — exits non-zero with an error message; `subprocess.run` is NOT called.
+    - Test 4 (KOL env-var contract): on the kol path, `subprocess.run` is called with exactly `["hermes", "skill", "run", "enrich_article"]` and the env dict contains ARTICLE_PATH, ARTICLE_URL, ARTICLE_HASH — NOT as CLI flags.
+    - Test 5 (invalid source): an invalid `--source` value exits with clear error (argparse choices enforcement).
   </behavior>
   <read_first>
     - skills/enrich_article/SKILL.md (CONFIRM env-var contract, DO NOT assume CLI flags)
@@ -225,13 +225,20 @@ conn.execute(
         p.add_argument("--article-id", type=int, required=True)
         args = p.parse_args()
 
-        if args.source == "kol":
-            resolved = _resolve_kol(args.article_id)
-        else:
-            resolved = _resolve_rss(args.article_id)
+        # D-07 REVISED 2026-05-02 + D-19: RSS is excluded from enrichment entirely.
+        # The branch exists for backwards-compat with any legacy caller; it logs + exits 0
+        # without resolving DB or invoking the enrich_article skill. RSS articles flow
+        # through enrichment/rss_ingest.py's direct translate → ainsert path instead.
+        if args.source == "rss":
+            print(
+                f"RSS excluded per D-07 REVISED 2026-05-02 + D-19 — "
+                f"article-id={args.article_id} not enriched (no-op)",
+            )
+            return 0
 
+        resolved = _resolve_kol(args.article_id)
         if resolved is None:
-            print(f"ERROR: {args.source} article id={args.article_id} not found", file=sys.stderr)
+            print(f"ERROR: kol article id={args.article_id} not found", file=sys.stderr)
             return 2
 
         article_path, article_url, article_hash = resolved
@@ -240,7 +247,7 @@ conn.execute(
         env["ARTICLE_URL"] = article_url
         env["ARTICLE_HASH"] = article_hash
 
-        print(f"Invoking enrich_article skill for {args.source} id={args.article_id}")
+        print(f"Invoking enrich_article skill for kol id={args.article_id}")
         print(f"  ARTICLE_PATH={article_path}")
         print(f"  ARTICLE_URL={article_url}")
         print(f"  ARTICLE_HASH={article_hash}")
@@ -262,6 +269,8 @@ conn.execute(
         sys.exit(main())
     ```
 
+    **Note on `_resolve_rss`**: keep the helper in the file (unit-tested by Test 2's guard assertion that it is NOT called), but it is unused by `main()` after D-07 REVISED. The helper preserves path-resolution parity with `_resolve_kol` in case future work re-enables the RSS enrich path. If the reviewer prefers, `_resolve_rss` may be deleted — it is not load-bearing.
+
     Create `tests/unit/test_run_enrich_for_id.py` with the 5 behavioral tests:
     - Use `:memory:` SQLite seeded via `batch_scan_kol.init_db` (for articles) and `enrichment.rss_schema.init_rss_schema` (for rss_articles).
     - Patch `subprocess.run` to capture the env dict and assert env["ARTICLE_PATH"], env["ARTICLE_URL"], env["ARTICLE_HASH"] are set.
@@ -278,7 +287,9 @@ conn.execute(
     - `grep -q "ARTICLE_HASH" enrichment/run_enrich_for_id.py` returns 0.
     - `grep -q "hermes.*skill.*run.*enrich_article" enrichment/run_enrich_for_id.py` returns 0.
     - `! grep -q -- "--article-id.*enrich_article" enrichment/run_enrich_for_id.py` — wrong CLI usage MUST be absent.
-    - All 5 pytest tests pass.
+    - `grep -q "RSS excluded per D-07 REVISED" enrichment/run_enrich_for_id.py` returns 0 (guard message present).
+    - `grep -q 'args.source == "rss"' enrichment/run_enrich_for_id.py` returns 0 (short-circuit branch present before any DB/subprocess call).
+    - All 5 pytest tests pass (Test 2 MUST assert `subprocess.run` was NOT called on the rss branch).
   </acceptance_criteria>
   <done>Bridge script ready; both KOL and RSS callers can invoke enrich_article correctly.</done>
 </task>
@@ -287,43 +298,48 @@ conn.execute(
   <name>Task 3b.2: Build `enrichment/rss_ingest.py` — EN->CN translate + enrich + LightRAG ingest</name>
   <files>enrichment/rss_ingest.py, tests/unit/test_rss_ingest.py</files>
   <behavior>
-    - Test 1: An English RSS article (langdetect='en') triggers ONE Gemini translate call; the resulting Chinese body is written to `final_content.md`.
-    - Test 2: A Chinese RSS article (langdetect in {'zh-cn','zh-tw','zh'}) skips translation; body is written to `final_content.md` as-is.
+    - Test 1: An English RSS article (langdetect='en') triggers ONE DeepSeek translate call (`_translate_to_chinese`); the resulting Chinese body is written to `final_content.md`.
+    - Test 2: A Chinese RSS article (langdetect in {'zh-cn','zh-tw','zh'}) skips translation (0 DeepSeek calls for translate); body is written to `final_content.md` as-is.
     - Test 3: `original.md` is always written (English source preserved for debug) before `final_content.md`.
     - Test 4: `final_content.md` is written via .tmp + os.replace (atomic).
-    - Test 5: After a successful run on an article, `UPDATE rss_articles SET enriched=2` is executed for that id.
-    - Test 6: When enrich_article subprocess returns non-zero, `UPDATE rss_articles SET enriched=-2` is executed (partial — body was ingested but enrichment failed).
-    - Test 7: `--dry-run` skips Gemini calls, skips subprocess, skips LightRAG; prints planned actions per row.
+    - Test 5 (happy path): `_ingest_lightrag` returns True (ainsert OK AND aget_docs_by_ids returns status='PROCESSED') → `UPDATE rss_articles SET enriched=2 WHERE id=?` is executed for that id.
+    - Test 6 (Task 4.2 PROCESSED gate — NEW, MANDATORY per D-19): when `aget_docs_by_ids` returns status='FAILED' or missing doc_id, `_ingest_lightrag` returns False; `UPDATE rss_articles SET enriched=...` is NOT executed (enriched stays at prior value 0). Assert the update statement was never called for that row.
+    - Test 7 (`subprocess.run` is NEVER called from `rss_ingest.run()`): use `unittest.mock.patch("subprocess.run")` and assert `mock.call_count == 0` after a full run — enforces D-07 REVISED "no enrich_article invocation".
+    - Test 8: `--dry-run` skips DeepSeek translate, skips LightRAG, skips DB writes; prints "DRY: rss id=..." lines per row.
   </behavior>
   <read_first>
-    - skills/enrich_article/SKILL.md (env-var contract reused via run_enrich_for_id.py)
+    - batch_classify_kol.py (`_call_deepseek` + `get_deepseek_api_key` pattern — mirror for translation)
     - enrichment/merge_and_ingest.py (pattern for LightRAG ainsert + articles.enriched update)
     - enrichment/rss_schema.py (rss_articles + rss_classifications column names)
-    - enrichment/run_enrich_for_id.py (Task 3b.1 output — invoked per article)
-    - config.py (BASE_DIR typo preserved)
-    - ingest_wechat.py lines 704-716 (articles.enriched update pattern)
-    - CLAUDE.md (atomic write; surgical changes; type hints)
+    - enrichment/run_enrich_for_id.py (Task 3b.1 output — NOT invoked by rss_ingest.py per D-07 REVISED; exists as KOL-only bridge)
+    - config.py (BASE_DIR typo preserved: `omonigraph-vault`)
+    - ingest_wechat.py lines 1086-1120 (Task 4.2 aget_docs_by_ids verification hook — port this pattern into `_ingest_lightrag`; commit 585aa3b is the reference)
+    - .planning/phases/05-pipeline-automation/05-CONTEXT.md § infra_composition (v3.1/v3.2 composition + D-07 REVISED + D-19)
+    - .planning/phases/05-pipeline-automation/05-00-SUMMARY.md § D (Phase 7 D-09 supersession: LLM → DeepSeek)
+    - CLAUDE.md (atomic write; surgical changes; type hints; LLM routing rule)
   </read_first>
   <action>
-    Create `enrichment/rss_ingest.py`:
+    Create `enrichment/rss_ingest.py`. **Translation uses DeepSeek via raw HTTP** (CLAUDE.md routing rule: LLM → DeepSeek; Gemini is Vision+Embedding only). **NO enrich_article invocation** per D-07 REVISED 2026-05-02 + D-19 — RSS takes the direct path `translate → ainsert → aget_docs_by_ids verify → enriched=2`.
 
     ```python
-    """RSS ingest: translate English body to Chinese (D-09), run enrich_article,
-    then ingest into LightRAG. Updates rss_articles.enriched state (2 or -2).
+    """RSS ingest: translate English body to Chinese (D-09), then ingest into LightRAG.
+    Updates rss_articles.enriched to 2 on success (post-ainsert verification).
 
-    Pipeline per article:
+    Pipeline per article (D-07 REVISED 2026-05-02 + D-19 — NO enrichment):
       1. Fetch body + metadata (title, url, summary) from rss_articles + rss_classifications.
       2. langdetect on body:
-           - 'en'                -> Gemini translate to Chinese (one LLM call)
-           - 'zh-cn'/'zh-tw'/'zh' -> skip translation
-           - anything else       -> skip article (shouldn't happen; prefilter catches)
+           - 'en'                  -> DeepSeek translate to Chinese (one HTTP call)
+           - 'zh-cn'/'zh-tw'/'zh'  -> skip translation
+           - anything else         -> skip article (shouldn't happen; prefilter catches)
       3. Atomic write original.md (English source) + final_content.md (Chinese) to
          ~/.hermes/omonigraph-vault/rss_content/<article_hash>/.
-      4. Invoke enrichment/run_enrich_for_id.py --source rss --article-id <id>.
-         On non-zero exit: set enriched=-2; body is ingested un-enriched in step 5 anyway.
-         On zero exit: the skill appends Zhihu summaries to final_content.md.
-      5. lightrag.ainsert(final_content) with metadata {source: 'rss', rss_article_id: <id>}.
-      6. UPDATE rss_articles SET enriched = (2 if enrich ok else -2) WHERE id = ?.
+      4. lightrag.ainsert(final_content) with doc id f"rss-{article_id}".
+      5. Task 4.2 verification hook (MANDATORY per D-19): aget_docs_by_ids([doc_id])
+         must return status=='PROCESSED' before the enriched=2 write.
+      6. On PROCESSED: UPDATE rss_articles SET enriched=2 WHERE id=?.
+         On non-PROCESSED / exception: leave rss_articles.enriched at its prior value
+         (0 or -2) so the next batch retries this article — mirrors ingest_wechat.py
+         lines 1086-1120 anti-ghost pattern.
 
     Usage:
         venv/bin/python enrichment/rss_ingest.py                 # ingest all eligible
@@ -336,24 +352,25 @@ conn.execute(
     import argparse
     import asyncio
     import hashlib
+    import json
     import logging
     import os
     import sqlite3
-    import subprocess
     import sys
     from pathlib import Path
-    from typing import Any
 
-    from google import genai
-    from google.genai import types
+    import requests
     from langdetect import DetectorFactory, LangDetectException, detect
 
+    # Reuse the key resolver from batch_classify_kol.py (env → ~/.hermes/.env → config.yaml)
+    from batch_classify_kol import get_deepseek_api_key
     from config import BASE_DIR, RAG_WORKING_DIR
 
     DetectorFactory.seed = 0
     DB = Path("data/kol_scan.db")
     RSS_CONTENT_DIR = BASE_DIR / "rss_content"
-    TRANSLATE_MODEL = os.environ.get("TRANSLATE_MODEL", "gemini-2.5-flash")
+    DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+    DEEPSEEK_MODEL = os.environ.get("TRANSLATE_MODEL", "deepseek-chat")
     CHINESE_LANGS = {"zh-cn", "zh-tw", "zh"}
 
     logger = logging.getLogger("rss_ingest")
@@ -377,13 +394,21 @@ conn.execute(
         except LangDetectException:
             return "unknown"
 
-    def _translate_to_chinese(client: Any, body: str) -> str:
+    def _translate_to_chinese(api_key: str, body: str) -> str:
+        """Translate English body → Chinese via DeepSeek chat completions."""
         prompt = _TRANSLATE_PROMPT.format(body=body)
-        response = client.models.generate_content(
-            model=TRANSLATE_MODEL,
-            contents=prompt,
+        resp = requests.post(
+            DEEPSEEK_API_URL,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": DEEPSEEK_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.0,
+            },
+            timeout=300,  # translation of long-form content can be slow
         )
-        return response.text.strip()
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
 
     def _eligible_articles(conn: sqlite3.Connection, article_id: int | None,
                             max_articles: int | None) -> list[dict]:
@@ -412,36 +437,66 @@ conn.execute(
         ]
 
     async def _ingest_lightrag(final_md: str, rss_article_id: int) -> bool:
-        """Ingest final_content.md into LightRAG. Mirrors merge_and_ingest pattern."""
-        from lightrag import LightRAG
-        from lightrag_embedding import embedding_func
-        from ingest_wechat import llm_model_func  # reuse existing wrapper
+        """Ingest final_content.md into LightRAG + Task 4.2 PROCESSED verification.
 
+        Returns True ONLY if both (a) ainsert completes without raising AND (b)
+        aget_docs_by_ids confirms doc.status == 'PROCESSED'. On any other outcome
+        returns False so the caller leaves rss_articles.enriched untouched and the
+        next batch retries. Pattern ported verbatim from ingest_wechat.py:1086-1120
+        (commit 585aa3b).
+        """
+        from lightrag import LightRAG
+        from lib.lightrag_embedding import embedding_func  # 3072-dim Vertex AI path
+        from lib import deepseek_model_complete  # Phase 5 DeepSeek LLM wrapper
+
+        doc_id = f"rss-{rss_article_id}"
         rag = LightRAG(
             working_dir=str(RAG_WORKING_DIR),
-            llm_model_func=llm_model_func,
+            llm_model_func=deepseek_model_complete,
             embedding_func=embedding_func,
-            llm_model_name="gemini-2.5-flash",
+            llm_model_name="deepseek-chat",
             embedding_func_max_async=1,
             embedding_batch_num=20,
             llm_model_max_async=2,
         )
         await rag.initialize_storages()
+
+        # Step 1: ainsert
         try:
-            await rag.ainsert(final_md, ids=[f"rss-{rss_article_id}"])
-            return True
+            await rag.ainsert(final_md, ids=[doc_id])
         except Exception as ex:
             logger.error(f"LightRAG ainsert failed rss_id={rss_article_id}: {ex}")
             return False
+
+        # Step 2: Task 4.2 verification hook — MANDATORY per D-19
+        try:
+            statuses = await rag.aget_docs_by_ids([doc_id])
+        except Exception as ex:
+            logger.warning(f"aget_docs_by_ids failed rss_id={rss_article_id}: {ex}")
+            return False
+        doc_info = (statuses or {}).get(doc_id)
+        status = (doc_info or {}).get("status") if isinstance(doc_info, dict) else None
+        if status != "PROCESSED":
+            logger.warning(
+                f"rss_id={rss_article_id} post-ingest status={status!r} (expected 'PROCESSED') — "
+                f"leaving rss_articles.enriched unchanged; next batch will retry"
+            )
+            return False
+        return True
 
     def run(article_id: int | None, max_articles: int | None, dry_run: bool) -> dict:
         conn = sqlite3.connect(DB)
         rows = _eligible_articles(conn, article_id, max_articles)
         logger.info(f"Eligible: {len(rows)} RSS articles")
 
-        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"]) if not dry_run else None
-        stats = {"translated": 0, "ingested": 0, "enrich_ok": 0, "enrich_fail": 0,
-                 "errors": 0, "dry_run_planned": 0}
+        api_key = None
+        if not dry_run:
+            api_key = get_deepseek_api_key()
+            if not api_key:
+                raise RuntimeError("DEEPSEEK_API_KEY not found in env / ~/.hermes/.env / config.yaml")
+
+        # Per D-07 REVISED + D-19: NO enrich_article invocation, NO enrich_ok/enrich_fail stats.
+        stats = {"translated": 0, "ingested": 0, "errors": 0, "dry_run_planned": 0}
 
         for row in rows:
             aid = row["id"]
@@ -460,7 +515,7 @@ conn.execute(
 
                 lang = _detect_lang(body)
                 if lang == "en":
-                    chinese_body = _translate_to_chinese(client, body)
+                    chinese_body = _translate_to_chinese(api_key, body)
                     stats["translated"] += 1
                 elif lang in CHINESE_LANGS:
                     chinese_body = body
@@ -472,32 +527,26 @@ conn.execute(
                 final_md = f"# {row['title']}\n\n{chinese_body}\n\n<!-- source: {url} -->\n"
                 _atomic_write(hash_dir / "final_content.md", final_md)
 
-                enrich_rc = subprocess.run(
-                    ["venv/bin/python", "enrichment/run_enrich_for_id.py",
-                     "--source", "rss", "--article-id", str(aid)],
-                    timeout=900,
-                ).returncode
-                enrich_ok = (enrich_rc == 0)
-                if enrich_ok:
-                    stats["enrich_ok"] += 1
-                else:
-                    stats["enrich_fail"] += 1
-
-                # Re-read final_content.md since enrich_article may have appended Zhihu summaries
-                final_md = (hash_dir / "final_content.md").read_text(encoding="utf-8")
+                # Direct LightRAG path — NO enrich_article subprocess (D-07 REVISED + D-19).
+                # _ingest_lightrag returns True only if ainsert succeeded AND aget_docs_by_ids
+                # confirmed status=='PROCESSED' (Task 4.2 verification hook).
                 ingest_ok = asyncio.run(_ingest_lightrag(final_md, aid))
                 if ingest_ok:
                     stats["ingested"] += 1
-
-                final_state = 2 if (enrich_ok and ingest_ok) else -2
-                cur = conn.cursor()
-                cur.execute(
-                    "UPDATE rss_articles SET enriched = ? WHERE id = ?",
-                    (final_state, aid),
-                )
-                conn.commit()
-                if cur.rowcount != 1:
-                    logger.warning(f"enriched update affected {cur.rowcount} rows for rss id={aid}")
+                    cur = conn.cursor()
+                    cur.execute(
+                        "UPDATE rss_articles SET enriched = 2 WHERE id = ?",
+                        (aid,),
+                    )
+                    conn.commit()
+                    if cur.rowcount != 1:
+                        logger.warning(f"enriched update affected {cur.rowcount} rows for rss id={aid}")
+                else:
+                    # ainsert threw OR post-ingest status was not PROCESSED.
+                    # Leave rss_articles.enriched at its prior value (0 or -2) so the
+                    # next batch retries. This mirrors Task 4.2's anti-ghost semantics.
+                    logger.warning(f"rss id={aid}: ingest_ok=False, enriched left unchanged for retry")
+                    stats["errors"] += 1
 
             except Exception as ex:
                 logger.exception(f"rss id={aid} failed: {ex}")
@@ -519,24 +568,34 @@ conn.execute(
         main()
     ```
 
-    Create `tests/unit/test_rss_ingest.py` with the 7 behavioral tests:
+    Create `tests/unit/test_rss_ingest.py` with the 8 behavioral tests:
     - Use `:memory:` SQLite seeded with rss_feeds + rss_articles + rss_classifications via init_rss_schema.
-    - Patch `google.genai.Client`, `langdetect.detect`, `subprocess.run`, and `asyncio.run` (so LightRAG is never actually called).
+    - Patch `enrichment.rss_ingest._translate_to_chinese` (replaces the DeepSeek HTTP call — return a fake Chinese string directly; do NOT patch `requests.post` at the low level).
+    - Patch `enrichment.rss_ingest.get_deepseek_api_key` to return a fake key.
+    - Patch `enrichment.rss_ingest.asyncio.run` OR `enrichment.rss_ingest._ingest_lightrag` so LightRAG is never actually imported. For Test 5 (happy path) have the patched `_ingest_lightrag` return True; for Test 6 (PROCESSED-gate fail) have it return False.
+    - Patch `enrichment.rss_ingest.subprocess.run` and assert it is NOT called across the full run (Test 7 — enforces D-07 REVISED).
     - Patch `config.BASE_DIR` to a tmp dir.
     - Assert atomic write by patching `os.replace` and checking it is called with a `.tmp` suffix source.
-    - Assert `UPDATE rss_articles SET enriched = ?` is executed with value 2 on success path, -2 on enrich-failure path.
+    - Assert `UPDATE rss_articles SET enriched = 2` is executed with value 2 on the happy path. Assert it is NOT executed on the PROCESSED-gate-fail path (enriched left unchanged).
   </action>
   <verify>
     <automated>ssh remote "cd ~/OmniGraph-Vault &amp;&amp; venv/bin/python -m pytest tests/unit/test_rss_ingest.py -v &amp;&amp; venv/bin/python enrichment/rss_ingest.py --dry-run"</automated>
   </verify>
   <acceptance_criteria>
     - File `enrichment/rss_ingest.py` exists; >= 160 lines.
-    - `grep -q "UPDATE rss_articles SET enriched" enrichment/rss_ingest.py` returns 0.
+    - `grep -q "UPDATE rss_articles SET enriched = 2" enrichment/rss_ingest.py` returns 0 (only terminal state is 2; no -2 branch in rss_ingest).
     - `grep -q "os.replace" enrichment/rss_ingest.py` returns 0 (atomic write).
-    - `grep -q "run_enrich_for_id.py" enrichment/rss_ingest.py` returns 0 (uses bridge, not hardcoded skill call).
+    - `grep -q "aget_docs_by_ids" enrichment/rss_ingest.py` returns 0 (Task 4.2 verification hook present).
+    - `grep -q "PROCESSED" enrichment/rss_ingest.py` returns 0 (post-ainsert status gate).
+    - `grep -q "api.deepseek.com" enrichment/rss_ingest.py` returns 0 (DeepSeek translation endpoint).
+    - `grep -q "from batch_classify_kol import get_deepseek_api_key" enrichment/rss_ingest.py` returns 0 (reuses production key resolver).
     - `grep -q "ainsert" enrichment/rss_ingest.py` returns 0.
     - `grep -q "final_content.md" enrichment/rss_ingest.py` returns 0.
-    - All 7 pytest tests pass.
+    - `! grep -q "google.genai\|from google import genai\|GEMINI_API_KEY" enrichment/rss_ingest.py` — Gemini path MUST be absent per Phase 7 D-09 supersession.
+    - `! grep -q "run_enrich_for_id" enrichment/rss_ingest.py` — NO enrich_article invocation per D-07 REVISED 2026-05-02 + D-19.
+    - `! grep -q "subprocess" enrichment/rss_ingest.py` — rss_ingest does not spawn subprocesses (belt-and-suspenders on the D-07 REVISED guard).
+    - `! grep -q "enriched = -2\|enriched=-2" enrichment/rss_ingest.py` — no -2 terminal state (Task 4.2 leaves enriched at prior value for retry instead).
+    - All 8 pytest tests pass.
     - `--dry-run` on remote exits 0 and prints a plan line per eligible article.
     - Manual smoke on a seeded RSS test article: after real run, `sqlite3 data/kol_scan.db "SELECT enriched FROM rss_articles WHERE id=?"` returns 2; `~/.hermes/omonigraph-vault/rss_content/<hash>/final_content.md` exists and contains Chinese text.
   </acceptance_criteria>
@@ -546,20 +605,22 @@ conn.execute(
 </tasks>
 
 <verification>
-- `tests/unit/test_run_enrich_for_id.py` passes (5 tests).
-- `tests/unit/test_rss_ingest.py` passes (7 tests).
+- `tests/unit/test_run_enrich_for_id.py` passes (5 tests — Test 2 asserts `subprocess.run` was NOT called on the `--source rss` branch).
+- `tests/unit/test_rss_ingest.py` passes (8 tests — Test 6 asserts the PROCESSED gate; Test 7 asserts `subprocess.run` is NEVER called from `rss_ingest.run()`).
 - `--dry-run` smoke on remote exits 0.
 - After one real article run: `enriched=2`, `final_content.md` exists in Chinese, LightRAG entity count grows.
 </verification>
 
 <success_criteria>
-- D-09 satisfied: English RSS body is translated to Chinese before LightRAG ingest.
-- D-07 satisfied: all depth>=2 RSS go through enrich_article via the correct env-var contract.
-- D-16 satisfied: Hermes skill drives the enrichment via the bridge, not hardcoded CLI flags.
-- `rss_articles.enriched` state machine mirrors Phase 4 D-11.
+- D-09 satisfied: English RSS body is translated to Chinese via DeepSeek before LightRAG ingest.
+- D-07 REVISED 2026-05-02 + D-19 satisfied: RSS does NOT invoke enrich_article. `rss_ingest.py` takes the direct path translate → ainsert → verify. `run_enrich_for_id.py --source rss` is a guarded no-op for backwards-compat.
+- D-16 satisfied: KOL enrichment (out of scope for this plan, handled by Plan 05-04 step_6) is driven by Hermes via the `run_enrich_for_id.py` bridge with the env-var contract.
+- Phase 7 D-09 supersession satisfied: translation uses DeepSeek (CLAUDE.md routing rule: LLM → DeepSeek; Gemini is Vision+Embedding only).
+- Task 4.2 verification hook satisfied (D-19 anti-ghost): `aget_docs_by_ids([doc_id])` gates the `rss_articles.enriched=2` write; non-PROCESSED outcomes leave `enriched` at its prior value for the next-batch retry.
+- `rss_articles.enriched` state machine: 0 (pending) → 2 (ainsert verified). The -2 terminal state is NOT used by `rss_ingest.py` (simplified from earlier Phase 4 D-11 which predated D-07 REVISED).
 - BLOCKER 1/2/3 from checker closed.
 </success_criteria>
 
 <output>
-After completion, create `.planning/phases/05-pipeline-automation/05-03b-SUMMARY.md` with: eligible-row count, translate-call count, enrich_ok/fail split, LightRAG entity delta, sample `final_content.md` Chinese excerpt.
+After completion, create `.planning/phases/05-pipeline-automation/05-03b-SUMMARY.md` with: eligible-row count, DeepSeek translate-call count, ingested count (ainsert + PROCESSED verified), non-PROCESSED retry count (articles left at `enriched=0` for next batch), LightRAG entity delta, sample `final_content.md` Chinese excerpt, confirmation that `subprocess.run` was never invoked from `rss_ingest.py` (D-07 REVISED compliance).
 </output>
