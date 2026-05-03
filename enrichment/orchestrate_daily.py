@@ -130,7 +130,7 @@ def step_6_enrich_deep(dry_run: bool) -> StepResult:
     SQL scope:
       - `articles` + `classifications` tables (WeChat KOL source)
       - `depth_score >= 2` AND `enriched < 2`
-      - `date(fetched_at) = today` — forward-only guard; historical
+      - `date(scanned_at) = today` — forward-only guard; historical
         shallow articles are NOT retroactively enriched
     RSS is excluded entirely. run_enrich_for_id.py's RSS branch is a
     guarded no-op by design; we never invoke it from here.
@@ -147,7 +147,7 @@ def step_6_enrich_deep(dry_run: bool) -> StepResult:
             """SELECT DISTINCT a.id FROM articles a
                JOIN classifications c ON c.article_id = a.id
                WHERE c.depth_score >= 2 AND COALESCE(a.enriched, 0) < 2
-                 AND date(a.fetched_at) = date('now','localtime')"""
+                 AND date(a.scanned_at) = date('now','localtime')"""
         ).fetchall()
     ]
     conn.close()

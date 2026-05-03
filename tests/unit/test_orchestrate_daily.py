@@ -178,7 +178,7 @@ def test_step_6_sql_does_not_touch_rss_tables() -> None:
     assert "rss_articles" not in joined
     assert "rss_classifications" not in joined
     assert "articles" in joined  # KOL table must be referenced
-    assert "date(a.fetched_at) = date('now','localtime')" in " ".join(captured_sql) \
+    assert "date(a.scanned_at) = date('now','localtime')" in " ".join(captured_sql) \
         or "date('now','localtime')" in joined
 
 
