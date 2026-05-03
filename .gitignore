@@ -5,7 +5,9 @@ venv/
 __pycache__/
 
 # Data (Crucial to ignore these!)
-data/
+# Use data/* (not data/) so specific files can be un-ignored with ! below.
+data/*
+!data/karpathy_hn_2025.opml
 images/
 lightrag_storage/
 *.log
