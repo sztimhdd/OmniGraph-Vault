@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last Updated:** 2026-05-01 (Milestone v3.1 closed — all 26 REQs verified on local + production stacks)
+**Last Updated:** 2026-05-02 (Phase 5 Wave 1 closed — plans 05-01/02/03/03b landed on origin/main; Hermes pulls for live verification)
 
 ## Done
 
@@ -29,10 +29,10 @@
   - **Plans:** 9 plans (planned 2026-04-28; revised 2026-04-28 to add 05-03b rss-ingest)
     - [x] 05-00-embedding-migration-and-consolidation-PLAN.md — **Wave 0 closed 2026-05-02 @ `0109c02`**: spike + shared `lightrag_embedding.py` + 6-file consolidation + re-embed + benchmark + PRD typo fix. Scope extensions Task 0.7 (URL retrieval binding, `2f576b1`) + Task 0.8 (`aget_docs_by_ids` verification hook + full reset re-ingest, `585aa3b` + `0109c02`) landed incident-driven. 3/3 P0 success, 0 ghosts, 0 timeouts, 60%/6 CN overlap, 2/2 cross-modal, 2/2 `kg_synthesize` inline images. See `.planning/phases/05-pipeline-automation/05-00-SUMMARY.md` Close-Out Addendum for full close data + 3 deferred items (118-img edge case, prompt-dependent rendering, Cognee restoration).
     - [x] 05-00b-kol-catch-up-filtered-PLAN.md — Wave 0: classify all 302 KOL articles + multi-keyword `--topic-filter` + Batch API or sync fallback ingest
-    - [ ] 05-01-rss-schema-and-opml-PLAN.md — Wave 1: RSS SQLite schema + bundled Karpathy OPML + seed 92 feeds + deps
-    - [ ] 05-02-rss-fetch-PLAN.md — Wave 1: `enrichment/rss_fetch.py` with pre-filter, dedup, feed-level fault tolerance
-    - [ ] 05-03-rss-classify-PLAN.md — Wave 1: `enrichment/rss_classify.py` with bilingual prompt (EN→CN in-prompt per D-08)
-    - [ ] 05-03b-rss-ingest-PLAN.md — Wave 1: `enrichment/rss_ingest.py` (EN→CN body translation per D-09) + `run_enrich_for_id.py` env-var bridge for `enrich_article` skill (fixes RSS ingest gap)
+    - [x] 05-01-rss-schema-and-opml-PLAN.md — **Wave 1 closed 2026-05-02 @ `6929259`**: `enrichment/rss_schema.py` + `scripts/seed_rss_feeds.py` + bundled `data/karpathy_hn_2025.opml` (92 feeds) + `init_rss_schema` wired into `batch_scan_kol.init_db` + feedparser/langdetect in requirements. 7 unit tests pass. SUMMARY at `.planning/phases/05-pipeline-automation/05-01-SUMMARY.md`.
+    - [x] 05-02-rss-fetch-PLAN.md — **Wave 1 closed 2026-05-02 @ `e9bad10`**: `enrichment/rss_fetch.py` with feedparser + langdetect prefilter (≥500 chars, en/zh*) + per-feed fault tolerance + `error_count` state machine + URL UNIQUE dedup. 7 unit tests pass.
+    - [x] 05-03-rss-classify-PLAN.md — **Wave 1 closed 2026-05-02 @ `e4b2932`**: `enrichment/rss_classify.py` on DeepSeek raw HTTP (Phase 7 D-09 supersession) + bilingual prompt with Chinese-only `reason` output (D-08) + `tests/conftest.py` DEEPSEEK_API_KEY dummy guard. 6 unit tests pass.
+    - [x] 05-03b-rss-ingest-PLAN.md — **Wave 1 closed 2026-05-02 @ `f70a18b`**: `enrichment/rss_ingest.py` (DeepSeek EN→CN translate + Task 4.2 `aget_docs_by_ids` PROCESSED gate per D-19 + atomic `.tmp` writes; NO enrich_article invocation per D-07 REVISED) + `enrichment/run_enrich_for_id.py` (KOL bridge with env-var contract + RSS guarded no-op). 13 unit tests pass (5 bridge + 8 ingest).
     - [ ] 05-04-orchestrate-daily-PLAN.md — Wave 2: 9-step state machine with Telegram-alert on critical failure
     - [ ] 05-05-daily-digest-PLAN.md — Wave 2: TOP 5 Markdown digest + Telegram delivery + atomic local archive
     - [ ] 05-06-cron-deploy-and-observation-PLAN.md — Wave 3: register 6 new cron jobs + 3-day observation + STATE/ROADMAP close

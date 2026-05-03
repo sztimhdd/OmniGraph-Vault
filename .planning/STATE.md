@@ -25,6 +25,40 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
+Milestone: v3.3 (Pipeline Automation — RSS + Daily Digest + Cron)
+Phase 5 Wave 0: CLOSED 2026-05-02 @ `0109c02`
+Phase 5 Wave 1: CLOSED 2026-05-02 @ `f70a18b` (local); awaiting Hermes-side live smokes
+Head commit: f70a18b
+Status: Wave 1 plans 05-01/02/03/03b code + SUMMARYs pushed; Hermes pulls for live verification
+Last activity: 2026-05-02 — Wave 1 autonomous execution landed
+  (RSS schema + fetcher + DeepSeek classifier + translate-and-ainsert
+   with D-19 anti-ghost gate). 33 unit tests green locally.
+
+### Wave 1 — what shipped
+
+| Plan | Artifact | Tests |
+|------|----------|-------|
+| 05-01 | `enrichment/rss_schema.py`, `data/karpathy_hn_2025.opml` (92 feeds), `scripts/seed_rss_feeds.py`, `batch_scan_kol.init_db` wired to `init_rss_schema`, `requirements.txt` + feedparser/langdetect | 7 schema tests |
+| 05-02 | `enrichment/rss_fetch.py` (dedup + langdetect prefilter + per-feed fault tolerance) | 7 fetch tests |
+| 05-03 | `enrichment/rss_classify.py` (DeepSeek raw HTTP, Chinese `reason` via D-08 prompt) + `tests/conftest.py` DEEPSEEK_API_KEY=dummy-for-tests guard | 6 classify tests |
+| 05-03b | `enrichment/run_enrich_for_id.py` (KOL bridge + D-07-REVISED RSS guarded no-op), `enrichment/rss_ingest.py` (translate → ainsert → aget_docs_by_ids PROCESSED gate → enriched=2) | 5 bridge + 8 ingest tests |
+
+### Hermes next steps (post-pull)
+
+1. `venv/bin/pip install -r requirements.txt` (feedparser, langdetect)
+2. `venv/bin/python -m pytest tests/unit/test_rss_*.py tests/unit/test_run_enrich_for_id.py -v` — expect 33 green
+3. `venv/bin/python scripts/seed_rss_feeds.py` — expect `rss_feeds 0 -> 92`
+4. `venv/bin/python enrichment/rss_fetch.py --max-feeds 20` then `SELECT COUNT(*) FROM rss_articles` — expect tens to low hundreds
+5. `venv/bin/python enrichment/rss_classify.py --max-articles 5` — expect depth-scored rows in `rss_classifications`
+6. `venv/bin/python enrichment/rss_ingest.py --article-id <N>` on a depth>=2 row — expect `enriched=2` + `final_content.md` in Chinese + new `rss-*` doc id in LightRAG `kv_store_full_docs.json`
+
+### Scope boundary (hard)
+
+Wave 2 (05-04 orchestrate, 05-05 daily digest, 05-06 cron + 3-day
+observation) is OUT OF SCOPE for this run. User review of Wave 1 first.
+
+**Earlier v3.2 milestone status (retained for history):**
+
 Milestone: v3.2 (Batch Reliability + Infra) — AUTONOMOUS EXECUTION COMPLETE
 Phases shipped: 12, 13, 15, 16, 17 fully; 14 partial (14-02 harness ready; 14-01 + 14-03 punched to Hermes)
 Head commit: 2c9d310
