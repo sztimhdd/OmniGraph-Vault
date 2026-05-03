@@ -24,6 +24,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import kol_config
 
+from enrichment.rss_schema import init_rss_schema
 from kol_registry import list_accounts
 from spiders.wechat_spider import (
     list_articles_with_digest as list_articles,
@@ -153,6 +154,9 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _ensure_column(conn, "articles", "enriched", "INTEGER DEFAULT 0")
     _ensure_column(conn, "ingestions", "enrichment_id", "TEXT")
     conn.commit()
+
+    # Phase 5 Plan 05-01: RSS schema (idempotent)
+    init_rss_schema(conn)
 
     return conn
 
