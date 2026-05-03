@@ -424,7 +424,10 @@ def _build_filter_prompt(
     if topic_filter:
         keywords_quoted = ", ".join(f'"{k}"' for k in topic_filter)
         topic_instruction = (
-            f"- relevant: true/false — is this article substantially about ANY of: {keywords_quoted}?\n"
+            f"- relevant: true/false — does this article provide deep technical content"
+            f" about agent framework architecture, core modules, or infrastructure"
+            f" (not just passingly mention AI/agents)? Is it substantially about ANY of:"
+            f" {keywords_quoted}?\n"
         )
     if exclude_topics:
         topic_instruction += (
@@ -439,12 +442,34 @@ def _build_filter_prompt(
         entries.append(f"{i}: {entry}")
     articles_text = "\n".join(entries)
 
-    return f"""You are a technical article curator. Classify each article below.
+    return f"""You are a technical article curator for an AI agent framework developer
+who tracks OpenClaw, Hermes, and emerging agent frameworks. The goal is to catch
+articles that provide deep technical insight into agent framework architecture,
+core module design, and related infrastructure projects.
 
 For each article, return a JSON array of objects with:
+
 - index: the 0-based index
-- depth_score: 1 (shallow news blurb / brief announcement), 2 (moderate analysis with some detail), 3 (deep technical deep-dive, substantive content)
-{topic_instruction}- reason: brief explanation for the depth score (e.g. "news blurb", "deep technical analysis", "event notice")
+
+- depth_score:
+    1 = SHALLOW — news headline, product announcement, event notice, job posting,
+        tool download/"一键包" page, sponsored content
+    2 = MODERATE — overview/summary with some technical detail but no deep analysis
+        of architecture, tradeoffs, or implementation
+    3 = DEEP — substantive analysis of architecture design, implementation detail,
+        benchmark methodology with data, design tradeoffs, or novel technical approach.
+        Must go beyond "what" to explain "how" and "why".
+
+{topic_instruction}
+- reason: 10-20 word explanation in English — depth justification + why relevant/not
+
+RELEVANCE EXCLUSIONS: Do NOT mark as relevant articles about:
+- Pure model releases (new LLM, vision/TTS/speech model) without agent integration
+- CV/vision papers, image/video/audio generation, 3D reconstruction
+- Chip hardware, GPU benchmarks, inference optimization unrelated to agents
+- General AI industry news, corporate strategy, funding, hiring
+- "How to use AI" tutorials without agent architecture discussion
+- Job postings, tool download pages (一键包), course advertisements
 
 Articles:
 {articles_text}
