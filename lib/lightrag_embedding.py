@@ -183,16 +183,38 @@ def _make_client(api_key: str) -> "genai.Client":
     return genai.Client(api_key=api_key, vertexai=False)
 
 
+_VERTEX_EMBEDDING_ALIAS = {
+    "gemini-embedding-2": "gemini-embedding-2-preview",
+}
+
+
 def _resolve_model(base_model: str) -> str:
     """Map the free-tier model name to its Vertex AI equivalent.
 
-    Memory ref: ``vertex_ai_smoke_validated.md`` — ``gemini-embedding-2``
-    returns 404 on Vertex AI in some regions. ``gemini-embedding-2-preview``
-    was removed from Vertex AI catalog; ``gemini-embedding-2`` is now the
-    working name (confirmed 2026-05-03 against us-central1 with PAID tier SA).
+    **`gemini-embedding-2` is in Google's Preview lifecycle** (not Stable per
+    https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/model-versions).
+    Google periodically attempts to promote it preview→stable (dropping the
+    suffix) and rolls back when issues surface. Our probe has seen 3 flips in
+    4 days (2026-04-30 / 05-02 / 05-03). Treat the catalog as UNSTABLE.
 
-    Only applied in Vertex mode; API-key mode passes through unchanged.
+    Timeline (see ``memory/vertex_ai_smoke_validated.md`` for detail):
+      - 2026-04-30 → 05-02 PM: ``-preview`` required; unsuffixed → 404.
+      - 2026-05-03 AM: Google dropped ``-preview`` (promotion attempt).
+        Commit 9069f59 removed the mapping, assuming this was GA.
+      - 2026-05-03 PM: Google re-added ``-preview`` (rollback). Unsuffixed
+        → 404 again. This commit restores the mapping.
+
+    Until Google officially announces GA on the Stable Models page,
+    ``-preview`` is the canonical Vertex name. ``_VERTEX_EMBEDDING_ALIAS``
+    centralizes the mapping so future flips are a 1-line change. If you
+    observe a 4th flip, DO NOT pin a new name without running
+    ``scripts/vertex_live_probe.py`` against real endpoints first — the
+    Phase 18 monthly probe (HYG-01) is the authoritative signal.
+
+    Only applied in Vertex mode; API-key (free-tier) mode is untouched.
     """
+    if _is_vertex_mode():
+        return _VERTEX_EMBEDDING_ALIAS.get(base_model, base_model)
     return base_model
 
 
