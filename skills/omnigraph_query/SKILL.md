@@ -77,6 +77,15 @@ cd ~/.hermes/omonigraph-vault && python -m http.server 8765 --directory images &
 
 If images are not loading, mention this to the user.
 
+### How image URLs reach the synthesis output
+
+`kg_synthesize.py` uses a `CRITICAL ... ![description](url) INLINE` directive
+(constant `IMAGE_URL_DIRECTIVE` in that module) to instruct the LLM to preserve
+any `http://localhost:8765/...` URLs pulled from LightRAG retrieval context.
+If the image server is running and the graph has images for the query topic
+but the output still contains zero images, the directive may have been dropped
+or overridden — flag this to the operator.
+
 ## Decision Tree
 
 ### Case 1: Standard natural-language query

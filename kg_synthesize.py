@@ -25,6 +25,19 @@ from lib.lightrag_embedding import embedding_func
 # 404 cascade), blocking the event loop. Cognee is now lazy-imported only when
 # recall/remember succeeds — which it never does on free-tier Vertex AI anyway.
 
+# HYG-04 (Phase 18-03): single source of truth for the image-URL-preservation
+# directive. Captured from Wave 0 commit 0109c02. Any future synthesis-layer
+# prompt (omnigraph_synthesize, scripts/bench_ingest_fixture, or any skill)
+# that pipes a query to an LLM over image-containing LightRAG context MUST
+# include this directive, or inline image URLs are dropped by the model
+# (observed 2026-05-02 in P2 of Wave 0 gate).
+IMAGE_URL_DIRECTIVE = (
+    "CRITICAL: when the context below contains image URLs like "
+    "http://localhost:8765/..., you MUST include them as "
+    "![description](url) INLINE in your answer near the relevant text. "
+    "Do NOT skip images. Do NOT drop URLs."
+)
+
 # HYG-03 (Phase 18-02): replacement for removed Cognee recall/remember flow.
 # Past-query memory is persisted as append-only JSONL. Never blocks synthesis —
 # read failures return empty list; write failures log a warning only.
@@ -112,14 +125,12 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
         )
 
     # Instruction placed FIRST (before query) so LightRAG's internal template
-    # does not overshadow it. Critical: the LLM must inline image URLs as
-    # ![](url) markdown — without this, images in the context are dropped.
+    # does not overshadow it. IMAGE_URL_DIRECTIVE is the module-level constant
+    # (HYG-04) — do NOT duplicate the directive text in-line.
     custom_prompt = (
         "You are a knowledge synthesizer. "
-        "CRITICAL: when the context below contains image URLs like "
-        "http://localhost:8765/..., you MUST include them as "
-        "![description](url) INLINE in your answer near the relevant text. "
-        "Do NOT skip images. Do NOT drop URLs.\n\n"
+        + IMAGE_URL_DIRECTIVE
+        + "\n\n"
         + history_block
         + f"Query: {query_text}"
     )
