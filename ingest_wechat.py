@@ -114,6 +114,43 @@ def _persist_entities_to_sqlite(url: str, entities: list[str]) -> None:
         conn.close()
 
 
+# HYG-02 (Phase 18-01): hard cap on kept images per article. The 118-image
+# edge case from Wave 0 Close-Out § F hung LightRAG's entity-merge for ~14min.
+# Cap default 60 gives ~2× p95 headroom over Wave 0's observed kept-image
+# distribution while bounding worst-case ingestion time. Env-overridable.
+MAX_IMAGES_PER_ARTICLE = int(os.environ.get("OMNIGRAPH_MAX_IMAGES_PER_ARTICLE", 60))
+
+
+def _apply_image_cap(
+    url_to_path: dict,
+    max_images: int,
+) -> tuple[dict, set, int]:
+    """Truncate ``url_to_path`` to at most ``max_images`` entries (head-preserving).
+
+    Returns ``(capped_dict, dropped_urls, original_count)``.
+
+    When ``len(url_to_path) <= max_images``: returns the input unchanged, an
+    empty ``dropped_urls`` set, and the original count.
+
+    When over the cap: preserves insertion order (dict insertion order has been
+    stable since Py 3.7), keeps the first ``max_images`` entries, and emits a
+    single WARNING-level log line. The remaining URLs are returned so the
+    manifest can mark them with ``filter_reason="over_cap"``.
+    """
+    original_count = len(url_to_path)
+    if original_count <= max_images:
+        return url_to_path, set(), original_count
+
+    items = list(url_to_path.items())
+    kept = dict(items[:max_images])
+    dropped = {url for url, _ in items[max_images:]}
+    logger.warning(
+        "image cap hit: kept=%d/%d dropped=%d (MAX_IMAGES_PER_ARTICLE=%d)",
+        len(kept), original_count, len(dropped), max_images,
+    )
+    return kept, dropped, original_count
+
+
 os.makedirs(BASE_IMAGE_DIR, exist_ok=True)
 os.makedirs(RAG_WORKING_DIR, exist_ok=True)
 
@@ -953,6 +990,11 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
             f"(<{min_dim}px) — {filter_stats.kept} remaining"
         )
 
+        # HYG-02 (Phase 18-01): hard cap on kept images (post-filter).
+        url_to_path, dropped_by_cap, pre_cap_count = _apply_image_cap(
+            url_to_path, MAX_IMAGES_PER_ARTICLE
+        )
+
         # Build + persist manifest for resume path.
         manifest = []
         for u in unique_img_urls:
@@ -966,6 +1008,8 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
                         entry["dimensions"] = list(im.size)
                 except Exception:
                     pass
+            elif u in dropped_by_cap:
+                entry["filter_reason"] = "over_cap"
             else:
                 entry["filter_reason"] = "download_failed_or_filtered"
             manifest.append(entry)
