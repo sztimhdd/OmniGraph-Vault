@@ -213,3 +213,62 @@ def test_step_6_uses_bridge_not_direct_skill() -> None:
         assert "--source rss" not in joined
         # Hermes skill CLI must NOT be invoked directly
         assert "hermes" not in joined
+
+
+# ---------------------------------------------------------------------
+# Test 10 — JN6-01: --step N runs only step N, others skipped
+# ---------------------------------------------------------------------
+def test_step_flag_runs_only_that_step() -> None:
+    with patch.object(od, "_run", return_value=StepResult(True, "ok")), \
+         patch("enrichment.orchestrate_daily.sqlite3") as mock_sql:
+        mock_sql.connect.return_value.execute.return_value.fetchall.return_value = []
+        out = od.run(dry_run=True, skip_scan=False, step=7)
+    assert "7_ingest_all" in out["results"]
+    for other in (
+        "1_fetch_rss", "2_classify_rss", "3_health_check", "4_scan_kol",
+        "5_classify_kol", "6_enrich_deep", "8_generate_digest", "9_deliver",
+    ):
+        assert other not in out["results"], f"{other} must be skipped when --step 7"
+    assert out["failures"] == 0
+
+
+# ---------------------------------------------------------------------
+# Test 11 — JN6-01: --max-kol appended only to KOL branch cmd
+# ---------------------------------------------------------------------
+def test_max_kol_appended_to_kol_cmd() -> None:
+    captured: list[list[str]] = []
+
+    def fake_run(cmd, dry_run, critical=False):
+        captured.append(list(cmd))
+        return StepResult(True, "ok")
+
+    with patch.object(od, "_run", side_effect=fake_run):
+        od.run(dry_run=True, skip_scan=False, step=7, max_kol=20, max_rss=None)
+
+    kol_cmds = [c for c in captured if any("batch_ingest_from_spider.py" in x for x in c)]
+    rss_cmds = [c for c in captured if any("rss_ingest.py" in x for x in c)]
+    assert len(kol_cmds) == 1, f"expected 1 KOL cmd, got {kol_cmds}"
+    assert len(rss_cmds) == 1, f"expected 1 RSS cmd, got {rss_cmds}"
+    assert kol_cmds[0][-2:] == ["--max-articles", "20"]
+    assert "--max-articles" not in rss_cmds[0]
+
+
+# ---------------------------------------------------------------------
+# Test 12 — JN6-01: --max-rss appended only to RSS branch cmd
+# ---------------------------------------------------------------------
+def test_max_rss_appended_to_rss_cmd() -> None:
+    captured: list[list[str]] = []
+
+    def fake_run(cmd, dry_run, critical=False):
+        captured.append(list(cmd))
+        return StepResult(True, "ok")
+
+    with patch.object(od, "_run", side_effect=fake_run):
+        od.run(dry_run=True, skip_scan=False, step=7, max_kol=None, max_rss=5)
+
+    kol_cmds = [c for c in captured if any("batch_ingest_from_spider.py" in x for x in c)]
+    rss_cmds = [c for c in captured if any("rss_ingest.py" in x for x in c)]
+    assert len(kol_cmds) == 1
+    assert len(rss_cmds) == 1
+    assert rss_cmds[0][-2:] == ["--max-articles", "5"]
+    assert "--max-articles" not in kol_cmds[0]

@@ -10,10 +10,14 @@ Enrichment policy (D-07 REVISED 2026-05-02 + D-19):
 Invoked manually for debugging; the production cron bodies live in
 scripts/register_phase5_cron.sh per D-16 "Hermes drives".
 
+Step / rate flags: --step N runs only step N; --max-kol / --max-rss cap
+step_7 per-branch (applied iff non-None).
+
 Usage:
     venv/bin/python enrichment/orchestrate_daily.py
     venv/bin/python enrichment/orchestrate_daily.py --dry-run
     venv/bin/python enrichment/orchestrate_daily.py --skip-scan
+    venv/bin/python enrichment/orchestrate_daily.py --step 7 --max-kol 20 --max-rss 20
 """
 from __future__ import annotations
 
@@ -175,11 +179,18 @@ def step_6_enrich_deep(dry_run: bool) -> StepResult:
     )
 
 
-def step_7_ingest_all(dry_run: bool) -> StepResult:
+def step_7_ingest_all(
+    dry_run: bool,
+    max_kol: int | None = None,
+    max_rss: int | None = None,
+) -> StepResult:
     """Ingest BOTH KOL (batch_ingest_from_spider) and RSS (rss_ingest).
 
     Non-blocking per-branch; aggregate summary so one branch's failure
     doesn't mask the other.
+
+    max_kol / max_rss: if non-None, append `--max-articles N` to the
+    corresponding sub-command to rate-limit each cron fire.
     """
     kol_cmd = [
         str(PYTHON),
@@ -190,8 +201,12 @@ def step_7_ingest_all(dry_run: bool) -> StepResult:
         "--min-depth",
         "2",
     ]
+    if max_kol is not None:
+        kol_cmd += ["--max-articles", str(max_kol)]
     kol_r = _run(kol_cmd, dry_run, critical=False)
     rss_cmd = [str(PYTHON), "enrichment/rss_ingest.py"]
+    if max_rss is not None:
+        rss_cmd += ["--max-articles", str(max_rss)]
     rss_r = _run(rss_cmd, dry_run, critical=False)
     combined_success = kol_r.success and rss_r.success
     summary = f"KOL: {kol_r.summary[:200]} | RSS: {rss_r.summary[:200]}"
@@ -247,7 +262,13 @@ def _telegram_alert(message: str) -> None:
         )
 
 
-def run(dry_run: bool, skip_scan: bool) -> dict:
+def run(
+    dry_run: bool,
+    skip_scan: bool,
+    step: int | None = None,
+    max_kol: int | None = None,
+    max_rss: int | None = None,
+) -> dict:
     steps: list[tuple[str, Callable]] = [
         ("1_fetch_rss", step_1_fetch_rss),
         ("2_classify_rss", step_2_classify_rss),
@@ -267,12 +288,20 @@ def run(dry_run: bool, skip_scan: bool) -> dict:
     results: dict[str, StepResult] = {}
     failures = 0
     for name, fn in steps:
+        # --step N: skip every step whose numeric prefix doesn't match.
+        if step is not None:
+            step_num = int(name.split("_", 1)[0])
+            if step_num != step:
+                logger.info("SKIP %s (--step %d)", name, step)
+                continue
         if name in skip_names:
             logger.info("SKIP %s (--skip-scan)", name)
             continue
         # step_9 needs step_8's result to decide whether to fire the alert.
         if name == "9_deliver":
             r = fn(dry_run, results.get("8_generate_digest"))
+        elif name == "7_ingest_all":
+            r = fn(dry_run, max_kol=max_kol, max_rss=max_rss)
         else:
             r = fn(dry_run)
         results[name] = r
@@ -298,8 +327,26 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--skip-scan", action="store_true")
+    p.add_argument(
+        "--step", type=int, default=None, choices=range(1, 10),
+        help="Run only step N (1-9); other steps skipped.",
+    )
+    p.add_argument(
+        "--max-kol", type=int, default=None,
+        help="Cap KOL sub-batch in step_7 (default unlimited).",
+    )
+    p.add_argument(
+        "--max-rss", type=int, default=None,
+        help="Cap RSS sub-batch in step_7 (default unlimited).",
+    )
     args = p.parse_args()
-    out = run(args.dry_run, args.skip_scan)
+    out = run(
+        args.dry_run,
+        args.skip_scan,
+        step=args.step,
+        max_kol=args.max_kol,
+        max_rss=args.max_rss,
+    )
     logger.info("done: %s", out)
     sys.exit(0 if out["failures"] == 0 else 1)
 
