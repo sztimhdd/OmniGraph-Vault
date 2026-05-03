@@ -5,8 +5,9 @@
 # jobs (health-check @ 07:55, scan-kol @ 08:00) — they were registered in
 # earlier phases and are preserved.
 #
-# Idempotent: re-running prints `SKIP <name>` for each already-registered
-# job and leaves the cron table unchanged.
+# Re-running the script prints SKIP for the 5 unchanged jobs; the
+# daily-ingest job is replaced unconditionally via replace_job so the
+# body stays in sync with this file (quick-260503-jn6).
 #
 # Usage (on remote Hermes host):
 #   ssh <hermes> "cd ~/OmniGraph-Vault && git pull --ff-only && bash scripts/register_phase5_cron.sh"
@@ -41,6 +42,33 @@ add_job() {
     "${prompt}"
 }
 
+# quick-260503-jn6 (JN6-03): update-or-add helper used by daily-ingest
+# so re-running this script actually swaps the body when it already exists.
+# Best-effort remove; if the Hermes CLI uses a different subcommand name
+# (delete / rm / unregister), all variants will fail quietly and the caller
+# must manually remove per SUMMARY § Operator Checklist.
+replace_job() {
+  local name="$1"
+  local schedule="$2"
+  local prompt="$3"
+
+  if printf '%s\n' "$EXISTING" | grep -qE "\b${name}\b"; then
+    echo "REPLACE ${name} — removing existing then re-adding"
+    hermes cron remove --name "${name}" 2>/dev/null \
+      || hermes cron delete --name "${name}" 2>/dev/null \
+      || hermes cron rm --name "${name}" 2>/dev/null \
+      || { echo "  (remove failed; see SUMMARY § Operator Checklist for manual steps)"; return 0; }
+  else
+    echo "ADD  ${name} @ ${schedule}"
+  fi
+
+  hermes cron add \
+    --name "${name}" \
+    --workdir "${OMNIGRAPH_ROOT:-$HOME/OmniGraph-Vault}" \
+    "${schedule}" \
+    "${prompt}"
+}
+
 # -----------------------------------------------------------------------
 # 6 NEW Phase 5 jobs (PRD §3.4). Existing health-check (07:55) and
 # scan-kol (08:00) are intentionally NOT registered here.
@@ -65,9 +93,13 @@ add_job "daily-enrich" \
   "30 8 * * *" \
   "run the enrich_article skill for all KOL articles (WeChat source only; RSS excluded per D-07 REVISED 2026-05-02 + D-19) with depth_score >= 2 fetched today"
 
-add_job "daily-ingest" \
+# Bug-fix 2026-05-03 (quick-260503-jn6): old body only ingested KOL — RSS
+# was never in any cron. New body invokes step_7 of orchestrate_daily which
+# runs BOTH KOL + RSS branches with per-branch rate caps (20/20) to consume
+# the Day-1 backlog (249 KOL + 479 RSS) in controlled chunks.
+replace_job "daily-ingest" \
   "0 9 * * *" \
-  "run batch_ingest_from_spider.py --from-db --topic-filter openclaw,hermes,agent,harness --min-depth 2"
+  "run enrichment/orchestrate_daily.py --step 7 --max-kol 20 --max-rss 20"
 
 # H-11 fix: no --deliver flag — daily_digest.py delivers unconditionally
 # unless --dry-run is passed.
