@@ -208,3 +208,21 @@ Last session: 2026-05-01T02:36:13.366Z
 Stopped at: Completed 11-02-PLAN.md — milestone v3.1 gate harness delivered
 Resume file: None
 Next command: `/gsd:execute-phase 10` (execute Plan 10-01 — Text-First Ingest Split, ARCH-01 / D-10.05)
+
+## Phase 6 Exit State
+
+Phase 6 (graphify-addon-code-graph) — CLOSED 2026-05-03 (ROADMAP + STATE admin finalization; code + SUMMARY landed 2026-04-28 @ d59e3ae).
+ACCEPT WITH PARTIALS: 7/8 REQ PASS, REQ-02 PARTIAL (claw absent per D-S10).
+
+Shipped:
+
+- graphify skill on Hermes (zero-code install, graphifyy 0.5.3)
+- omnigraph_search SKILL.md + query.py (thin LightRAG wrapper)
+- Weekly cron graphify-refresh.sh (AST-only, atomic via to_json shrink guard)
+- Demo 1 + Demo 2 both passed (agent autonomously routes to both skills)
+
+Deferred:
+
+- REQ-02 full verification (claw install on remote)
+- Bridge nodes (D-G07)
+- Hermes-agent in T1 repos (would complete Demo 2 code-layer gap)
