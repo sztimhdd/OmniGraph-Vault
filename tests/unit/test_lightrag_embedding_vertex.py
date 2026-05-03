@@ -1,13 +1,21 @@
 """Tests for Vertex AI opt-in conditional (D-11.08 / Plan 11-01).
 
 When BOTH ``GOOGLE_APPLICATION_CREDENTIALS`` and ``GOOGLE_CLOUD_PROJECT`` env
-vars are set, ``lib.lightrag_embedding`` must construct ``genai.Client`` in
-Vertex AI mode (``vertexai=True``) with the project + location, and resolve
-the embedding model name to ``gemini-embedding-2-preview``.
+vars are set, ``lib.lightrag_embedding`` constructs ``genai.Client`` in Vertex
+AI mode (``vertexai=True``) with the project + location, and calls
+``embed_content`` with the resolved embedding model name.
 
 When either env var is missing, behavior is unchanged from the free-tier
-key-rotated path (``vertexai=False`` + ``api_key=current_embedding_key()``
-+ model=``gemini-embedding-2``).
+key-rotated path (``vertexai=False`` + ``api_key=current_embedding_key()``).
+
+Model-name history (see `lib/lightrag_embedding._resolve_model` docstring and
+`memory/vertex_ai_smoke_validated.md` for the full timeline):
+  - 2026-04 → early 2026-05: Vertex required the ``-preview`` suffix
+    (``gemini-embedding-2`` returned 404 on Vertex).
+  - 2026-05-03: Google removed ``-preview`` from the Vertex catalog;
+    ``gemini-embedding-2`` is now the working Vertex name (confirmed on
+    us-central1 with a paid-tier SA, commit 9069f59). ``_resolve_model()``
+    is currently a pass-through.
 
 The env check must happen at CALL TIME, not import time, so that test
 monkeypatch + runtime env toggling both work.
@@ -116,7 +124,7 @@ async def test_free_tier_path_default(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Test 2: Both env vars set → Vertex AI mode, preview model, default location
+# Test 2: Both env vars set → Vertex AI mode, gemini-embedding-2, default location
 # ---------------------------------------------------------------------------
 
 
@@ -141,8 +149,9 @@ async def test_vertex_mode_both_env_vars_set(monkeypatch):
 
     assert len(captured["embed_kwargs"]) == 1
     ekw = captured["embed_kwargs"][0]
-    # Vertex AI requires the -preview suffix on the multimodal embed model.
-    assert ekw.get("model") == "gemini-embedding-2-preview"
+    # Post 2026-05-03 (commit 9069f59): Vertex uses the unsuffixed
+    # ``gemini-embedding-2`` name; ``-preview`` was removed from the catalog.
+    assert ekw.get("model") == "gemini-embedding-2"
 
     # Rotation telemetry is a no-op in Vertex mode (SA auth, not API keys).
     # _ROTATION_HITS must be empty (no spurious entries).
@@ -240,10 +249,11 @@ async def test_is_vertex_mode_evaluated_at_call_time(monkeypatch):
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/fake/sa.json")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project-123")
 
-    # Call 2: Vertex mode.
+    # Call 2: Vertex mode. Post 2026-05-03 (9069f59) the model name is
+    # unsuffixed on Vertex — ``-preview`` was removed from the catalog.
     await lem.embedding_func(["second"])
     assert captured["client_kwargs"][-1].get("vertexai") is True
-    assert captured["embed_kwargs"][-1].get("model") == "gemini-embedding-2-preview"
+    assert captured["embed_kwargs"][-1].get("model") == "gemini-embedding-2"
 
     # Unset both.
     monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
