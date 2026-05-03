@@ -8,6 +8,16 @@ from unittest.mock import MagicMock
 import pytest
 
 
+# Phase 5 cross-coupling guard: lib/__init__.py eagerly imports
+# lib.llm_deepseek which raises at import time if DEEPSEEK_API_KEY is unset.
+# Under CI/Windows dev, tests mock all network calls, so the value is never
+# actually used — but the import has to succeed. Inject a harmless dummy
+# BEFORE any lib import reaches the module-level _require_api_key() call.
+# Documented caveat in CLAUDE.md: "use DEEPSEEK_API_KEY=dummy if you don't
+# have a real one".
+os.environ.setdefault("DEEPSEEK_API_KEY", "dummy-for-tests")
+
+
 # Phase 13: guard against tests polluting ~/.hermes/omonigraph-vault/checkpoints/_batch/
 # by defaulting OMNIGRAPH_VISION_CHECKPOINT_DIR to a per-session tmp dir unless
 # a test explicitly overrides it via monkeypatch.
