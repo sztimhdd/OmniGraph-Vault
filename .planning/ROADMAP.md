@@ -130,7 +130,7 @@
 
 ---
 
-## Milestone v3.2 Planned — Batch Reliability + Infra
+## Milestone v3.2 ✅ CLOSED (2026-05-02) — Batch Reliability + Infra
 
 **Milestone goal:** Enable Phase 5 Wave 1 (RSS + KOL batch ingestion, 56+ articles) to complete reliably with partial failure recovery, intelligent Vision fallback, comprehensive regression validation, and long-term infrastructure for quota isolation. Predecessor: Milestone v3.1 — **closed 2026-05-01 @ commit 2b38e98** (26/26 REQs, see `docs/MILESTONE_v3.1_CLOSURE.md`).
 
@@ -142,12 +142,12 @@
 
 ### Phases
 
-- [ ] **Phase 12: Checkpoint/Resume Mechanism (B1)** — 5-stage persistent checkpoints (scrape/classify/image-download/text-ingest/vision-worker) at `~/.hermes/omonigraph-vault/checkpoints/{article_hash}/` with atomic writes and resume-from-last-completed logic
-- [ ] **Phase 13: Vision Cascade with Circuit Breaker (B2)** — SiliconFlow→OpenRouter→Gemini cascade with per-provider state tracking, 3-consecutive-failure circuit breaker, 503/429/timeout error classification, SiliconFlow balance monitoring
-- [ ] **Phase 14: Regression Test Fixtures (B3)** — 5 fixture profiles (gpt55, sparse_image, dense_image, text_only, mixed_quality) + `validate_regression_batch.py` producing `batch_validation_report.json`
-- [ ] **Phase 15: Documentation & Operator Runbook (B4)** — CLAUDE.md additions (checkpoint/cascade/balance), `docs/OPERATOR_RUNBOOK.md` (pre-batch checklist, failure scenarios, manual intervention), Deploy.md updates
-- [ ] **Phase 16: Vertex AI Infrastructure Preparation (B5)** — `docs/VERTEX_AI_MIGRATION_SPEC.md` + `credentials/vertex_ai_service_account_example.json` template + `scripts/estimate_vertex_ai_cost.py` (no code changes; design-only)
-- [ ] **Phase 17: Batch Timeout Management** — Extend Phase 9 per-article timeout formula to batch-level: dynamic remaining-budget calculation, single/batch interlock, checkpoint-flush interaction, monitoring metrics (avg_article_time, batch_progress_vs_budget, timeout_histogram)
+- [x] **Phase 12: Checkpoint/Resume Mechanism (B1)** — 5-stage persistent checkpoints (scrape/classify/image-download/text-ingest/vision-worker) at `~/.hermes/omonigraph-vault/checkpoints/{article_hash}/` with atomic writes and resume-from-last-completed logic — closed 2026-05-02
+- [x] **Phase 13: Vision Cascade with Circuit Breaker (B2)** — SiliconFlow→OpenRouter→Gemini cascade with per-provider state tracking, 3-consecutive-failure circuit breaker, 503/429/timeout error classification, SiliconFlow balance monitoring — closed 2026-05-02
+- [~] **Phase 14: Regression Test Fixtures (B3)** — Partial by design (2026-05-02, see 14-CONTEXT.md appendix)
+- [x] **Phase 15: Documentation & Operator Runbook (B4)** — CLAUDE.md additions (checkpoint/cascade/balance), `docs/OPERATOR_RUNBOOK.md` (pre-batch checklist, failure scenarios, manual intervention), Deploy.md updates — closed 2026-05-02
+- [x] **Phase 16: Vertex AI Infrastructure Preparation (B5)** — `docs/VERTEX_AI_MIGRATION_SPEC.md` + `credentials/vertex_ai_service_account_example.json` template + `scripts/estimate_vertex_ai_cost.py` (no code changes; design-only) — closed 2026-05-02
+- [x] **Phase 17: Batch Timeout Management** — Extend Phase 9 per-article timeout formula to batch-level: dynamic remaining-budget calculation, single/batch interlock, checkpoint-flush interaction, monitoring metrics (avg_article_time, batch_progress_vs_budget, timeout_histogram) — closed 2026-05-02
 
 ### Phase Details
 
@@ -242,13 +242,14 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 8. Image Pipeline Correctness | 0/? | Not started | - |
-| 9. Timeout Control + LightRAG State | 0/? | Not started | - |
-| 10. Scrape-First Classification + Text-First Ingest | 1/3 | In Progress|  |
-| 11. E2E Verification Gate | 3/3 | Complete   | 2026-05-01 |
-| 12. Checkpoint/Resume Mechanism | 0/? | Not started | - |
-| 13. Vision Cascade with Circuit Breaker | 0/? | Not started | - |
-| 14. Regression Test Fixtures | 0/? | Not started | - |
-| 15. Documentation & Operator Runbook | 0/? | Not started | - |
-| 16. Vertex AI Infrastructure Preparation | 0/? | Not started | - |
-| 17. Batch Timeout Management | 0/3 | Not started | - |
+| 7. Model & Key Management | 5/5 | Complete | 2026-04-29 |
+| 8. Image Pipeline Correctness | 2/2 | Complete | 2026-04-30 |
+| 9. Timeout + State Management | 2/2 | Complete | 2026-04-30 |
+| 10. Scrape-First + Text-First Ingest | 3/3 | Complete | 2026-04-29 |
+| 11. E2E Verification Gate | 3/3 | Complete (v3.1 gate) | 2026-05-01 |
+| 12. Checkpoint/Resume | 4/4 | Complete | 2026-05-02 |
+| 13. Vision Cascade | 4/4 | Complete | 2026-05-02 |
+| 14. Regression Test Fixtures | 1/3 | **Partial by design** (14-01/03 stubs deprecated) | 2026-05-02 |
+| 15. Documentation & Operator Runbook | 3/3 | Complete | 2026-05-02 |
+| 16. Vertex AI Infrastructure | 3/3 | Complete (docs only) | 2026-05-02 |
+| 17. Batch Timeout Management | 3/3 | Complete | 2026-05-02 |

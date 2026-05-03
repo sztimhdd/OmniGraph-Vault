@@ -324,3 +324,15 @@ For each NEW fixture:
 
 *Phase: 14-regression-fixtures*
 *Context gathered: 2026-04-30 via PRD Express Path*
+
+---
+
+## Appendix: Phase 14 Partial Closure (2026-05-03)
+
+Plans 14-01 (5-fixture creation) and 14-03 (E2E validation run) were deprecated 2026-05-03 and their STUB-PUNCH placeholders deleted. Rationale:
+
+- v3.2 closed 2026-05-02 without these two plans executing.
+- Wave 0 Close-Out (2026-05-02, Phase 5 Plan 05-00) performed a real multi-article batch that surfaced 2 bugs (async multi-image embedding blocking, Cognee module-level import blocking) that synthetic fixtures could not have caught. Real-batch validation empirically outperformed the 5-fixture approach on actual defect yield.
+- 14-02 (validate_regression_batch.py skeleton) is retained — Milestone v3.3 Plan 18-04 reuses it as the backbone for a lighter, single-fixture + CI-hook regression harness.
+
+See Milestone v3.3 Plan 18-04 for the replacement approach.

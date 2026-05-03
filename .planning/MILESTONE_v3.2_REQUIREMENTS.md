@@ -1,3 +1,9 @@
+> **STATUS:** ✅ CLOSED 2026-05-02. Phase 14 partial by design — see `.planning/phases/14-regression-fixtures/14-CONTEXT.md` appendix. Milestone v3.3 (Daily-Ops Hygiene) succeeds this.
+>
+> (Milestone v3.2 text below is frozen for historical reference.)
+
+---
+
 # Milestone v3.2 — Batch Reliability + Infra (Milestone B + C)
 
 **Revision history:** v1 (2026-04-30, initial plan commit 0bdec26) → **v2 (2026-05-01, post v3.1 closure alignment):** absorbed v3.1 closure findings + baseline. Specific changes:
