@@ -984,6 +984,36 @@ async def _classify_full_body(
     return result
 
 
+def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
+    """Build the --from-db topic-filter SELECT as (sql, params).
+
+    Case-insensitive: normalizes params to stripped+lowercased strings
+    and applies LOWER(c.topic) on the column side so rows written by
+    the DeepSeek classifier (capitalized: Agent / LLM / RAG / NLP / CV)
+    match cron-passed lowercase tokens (agent / llm / openclaw / ...).
+
+    Preserves (non-negotiable):
+      - c.topic IS NULL branch (Phase 10 scrape-first dependency)
+      - ORDER BY a.id (FIFO ingest order)
+      - Column list + ingestions anti-join unchanged
+
+    Day-1 cron fix (2026-05-03 sd7): DeepSeek classifier writes `Agent` /
+    `LLM` / `RAG` / `NLP` / `CV`; cron passes lowercase tokens.
+    """
+    placeholders = ",".join("?" for _ in topics)
+    sql = f"""
+        SELECT a.id, a.title, a.url, acc.name, c.depth_score, a.body
+        FROM articles a
+        JOIN accounts acc ON a.account_id = acc.id
+        LEFT JOIN classifications c ON a.id = c.article_id
+        WHERE (c.topic IS NULL OR LOWER(c.topic) IN ({placeholders}))
+          AND a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
+        ORDER BY a.id
+    """
+    normalized = tuple(t.strip().lower() for t in topics)
+    return sql, normalized
+
+
 async def ingest_from_db(
     topic: str | list[str],
     min_depth: int,
@@ -1032,16 +1062,9 @@ async def ingest_from_db(
     # Phase 10 plan 10-00: scrape-first SELECT — classification happens per-article
     # inside the loop, so we no longer pre-filter by `c.depth_score >= min_depth`.
     # Unclassified articles have NULL depth_score; they are classified on the fly.
-    placeholders = ",".join("?" for _ in topics)
-    rows = conn.execute(f"""
-        SELECT a.id, a.title, a.url, acc.name, c.depth_score, a.body
-        FROM articles a
-        JOIN accounts acc ON a.account_id = acc.id
-        LEFT JOIN classifications c ON a.id = c.article_id
-        WHERE (c.topic IS NULL OR c.topic IN ({placeholders}))
-          AND a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
-        ORDER BY a.id
-    """, tuple(topics)).fetchall()
+    # quick-260503-sd7: case-insensitive topic filter via _build_topic_filter_query.
+    sql, params = _build_topic_filter_query(topics)
+    rows = conn.execute(sql, params).fetchall()
 
     if not rows:
         logger.info("No articles found for topics %s", topics)
