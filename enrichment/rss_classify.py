@@ -120,6 +120,14 @@ def _eligible_articles(
         ).fetchall()
         return [(r[0], r[1], r[2]) for r in rows]
 
+    # CLI --max-articles wins; otherwise fall back to env cap (default 500).
+    # Parse failures are silent: bad env value -> fallback 500, never raise.
+    if max_articles is None:
+        try:
+            max_articles = int(os.environ.get("OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP", "500"))
+        except ValueError:
+            max_articles = 500
+
     placeholders = ",".join("?" for _ in topics)
     sql = (
         f"SELECT a.id, a.title, COALESCE(a.summary, '') "
@@ -129,7 +137,7 @@ def _eligible_articles(
         f"ORDER BY a.fetched_at DESC "
         f"LIMIT ?"
     )
-    rows = conn.execute(sql, (*topics, len(topics), max_articles or 1000)).fetchall()
+    rows = conn.execute(sql, (*topics, len(topics), max_articles)).fetchall()
     return [(r[0], r[1], r[2]) for r in rows]
 
 

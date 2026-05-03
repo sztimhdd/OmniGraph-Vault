@@ -168,3 +168,90 @@ def test_uses_deepseek_endpoint_not_gemini() -> None:
     assert "GEMINI_API_KEY" not in src
     # Key resolver imported from production batch_classify_kol
     assert "from batch_classify_kol import get_deepseek_api_key" in src
+
+
+# ---------------------------------------------------------------------
+# LQ7-01 — env cap OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP (default 500)
+# Tests mirror test_max_articles_limits_batch shape: seed N articles,
+# drive the cap via env var, assert stats["classified"] reflects the cap.
+# ---------------------------------------------------------------------
+def _seed_three_articles(fresh_db: Path) -> None:
+    conn = sqlite3.connect(fresh_db)
+    conn.execute(
+        "INSERT INTO rss_articles (feed_id, title, url, summary) VALUES (1, ?, ?, ?)",
+        ("EN Post 3", "https://a.example/p/3", "another long body about agents"),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_env_cap_default_500_when_no_cli_flag(
+    fresh_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """max_articles=None + no env var => fallback 500; all 3 seeded rows classify."""
+    monkeypatch.delenv("OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP", raising=False)
+    _seed_three_articles(fresh_db)
+    with patch("enrichment.rss_classify._call_deepseek",
+               return_value=_fake_result(topic="Agent")), \
+         patch("enrichment.rss_classify.get_deepseek_api_key", return_value="fake-key"), \
+         patch("enrichment.rss_classify.time.sleep", return_value=None):
+        stats = rss_classify.run(
+            topics=("Agent",), article_id=None, max_articles=None,
+            dry_run=False, db_path=fresh_db,
+        )
+    # Default 500 >> 3 seeded rows => all 3 classified
+    assert stats["classified"] == 3
+
+
+def test_env_cap_override_applies(
+    fresh_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """max_articles=None + env=2 => cap is 2."""
+    monkeypatch.setenv("OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP", "2")
+    _seed_three_articles(fresh_db)
+    with patch("enrichment.rss_classify._call_deepseek",
+               return_value=_fake_result(topic="Agent")), \
+         patch("enrichment.rss_classify.get_deepseek_api_key", return_value="fake-key"), \
+         patch("enrichment.rss_classify.time.sleep", return_value=None):
+        stats = rss_classify.run(
+            topics=("Agent",), article_id=None, max_articles=None,
+            dry_run=False, db_path=fresh_db,
+        )
+    assert stats["classified"] == 2
+
+
+def test_env_cap_parse_failure_falls_back_to_500(
+    fresh_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """max_articles=None + env='abc' => parse fails silently; fallback 500."""
+    monkeypatch.setenv("OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP", "abc")
+    _seed_three_articles(fresh_db)
+    with patch("enrichment.rss_classify._call_deepseek",
+               return_value=_fake_result(topic="Agent")), \
+         patch("enrichment.rss_classify.get_deepseek_api_key", return_value="fake-key"), \
+         patch("enrichment.rss_classify.time.sleep", return_value=None):
+        # Must NOT raise
+        stats = rss_classify.run(
+            topics=("Agent",), article_id=None, max_articles=None,
+            dry_run=False, db_path=fresh_db,
+        )
+    # Fallback 500 >> 3 => all 3 classified
+    assert stats["classified"] == 3
+
+
+def test_cli_max_articles_wins_over_env(
+    fresh_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Explicit --max-articles=1 beats env=2."""
+    monkeypatch.setenv("OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP", "2")
+    _seed_three_articles(fresh_db)
+    with patch("enrichment.rss_classify._call_deepseek",
+               return_value=_fake_result(topic="Agent")), \
+         patch("enrichment.rss_classify.get_deepseek_api_key", return_value="fake-key"), \
+         patch("enrichment.rss_classify.time.sleep", return_value=None):
+        stats = rss_classify.run(
+            topics=("Agent",), article_id=None, max_articles=1,
+            dry_run=False, db_path=fresh_db,
+        )
+    # CLI value 1 wins over env 2
+    assert stats["classified"] == 1

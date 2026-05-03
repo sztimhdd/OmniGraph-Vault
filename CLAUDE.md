@@ -153,6 +153,7 @@ Query → kg_synthesize.py
 | `APIFY_TOKEN` | No | Primary scraping (falls back to CDP) |
 | `FIRECRAWL_API_KEY` | No | Firecrawl web scraping API |
 | `CDP_URL` | No | **Local mode** (default): `http://localhost:9223` — raw CDP WebSocket; `ingest_wechat.py` uses `playwright.connect_over_cdp()`. Start Edge with `msedge --remote-debugging-port=9223`. **Remote MCP mode** (testing fallback): `http://host:port/mcp` — Playwright MCP server (MCP-over-SSE); `ingest_wechat.py` auto-detects the `/mcp` suffix and uses `_MCPClient` + `browser_navigate`/`browser_evaluate` instead. Both modes are fully implemented. |
+| `OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP` | No | RSS classifier daily-batch safety cap (default 500 articles). Applies only when `--max-articles` CLI flag is NOT passed; CLI value always wins. Non-int values silently fall back to 500. |
 
 Set in `~/.hermes/.env`. Cognee-specific vars (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, etc.) are hardcoded in each script that uses Cognee.
 
