@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.2
-milestone_name: — Batch Reliability + Infra (Hermes E2E regression complete 2026-05-02)
+milestone: v3.4
+milestone_name: — RSS-KOL Alignment
 current_plan: 0
-status: ready-for-phase-5
-stopped_at: v3.2 E2E regression complete — 4/4 probes PASS, 3 commits pushed to main
-last_updated: "2026-05-02T06:00:00.000Z"
-last_activity: 2026-05-02 — Hermes closed v3.2 punch list + UAT harness delivered
+status: defining-requirements
+stopped_at: Milestone v3.4 started — research + planning can proceed in parallel; execute BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT)
+last_updated: "2026-05-03T20:10:00.000Z"
+last_activity: 2026-05-03 — Milestone v3.4 RSS-KOL Alignment started
 progress:
-  total_phases: 6
-  completed_phases: 5
-  total_plans: 20
-  completed_plans: 17
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -25,19 +25,28 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Milestone: v3.3 (Pipeline Automation — RSS + Daily Digest + Cron)
-Phase 5 Wave 0: CLOSED 2026-05-02 @ `0109c02`
-Phase 5 Wave 1: CLOSED 2026-05-03 @ `f70a18b` + Hermes production-verified 2026-05-03
-Phase 5 Wave 2: Task 6.1 shipped 2026-05-03 @ `599a08d` — **cron-register script
-  on main; 3-day observation window (Task 6.2) pending operator run + user verdict**
-Head commit: 599a08d
-Status: 05-04/05/06 code + SUMMARYs on origin/main; operator runs
-  `bash scripts/register_phase5_cron.sh` on Hermes to arm the daily
-  pipeline; first digest lands 09:30 local the day after cron goes live.
-Last activity: 2026-05-03 — Completed quick task 260503-m4q: Vertex embedding correction — remove preview alias, embrace GA global endpoint
-  (orchestrate_daily 9-step state machine + daily_digest asymmetric UNION
-  + 6-job cron register script). +18 unit tests (9 + 9), 51 unit tests
-  total across Phase 5 Wave 1+2 green locally.
+Milestone: v3.4 (RSS-KOL Alignment)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements — research + planning can proceed in parallel
+Execute gate: BLOCKED until Day-1/2/3 KOL baseline observation complete (~2026-05-06 ADT)
+Last activity: 2026-05-03 - Completed quick task 260503-sd7: fix batch_ingest_from_spider topic filter case-sensitivity (Day-1 cron hard blocker)
+
+### Immediate next step
+
+Run `/gsd:new-milestone` Step 8 → decide research on/off → Step 9-10 (requirements + roadmap).
+Research + planning can fully proceed now. Execute of any phase MUST wait for Day-1/2/3 KOL baseline (2026-05-04 → 2026-05-06) because:
+
+- Tuning decisions (subprocess timeout / max-articles cap / concurrency) need real cron data
+- Must verify Day-1 KOL pipeline stable on new code path (post Vertex fix) before RSS alignment amplifies any instability
+
+### Parallel: Day-1 KOL-only cron observation (NOT v3.4 scope)
+
+Day-1 fires 2026-05-04 06:00 ADT with OLD batch_ingest_from_spider body (KOL only).
+Day-2 rollout DEFERRED until v3.4 cutover — RSS pipeline architecturally misaligned
+(missing full-body scrape + full-body classify + multimodal ingest per 2026-05-03 E2E pre-flight).
+
+### v3.3 closed state (retained for history)
 
 ### Wave 2 — what shipped (Task 6.1 partial)
 
@@ -194,6 +203,7 @@ None tracked.
 | 260429-got | Extend `batch_ingest_from_spider.py` --topic-filter to comma-separated multi-keyword (D-11) | 2026-04-29 | `4bf1613` | [260429-got-extend-batch-ingest-from-spider-py-to-su](./quick/260429-got-extend-batch-ingest-from-spider-py-to-su/) |
 | 260503-lq7 | Wave 1 post-E2E hygiene: RSS classify env cap + step_6 fetched_at/scanned_at fix | 2026-05-03 | `16f05ae` | [260503-lq7-wave-1-post-e2e-hygiene-rss-classify-env](./quick/260503-lq7-wave-1-post-e2e-hygiene-rss-classify-env/) |
 | 260503-m4q | Vertex embedding correction — remove preview alias, embrace GA global endpoint (pre-06:00 ADT Day-1 cron fix) | 2026-05-03 | `f6be225` | [260503-m4q-vertex-embedding-correction-remove-previ](./quick/260503-m4q-vertex-embedding-correction-remove-previ/) |
+| 260503-sd7 | fix batch_ingest_from_spider topic filter case-sensitivity (Day-1 cron hard blocker) | 2026-05-03 | `e59bc42` | [260503-sd7-fix-batch-ingest-from-spider-topic-filte](./quick/260503-sd7-fix-batch-ingest-from-spider-topic-filte/) |
 
 ## Phase 4 Exit State
 
