@@ -134,7 +134,7 @@ def test_approach_b(client, name, url):
   var bodyLen = await page.evaluate(() => document.body.innerHTML.length);
   return JSON.stringify({{title, bodyLen}});
 }}'''
-    r, elapsed = client.tool("browser_run_code", {"code": code}, timeout=15)
+    r, elapsed = client.tool("browser_run_code_unsafe", {"code": code}, timeout=15)
     t = client.text(r) if r else ""
     data = parse_run_code_json(t)
     if data:
@@ -167,7 +167,7 @@ def test_approach_c(client, name, url):
   }});
   return JSON.stringify({{title, pubTime, content: contentEl, textSnippet, imgs}});
 }}'''
-    r, elapsed = client.tool("browser_run_code", {"code": code}, timeout=15)
+    r, elapsed = client.tool("browser_run_code_unsafe", {"code": code}, timeout=15)
     t = client.text(r) if r else ""
     data = parse_run_code_json(t)
     if data:
