@@ -29,6 +29,8 @@ Result: **12 failed, 458 passed** (~87s)
 | `tests/unit/test_siliconflow_balance.py` | `test_check_siliconflow_balance_success` | Phase 13 (f62d94a) |
 | `tests/unit/test_siliconflow_balance.py` | `test_authorization_header_sent` | Phase 13 (f62d94a) |
 | `tests/unit/test_text_first_ingest.py` | `test_parent_ainsert_content_has_references_not_descriptions` | Phase 10 area |
+| `tests/unit/test_cognee_vertex_model_name.py` | `test_vertex_mode_preserves_ga_model_name` | Introduced by `74f7503` (cognee LiteLLM routing fix) |
+| `tests/unit/test_cognee_vertex_model_name.py` | `test_free_tier_path_preserves_base_model_name` | Introduced by `74f7503` (cognee LiteLLM routing fix) |
 
 ## Rationale for Deferral
 
@@ -41,3 +43,16 @@ Result: **12 failed, 458 passed** (~87s)
 
 - Not a Phase 19 concern. Surface to future quick-task or phase owner during a green-baseline sweep.
 - If any of these start masking real Phase 19 regressions, escalate via a `/gsd:quick` task.
+
+## 2026-05-04 Plan 19-02 post-rebase re-check
+
+After rebasing over `74f7503` (cognee LiteLLM routing fix from origin/main during the
+19-02 push sequence), 2 additional pre-existing test failures appeared in
+`tests/unit/test_cognee_vertex_model_name.py`. These tests were introduced AFTER Plan
+19-00's baseline regression was captured; they expect `gemini-embedding-2` but the
+new cognee LiteLLM routing uses `gemini/gemini-embedding-2`. Not caused by any
+Phase 19 code change — the failing assertions are about LiteLLM prefix strings.
+
+Final Plan 19-02 regression: **13 failed, 464 passed** (vs Wave-1 baseline 14 failed,
+463 passed). Net +1 pass: +3 Phase-19 Wave-2 GREEN + 0 rollback regression (Rule 1
+fix preserves 4 rollback tests GREEN throughout) -2 new cognee failures.

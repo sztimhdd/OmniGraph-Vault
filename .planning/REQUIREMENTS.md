@@ -37,13 +37,13 @@
 - [x] **SCR-03**: URL router dispatches by site type using stdlib `urllib.parse.urlparse` (no `tldextract` dep). Routing table: `mp.weixin.qq.com/*` → WeChat cascade (existing path); `arxiv.org/abs/*` → trafilatura (abstract only); `arxiv.org/pdf/*` → existing PyMuPDF path; everything else → generic cascade.
 - [x] **SCR-04**: Content-quality gate before accepting a layer's output: `len(text) >= 500` AND no login-wall keywords (`"Sign in"`, `"Log in to continue"`, `"Subscribe to read"`, `"登录查看"`, etc.). If gate fails, cascade to next layer.
 - [x] **SCR-05**: HTTP 429 triggers **exponential backoff** (30s / 60s / 120s) on the same layer; does NOT immediately cascade (prevents burning through layers unnecessarily on transient rate limits). Cascade-after-429 only after 3 backoff attempts.
-- [ ] **SCR-06**: `batch_ingest_from_spider.py:940` UA-only path is replaced by `scrape_url(url, site_hint="wechat")`. Locks **D-RSS-SCRAPER-SCOPE = Option A**. Closes Day-1 pre-flight article 1 KOL regression bug (Phase 10 D-10.01 residue).
+- [x] **SCR-06**: `batch_ingest_from_spider.py:940` UA-only path is replaced by `scrape_url(url, site_hint="wechat")`. Locks **D-RSS-SCRAPER-SCOPE = Option A**. Closes Day-1 pre-flight article 1 KOL regression bug (Phase 10 D-10.01 residue).
 - [x] **SCR-07**: `trafilatura>=2.0.0,<3.0` + `lxml>=4.9,<6` pinned in `requirements.txt`. Note: `lxml>=6` has open trafilatura incompatibility issues — pin `<6` until resolved.
 
 #### Schema (SCH)
 
-- [ ] **SCH-01**: `rss_articles` table ALTER adds 5 columns (all nullable, SQLite metadata-only change — safe against 1020-row backlog without rewrite): `body TEXT`, `body_scraped_at TEXT` (ISO-8601), `depth INTEGER` (1-3), `topics TEXT` (JSON array), `classify_rationale TEXT`.
-- [ ] **SCH-02**: Hash function unified to **SHA-256 first 16 hex** at `batch_ingest_from_spider.py:275` (currently inline MD5 first 10 hex — collides namespace with `lib/checkpoint.py` which uses SHA-256 first 16). **Prerequisite for the 1020-article backlog run** — without unification, `checkpoint_reset.py` will be blind to half the checkpoints (MP-08 pitfall).
+- [x] **SCH-01**: `rss_articles` table ALTER adds 5 columns (all nullable, SQLite metadata-only change — safe against 1020-row backlog without rewrite): `body TEXT`, `body_scraped_at TEXT` (ISO-8601), `depth INTEGER` (1-3), `topics TEXT` (JSON array), `classify_rationale TEXT`.
+- [x] **SCH-02**: Hash function unified to **SHA-256 first 16 hex** at `batch_ingest_from_spider.py:275` (currently inline MD5 first 10 hex — collides namespace with `lib/checkpoint.py` which uses SHA-256 first 16). **Prerequisite for the 1020-article backlog run** — without unification, `checkpoint_reset.py` will be blind to half the checkpoints (MP-08 pitfall).
 
 ---
 
@@ -118,10 +118,10 @@ Emergency hotfix 2026-05-03 gates `ingest_wechat.py:1099-1108` inline Cognee cal
 | SCR-03 | Phase 19 | Complete |
 | SCR-04 | Phase 19 | Complete |
 | SCR-05 | Phase 19 | Complete |
-| SCR-06 | Phase 19 | Pending |
+| SCR-06 | Phase 19 | Complete |
 | SCR-07 | Phase 19 | Complete |
-| SCH-01 | Phase 19 | Pending |
-| SCH-02 | Phase 19 | Pending |
+| SCH-01 | Phase 19 | Complete |
+| SCH-02 | Phase 19 | Complete |
 | RCL-01 | Phase 20 | Pending |
 | RCL-02 | Phase 20 | Pending |
 | RCL-03 | Phase 20 | Pending |

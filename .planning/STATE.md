@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: — Single-Article Ingest Stability ✅ CLOSED
 status: executing
-stopped_at: "Completed 19-01-PLAN.md (Wave 1: lib/scraper.py + 5 GREEN tests for SCR-01..05)"
-last_updated: "2026-05-04T02:09:58.000Z"
+stopped_at: "Completed 19-02-PLAN.md (Wave 2: SCR-06 hotfix + SCH-01 ALTER + SCH-02 hash + Rule 1 tracker-key fix)"
+last_updated: "2026-05-04T02:37:44.967Z"
 last_activity: 2026-05-04
 progress:
   total_phases: 4
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-03)
 
 Milestone: v3.4 (RSS-KOL Alignment)
 Phase: 19 (Generic Scraper + Schema + KOL Hotfix) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Execute gate: BLOCKED until Day-1/2/3 KOL baseline observation complete (~2026-05-06 ADT)
 Last activity: 2026-05-04
@@ -147,6 +147,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase 11 P02 | 55 | 2 tasks | 5 files |
 | Phase 19 P00 | 5min | 3 tasks | 5 files |
 | Phase 19 P01 | 6min | 3 tasks | 2 files |
+| Phase 19 P02 | 23min | 4 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -204,6 +205,9 @@ Recent decisions affecting current work:
 - [Phase 19]: Layer 3 of generic cascade (CDP/MCP) deferred to Phase 20 — falls through to summary_only fallback rather than raising (D-RSS-SCRAPER-SCOPE Option A)
 - [Phase 19]: ScrapeResult.content_html preserved on WeChat path so batch_ingest_from_spider.py:940 consumer keeps working — zero API break for existing code
 - [Phase 19]: scrape_url never raises — returns summary_only=True on cascade exhaustion so callers decide to skip (graceful cascade semantics)
+- [Phase 19]: Plan 19-02: SCH-02 hash unification required a Rule 1 auto-fix in ingest_wechat.py — the _pending_doc_ids tracker key was switched from article_hash (MD5[:10]) to ckpt_hash (SHA-256[:16]) across 4 call sites. The image-dir namespace (BASE_IMAGE_DIR/{article_hash}) and LightRAG doc_id (wechat_{article_hash}) still use MD5[:10] — only the in-memory tracker registry KEY changed. This preserves STATE-02/03 rollback semantics.
+- [Phase 19]: Plan 19-02: batch_ingest_from_spider.py:940 KOL hotfix (SCR-06) now routes via lib.scraper.scrape_url(url, site_hint='wechat') which runs the full 4-layer WeChat cascade (apify → cdp → mcp → ua). Closes Day-1 06:00 ADT regression where UA-only path was the sole fallback when Apify/CDP were misconfigured.
+- [Phase 19]: Plan 19-02: enrichment/rss_schema.py::_ensure_rss_columns uses PRAGMA table_info pre-check + conditional ALTER (not try/except OperationalError). Produces zero SQL on second call, idempotent, idiomatic SQLite pattern. Adds 5 nullable columns to rss_articles: body, body_scraped_at, depth, topics, classify_rationale — Phase 20 RCL-03 prerequisite.
 
 ### Pending Todos
 
@@ -244,8 +248,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-04T02:09:46.470Z
-Stopped at: Completed 19-01-PLAN.md (Wave 1: lib/scraper.py + 5 GREEN tests for SCR-01..05)
+Last session: 2026-05-04T02:37:32.784Z
+Stopped at: Completed 19-02-PLAN.md (Wave 2: SCR-06 hotfix + SCH-01 ALTER + SCH-02 hash + Rule 1 tracker-key fix)
 Resume file: None
 Next command: `/gsd:plan-phase 19` (after Day-1/2/3 KOL baseline gate lifts ~2026-05-06 ADT)
 
