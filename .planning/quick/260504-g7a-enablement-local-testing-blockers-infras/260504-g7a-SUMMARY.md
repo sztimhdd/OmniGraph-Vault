@@ -14,6 +14,7 @@ requirements:
   - LDEV-07  # LOCAL_DEV_SETUP.md runbook + CLAUDE.md env table
   - LDEV-08  # Local bootstrap scripts
   - LDEV-09  # Mock-only unit tests
+  - LDEV-10  # MCP scraper tool rename (Playwright MCP 1.60: browser_run_code -> browser_run_code_unsafe)
 commits:
   - a45f71d  # LDEV-01
   - 3672565  # LDEV-02
@@ -24,6 +25,7 @@ commits:
   - af8d419  # LDEV-07
   - 2e695ec  # LDEV-08
   - 5edfe25  # LDEV-09
+  - 7a9d6c4  # LDEV-10
 files_touched:
   - lib/vertex_gemini_complete.py        # NEW (LDEV-01)
   - lib/llm_complete.py                  # NEW (LDEV-02)
@@ -39,16 +41,20 @@ files_touched:
   - tests/unit/test_vertex_gemini_complete.py    # NEW (LDEV-09)
   - tests/unit/test_config_base_dir_override.py  # NEW (LDEV-09)
   - tests/unit/test_vision_skip_providers.py     # NEW (LDEV-09)
+  - tests/unit/test_mcp_scraper_tool_name.py     # NEW (LDEV-10)
+  - test_mcp_approaches.py                       # MODIFIED (LDEV-10)
 ---
 
 # Quick Task 260504-g7a — Local Dev Enablement Summary
 
 ## One-liner
 
-Nine atomic opt-in fixes making the OmniGraph-Vault pipeline runnable on the
+Ten atomic opt-in fixes making the OmniGraph-Vault pipeline runnable on the
 Windows dev box against `.dev-runtime/` using Vertex Gemini (SA auth) —
 zero breaking changes for Hermes production (default `OMNIGRAPH_LLM_PROVIDER`
-unset → DeepSeek path preserved).
+unset → DeepSeek path preserved). Includes MCP scraper tool rename
+(`browser_run_code` → `browser_run_code_unsafe`) for Playwright MCP 1.60
+compatibility on the remote `ohca.ddns.net:58931/mcp` endpoint.
 
 ## Commits
 
@@ -63,6 +69,7 @@ unset → DeepSeek path preserved).
 | 7 | `af8d419` | LDEV-07 | `docs(local-dev): LOCAL_DEV_SETUP runbook + CLAUDE.md env row` |
 | 8 | `2e695ec` | LDEV-08 | `feat(local-dev): bootstrap scripts for Windows + WSL` |
 | 9 | `5edfe25` | LDEV-09 | `test(local-dev): mock-only unit coverage for LDEV-01..06` |
+| 10 | `7a9d6c4` | LDEV-10 | `fix(local-dev): migrate MCP scraper to browser_run_code_unsafe (Playwright MCP 1.60 rename)` |
 
 Each commit was individually verified (`<verify>` block from the PLAN ran
 green) before the next commit landed. All 9 are independently revertable.
