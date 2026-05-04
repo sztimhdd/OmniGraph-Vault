@@ -755,6 +755,22 @@ async def extract_entities(text):
         return []
 
 # --- Main Logic ---
+def _cognee_inline_enabled() -> bool:
+    """Return True iff OMNIGRAPH_COGNEE_INLINE is exactly "1".
+
+    2026-05-03 hotfix: the inline `cognee_wrapper.remember_article` call in `ingest_article`
+    was blocking the KOL ingest fast-path because Cognee's LiteLLM router sends
+    `gemini-embedding-2` requests to Google AI Studio (which returns 422 NOT_FOUND — the model
+    is Vertex-exclusive), triggering a minutes-long retry loop per article. Gating the call
+    behind this env var lets the Day-1 cron (2026-05-04 06:00 ADT) proceed with default OFF.
+
+    Strict `== "1"` match (not truthy-string) — operators must explicitly set `"1"` to re-enable.
+    Root fix: v3.4 Phase 20/21 (Cognee LiteLLM routing repair). Re-enable by setting
+    OMNIGRAPH_COGNEE_INLINE=1 once routing is fixed.
+    """
+    return os.environ.get("OMNIGRAPH_COGNEE_INLINE", "0") == "1"
+
+
 async def ingest_article(url, rag=None) -> "asyncio.Task | None":
     """Ingest a single WeChat article.
 
@@ -1105,15 +1121,21 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
     # Cognee episodic memory: fire-and-forget article metadata
     # Per 2026 RAG best practices — dual-store: LightRAG (semantic) + Cognee (episodic)
     # Never blocks the fast path — timeout 5s, all exceptions swallowed
-    try:
-        await cognee_wrapper.remember_article(
-            title=title,
-            url=url,
-            entities=raw_entities,
-            summary_gist=full_content[:1000],
-        )
-    except Exception:
-        pass
+    #
+    # 2026-05-03 HOTFIX: gated behind OMNIGRAPH_COGNEE_INLINE (default "0" = OFF).
+    # Cognee's LiteLLM routing sends gemini-embedding-2 to AI Studio (Vertex-exclusive,
+    # returns 422 NOT_FOUND) — retry loop blocks the KOL ingest fast-path. Root fix in
+    # v3.4 Phase 20/21 (LiteLLM routing repair). Re-enable by setting OMNIGRAPH_COGNEE_INLINE=1.
+    if _cognee_inline_enabled():
+        try:
+            await cognee_wrapper.remember_article(
+                title=title,
+                url=url,
+                entities=raw_entities,
+                summary_gist=full_content[:1000],
+            )
+        except Exception:
+            pass
 
     # Save files via shared pipeline (atomic write, D-16)
     save_markdown_with_images(
