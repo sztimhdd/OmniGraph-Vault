@@ -73,8 +73,14 @@ article 10, we can stop early and save wall-clock; the spec must not
 **Stopping rules.** Stop a state's run when **any** of these fire:
 
 - 20 articles complete
-- Single-article wall-clock exceeds 45 min (hard ceiling; bigger than that
-  means LightRAG has effectively stopped making progress)
+- **S1 / S2** single-article wall-clock exceeds **45 min** (hard ceiling;
+  bigger than that means LightRAG has effectively stopped making progress)
+- **S0** single-article wall-clock exceeds **90 min** (soft ceiling —
+  doubled from S1/S2 because S0 is known-slow and will plausibly hit
+  40min+/article by article 6-7; capping at 45min would starve S0 of enough
+  samples to plot at all). S0 runs may produce as few as **5** samples —
+  that's acceptable because S0 is a sanity-check curve, not the
+  decision-driving one (see §7).
 - Disk usage on `.dev-runtime/lightrag_storage/` exceeds 2 GB (tells us
   storage blowup is the real issue; switch to disk-only diagnostics)
 
@@ -90,11 +96,30 @@ article 10, we can stop early and save wall-clock; the spec must not
   Cisco Umbrella breakage.
 - **Embedding:** `gemini-embedding-2` @ 3072 dim, global endpoint, SA auth.
 - **Vision cascade:** OpenRouter → Gemini (SiliconFlow skipped).
+- **LightRAG version:** `lightrag-hku==1.4.15` pinned in `requirements.txt`.
+  DO NOT upgrade during the benchmark window — staged-timing instrumentation
+  requires monkey-patch hooks that bind to internal LightRAG function names,
+  and those names may change across versions. Upgrade is a post-benchmark
+  task.
 - Keep 2 known-but-non-blocking issues visible so the engineer doesn't chase
   them: (a) async-drain hang after `batch_ingest` finishes (pre-existing
   D-10.09 — benchmark timer must stop **before** the hang, at "last article
   ingested" event); (b) OpenRouter vision `desc_chars=0` but cascade marks
   success (reporting quirk in `image_pipeline`, unrelated to scaling).
+
+**Expected wall-clock budget.** This is overnight work, not a session task.
+
+| State | Article count | Est. per-article | State total |
+|-------|---------------|------------------|-------------|
+| S0 — baseline, serial loop, current config | ≤ 20 (may stop at 5-10) | Starts ~5 min, reaches 40+ min by art. 6-7 (per Hermes observation at 562 nodes) | **10-15 h** |
+| S1 — config-only (parallelized throttle, still serial embed) | ≤ 20 | 1.5-3× faster than S0's constant | **5-8 h** |
+| S2 — config + batch-API refactor (serial loop removed) | ≤ 20 | Another 10-20× faster on embed stage | **2-4 h** |
+| **Total** | 60 runs | — | **15-30 h wall-clock** |
+
+Plan an overnight run (S0) + next-day run (S1 + S2 back-to-back). Don't try
+to land all three in one working day — the hard ceilings exist specifically
+because we expect S0 to be painful. Budget separately for 1-2 h of pilot
+work (see below) before the real runs start.
 
 ---
 
@@ -134,6 +159,35 @@ engineer writes it):
 - **Out of scope for the spec itself** — the refactor is a separate Quick
   task post-benchmark. The spec only needs to **describe** what S2 looks
   like so the engineer knows what to build.
+
+### Pilot run (mandatory before the real benchmark)
+
+The "~50 nodes/article" expectation in §2 is extrapolated from 2 articles
+(100 nodes total) on this local graph. Hermes observed ~90 nodes/article at
+its scale — a 2× discrepancy. Article richness, chunking, and the
+extract-LLM's verbosity all shift the real nodes/article constant, and it
+matters: if the constant is lower than assumed, 20 articles may not even
+reach 562 nodes (Hermes's stall point), and the benchmark ends before it
+can tell us anything about the regime we care about.
+
+**Procedure.**
+
+1. Run S2 only (cheapest config) for **5 articles**, NO graph reset
+   between them.
+2. Record `N_nodes_after` at each step → compute avg nodes/article for
+   this local corpus.
+3. Extrapolate linearly to 20 articles. If the forecast is **< 600 nodes**,
+   expand the benchmark to 25-30 articles (still enforce §2 stopping rules
+   per state).
+4. Write a 1-page report to
+   `docs/benchmarks/lightrag_scaling_pilot_<YYYYMMDD>.md` containing:
+   the 5 per-article node counts, the fitted constant, the recommended
+   article count for the real run, and a one-line GO signal. Keep the
+   pilot graph state; **do not commit it** to the real benchmark — reset
+   before S0.
+
+The pilot's own data does **not** go into the headline §6 plots. It
+calibrates the sample size, nothing more. Pilot wall-clock budget: 1-2 h.
 
 ---
 
@@ -242,15 +296,30 @@ baseline. S0/S1 `k` values are sanity checks; don't make the call on them.
 
 | S2 `k` | Decision | Action |
 |-------|---------|--------|
-| **≤ 1.2** | **GREEN** — near-linear after serial fix | Land the S2 refactor + the S1 config bumps as production defaults. v3.4 milestone can open on top of this. No structural rework needed. |
-| **1.2 – 1.7** | **YELLOW** — super-linear but not catastrophic | Ship S2 anyway (it's a free win), but start a parallel track: (a) per-topic sharding (split graph by article topic → keep per-shard N small) OR (b) swap nano-vectordb for LanceDB (direct fix for hypothesis A). Attribution table tells us which of the two to pick. |
-| **≥ 1.7** | **RED** — structural blowup | Don't patch; reconsider. Candidates: swap NetworkX→Neo4j/Postgres graph backend (fixes B), or re-evaluate whether LightRAG itself is the right KG engine at this scale. This is a v3.5+ conversation, not a v3.4 hotfix. |
+| **≤ 1.1** | **GREEN** — near-linear after serial fix | Land the S2 refactor + the S1 config bumps as production defaults. v3.4 milestone can open on top of this. No structural rework needed. |
+| **1.1 – 1.5** | **YELLOW** — super-linear but not catastrophic | Ship S2 anyway (it's a free win), but start a parallel track: (a) per-topic sharding (split graph by article topic → keep per-shard N small) OR (b) swap nano-vectordb for LanceDB (direct fix for hypothesis A). Attribution table tells us which of the two to pick. |
+| **≥ 1.5** | **RED** — structural blowup | Don't patch; reconsider. Candidates: swap NetworkX→Neo4j/Postgres graph backend (fixes B), or re-evaluate whether LightRAG itself is the right KG engine at this scale. This is a v3.5+ conversation, not a v3.4 hotfix. |
+
+**Why `k ≤ 1.1` for GREEN (not 1.2 or 1.0).** LightRAG advertises
+"incremental update without full reprocessing." A system that actually
+delivers that should land at `k ≈ 1.0`. Setting GREEN at `1.2` means
+accepting a 16× slowdown at 10× nodes (100 → 1000), which directly
+contradicts the incremental claim; `1.1` is 12.6× at 10×, still
+super-linear but small enough to credibly match the marketing. `k = 1.0`
+exactly is likely unachievable given nano-vectordb + NetworkX graphml
+full-rewrite semantics, so we give a small slack band [1.0, 1.1] rather
+than demanding a flat line.
 
 **Edge cases.**
 
-- If the fit's R² < 0.9, **do not** report `k`. The curve is too noisy; more
-  samples needed, or graph is showing threshold behavior (e.g. fine until
-  N=500, then cliff). Switch to qualitative reporting + flag the cliff.
+- **Decision only reads S2 `k`.** S0 / S1 `k` values exist only to confirm
+  the "constant vs. order" story (same `k` across states ⇒ config doesn't
+  alter structural scaling). S0's coarser fit (as few as 5 samples per §2)
+  does not invalidate the Go/No-Go call.
+- If **S2's** fit has R² < 0.9, **do not** report `k`. The curve is too
+  noisy; more samples needed, or graph is showing threshold behavior (e.g.
+  fine until N=500, then cliff). Switch to qualitative reporting + flag the
+  cliff. S0/S1 R² < 0.9 is tolerable — treat those fits as qualitative.
 - If S2 ran to the 45-min/article hard stop before N=500, that's itself a
   **RED** outcome regardless of `k` — we never got clean data because the
   degradation is worse than assumed.
