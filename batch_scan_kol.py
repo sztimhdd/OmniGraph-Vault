@@ -33,7 +33,7 @@ from spiders.wechat_spider import (
     MAX_RETRIES,
 )
 
-DB_PATH = PROJECT_ROOT / "data" / "kol_scan.db"
+DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH", str(PROJECT_ROOT / "data" / "kol_scan.db")))
 SESSION_LIMIT = 54  # 1 req/acct for 54 KOLs; WeChat real limit ~60 (2026-04-27 calibrated)
 
 logging.basicConfig(
