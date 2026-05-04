@@ -83,7 +83,7 @@ def _is_mcp_endpoint(url: str) -> bool:
 # Phase 7: GEMINI_API_KEY now accessed via lib.current_key() — supports rotation
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
 
-DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
+DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH", str(Path(__file__).parent / "data" / "kol_scan.db")))
 
 # Phase 4: ensure SQLite has the enriched + enrichment_id columns on
 # every deploy. init_db() is idempotent (uses _ensure_column ALTER TABLE
