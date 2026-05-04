@@ -34,7 +34,7 @@ import requests
 # ~/.hermes/.env -> config.yaml).
 from batch_classify_kol import get_deepseek_api_key
 
-DB = Path("data/kol_scan.db")
+DB = Path(os.environ.get("KOL_SCAN_DB_PATH", "data/kol_scan.db"))
 DEFAULT_TOPICS: tuple[str, ...] = ("Agent", "LLM", "RAG", "NLP", "CV")
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = os.environ.get("CLASSIFIER_MODEL", "deepseek-chat")
