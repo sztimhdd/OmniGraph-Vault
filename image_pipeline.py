@@ -286,14 +286,46 @@ def localize_markdown(
 
 
 def _describe_via_gemini(image_bytes: bytes, mime: str = "image/jpeg") -> str:
-    """Describe one image via Gemini Vision (free tier, key rotation).
-    Raises on failure — caller handles fallback."""
+    """Describe one image via Gemini Vision. Raises on failure.
+
+    LDEV-06 (quick task 260504-g7a): When Vertex SA env is set
+    (GOOGLE_APPLICATION_CREDENTIALS + GOOGLE_CLOUD_PROJECT), uses the
+    Vertex-routed client with OMNIGRAPH_VISION_MODEL. Otherwise falls back
+    to the free-tier ``lib.generate_sync(VISION_LLM, ...)`` path (unchanged
+    behavior).
+    """
+    prompt = (
+        "Describe this image in detail for a knowledge graph. "
+        "Return only the description."
+    )
+    use_vertex = bool(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")) and \
+        bool(os.environ.get("GOOGLE_CLOUD_PROJECT"))
+    if use_vertex:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(
+            vertexai=True,
+            project=os.environ["GOOGLE_CLOUD_PROJECT"],
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
+        )
+        model = os.environ.get(
+            "OMNIGRAPH_VISION_MODEL", "gemini-3.1-flash-lite-preview"
+        )
+        resp = client.models.generate_content(
+            model=model,
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=image_bytes, mime_type=mime),
+            ],
+        )
+        return resp.text or ""
+    # Free-tier fallback — unchanged from previous implementation.
     from lib import VISION_LLM, generate_sync
     from google.genai import types
     return generate_sync(
         VISION_LLM,
         contents=[
-            "Describe this image in detail for a knowledge graph. Return only the description.",
+            prompt,
             types.Part.from_bytes(data=image_bytes, mime_type=mime),
         ],
     )
@@ -424,6 +456,16 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
         if force_openrouter_primary
         else list(DEFAULT_PROVIDERS)
     )
+    # LDEV-06 (quick task 260504-g7a): OMNIGRAPH_VISION_SKIP_PROVIDERS lets
+    # local dev drop providers that are unreachable or unfunded in the
+    # sandbox (no SiliconFlow balance, no OpenRouter key, etc.). Comma-list;
+    # whitespace + empty tokens tolerated.
+    _skip_raw = os.environ.get("OMNIGRAPH_VISION_SKIP_PROVIDERS", "").strip()
+    if _skip_raw:
+        _skip_set = {tok.strip() for tok in _skip_raw.split(",") if tok.strip()}
+        if _skip_set:
+            logger.info("LDEV-06: dropping vision providers per env: %s", _skip_set)
+            providers = [p for p in providers if p not in _skip_set]
     # Test seam: allow tests to redirect checkpoint storage off the user's
     # production ~/.hermes dir. Production leaves this unset.
     _ckpt_override = os.environ.get(
