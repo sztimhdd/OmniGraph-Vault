@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last Updated:** 2026-05-03 (Phase 5 Wave 2 partial-close — plans 05-04/05/06 Task 6.1 landed on origin/main; 3-day observation window (Task 6.2) pending operator run + user verdict)
+**Last Updated:** 2026-05-03 (Milestone v3.4 RSS-KOL Alignment — phases 19-22 added; execute gate BLOCKED until Day-1/2/3 KOL baseline complete ~2026-05-06 ADT)
 
 ## Done
 
@@ -253,3 +253,93 @@
 | 15. Documentation & Operator Runbook | 3/3 | Complete | 2026-05-02 |
 | 16. Vertex AI Infrastructure | 3/3 | Complete (docs only) | 2026-05-02 |
 | 17. Batch Timeout Management | 3/3 | Complete | 2026-05-02 |
+
+---
+
+## Milestone v3.4 — RSS-KOL Alignment (ACTIVE)
+
+**Milestone goal:** Close the RSS-vs-KOL architectural gap. RSS articles run through the full pipeline (scrape → full-body classify → multimodal ingest) except Zhihu enrichment — identical quality tier as KOL articles. Generic scraper defaults to full cascade (Apify → CDP → MCP → UA → fallback); failed-ingest stuck docs have a CLI cleanup tool and do not contaminate subsequent batches.
+
+**Execute gate (HARD):** All v3.4 phase execution is BLOCKED until Day-1/2/3 KOL cron baseline observation completes (~2026-05-04 → 2026-05-06 ADT). Research and planning proceed now. No code changes until baseline confirmed stable. Reason: tuning decisions (subprocess timeout, max-articles cap, concurrency) require real cron data; must verify Day-1 KOL pipeline is stable on the new Vertex-corrected code path before RSS alignment amplifies any instability.
+
+**Locked D-level decisions:**
+- D-RSS-SCRAPER-SCOPE = Option A (unified `lib/scraper.py` for both KOL and RSS arms; patches `batch_ingest_from_spider.py:940`)
+- D-STUCK-DOC-IDEMPOTENCY = CLI tool (`scripts/cleanup_stuck_docs.py`); Wave 3 Task 1 is a 30-min NanoVectorDB spike before building the full CLI
+
+**Milestone gate:** All 6 success criteria in PROJECT.md v3.4 pass + post-rollout Day-1/2/3 observation window clean (SC-5 / CUT-03).
+
+### Phases
+
+- [ ] **Phase 19: Generic Scraper + Schema + KOL Hotfix** — `lib/scraper.py` with 4-layer cascade, KOL line-940 hotfix, `rss_articles` schema ALTER, hash migration to SHA-256
+- [ ] **Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite** — `rss_classify.py` full-body prompt port, `rss_ingest.py` rewrite with 5-stage KOL-identical path, timeout + drain guards
+- [ ] **Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness** — STK-01 diagnostic spike first, then CLI tool, then E2E fixture + bench harness matching gpt55 pattern
+- [ ] **Phase 22: Backlog Re-Ingest + Cross-Arm Regression + Cron Cutover** — delete-before-reinsert 1020-article backlog, cross-arm KOL+RSS smoke, stuck-doc isolation test, cron body cutover + kill-switch
+
+## Phase Details
+
+### Phase 19: Generic Scraper + Schema + KOL Hotfix
+**Goal**: A single reusable scraper module (`lib/scraper.py`) exists with 4-layer cascade and serves both KOL and RSS arms; the Day-1 KOL regression bug at `batch_ingest_from_spider.py:940` is closed; `rss_articles` schema has the 5 new columns needed by Wave 2; checkpoint hash is unified to SHA-256
+**Depends on**: Nothing (Wave 1 blocker — all Wave 2 work depends on `scrape_url()` existing)
+**Requirements**: SCR-01, SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCH-01, SCH-02
+**Execute gate**: UNBLOCKED 2026-05-03 as urgent KOL hotfix (UA-only line-940 bottleneck confirmed in Day-1 preview round 1; SCR-06 hotfix needed before 06:00 ADT cron). Phase 20/21/22 retain the baseline gate.
+**Success Criteria** (what must be TRUE):
+  1. `from lib.scraper import scrape_url, ScrapeResult` imports cleanly; `scrape_url("https://example.com", site_hint="generic")` returns a `ScrapeResult` with non-empty `markdown` for any reachable public URL
+  2. Running `batch_ingest_from_spider.py` against a KOL article that previously triggered UA-only failure returns `method: apify` or `method: cdp` (not `method: ua`) in the scrape log — confirms line-940 hotfix active (D-RSS-SCRAPER-SCOPE = Option A)
+  3. `SELECT body, depth, topics, classify_rationale, body_scraped_at FROM rss_articles LIMIT 1` executes without error on the live `data/kol_scan.db` — confirms 5-column ALTER landed
+  4. `python scripts/checkpoint_status.py` shows only 16-char directory names under `checkpoints/` — confirms SHA-256 hash migration (no mixed 10-char MD5 dirs); `from lib.checkpoint import get_article_hash` is the only hash call site in `batch_ingest_from_spider.py`
+  5. HTTP 429 from any scrape layer triggers exponential backoff (30s / 60s / 120s) visible in logs before cascading; a login-wall keyword in response body triggers cascade to next layer without hanging
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite
+**Goal**: RSS articles are classified on full body text (not summaries) and ingested into LightRAG via the same 5-stage multimodal path as KOL articles — full text + localhost-rewritten image URLs + Vision cascade sub-docs; stuck-doc prevention baked in via timeout wrapper and drain call
+**Depends on**: Phase 19 (`lib/scraper.scrape_url()` must exist; `rss_articles.body` column must exist)
+**Requirements**: RCL-01, RCL-02, RCL-03, RIN-01, RIN-02, RIN-03, RIN-04, RIN-05, RIN-06
+**Execute gate**: BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT); additionally depends on Phase 19
+**Success Criteria** (what must be TRUE):
+  1. After running `python enrichment/rss_ingest.py --max-articles 3` against live RSS feeds, 3 articles in `rss_articles` have `body` column populated (length ≥ 500 chars) and `depth` / `topics` columns populated (full-body classify completed before ingest decision)
+  2. For those 3 articles, LightRAG contains docs with `doc_id = f"rss-{article_id}"` at status PROCESSED (verified via `aget_docs_by_ids`); `enriched = 2` is set in SQLite only after PROCESSED confirmed
+  3. Image URLs in the ingested markdown contain `http://localhost:8765/` prefix (localize_markdown applied); at least 1 article with images has a Vision sub-doc in LightRAG (`rss-{id}_images` doc_id)
+  4. A simulated 429 from DeepSeek during classify triggers a log line with exponential backoff delay (≥4.5s throttle baseline visible); 3 retry attempts before skipping article
+  5. If `asyncio.wait_for` timeout fires mid-ingest, `adelete_by_doc_id` rollback is called and `enriched` remains 0 in SQLite (not set to 2 on partial failure)
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness
+**Goal**: The NanoVectorDB cleanup confidence gap (Delta 2) is resolved by a 30-min spike before any CLI code is written; `scripts/cleanup_stuck_docs.py` is delivered with validated cleanup coverage; the RSS E2E fixture and bench harness exist and can run offline — matching the gpt55 fixture pattern
+**Depends on**: Phase 20 (RSS ingest must be functional to create meaningful fixtures; spike uses the live LightRAG install that Wave 2 exercises)
+**Requirements**: STK-01, STK-02, STK-03, E2R-01, E2R-02
+**Execute gate**: BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT); additionally depends on Phase 20
+**Note on STK-01**: The 30-min diagnostic spike (STK-01) MUST be the first task executed in this phase. Its outcome — specifically whether NanoVectorDB vectors are fully cleaned by `adelete_by_doc_id` — may adjust the implementation approach for STK-02/STK-03. Do not begin CLI implementation until the spike writes its findings.
+**Success Criteria** (what must be TRUE):
+  1. A spike script creates a test doc, force-sets it to FAILED/PROCESSING in `kv_store_doc_status.json`, calls `adelete_by_doc_id`, and then asserts zero residue across all 4 storage layers (`kv_store_doc_status.json`, `kv_store_full_docs.json`, `vdb_entities.json`, Kuzu graph) — spike results written to a findings file before any CLI code is written (resolves Delta 2)
+  2. `python scripts/cleanup_stuck_docs.py --dry-run` lists FAILED/PROCESSING doc IDs in the live LightRAG store without modifying any data; exit code 0
+  3. `python scripts/cleanup_stuck_docs.py --all-failed` deletes all FAILED docs and outputs a structured JSON report `{docs_identified, docs_deleted, docs_skipped, skipped_reasons, elapsed_ms}` to stdout; exit code 0 on success, non-zero on unexpected error
+  4. `test/fixtures/rss_sample_article/` directory exists with `article.html`, `article.md`, `images/1.jpg`, `images/2.jpg`, and `metadata.json` (url, title, expected depth/topics) — mirrors `test/fixtures/gpt55_article/` structure
+  5. `python scripts/bench_rss_ingest.py` against the fixture emits `benchmark_result.json` with the 9-key schema; text ingest phase completes in <600s; `gate_pass: true` with no unhandled exceptions
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 22: Backlog Re-Ingest + Cross-Arm Regression + Cron Cutover
+**Goal**: The 1020 legacy summary-only RSS articles are re-ingested with full-body content (delete-before-reinsert pattern for legacy doc IDs); joint KOL+RSS cross-arm smoke validates the combined pipeline; stuck-doc isolation test validates SC-6; cron body is cut over to `orchestrate_daily.step_7_ingest_all` with a kill-switch for fast rollback
+**Depends on**: Phase 21 (stuck-doc CLI must exist before backlog run; E2R fixture must pass before cutover)
+**Requirements**: BKF-01, BKF-02, BKF-03, E2R-03, E2R-04, CUT-01, CUT-02, CUT-03
+**Execute gate**: BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT); additionally depends on Phase 21; SCR-06 KOL regression must be verified (E2R-04 cross-arm smoke) before cutover
+**Note on SCR-06 regression**: E2R-04 is the designated KOL regression test for the line-940 hotfix delivered in Phase 19. Both KOL and RSS arms must pass the cross-arm smoke before CUT-01 cron cutover proceeds.
+**Success Criteria** (what must be TRUE):
+  1. `python enrichment/rss_ingest.py --backlog --max-articles 100` completes a 100-article chunk; for articles that previously had `enriched > 0` with summary-only docs, `adelete_by_doc_id` is called before re-insert (verify via log: `"delete-before-reinsert: rss-{id}"`); ≥80 of 100 articles reach `enriched = 2`
+  2. After full 1020-article backlog run (10 × 100-article chunks), `SELECT COUNT(*) FROM rss_articles WHERE enriched = 2` is ≥ 800 (≥80% success rate, allows ~20% extraction failure per SC-4)
+  3. A deliberately-failed ingest (mid-Vision crash simulated) leaves no stuck-doc residue after `cleanup_stuck_docs.py` is run; the subsequent batch `benchmark_result.json.gate_pass == true` with zero stuck-doc entries in `kv_store_doc_status.json` (validates SC-6)
+  4. `orchestrate_daily.step_7_ingest_all --kol-max 5 --rss-max 5` (or equivalent) succeeds with both arms; LightRAG graph grows by ≥ 8 docs across the two arms (validates SC-2); confirms SCR-06 KOL regression closed
+  5. `register_phase5_cron.sh` updated body re-runs idempotently; `~/.hermes/.rss-cutover-disabled` kill-switch file presence causes cron to skip RSS arm (verified by creating the file and inspecting cron log output)
+**Plans**: TBD
+**UI hint**: no
+
+## Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 19. Generic Scraper + Schema + KOL Hotfix | 0/TBD | Not started | - |
+| 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 0/TBD | Not started | - |
+| 21. Stuck-Doc Spike + CLI + RSS E2E Fixture + Bench | 0/TBD | Not started | - |
+| 22. Backlog Re-Ingest + Cross-Arm Regression + Cutover | 0/TBD | Not started | - |
