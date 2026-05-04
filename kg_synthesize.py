@@ -10,7 +10,7 @@ if sys.stdout.encoding != "utf-8":
 
 from config import RAG_WORKING_DIR, load_env, CANONICAL_MAP_FILE
 load_env()
-DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
+DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH", str(Path(__file__).parent / "data" / "kol_scan.db")))
 
 import asyncio
 import time
