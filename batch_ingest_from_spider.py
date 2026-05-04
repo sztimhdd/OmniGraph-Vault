@@ -83,7 +83,10 @@ logger = logging.getLogger(__name__)
 
 SLEEP_BETWEEN_ARTICLES = 10  # Phase 5-00c: DeepSeek LLM + 2-key Gemini embedding rotation (not 15 RPM Gemini)
 GEMINI_BATCH_SLEEP = 2.0   # DeepSeek: no RPM concern; light pause for API stability
-DB_PATH = PROJECT_ROOT / "data" / "kol_scan.db"
+DB_PATH = Path(os.environ.get(
+    "KOL_SCAN_DB_PATH",
+    str(PROJECT_ROOT / "data" / "kol_scan.db"),
+))
 
 # D-10.09: aggregate deadline for draining pending Vision worker tasks before
 # rag.finalize_storages(). 120s covers the worst-case backlog of ~30 articles
