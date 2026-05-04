@@ -54,6 +54,13 @@ load_env()
 # image_pipeline.describe_images which owns its own model selection.
 from lib import current_key, get_limiter
 
+# LDEV-04 (quick task 260504-g7a): route LightRAG LLM through the provider
+# dispatcher so OMNIGRAPH_LLM_PROVIDER=vertex_gemini selects the Vertex AI
+# path for local dev. Unset env preserves the DeepSeek default (production
+# Hermes behavior unchanged). Direct deepseek_model_complete call at
+# line ~750 is unchanged — this only rewires the LightRAG instance.
+from lib.llm_complete import get_llm_func
+
 from image_pipeline import (
     download_images, localize_markdown, describe_images, save_markdown_with_images,
     filter_small_images, get_last_describe_stats, emit_batch_complete,
@@ -200,7 +207,7 @@ async def get_rag(flush: bool = True) -> "LightRAG":
     """
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
-        llm_model_func=deepseek_model_complete,
+        llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
         llm_model_name="deepseek-v4-flash",
         # Throttle concurrency to fit Gemini free-tier EMBED quota:
