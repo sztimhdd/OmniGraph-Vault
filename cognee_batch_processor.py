@@ -38,7 +38,7 @@ from google.genai import types
 from config import ENTITY_BUFFER_DIR, CANONICAL_MAP_FILE
 BUFFER_DIR = str(ENTITY_BUFFER_DIR)
 MAP_FILE = str(CANONICAL_MAP_FILE)
-DB_PATH = Path(__file__).parent / "data" / "kol_scan.db"
+DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH", str(Path(__file__).parent / "data" / "kol_scan.db")))
 
 
 def _load_canonical_map() -> dict:
