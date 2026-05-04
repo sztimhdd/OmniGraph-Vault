@@ -5,7 +5,16 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Base paths
-BASE_DIR = Path.home() / ".hermes" / "omonigraph-vault"
+# LDEV-05 (quick task 260504-g7a): OMNIGRAPH_BASE_DIR env override for local-dev
+# sandbox. Empty string treated as unset, mirroring RAG_WORKING_DIR pattern
+# below. When unset, preserves Hermes production path verbatim (including
+# the canonical `omonigraph-vault` typo per CLAUDE.md "do not fix without
+# coordinated migration").
+BASE_DIR = (
+    Path(os.environ["OMNIGRAPH_BASE_DIR"])
+    if os.environ.get("OMNIGRAPH_BASE_DIR")
+    else Path.home() / ".hermes" / "omonigraph-vault"
+)
 # Phase 11 Plan 11-02: RAG_WORKING_DIR env override — lets the benchmark
 # harness route LightRAG state into an isolated directory without polluting
 # the user's production knowledge graph. Existing production storage is
