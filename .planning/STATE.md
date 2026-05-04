@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: — Single-Article Ingest Stability ✅ CLOSED
 status: executing
-stopped_at: "Completed 19-00-PLAN.md (Wave 0 scaffolding: requirements.txt pin + 3 RED test stub files)"
-last_updated: "2026-05-04T02:00:08.297Z"
+stopped_at: "Completed 19-01-PLAN.md (Wave 1: lib/scraper.py + 5 GREEN tests for SCR-01..05)"
+last_updated: "2026-05-04T02:09:58.000Z"
 last_activity: 2026-05-04
 progress:
   total_phases: 4
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-03)
 
 Milestone: v3.4 (RSS-KOL Alignment)
 Phase: 19 (Generic Scraper + Schema + KOL Hotfix) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Execute gate: BLOCKED until Day-1/2/3 KOL baseline observation complete (~2026-05-06 ADT)
 Last activity: 2026-05-04
@@ -146,6 +146,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase 11 P00 | 18min | 1 tasks | 2 files |
 | Phase 11 P02 | 55 | 2 tasks | 5 files |
 | Phase 19 P00 | 5min | 3 tasks | 5 files |
+| Phase 19 P01 | 6min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -200,6 +201,9 @@ Recent decisions affecting current work:
 - [Phase 11]: Plan 11-02 live gate run: text_ingest_ms=18348 (6.5× under 120s budget via Vertex AI), zero_crashes=true, aquery_returns_fixture_chunk=false (dummy DEEPSEEK_API_KEY -> LightRAG synthesis returns None). gate_pass=false. Harness verified working end-to-end; gate_pass blocked only by credential gap.
 - [Phase 19]: [Phase 19-00]: Wave 0 scaffolding complete — trafilatura 2.0.0 + lxml 5.4.0 pinned, 3 RED test files (8 pytest.fail stubs) wired to SCR-01..06 + SCH-01..02 task-IDs
 - [Phase 19]: [Phase 19-00]: lxml pinned <6 per SCR-07 authoritative spec; 19-RESEARCH.md Pitfall 5 relaxation deferred to v3.5 follow-up
+- [Phase 19]: Layer 3 of generic cascade (CDP/MCP) deferred to Phase 20 — falls through to summary_only fallback rather than raising (D-RSS-SCRAPER-SCOPE Option A)
+- [Phase 19]: ScrapeResult.content_html preserved on WeChat path so batch_ingest_from_spider.py:940 consumer keeps working — zero API break for existing code
+- [Phase 19]: scrape_url never raises — returns summary_only=True on cascade exhaustion so callers decide to skip (graceful cascade semantics)
 
 ### Pending Todos
 
@@ -240,8 +244,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-04T02:00:08.290Z
-Stopped at: Completed 19-00-PLAN.md (Wave 0 scaffolding: requirements.txt pin + 3 RED test stub files)
+Last session: 2026-05-04T02:09:46.470Z
+Stopped at: Completed 19-01-PLAN.md (Wave 1: lib/scraper.py + 5 GREEN tests for SCR-01..05)
 Resume file: None
 Next command: `/gsd:plan-phase 19` (after Day-1/2/3 KOL baseline gate lifts ~2026-05-06 ADT)
 

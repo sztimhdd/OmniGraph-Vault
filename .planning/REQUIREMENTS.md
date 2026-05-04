@@ -31,12 +31,12 @@
 
 #### Scraper (SCR)
 
-- [ ] **SCR-01**: `lib/scraper.py` is a new module exposing public API `scrape_url(url: str, site_hint: str) -> ScrapeResult`. Extracted from `ingest_wechat.py::process_content` + related cascade logic. ScrapeResult is a dataclass with `{markdown: str, images: list[ImageRef], metadata: dict, method: str, summary_only: bool, content_html: Optional[str]}`.
+- [x] **SCR-01**: `lib/scraper.py` is a new module exposing public API `scrape_url(url: str, site_hint: str) -> ScrapeResult`. Extracted from `ingest_wechat.py::process_content` + related cascade logic. ScrapeResult is a dataclass with `{markdown: str, images: list[ImageRef], metadata: dict, method: str, summary_only: bool, content_html: Optional[str]}`.
   - *Amendment 2026-05-03 (Phase 19 planning):* Added 6th field `content_html: Optional[str] = None` — required by the `batch_ingest_from_spider.py:940` WeChat consumer (`_classify_full_body` passes it to `ingest_wechat.process_content`). Field is Optional / defaults to None for non-WeChat callers; filled only on WeChat cascade path.
-- [ ] **SCR-02**: 4-layer cascade — trafilatura UA fetch (PRIMARY for non-WeChat) → requests UA-spoofed + trafilatura extract (SECONDARY) → CDP / MCP browser render (TERTIARY — Medium / gated content skip layers 1-2) → RSS summary fallback (LAST RESORT — flags result as `summary_only=True`, not `enriched=2`).
-- [ ] **SCR-03**: URL router dispatches by site type using stdlib `urllib.parse.urlparse` (no `tldextract` dep). Routing table: `mp.weixin.qq.com/*` → WeChat cascade (existing path); `arxiv.org/abs/*` → trafilatura (abstract only); `arxiv.org/pdf/*` → existing PyMuPDF path; everything else → generic cascade.
-- [ ] **SCR-04**: Content-quality gate before accepting a layer's output: `len(text) >= 500` AND no login-wall keywords (`"Sign in"`, `"Log in to continue"`, `"Subscribe to read"`, `"登录查看"`, etc.). If gate fails, cascade to next layer.
-- [ ] **SCR-05**: HTTP 429 triggers **exponential backoff** (30s / 60s / 120s) on the same layer; does NOT immediately cascade (prevents burning through layers unnecessarily on transient rate limits). Cascade-after-429 only after 3 backoff attempts.
+- [x] **SCR-02**: 4-layer cascade — trafilatura UA fetch (PRIMARY for non-WeChat) → requests UA-spoofed + trafilatura extract (SECONDARY) → CDP / MCP browser render (TERTIARY — Medium / gated content skip layers 1-2) → RSS summary fallback (LAST RESORT — flags result as `summary_only=True`, not `enriched=2`).
+- [x] **SCR-03**: URL router dispatches by site type using stdlib `urllib.parse.urlparse` (no `tldextract` dep). Routing table: `mp.weixin.qq.com/*` → WeChat cascade (existing path); `arxiv.org/abs/*` → trafilatura (abstract only); `arxiv.org/pdf/*` → existing PyMuPDF path; everything else → generic cascade.
+- [x] **SCR-04**: Content-quality gate before accepting a layer's output: `len(text) >= 500` AND no login-wall keywords (`"Sign in"`, `"Log in to continue"`, `"Subscribe to read"`, `"登录查看"`, etc.). If gate fails, cascade to next layer.
+- [x] **SCR-05**: HTTP 429 triggers **exponential backoff** (30s / 60s / 120s) on the same layer; does NOT immediately cascade (prevents burning through layers unnecessarily on transient rate limits). Cascade-after-429 only after 3 backoff attempts.
 - [ ] **SCR-06**: `batch_ingest_from_spider.py:940` UA-only path is replaced by `scrape_url(url, site_hint="wechat")`. Locks **D-RSS-SCRAPER-SCOPE = Option A**. Closes Day-1 pre-flight article 1 KOL regression bug (Phase 10 D-10.01 residue).
 - [x] **SCR-07**: `trafilatura>=2.0.0,<3.0` + `lxml>=4.9,<6` pinned in `requirements.txt`. Note: `lxml>=6` has open trafilatura incompatibility issues — pin `<6` until resolved.
 
@@ -113,11 +113,11 @@ Emergency hotfix 2026-05-03 gates `ingest_wechat.py:1099-1108` inline Cognee cal
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| SCR-01 | Phase 19 | Pending |
-| SCR-02 | Phase 19 | Pending |
-| SCR-03 | Phase 19 | Pending |
-| SCR-04 | Phase 19 | Pending |
-| SCR-05 | Phase 19 | Pending |
+| SCR-01 | Phase 19 | Complete |
+| SCR-02 | Phase 19 | Complete |
+| SCR-03 | Phase 19 | Complete |
+| SCR-04 | Phase 19 | Complete |
+| SCR-05 | Phase 19 | Complete |
 | SCR-06 | Phase 19 | Pending |
 | SCR-07 | Phase 19 | Complete |
 | SCH-01 | Phase 19 | Pending |
