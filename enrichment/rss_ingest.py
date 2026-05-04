@@ -51,7 +51,7 @@ from config import BASE_DIR, RAG_WORKING_DIR
 
 DetectorFactory.seed = 0  # deterministic language detection
 
-DB = Path("data/kol_scan.db")
+DB = Path(os.environ.get("KOL_SCAN_DB_PATH", "data/kol_scan.db"))
 RSS_CONTENT_DIR = BASE_DIR / "rss_content"
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = os.environ.get("TRANSLATE_MODEL", "deepseek-chat")
