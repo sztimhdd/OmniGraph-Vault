@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last Updated:** 2026-05-03 (Milestone v3.4 RSS-KOL Alignment — phases 19-22 added; execute gate BLOCKED until Day-1/2/3 KOL baseline complete ~2026-05-06 ADT)
+**Last Updated:** 2026-05-04 (Phase 19 shipped — generic scraper + KOL hotfix + schema + hash migration complete; operator Hermes SSH verify pending; execute gate for Phase 20-22 remains BLOCKED until Day-1/2/3 KOL baseline ~2026-05-06 ADT)
 
 ## Done
 
@@ -276,7 +276,7 @@
 
 ### Phases
 
-- [ ] **Phase 19: Generic Scraper + Schema + KOL Hotfix** — `lib/scraper.py` with 4-layer cascade, KOL line-940 hotfix, `rss_articles` schema ALTER, hash migration to SHA-256
+- [x] **Phase 19: Generic Scraper + Schema + KOL Hotfix (2026-05-04)** — `lib/scraper.py` with 4-layer cascade, KOL line-940 hotfix (SCR-06), `rss_articles` schema ALTER (SCH-01), hash migration to SHA-256 (SCH-02). 8/8 new unit tests GREEN; full regression 464 passed / 13 pre-existing failed / 0 new regressions. Operator Hermes SSH verify pending — see `.planning/phases/19-generic-scraper-schema-kol-hotfix/19-DEPLOY.md`.
 - [ ] **Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite** — `rss_classify.py` full-body prompt port, `rss_ingest.py` rewrite with 5-stage KOL-identical path, timeout + drain guards
 - [ ] **Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness** — STK-01 diagnostic spike first, then CLI tool, then E2E fixture + bench harness matching gpt55 pattern
 - [ ] **Phase 22: Backlog Re-Ingest + Cross-Arm Regression + Cron Cutover** — delete-before-reinsert 1020-article backlog, cross-arm KOL+RSS smoke, stuck-doc isolation test, cron body cutover + kill-switch
@@ -299,7 +299,7 @@ Plans:
 - [x] 19-00-PLAN.md — Wave 0 scaffolding: pin trafilatura + lxml, create 3 RED test stub files
 - [x] 19-01-PLAN.md — Wave 1: lib/scraper.py (ScrapeResult + 4-layer cascade + 429 backoff + quality gate), 5 GREEN tests for SCR-01..05
 - [x] 19-02-PLAN.md — Wave 2: SCR-06 line-940 hotfix + SCH-02 SHA-256 hash unification + SCH-01 rss_articles ALTER, 3 GREEN tests
-- [ ] 19-03-PLAN.md — Wave 3: full regression suite + 19-DEPLOY.md operator runbook + manual Hermes SSH verification + STATE.md close-out
+- [x] 19-03-PLAN.md — Wave 3 closed 2026-05-04: full regression gate (464 pass / 13 pre-existing fail / 0 new regressions) + 19-DEPLOY.md operator runbook + STATE.md close-out. Task 3.3 Hermes SSH verify pending-operator.
 **UI hint**: no
 
 ### Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite + Cognee Routing Fix
@@ -353,7 +353,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 19. Generic Scraper + Schema + KOL Hotfix | 3/4 | In Progress|  |
+| 19. Generic Scraper + Schema + KOL Hotfix | 4/4 | Complete (operator SSH verify pending) | 2026-05-04 |
 | 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 0/TBD | Not started | - |
 | 21. Stuck-Doc Spike + CLI + RSS E2E Fixture + Bench | 0/TBD | Not started | - |
 | 22. Backlog Re-Ingest + Cross-Arm Regression + Cutover | 0/TBD | Not started | - |

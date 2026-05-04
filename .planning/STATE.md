@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: — Single-Article Ingest Stability ✅ CLOSED
-status: executing
-stopped_at: "Completed 19-02-PLAN.md (Wave 2: SCR-06 hotfix + SCH-01 ALTER + SCH-02 hash + Rule 1 tracker-key fix)"
-last_updated: "2026-05-04T02:37:44.967Z"
-last_activity: 2026-05-04
+status: phase-complete
+stopped_at: "Phase 19 shipped — lib/scraper.py + KOL line-940 hotfix + SHA-256 hash + rss_articles ALTER. Hermes operator runbook in 19-DEPLOY.md (SSH verify pending-operator)."
+last_updated: "2026-05-04T02:43:16Z"
+last_activity: 2026-05-04 — Phase 19 complete: scraper + hotfix + schema + hash unified; 8/8 new unit tests GREEN; full regression 464 passed / 13 pre-existing failed; Hermes SSH verify pending operator
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 10
-  completed_plans: 9
+  completed_phases: 1
+  total_plans: 4
+  completed_plans: 4
 ---
 
 # Project State
@@ -20,21 +20,31 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-03)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Phase 19 — Generic Scraper + Schema + KOL Hotfix
+**Current focus:** Phase 19 complete (pending operator SSH verify) — Phase 20 is NEXT; v3.4 execute gate remains BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT).
 
 ## Current Position
 
 Milestone: v3.4 (RSS-KOL Alignment)
-Phase: 19 (Generic Scraper + Schema + KOL Hotfix) — EXECUTING
-Plan: 4 of 4
-Status: Ready to execute
+Phase: 20 (RSS Full-Body Classify + Multimodal Ingest + Cognee Fix) — NEXT; Phase 19 complete
+Plan: — (Phase 19 shipped 4 plans; next is `/gsd:plan-phase 20`)
+Status: Phase 19 shipped (pending operator Hermes SSH verify per 19-DEPLOY.md). Phase 20 execute BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT).
 Execute gate: BLOCKED until Day-1/2/3 KOL baseline observation complete (~2026-05-06 ADT)
-Last activity: 2026-05-04
+Last activity: 2026-05-04 — Phase 19 close-out (regression gate green, 19-DEPLOY.md written, STATE updated)
 
 ### Immediate next step
 
-Wait for Day-1/2/3 KOL baseline window (~2026-05-04 → 2026-05-06 ADT) to complete.
-After baseline confirmed stable, resume with `/gsd:plan-phase 19`.
+Operator (user) runs `.planning/phases/19-generic-scraper-schema-kol-hotfix/19-DEPLOY.md` on Hermes:
+  1. SSH per `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/hermes_ssh.md`
+  2. `cd ~/OmniGraph-Vault && git pull --ff-only`
+  3. `source venv/bin/activate` (Linux layout — NOT `venv/Scripts/`)
+  4. `pip install -r requirements.txt`
+  5. `python scripts/checkpoint_reset.py --all --confirm` (one-time SHA-256 migration)
+  6. `python -m pytest tests/ -q` (expect ≈ 464 passed / ≤ 13 pre-existing failed; all 8 Phase-19 tests GREEN)
+  7. `python batch_ingest_from_spider.py --from-db --topic-filter Agent --min-depth 2 --max-articles 1 --dry-run` (expect CLI parse, exit 0)
+
+After operator reports back with verdict (`approved` / `issues: <...>`):
+  - If approved → wait for Day-1/2/3 KOL baseline (~2026-05-04 → 2026-05-06 ADT) to complete, then resume with `/gsd:plan-phase 20`
+  - If issues → open a follow-up `/gsd:quick` or revision plan; do NOT advance to Phase 20
 
 **Execute gate rationale:**
 
@@ -148,6 +158,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase 19 P00 | 5min | 3 tasks | 5 files |
 | Phase 19 P01 | 6min | 3 tasks | 2 files |
 | Phase 19 P02 | 23min | 4 tasks | 7 files |
+| Phase 19 P03 | 5min | 3 tasks (3.3 pending-operator) | 3 files |
 
 ## Accumulated Context
 
@@ -163,6 +174,7 @@ Decisions are logged in PROJECT.md Key Decisions table and `.planning/phases/04-
 Recent decisions affecting current work:
 
 - **[v3.4] D-RSS-SCRAPER-SCOPE = Option A** — `lib/scraper.py::scrape_url()` serves both KOL and RSS arms; patches `batch_ingest_from_spider.py:940` UA-only bug; 2:1 researcher consensus + user preference. Stack.md Option B rejected (incorrectly assumed KOL path not broken; Day-1 pre-flight disproved this).
+- **[Phase 19 complete, 2026-05-04]** lib/scraper.py shipped with 4-layer WeChat cascade (apify → cdp → mcp → ua) + generic trafilatura cascade + 429 backoff + login-wall gate. batch_ingest_from_spider.py:940 SCR-06 hotfix landed (scrape_url, site_hint="wechat"). batch_ingest_from_spider.py:275 hash unified to get_article_hash (SHA-256 first 16). rss_articles ALTER added 5 nullable columns for Phase 20. 8 new unit tests GREEN; full regression 464 passed / 13 pre-existing failed / 0 new regressions. Hermes post-pull: `checkpoint_reset.py --all --confirm` wipes legacy MD5-10 dirs (see 19-DEPLOY.md). Task 3.3 operator SSH verify PENDING — STATE marks phase complete pre-emptively on dev-box green gate; operator runs 19-DEPLOY.md steps 1-5 and reports back `approved` or `issues: <...>`.
 - **[v3.4] D-STUCK-DOC-IDEMPOTENCY = CLI tool** — `scripts/cleanup_stuck_docs.py`; NOT cron pre-hook. LightRAG self-heals FAILED docs on next `ainsert`; cron pre-hook would delete retryable docs. Wave 3 Phase 21 Task 1 = 30-min NanoVectorDB spike to resolve Delta 2 confidence gap before building CLI.
 - **[v3.4] Wave 3 split into Phase 21 + Phase 22** — STK-01 spike outcome may change STK-02/03 design; BKF backlog and CUT cutover must not run before E2R validates full pipeline. Phase 21 = spike + tools + fixtures; Phase 22 = operational bulk work + cutover.
 - Phase 4: 16 locked decisions captured in 04-CONTEXT.md (D-01 through D-16)
@@ -248,10 +260,10 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-04T02:37:32.784Z
-Stopped at: Completed 19-02-PLAN.md (Wave 2: SCR-06 hotfix + SCH-01 ALTER + SCH-02 hash + Rule 1 tracker-key fix)
+Last session: 2026-05-04T02:43:16Z
+Stopped at: Completed 19-03-PLAN.md (Wave 3: regression gate + 19-DEPLOY.md + STATE close-out; Task 3.3 Hermes SSH verify pending operator)
 Resume file: None
-Next command: `/gsd:plan-phase 19` (after Day-1/2/3 KOL baseline gate lifts ~2026-05-06 ADT)
+Next command: Operator runs `19-DEPLOY.md` on Hermes → reports verdict; then wait for Day-1/2/3 KOL baseline (~2026-05-06 ADT) to lift execute gate → resume with `/gsd:plan-phase 20`
 
 ## Phase 6 Exit State
 
