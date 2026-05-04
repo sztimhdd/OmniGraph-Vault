@@ -28,7 +28,7 @@ from pathlib import Path
 
 from config import BASE_DIR
 
-DB = Path("data/kol_scan.db")
+DB = Path(os.environ.get("KOL_SCAN_DB_PATH", "data/kol_scan.db"))
 SKILL_CMD = ["hermes", "skill", "run", "enrich_article"]
 # SKILL.md puts a ~10 min ceiling on enrich_article; 15 min timeout = safety margin.
 SKILL_TIMEOUT_SECONDS = 900
