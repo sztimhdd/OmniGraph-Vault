@@ -38,7 +38,7 @@
 - [ ] **SCR-04**: Content-quality gate before accepting a layer's output: `len(text) >= 500` AND no login-wall keywords (`"Sign in"`, `"Log in to continue"`, `"Subscribe to read"`, `"登录查看"`, etc.). If gate fails, cascade to next layer.
 - [ ] **SCR-05**: HTTP 429 triggers **exponential backoff** (30s / 60s / 120s) on the same layer; does NOT immediately cascade (prevents burning through layers unnecessarily on transient rate limits). Cascade-after-429 only after 3 backoff attempts.
 - [ ] **SCR-06**: `batch_ingest_from_spider.py:940` UA-only path is replaced by `scrape_url(url, site_hint="wechat")`. Locks **D-RSS-SCRAPER-SCOPE = Option A**. Closes Day-1 pre-flight article 1 KOL regression bug (Phase 10 D-10.01 residue).
-- [ ] **SCR-07**: `trafilatura>=2.0.0,<3.0` + `lxml>=4.9,<6` pinned in `requirements.txt`. Note: `lxml>=6` has open trafilatura incompatibility issues — pin `<6` until resolved.
+- [x] **SCR-07**: `trafilatura>=2.0.0,<3.0` + `lxml>=4.9,<6` pinned in `requirements.txt`. Note: `lxml>=6` has open trafilatura incompatibility issues — pin `<6` until resolved.
 
 #### Schema (SCH)
 
@@ -119,7 +119,7 @@ Emergency hotfix 2026-05-03 gates `ingest_wechat.py:1099-1108` inline Cognee cal
 | SCR-04 | Phase 19 | Pending |
 | SCR-05 | Phase 19 | Pending |
 | SCR-06 | Phase 19 | Pending |
-| SCR-07 | Phase 19 | Pending |
+| SCR-07 | Phase 19 | Complete |
 | SCH-01 | Phase 19 | Pending |
 | SCH-02 | Phase 19 | Pending |
 | RCL-01 | Phase 20 | Pending |

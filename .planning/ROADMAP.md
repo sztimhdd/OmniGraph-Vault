@@ -296,7 +296,7 @@
   5. HTTP 429 from any scrape layer triggers exponential backoff (30s / 60s / 120s) visible in logs before cascading; a login-wall keyword in response body triggers cascade to next layer without hanging
 **Plans**: 4 plans
 Plans:
-- [ ] 19-00-PLAN.md — Wave 0 scaffolding: pin trafilatura + lxml, create 3 RED test stub files
+- [x] 19-00-PLAN.md — Wave 0 scaffolding: pin trafilatura + lxml, create 3 RED test stub files
 - [ ] 19-01-PLAN.md — Wave 1: lib/scraper.py (ScrapeResult + 4-layer cascade + 429 backoff + quality gate), 5 GREEN tests for SCR-01..05
 - [ ] 19-02-PLAN.md — Wave 2: SCR-06 line-940 hotfix + SCH-02 SHA-256 hash unification + SCH-01 rss_articles ALTER, 3 GREEN tests
 - [ ] 19-03-PLAN.md — Wave 3: full regression suite + 19-DEPLOY.md operator runbook + manual Hermes SSH verification + STATE.md close-out
@@ -353,7 +353,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 19. Generic Scraper + Schema + KOL Hotfix | 0/TBD | Not started | - |
+| 19. Generic Scraper + Schema + KOL Hotfix | 1/4 | In Progress|  |
 | 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 0/TBD | Not started | - |
 | 21. Stuck-Doc Spike + CLI + RSS E2E Fixture + Bench | 0/TBD | Not started | - |
 | 22. Backlog Re-Ingest + Cross-Arm Regression + Cutover | 0/TBD | Not started | - |

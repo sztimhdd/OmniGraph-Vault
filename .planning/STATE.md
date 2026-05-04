@@ -1,50 +1,62 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.4
-milestone_name: — RSS-KOL Alignment
-current_plan: 0
-status: defining-requirements
-stopped_at: Milestone v3.4 started — research + planning can proceed in parallel; execute BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT)
-last_updated: "2026-05-03T20:10:00.000Z"
-last_activity: 2026-05-03 — Milestone v3.4 RSS-KOL Alignment started
+milestone: v3.1
+milestone_name: — Single-Article Ingest Stability ✅ CLOSED
+status: executing
+stopped_at: "Completed 19-00-PLAN.md (Wave 0 scaffolding: requirements.txt pin + 3 RED test stub files)"
+last_updated: "2026-05-04T02:00:08.297Z"
+last_activity: 2026-05-04
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 10
+  completed_plans: 9
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-30)
+See: .planning/PROJECT.md (updated 2026-05-03)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Awaiting Hermes to run `docs/HERMES_V3.2_PUNCH_LIST.md` items (P0 fixture scrape + P1 E2E regression run + P2 production Vision-cascade smoke)
+**Current focus:** Phase 19 — Generic Scraper + Schema + KOL Hotfix
 
 ## Current Position
 
 Milestone: v3.4 (RSS-KOL Alignment)
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements — research + planning can proceed in parallel
+Phase: 19 (Generic Scraper + Schema + KOL Hotfix) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Execute gate: BLOCKED until Day-1/2/3 KOL baseline observation complete (~2026-05-06 ADT)
-Last activity: 2026-05-03 - Completed quick task 260503-sd7: fix batch_ingest_from_spider topic filter case-sensitivity (Day-1 cron hard blocker)
+Last activity: 2026-05-04
 
 ### Immediate next step
 
-Run `/gsd:new-milestone` Step 8 → decide research on/off → Step 9-10 (requirements + roadmap).
-Research + planning can fully proceed now. Execute of any phase MUST wait for Day-1/2/3 KOL baseline (2026-05-04 → 2026-05-06) because:
+Wait for Day-1/2/3 KOL baseline window (~2026-05-04 → 2026-05-06 ADT) to complete.
+After baseline confirmed stable, resume with `/gsd:plan-phase 19`.
 
-- Tuning decisions (subprocess timeout / max-articles cap / concurrency) need real cron data
-- Must verify Day-1 KOL pipeline stable on new code path (post Vertex fix) before RSS alignment amplifies any instability
+**Execute gate rationale:**
 
-### Parallel: Day-1 KOL-only cron observation (NOT v3.4 scope)
+- Tuning decisions (subprocess timeout, max-articles cap, concurrency) require real cron data from Day-1/2/3 runs
+- Must verify Day-1 KOL pipeline is stable on the Vertex-corrected code path before RSS alignment amplifies any instability
+- No code changes in phases 19-22 until gate lifts
 
-Day-1 fires 2026-05-04 06:00 ADT with OLD batch_ingest_from_spider body (KOL only).
-Day-2 rollout DEFERRED until v3.4 cutover — RSS pipeline architecturally misaligned
-(missing full-body scrape + full-body classify + multimodal ingest per 2026-05-03 E2E pre-flight).
+### v3.4 Phase Overview
+
+| Phase | Goal | REQs | Execute gate |
+|-------|------|------|--------------|
+| 19 | Generic scraper module + KOL line-940 hotfix + schema ALTER + hash migration | SCR-01..07, SCH-01..02 (9) | BLOCKED ~2026-05-06 |
+| 20 | RSS full-body classify port + rss_ingest.py 5-stage rewrite | RCL-01..03, RIN-01..06 (9) | BLOCKED + depends Phase 19 |
+| 21 | STK-01 NanoVectorDB spike (30min, first task) + CLI tool + RSS E2E fixture + bench harness | STK-01..03, E2R-01..02 (5) | BLOCKED + depends Phase 20 |
+| 22 | 1020-article backlog re-ingest + cross-arm smoke + stuck-doc isolation test + cron cutover | BKF-01..03, E2R-03..04, CUT-01..03 (10) | BLOCKED + depends Phase 21 |
+
+### Parallel: Day-1/2/3 KOL cron observation (NOT v3.4 execute scope)
+
+Day-1 fires 2026-05-04 06:00 ADT with KOL-only cron body.
+Day-2 RSS cutover DEFERRED until v3.4 Phase 22 (CUT-01) completes.
+Observation only — no active intervention during Day-1/2/3 window.
+After Day-3 verdict: lift execute gate, begin `/gsd:plan-phase 19`.
 
 ### v3.3 closed state (retained for history)
 
@@ -81,6 +93,7 @@ Status: Awaiting Hermes to close Gate 3 (fixture scrape + E2E batch run)
 Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed to origin/main
 
 **See:**
+
 - `docs/MILESTONE_v3.2_EXECUTION_REPORT.md` — full wave-by-wave run report
 - `docs/HERMES_V3.2_PUNCH_LIST.md` — what Hermes must do to close the milestone
 
@@ -132,11 +145,13 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase 10 P00 | 6min | 3 tasks | 4 files |
 | Phase 11 P00 | 18min | 1 tasks | 2 files |
 | Phase 11 P02 | 55 | 2 tasks | 5 files |
+| Phase 19 P00 | 5min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
+- 2026-05-03 — Milestone v3.4 RSS-KOL Alignment started. 31 requirements across 8 categories (SCR/SCH/RCL/RIN/STK/BKF/E2R/CUT). Roadmap derived: 4 phases (19-22) structured as Wave 1 (scraper+schema) / Wave 2 (classify+ingest rewrite) / Wave 3a (spike+CLI+fixture) / Wave 3b (backlog+smoke+cutover). Wave 3 split into 2 phases because STK-01 diagnostic spike must complete before STK-02/03 CLI code is written, and BKF/CUT cannot run until E2R validates end-to-end correctness.
 - 2026-04-30 — Milestone v3.1 started. 26 requirements drafted (v1 after Hermes review pass). Roadmap derived: 4 phases (8-11) grouped as image-pipeline / state+timeout / ingest-decoupling / E2E-gate. Phase 11 is the milestone-close gate (<2min text ingest + `benchmark_result.json`).
 - 2026-04-28 — Phase 6 added: graphify-addon-code-graph. PRD v3.0 at `specs/PRDTDD_GRAPHIFY_ADDON.md`; pre-plan brief at `.planning/phases/06-graphify-addon-code-graph/06-CONTEXT.md`. Invariants D-G01..D-S10 locked. Independent of Phase 5.
 
@@ -145,6 +160,9 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 Decisions are logged in PROJECT.md Key Decisions table and `.planning/phases/04-knowledge-enrichment-zhihu/04-CONTEXT.md`.
 Recent decisions affecting current work:
 
+- **[v3.4] D-RSS-SCRAPER-SCOPE = Option A** — `lib/scraper.py::scrape_url()` serves both KOL and RSS arms; patches `batch_ingest_from_spider.py:940` UA-only bug; 2:1 researcher consensus + user preference. Stack.md Option B rejected (incorrectly assumed KOL path not broken; Day-1 pre-flight disproved this).
+- **[v3.4] D-STUCK-DOC-IDEMPOTENCY = CLI tool** — `scripts/cleanup_stuck_docs.py`; NOT cron pre-hook. LightRAG self-heals FAILED docs on next `ainsert`; cron pre-hook would delete retryable docs. Wave 3 Phase 21 Task 1 = 30-min NanoVectorDB spike to resolve Delta 2 confidence gap before building CLI.
+- **[v3.4] Wave 3 split into Phase 21 + Phase 22** — STK-01 spike outcome may change STK-02/03 design; BKF backlog and CUT cutover must not run before E2R validates full pipeline. Phase 21 = spike + tools + fixtures; Phase 22 = operational bulk work + cutover.
 - Phase 4: 16 locked decisions captured in 04-CONTEXT.md (D-01 through D-16)
 - Phase 4: Hermes review integrated 2026-04-27 — Draft.js input method, grounding fallback, URL capture, zhimg sizing
 - 04-00: Orchestrator captured golden fixtures via SSH (human-action checkpoint); all 3 remote articles had metadata.images==2, captured all 3 (acceptance criteria met)
@@ -180,6 +198,8 @@ Recent decisions affecting current work:
 - [Phase 11]: Plan 11-02: real LightRAG wiring — get_rag(flush=True), rag.ainsert(full_content, ids=[wechat_<hash>]), rag.aquery(query='GPT-5.5 benchmark results', QueryParam(mode='hybrid', top_k=3)), asyncio.create_task(_vision_worker_impl(...)) with 120s drain cap. 5 unit-mocked integration tests + 1 live-skipif test.
 - [Phase 11]: Plan 11-02 Rule 3 auto-fixes: (1) os.rename -> os.replace for Windows overwrite; (2) sys.path bootstrap for scripts/ direct invocation; (3) config.py + ingest_wechat.py guard GOOGLE_* env pops on GOOGLE_APPLICATION_CREDENTIALS being set (preserve D-11.08 Vertex opt-in); (4) RAG_WORKING_DIR env override for dim-mismatch isolation.
 - [Phase 11]: Plan 11-02 live gate run: text_ingest_ms=18348 (6.5× under 120s budget via Vertex AI), zero_crashes=true, aquery_returns_fixture_chunk=false (dummy DEEPSEEK_API_KEY -> LightRAG synthesis returns None). gate_pass=false. Harness verified working end-to-end; gate_pass blocked only by credential gap.
+- [Phase 19]: [Phase 19-00]: Wave 0 scaffolding complete — trafilatura 2.0.0 + lxml 5.4.0 pinned, 3 RED test files (8 pytest.fail stubs) wired to SCR-01..06 + SCH-01..02 task-IDs
+- [Phase 19]: [Phase 19-00]: lxml pinned <6 per SCR-07 authoritative spec; 19-RESEARCH.md Pitfall 5 relaxation deferred to v3.5 follow-up
 
 ### Pending Todos
 
@@ -187,14 +207,12 @@ None tracked.
 
 ### Blockers/Concerns
 
+- **Execute gate (primary blocker):** All v3.4 phase execution blocked until Day-1/2/3 KOL cron baseline (~2026-05-06 ADT). After gate lifts, run `/gsd:plan-phase 19` to begin.
+- **STK-01 diagnostic spike (Wave 3 constraint):** NanoVectorDB cleanup completeness for `adelete_by_doc_id` has a MEDIUM-confidence open question from the Pitfalls research. The 30-min spike in Phase 21 must run before any CLI code is written. Spike outcome may adjust STK-02/03 scope.
+- **SCR-06 KOL regression risk:** The line-940 hotfix (Phase 19) touches a live KOL code path. E2R-04 cross-arm smoke in Phase 22 is the designated regression gate before CUT-01 cron cutover. Do not cut over cron before cross-arm smoke passes.
+- **SiliconFlow balance for 1020-article backlog:** ~2,630 images at ¥0.0013/image ≈ ¥3.42 minimum; budget ≥¥10 before starting Phase 22 BKF backlog. Operator pre-flight item, not a code blocker.
 - Phase 4 runtime depends on remote Edge CDP (`localhost:9223`) being available for Zhihu fetch integration tests; integration tests in wave 2+ may be stubbed until a live CDP is reachable.
 - **Gemini free-tier quotas (environmental, phase-4 exit blocker for LightRAG full graph ingest)**: `gemini-embedding-*` 100 RPM per project. LightRAG's entity upsert stage fires bursts of ~60+ embeddings per doc; even with `embedding_func_max_async=1` + `embedding_batch_num=20` throttle (committed in `0faab0c`), per-doc bursts still saturate the window. Code path PROVEN CORRECT — LLM entity extraction + caching succeeds; only the downstream embedding upsert 429s. Documented in `docs/testing/04-07-validation-results.md`. Resolution: Gemini paid Tier 1 (removes RPM limits) OR swap to local `sentence-transformers` OR add per-entity semaphore. All out of Phase 4 scope.
-- **SQLite migration deployment gap RESOLVED** in `9e2a0c1`: `ingest_wechat.py` now auto-runs `batch_scan_kol.init_db(DB_PATH)` at module import (guarded by `DB_PATH.exists()`). Idempotent via `_ensure_column`.
-- **Spike script async race (non-blocking)**: `scripts/phase0_delete_spike.py` doesn't await LightRAG's async entity extraction before measuring counts — its report contract passes but entity counts are vacuous. Documented in `phase0_spike_report.md`. Not blocking; ticketable refactor later.
-- **Plan 05-00 COMPLETE** (2026-04-29, user-run on Hermes host). Final graph: 263 nodes / 301 edges / 29 docs / 19 chunks at 3072 dim. Dual-key rotation + Deepseek LLM swap (via Plan 05-00c) held up on real workloads. See `.planning/phases/05-pipeline-automation/05-00-SUMMARY.md` for full journey (6 attempts, key rotation bug diagnosis, Option A baseline skip, per-doc cost correction to ~300 embeds/doc).
-- **Plan 05-00b PARTIAL** — 9/31 keyword-matched KOL articles ingested; 22 blocked by `subprocess.run(capture_output=True)` pipe deadlock in the user's ad-hoc batch runner (`batch_ingest_from_spider.py` itself uses `capture_output=False` and is NOT susceptible). Per user's `docs/phase5-00c-execution-report.md`. Remaining unblockers: multi-keyword `--topic-filter` (DONE — quick-task 260429-got, commit `4bf1613`); schema consistency (`digest` vs `content_preview`); and actually running the remaining 22 articles via `batch_ingest_from_spider.py --from-db --topic-filter "openclaw,hermes,agent,harness" --min-depth 2`.
-- **Cognee dotenv override side-effect** — `cognee/__init__.py:11` calls `dotenv.load_dotenv(override=True)` which reads gitignored repo-root `.env` (stale leftover) and overwrites `GEMINI_API_KEY`. Patched at runtime during Attempt 6 diagnosis; permanent fix pending (delete the stale file OR re-assert env post-Cognee-import). Infra-track item, not blocking.
-- **v3.1 gate is LOCAL fixture only** — CLASS-03 WeChat anti-abuse params are spec-correctness for the BATCH path Phase 5 will invoke; v3.1 tests against `test/fixtures/gpt55_article/` so WeChat rate-limiting is not exercised. Watch for temptation to "verify" CLASS-03 with a live WeChat scrape during Phase 10.
 
 ### Quick Tasks Completed
 
@@ -222,10 +240,10 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-01T02:36:13.366Z
-Stopped at: Completed 11-02-PLAN.md — milestone v3.1 gate harness delivered
+Last session: 2026-05-04T02:00:08.290Z
+Stopped at: Completed 19-00-PLAN.md (Wave 0 scaffolding: requirements.txt pin + 3 RED test stub files)
 Resume file: None
-Next command: `/gsd:execute-phase 10` (execute Plan 10-01 — Text-First Ingest Split, ARCH-01 / D-10.05)
+Next command: `/gsd:plan-phase 19` (after Day-1/2/3 KOL baseline gate lifts ~2026-05-06 ADT)
 
 ## Phase 6 Exit State
 
