@@ -33,7 +33,7 @@ from typing import Callable
 
 import requests
 
-DB = Path("data/kol_scan.db")
+DB = Path(os.environ.get("KOL_SCAN_DB_PATH", "data/kol_scan.db"))
 PYTHON = Path("venv/bin/python")
 KEYWORDS = "openclaw,hermes,agent,harness"  # D-10
 DEFAULT_TOPICS: tuple[str, ...] = ("Agent", "LLM", "RAG", "NLP", "CV")
