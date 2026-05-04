@@ -23,7 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent
-DB_PATH = PROJECT_ROOT / "data" / "kol_scan.db"
+DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH", str(PROJECT_ROOT / "data" / "kol_scan.db")))
 
 logger = logging.getLogger("batch_classify_kol")
 
