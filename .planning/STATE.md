@@ -29,7 +29,7 @@ Phase: 20 (RSS Full-Body Classify + Multimodal Ingest + Cognee Fix) — NEXT; Ph
 Plan: — (Phase 19 shipped 4 plans; next is `/gsd:plan-phase 20`)
 Status: Phase 19 shipped (pending operator Hermes SSH verify per 19-DEPLOY.md). Phase 20 execute BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT).
 Execute gate: BLOCKED until Day-1/2/3 KOL baseline observation complete (~2026-05-06 ADT)
-Last activity: 2026-05-04 — Phase 19 close-out (regression gate green, 19-DEPLOY.md written, STATE updated)
+Last activity: 2026-05-04 — Completed quick task 260503-v9z: Hotfix — gate Cognee inline call behind OMNIGRAPH_COGNEE_INLINE (default off, unblocks Day-1 KOL cron)
 
 ### Immediate next step
 
@@ -242,6 +242,7 @@ None tracked.
 | 260503-lq7 | Wave 1 post-E2E hygiene: RSS classify env cap + step_6 fetched_at/scanned_at fix | 2026-05-03 | `16f05ae` | [260503-lq7-wave-1-post-e2e-hygiene-rss-classify-env](./quick/260503-lq7-wave-1-post-e2e-hygiene-rss-classify-env/) |
 | 260503-m4q | Vertex embedding correction — remove preview alias, embrace GA global endpoint (pre-06:00 ADT Day-1 cron fix) | 2026-05-03 | `f6be225` | [260503-m4q-vertex-embedding-correction-remove-previ](./quick/260503-m4q-vertex-embedding-correction-remove-previ/) |
 | 260503-sd7 | fix batch_ingest_from_spider topic filter case-sensitivity (Day-1 cron hard blocker) | 2026-05-03 | `e59bc42` | [260503-sd7-fix-batch-ingest-from-spider-topic-filte](./quick/260503-sd7-fix-batch-ingest-from-spider-topic-filte/) |
+| 260503-v9z | Hotfix: gate Cognee inline `remember_article` behind `OMNIGRAPH_COGNEE_INLINE` (default off) — unblocks Day-1 KOL cron from LiteLLM→AI Studio 422 loop on `gemini-embedding-2` | 2026-05-04 | `3f6d065` | [260503-v9z-hotfix-disable-cognee-inline-call-blocki](./quick/260503-v9z-hotfix-disable-cognee-inline-call-blocki/) |
 
 ## Phase 4 Exit State
 
