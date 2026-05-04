@@ -47,8 +47,8 @@ os.environ["LLM_API_KEY"] = _initial_key        # Cognee 1.0 unified key
 os.environ["LLM_PROVIDER"] = "gemini"
 os.environ["LLM_MODEL"] = INGESTION_LLM
 os.environ["EMBEDDING_PROVIDER"] = "gemini"
-os.environ["EMBEDDING_MODEL"] = "gemini-embedding-2"
-os.environ["EMBEDDING_DIMENSIONS"] = "768"
+os.environ["EMBEDDING_MODEL"] = "gemini/gemini-embedding-2"
+os.environ["EMBEDDING_DIMENSIONS"] = "3072"
 os.environ["COGNEE_SKIP_CONNECTION_TEST"] = "true"
 # Cognee 1.0: disable multi-user access control (single-user personal tool)
 os.environ["ENABLE_BACKEND_ACCESS_CONTROL"] = "false"
