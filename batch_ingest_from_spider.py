@@ -1004,7 +1004,7 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     Day-1 cron fix (2026-05-03 sd7): DeepSeek classifier writes `Agent` /
     `LLM` / `RAG` / `NLP` / `CV`; cron passes lowercase tokens.
     """
-    placeholders = ",".join("?" for _ in topics)
+    placeholders = " OR ".join("LOWER(c.topic) LIKE ?" for _ in topics)
     sql = f"""
         SELECT a.id, a.title, a.url, acc.name, c.depth_score, a.body
         FROM articles a
@@ -1013,11 +1013,11 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
           AND c.classified_at = (
             SELECT MAX(classified_at) FROM classifications WHERE article_id = a.id
           )
-        WHERE (c.topic IS NULL OR LOWER(c.topic) IN ({placeholders}))
+        WHERE (c.topic IS NULL OR ({placeholders}))
           AND a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
         ORDER BY a.id
     """
-    normalized = tuple(t.strip().lower() for t in topics)
+    normalized = tuple(f"%{t.strip().lower()}%" for t in topics)
     return sql, normalized
 
 
