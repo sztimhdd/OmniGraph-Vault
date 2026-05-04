@@ -154,6 +154,7 @@ Query → kg_synthesize.py
 | `FIRECRAWL_API_KEY` | No | Firecrawl web scraping API |
 | `CDP_URL` | No | **Local mode** (default): `http://localhost:9223` — raw CDP WebSocket; `ingest_wechat.py` uses `playwright.connect_over_cdp()`. Start Edge with `msedge --remote-debugging-port=9223`. **Remote MCP mode** (testing fallback): `http://host:port/mcp` — Playwright MCP server (MCP-over-SSE); `ingest_wechat.py` auto-detects the `/mcp` suffix and uses `_MCPClient` + `browser_navigate`/`browser_evaluate` instead. Both modes are fully implemented. |
 | `OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP` | No | RSS classifier daily-batch safety cap (default 500 articles). Applies only when `--max-articles` CLI flag is NOT passed; CLI value always wins. Non-int values silently fall back to 500. |
+| `OMNIGRAPH_COGNEE_INLINE` | No | Enable inline Cognee `remember_article` call in ingest_wechat.py. Default `0` (disabled) since 2026-05-03 due to Cognee LiteLLM → AI Studio routing bug with Vertex-exclusive gemini-embedding-2 (422 NOT_FOUND → retry loop blocks ingest). Root fix in v3.4 Phase 20/21. Set `1` to re-enable once the LiteLLM routing is corrected. |
 
 Set in `~/.hermes/.env`. Cognee-specific vars (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, etc.) are hardcoded in each script that uses Cognee.
 
