@@ -3,6 +3,10 @@
 All tests mock LightRAG so no real embeddings or LLM calls occur. Exercises the
 observable contract: on ``asyncio.TimeoutError`` in the outer ``wait_for``, the
 orchestrator calls ``rag.adelete_by_doc_id(doc_id)`` exactly once.
+
+Phase 19 SCH-02: tracker key unified to SHA-256[:16] via lib.checkpoint.get_article_hash
+(matches batch_ingest_from_spider.py:275 canonical hash). The doc_id VALUE stored in
+the tracker is still f"wechat_{md5_hash}" (LightRAG / image-dir namespace unchanged).
 """
 from __future__ import annotations
 
@@ -29,9 +33,13 @@ def _fake_rag():
 @pytest.mark.asyncio
 async def test_timeout_triggers_adelete_by_doc_id(monkeypatch, _fake_rag):
     """STATE-02: asyncio.wait_for timeout → rag.adelete_by_doc_id called once."""
+    from lib.checkpoint import get_article_hash
+
     url = "https://test.example/abc123"
-    article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
-    expected_doc_id = f"wechat_{article_hash}"
+    # Phase 19 SCH-02: tracker key is SHA-256[:16]; doc_id value keeps MD5[:10].
+    tracker_hash = get_article_hash(url)
+    md5_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+    expected_doc_id = f"wechat_{md5_hash}"
 
     # Mock ingest_wechat.ingest_article so it simulates in-flight ainsert
     # that the orchestrator will cancel via wait_for. The mock registers the
@@ -41,7 +49,7 @@ async def test_timeout_triggers_adelete_by_doc_id(monkeypatch, _fake_rag):
     import ingest_wechat
 
     async def _slow_ingest(_url, rag=None):
-        ingest_wechat._register_pending_doc_id(article_hash, expected_doc_id)
+        ingest_wechat._register_pending_doc_id(tracker_hash, expected_doc_id)
         await asyncio.sleep(10)
 
     monkeypatch.setattr(ingest_wechat, "ingest_article", _slow_ingest)
@@ -61,16 +69,19 @@ async def test_timeout_triggers_adelete_by_doc_id(monkeypatch, _fake_rag):
 @pytest.mark.asyncio
 async def test_successful_ingest_does_not_call_adelete(monkeypatch, _fake_rag):
     """Happy path: ainsert completes → no rollback."""
+    from lib.checkpoint import get_article_hash
+
     url = "https://test.example/ok"
     import ingest_wechat
 
     async def _fast_ingest(_url, rag=None):
         # Simulate successful ainsert — register AND clear.
-        article_hash = hashlib.md5(_url.encode()).hexdigest()[:10]
-        doc_id = f"wechat_{article_hash}"
-        ingest_wechat._register_pending_doc_id(article_hash, doc_id)
+        tracker_hash = get_article_hash(_url)
+        md5_hash = hashlib.md5(_url.encode()).hexdigest()[:10]
+        doc_id = f"wechat_{md5_hash}"
+        ingest_wechat._register_pending_doc_id(tracker_hash, doc_id)
         await asyncio.sleep(0)
-        ingest_wechat._clear_pending_doc_id(article_hash)
+        ingest_wechat._clear_pending_doc_id(tracker_hash)
 
     monkeypatch.setattr(ingest_wechat, "ingest_article", _fast_ingest)
 
@@ -87,16 +98,18 @@ async def test_successful_ingest_does_not_call_adelete(monkeypatch, _fake_rag):
 async def test_rollback_failure_is_logged_not_raised(monkeypatch, _fake_rag, caplog):
     """STATE-02 defensive: if adelete_by_doc_id raises, orchestrator logs + returns False."""
     import logging
+    from lib.checkpoint import get_article_hash
 
     caplog.set_level(logging.ERROR, logger="batch_ingest_from_spider")
 
     url = "https://test.example/fail-rollback"
-    article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+    tracker_hash = get_article_hash(url)
+    md5_hash = hashlib.md5(url.encode()).hexdigest()[:10]
 
     import ingest_wechat
 
     async def _slow_ingest(_url, rag=None):
-        ingest_wechat._register_pending_doc_id(article_hash, f"wechat_{article_hash}")
+        ingest_wechat._register_pending_doc_id(tracker_hash, f"wechat_{md5_hash}")
         await asyncio.sleep(10)
 
     monkeypatch.setattr(ingest_wechat, "ingest_article", _slow_ingest)
@@ -117,9 +130,12 @@ async def test_rollback_failure_is_logged_not_raised(monkeypatch, _fake_rag, cap
 @pytest.mark.asyncio
 async def test_idempotent_reingest_after_rollback(monkeypatch, _fake_rag):
     """STATE-03: rollback + re-ingest is idempotent — ainsert called, same doc_id."""
+    from lib.checkpoint import get_article_hash
+
     url = "https://test.example/retry"
-    article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
-    expected_doc_id = f"wechat_{article_hash}"
+    tracker_hash = get_article_hash(url)
+    md5_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+    expected_doc_id = f"wechat_{md5_hash}"
 
     import ingest_wechat
 
@@ -127,13 +143,13 @@ async def test_idempotent_reingest_after_rollback(monkeypatch, _fake_rag):
 
     async def _first_slow_then_fast(_url, rag=None):
         call_count["n"] += 1
-        ingest_wechat._register_pending_doc_id(article_hash, expected_doc_id)
+        ingest_wechat._register_pending_doc_id(tracker_hash, expected_doc_id)
         if call_count["n"] == 1:
             await asyncio.sleep(10)  # forced timeout
         else:
             # Second call: simulate successful ainsert.
             await rag.ainsert(f"# {_url}\n...", ids=[expected_doc_id])
-            ingest_wechat._clear_pending_doc_id(article_hash)
+            ingest_wechat._clear_pending_doc_id(tracker_hash)
 
     monkeypatch.setattr(ingest_wechat, "ingest_article", _first_slow_then_fast)
 

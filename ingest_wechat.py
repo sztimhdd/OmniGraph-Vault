@@ -819,13 +819,17 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
                 # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
                 rag = await get_rag(flush=True)
             # D-09.05: deterministic doc_id lets rollback remove partial state on timeout.
+            # Phase 19 SCH-02 (Rule 1 auto-fix): tracker key is ckpt_hash (SHA-256[:16])
+            # to match batch_ingest_from_spider.py:275 which now uses get_article_hash(url).
+            # The doc_id value still uses article_hash (MD5[:10]) — image-dir namespace
+            # preserved. Only the registry key changed; the value is opaque.
             doc_id = f"wechat_{article_hash}"
-            _register_pending_doc_id(article_hash, doc_id)
+            _register_pending_doc_id(ckpt_hash, doc_id)
             await rag.ainsert(full_content, ids=[doc_id])
             # Clear only on successful completion — on CancelledError / TimeoutError
             # the orchestrator reads the tracker via get_pending_doc_id() to roll back,
             # then calls _clear_pending_doc_id() itself.
-            _clear_pending_doc_id(article_hash)
+            _clear_pending_doc_id(ckpt_hash)
         except Exception as e:
             print(f"LightRAG insert failed: {e}")
 
@@ -1051,18 +1055,21 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
 
     # Phase 12 Stage 4: text_ingest (checkpoint guarded).
     # D-09.05: deterministic doc_id lets rollback remove partial state on timeout.
+    # Phase 19 SCH-02 (Rule 1 auto-fix): tracker key is ckpt_hash (SHA-256[:16]) to
+    # match batch_ingest_from_spider.py:275 which now uses get_article_hash(url).
+    # doc_id value keeps MD5[:10] for image-dir / LightRAG namespace compatibility.
     doc_id = f"wechat_{article_hash}"
     if has_stage(ckpt_hash, "text_ingest"):
         logger.info("checkpoint hit: text_ingest (hash=%s) — skipping rag.ainsert", ckpt_hash)
     else:
-        _register_pending_doc_id(article_hash, doc_id)
+        _register_pending_doc_id(ckpt_hash, doc_id)
         try:
             await rag.ainsert(full_content, ids=[doc_id])
         finally:
             # Always clear tracker — on success it's done, on failure the
             # orchestrator's except-branch already did rollback (or will skip).
             # Leaving a stale entry poisons future runs (102→141 zombie docs).
-            _clear_pending_doc_id(article_hash)
+            _clear_pending_doc_id(ckpt_hash)
         write_stage(ckpt_hash, "text_ingest")  # marker only
         write_metadata(ckpt_hash, {"last_completed_stage": "text_ingest"})
 
