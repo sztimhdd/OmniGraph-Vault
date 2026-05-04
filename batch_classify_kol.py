@@ -263,32 +263,68 @@ Body:
 Return ONLY a JSON object of the shape {{"depth": <1-3>, "topics": [...], "rationale": "..."}}. No other text, no markdown fences."""
 
 
-def _call_deepseek_fullbody(prompt: str, api_key: str) -> dict | None:
-    """Call DeepSeek with a full-body prompt; parse a single JSON object.
+def _call_fullbody_llm(prompt: str) -> dict | None:
+    """Call the configured LLM with a full-body prompt; parse a single JSON object.
+
+    LDEV-03 (quick task 260504-g7a): dispatches on ``OMNIGRAPH_LLM_PROVIDER``:
+      - ``deepseek`` (default): direct DeepSeek HTTP via requests (unchanged).
+      - ``vertex_gemini``: routes through ``lib.vertex_gemini_complete``.
+
+    DEEPSEEK_API_KEY env is the single source of truth on the DeepSeek
+    branch — callers no longer need to pass a key. GOOGLE_APPLICATION_CREDENTIALS
+    + GOOGLE_CLOUD_PROJECT handle the vertex_gemini branch.
 
     D-10.02 / D-10.04: returns ``{"depth": int, "topics": list[str],
     "rationale": str}`` on success. Returns ``None`` on ANY error —
     orchestrator MUST skip the article (no fail-open).
     """
-    if requests is None:
-        logger.warning("requests library not available — cannot call DeepSeek API")
-        return None
-    try:
-        resp = requests.post(
-            DEEPSEEK_API_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": DEEPSEEK_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.0,
-            },
-            timeout=120,
+    provider = os.environ.get("OMNIGRAPH_LLM_PROVIDER", "deepseek").strip() \
+        or "deepseek"
+
+    if provider == "deepseek":
+        if requests is None:
+            logger.warning("requests library not available — cannot call DeepSeek API")
+            return None
+        api_key = get_deepseek_api_key()
+        if not api_key:
+            logger.warning("DEEPSEEK_API_KEY not set — cannot call DeepSeek API")
+            return None
+        try:
+            resp = requests.post(
+                DEEPSEEK_API_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": DEEPSEEK_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.0,
+                },
+                timeout=120,
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"].strip()
+        except Exception as exc:
+            logger.warning("DeepSeek fullbody API call failed: %s", exc)
+            return None
+    elif provider == "vertex_gemini":
+        import asyncio as _asyncio
+        from lib.vertex_gemini_complete import vertex_gemini_model_complete
+        try:
+            content = _asyncio.run(vertex_gemini_model_complete(prompt))
+            content = (content or "").strip()
+        except Exception as exc:
+            logger.warning("Vertex Gemini fullbody API call failed: %s", exc)
+            return None
+    else:
+        raise ValueError(
+            f"Unknown OMNIGRAPH_LLM_PROVIDER={provider!r}; "
+            f"expected one of ('deepseek', 'vertex_gemini')"
         )
-        resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"].strip()
+
+    # Shared JSON parsing — applies to both provider branches.
+    try:
         if content.startswith("```"):
             start = content.find("\n") + 1
             end = content.rfind("```")
@@ -297,17 +333,36 @@ def _call_deepseek_fullbody(prompt: str, api_key: str) -> dict | None:
         parsed = json.loads(content)
         if not isinstance(parsed, dict):
             logger.warning(
-                "DeepSeek fullbody returned non-object: %s", type(parsed).__name__
+                "LLM fullbody returned non-object: %s", type(parsed).__name__
             )
             return None
         # Minimal shape check — depth + topics are load-bearing.
         if "depth" not in parsed or "topics" not in parsed:
-            logger.warning("DeepSeek fullbody missing required keys: %s", list(parsed.keys()))
+            logger.warning("LLM fullbody missing required keys: %s", list(parsed.keys()))
             return None
         return parsed
     except Exception as exc:
-        logger.warning("DeepSeek fullbody API call failed: %s", exc)
+        logger.warning("LLM fullbody JSON parse failed: %s", exc)
         return None
+
+
+def _call_deepseek_fullbody(prompt: str, api_key: str | None = None) -> dict | None:
+    """DEPRECATED (LDEV-03): use ``_call_fullbody_llm(prompt)`` instead.
+
+    Kept as a thin wrapper for back-compat with existing callers
+    (``batch_ingest_from_spider.py``, ``scripts/bench_ingest_fixture.py``, and
+    tests that monkey-patch this exact name). The ``api_key`` argument is
+    now ignored; ``DEEPSEEK_API_KEY`` env is the single source on the
+    DeepSeek branch.
+    """
+    import warnings
+    warnings.warn(
+        "_call_deepseek_fullbody is deprecated; use _call_fullbody_llm. "
+        "api_key arg ignored; DEEPSEEK_API_KEY env is the single source.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _call_fullbody_llm(prompt)
 
 
 def _call_gemini(prompt: str) -> list[dict] | None:
