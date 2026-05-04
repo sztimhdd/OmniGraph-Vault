@@ -164,6 +164,22 @@ Set in `~/.hermes/.env`. Cognee-specific vars (`LLM_PROVIDER`, `EMBEDDING_PROVID
 
 **Standalone Cognee rotation caveat (Hermes FLAG 1):** `cognee_wrapper.py` seeds Cognee's config once at import. Long-running callers of `lib.rotate_key()` that import `cognee_wrapper` directly must also call `lib.refresh_cognee()` after rotation, or accept stale-key risk. Production paths (`cognee_batch_processor.run_batch`, `kg_synthesize.synthesize_response`) already call `refresh_cognee()` at the right entry points — ad-hoc scripts need to do so themselves. See `Deploy.md` § Known limitation.
 
+### Local dev env vars (quick task 260504-g7a)
+
+These five env vars enable running the full pipeline on the user's Windows
+dev box against `.dev-runtime/` instead of `~/.hermes/omonigraph-vault/`.
+All five are opt-in; unset values preserve Hermes production behavior.
+
+| Var | Required | Default | Purpose |
+|-----|----------|---------|---------|
+| `OMNIGRAPH_LLM_PROVIDER` | No | `deepseek` | `deepseek` (production parity) or `vertex_gemini` (local sandbox). Unset == DeepSeek. |
+| `OMNIGRAPH_LLM_MODEL` | No | `gemini-3.1-flash-lite-preview` | Vertex Gemini model ID. Applies only when `OMNIGRAPH_LLM_PROVIDER=vertex_gemini`. |
+| `OMNIGRAPH_VISION_SKIP_PROVIDERS` | No | _(empty)_ | Comma-list of vision providers to drop from the cascade. Typical local value: `siliconflow,openrouter` (no paid balances / keys). |
+| `OMNIGRAPH_BASE_DIR` | Yes for local dev | `~/.hermes/omonigraph-vault` | Absolute path to runtime data root. Empty string treated as unset. |
+| `OMNIGRAPH_LLM_TIMEOUT_SEC` | No | `600` | Int seconds; applies to Vertex Gemini LLM calls only. DeepSeek path unaffected. |
+
+Full local-dev runbook: `docs/LOCAL_DEV_SETUP.md`.
+
 ---
 
 ## Development Conventions
