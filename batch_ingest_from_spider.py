@@ -1010,6 +1010,9 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
         FROM articles a
         JOIN accounts acc ON a.account_id = acc.id
         LEFT JOIN classifications c ON a.id = c.article_id
+          AND c.classified_at = (
+            SELECT MAX(classified_at) FROM classifications WHERE article_id = a.id
+          )
         WHERE (c.topic IS NULL OR LOWER(c.topic) IN ({placeholders}))
           AND a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
         ORDER BY a.id
@@ -1068,6 +1071,10 @@ async def ingest_from_db(
     # Unclassified articles have NULL depth_score; they are classified on the fly.
     # quick-260503-sd7: case-insensitive topic filter via _build_topic_filter_query.
     sql, params = _build_topic_filter_query(topics)
+    # quick-260504-vm9: save normalized topics for per-article re-validation after
+    # scrape-first re-classify (prevents stale classification rows from serving as
+    # entry tickets when the re-classified topic doesn't match the filter).
+    normalized_topics = tuple(t.strip().lower() for t in topics)
     rows = conn.execute(sql, params).fetchall()
 
     if not rows:
@@ -1149,6 +1156,29 @@ async def ingest_from_db(
                     conn.commit()
                     continue
                 cls_depth = cls_result.get("depth", 0)
+                # quick-260504-vm9: re-classified topic MUST match original filter.
+                # Without this, stale old classifications (e.g. Round 1 "Agent")
+                # serve as entry tickets for articles whose re-classified topics
+                # (e.g. "AI安全", "AGI", "NVIDIA GPU ecosystem") don't match.
+                cls_topics = cls_result.get("topics", []) or []
+                cls_topic_matches = (
+                    not cls_topics  # empty → pass-through (unclassified fallback)
+                    or any(
+                        any(kw in t.lower() for kw in normalized_topics)
+                        for t in cls_topics
+                    )
+                )
+                if not cls_topic_matches:
+                    logger.info(
+                        "  re-classified topics %s don't match filter %s — skipping",
+                        cls_topics, normalized_topics,
+                    )
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
+                        (art_id,),
+                    )
+                    conn.commit()
+                    continue
                 if not isinstance(cls_depth, int) or cls_depth < min_depth:
                     logger.info(
                         "  depth=%s < min_depth=%d — skipping ingest",
