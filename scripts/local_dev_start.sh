@@ -68,12 +68,12 @@ else
     echo "[WARN] OMNIGRAPH_BASE_DIR unset; using Hermes default (~/.hermes/omonigraph-vault)"
 fi
 
-# --- Prereq: articles.db ---
-if [[ ! -f ".dev-runtime/data/articles.db" ]]; then
-    echo "[FAIL] .dev-runtime/data/articles.db missing (DB sanity check)"
+# --- Prereq: kol_scan.db (canonical pipeline DB — batch_ingest_from_spider.py:86) ---
+if [[ ! -f ".dev-runtime/data/kol_scan.db" ]]; then
+    echo "[FAIL] .dev-runtime/data/kol_scan.db missing (DB sanity check)"
     exit 1
 fi
-echo "[OK ] .dev-runtime/data/articles.db exists"
+echo "[OK ] .dev-runtime/data/kol_scan.db exists"
 
 # --- Prereq: venv python (Windows layout — local dev targets venv/Scripts/) ---
 if [[ ! -f "venv/Scripts/python.exe" ]]; then

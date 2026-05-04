@@ -66,18 +66,18 @@ if ($baseDir) {
     Write-Host "[WARN] OMNIGRAPH_BASE_DIR unset; using Hermes default (~/.hermes/omonigraph-vault)"
 }
 
-# --- Prereq: articles.db ---
-$articlesDb = Join-Path $PWD ".dev-runtime\data\articles.db"
-if (-not (Test-Path $articlesDb)) {
-    Write-Host "[FAIL] .dev-runtime/data/articles.db missing (DB sanity check)"
+# --- Prereq: kol_scan.db (canonical pipeline DB — batch_ingest_from_spider.py:86) ---
+$kolDb = Join-Path $PWD ".dev-runtime\data\kol_scan.db"
+if (-not (Test-Path $kolDb)) {
+    Write-Host "[FAIL] .dev-runtime/data/kol_scan.db missing (DB sanity check)"
     exit 1
 }
-Write-Host "[OK ] .dev-runtime/data/articles.db exists"
+Write-Host "[OK ] .dev-runtime/data/kol_scan.db exists"
 
 # --- Prereq: venv python ---
 $venvPython = Join-Path $PWD "venv\Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
-    Write-Host "[FAIL] venv\Scripts\python.exe missing — activate venv or re-create it"
+    Write-Host "[FAIL] venv\Scripts\python.exe missing - activate venv or re-create it"
     exit 1
 }
 Write-Host "[OK ] venv\Scripts\python.exe exists"
@@ -88,25 +88,24 @@ if (-not (Test-Path -LiteralPath $imgDir -PathType Container)) {
     Write-Host "[FAIL] image dir $imgDir does not exist"
     exit 1
 }
-$logPath = if ($baseDir) {
-    Join-Path $baseDir "logs\image_server.log"
-} else {
-    Join-Path $PWD ".dev-runtime\logs\image_server.log"
-}
+$logDir = if ($baseDir) { Join-Path $baseDir "logs" } else { Join-Path $PWD ".dev-runtime\logs" }
+$logOut = Join-Path $logDir "image_server.out.log"
+$logErr = Join-Path $logDir "image_server.err.log"
 $imageProc = Start-Process -FilePath $venvPython `
     -ArgumentList @("-m", "http.server", "8765", "--directory", $imgDir) `
     -WindowStyle Hidden `
     -PassThru `
-    -RedirectStandardOutput $logPath `
-    -RedirectStandardError $logPath
+    -RedirectStandardOutput $logOut `
+    -RedirectStandardError $logErr
 Write-Host "[OK ] image server started  PID=$($imageProc.Id)  URL=http://localhost:8765"
-Write-Host "       logs -> $logPath"
+Write-Host "       stdout -> $logOut"
+Write-Host "       stderr -> $logErr"
 
 # --- Next-step commands ---
 Write-Host ""
 Write-Host "Next:"
-Write-Host "  venv\Scripts\python -c `"from lib.llm_complete import get_llm_func; print(get_llm_func().__name__)`""
-Write-Host "  venv\Scripts\python -c `"import config; print(config.BASE_DIR)`""
-Write-Host "  venv\Scripts\python ingest_wechat.py <test-url>"
+Write-Host '  venv\Scripts\python -c "from lib.llm_complete import get_llm_func; print(get_llm_func().__name__)"'
+Write-Host '  venv\Scripts\python -c "import config; print(config.BASE_DIR)"'
+Write-Host '  venv\Scripts\python ingest_wechat.py (test-url)'
 Write-Host ""
 Write-Host "Image server PID: $($imageProc.Id)  (Stop-Process -Id $($imageProc.Id) to kill)"
