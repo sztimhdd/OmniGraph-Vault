@@ -266,6 +266,12 @@
 - D-RSS-SCRAPER-SCOPE = Option A (unified `lib/scraper.py` for both KOL and RSS arms; patches `batch_ingest_from_spider.py:940`)
 - D-STUCK-DOC-IDEMPOTENCY = CLI tool (`scripts/cleanup_stuck_docs.py`); Wave 3 Task 1 is a 30-min NanoVectorDB spike before building the full CLI
 
+**2026-05-03 pre-v3.4 emergency hotfix context:**
+
+- **Cognee LiteLLM 422 routing** (discovered Day-1 preview round 2) — `ingest_wechat.py:1099-1108` inline Cognee call gated via `OMNIGRAPH_COGNEE_INLINE=0` (default disabled) as emergency hotfix to unblock 2026-05-04 06:00 ADT Day-1 cron. Root causes (LiteLLM routes `EMBEDDING_PROVIDER=gemini` → AI Studio but `EMBEDDING_MODEL=gemini-embedding-2` is Vertex-exclusive → 422 NOT_FOUND loop; plus Cognee 1.0 `run_in_background=True` does not truly detach, blocking ingest fast-path) tracked as COG-01/02/03 in Phase 20 requirements. COG-03 must land BEFORE CUT-01 cron cutover to retire the band-aid.
+- **SHA-256 hash migration** (SCH-02) — existing `checkpoints/<10-char-MD5>/` directories will be deleted as part of Phase 19 migration (WeChat re-scrape cost acceptable; checkpoints are performance optimization not data source). One-time ops task called out in Phase 19 plan.
+- **Empirical UA scrape-only success rate** (Day-1 preview round 1 + 2) — ~50% at small-sample (2/4 body-extract success). Dominant failure mode: HTTP 200 + `js_content` div missing (page-structure change). SCR-02 cascade + SCR-04 content-quality gate are designed to raise this; Phase 22 SC-2 80% threshold has empirical calibration note + env-parameterizable floor.
+
 **Milestone gate:** All 6 success criteria in PROJECT.md v3.4 pass + post-rollout Day-1/2/3 observation window clean (SC-5 / CUT-03).
 
 ### Phases
@@ -288,20 +294,28 @@
   3. `SELECT body, depth, topics, classify_rationale, body_scraped_at FROM rss_articles LIMIT 1` executes without error on the live `data/kol_scan.db` — confirms 5-column ALTER landed
   4. `python scripts/checkpoint_status.py` shows only 16-char directory names under `checkpoints/` — confirms SHA-256 hash migration (no mixed 10-char MD5 dirs); `from lib.checkpoint import get_article_hash` is the only hash call site in `batch_ingest_from_spider.py`
   5. HTTP 429 from any scrape layer triggers exponential backoff (30s / 60s / 120s) visible in logs before cascading; a login-wall keyword in response body triggers cascade to next layer without hanging
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 19-00-PLAN.md — Wave 0 scaffolding: pin trafilatura + lxml, create 3 RED test stub files
+- [ ] 19-01-PLAN.md — Wave 1: lib/scraper.py (ScrapeResult + 4-layer cascade + 429 backoff + quality gate), 5 GREEN tests for SCR-01..05
+- [ ] 19-02-PLAN.md — Wave 2: SCR-06 line-940 hotfix + SCH-02 SHA-256 hash unification + SCH-01 rss_articles ALTER, 3 GREEN tests
+- [ ] 19-03-PLAN.md — Wave 3: full regression suite + 19-DEPLOY.md operator runbook + manual Hermes SSH verification + STATE.md close-out
 **UI hint**: no
 
-### Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite
-**Goal**: RSS articles are classified on full body text (not summaries) and ingested into LightRAG via the same 5-stage multimodal path as KOL articles — full text + localhost-rewritten image URLs + Vision cascade sub-docs; stuck-doc prevention baked in via timeout wrapper and drain call
+### Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite + Cognee Routing Fix
+
+**Goal**: RSS articles are classified on full body text (not summaries) and ingested into LightRAG via the same 5-stage multimodal path as KOL articles — full text + localhost-rewritten image URLs + Vision cascade sub-docs; stuck-doc prevention baked in via timeout wrapper and drain call. Cognee LiteLLM routing root cause (discovered in 2026-05-03 Day-1 preview round 2) is fixed; the `OMNIGRAPH_COGNEE_INLINE=0` hotfix env gate is retired before CUT-01.
 **Depends on**: Phase 19 (`lib/scraper.scrape_url()` must exist; `rss_articles.body` column must exist)
-**Requirements**: RCL-01, RCL-02, RCL-03, RIN-01, RIN-02, RIN-03, RIN-04, RIN-05, RIN-06
+**Requirements**: RCL-01, RCL-02, RCL-03, RIN-01, RIN-02, RIN-03, RIN-04, RIN-05, RIN-06, COG-01, COG-02, COG-03
 **Execute gate**: BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT); additionally depends on Phase 19
+**Note on COG**: COG-01 research spike first (LiteLLM `EMBEDDING_PROVIDER=vertex_ai` pathway validation), then COG-02 `asyncio.create_task` wrap of `cognee.remember`, then COG-03 retirement of the env gate. All 3 must land before Phase 22 cutover to avoid shipping the 2026-05-03 hotfix permanently.
 **Success Criteria** (what must be TRUE):
   1. After running `python enrichment/rss_ingest.py --max-articles 3` against live RSS feeds, 3 articles in `rss_articles` have `body` column populated (length ≥ 500 chars) and `depth` / `topics` columns populated (full-body classify completed before ingest decision)
   2. For those 3 articles, LightRAG contains docs with `doc_id = f"rss-{article_id}"` at status PROCESSED (verified via `aget_docs_by_ids`); `enriched = 2` is set in SQLite only after PROCESSED confirmed
   3. Image URLs in the ingested markdown contain `http://localhost:8765/` prefix (localize_markdown applied); at least 1 article with images has a Vision sub-doc in LightRAG (`rss-{id}_images` doc_id)
   4. A simulated 429 from DeepSeek during classify triggers a log line with exponential backoff delay (≥4.5s throttle baseline visible); 3 retry attempts before skipping article
   5. If `asyncio.wait_for` timeout fires mid-ingest, `adelete_by_doc_id` rollback is called and `enriched` remains 0 in SQLite (not set to 2 on partial failure)
+  6. Cognee embedding path fixed: calling `cognee_wrapper.remember_article(...)` returns within 100ms when mocked `cognee.remember` coroutine sleeps 10s (verifies `asyncio.create_task` wrap works, COG-02); inline call in `ingest_wechat.py:1099-1108` no longer gated by `OMNIGRAPH_COGNEE_INLINE` env var (verifies COG-03 retirement); Cognee episodic memory accumulates entries without 422 errors visible in logs (verifies COG-01 routing fix)
 **Plans**: TBD
 **UI hint**: no
 
@@ -328,7 +342,7 @@
 **Note on SCR-06 regression**: E2R-04 is the designated KOL regression test for the line-940 hotfix delivered in Phase 19. Both KOL and RSS arms must pass the cross-arm smoke before CUT-01 cron cutover proceeds.
 **Success Criteria** (what must be TRUE):
   1. `python enrichment/rss_ingest.py --backlog --max-articles 100` completes a 100-article chunk; for articles that previously had `enriched > 0` with summary-only docs, `adelete_by_doc_id` is called before re-insert (verify via log: `"delete-before-reinsert: rss-{id}"`); ≥80 of 100 articles reach `enriched = 2`
-  2. After full 1020-article backlog run (10 × 100-article chunks), `SELECT COUNT(*) FROM rss_articles WHERE enriched = 2` is ≥ 800 (≥80% success rate, allows ~20% extraction failure per SC-4)
+  2. After full 1020-article backlog run (10 × 100-article chunks), `SELECT COUNT(*) FROM rss_articles WHERE enriched = 2` is ≥ `OMNIGRAPH_BACKLOG_SUCCESS_FLOOR × 1020` (default floor `0.8`, i.e. ≥ 800). **Empirical calibration note**: 2026-05-03 Day-1 preview rounds 1 + 2 showed UA scrape-only success rate ~50% at small sample (HTTP 200 + `js_content` div missing is a common failure mode beyond 403/429 blocks). SCR-02 cascade fallback + SCR-04 content-quality gate should raise this substantially, but the floor is env-parameterizable so Day-1/2/3 real baseline can adjust it without code change; if empirical post-cutover success rate is below 0.65, revisit SCR-02 / SCR-04 tuning in a follow-up quick instead of forcing the threshold down
   3. A deliberately-failed ingest (mid-Vision crash simulated) leaves no stuck-doc residue after `cleanup_stuck_docs.py` is run; the subsequent batch `benchmark_result.json.gate_pass == true` with zero stuck-doc entries in `kv_store_doc_status.json` (validates SC-6)
   4. `orchestrate_daily.step_7_ingest_all --kol-max 5 --rss-max 5` (or equivalent) succeeds with both arms; LightRAG graph grows by ≥ 8 docs across the two arms (validates SC-2); confirms SCR-06 KOL regression closed
   5. `register_phase5_cron.sh` updated body re-runs idempotently; `~/.hermes/.rss-cutover-disabled` kill-switch file presence causes cron to skip RSS arm (verified by creating the file and inspecting cron log output)
