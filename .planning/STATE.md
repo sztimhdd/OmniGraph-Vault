@@ -29,7 +29,7 @@ Phase: 20 (RSS Full-Body Classify + Multimodal Ingest + Cognee Fix) — NEXT; Ph
 Plan: — (Phase 19 shipped 4 plans; next is `/gsd:plan-phase 20`)
 Status: Phase 19 shipped (pending operator Hermes SSH verify per 19-DEPLOY.md). Phase 20 execute BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT).
 Execute gate: BLOCKED until Day-1/2/3 KOL baseline observation complete (~2026-05-06 ADT)
-Last activity: 2026-05-04 — Completed quick task 260504-g7a: Local dev enablement (10 atomic fixes — Vertex Gemini LLM provider, dispatcher, BASE_DIR override, Vision skip-list, MCP tool rename, 27 mock-only tests)
+Last activity: 2026-05-04 — Completed quick task 260504-lt2: KOL_SCAN_DB_PATH env override propagated to 11 remaining DB-path call sites (mirrors af6f5bc from 260504-g7a/e2e; 23 new mock-only tests; smoke re-run green)
 
 ### Immediate next step
 
@@ -244,6 +244,7 @@ None tracked.
 | 260503-sd7 | fix batch_ingest_from_spider topic filter case-sensitivity (Day-1 cron hard blocker) | 2026-05-03 | `e59bc42` | [260503-sd7-fix-batch-ingest-from-spider-topic-filte](./quick/260503-sd7-fix-batch-ingest-from-spider-topic-filte/) |
 | 260503-v9z | Hotfix: gate Cognee inline `remember_article` behind `OMNIGRAPH_COGNEE_INLINE` (default off) — unblocks Day-1 KOL cron from LiteLLM→AI Studio 422 loop on `gemini-embedding-2` | 2026-05-04 | `3f6d065` | [260503-v9z-hotfix-disable-cognee-inline-call-blocki](./quick/260503-v9z-hotfix-disable-cognee-inline-call-blocki/) |
 | 260504-g7a | Local dev enablement — 9 atomic fixes + MCP scraper tool rename (10 total): Vertex Gemini LLM provider, `llm_complete` dispatcher, `OMNIGRAPH_BASE_DIR` override, Vision skip-list, LOCAL_DEV_SETUP runbook, bootstrap scripts, 27 mock-only tests. Hermes zero breaking change (default provider still DeepSeek). | 2026-05-04 | `7a9d6c4` | [260504-g7a-enablement-local-testing-blockers-infras](./quick/260504-g7a-enablement-local-testing-blockers-infras/) |
+| 260504-lt2 | KOL_SCAN_DB_PATH env override propagated to 11 remaining DB-path call sites (classify / scan / synthesize / cognee / 6× enrichment). Mirrors af6f5bc pattern from Quick 260504-g7a/e2e. 23 new mock-only tests (subprocess-isolated, all green); smoke re-run confirms core ingest path unchanged. Hermes production zero breaking change. | 2026-05-04 | `0674eb5` | [260504-lt2-propagate-kol-scan-db-path-env-override-](./quick/260504-lt2-propagate-kol-scan-db-path-env-override-/) |
 
 ## Phase 4 Exit State
 
