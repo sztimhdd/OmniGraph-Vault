@@ -266,13 +266,13 @@ async def ingest_article(
         logger.info("  [dry-run] would ingest: %s", url)
         return True, 0.0
 
-    import hashlib
     import ingest_wechat
 
-    # Compute the same article_hash ingest_wechat uses to track doc_id.
-    # Kept here so the rollback handler doesn't need to inspect ingest_wechat
-    # internals on the error path.
-    article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+    # SCH-02: canonical article_hash lives in lib.checkpoint.get_article_hash
+    # (SHA-256 first 16 hex). Phase 19 unifies the namespace so Phase 22 backlog
+    # and checkpoint_reset.py operate on one hash format. get_article_hash is
+    # already imported at module scope (line 63).
+    article_hash = get_article_hash(url)
     timeout_s = effective_timeout if effective_timeout is not None else _SINGLE_CHUNK_FLOOR_S
 
     t_start = time.time()
@@ -932,18 +932,22 @@ async def _classify_full_body(
       The classification dict ``{"depth", "topics", "rationale"}`` on success;
       ``None`` on any failure.
     """
-    # 1. Scrape on demand if body absent (D-10.01). Late import avoids
-    # LightRAG init at module load for callers that only need the classifier.
+    # 1. Scrape on demand if body absent (D-10.01).
+    # SCR-06 hotfix (Phase 19): route via lib.scraper.scrape_url which runs
+    # the full 4-layer WeChat cascade (apify -> cdp -> mcp -> ua) -- not UA-only.
+    # Closes Day-1 KOL 06:00 ADT regression where UA-only path was the sole
+    # fallback when Apify / CDP were misconfigured.
     if not body:
         import ingest_wechat
+        from lib.scraper import scrape_url
 
-        scraped = await ingest_wechat.scrape_wechat_ua(url)
-        if not scraped or not scraped.get("content_html"):
+        scraped = await scrape_url(url, site_hint="wechat")
+        if not scraped or not scraped.content_html:
             logger.warning(
-                "scrape-on-demand failed for %s — skipping classify", url[:80]
+                "scrape-on-demand failed for %s -- skipping classify", url[:80]
             )
             return None
-        body, _ = ingest_wechat.process_content(scraped["content_html"])
+        body, _ = ingest_wechat.process_content(scraped.content_html)
         conn.execute(
             "UPDATE articles SET body = ? WHERE id = ?", (body, article_id)
         )
