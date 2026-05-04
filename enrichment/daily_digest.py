@@ -39,7 +39,7 @@ import requests
 
 from config import BASE_DIR
 
-DB = Path("data/kol_scan.db")
+DB = Path(os.environ.get("KOL_SCAN_DB_PATH", "data/kol_scan.db"))
 DIGEST_DIR = BASE_DIR / "digests"
 TOP_N = 5
 TELEGRAM_API = "https://api.telegram.org"
