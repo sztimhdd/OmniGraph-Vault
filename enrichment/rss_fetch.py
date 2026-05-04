@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import socket
 import sqlite3
 import time
@@ -27,7 +28,7 @@ from langdetect import DetectorFactory, LangDetectException, detect
 
 DetectorFactory.seed = 0  # deterministic language detection
 
-DB = Path("data/kol_scan.db")
+DB = Path(os.environ.get("KOL_SCAN_DB_PATH", "data/kol_scan.db"))
 FEED_DELAY_SECONDS = 2.0
 FEED_TIMEOUT_SECONDS = 15
 MIN_CONTENT_CHARS = 500
