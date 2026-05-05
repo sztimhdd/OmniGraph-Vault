@@ -210,12 +210,16 @@ async def get_rag(flush: bool = True) -> "LightRAG":
         llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
         llm_model_name="deepseek-v4-flash",
-        # Throttle concurrency to fit Gemini free-tier EMBED quota:
-        # gemini-embedding-*: 100 RPM → serialize embeddings with max_async=1
-        # Deepseek LLM has its own rate limit profile; keep llm_model_max_async=2
-        embedding_func_max_async=1,
-        embedding_batch_num=20,
-        llm_model_max_async=2,
+        # v3.3 Day-1 postmortem: free-tier throttling removed — Vertex paid
+        # tier (1000 RPM) allows higher concurrency.  Batch insert + higher
+        # async limits reduce the per-article merge wall from ~40 min → ~5-10.
+        # lib/lightrag_embedding.py serial loop (207) and graphml/vdb full
+        # rewrites remain the super-linear ceiling — see 2026-05-04 audit.
+        embedding_func_max_async=4,
+        embedding_batch_num=64,
+        llm_model_max_async=4,
+        max_parallel_insert=3,
+        addon_params={"insert_batch_size": 100},
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
