@@ -991,29 +991,18 @@ async def _classify_full_body(
     return result
 
 
-async def _graded_probe(
+def _graded_probe_prompts(
     title: str,
     account: str,
     digest: str,
     filter_keywords: tuple[str, ...],
-    api_key: str,
-    timeout: float = 30.0,
-) -> dict | None:
-    """Graded classification probe — lightweight pre-scrape relevance filter.
+) -> tuple[str, str]:
+    """Build (system_prompt, user_prompt) for the graded probe.
 
-    Calls DeepSeek with a ≤150 token prompt to determine if an article is
-    OBVIOUSLY unrelated to all filter keywords. Returns None on any error
-    (fail-open: let full classify decide).
-
-    Threshold: unrelated=True AND confidence≥0.9 → skip.
-    Conservative by design — false-negatives cost more than extra scrapes.
+    Extracted so the DeepSeek HTTP path and the Vertex Gemini SDK path build
+    the same prompt — keeps the two providers semantically equivalent and
+    lets prompt-quality tests target one well-known string.
     """
-    import aiohttp
-
-    if not digest or len(digest.strip()) < 10:
-        # Too short to judge → fail open
-        return None
-
     truncated_digest = digest.strip()[:200]
     keywords_str = ", ".join(t.strip() for t in filter_keywords if t.strip())
 
@@ -1029,6 +1018,29 @@ async def _graded_probe(
         f"Rules: unrelated=true only if highly confident topic mismatch. "
         f"If unsure, ambiguous, or excerpt < 50 chars → unrelated=false."
     )
+    return system_prompt, user_prompt
+
+
+def _parse_probe_json(content: str) -> dict | None:
+    """Parse the model's JSON response into a dict; None on any failure."""
+    try:
+        result = json.loads(content)
+    except (TypeError, json.JSONDecodeError) as e:
+        logger.warning("graded probe parse error: %s — failing open", e)
+        return None
+    if not isinstance(result, dict):
+        return None
+    return result
+
+
+async def _graded_probe_deepseek(
+    system_prompt: str,
+    user_prompt: str,
+    api_key: str,
+    timeout: float,
+) -> dict | None:
+    """DeepSeek HTTP path. Returns None on any error (fail-open)."""
+    import aiohttp
 
     payload = {
         "model": "deepseek-chat",
@@ -1065,14 +1077,129 @@ async def _graded_probe(
 
     try:
         content = data["choices"][0]["message"]["content"]
-        result = json.loads(content)
-    except (KeyError, json.JSONDecodeError, IndexError) as e:
+    except (KeyError, IndexError) as e:
         logger.warning("graded probe parse error: %s — failing open", e)
         return None
+    return _parse_probe_json(content)
 
-    if not isinstance(result, dict):
+
+async def _graded_probe_vertex(
+    system_prompt: str,
+    user_prompt: str,
+    timeout: float,
+) -> dict | None:
+    """Vertex Gemini SDK path. Returns None on any error (fail-open).
+
+    Uses ``OMNIGRAPH_GRADED_VERTEX_MODEL`` for the model id (default
+    ``gemini-3.1-flash-lite-preview``) so the lightweight probe can stay on
+    a cheap/fast model even when the heavy classifier on the same box uses a
+    different ``OMNIGRAPH_LLM_MODEL``. Falls back to ``OMNIGRAPH_LLM_MODEL``
+    when the probe-specific override is unset.
+    """
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as e:
+        logger.warning("graded probe vertex import failed: %s — failing open", e)
         return None
-    return result
+
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip()
+    if not project:
+        logger.warning(
+            "graded probe vertex: GOOGLE_CLOUD_PROJECT unset — failing open"
+        )
+        return None
+    location = (
+        os.environ.get("GOOGLE_CLOUD_LOCATION", "").strip() or "global"
+    )
+    model = (
+        os.environ.get("OMNIGRAPH_GRADED_VERTEX_MODEL", "").strip()
+        or os.environ.get("OMNIGRAPH_LLM_MODEL", "").strip()
+        or "gemini-3.1-flash-lite-preview"
+    )
+
+    try:
+        client = genai.Client(vertexai=True, project=project, location=location)
+        config = types.GenerateContentConfig(
+            temperature=0.0,
+            response_mime_type="application/json",
+            max_output_tokens=128,
+            http_options=types.HttpOptions(timeout=int(timeout * 1000)),
+        )
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=[
+                types.Content(role="user", parts=[types.Part(text=system_prompt)]),
+                types.Content(role="user", parts=[types.Part(text=user_prompt)]),
+            ],
+            config=config,
+        )
+    except Exception as e:
+        logger.warning("graded probe vertex exception: %s — failing open", e)
+        return None
+
+    text = getattr(response, "text", None) or ""
+    if not text:
+        candidates = getattr(response, "candidates", None) or []
+        if candidates:
+            content_obj = getattr(candidates[0], "content", None)
+            parts = getattr(content_obj, "parts", None) or []
+            if parts:
+                text = getattr(parts[0], "text", "") or ""
+    if not text:
+        logger.warning("graded probe vertex: empty response — failing open")
+        return None
+    return _parse_probe_json(text)
+
+
+async def _graded_probe(
+    title: str,
+    account: str,
+    digest: str,
+    filter_keywords: tuple[str, ...],
+    api_key: str,
+    timeout: float = 30.0,
+) -> dict | None:
+    """Graded classification probe — lightweight pre-scrape relevance filter.
+
+    Builds a ≤200 token prompt asking the model whether the article is
+    OBVIOUSLY unrelated to ALL filter keywords. Returns None on any error
+    (fail-open: let full classify decide).
+
+    Provider routing follows ``OMNIGRAPH_LLM_PROVIDER`` (mirrors
+    ``lib/llm_complete.get_llm_func`` and ``batch_classify_kol.py:269``):
+      - ``deepseek`` (default, unset)  → DeepSeek HTTP API (production / Hermes)
+      - ``vertex_gemini``              → Vertex AI Gemini SDK (local Cisco-proxy box)
+
+    Threshold (decided by caller): unrelated=True AND confidence≥0.9 → skip.
+    Conservative by design — false-negatives cost more than extra scrapes.
+
+    ``api_key`` is required for the DeepSeek path and ignored on the Vertex
+    path (Vertex uses SA auth via ``GOOGLE_APPLICATION_CREDENTIALS``).
+    """
+    if not digest or len(digest.strip()) < 10:
+        # Too short to judge → fail open
+        return None
+
+    system_prompt, user_prompt = _graded_probe_prompts(
+        title, account, digest, filter_keywords
+    )
+
+    provider = (
+        os.environ.get("OMNIGRAPH_LLM_PROVIDER", "deepseek").strip()
+        or "deepseek"
+    )
+    if provider == "vertex_gemini":
+        return await _graded_probe_vertex(system_prompt, user_prompt, timeout)
+    if provider == "deepseek":
+        return await _graded_probe_deepseek(
+            system_prompt, user_prompt, api_key, timeout
+        )
+    logger.warning(
+        "graded probe: unknown OMNIGRAPH_LLM_PROVIDER=%r — failing open",
+        provider,
+    )
+    return None
 
 
 def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
