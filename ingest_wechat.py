@@ -6,6 +6,11 @@ import os
 # setdefault preserves any explicit override from shell env or ~/.hermes/.env.
 os.environ.setdefault("LLM_TIMEOUT", "600")
 
+# 2026-05-05: suppress Cognee structlog INFO/WARNING noise (~600 lines/run).
+# Cognee respects LOG_LEVEL env var per official docs. ERROR keeps real
+# exceptions visible. setdefault preserves explicit user override.
+os.environ.setdefault("LOG_LEVEL", "ERROR")
+
 import sys
 import json
 import hashlib
@@ -17,6 +22,9 @@ import sqlite3
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+# 2026-05-05: suppress LiteLLM cost/debug logger
+logging.getLogger("LiteLLM").setLevel(logging.ERROR)
+logging.getLogger("litellm").setLevel(logging.ERROR)
 
 
 def _status_is_processed(status_val) -> bool:
