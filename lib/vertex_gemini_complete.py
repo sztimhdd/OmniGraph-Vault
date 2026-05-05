@@ -34,7 +34,7 @@ Env vars consumed:
     - GOOGLE_CLOUD_LOCATION (default: ``global``; differs from embedding's
       ``us-central1`` default per LDEV task spec)
     - OMNIGRAPH_LLM_MODEL (default: ``gemini-3.1-flash-lite-preview``)
-    - OMNIGRAPH_LLM_TIMEOUT_SEC (default: 600, integer seconds)
+    - OMNIGRAPH_LLM_TIMEOUT_SEC (default: 1800, integer seconds)
 
 On ``google.genai.errors.ServerError`` with ``code == 503``: retry up to 3
 times with exponential backoff 2s / 4s / 8s; 4th failure re-raises. Any
@@ -59,7 +59,7 @@ from google.genai.errors import ServerError
 
 _DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
 _DEFAULT_LOCATION = "global"
-_DEFAULT_TIMEOUT_SEC = 600
+_DEFAULT_TIMEOUT_SEC = 1800
 _RETRY_BACKOFFS_SEC = (2, 4, 8)  # 3 retries; total wall = 14s worst case
 
 

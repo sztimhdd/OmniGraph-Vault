@@ -215,6 +215,20 @@ def test_timeout_propagation(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.http_options.timeout == 42 * 1000
 
 
+def test_default_timeout_is_1800(monkeypatch: pytest.MonkeyPatch) -> None:
+    """OMNIGRAPH_LLM_TIMEOUT_SEC unset → default 1800 → HttpOptions timeout=1800000 ms."""
+    _set_vertex_env(monkeypatch)
+    monkeypatch.delenv("OMNIGRAPH_LLM_TIMEOUT_SEC", raising=False)
+    _, gen = _install_client_mock(
+        monkeypatch, generate_return_value=_make_fake_response("ok"),
+    )
+    from lib.vertex_gemini_complete import vertex_gemini_model_complete
+
+    asyncio.run(vertex_gemini_model_complete("x"))
+    cfg = gen.call_args.kwargs["config"]
+    assert cfg.http_options.timeout == 1800 * 1000
+
+
 def test_keyword_extraction_kwarg_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
     """keyword_extraction=True is accepted and silently ignored."""
     _set_vertex_env(monkeypatch)
