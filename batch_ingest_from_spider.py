@@ -1059,7 +1059,7 @@ async def ingest_from_db(
         CREATE TABLE IF NOT EXISTS ingestions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             article_id INTEGER NOT NULL REFERENCES articles(id),
-            status TEXT NOT NULL CHECK(status IN ('ok', 'failed', 'skipped')),
+            status TEXT NOT NULL CHECK(status IN ('ok', 'failed', 'skipped', 'skipped_ingested', 'dry_run')),
             ingested_at TEXT DEFAULT (datetime('now', 'localtime')),
             UNIQUE(article_id)
         )
