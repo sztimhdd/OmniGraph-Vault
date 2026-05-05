@@ -421,6 +421,20 @@ If remote is ahead: push from remote, pull locally, and re-read any changed file
 
 3. **Verify ingest progress from DB, not in-process counters.** Day-2 trigger's in-process report claimed "ok=0 new at 00:08 ADT" while `SELECT * FROM ingestions WHERE date(ingested_at)='2026-05-05'` showed `article_id=372 status=ok @ 00:06:09 ADT`. In-process counters can lag committed rows or count differently. When monitoring long batches, query `ingestions` table directly.
 
+### 2026-05-05 (afternoon — cascade + body persistence work)
+
+1. **"Half-fix" pattern is silent and expensive.** `ecaa2df` (SCR-06) fixed the cascade orchestrator (`lib/scraper.py`) to extract Apify's `markdown` key, but the consumer at `batch_ingest_from_spider.py:948` still only checked `content_html` — silent reject of 121 articles overnight (53% of pool). When changing data-shape contracts, **always audit producer↔consumer pairs together** — diff the new field against every call site before declaring done.
+
+2. **Body must persist atomically before any downstream gate.** Pre-Bug 3 (`8ac3cb1`), if scrape succeeded but classify or LightRAG ingest failed (timeout, hang, exception), the scraped body lived only in memory and was discarded on reject — paid Apify call wasted, next run re-scrapes. Architectural rule: write `articles.body` immediately on scrape success, **independent of downstream success**. Verified via Hermes Phase 1 inventory — 113 SCR-06 victims had `body=NULL` despite Apify having succeeded.
+
+3. **Multi-page WeChat articles (`idx=1..N`) are normal article structure, not enrichment.** Same `__biz + mid` with different `idx` are pages of one long-form article. Pre-`ecaa2df`, each sub-page incurred 180s CDP timeout waste — multi-page articles took 28+ min vs ~10 min after fix. Don't try to "optimize" sub-pages away; they're real content.
+
+4. **Apify result lost on consumer reject = silent paid-for waste.** Same root cause as #1, but the operational angle: every Apify success consumed real API quota. Pre-fix every consumer reject (121 articles overnight) burned that quota with zero data captured. Even monitoring tools won't catch this — Apify dashboard says SUCCEEDED, ingestions table says skipped, no log connects them. Periodic audit: cross-reference Apify spend × ingestions outcomes.
+
+5. **Embedding/Vision worker timeouts disproportional to LLM timeout.** Track 3 (Hermes B) flagged: when `OMNIGRAPH_LLM_TIMEOUT_SEC` bumped 600 → 1800 for image-heavy articles, the embedding worker still has a 60s timeout (and Vision per-image timeouts are similar). Currently doesn't bite, but as graph grows or vision providers get slower, the 30× ratio becomes a hidden ceiling. Worth tracking as a v3.5 candidate (proportional timeouts).
+
+6. **DB candidate SELECT does not exclude `status='skipped'` rows.** Articles previously rejected for any reason are naturally re-pulled by the next `--from-db` ingest run. Useful: rejection due to fixed bug auto-recovers without explicit reset. Risky: a permanent reject reason (genuinely dead URL) will be retried daily forever. Worth tracking in a `skip_reason_version` field — see REQUIREMENTS.md "Future Requirements / v3.5" reject-reason versioning.
+
 ## Vertex AI Migration Path
 
 ### Problem: Quota Coupling
