@@ -413,6 +413,14 @@ If remote is ahead: push from remote, pull locally, and re-read any changed file
 
 3. **CHECK constraint vs INSERT 值偏离是 latent bug 模式** — `skipped_ingested` 和 `dry_run` 值在 INSERT 里已存在至少一周，但 CHECK whitelist 没同步更新，直到某天有人跑一条特定的 code path 才触发 `IntegrityError`。防御：CI 应跑 schema consistency check（INSERT 里出现的所有 status 值是否都在 CREATE TABLE CHECK 白名单里）。有空加 `tests/unit/test_schema_consistency.py`。
 
+### 2026-05-05 (Day-2 trigger analysis)
+
+1. **LightRAG entity/relation upserts are 1-text-per-call; only chunks are batched.** `operate.py:1920-1938` (entity) and `:2472-2490` (relation) pass single-item dicts to vdb upsert; `nano_vector_db_impl.py:108-124` then calls `embedding_func` once per single-item batch. Only `chunks_vdb` (`lightrag.py:1311-1338`) passes multi-chunk dicts that actually exercise `embedding_batch_num`. Implication: rewriting `lib/lightrag_embedding.py:207` (host-side `for text in texts` loop) into a Vertex batch-API call only helps the ~5-30 chunks/article; entities + relations (hundreds/article) stay 1-text-per-call regardless. Realistic S2 speedup is 3-6× from in-flight concurrency (`embedding_func_max_async × graph_max_async`), NOT 10-20× from HTTP batching. To get true N-text batches on entity/relation paths requires upstream LightRAG changes (bulk upsert at `operate.py`), out of host scope. See `docs/research/lightrag_internals_2026-05-04.md`.
+
+2. **Scrape-first classify has irreducible Apify cost on filter-rejected articles.** When `--topic-filter` rejects post-classify, the ~75-90s Apify scrape happens BEFORE rejection is known. Day-2 trigger 2026-05-05 wasted 17/32 min (53%) on 5 such articles. The pre-scrape checkpoint guard at `batch_ingest_from_spider.py:1140-1155` (commit 9150246) only catches anomalous partial-state (scrape ckpt exists + body=NULL); does NOT address fresh-article scrape-then-filter waste. Permanent fix: graded classification (cheap title+excerpt LLM probe before scrape). See REQUIREMENTS.md "Future Requirements / v3.5".
+
+3. **Verify ingest progress from DB, not in-process counters.** Day-2 trigger's in-process report claimed "ok=0 new at 00:08 ADT" while `SELECT * FROM ingestions WHERE date(ingested_at)='2026-05-05'` showed `article_id=372 status=ok @ 00:06:09 ADT`. In-process counters can lag committed rows or count differently. When monitoring long batches, query `ingestions` table directly.
+
 ## Vertex AI Migration Path
 
 ### Problem: Quota Coupling
