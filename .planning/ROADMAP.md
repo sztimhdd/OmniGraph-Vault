@@ -22,6 +22,41 @@
 - Large-scale batch KOL ingestion (1000+ articles from 54 WeChat accounts)
 - SQLite entity pipeline stabilization (monitoring DB-first path vs file fallback)
 
+## Strategic Direction: VitaClaw AgentRAG
+
+The long-term product direction is to make OmniGraph the architecture intelligence
+layer for **VitaClaw**, a Rust-native agent runtime. This is a product and architecture
+direction, not a locked technical implementation.
+
+Desired capability:
+
+> Given a high-level architecture question, OmniGraph should combine frontier agent
+> knowledge, OpenClaw/Hermes source evidence, VitaClaw source evidence, and prior
+> architectural decisions into a source-grounded recommendation and coding-agent brief.
+
+Examples of target questions:
+
+- "How should VitaClaw integrate Mem0 for multi-layer memory, using Hermes and
+  OpenClaw as reference systems?"
+- "Where should VitaClaw place an MCP boundary without coupling the core runtime to
+  one protocol?"
+- "How should VitaClaw implement streaming tool output in Rust while preserving the
+  intent of OpenClaw/Hermes patterns?"
+- "Which upstream Agent framework changes should alter VitaClaw's current design?"
+
+Architecture principles:
+
+- Use a **federated graph** model: domain graph, OpenClaw graph, Hermes graph,
+  VitaClaw graph, and decision/bridge graph remain logically distinct.
+- Treat bridge concepts as product assets. Relationships such as `implements`,
+  `inspired_by`, `ported_from`, `supersedes`, `contradicts`, `risk_of`,
+  `verified_by`, and `equivalent_to` are more valuable than raw retrieval volume.
+- Prefer architecture briefs and coding-agent briefs over long-form generic answers.
+- Keep VitaClaw Rust-native. OpenClaw and Hermes are evidence and inspiration, not
+  architectural authorities.
+- Give Claude autonomy to research current best practice before each milestone. Do not
+  freeze 2026-05 tool choices into permanent doctrine.
+
 ## Next
 
 - **Phase 5: pipeline automation + RSS + daily digest** — PRD at `.planning/phases/05-pipeline-automation/05-PRD.md`; 18 locked decisions in `05-CONTEXT.md`. Wave 0 migrates embeddings to gemini-embedding-2 (multimodal, unblocks Phase 4's 100-RPM quota), then keyword+depth KOL catch-up, then RSS pipeline (92 Karpathy feeds), `orchestrate_daily.py`, `daily_digest.py`, Telegram delivery, cron deployment, 3-day observation.
@@ -357,3 +392,85 @@ Plans:
 | 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 0/TBD | Not started | - |
 | 21. Stuck-Doc Spike + CLI + RSS E2E Fixture + Bench | 0/TBD | Not started | - |
 | 22. Backlog Re-Ingest + Cross-Arm Regression + Cutover | 0/TBD | Not started | - |
+
+---
+
+## Future Directional Milestones: VitaClaw AgentRAG
+
+These are not approved execution plans. They are long-range product requirements for
+future GSD planning. When one becomes active, Claude should research the current tool
+landscape and propose the exact architecture, requirements, and acceptance gates.
+
+### v3.5 Candidate: Operational Stabilization
+
+Goal: make daily ingestion reliable, selective, and cheap enough to run unattended.
+
+Principles:
+
+- Finish the current RSS/KOL quality alignment before expanding the product surface.
+- Prefer recall-preserving filters over title-only or source-only shortcuts.
+- Treat freshness, backlog starvation, and cron reliability as product quality issues,
+  not merely ops details.
+
+### v3.6 Candidate: VitaClaw Code Graph Foundation
+
+Goal: make VitaClaw a first-class code-graph target alongside OpenClaw and Hermes.
+
+Success should be defined by user-visible capability:
+
+- OmniGraph can answer where a new capability belongs in VitaClaw's Rust architecture.
+- It can compare VitaClaw modules with analogous OpenClaw/Hermes structures.
+- It can identify impact radius and likely tests for a proposed VitaClaw change.
+
+### v3.7 Candidate: Bridge And Decision Graph
+
+Goal: preserve cross-graph relationships and architectural judgment.
+
+Product requirements:
+
+- Bridge external concepts, reference implementations, VitaClaw modules, and decisions.
+- Record selected designs, rejected alternatives, validation evidence, and supersession.
+- Make prior decisions queryable so future agents understand why the code is shaped as
+  it is.
+
+### v3.8 Candidate: AgentRAG Orchestrator
+
+Goal: compile multi-graph evidence into recommendations instead of relying on an agent
+to manually call every skill in the right order.
+
+Product requirements:
+
+- Plan which graphs to query based on the user's intent.
+- Separate evidence from inference.
+- Return source-grounded architecture answers and coding-agent briefs.
+- Make uncertainty explicit when evidence is incomplete or conflicting.
+
+### v3.9 Candidate: CodeBrief Product Contract
+
+Goal: standardize the artifact handed to coding agents.
+
+Every CodeBrief should aim to include:
+
+- problem framing
+- relevant external best practice
+- OpenClaw/Hermes source evidence
+- VitaClaw source evidence
+- recommended architecture
+- boundaries and non-goals
+- risks and failure modes
+- expected tests and acceptance criteria
+
+### v4.0 Candidate: Evaluation And Drift Detection
+
+Goal: prove OmniGraph beats ordinary web search and documentation lookup for real
+VitaClaw architecture tasks.
+
+Evaluation should compare:
+
+- source-reference correctness
+- module-placement accuracy
+- hallucinated API rate
+- risk identification
+- implementation-plan quality
+- ability to detect when upstream OpenClaw/Hermes or frontier agent practice invalidates
+  an old VitaClaw decision

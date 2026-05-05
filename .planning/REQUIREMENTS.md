@@ -6,6 +6,36 @@
 
 **Gate:** All 6 success criteria in PROJECT.md Current Milestone pass + post-rollout Day-1/2/3 observation window clean.
 
+## Strategic Context For Future Requirements
+
+v3.4 remains an operational-quality milestone. Do not expand v3.4 to implement the
+long-term VitaClaw AgentRAG vision.
+
+Future requirements after RSS/KOL stabilization should be shaped by this product goal:
+
+> OmniGraph should become the architecture intelligence layer for VitaClaw, able to
+> combine frontier agent knowledge, OpenClaw/Hermes source evidence, VitaClaw source
+> evidence, and prior architectural decisions into source-grounded recommendations and
+> coding-agent briefs.
+
+Future milestone authors should preserve these requirement-level invariants:
+
+- **VitaClaw first-class:** VitaClaw's Rust codebase must be queryable as a first-class
+  graph target before OmniGraph can reliably guide VitaClaw implementation.
+- **Federated evidence:** Keep domain knowledge, reference source graphs, VitaClaw source
+  graph, and decision records logically separate unless research proves a better model.
+- **Decision memory:** Store architectural choices, rejected alternatives, verification
+  evidence, and supersession history as product data.
+- **Bridge concepts:** Make cross-graph relationships explicit. Avoid relying on fuzzy
+  string matching alone for concepts like memory, tool runtime, planner, executor,
+  skill/plugin, MCP, sandbox, streaming, and session.
+- **Briefs over snippets:** Coding-agent facing outputs should be structured briefs with
+  constraints, source evidence, risks, tests, and acceptance criteria.
+- **Research autonomy:** Claude should research current LightRAG, Graphify, Mem0, MCP,
+  OpenClaw, Hermes, VitaClaw, and broader agent-framework practice when planning each
+  future milestone. These requirements define the product outcome, not the specific
+  tool path.
+
 **Locked D-level decisions (from `.planning/research/SUMMARY.md`):**
 
 - **D-RSS-SCRAPER-SCOPE = Option A (Unified)** — `lib/scraper.py::scrape_url()` serves both KOL and RSS arms; patches `batch_ingest_from_spider.py:940` UA-only bug (2:1 researcher consensus + user preference)

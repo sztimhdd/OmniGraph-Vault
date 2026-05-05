@@ -24,6 +24,75 @@ kg_synthesize.py ──→ Markdown synthesis report
 **Key capability:** scan once (120 days, 54 accounts), classify many times with different
 topics. No re-scraping needed to re-classify.
 
+## Long-Term Product North Star
+
+OmniGraph's long-term role is not "a better search box." It is the architecture
+intelligence layer for **VitaClaw**, a Rust-native intelligent agent runtime inspired
+by, but not limited to, OpenClaw and Hermes.
+
+The product goal is to help a human CTO and a coding agent answer questions like:
+
+> "How should VitaClaw integrate Mem0 for multi-layer memory, using current agent
+> framework best practices plus the real OpenClaw, Hermes, and VitaClaw codebases?"
+
+For that class of question, OmniGraph should compile evidence from multiple graphs
+into an engineering decision and an implementation brief. The desired output is not a
+pile of retrieved snippets. It is a source-grounded recommendation with:
+
+- what the external agent ecosystem currently believes is best practice
+- how OpenClaw and Hermes actually structure the related code paths
+- where VitaClaw's Rust architecture should receive the capability
+- which tradeoffs, risks, and tests matter
+- what should be delegated to a coding agent as a clear task brief
+
+The strategic upgrade path is from **knowledge base** to **VitaClaw engineering
+decision system**.
+
+## Target Knowledge Architecture
+
+Future planning should treat OmniGraph as a federated graph system:
+
+- **Domain graph:** LightRAG over frontier articles, guides, papers, technical docs,
+  release notes, and operator experience. It answers "what is the current best
+  thinking and why?"
+- **Reference code graphs:** Graphify over OpenClaw and Hermes source. They answer
+  "how do the reference systems actually implement this?"
+- **VitaClaw code graph:** Graphify over VitaClaw. It answers "where does this belong
+  in our Rust codebase, and what would the change touch?"
+- **Decision graph:** an OmniGraph-owned layer of architectural decisions,
+  bridge concepts, rejected options, verification results, and drift findings. It
+  answers "what have we decided, why, and is it still true?"
+
+Keep these graphs logically separate. Do not force article concepts and source-code
+symbols into one physical graph unless research proves a better architecture. Cross-graph
+reasoning should happen through explicit bridge concepts and query orchestration.
+
+## Long-Term Product Requirements
+
+- OmniGraph should support architecture questions that require both external best
+  practice and repository-specific source evidence.
+- VitaClaw must become a first-class graph target. A Rust rewrite cannot be guided
+  well if its own crate/module/trait structure is absent from the graph system.
+- Hermes and OpenClaw should be treated as reference systems, not as templates to copy
+  blindly. Their patterns are evidence; VitaClaw's Rust-native architecture remains the
+  product owner.
+- OmniGraph should preserve architectural judgment: selected designs, rejected designs,
+  rationale, validation evidence, and supersession history.
+- Coding-agent outputs should be task briefs, not just explanations: relevant context,
+  source evidence, constraints, risks, expected tests, and acceptance criteria.
+- The system should be evaluated against ordinary web search and documentation lookup
+  on real VitaClaw architecture tasks. The core metric is better engineering decisions:
+  fewer hallucinated APIs, better module placement, clearer tradeoffs, and more reliable
+  implementation plans.
+
+## Autonomy For Future Claude Planning
+
+These principles are intentionally not an implementation plan. Future Claude runs should
+research the current state of LightRAG, Graphify, Mem0, MCP, OpenClaw, Hermes, VitaClaw,
+and the broader agent ecosystem before proposing concrete milestones. If evidence shows
+that a named tool is no longer the best fit, Claude should surface that and recommend a
+better architecture while preserving the product requirements above.
+
 ## Validated (what works)
 
 - WeChat article scraping: Apify (primary) → CDP fallback → MCP fallback

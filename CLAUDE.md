@@ -66,6 +66,64 @@ OmniGraph-Vault is a personal knowledge base for **OpenClaw** and **Hermes Agent
 
 ---
 
+## Long-Term Product Direction: VitaClaw AgentRAG
+
+OmniGraph's long-term purpose is to become the architecture intelligence layer for
+**VitaClaw**, a Rust-native agent runtime inspired by OpenClaw and Hermes.
+
+When planning future work, do not reduce OmniGraph to "search articles" or "search
+code." The desired product behavior is:
+
+```
+frontier agent knowledge
+  + OpenClaw/Hermes source evidence
+  + VitaClaw source evidence
+  + prior OmniGraph architectural decisions
+  → source-grounded architecture recommendation
+  → coding-agent brief
+```
+
+Target user questions include:
+
+- "How should VitaClaw integrate Mem0 for multi-layer memory, using Hermes and OpenClaw
+  as reference systems?"
+- "How should VitaClaw expose MCP without coupling the Rust core runtime to a single
+  external protocol?"
+- "How should VitaClaw implement streaming tool output, planner/executor boundaries,
+  sandbox permissions, or plugin/skill loading?"
+
+### Strategic Architecture Principles
+
+- Use a **federated graph** mental model: domain graph, OpenClaw graph, Hermes graph,
+  VitaClaw graph, and decision/bridge graph are logically distinct.
+- Treat OpenClaw and Hermes as reference systems, not authorities. VitaClaw should stay
+  Rust-native and product-led.
+- Treat bridge relationships as first-class product data: `implements`, `inspired_by`,
+  `ported_from`, `supersedes`, `contradicts`, `risk_of`, `verified_by`,
+  `equivalent_to`, and similar relations are more important than raw snippet volume.
+- Preserve decision memory: chosen designs, rejected alternatives, rationale, tests,
+  production evidence, and later supersession should be queryable.
+- Prefer architecture briefs and CodeBriefs over generic long-form synthesis when the
+  user is trying to guide a coding agent.
+- Do not freeze today's tool choices into doctrine. Before turning this direction into
+  a milestone, research the current state of LightRAG, Graphify, Mem0, MCP, OpenClaw,
+  Hermes, VitaClaw, and adjacent agent frameworks.
+
+### Autonomy Guidance For Claude
+
+When asked to plan or design toward VitaClaw AgentRAG:
+
+1. Start from product requirements and architectural constraints, not from a preferred
+   library.
+2. Identify what evidence each graph should provide.
+3. Separate confirmed source evidence from inference.
+4. Surface tradeoffs and rejected options.
+5. Define success as improved engineering decisions for VitaClaw: better module
+   placement, fewer hallucinated APIs, clearer risks, and more actionable coding-agent
+   briefs.
+
+---
+
 ## Common Commands
 
 ```bash
