@@ -1139,6 +1139,23 @@ async def ingest_from_db(
                 conn.commit()
                 continue
 
+            # Pre-scrape guard: if article was previously scraped (has scrape
+            # checkpoint stage) but body is absent from DB (anomalous partial
+            # state), skip instead of re-scraping. Avoids wasted Apify/CDP calls
+            # (~150s/article) when the article was classified and filtered before.
+            # Normal case: scrape checkpoint + body in DB → classify reuses DB
+            # body without re-scrape (handled inside _classify_full_body).
+            if has_stage(ckpt_hash, "scrape") and not body:
+                logger.warning(
+                    "pre-scrape skip: checkpoint scrape exists but body=NULL — "
+                    "partial state, url=%s", url[:80])
+                conn.execute(
+                    "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
+                    (art_id,),
+                )
+                conn.commit()
+                continue
+
             # D-10.01..04: scrape-first per-article classify. Runs BEFORE
             # the Phase 9 ingest_article call. No fail-open — skip on classify error.
             if not dry_run and api_key:
