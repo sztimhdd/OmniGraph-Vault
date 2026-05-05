@@ -904,6 +904,42 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
     logger.info("Done — %d ok, %d failed, %d filtered, %d skipped", ok, fail, filt, len(summary) - ok - fail - filt)
 
 
+def _persist_scraped_body(
+    conn: sqlite3.Connection,
+    article_id: int,
+    scrape: "ScrapeResult",  # forward-ref str — keeps lib.scraper import lazy
+) -> str | None:
+    """BODY-01: atomically persist scraped body to articles.body.
+
+    Idempotent: SQL guard ``body IS NULL OR length(body) < 500`` prevents
+    overwriting an already-ingested body (race-safe across batch retries).
+
+    Body source: prefer ``ScrapeResult.markdown`` when non-empty, else
+    ``ScrapeResult.content_html``. Empty/None bodies are a no-op.
+
+    DB failures are logged at WARNING and swallowed -- caller continues.
+
+    Returns the body string on successful UPDATE; None on any failure or no-op.
+    """
+    try:
+        body = (scrape.markdown or "").strip() or (scrape.content_html or "").strip()
+        if not body:
+            return None
+        conn.execute(
+            "UPDATE articles SET body = ? "
+            "WHERE id = ? AND (body IS NULL OR length(body) < 500)",
+            (body, article_id),
+        )
+        conn.commit()
+        return body
+    except Exception as e:  # noqa: BLE001 -- never raise into main loop
+        logger.warning(
+            "BODY-01 persist failed for article_id=%s: %s",
+            article_id, e,
+        )
+        return None
+
+
 async def _classify_full_body(
     conn: sqlite3.Connection,
     article_id: int,
@@ -1434,6 +1470,24 @@ async def ingest_from_db(
             # D-10.01..04: scrape-first per-article classify. Runs BEFORE
             # the Phase 9 ingest_article call. No fail-open — skip on classify error.
             if not dry_run and api_key:
+                # BODY-01: pre-scrape + persist body before classify. If scrape
+                # succeeds but classify or ingest later fails, body is durable
+                # on disk so the next batch run skips re-scraping
+                # (~75-90s/article saved). _classify_full_body's internal
+                # scrape-on-demand path remains as a defensive fallback.
+                if not body:
+                    try:
+                        from lib.scraper import scrape_url
+                        scraped = await scrape_url(url, site_hint="wechat")
+                        if scraped and not scraped.summary_only:
+                            persisted = _persist_scraped_body(conn, art_id, scraped)
+                            if persisted:
+                                body = persisted
+                    except Exception as e:  # noqa: BLE001 -- never block main flow
+                        logger.warning(
+                            "BODY-01 pre-classify scrape/persist failed for "
+                            "art_id=%s url=%s: %s", art_id, url[:80], e,
+                        )
                 cls_result = await _classify_full_body(
                     conn=conn,
                     article_id=art_id,
