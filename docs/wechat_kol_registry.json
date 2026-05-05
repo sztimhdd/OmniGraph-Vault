@@ -545,6 +545,18 @@
       "tags": [
         "科学科普"
       ]
+    },
+    {
+      "name": "韦东东",
+      "wechat_id": "(待补充)",
+      "fakeid": "MzI1ODIxNjk1OQ==",
+      "source": "article_url_biz_extract",
+      "tags": [
+        "企业AI落地",
+        "RAG",
+        "Agent",
+        "知识图谱"
+      ]
     }
   ]
 }

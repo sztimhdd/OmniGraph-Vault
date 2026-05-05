@@ -991,6 +991,90 @@ async def _classify_full_body(
     return result
 
 
+async def _graded_probe(
+    title: str,
+    account: str,
+    digest: str,
+    filter_keywords: tuple[str, ...],
+    api_key: str,
+    timeout: float = 30.0,
+) -> dict | None:
+    """Graded classification probe — lightweight pre-scrape relevance filter.
+
+    Calls DeepSeek with a ≤150 token prompt to determine if an article is
+    OBVIOUSLY unrelated to all filter keywords. Returns None on any error
+    (fail-open: let full classify decide).
+
+    Threshold: unrelated=True AND confidence≥0.9 → skip.
+    Conservative by design — false-negatives cost more than extra scrapes.
+    """
+    import aiohttp
+
+    if not digest or len(digest.strip()) < 10:
+        # Too short to judge → fail open
+        return None
+
+    truncated_digest = digest.strip()[:200]
+    keywords_str = ", ".join(t.strip() for t in filter_keywords if t.strip())
+
+    system_prompt = (
+        "You are a topic relevance filter. Reply ONLY with valid JSON. "
+        'Format: {"unrelated": bool, "confidence": 0-1, "reason": "≤50 chars"}'
+    )
+    user_prompt = (
+        f"Is this article OBVIOUSLY unrelated to ALL of: {keywords_str}?\n"
+        f"Title: {title}\n"
+        f"Account: {account}\n"
+        f"Excerpt: {truncated_digest}\n\n"
+        f"Rules: unrelated=true only if highly confident topic mismatch. "
+        f"If unsure, ambiguous, or excerpt < 50 chars → unrelated=false."
+    )
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": 0.0,
+        "max_tokens": 100,
+        "response_format": {"type": "json_object"},
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                if resp.status != 200:
+                    logger.warning(
+                        "graded probe HTTP %d — failing open", resp.status
+                    )
+                    return None
+                data = await resp.json()
+    except Exception as e:
+        logger.warning("graded probe exception: %s — failing open", e)
+        return None
+
+    try:
+        content = data["choices"][0]["message"]["content"]
+        result = json.loads(content)
+    except (KeyError, json.JSONDecodeError, IndexError) as e:
+        logger.warning("graded probe parse error: %s — failing open", e)
+        return None
+
+    if not isinstance(result, dict):
+        return None
+    return result
+
+
 def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     """Build the --from-db topic-filter SELECT as (sql, params).
 
@@ -1009,7 +1093,7 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     """
     placeholders = " OR ".join("LOWER(c.topic) LIKE ?" for _ in topics)
     sql = f"""
-        SELECT a.id, a.title, a.url, acc.name, c.depth_score, a.body
+        SELECT a.id, a.title, a.url, acc.name, c.depth_score, a.body, a.digest
         FROM articles a
         JOIN accounts acc ON a.account_id = acc.id
         LEFT JOIN classifications c ON a.id = c.article_id
@@ -1109,7 +1193,7 @@ async def ingest_from_db(
     try:
         processed = 0
         api_key = get_deepseek_api_key()
-        for i, (art_id, title, url, account, depth, body) in enumerate(rows, 1):
+        for i, (art_id, title, url, account, depth, body, digest) in enumerate(rows, 1):
             # JN6-02: stop AFTER successfully-processed rows hit the cap.
             # Skips (no URL, checkpoint, classify, depth) don't count, so the
             # cap limits real ingest work — correct semantics for rate limiting.
@@ -1155,6 +1239,29 @@ async def ingest_from_db(
                 )
                 conn.commit()
                 continue
+
+            # Graded classification probe (v3.5 MVP). Feature flag:
+            # OMNIGRAPH_GRADED_CLASSIFY=1 (default OFF). Uses articles.digest
+            # (99.6% coverage, ~50 chars) to detect OBVIOUSLY unrelated
+            # articles BEFORE expensive scrape+classify. Threshold:
+            # unrelated=True + confidence≥0.9. Fail-open on any error.
+            GRADED_ENABLED = os.environ.get("OMNIGRAPH_GRADED_CLASSIFY", "0") == "1"
+            if GRADED_ENABLED and normalized_topics and digest:
+                probe = await _graded_probe(
+                    title, account, digest, normalized_topics, api_key)
+                if probe and probe.get("unrelated") and probe.get("confidence", 0) >= 0.9:
+                    logger.info(
+                        "graded-skip: art_id=%d conf=%.2f reason=%r",
+                        art_id, probe["confidence"], probe.get("reason", ""))
+                    logger.debug(
+                        "graded-skip-detail: title=%r digest=%r",
+                        title, digest.strip()[:200])
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ingestions(article_id, status) "
+                        "VALUES (?, 'skipped_graded')",
+                        (art_id,))
+                    conn.commit()
+                    continue
 
             # D-10.01..04: scrape-first per-article classify. Runs BEFORE
             # the Phase 9 ingest_article call. No fail-open — skip on classify error.
