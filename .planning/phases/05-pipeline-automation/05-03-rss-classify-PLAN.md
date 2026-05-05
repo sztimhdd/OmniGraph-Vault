@@ -15,6 +15,7 @@ must_haves:
     - "Classifier LLM call reuses `batch_classify_kol.py` logic (same prompt shape + same JSON parse + same topic taxonomy)"
     - "EN→CN handling happens inside the prompt per D-08 — no separate translation step"
     - "Depth score parsing is strict (1-3 integer, bounded) with UNIQUE(article_id, topic) dedup"
+    - "LLM emits BOTH `depth_score (1-3)` AND `dimensions: list[str]` (subset of 7-dim taxonomy: architecture/project/library/framework/skill/tool/idea); written as JSON-encoded string into `rss_classifications.dimensions` column"
     - "Per-article try/except — one LLM failure does not abort the run"
     - "Supports `--article-id N --dry-run` for single-article test mode"
   artifacts:
@@ -170,6 +171,7 @@ Depth score definition (PRD §3.1.5):
 - depth_score: 1=资讯/快讯，2=技术教程/分析，3=深度研究/架构拆解。
 - relevant: 0 或 1（是否与主题相关）。
 - excluded: 0 或 1（是否应被剔除，例如广告/招聘/纯转载）。
+- dimensions: list[str] — 选自 7 维分类法：{{"architecture","project","library","framework","skill","tool","idea"}}。一篇文章可对应 1-3 个维度；至少返回 1 个。第 1 个为主维度（primary），用于 daily-digest 分组。
 - 只输出 JSON，不要任何其他文字。不要代码块围栏，不要解释。
 
 输入：
@@ -177,7 +179,7 @@ title: {title}
 content: {content}
 
 输出 JSON 格式：
-{{"topic": "{topic}", "depth_score": 1|2|3, "relevant": 0|1, "excluded": 0|1, "reason": "<中文简要说明>"}}
+{{"topic": "{topic}", "depth_score": 1|2|3, "relevant": 0|1, "excluded": 0|1, "reason": "<中文简要说明>", "dimensions": ["<primary>", "<optional secondary>", ...]}}
 """
 
     logger = logging.getLogger("rss_classify")
@@ -205,18 +207,29 @@ content: {content}
                 content = content[start:end].strip()
         return json.loads(content)
 
+    VALID_DIMENSIONS = {"architecture", "project", "library", "framework", "skill", "tool", "idea"}
+
     def _classify(api_key: str, title: str, content: str, topic: str) -> dict:
         prompt = CLASSIFY_PROMPT.format(topic=topic, title=title[:200], content=content[:4000])
         data = _call_deepseek(prompt, api_key)
         # Strict parse
         depth = int(data["depth_score"])
         assert 1 <= depth <= 3
+        # Dimensions: list[str] subset of 7-dim taxonomy; LLM must return ≥ 1.
+        raw_dims = data.get("dimensions") or []
+        if not isinstance(raw_dims, list):
+            raise ValueError(f"dimensions must be list, got {type(raw_dims).__name__}")
+        dims = [d for d in raw_dims if isinstance(d, str) and d in VALID_DIMENSIONS]
+        if not dims:
+            # Fallback: do not lose the row if LLM returned bad/empty dimensions; tag as "idea"
+            dims = ["idea"]
         return {
             "topic": topic,
             "depth_score": depth,
             "relevant": int(bool(data.get("relevant", 0))),
             "excluded": int(bool(data.get("excluded", 0))),
             "reason": str(data.get("reason", ""))[:500],
+            "dimensions": dims,
         }
 
     def _eligible_articles(conn: sqlite3.Connection, topics: tuple[str, ...],
@@ -261,10 +274,10 @@ content: {content}
                     try:
                         conn.execute(
                             """INSERT INTO rss_classifications
-                               (article_id, topic, depth_score, relevant, excluded, reason)
-                               VALUES (?, ?, ?, ?, ?, ?)""",
+                               (article_id, topic, depth_score, relevant, excluded, reason, dimensions)
+                               VALUES (?, ?, ?, ?, ?, ?, ?)""",
                             (aid, topic, result["depth_score"], result["relevant"],
-                             result["excluded"], result["reason"]),
+                             result["excluded"], result["reason"], json.dumps(result["dimensions"])),
                         )
                         conn.commit()
                         stats["classified"] += 1
@@ -302,6 +315,8 @@ content: {content}
   <acceptance_criteria>
     - File `enrichment/rss_classify.py` exists; ≥ 140 lines.
     - `grep -q "请用中文回答" enrichment/rss_classify.py OR grep -q "必须用中文" enrichment/rss_classify.py` returns 0 (D-08 enforcement — Chinese-output instruction in prompt).
+    - `grep -q "VALID_DIMENSIONS" enrichment/rss_classify.py` returns 0 (7-dim taxonomy guard present).
+    - `grep -q "json.dumps(result\[\"dimensions\"\])" enrichment/rss_classify.py` returns 0 (dimensions JSON-encoded into INSERT).
     - `grep -q "UNIQUE.*article_id.*topic\|IntegrityError" enrichment/rss_classify.py` returns 0 (dedup handled).
     - `grep -q "api.deepseek.com" enrichment/rss_classify.py` returns 0 (DeepSeek endpoint).
     - `grep -q "from batch_classify_kol import get_deepseek_api_key" enrichment/rss_classify.py` returns 0 (reuses production key resolver).

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0" xmlns:omg="https://omnigraph-vault/ns">
+  <head>
+    <title>Agent Ecosystem 2026 — VitaClaw Architecture Intelligence</title>
+    <dateCreated>2026-05-05</dateCreated>
+    <ownerName>OmniGraph-Vault</ownerName>
+  </head>
+  <body>
+
+    <outline text="Memory Systems" title="Memory Systems">
+      <outline type="rss" text="mem0 releases" xmlUrl="https://github.com/mem0ai/mem0/releases.atom" htmlUrl="https://github.com/mem0ai/mem0" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="cognee releases" xmlUrl="https://github.com/topoteretes/cognee/releases.atom" htmlUrl="https://github.com/topoteretes/cognee" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="zep releases" xmlUrl="https://github.com/getzep/zep/releases.atom" htmlUrl="https://github.com/getzep/zep" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="letta releases" xmlUrl="https://github.com/letta-ai/letta/releases.atom" htmlUrl="https://github.com/letta-ai/letta" omg:dimension="framework" omg:priority="core" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="Graph and KG-RAG" title="Graph and KG-RAG">
+      <outline type="rss" text="LightRAG releases" xmlUrl="https://github.com/HKUDS/LightRAG/releases.atom" htmlUrl="https://github.com/HKUDS/LightRAG" omg:dimension="architecture" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="graphrag releases" xmlUrl="https://github.com/microsoft/graphrag/releases.atom" htmlUrl="https://github.com/microsoft/graphrag" omg:dimension="architecture" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="neo4j releases" xmlUrl="https://github.com/neo4j/neo4j/releases.atom" htmlUrl="https://github.com/neo4j/neo4j" omg:dimension="architecture" omg:priority="peripheral" omg:source_type="github_release"/>
+      <outline type="rss" text="kuzu releases" xmlUrl="https://github.com/kuzudb/kuzu/releases.atom" htmlUrl="https://github.com/kuzudb/kuzu" omg:dimension="architecture" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="llm-graph-builder releases" xmlUrl="https://github.com/neo4j-labs/llm-graph-builder/releases.atom" htmlUrl="https://github.com/neo4j-labs/llm-graph-builder" omg:dimension="architecture" omg:priority="peripheral" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="Agent Frameworks" title="Agent Frameworks">
+      <outline type="rss" text="langchain releases" xmlUrl="https://github.com/langchain-ai/langchain/releases.atom" htmlUrl="https://github.com/langchain-ai/langchain" omg:dimension="framework" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="langgraph releases" xmlUrl="https://github.com/langchain-ai/langgraph/releases.atom" htmlUrl="https://github.com/langchain-ai/langgraph" omg:dimension="architecture" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="autogen releases" xmlUrl="https://github.com/microsoft/autogen/releases.atom" htmlUrl="https://github.com/microsoft/autogen" omg:dimension="framework" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="crewAI releases" xmlUrl="https://github.com/joaomdmoura/crewAI/releases.atom" htmlUrl="https://github.com/joaomdmoura/crewAI" omg:dimension="framework" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="dspy releases" xmlUrl="https://github.com/stanfordnlp/dspy/releases.atom" htmlUrl="https://github.com/stanfordnlp/dspy" omg:dimension="framework" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="llama_index releases" xmlUrl="https://github.com/run-llama/llama_index/releases.atom" htmlUrl="https://github.com/run-llama/llama_index" omg:dimension="framework" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="haystack releases" xmlUrl="https://github.com/deepset-ai/haystack/releases.atom" htmlUrl="https://github.com/deepset-ai/haystack" omg:dimension="framework" omg:priority="peripheral" omg:source_type="github_release"/>
+      <outline type="rss" text="smolagents releases" xmlUrl="https://github.com/huggingface/smolagents/releases.atom" htmlUrl="https://github.com/huggingface/smolagents" omg:dimension="framework" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="openai-agents-python releases" xmlUrl="https://github.com/openai/openai-agents-python/releases.atom" htmlUrl="https://github.com/openai/openai-agents-python" omg:dimension="framework" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="claude-agent-sdk-python releases" xmlUrl="https://github.com/anthropics/claude-agent-sdk-python/releases.atom" htmlUrl="https://github.com/anthropics/claude-agent-sdk-python" omg:dimension="framework" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="Qwen-Agent releases" xmlUrl="https://github.com/QwenLM/Qwen-Agent/releases.atom" htmlUrl="https://github.com/QwenLM/Qwen-Agent" omg:dimension="framework" omg:priority="peripheral" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="Coding Agents" title="Coding Agents">
+      <outline type="rss" text="aider releases" xmlUrl="https://github.com/paul-gauthier/aider/releases.atom" htmlUrl="https://github.com/paul-gauthier/aider" omg:dimension="project" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="open-interpreter releases" xmlUrl="https://github.com/OpenInterpreter/open-interpreter/releases.atom" htmlUrl="https://github.com/OpenInterpreter/open-interpreter" omg:dimension="project" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="continue releases" xmlUrl="https://github.com/continuedev/continue/releases.atom" htmlUrl="https://github.com/continuedev/continue" omg:dimension="project" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="cline releases" xmlUrl="https://github.com/cline/cline/releases.atom" htmlUrl="https://github.com/cline/cline" omg:dimension="project" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="codex releases" xmlUrl="https://github.com/openai/codex/releases.atom" htmlUrl="https://github.com/openai/codex" omg:dimension="project" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="claude-code releases" xmlUrl="https://github.com/anthropics/claude-code/releases.atom" htmlUrl="https://github.com/anthropics/claude-code" omg:dimension="project" omg:priority="core" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="Browser Automation and Sandboxing" title="Browser Automation and Sandboxing">
+      <outline type="rss" text="browser-use releases" xmlUrl="https://github.com/browser-use/browser-use/releases.atom" htmlUrl="https://github.com/browser-use/browser-use" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="playwright releases" xmlUrl="https://github.com/microsoft/playwright/releases.atom" htmlUrl="https://github.com/microsoft/playwright" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="playwright-python releases" xmlUrl="https://github.com/microsoft/playwright-python/releases.atom" htmlUrl="https://github.com/microsoft/playwright-python" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="e2b releases" xmlUrl="https://github.com/e2b-dev/e2b/releases.atom" htmlUrl="https://github.com/e2b-dev/e2b" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="daytona releases" xmlUrl="https://github.com/daytonaio/daytona/releases.atom" htmlUrl="https://github.com/daytonaio/daytona" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="gvisor releases" xmlUrl="https://github.com/google/gvisor/releases.atom" htmlUrl="https://github.com/google/gvisor" omg:dimension="idea" omg:priority="peripheral" omg:source_type="github_release"/>
+      <outline type="rss" text="firecrawl releases" xmlUrl="https://github.com/firecrawl/firecrawl/releases.atom" htmlUrl="https://github.com/firecrawl/firecrawl" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="tavily-python releases" xmlUrl="https://github.com/tavily-ai/tavily-python/releases.atom" htmlUrl="https://github.com/tavily-ai/tavily-python" omg:dimension="tool" omg:priority="peripheral" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="MCP" title="MCP">
+      <outline type="rss" text="MCP specification releases" xmlUrl="https://github.com/modelcontextprotocol/specification/releases.atom" htmlUrl="https://github.com/modelcontextprotocol/specification" omg:dimension="idea" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="MCP servers releases" xmlUrl="https://github.com/modelcontextprotocol/servers/releases.atom" htmlUrl="https://github.com/modelcontextprotocol/servers" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="MCP python-sdk releases" xmlUrl="https://github.com/modelcontextprotocol/python-sdk/releases.atom" htmlUrl="https://github.com/modelcontextprotocol/python-sdk" omg:dimension="library" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="MCP typescript-sdk releases" xmlUrl="https://github.com/modelcontextprotocol/typescript-sdk/releases.atom" htmlUrl="https://github.com/modelcontextprotocol/typescript-sdk" omg:dimension="library" omg:priority="peripheral" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="LLM Routing and Serving" title="LLM Routing and Serving">
+      <outline type="rss" text="litellm releases" xmlUrl="https://github.com/BerriAI/litellm/releases.atom" htmlUrl="https://github.com/BerriAI/litellm" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="vllm releases" xmlUrl="https://github.com/vllm-project/vllm/releases.atom" htmlUrl="https://github.com/vllm-project/vllm" omg:dimension="tool" omg:priority="peripheral" omg:source_type="github_release"/>
+      <outline type="rss" text="ollama releases" xmlUrl="https://github.com/ollama/ollama/releases.atom" htmlUrl="https://github.com/ollama/ollama" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="Validation and Structured Output" title="Validation and Structured Output">
+      <outline type="rss" text="pydantic-ai releases" xmlUrl="https://github.com/pydantic/pydantic-ai/releases.atom" htmlUrl="https://github.com/pydantic/pydantic-ai" omg:dimension="library" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="outlines releases" xmlUrl="https://github.com/dottxt-ai/outlines/releases.atom" htmlUrl="https://github.com/dottxt-ai/outlines" omg:dimension="library" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="instructor releases" xmlUrl="https://github.com/instructor-ai/instructor/releases.atom" htmlUrl="https://github.com/instructor-ai/instructor" omg:dimension="library" omg:priority="core" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="Vector Stores and Embeddings" title="Vector Stores and Embeddings">
+      <outline type="rss" text="lancedb releases" xmlUrl="https://github.com/lancedb/lancedb/releases.atom" htmlUrl="https://github.com/lancedb/lancedb" omg:dimension="library" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="chroma releases" xmlUrl="https://github.com/chroma-core/chroma/releases.atom" htmlUrl="https://github.com/chroma-core/chroma" omg:dimension="library" omg:priority="peripheral" omg:source_type="github_release"/>
+      <outline type="rss" text="pgvector releases" xmlUrl="https://github.com/pgvector/pgvector/releases.atom" htmlUrl="https://github.com/pgvector/pgvector" omg:dimension="library" omg:priority="peripheral" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="Evaluation and Observability" title="Evaluation and Observability">
+      <outline type="rss" text="SWE-bench releases" xmlUrl="https://github.com/princeton-nlp/SWE-bench/releases.atom" htmlUrl="https://github.com/princeton-nlp/SWE-bench" omg:dimension="skill" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="openai/evals releases" xmlUrl="https://github.com/openai/evals/releases.atom" htmlUrl="https://github.com/openai/evals" omg:dimension="skill" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="langfuse releases" xmlUrl="https://github.com/langfuse/langfuse/releases.atom" htmlUrl="https://github.com/langfuse/langfuse" omg:dimension="tool" omg:priority="peripheral" omg:source_type="github_release"/>
+      <outline type="rss" text="promptfoo releases" xmlUrl="https://github.com/promptfoo/promptfoo/releases.atom" htmlUrl="https://github.com/promptfoo/promptfoo" omg:dimension="skill" omg:priority="peripheral" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="Document Processing and SDKs" title="Document Processing and SDKs">
+      <outline type="rss" text="markitdown releases" xmlUrl="https://github.com/microsoft/markitdown/releases.atom" htmlUrl="https://github.com/microsoft/markitdown" omg:dimension="tool" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="unstructured releases" xmlUrl="https://github.com/Unstructured-IO/unstructured/releases.atom" htmlUrl="https://github.com/Unstructured-IO/unstructured" omg:dimension="library" omg:priority="peripheral" omg:source_type="github_release"/>
+      <outline type="rss" text="anthropic-sdk-python releases" xmlUrl="https://github.com/anthropics/anthropic-sdk-python/releases.atom" htmlUrl="https://github.com/anthropics/anthropic-sdk-python" omg:dimension="library" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="openai-python releases" xmlUrl="https://github.com/openai/openai-python/releases.atom" htmlUrl="https://github.com/openai/openai-python" omg:dimension="library" omg:priority="core" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="User-Mandated" title="User-Mandated">
+      <outline type="rss" text="openclaw releases" xmlUrl="https://github.com/openclaw/openclaw/releases.atom" htmlUrl="https://github.com/openclaw/openclaw" omg:dimension="project" omg:priority="core" omg:source_type="github_release"/>
+      <outline type="rss" text="vitaclaw releases" xmlUrl="https://github.com/vitaclaw/vitaclaw/releases.atom" htmlUrl="https://github.com/vitaclaw/vitaclaw" omg:dimension="project" omg:priority="core" omg:source_type="github_release"/>
+    </outline>
+
+    <outline text="Engineering Blogs" title="Engineering Blogs">
+      <outline type="rss" text="HuggingFace blog" xmlUrl="https://huggingface.co/blog/feed.xml" htmlUrl="https://huggingface.co/blog" omg:dimension="idea" omg:priority="core" omg:source_type="official_eng_blog"/>
+      <outline type="rss" text="LangChain blog" xmlUrl="https://blog.langchain.dev/rss/" htmlUrl="https://blog.langchain.dev" omg:dimension="idea" omg:priority="core" omg:source_type="official_eng_blog"/>
+      <outline type="rss" text="Cloudflare blog" xmlUrl="https://blog.cloudflare.com/rss/" htmlUrl="https://blog.cloudflare.com" omg:dimension="idea" omg:priority="peripheral" omg:source_type="official_eng_blog"/>
+      <outline type="rss" text="GitHub blog" xmlUrl="https://github.blog/feed/" htmlUrl="https://github.blog" omg:dimension="idea" omg:priority="peripheral" omg:source_type="official_eng_blog"/>
+      <outline type="rss" text="Microsoft Old New Thing" xmlUrl="https://devblogs.microsoft.com/oldnewthing/feed" htmlUrl="https://devblogs.microsoft.com/oldnewthing" omg:dimension="idea" omg:priority="peripheral" omg:source_type="official_eng_blog"/>
+      <outline type="rss" text="AWS Machine Learning blog" xmlUrl="https://aws.amazon.com/blogs/machine-learning/feed/" htmlUrl="https://aws.amazon.com/blogs/machine-learning/" omg:dimension="idea" omg:priority="peripheral" omg:source_type="official_eng_blog"/>
+      <outline type="rss" text="Stack Overflow blog" xmlUrl="https://stackoverflow.blog/feed/" htmlUrl="https://stackoverflow.blog" omg:dimension="idea" omg:priority="peripheral" omg:source_type="official_eng_blog"/>
+      <outline type="rss" text="Vercel blog" xmlUrl="https://vercel.com/atom" htmlUrl="https://vercel.com/blog" omg:dimension="idea" omg:priority="peripheral" omg:source_type="official_eng_blog"/>
+    </outline>
+
+    <outline text="Curated Karpathy Survivors" title="Curated Karpathy Survivors">
+      <outline type="rss" text="simonwillison.net" xmlUrl="https://simonwillison.net/atom/everything/" htmlUrl="https://simonwillison.net" omg:dimension="idea" omg:priority="core" omg:source_type="curated_blog"/>
+      <outline type="rss" text="garymarcus.substack.com" xmlUrl="https://garymarcus.substack.com/feed" htmlUrl="https://garymarcus.substack.com" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="gwern.net" xmlUrl="https://gwern.substack.com/feed" htmlUrl="https://gwern.net" omg:dimension="idea" omg:priority="core" omg:source_type="curated_blog"/>
+      <outline type="rss" text="dwarkesh.com" xmlUrl="https://www.dwarkeshpatel.com/feed" htmlUrl="https://dwarkesh.com" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="minimaxir.com" xmlUrl="https://minimaxir.com/index.xml" htmlUrl="https://minimaxir.com" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="lucumr.pocoo.org (Armin Ronacher)" xmlUrl="https://lucumr.pocoo.org/feed.atom" htmlUrl="https://lucumr.pocoo.org" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="mitchellh.com" xmlUrl="https://mitchellh.com/feed.xml" htmlUrl="https://mitchellh.com" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="antirez.com" xmlUrl="http://antirez.com/rss" htmlUrl="http://antirez.com" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="matklad.github.io" xmlUrl="https://matklad.github.io/feed.xml" htmlUrl="https://matklad.github.io" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="eli.thegreenplace.net" xmlUrl="https://eli.thegreenplace.net/feeds/all.atom.xml" htmlUrl="https://eli.thegreenplace.net" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="geoffreylitt.com" xmlUrl="https://www.geoffreylitt.com/feed.xml" htmlUrl="https://geoffreylitt.com" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="wheresyoured.at (Ed Zitron)" xmlUrl="https://www.wheresyoured.at/rss/" htmlUrl="https://wheresyoured.at" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+      <outline type="rss" text="rachelbythebay.com" xmlUrl="https://rachelbythebay.com/w/atom.xml" htmlUrl="https://rachelbythebay.com" omg:dimension="idea" omg:priority="peripheral" omg:source_type="curated_blog"/>
+    </outline>
+
+  </body>
+</opml>

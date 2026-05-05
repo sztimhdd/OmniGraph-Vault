@@ -6,7 +6,7 @@ wave: 1
 depends_on: [05-00]
 files_modified:
   - batch_scan_kol.py
-  - data/karpathy_hn_2025.opml
+  - data/agent_ecosystem_2026.opml
   - enrichment/__init__.py
   - enrichment/rss_schema.py
   - scripts/seed_rss_feeds.py
@@ -19,13 +19,13 @@ must_haves:
   truths:
     - "SQLite schema includes `rss_feeds`, `rss_articles`, `rss_classifications` tables with PRD §3.1.4 columns"
     - "Schema creation is idempotent (running twice adds no duplicate columns or tables)"
-    - "OPML file `data/karpathy_hn_2025.opml` is bundled in-repo and contains exactly 92 RSS outline entries"
-    - "`scripts/seed_rss_feeds.py` parses the OPML and inserts 92 rows into `rss_feeds` (idempotent via UNIQUE xml_url)"
+    - "OPML file `data/agent_ecosystem_2026.opml` is bundled in-repo and contains 60-80 RSS outline entries, each with `omg:dimension`, `omg:priority`, `omg:source_type` attributes (custom namespace `xmlns:omg=\"https://omnigraph-vault/ns\"`)"
+    - "`scripts/seed_rss_feeds.py` parses the OPML, extracts the 3 omg:* attributes, and inserts 60-80 rows into `rss_feeds` populating `dimension`, `priority`, `source_type` columns (idempotent via UNIQUE xml_url)"
     - "`feedparser` and `langdetect` are added to `requirements.txt`"
-    - "`tests/verify_rss_opml.py` asserts ≥ 90 feeds parse from the bundled OPML"
+    - "`tests/verify_rss_opml.py` asserts ≥ 60 feeds parse from the bundled OPML and every leaf carries all 3 omg:* attributes"
   artifacts:
-    - path: "data/karpathy_hn_2025.opml"
-      provides: "Versioned OPML snapshot of Karpathy HN 2025 92-feed list"
+    - path: "data/agent_ecosystem_2026.opml"
+      provides: "Versioned OPML snapshot of curated VitaClaw-relevant agent-ecosystem feed list (60-80 entries with omg:dimension|priority|source_type custom-namespace attributes)"
     - path: "enrichment/rss_schema.py"
       provides: "CREATE TABLE IF NOT EXISTS statements for RSS tables, callable as init_rss_schema(conn)"
       contains: "CREATE TABLE IF NOT EXISTS rss_feeds"
@@ -34,7 +34,7 @@ must_haves:
       min_lines: 40
     - path: "tests/verify_rss_opml.py"
       provides: "OPML parse assertion (≥90 feeds)"
-      contains: ">= 90"
+      contains: ">= 60"
     - path: "batch_scan_kol.py"
       provides: "Auto-runs init_rss_schema alongside init_db"
       contains: "init_rss_schema"
@@ -138,7 +138,10 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
             active INTEGER DEFAULT 1,
             last_fetched_at TEXT,
             error_count INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            dimension TEXT,
+            priority TEXT,
+            source_type TEXT
         )
         """,
         """
@@ -165,6 +168,7 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
             relevant INTEGER DEFAULT 0,
             excluded INTEGER DEFAULT 0,
             reason TEXT,
+            dimensions TEXT,
             classified_at TEXT DEFAULT (datetime('now', 'localtime')),
             UNIQUE(article_id, topic)
         )
@@ -234,27 +238,18 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
 
 <task type="auto">
   <name>Task 1.3: Bundle OPML snapshot + add feedparser/langdetect deps + verify parse</name>
-  <files>data/karpathy_hn_2025.opml, requirements.txt, tests/verify_rss_opml.py</files>
+  <files>data/agent_ecosystem_2026.opml, requirements.txt, tests/verify_rss_opml.py</files>
   <read_first>
     - .planning/phases/05-pipeline-automation/05-CONTEXT.md (Claude's Discretion: OPML source strategy — decision: bundle in-repo)
-    - .planning/phases/05-pipeline-automation/05-RESEARCH.md (Summary: exactly 92 feeds, all type="rss", 2-level nesting; OPML source URL)
+    - data/agent_ecosystem_2026.README.md (curation rationale; OPML structure)
     - requirements.txt (existing structure — alphabetical grouping preferred)
   </read_first>
   <action>
-    **1. Bundle the OPML snapshot.**
-    Fetch the OPML from `https://gist.githubusercontent.com/emschwartz/e6d2bf860ccc367fe37ff953ba6de66b/raw/<any-commit>/karpathy_hn_2025.opml` OR via `gh api gists/e6d2bf860ccc367fe37ff953ba6de66b`, extract the single OPML file content, and save it LOCALLY (Git Bash or WSL) to `data/karpathy_hn_2025.opml`.
-
-    Recommended one-liner on remote (which has network access):
+    **1. The OPML snapshot is already bundled.**
+    `data/agent_ecosystem_2026.opml` was created by quick task 260505-seu (see `.planning/quick/260505-seu-agent-ecosystem-rss-curation/`). It is in-repo, 60-80 leaf outlines, each carrying `omg:dimension`, `omg:priority`, `omg:source_type` under custom namespace `xmlns:omg="https://omnigraph-vault/ns"`. No fetch needed — verify presence:
     ```bash
-    ssh remote "cd ~/OmniGraph-Vault && mkdir -p data && \
-      curl -fsSL 'https://gist.githubusercontent.com/emschwartz/e6d2bf860ccc367fe37ff953ba6de66b/raw/karpathy_hn_2025.opml' \
-        -o data/karpathy_hn_2025.opml"
+    ssh remote "cd ~/OmniGraph-Vault && test -f data/agent_ecosystem_2026.opml && wc -l data/agent_ecosystem_2026.opml"
     ```
-    If the direct `/raw/` URL 404s (the filename may differ), list the gist files:
-    ```bash
-    gh api gists/e6d2bf860ccc367fe37ff953ba6de66b --jq '.files | keys'
-    ```
-    and use the actual filename. Commit the resulting OPML file verbatim into the repo.
 
     **2. Add deps to `requirements.txt`.**
     Append two lines preserving alphabetical order if the file is alphabetized, otherwise at the end:
@@ -271,49 +266,60 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
 
     **3. Create `tests/verify_rss_opml.py`:**
     ```python
-    """Verify bundled OPML parses to at least 90 RSS feeds."""
+    """Verify bundled OPML parses to at least 60 RSS feeds with all omg:* attrs set."""
     import sys
     from pathlib import Path
     import xml.etree.ElementTree as ET
 
-    OPML = Path("data/karpathy_hn_2025.opml")
+    OPML = Path("data/agent_ecosystem_2026.opml")
+    NS = {"omg": "https://omnigraph-vault/ns"}
     assert OPML.exists(), f"OPML not found at {OPML}"
     tree = ET.parse(OPML)
     feeds = tree.getroot().findall(".//outline[@type='rss']")
     print(f"feed_count: {len(feeds)}")
-    assert len(feeds) >= 90, f"Expected >= 90 feeds, got {len(feeds)}"
-    # Spot check expected feeds
+    assert 60 <= len(feeds) <= 80, f"Expected 60-80 feeds, got {len(feeds)}"
+
+    # Every leaf has all 3 omg:* attrs non-empty
+    missing = []
+    for f in feeds:
+        for attr in ("dimension", "priority", "source_type"):
+            v = f.get(f"{{{NS['omg']}}}{attr}")
+            if not v:
+                missing.append((f.get("text") or f.get("xmlUrl"), attr))
+    assert not missing, f"Missing omg:* attrs on {len(missing)} entries: {missing[:5]}"
+
+    # Spot check expected VitaClaw-relevant feeds
     urls = {f.get("xmlUrl") for f in feeds}
     expected_samples = [
-        "simonwillison.net",
-        "gwern.net",
-        "paulgraham.com",
+        "langchain-ai",
+        "microsoft",
+        "huggingface.co",
     ]
-    missing = [s for s in expected_samples if not any(s in (u or "") for u in urls)]
-    assert not missing, f"Missing expected sample feeds: {missing}"
-    print("OK: OPML parse + sample check passed")
+    missing_samples = [s for s in expected_samples if not any(s in (u or "") for u in urls)]
+    assert not missing_samples, f"Missing expected sample feeds: {missing_samples}"
+    print("OK: OPML parse + omg-attr + sample check passed")
     sys.exit(0)
     ```
   </action>
   <verify>
-    <automated>ssh remote "cd ~/OmniGraph-Vault &amp;&amp; test -f data/karpathy_hn_2025.opml &amp;&amp; venv/bin/python tests/verify_rss_opml.py &amp;&amp; venv/bin/pip list 2&gt;/dev/null | grep -E '^(feedparser|langdetect)\s'" | wc -l | awk '{if(\$1 &gt;= 2) exit 0; else exit 1}'</automated>
+    <automated>ssh remote "cd ~/OmniGraph-Vault &amp;&amp; test -f data/agent_ecosystem_2026.opml &amp;&amp; venv/bin/python tests/verify_rss_opml.py &amp;&amp; venv/bin/pip list 2&gt;/dev/null | grep -E '^(feedparser|langdetect)\s'" | wc -l | awk '{if($1 &gt;= 2) exit 0; else exit 1}'</automated>
   </verify>
   <acceptance_criteria>
-    - File `data/karpathy_hn_2025.opml` exists; `xmllint --noout data/karpathy_hn_2025.opml 2>&1` returns 0 (valid XML) OR `python -c "import xml.etree.ElementTree as ET; ET.parse('data/karpathy_hn_2025.opml')"` exits 0.
-    - `tests/verify_rss_opml.py` exits 0 (≥ 90 feeds parsed, 3 known samples present).
+    - File `data/agent_ecosystem_2026.opml` exists; `python -c "import xml.etree.ElementTree as ET; ET.parse('data/agent_ecosystem_2026.opml')"` exits 0.
+    - `tests/verify_rss_opml.py` exits 0 (60-80 feeds parsed, all omg:* attrs present, 3 known samples present).
     - `requirements.txt` contains `feedparser>=6.0` and `langdetect>=1.0`.
     - On remote, `venv/bin/pip list | grep -iE 'feedparser|langdetect'` returns both packages.
   </acceptance_criteria>
-  <done>OPML bundled; deps installed; parse verified.</done>
+  <done>OPML bundled; deps installed; parse + omg:* validation verified.</done>
 </task>
 
 <task type="auto">
   <name>Task 1.4: Create seed script that populates `rss_feeds` from bundled OPML</name>
   <files>scripts/seed_rss_feeds.py</files>
   <read_first>
-    - data/karpathy_hn_2025.opml (Task 1.3 output)
-    - enrichment/rss_schema.py (Task 1.1 output — schema DDL to respect)
-    - tests/verify_rss_opml.py (Task 1.3 output — parse pattern to reuse)
+    - data/agent_ecosystem_2026.opml (Task 1.3 — already bundled)
+    - enrichment/rss_schema.py (Task 1.1 output — schema DDL with dimension/priority/source_type columns added)
+    - tests/verify_rss_opml.py (Task 1.3 output — parse pattern with namespace handling to reuse)
     - config.py (path to data dir — uses `BASE_DIR`, but `kol_scan.db` is at `data/kol_scan.db` relative to repo root)
   </read_first>
   <action>
@@ -323,6 +329,9 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
 
     Idempotent via INSERT OR IGNORE (xml_url UNIQUE constraint). Safe to re-run.
     Run after batch_scan_kol.init_db has created the rss_feeds table.
+
+    Reads the 3 custom-namespace attributes (omg:dimension, omg:priority, omg:source_type)
+    and writes them into the new dimension/priority/source_type columns added in 05-01 Task 1.1.
 
     Usage:
         venv/bin/python scripts/seed_rss_feeds.py                # run
@@ -336,8 +345,9 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
     import xml.etree.ElementTree as ET
     from pathlib import Path
 
-    OPML = Path("data/karpathy_hn_2025.opml")
+    OPML = Path("data/agent_ecosystem_2026.opml")
     DB = Path("data/kol_scan.db")
+    NS = {"omg": "https://omnigraph-vault/ns"}
 
     def parse_opml(path: Path) -> list[dict]:
         tree = ET.parse(path)
@@ -347,7 +357,10 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
                 "name": outline.get("text") or outline.get("title") or "",
                 "xml_url": outline.get("xmlUrl") or "",
                 "html_url": outline.get("htmlUrl") or None,
-                "category": None,  # Optional; Karpathy OPML groups all under "Blogs"
+                "category": None,
+                "dimension": outline.get(f"{{{NS['omg']}}}dimension") or None,
+                "priority": outline.get(f"{{{NS['omg']}}}priority") or None,
+                "source_type": outline.get(f"{{{NS['omg']}}}source_type") or None,
             })
         return [f for f in feeds if f["xml_url"]]
 
@@ -357,8 +370,11 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
             before = conn.execute("SELECT COUNT(*) FROM rss_feeds").fetchone()[0]
             if not dry_run:
                 conn.executemany(
-                    "INSERT OR IGNORE INTO rss_feeds (name, xml_url, html_url, category) VALUES (?, ?, ?, ?)",
-                    [(f["name"], f["xml_url"], f["html_url"], f["category"]) for f in feeds],
+                    """INSERT OR IGNORE INTO rss_feeds
+                       (name, xml_url, html_url, category, dimension, priority, source_type)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    [(f["name"], f["xml_url"], f["html_url"], f["category"],
+                      f["dimension"], f["priority"], f["source_type"]) for f in feeds],
                 )
                 conn.commit()
             after = conn.execute("SELECT COUNT(*) FROM rss_feeds").fetchone()[0]
@@ -381,18 +397,20 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
         main()
     ```
 
-    Ensure the script prints the before/after count. On a fresh DB (empty `rss_feeds`), after count should be 92. On re-run, before == after (dedup via UNIQUE constraint).
+    Ensure the script prints the before/after count. On a fresh DB (empty `rss_feeds`), after count should be 60-80 (matching the OPML). On re-run, before == after (dedup via UNIQUE constraint).
   </action>
   <verify>
-    <automated>ssh remote "cd ~/OmniGraph-Vault &amp;&amp; venv/bin/python scripts/seed_rss_feeds.py &amp;&amp; sqlite3 data/kol_scan.db 'SELECT COUNT(*) FROM rss_feeds'" | tail -1 | awk '{if(\$1 &gt;= 90) exit 0; else exit 1}'</automated>
+    <automated>ssh remote "cd ~/OmniGraph-Vault &amp;&amp; venv/bin/python scripts/seed_rss_feeds.py &amp;&amp; sqlite3 data/kol_scan.db 'SELECT COUNT(*) FROM rss_feeds'" | tail -1 | awk '{if($1 &gt;= 60) exit 0; else exit 1}'</automated>
   </verify>
   <acceptance_criteria>
     - `scripts/seed_rss_feeds.py` exists.
-    - After running on remote, `sqlite3 data/kol_scan.db "SELECT COUNT(*) FROM rss_feeds"` returns ≥ 90.
+    - After running on remote, `sqlite3 data/kol_scan.db "SELECT COUNT(*) FROM rss_feeds"` returns ≥ 60.
     - Re-running the script produces "rss_feeds count: <N> -> <N>" (no duplicates inserted).
-    - Three known feeds are present: `sqlite3 data/kol_scan.db "SELECT COUNT(*) FROM rss_feeds WHERE xml_url LIKE '%simonwillison%' OR xml_url LIKE '%gwern%' OR xml_url LIKE '%paulgraham%'"` returns 3.
+    - The new columns are populated: `sqlite3 data/kol_scan.db "SELECT COUNT(*) FROM rss_feeds WHERE dimension IS NOT NULL AND priority IS NOT NULL AND source_type IS NOT NULL"` returns ≥ 60 (every row has all 3 attrs).
+    - At least 5 distinct dimension values present: `sqlite3 data/kol_scan.db "SELECT COUNT(DISTINCT dimension) FROM rss_feeds"` returns ≥ 5.
+    - Three known feeds are present: `sqlite3 data/kol_scan.db "SELECT COUNT(*) FROM rss_feeds WHERE xml_url LIKE '%langchain%' OR xml_url LIKE '%microsoft%' OR xml_url LIKE '%huggingface%'"` returns ≥ 3.
   </acceptance_criteria>
-  <done>92 feeds registered; ready for `rss_fetch.py` in Plan 05-02.</done>
+  <done>60-80 feeds registered with dimension/priority/source_type populated; ready for `rss_fetch.py` in Plan 05-02.</done>
 </task>
 
 </tasks>
