@@ -18,6 +18,25 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
+def _status_is_processed(status_val) -> bool:
+    """Robust check for LightRAG DocStatus.PROCESSED.
+
+    LightRAG's `DocStatus` is `class DocStatus(str, Enum)` with member
+    `PROCESSED = "processed"`. The textual form returned by `str(member)`
+    differs across Python versions:
+      - Python 3.10: ``"DocStatus.PROCESSED"`` (whose `.upper()` is
+        ``"DOCSTATUS.PROCESSED"`` — never equals ``"PROCESSED"``)
+      - Python 3.11+: ``"processed"`` (whose `.upper()` works)
+    Reading ``.value`` always yields the canonical lowercase string
+    ``"processed"`` regardless of Python version, so prefer it. Plain strings
+    (older serialised forms / future API drift) fall back to the string itself.
+    """
+    if status_val is None:
+        return False
+    status_text = getattr(status_val, "value", None) or str(status_val)
+    return status_text.upper() == "PROCESSED"
+
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 import asyncio
@@ -1188,7 +1207,7 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
         status_val = getattr(entry, "status", None)
         if status_val is None and isinstance(entry, dict):
             status_val = entry.get("status")
-        if str(status_val).upper() == "PROCESSED":
+        if _status_is_processed(status_val):
             doc_confirmed = True
         else:
             logger.warning(
