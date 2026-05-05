@@ -694,7 +694,7 @@ async def scrape_wechat_cdp(url):
     async with async_playwright() as p:
         print(f"Connecting to CDP at {CDP_URL}...")
         try:
-            browser = await p.chromium.connect_over_cdp(CDP_URL)
+            browser = await p.chromium.connect_over_cdp(CDP_URL, timeout=30000)
         except Exception as e:
             print(f"Failed to connect to CDP: {e}")
             return None

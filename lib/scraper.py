@@ -181,9 +181,18 @@ async def _scrape_wechat(url: str) -> ScrapeResult:
         if not result:
             continue
         content_html = result.get("content_html") or ""
-        if not content_html:
+        # SCR-06 hotfix (2026-05-04): Apify returns "markdown" key, not
+        # "content_html". If markdown is present but content_html absent,
+        # short-circuit with markdown directly — no need to cascade to
+        # CDP/MCP/UA (~360s waste per article when CDP is not running).
+        scraped_markdown = result.get("markdown") or ""
+        if not content_html and not scraped_markdown:
             continue
-        markdown, imgs = ingest_wechat.process_content(content_html)
+        if scraped_markdown and not content_html:
+            markdown = scraped_markdown
+            imgs = result.get("images") or []
+        else:
+            markdown, imgs = ingest_wechat.process_content(content_html)
         method = result.get("method", fn_name.replace("scrape_wechat_", ""))
         return ScrapeResult(
             markdown=markdown,
