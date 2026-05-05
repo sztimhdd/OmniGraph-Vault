@@ -1002,21 +1002,56 @@ def _graded_probe_prompts(
     Extracted so the DeepSeek HTTP path and the Vertex Gemini SDK path build
     the same prompt — keeps the two providers semantically equivalent and
     lets prompt-quality tests target one well-known string.
+
+    Prompt design (2026-05-05 rewrite, post Hermes false-negative report):
+    The previous prompt asked "is this OBVIOUSLY unrelated to ALL of [agent,
+    openclaw, hermes, harness]?" and let the model interpret "agent"
+    word-literally. Both DeepSeek and Vertex Gemini then skipped articles
+    on RAG, GraphRAG, and multi-agent orchestration — all of which are
+    core agent-ecosystem content the cron is supposed to ingest.
+
+    The fix is path B (conservative): instead of asking the model to define
+    "agent", we hand it an explicit reject-list of obvious off-topic domains
+    and tell it that ANY agent / RAG / tool-use / autonomous-reasoning
+    signal flips the answer back to ``unrelated=false`` (let full classify
+    decide). Ambiguous cases also fail open. This trades some false-positives
+    for zero false-negatives — a deliberate recall-over-precision choice
+    given that a missed agent article costs much more than an extra scrape.
     """
     truncated_digest = digest.strip()[:200]
     keywords_str = ", ".join(t.strip() for t in filter_keywords if t.strip())
 
     system_prompt = (
-        "You are a topic relevance filter. Reply ONLY with valid JSON. "
-        'Format: {"unrelated": bool, "confidence": 0-1, "reason": "≤50 chars"}'
+        "You are a topic relevance filter for an LLM-agent knowledge base. "
+        "Reply ONLY with valid JSON. "
+        'Format: {"unrelated": bool, "confidence": 0-1, "reason": "<=50 chars"}'
     )
     user_prompt = (
-        f"Is this article OBVIOUSLY unrelated to ALL of: {keywords_str}?\n"
+        f"Filter keywords: {keywords_str}\n"
         f"Title: {title}\n"
         f"Account: {account}\n"
         f"Excerpt: {truncated_digest}\n\n"
-        f"Rules: unrelated=true only if highly confident topic mismatch. "
-        f"If unsure, ambiguous, or excerpt < 50 chars → unrelated=false."
+        "Set unrelated=true ONLY when the article is OBVIOUSLY about one of "
+        "these non-agent topics, with NO mention of LLMs, agents, RAG, "
+        "tool-use, or autonomous reasoning:\n"
+        "  - Pure computer vision / image segmentation / pose estimation\n"
+        "  - Medical AI / bioinformatics (unless agent-applied)\n"
+        "  - Recommender systems / ad ranking / search ranking\n"
+        "  - Pure image or video generation (Stable Diffusion, Sora, etc.)\n"
+        "  - Hardware / chip architecture / GPU benchmarks\n"
+        "  - Pure training infrastructure (DeepSpeed, FSDP, etc. with no "
+        "agent layer)\n\n"
+        "Set unrelated=false (let full classify decide) if the article "
+        "mentions ANY of: LLM, AI agent, multi-agent, agentic, RAG, "
+        "retrieval-augmented, tool use, function calling, ReAct, "
+        "LangChain / LangGraph / AutoGen / CrewAI, coding agent, browser "
+        "agent, agent memory, agent orchestration, agent evaluation, "
+        "OpenClaw, Hermes, autonomous reasoning, or a topic that COULD "
+        "plausibly cover agents (e.g. a major LLM release, prompting "
+        "techniques, evaluation benchmarks).\n\n"
+        "If ambiguous or excerpt < 50 chars: unrelated=false. "
+        "Bias toward unrelated=false — false-negatives cost more than "
+        "extra scrapes."
     )
     return system_prompt, user_prompt
 
