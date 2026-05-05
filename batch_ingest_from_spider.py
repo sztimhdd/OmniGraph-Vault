@@ -945,12 +945,18 @@ async def _classify_full_body(
         from lib.scraper import scrape_url
 
         scraped = await scrape_url(url, site_hint="wechat")
-        if not scraped or not scraped.content_html:
+        if not scraped or (not scraped.content_html and not scraped.markdown):
             logger.warning(
                 "scrape-on-demand failed for %s -- skipping classify", url[:80]
             )
             return None
-        body, _ = ingest_wechat.process_content(scraped.content_html)
+        # SCR-06: Apify returns \"markdown\" key without \"content_html\".
+        # When markdown is already available, use it directly — process_content
+        # would produce the same output from an HTML wrapper.
+        if not scraped.content_html and scraped.markdown:
+            body = scraped.markdown
+        else:
+            body, _ = ingest_wechat.process_content(scraped.content_html)
         conn.execute(
             "UPDATE articles SET body = ? WHERE id = ?", (body, article_id)
         )
