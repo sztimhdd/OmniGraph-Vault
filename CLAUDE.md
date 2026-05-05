@@ -405,6 +405,14 @@ If remote is ahead: push from remote, pull locally, and re-read any changed file
 - The runtime data directory is `omonigraph-vault` (typo is baked into config.py and deployed environments — do not "fix" it without a coordinated migration)
 - `CDP_URL` supports two modes auto-detected by the `/mcp` URL suffix: local Edge (`localhost:9223`) uses `playwright.connect_over_cdp()`; remote testing (`host:port/mcp`) uses `_MCPClient` (MCP-over-SSE with `mcp-session-id` header). The MCP server requires `initialize` first, then subsequent requests must include `mcp-session-id` in the header — without it every call returns "Server not initialized".
 
+### 2026-05-04 (Day-2 cron prep)
+
+1. **SQLite CHECK constraint 不能 ALTER** — 加 status 枚举值需要 table-rebuild 流程（CREATE TABLE new → INSERT SELECT → DROP → RENAME）。或者从一开始用宽松类型 + 应用层校验。教训：所有 status/enum 字段建表前想好全集，否则 migration 成本高且容易忘。
+
+2. **Commit 在前，报告在后** — 工作目录里的改动不算完成。报 "Done" 之前必须 `git log` 看到 commit（最好已 push）。没 commit 的改动在下次 rebase / 环境切换时就丢了。连续两次忘记 commit 后加入此条作为强制规则。
+
+3. **CHECK constraint vs INSERT 值偏离是 latent bug 模式** — `skipped_ingested` 和 `dry_run` 值在 INSERT 里已存在至少一周，但 CHECK whitelist 没同步更新，直到某天有人跑一条特定的 code path 才触发 `IntegrityError`。防御：CI 应跑 schema consistency check（INSERT 里出现的所有 status 值是否都在 CREATE TABLE CHECK 白名单里）。有空加 `tests/unit/test_schema_consistency.py`。
+
 ## Vertex AI Migration Path
 
 ### Problem: Quota Coupling
