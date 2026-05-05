@@ -192,7 +192,12 @@ async def _scrape_wechat(url: str) -> ScrapeResult:
             markdown = scraped_markdown
             imgs = result.get("images") or []
         else:
-            markdown, imgs = ingest_wechat.process_content(content_html)
+            markdown, _process_imgs = ingest_wechat.process_content(content_html)
+            # Mirror ingest_article:978 — merge UA's full-page data-src img_urls
+            # (images outside #js_content) with process_content output (images
+            # inside content_html). Plain concat, no dedup, preserves order.
+            # Audit ece03ae Mismatch #1 — fixes silent data loss for UA fallback.
+            imgs = list(result.get("img_urls") or []) + _process_imgs
         method = result.get("method", fn_name.replace("scrape_wechat_", ""))
         return ScrapeResult(
             markdown=markdown,
