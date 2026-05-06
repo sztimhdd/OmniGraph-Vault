@@ -1500,6 +1500,7 @@ async def ingest_from_db(
                     title=title,
                     body=body,
                     api_key=api_key,
+                    topic_filter=topics,
                 )
                 if cls_result is None:
                     logger.info("  classify failed — skipping ingest (D-10.04 no fail-open)")
