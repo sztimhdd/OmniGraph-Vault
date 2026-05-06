@@ -146,7 +146,11 @@ class FilterStats:
     timings_ms: dict  # {"total_read": <int ms>}
 
 
-def download_images(urls: list[str], dest_dir: Path) -> dict[str, Path]:
+def download_images(
+    urls: list[str],
+    dest_dir: Path,
+    referer: str | None = None,  # D-20.08 — Substack/Medium/HF hot-link blocking
+) -> dict[str, Path]:
     """Download each URL to dest_dir/{i}.jpg. Return {remote_url: local_path}
     for successes only (non-200 responses and exceptions are silently skipped
     with a warning log).
@@ -155,13 +159,23 @@ def download_images(urls: list[str], dest_dir: Path) -> dict[str, Path]:
     downloads are not logged here — the downstream stage (filter or describe)
     owns the per-image event for kept images. This matches D-08.02 "ms measures
     wall-clock of the STAGE that owns this event."
+
+    Args:
+        urls: List of image URLs to download.
+        dest_dir: Destination directory for downloaded images.
+        referer: Optional URL string sent as Referer header on every request (D-20.08).
+            Prevents hot-link blocking on Substack, Medium, HuggingFace, etc.
+            SVG images (Content-Type: image/svg*) are skipped before disk write (D-20.09).
     """
+    headers: dict[str, str] = {}
+    if referer:
+        headers["Referer"] = referer
     dest_dir.mkdir(parents=True, exist_ok=True)
     result: dict[str, Path] = {}
     for i, url in enumerate(urls):
         t0 = time.perf_counter()
         try:
-            resp = requests.get(url, timeout=10)
+            resp = requests.get(url, timeout=10, headers=headers if headers else None)
             if resp.status_code != 200:
                 logger.warning(
                     "Image %d download failed: HTTP %d for %s", i, resp.status_code, url
@@ -179,6 +193,10 @@ def download_images(urls: list[str], dest_dir: Path) -> dict[str, Path]:
                     "error": f"HTTP {resp.status_code}",
                 })
                 continue
+            content_type = resp.headers.get("Content-Type", "").lower()
+            if content_type.startswith("image/svg"):
+                logger.debug("Skipping SVG image (D-20.09): %s", url)
+                continue  # do NOT write to disk; do NOT add to result
             path = dest_dir / f"{i}.jpg"
             path.write_bytes(resp.content)
             result[url] = path
