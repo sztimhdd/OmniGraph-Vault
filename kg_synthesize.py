@@ -45,6 +45,22 @@ IMAGE_URL_DIRECTIVE = (
 QUERY_HISTORY_FILE = Path.home() / ".hermes" / "omonigraph-vault" / "query_history.jsonl"
 
 
+def _archive_filename(query_text: str, ts: datetime | None = None) -> str:
+    """Build a unique archive filename for a synthesis answer.
+
+    Format: ``YYYY-MM-DD_HHMMSS_<slug>.md``. The slug keeps alphanumerics,
+    underscore, hyphen, and CJK characters; everything else collapses to a
+    single hyphen. Truncated to 40 chars to keep filenames manageable.
+    Empty queries fall back to ``"untitled"`` so the filename always parses.
+    """
+    import re
+    ts = ts or datetime.now()
+    stamp = ts.strftime("%Y-%m-%d_%H%M%S")
+    slug = re.sub(r"[^\w一-鿿-]+", "-", (query_text or "").strip())
+    slug = re.sub(r"-+", "-", slug).strip("-")[:40] or "untitled"
+    return f"{stamp}_{slug}.md"
+
+
 def _read_recent_query_history(limit: int = 10) -> list[str]:
     """Return the most-recent N queries, newest first. Empty list on any failure."""
     try:
@@ -164,9 +180,17 @@ async def main():
     try:
         response = await synthesize_response(query, mode=mode)
         if response:
-            output_file = SYNTHESIS_OUTPUT
-            with open(output_file, "w", encoding="utf-8") as f: f.write(response)
-            print(f"Response saved to {output_file} ({len(response)} chars)")
+            # Dual-write: unique archive file (never overwritten) +
+            # synthesis_output.md (back-compat: Telegram skill / other consumers
+            # that hardcode the canonical filename).
+            archive_dir = SYNTHESIS_OUTPUT.parent / "synthesis_archive"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            archive_file = archive_dir / _archive_filename(query)
+            with open(archive_file, "w", encoding="utf-8") as f: f.write(response)
+            with open(SYNTHESIS_OUTPUT, "w", encoding="utf-8") as f: f.write(response)
+            print(f"Response saved ({len(response)} chars):")
+            print(f"  archive: {archive_file}")
+            print(f"  latest:  {SYNTHESIS_OUTPUT}")
         else:
             print("ERROR: empty response from LightRAG")
     except Exception as e:
