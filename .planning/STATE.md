@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.4
-milestone_name: — RSS-KOL Alignment (ACTIVE)
-status: phase-complete-pending-cron-baseline
-stopped_at: "Phase 19 shipped + verified at 5-article scale via reliability test on Hermes (5/5 OK, 0 regressions). 5 v3.4-prep fixes (8ac3cb1 body persist / 5c602a3 timeout / 359058b DocStatus / ecaa2df cascade / af01315 UA img merge) confirmed transferring cleanly. First true automated cron run fires 2026-05-07 06:00 ADT."
-last_updated: "2026-05-06T19:30:00Z"
-last_activity: 2026-05-06 — Multi-deliverable day on Hermes hardening track. (1) Quick task 260506-en4: topic_filter wiring through _classify_full_body (3 commits 7ad7847/6a4790a/65fab98). (2) DB rollback executed — 845 'CV'-tagged rows from Phase 2b+ overnight deleted with backup at data/kol_scan.db.backup-pre-rollback-20260506-104420; candidate pool restored from 1 to 64 keyword-matching. (3) Single-article smoke (art=437) + 5-article reliability test on Hermes — 5/5 OK in 22 min (~4-5 min/art), 0 regressions on all 5 v3.4-prep fixes. (4) kg_synthesize archive bug fix (1a2daed) — each query writes unique YYYY-MM-DD_HHMMSS_<slug>.md to synthesis_archive/ instead of overwriting synthesis_output.md. (5) Agentic RAG architecture discussion doc (1a0c030) — 6-stage hybrid public-baseline + KG-enhance design captured for follow-up session.
+milestone: v3.5
+milestone_name: candidate, not Phase 5 scope.
+status: executing
+stopped_at: Completed Phase 20 Plan 00 — Wave-0 RED stubs for RCL/RIN/COG verification contract
+last_updated: "2026-05-06T23:08:27.721Z"
+last_activity: 2026-05-06
 progress:
-  total_phases: 4
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_phases: 14
+  completed_phases: 9
+  total_plans: 38
+  completed_plans: 32
 ---
 
 # Project State
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Phase 19 verified at 5-article scale (reliability test 5/5 OK on Hermes 2026-05-06). Phase 20 still BLOCKED until first true automated cron run observed positive — fires 2026-05-07 06:00 ADT.
+**Current focus:** Phase 20 — rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix
 
 ## Current Position
 
 Milestone: v3.4 (RSS-KOL Alignment)
-Phase: 20 (RSS Full-Body Classify + Multimodal Ingest + Cognee Fix) — NEXT; Phase 19 verified at scale 2026-05-06
-Plan: — (Phase 19 shipped 4 plans + 5 v3.4-prep hotfix commits; next is `/gsd:plan-phase 20` once cron baseline lifts gate)
-Status: Phase 19 + 5 prep fixes shipped & verified at 5-article scale. Phase 5 admin closeout shipped 2026-05-06 (commit 73b520d). **Execute gate LIFTED by user override 2026-05-06 evening** — user opted to advance Phase 20 in parallel with the still-pending 2026-05-07 06:00 ADT cron observation rather than serialize.
+Phase: 20 (rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Execute gate: ⚠️ LIFTED via user override 2026-05-06 evening (originally blocked until cron baseline). Rationale: today's 5-article reliability test (5/5 OK, 0 regressions on the 5 v3.4-prep fixes) is the strongest positive signal we have; cron observation continues in parallel as monitoring rather than gate.
-Last activity: 2026-05-06 — Completed quick task 260506-pa7: Phase 21 STK-01 NanoVectorDB cleanup spike (verdict: cleanup 完整; STK-02 unblocked).
+Last activity: 2026-05-06
 
 ### Immediate next step
 
@@ -158,6 +158,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase 19 P01 | 6min | 3 tasks | 2 files |
 | Phase 19 P02 | 23min | 4 tasks | 7 files |
 | Phase 19 P03 | 5min | 3 tasks (3.3 pending-operator) | 3 files |
+| Phase 20 P00 | 10m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -219,6 +220,7 @@ Recent decisions affecting current work:
 - [Phase 19]: Plan 19-02: SCH-02 hash unification required a Rule 1 auto-fix in ingest_wechat.py — the _pending_doc_ids tracker key was switched from article_hash (MD5[:10]) to ckpt_hash (SHA-256[:16]) across 4 call sites. The image-dir namespace (BASE_IMAGE_DIR/{article_hash}) and LightRAG doc_id (wechat_{article_hash}) still use MD5[:10] — only the in-memory tracker registry KEY changed. This preserves STATE-02/03 rollback semantics.
 - [Phase 19]: Plan 19-02: batch_ingest_from_spider.py:940 KOL hotfix (SCR-06) now routes via lib.scraper.scrape_url(url, site_hint='wechat') which runs the full 4-layer WeChat cascade (apify → cdp → mcp → ua). Closes Day-1 06:00 ADT regression where UA-only path was the sole fallback when Apify/CDP were misconfigured.
 - [Phase 19]: Plan 19-02: enrichment/rss_schema.py::_ensure_rss_columns uses PRAGMA table_info pre-check + conditional ALTER (not try/except OperationalError). Produces zero SQL on second call, idempotent, idiomatic SQLite pattern. Adds 5 nullable columns to rss_articles: body, body_scraped_at, depth, topics, classify_rationale — Phase 20 RCL-03 prerequisite.
+- [Phase 20]: Wave-0 TDD: 10 test stubs across 3 files pin Phase 20 contract; 9 RED + 1 PASS (RIN-06 contract lock)
 
 ### Pending Todos
 
@@ -271,8 +273,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-06T19:30:00Z
-Stopped at: 5-article reliability test 5/5 OK on Hermes verifies all 5 v3.4-prep fixes transferring at scale; kg_synthesize archive bug fixed; agentic RAG architecture discussion captured for follow-up session
+Last session: 2026-05-06T23:08:27.714Z
+Stopped at: Completed Phase 20 Plan 00 — Wave-0 RED stubs for RCL/RIN/COG verification contract
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 

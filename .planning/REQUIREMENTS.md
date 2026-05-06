@@ -51,18 +51,18 @@
 
 #### RSS Classify (RCL)
 
-- [ ] **RCL-01**: `rss_classify.py` ports `_build_fullbody_prompt` from `batch_classify_kol.py:226-256` verbatim (multi-topic single-call pattern, Phase 10 D-10.02 — returns single JSON object `{depth, topics, rationale}`). Truncation budget `FULLBODY_TRUNCATION_CHARS=8000` preserved.
-- [ ] **RCL-02**: `FULLBODY_THROTTLE_SECONDS=4.5` replaces the current `THROTTLE_SECONDS=0.3` (which was sized for 200-char summaries and breaks DeepSeek 15 RPM within 30 calls under 8000-char full-body prompts). 429 exponential backoff preserved (same pattern as existing KOL classifier). **Fixes pitfall CP-02**.
-- [ ] **RCL-03**: Classify writes `rss_articles.body + body_scraped_at + depth + topics + classify_rationale` BEFORE any ingest decision (D-10.02 scrape-first pattern mirrored from KOL side).
+- [x] **RCL-01**: `rss_classify.py` ports `_build_fullbody_prompt` from `batch_classify_kol.py:226-256` verbatim (multi-topic single-call pattern, Phase 10 D-10.02 — returns single JSON object `{depth, topics, rationale}`). Truncation budget `FULLBODY_TRUNCATION_CHARS=8000` preserved.
+- [x] **RCL-02**: `FULLBODY_THROTTLE_SECONDS=4.5` replaces the current `THROTTLE_SECONDS=0.3` (which was sized for 200-char summaries and breaks DeepSeek 15 RPM within 30 calls under 8000-char full-body prompts). 429 exponential backoff preserved (same pattern as existing KOL classifier). **Fixes pitfall CP-02**.
+- [x] **RCL-03**: Classify writes `rss_articles.body + body_scraped_at + depth + topics + classify_rationale` BEFORE any ingest decision (D-10.02 scrape-first pattern mirrored from KOL side).
 
 #### RSS Ingest (RIN)
 
-- [ ] **RIN-01**: `enrichment/rss_ingest.py` rewritten (replacing current summary-only ingest) to follow the 5-stage KOL path: `01_scrape` → `02_classify` → `03_image_download` → `04_text_ingest` (localhost-rewrite + multimodal `ainsert`) → `05_vision_worker` (fire-and-forget `asyncio.create_task`).
-- [ ] **RIN-02**: `image_pipeline.localize_markdown` is called on the RSS body before LightRAG `ainsert` — replaces CDN URLs with `http://localhost:8765/<hash>/<n>.jpg` (matches `lib/lightrag_embedding._build_contents` regex for in-band `types.Part` multimodal assembly).
-- [ ] **RIN-03**: `download_images` sends `Referer` header matching source domain (Substack/Medium/HuggingFace CDN hot-link blocking). Header value = scheme + host of the article URL.
-- [ ] **RIN-04**: `download_images` filters SVG (`content-type: image/svg+xml`) BEFORE enqueueing to Vision Cascade. Prevents SiliconFlow circuit-breaker from opening on Arxiv batches that contain many inline diagrams.
-- [ ] **RIN-05**: `rss_ingest.run()` wraps per-article work in `asyncio.wait_for` with drain + rollback on timeout. On timeout: call `_drain_pending_vision_tasks()` with 120s cap, then `adelete_by_doc_id(article_id)` for partial state cleanup. **Fixes pitfall CP-04**.
-- [ ] **RIN-06**: `aget_docs_by_ids` PROCESSED gate preserved from current `rss_ingest.py:184-207` — `enriched=2` is set only after LightRAG confirms the doc reached PROCESSED status (D-19 pattern). Must be retained identically in the rewrite.
+- [x] **RIN-01**: `enrichment/rss_ingest.py` rewritten (replacing current summary-only ingest) to follow the 5-stage KOL path: `01_scrape` → `02_classify` → `03_image_download` → `04_text_ingest` (localhost-rewrite + multimodal `ainsert`) → `05_vision_worker` (fire-and-forget `asyncio.create_task`).
+- [x] **RIN-02**: `image_pipeline.localize_markdown` is called on the RSS body before LightRAG `ainsert` — replaces CDN URLs with `http://localhost:8765/<hash>/<n>.jpg` (matches `lib/lightrag_embedding._build_contents` regex for in-band `types.Part` multimodal assembly).
+- [x] **RIN-03**: `download_images` sends `Referer` header matching source domain (Substack/Medium/HuggingFace CDN hot-link blocking). Header value = scheme + host of the article URL.
+- [x] **RIN-04**: `download_images` filters SVG (`content-type: image/svg+xml`) BEFORE enqueueing to Vision Cascade. Prevents SiliconFlow circuit-breaker from opening on Arxiv batches that contain many inline diagrams.
+- [x] **RIN-05**: `rss_ingest.run()` wraps per-article work in `asyncio.wait_for` with drain + rollback on timeout. On timeout: call `_drain_pending_vision_tasks()` with 120s cap, then `adelete_by_doc_id(article_id)` for partial state cleanup. **Fixes pitfall CP-04**.
+- [x] **RIN-06**: `aget_docs_by_ids` PROCESSED gate preserved from current `rss_ingest.py:184-207` — `enriched=2` is set only after LightRAG confirms the doc reached PROCESSED status (D-19 pattern). Must be retained identically in the rewrite.
 
 #### Cognee (COG) — Day-1 preview round 2 discovery (2026-05-03), revised post-74f7503
 
@@ -70,7 +70,7 @@ Emergency hotfix 2026-05-03 gated `ingest_wechat.py:1099-1108` inline Cognee cal
 
 - [x] **COG-01** — LANDED via `74f7503` (2026-05-03 23:10 ADT). `cognee_wrapper.py:50` uses `EMBEDDING_MODEL="gemini/gemini-embedding-2"` routing to Google AI Studio (`generativelanguage.googleapis.com`) with 3072-dim native output. Eliminates the 422 NOT_FOUND retry loop that was blocking ingest fast-path.
 
-- [ ] **COG-02** — Cognee `run_in_background=True` detachment verification (not yet validated post-`74f7503`). 2026-05-03 round 2 observed `cognee.remember(..., run_in_background=True)` blocking the ingest fast-path, but that may have been the 422 retry loop amplifying rather than `run_in_background` genuinely failing to detach. **Must re-test with COG-01 fix in place** before deciding whether additional `asyncio.create_task` wrap is needed. Test plan: enable `OMNIGRAPH_COGNEE_INLINE=1` on Hermes → run `batch_ingest_from_spider.py --max-articles 3` → verify articles 2/3 start processing while article 1's Cognee task still runs in background. If fast-path still blocks, add wrap per original COG-02 design.
+- [x] **COG-02** — Cognee `run_in_background=True` detachment verification (not yet validated post-`74f7503`). 2026-05-03 round 2 observed `cognee.remember(..., run_in_background=True)` blocking the ingest fast-path, but that may have been the 422 retry loop amplifying rather than `run_in_background` genuinely failing to detach. **Must re-test with COG-01 fix in place** before deciding whether additional `asyncio.create_task` wrap is needed. Test plan: enable `OMNIGRAPH_COGNEE_INLINE=1` on Hermes → run `batch_ingest_from_spider.py --max-articles 3` → verify articles 2/3 start processing while article 1's Cognee task still runs in background. If fast-path still blocks, add wrap per original COG-02 design.
 
 - [ ] **COG-03** — Retire `OMNIGRAPH_COGNEE_INLINE` env gate after COG-02 validation passes. Remove gate in `ingest_wechat.py:1099-1108` (revert to unconditional inline call). Update `CLAUDE.md` env variables table to remove entry. Update this memory (`vertex_ai_smoke_validated.md`) to note Cognee dual-store restored. Must complete before CUT-01 cron cutover to avoid shipping band-aid permanently. Depends on COG-02 passing without additional async wrap — if COG-02 needs more work (full asyncio.create_task wrap in `cognee_wrapper.remember_article`), COG-03 waits.
 
@@ -118,17 +118,17 @@ Emergency hotfix 2026-05-03 gated `ingest_wechat.py:1099-1108` inline Cognee cal
 | SCR-07 | Phase 19 | Complete |
 | SCH-01 | Phase 19 | Complete |
 | SCH-02 | Phase 19 | Complete |
-| RCL-01 | Phase 20 | Pending |
-| RCL-02 | Phase 20 | Pending |
-| RCL-03 | Phase 20 | Pending |
-| RIN-01 | Phase 20 | Pending |
-| RIN-02 | Phase 20 | Pending |
-| RIN-03 | Phase 20 | Pending |
-| RIN-04 | Phase 20 | Pending |
-| RIN-05 | Phase 20 | Pending |
-| RIN-06 | Phase 20 | Pending |
+| RCL-01 | Phase 20 | Complete |
+| RCL-02 | Phase 20 | Complete |
+| RCL-03 | Phase 20 | Complete |
+| RIN-01 | Phase 20 | Complete |
+| RIN-02 | Phase 20 | Complete |
+| RIN-03 | Phase 20 | Complete |
+| RIN-04 | Phase 20 | Complete |
+| RIN-05 | Phase 20 | Complete |
+| RIN-06 | Phase 20 | Complete |
 | COG-01 | Phase 20 | Complete (landed 2026-05-03 via `74f7503`) |
-| COG-02 | Phase 20 | Pending |
+| COG-02 | Phase 20 | Complete |
 | COG-03 | Phase 20 | Pending (depends on COG-01 + COG-02) |
 | STK-01 | Phase 21 | Pending |
 | STK-02 | Phase 21 | Pending |
