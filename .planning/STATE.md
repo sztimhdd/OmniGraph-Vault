@@ -27,20 +27,17 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 Milestone: v3.4 (RSS-KOL Alignment)
 Phase: 20 (RSS Full-Body Classify + Multimodal Ingest + Cognee Fix) — NEXT; Phase 19 verified at scale 2026-05-06
 Plan: — (Phase 19 shipped 4 plans + 5 v3.4-prep hotfix commits; next is `/gsd:plan-phase 20` once cron baseline lifts gate)
-Status: Phase 19 + 5 prep fixes shipped & verified at 5-article scale. Phase 20 execute BLOCKED until first automated cron run (2026-05-07 06:00 ADT) observed positive.
-Execute gate: BLOCKED until 2026-05-07 06:00 ADT cron run observed positive (Day-1/2 partials already done — Day-1 cron 2026-05-04 SIGTERM'd by Hermes agent timeout, Day-2 2026-05-05 corrupted by Phase 2b+ overnight; today's manual reliability-5 5/5 OK is the de-facto positive baseline)
-Last activity: 2026-05-06 — see frontmatter `last_activity` (5 deliverables: 260506-en4 quick + DB rollback + single-article smoke + 5-article reliability + kg_synthesize archive fix + agentic RAG doc).
+Status: Phase 19 + 5 prep fixes shipped & verified at 5-article scale. Phase 5 admin closeout shipped 2026-05-06 (commit 73b520d). **Execute gate LIFTED by user override 2026-05-06 evening** — user opted to advance Phase 20 in parallel with the still-pending 2026-05-07 06:00 ADT cron observation rather than serialize.
+Execute gate: ⚠️ LIFTED via user override 2026-05-06 evening (originally blocked until cron baseline). Rationale: today's 5-article reliability test (5/5 OK, 0 regressions on the 5 v3.4-prep fixes) is the strongest positive signal we have; cron observation continues in parallel as monitoring rather than gate.
+Last activity: 2026-05-06 — see frontmatter `last_activity` + Phase 5 admin closeout (Task 6.3, commit 73b520d).
 
 ### Immediate next step
 
-**Wait for 2026-05-07 06:00 ADT automated cron run.** No active intervention.
+**`/gsd:discuss-phase 20`** in a new Claude session — lock D-decisions for RCL-01..03 / RIN-01..06 / COG-02..03 before planning. Phase 20 has no `20-CONTEXT.md` yet; discuss-phase produces it.
 
-If cron runs clean (≥3 OK, no Hermes agent timeouts, no SCR-06 / 359058b / ecaa2df regressions):
-  - Lift execute gate → resume with `/gsd:plan-phase 20`
+After CONTEXT.md lands → `/gsd:plan-phase 20` → execute waves.
 
-If cron fails:
-  - Use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose
-  - Open `/gsd:debug` or revision quick task; do NOT advance to Phase 20
+**Parallel tomorrow morning:** when 06:00 ADT cron fires, monitor for Hermes agent timeout / SCR-06-class regressions using `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet. If cron fails, open `/gsd:debug` orthogonal to Phase 20 work — do NOT roll Phase 20 back unless its own changes implicated.
 
 **Today's verification artifacts** (substitutes for the failed Day-1/Day-2 cron runs):
 
