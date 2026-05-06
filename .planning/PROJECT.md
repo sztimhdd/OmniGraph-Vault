@@ -111,6 +111,28 @@ topics. No re-scraping needed to re-classify.
 - v3.2 — Batch Reliability + Infra ✅ (phases 12-17)
 - v3.3 — Pipeline Automation: RSS Fetch + Daily Digest + Cron ✅ (phase 18 + Wave 2 tasks 6.1)
 
+## Parallel Milestone: Agentic-RAG-v1
+
+Initialized 2026-05-06, runs alongside v3.4 KG main-line work. Internalizes the
+agentic RAG flow as `lib/research/` + skill `omnigraph_research`, removing the
+Hermes-runtime dependency for non-Hermes consumers.
+
+**Sibling planning files** (not in this PROJECT.md):
+
+- `.planning/PROJECT-Agentic-RAG-v1.md` — milestone scope + locked architecture
+- `.planning/REQUIREMENTS-Agentic-RAG-v1.md` — REQ-IDs (LIB / ORCH / TOOL / SKILL / CLI / CONFIG / TEST / CONTRACT)
+- `.planning/ROADMAP-Agentic-RAG-v1.md` — `ar-N` phase decomposition
+- `.planning/STATE-Agentic-RAG-v1.md` — milestone state (separate from v3.4)
+- `.planning/phases/ar-N-*/` — phase work directories
+
+**Cross-milestone contract** (the only KG-side dependency): KG team must keep
+`omnigraph_search.query.search(query_text: str, mode: str = "hybrid") -> str` stable.
+Everything else inside LightRAG (version, embeddings, canonical map, retrieval
+algorithm, prompts) is free to evolve.
+
+**Locked design:** `docs/design/agentic_rag_internal_api.md` (10 reqs + 10 axes
+closed; no further re-derivation).
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
