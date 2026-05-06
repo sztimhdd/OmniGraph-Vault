@@ -133,6 +133,9 @@ algorithm, prompts) is free to evolve.
 **Locked design:** `docs/design/agentic_rag_internal_api.md` (10 reqs + 10 axes
 closed; no further re-derivation).
 
+**Future milestone candidates**: see `.planning/MILESTONE_v3.5_CANDIDATES.md`
+(ingest pipeline simplification + operational hardening + agentic-rag-v1 enhancements).
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
