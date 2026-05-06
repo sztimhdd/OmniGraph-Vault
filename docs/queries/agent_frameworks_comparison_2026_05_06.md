@@ -1,3 +1,12 @@
+ 已发送到 Telegram，共 4 条消息 + 3 张配图。
+
+    数据来源：
+    - OmniGraph 知识图谱 Hybrid 检索 → 70 entities, 182 relations, 11 chunks
+    - Ken Huang 的 Harness Paradigm 系列
+    - Hermes Agent 官方文档 + GitHub (135k★)
+    - 3 张架构配图来自 KG 中已存储的原始文章
+
+
 好的，我们来深入对比 Hermes、OpenClaw、Claude Code 和 LangGraph 这几个主流 Agent 框架在架构设计上的核心差异及其最佳适用场景。
 
 首先，理解这些框架的一个关键点在于，它们并非完全处于同一抽象层级。**Harness** 是一个更上层的概念，它被定义为“为 Agent 的稳定执行而生”的工程稳定性层，而 Hermes、OpenClaw 和 Claude Code 可以被看作是 **Harness 的具体演绎**或实现。LangGraph 则更偏向于底层的图编排引擎。
