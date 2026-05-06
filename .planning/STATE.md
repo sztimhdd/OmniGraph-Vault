@@ -278,6 +278,26 @@ Stopped at: 5-article reliability test 5/5 OK on Hermes verifies all 5 v3.4-prep
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 
+## Phase 5 Exit State
+
+Phase 5 (pipeline-automation) — CLOSED 2026-05-06 via Task 6.3 admin closeout.
+ACCEPT WITH NOTES: 9/9 plans shipped (Wave 0/1/2/3 Task 6.1); Task 6.2 3-day observation gate **eclipsed** rather than satisfied — Day-1 cron failed silently (Hermes agent inactivity timeout, not Phase 5 scope), Day-2 corrupted by Phase 2b+ overnight (rolled back 2026-05-06), Day-3 pipeline correctness re-established via 5-article reliability test on v3.4 hardening track (5/5 OK, 0 regressions). Closure decision: pipeline behavior validated end-to-end via the v3.4 reliability path (identical code, identical data flow); not blocking on the original "3 consecutive daily digests" criterion.
+
+Shipped:
+
+- Wave 0: shared `lightrag_embedding.py` + KOL catch-up + LightRAG/Cognee LLM split (`0109c02`, `4bf1613`, `0faab0c`)
+- Wave 1: RSS schema + fetch + classify + ingest (`6929259`, `e9bad10`, `e4b2932`, `f70a18b`)
+- Wave 2: `orchestrate_daily.py` 9-step + `daily_digest.py` Telegram (`1d55d0d`, `3dd27df`)
+- Wave 3 Task 6.1: `register_phase5_cron.sh` 6-job idempotent (`599a08d`)
+- Closure doc: `.planning/phases/05-pipeline-automation/05-CLOSURE.md`
+
+Deferred (out of Phase 5 scope, tracked elsewhere):
+
+- Hermes agent cron timeout → systemd timer migration (v3.5 candidate; memory `hermes_agent_cron_timeout.md`)
+- Reject-reason versioning (v3.5 candidate; CLAUDE.md "Lessons Learned" 2026-05-05)
+- 60s embed vs 1800s LLM timeout asymmetry (v3.5 candidate; CLAUDE.md "Lessons Learned" 2026-05-05 #5)
+- Async-drain D-10.09 hang (architectural; v3.4/v3.5 known issue)
+
 ## Phase 6 Exit State
 
 Phase 6 (graphify-addon-code-graph) — CLOSED 2026-05-03 (ROADMAP + STATE admin finalization; code + SUMMARY landed 2026-04-28 @ d59e3ae).
