@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last Updated:** 2026-05-04 (Phase 19 shipped — generic scraper + KOL hotfix + schema + hash migration complete; operator Hermes SSH verify pending; execute gate for Phase 20-22 remains BLOCKED until Day-1/2/3 KOL baseline ~2026-05-06 ADT)
+**Last Updated:** 2026-05-06 (Phase 19 verified at 5-article scale via reliability test on Hermes — 5/5 OK, 0 regressions on all 5 v3.4-prep fixes [8ac3cb1 body persist / 5c602a3 timeout / 359058b DocStatus / ecaa2df cascade / af01315 UA img merge]. Execute gate for Phase 20-22 remains BLOCKED until 2026-05-07 06:00 ADT first automated cron run observed positive — Day-1 cron 2026-05-04 SIGTERM'd by Hermes agent timeout, Day-2 corrupted by Phase 2b+; today's manual reliability-5 is de-facto positive baseline.)
 
 ## Done
 
@@ -266,17 +266,18 @@
 - D-RSS-SCRAPER-SCOPE = Option A (unified `lib/scraper.py` for both KOL and RSS arms; patches `batch_ingest_from_spider.py:940`)
 - D-STUCK-DOC-IDEMPOTENCY = CLI tool (`scripts/cleanup_stuck_docs.py`); Wave 3 Task 1 is a 30-min NanoVectorDB spike before building the full CLI
 
-**2026-05-03 pre-v3.4 emergency hotfix context:**
+**2026-05-03 / 2026-05-04 pre-v3.4 hotfix + discovery context:**
 
-- **Cognee LiteLLM 422 routing** (discovered Day-1 preview round 2) — `ingest_wechat.py:1099-1108` inline Cognee call gated via `OMNIGRAPH_COGNEE_INLINE=0` (default disabled) as emergency hotfix to unblock 2026-05-04 06:00 ADT Day-1 cron. Root causes (LiteLLM routes `EMBEDDING_PROVIDER=gemini` → AI Studio but `EMBEDDING_MODEL=gemini-embedding-2` is Vertex-exclusive → 422 NOT_FOUND loop; plus Cognee 1.0 `run_in_background=True` does not truly detach, blocking ingest fast-path) tracked as COG-01/02/03 in Phase 20 requirements. COG-03 must land BEFORE CUT-01 cron cutover to retire the band-aid.
-- **SHA-256 hash migration** (SCH-02) — existing `checkpoints/<10-char-MD5>/` directories will be deleted as part of Phase 19 migration (WeChat re-scrape cost acceptable; checkpoints are performance optimization not data source). One-time ops task called out in Phase 19 plan.
+- **Cognee LiteLLM 422 routing — RESOLVED via commit `74f7503`** (2026-05-03 23:10 ADT). Actual fix was `cognee_wrapper.py:50` → `EMBEDDING_MODEL=gemini/gemini-embedding-2` (LiteLLM `gemini/` prefix forces AI Studio routing) + dim 768→3072. Parallel safety hotfix `e2d16e4` gated the inline call via `OMNIGRAPH_COGNEE_INLINE=0` (default disabled) for additional insurance. COG-01 marked complete; COG-02 (`run_in_background=True` detach verification) and COG-03 (retire env gate) remain Phase 20 work, to be validated with real data once Hermes cron stabilizes.
+- **SHA-256 hash migration** (SCH-02) — existing `checkpoints/<10-char-MD5>/` directories deleted as one-time ops on Hermes (`python scripts/checkpoint_reset.py --all --confirm` ran 2026-05-04 AM). WeChat re-scrape cost acceptable; checkpoints are performance optimization not data source.
 - **Empirical UA scrape-only success rate** (Day-1 preview round 1 + 2) — ~50% at small-sample (2/4 body-extract success). Dominant failure mode: HTTP 200 + `js_content` div missing (page-structure change). SCR-02 cascade + SCR-04 content-quality gate are designed to raise this; Phase 22 SC-2 80% threshold has empirical calibration note + env-parameterizable floor.
+- **🔴 Day-1 cron infrastructure failure (2026-05-04 AM)** — Hermes agent cron scheduler has activity-based inactivity timeout (`HERMES_CRON_TIMEOUT=600s` default). Blocking `terminal(...)` calls that run for 5+ min generate 0 agent-level activity and get SIGTERM'd. `batch_ingest_from_spider.py` (5-15 min/article × 20+ articles = hours) is fundamentally incompatible with this host. Day-1 cron died in 5 min processing its first article. Short-term fix: `HERMES_CRON_TIMEOUT=28800` env var + manual `background=true` re-run. **Long-term fix**: migrate `batch_ingest_from_spider.py` and similar hours-scale workloads OUT of Hermes agent cron into systemd timer / crontab (new v3.5 candidate REQ; could be pulled forward if Day-2/3 also fail on Hermes cron). See memory `hermes_agent_cron_timeout.md` for full postmortem.
 
 **Milestone gate:** All 6 success criteria in PROJECT.md v3.4 pass + post-rollout Day-1/2/3 observation window clean (SC-5 / CUT-03).
 
 ### Phases
 
-- [x] **Phase 19: Generic Scraper + Schema + KOL Hotfix (2026-05-04)** — `lib/scraper.py` with 4-layer cascade, KOL line-940 hotfix (SCR-06), `rss_articles` schema ALTER (SCH-01), hash migration to SHA-256 (SCH-02). 8/8 new unit tests GREEN; full regression 464 passed / 13 pre-existing failed / 0 new regressions. Operator Hermes SSH verify pending — see `.planning/phases/19-generic-scraper-schema-kol-hotfix/19-DEPLOY.md`.
+- [x] **Phase 19: Generic Scraper + Schema + KOL Hotfix (2026-05-04)** — `lib/scraper.py` with 4-layer cascade, KOL line-940 hotfix (SCR-06), `rss_articles` schema ALTER (SCH-01), hash migration to SHA-256 (SCH-02). 8/8 new unit tests GREEN; full regression 464 passed / 13 pre-existing failed / 0 new regressions. **Operator verification: COMPLETE 2026-05-06 via 5-article reliability test on Hermes — 5/5 OK in 22 min, 0 regressions on Phase 19 deliverables OR the 5 v3.4-prep follow-up fixes (8ac3cb1 body persist / 5c602a3 timeout / 359058b DocStatus / ecaa2df cascade / af01315 UA img merge).** Snapshot: `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/reliability_5_check_2026_05_06_1612.md`.
 - [ ] **Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite** — `rss_classify.py` full-body prompt port, `rss_ingest.py` rewrite with 5-stage KOL-identical path, timeout + drain guards
 - [ ] **Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness** — STK-01 diagnostic spike first, then CLI tool, then E2E fixture + bench harness matching gpt55 pattern
 - [ ] **Phase 22: Backlog Re-Ingest + Cross-Arm Regression + Cron Cutover** — delete-before-reinsert 1020-article backlog, cross-arm KOL+RSS smoke, stuck-doc isolation test, cron body cutover + kill-switch
@@ -353,7 +354,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 19. Generic Scraper + Schema + KOL Hotfix | 4/4 | Complete (operator SSH verify pending) | 2026-05-04 |
+| 19. Generic Scraper + Schema + KOL Hotfix | 4/4 | Complete (verified at 5-article scale 2026-05-06) | 2026-05-04 |
 | 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 0/TBD | Not started | - |
 | 21. Stuck-Doc Spike + CLI + RSS E2E Fixture + Bench | 0/TBD | Not started | - |
 | 22. Backlog Re-Ingest + Cross-Arm Regression + Cutover | 0/TBD | Not started | - |

@@ -4,6 +4,14 @@
 venv/
 __pycache__/
 
+# Personal Claude Code tooling (not project artifacts)
+.claude/skills/
+.claude/worktrees/
+
+# Local dev runtime — DB copy, LightRAG storage, images, logs, local .env
+# Entirely off-repo to keep company-machine data confined to project folder
+.dev-runtime/
+
 # Data (Crucial to ignore these!)
 # Use data/* (not data/) so specific files can be un-ignored with ! below.
 data/*

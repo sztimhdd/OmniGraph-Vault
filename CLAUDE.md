@@ -435,6 +435,16 @@ If remote is ahead: push from remote, pull locally, and re-read any changed file
 
 6. **DB candidate SELECT does not exclude `status='skipped'` rows.** Articles previously rejected for any reason are naturally re-pulled by the next `--from-db` ingest run. Useful: rejection due to fixed bug auto-recovers without explicit reset. Risky: a permanent reject reason (genuinely dead URL) will be retried daily forever. Worth tracking in a `skip_reason_version` field — see REQUIREMENTS.md "Future Requirements / v3.5" reject-reason versioning.
 
+### 2026-05-06 (v3.4 prep hardening + reliability test)
+
+1. **Reliability-N test ahead of cron cutover catches regressions cheaply.** A focused 5-article `--max-articles 5` run on the production target (Hermes) takes ~22 min wall-clock at 4-5 min/article post-ecaa2df, exercises the full pipeline (scrape → classify → ingest → vision), and produces DB rows + log evidence within one tea break. Compare: chasing a regression after it surfaces in a hours-long automated cron means correlating logs across thousands of failure points. Keep this pattern — cheap pre-cutover smoke after every batch of fixes, before signing off the cron baseline.
+
+2. **DB rollback hygiene: backup file before DELETE, never trust the WHERE clause alone.** Rolling back the 845 'CV'-corrupted rows from Phase 2b+ overnight, the safe form was `cp data/kol_scan.db data/kol_scan.db.backup-pre-rollback-$(date +%Y%m%d-%H%M%S)` THEN `DELETE FROM ... WHERE classified_at >= '...'`. Backup file lets you `cp` back if the WHERE clause was wrong; the timestamped name self-documents what state the backup represents. Phase 2b+ rollback touched 53% of recent classifications — a typo'd WHERE could have cost a week of work.
+
+3. **Synthesis output overwrite was a latent bug masked by infrequent use.** `kg_synthesize.py` wrote every answer to a single canonical filename (`synthesis_output.md`). User noticed only after morning's first answer was lost when they queried again in the afternoon. Pattern: any "single canonical output file" that is read-after-write by a downstream consumer (Telegram skill, in this case) should also be archived to a unique-per-call file when there is any chance the canonical file gets re-written before the consumer reads it. The fix (`1a2daed`) writes both: unique archive (`synthesis_archive/YYYY-MM-DD_HHMMSS_<slug>.md`) for permanence, canonical file for back-compat consumer.
+
+4. **Manual reliability test is NOT a substitute for automated cron baseline.** Reliability-5 5/5 OK proves the pipeline is correct at 5-article scale; it does NOT prove the Hermes cron scheduler will not SIGTERM the process at the 600s inactivity ceiling, will not lose stdout buffering across hour-scale runs, will not interact badly with concurrent Hermes background tasks. Until the next 06:00 ADT cron fires successfully, the v3.4 milestone gate stays BLOCKED. Don't let "manual run worked" tempt you into lifting the gate early.
+
 ## Vertex AI Migration Path
 
 ### Problem: Quota Coupling

@@ -127,7 +127,7 @@ Emergency hotfix 2026-05-03 gated `ingest_wechat.py:1099-1108` inline Cognee cal
 | RIN-04 | Phase 20 | Pending |
 | RIN-05 | Phase 20 | Pending |
 | RIN-06 | Phase 20 | Pending |
-| COG-01 | Phase 20 | Pending |
+| COG-01 | Phase 20 | Complete (landed 2026-05-03 via `74f7503`) |
 | COG-02 | Phase 20 | Pending |
 | COG-03 | Phase 20 | Pending (depends on COG-01 + COG-02) |
 | STK-01 | Phase 21 | Pending |

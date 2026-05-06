@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1
-milestone_name: — Single-Article Ingest Stability ✅ CLOSED
-status: phase-complete
-stopped_at: "Phase 19 shipped — lib/scraper.py + KOL line-940 hotfix + SHA-256 hash + rss_articles ALTER. Hermes operator runbook in 19-DEPLOY.md (SSH verify pending-operator)."
-last_updated: "2026-05-05T19:35:00Z"
-last_activity: 2026-05-05 — Completed quick task 260505-m9e: bump OMNIGRAPH_LLM_TIMEOUT_SEC default 600→1800 + persist scraped body before classify (eliminates SCR-06-class data loss); 4 new mock-only unit tests GREEN
+milestone: v3.4
+milestone_name: — RSS-KOL Alignment (ACTIVE)
+status: phase-complete-pending-cron-baseline
+stopped_at: "Phase 19 shipped + verified at 5-article scale via reliability test on Hermes (5/5 OK, 0 regressions). 5 v3.4-prep fixes (8ac3cb1 body persist / 5c602a3 timeout / 359058b DocStatus / ecaa2df cascade / af01315 UA img merge) confirmed transferring cleanly. First true automated cron run fires 2026-05-07 06:00 ADT."
+last_updated: "2026-05-06T19:30:00Z"
+last_activity: 2026-05-06 — Multi-deliverable day on Hermes hardening track. (1) Quick task 260506-en4: topic_filter wiring through _classify_full_body (3 commits 7ad7847/6a4790a/65fab98). (2) DB rollback executed — 845 'CV'-tagged rows from Phase 2b+ overnight deleted with backup at data/kol_scan.db.backup-pre-rollback-20260506-104420; candidate pool restored from 1 to 64 keyword-matching. (3) Single-article smoke (art=437) + 5-article reliability test on Hermes — 5/5 OK in 22 min (~4-5 min/art), 0 regressions on all 5 v3.4-prep fixes. (4) kg_synthesize archive bug fix (1a2daed) — each query writes unique YYYY-MM-DD_HHMMSS_<slug>.md to synthesis_archive/ instead of overwriting synthesis_output.md. (5) Agentic RAG architecture discussion doc (1a0c030) — 6-stage hybrid public-baseline + KG-enhance design captured for follow-up session.
 progress:
   total_phases: 4
   completed_phases: 1
@@ -17,40 +17,42 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-03)
+See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Phase 19 complete (pending operator SSH verify) — Phase 20 is NEXT; v3.4 execute gate remains BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT).
+**Current focus:** Phase 19 verified at 5-article scale (reliability test 5/5 OK on Hermes 2026-05-06). Phase 20 still BLOCKED until first true automated cron run observed positive — fires 2026-05-07 06:00 ADT.
 
 ## Current Position
 
 Milestone: v3.4 (RSS-KOL Alignment)
-Phase: 20 (RSS Full-Body Classify + Multimodal Ingest + Cognee Fix) — NEXT; Phase 19 complete
-Plan: — (Phase 19 shipped 4 plans; next is `/gsd:plan-phase 20`)
-Status: Phase 19 shipped (pending operator Hermes SSH verify per 19-DEPLOY.md). Phase 20 execute BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT).
-Execute gate: BLOCKED until Day-1/2/3 KOL baseline observation complete (~2026-05-06 ADT)
-Last activity: 2026-05-06 — Completed quick task 260506-en4: Wire `topic_filter` through `_classify_full_body` to fix Phase 2b+ CV-only classification regression (601/608 articles tagged 'CV' overnight because `_build_fullbody_prompt` was called with `(title, body)` only — `topic_filter` parameter never threaded from cron entry). 3 atomic commits (`7ad7847` signature+internal call, `6a4790a` caller pass-through, `65fab98` 4 mock-only tests) on origin/main. Hermes-side `inspect.signature` confirms wiring; no production batch executed. Patch benefits future runs only — bulk re-classify of 601 stale 'CV' articles is a separate quick task.
+Phase: 20 (RSS Full-Body Classify + Multimodal Ingest + Cognee Fix) — NEXT; Phase 19 verified at scale 2026-05-06
+Plan: — (Phase 19 shipped 4 plans + 5 v3.4-prep hotfix commits; next is `/gsd:plan-phase 20` once cron baseline lifts gate)
+Status: Phase 19 + 5 prep fixes shipped & verified at 5-article scale. Phase 20 execute BLOCKED until first automated cron run (2026-05-07 06:00 ADT) observed positive.
+Execute gate: BLOCKED until 2026-05-07 06:00 ADT cron run observed positive (Day-1/2 partials already done — Day-1 cron 2026-05-04 SIGTERM'd by Hermes agent timeout, Day-2 2026-05-05 corrupted by Phase 2b+ overnight; today's manual reliability-5 5/5 OK is the de-facto positive baseline)
+Last activity: 2026-05-06 — see frontmatter `last_activity` (5 deliverables: 260506-en4 quick + DB rollback + single-article smoke + 5-article reliability + kg_synthesize archive fix + agentic RAG doc).
 
 ### Immediate next step
 
-Operator (user) runs `.planning/phases/19-generic-scraper-schema-kol-hotfix/19-DEPLOY.md` on Hermes:
-  1. SSH per `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/hermes_ssh.md`
-  2. `cd ~/OmniGraph-Vault && git pull --ff-only`
-  3. `source venv/bin/activate` (Linux layout — NOT `venv/Scripts/`)
-  4. `pip install -r requirements.txt`
-  5. `python scripts/checkpoint_reset.py --all --confirm` (one-time SHA-256 migration)
-  6. `python -m pytest tests/ -q` (expect ≈ 464 passed / ≤ 13 pre-existing failed; all 8 Phase-19 tests GREEN)
-  7. `python batch_ingest_from_spider.py --from-db --topic-filter Agent --min-depth 2 --max-articles 1 --dry-run` (expect CLI parse, exit 0)
+**Wait for 2026-05-07 06:00 ADT automated cron run.** No active intervention.
 
-After operator reports back with verdict (`approved` / `issues: <...>`):
-  - If approved → wait for Day-1/2/3 KOL baseline (~2026-05-04 → 2026-05-06 ADT) to complete, then resume with `/gsd:plan-phase 20`
-  - If issues → open a follow-up `/gsd:quick` or revision plan; do NOT advance to Phase 20
+If cron runs clean (≥3 OK, no Hermes agent timeouts, no SCR-06 / 359058b / ecaa2df regressions):
+  - Lift execute gate → resume with `/gsd:plan-phase 20`
+
+If cron fails:
+  - Use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose
+  - Open `/gsd:debug` or revision quick task; do NOT advance to Phase 20
+
+**Today's verification artifacts** (substitutes for the failed Day-1/Day-2 cron runs):
+
+- Single-article smoke (art=437): `Hermes /tmp/gsdA-smoke-*.log`, ingestions row id=765
+- 5-article reliability test: ingestions rows 802 (art=480) / 803 (art=481) / 830 (art=532) / 851 (art=579) / 865 (art=600); avg 4-5 min/article; 0 regressions on all 5 v3.4-prep fixes
+- Snapshot: `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/reliability_5_check_2026_05_06_1612.md`
 
 **Execute gate rationale:**
 
-- Tuning decisions (subprocess timeout, max-articles cap, concurrency) require real cron data from Day-1/2/3 runs
-- Must verify Day-1 KOL pipeline is stable on the Vertex-corrected code path before RSS alignment amplifies any instability
-- No code changes in phases 19-22 until gate lifts
+- Tuning decisions (subprocess timeout, max-articles cap, concurrency) require real cron data — manual reliability test exercises pipeline but doesn't exercise Hermes cron scheduler
+- Must verify Hermes agent cron timeout fix (`HERMES_CRON_TIMEOUT=28800`) holds across full ~2-hour cron window
+- No code changes in phases 20-22 until gate lifts
 
 ### v3.4 Phase Overview
 
@@ -251,6 +253,8 @@ None tracked.
 | 260505-sjk | Closed audit ece03ae **Mismatch #1 (🔴)**: UA fallback path silently dropped `img_urls`. Consumer-side fix at `lib/scraper.py:195-200` mirrors legacy `ingest_article:978` plain-concat merge — `imgs = list(result.get("img_urls") or []) + _process_imgs` in the `process_content(content_html)` branch. UA function untouched (`img_urls` key preserved per scope). 4 new mock-only tests in `tests/unit/test_scraper_ua_img_merge.py` (RED→GREEN: 2 RED + 2 invariant pre-fix → 4 GREEN post-fix); 5/5 `test_scraper.py` regression tests still GREEN. Mismatches #2 + #3 DEFERRED. | 2026-05-05 | `af01315` | [260505-sjk-fix-ua-img-urls-consumer-merge-scr-06-fo](./quick/260505-sjk-fix-ua-img-urls-consumer-merge-scr-06-fo/) |
 | 260505-seu | Curate VitaClaw-relevant RSS source list — replaces planned `data/karpathy_hn_2025.opml` (92 generic feeds) with `data/agent_ecosystem_2026.opml` (78 leaf outlines: architecture 6, framework 11, idea 23, library 11, project 8, skill 3, tool 16; 57 `github_release` + 8 `official_eng_blog` + 13 other; 0 Twitter/X). Adds custom `xmlns:omg` namespace with `omg:dimension` / `omg:priority` / `omg:source_type` attributes on every leaf. Surgically edits 3 Phase 5 plans (05-01: rename + add 3 cols on `rss_feeds`, +1 col `dimensions TEXT` on `rss_classifications`, parser reads `omg:*`; 05-03: classifier prompt outputs `dimensions: list[str]`, INSERT writes 7 cols; 05-05: render now flat-KOL + grouped-RSS by dimension with `TOP_N_PER_GROUP=3`, RSS branch keeps no `enriched=2` filter per D-07 REVISED). Phase 5 wave/dependency graph untouched; CONTEXT.md/PRD.md/production code untouched. README documents kept/cut rationale and known blind spots (openclaw + vitaclaw included; hermes/gsd/MerkleTree omitted). | 2026-05-05 | `5e5465b` | [260505-seu-agent-ecosystem-rss-curation](./quick/260505-seu-agent-ecosystem-rss-curation/) |
 | 260506-en4 | Wire `topic_filter` through `_classify_full_body` to fix CV-only classification regression (Phase 2b+ overnight tagged 601/608 articles 'CV' because `_build_fullbody_prompt` was called with `(title, body)` only — `topic_filter` parameter never threaded from cron entry). 3 atomic commits: (1) `_classify_full_body` signature + internal call accepts `topic_filter: list[str] \| None`; (2) `ingest_from_db` passes pre-normalized `topics` list down (str→list happens earlier at line 1341, no duplicate normalization); (3) 4 mock-only assertions in `tests/unit/test_classify_full_body_topic_hint.py` cover None default + hint injection + caller pass-through + str/list both. Hermes-side `inspect.signature` confirms `topic_filter` in params. Patch benefits future runs only — 601 stale 'CV' articles unchanged (bulk re-classify out of scope). HARD SCOPE honored: `_build_fullbody_prompt` body untouched, candidate SQL untouched, no production batch run on Hermes. | 2026-05-06 | `65fab98` | [260506-en4-wire-topic-filter-through-classify-full-](./quick/260506-en4-wire-topic-filter-through-classify-full-/) |
+| 260506-direct | Direct fix (no quick wrapper): `kg_synthesize.py` archive each synthesis answer to `synthesis_archive/YYYY-MM-DD_HHMMSS_<slug>.md` (CJK-safe slug, 40-char cap, `untitled` fallback). Dual-write keeps `synthesis_output.md` for back-compat (Telegram skill / hardcoded consumers). 8 mock-only unit tests for `_archive_filename` GREEN. Triggered by user discovering morning's first answer was overwritten by afternoon's second answer. | 2026-05-06 | `1a2daed` | direct fix (no quick dir) |
+| 260506-rollback | Direct DB op (no quick wrapper): rollback Phase 2b+ overnight CV corruption — `DELETE FROM classifications WHERE classified_at >= '2026-05-05 20:00:00'` on Hermes (845 rows). Backup at `data/kol_scan.db.backup-pre-rollback-20260506-104420`. Result: candidate pool restored from 1 to 64 keyword-matching articles. Single-article smoke (art=437) post-rollback confirmed v3.4-prep fixes transferring; 5-article reliability test 5/5 OK (~22 min) followed. | 2026-05-06 | (DB op, no commit) | direct DB op |
 
 ## Phase 4 Exit State
 
@@ -269,10 +273,10 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-04T02:43:16Z
-Stopped at: Completed 19-03-PLAN.md (Wave 3: regression gate + 19-DEPLOY.md + STATE close-out; Task 3.3 Hermes SSH verify pending operator)
+Last session: 2026-05-06T19:30:00Z
+Stopped at: 5-article reliability test 5/5 OK on Hermes verifies all 5 v3.4-prep fixes transferring at scale; kg_synthesize archive bug fixed; agentic RAG architecture discussion captured for follow-up session
 Resume file: None
-Next command: Operator runs `19-DEPLOY.md` on Hermes → reports verdict; then wait for Day-1/2/3 KOL baseline (~2026-05-06 ADT) to lift execute gate → resume with `/gsd:plan-phase 20`
+Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 
 ## Phase 6 Exit State
 
