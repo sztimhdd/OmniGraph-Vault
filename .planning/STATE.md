@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: executing
-stopped_at: "Completed Phase 20 Plan 01 — RCL upgrade: rss_classify full-body multi-topic classify"
-last_updated: "2026-05-06T23:32:43.860Z"
+stopped_at: "Plan 20-03 partial: Tasks 3.1 (COG-01 verify) + 3.2 (COG-02 fire-and-forget) complete; Task 3.3 parked for operator smoke per D-20.14"
+last_updated: "2026-05-06T23:33:57.179Z"
 last_activity: 2026-05-06
 progress:
   total_phases: 14
   completed_phases: 9
   total_plans: 38
-  completed_plans: 33
+  completed_plans: 34
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 Milestone: v3.4 (RSS-KOL Alignment)
 Phase: 20 (rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Execute gate: ⚠️ LIFTED via user override 2026-05-06 evening (originally blocked until cron baseline). Rationale: today's 5-article reliability test (5/5 OK, 0 regressions on the 5 v3.4-prep fixes) is the strongest positive signal we have; cron observation continues in parallel as monitoring rather than gate.
 Last activity: 2026-05-06
@@ -160,6 +160,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase 19 P03 | 5min | 3 tasks (3.3 pending-operator) | 3 files |
 | Phase 20 P00 | 10m | 3 tasks | 3 files |
 | Phase 20 P01 | 8 | 1 tasks | 1 files |
+| Phase 20 P03 | 3 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -223,6 +224,8 @@ Recent decisions affecting current work:
 - [Phase 19]: Plan 19-02: enrichment/rss_schema.py::_ensure_rss_columns uses PRAGMA table_info pre-check + conditional ALTER (not try/except OperationalError). Produces zero SQL on second call, idempotent, idiomatic SQLite pattern. Adds 5 nullable columns to rss_articles: body, body_scraped_at, depth, topics, classify_rationale — Phase 20 RCL-03 prerequisite.
 - [Phase 20]: Wave-0 TDD: 10 test stubs across 3 files pin Phase 20 contract; 9 RED + 1 PASS (RIN-06 contract lock)
 - [Phase 20]: D-20.01 import-not-copy: rss_classify imports _build_fullbody_prompt/_call_fullbody_llm/FULLBODY_TRUNCATION_CHARS from batch_classify_kol; FULLBODY_THROTTLE_SECONDS=4.5; column 'depth' not 'depth_score'; _call_deepseek stub retained for test monkeypatching compatibility
+- [Phase 20]: D-20.15: asyncio.create_task wrap applied to remember_article — wait_for(timeout=5.0) was blocking ~5s per Research Q3
+- [Phase 20]: Task 3.3 (COG-03) PARKED: OMNIGRAPH_COGNEE_INLINE env gate retirement requires live Hermes 3-article smoke per D-20.14 before proceeding
 
 ### Pending Todos
 
@@ -276,8 +279,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-06T23:32:43.854Z
-Stopped at: Completed Phase 20 Plan 01 — RCL upgrade: rss_classify full-body multi-topic classify
+Last session: 2026-05-06T23:33:57.172Z
+Stopped at: Plan 20-03 partial: Tasks 3.1 (COG-01 verify) + 3.2 (COG-02 fire-and-forget) complete; Task 3.3 parked for operator smoke per D-20.14
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 

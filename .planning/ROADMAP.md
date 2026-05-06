@@ -312,7 +312,7 @@ Plans:
 - [x] 20-00-PLAN.md — Wave 0 RED test stubs (3 files: test_rss_classify_fullbody.py, test_rss_ingest_5stage.py, test_cognee_remember_detaches.py)
 - [x] 20-01-PLAN.md — Wave 1 RCL: rss_classify.py upgrade — import _build_fullbody_prompt + _call_fullbody_llm from batch_classify_kol; FULLBODY_THROTTLE_SECONDS=4.5; writes 5 columns to rss_articles
 - [ ] 20-02-PLAN.md — Wave 2 RIN: rss_ingest.py 5-stage rewrite + image_pipeline.download_images referer/SVG; per-module _pending_doc_ids; D-20.06 dual-doc-id rollback; PROCESSED gate preserved; translation removed
-- [ ] 20-03-PLAN.md — Wave 1+3 COG: COG-01 verified-only; COG-02 asyncio.create_task refactor of remember_article; COG-03 operator-gated retirement of OMNIGRAPH_COGNEE_INLINE after live Hermes 3-article smoke
+- [x] 20-03-PLAN.md — Wave 1+3 COG: COG-01 verified-only; COG-02 asyncio.create_task refactor of remember_article; COG-03 operator-gated retirement of OMNIGRAPH_COGNEE_INLINE after live Hermes 3-article smoke
 **UI hint**: no
 
 ### Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness
@@ -350,6 +350,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 19. Generic Scraper + Schema + KOL Hotfix | 4/4 | Complete (verified at 5-article scale 2026-05-06) | 2026-05-04 |
-| 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 2/4 | In Progress|  |
+| 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 3/4 | In Progress|  |
 | 21. Stuck-Doc Spike + CLI + RSS E2E Fixture + Bench | 0/TBD | Not started | - |
 | 22. Backlog Re-Ingest + Cross-Arm Regression + Cutover | 0/TBD | Not started | - |
