@@ -5,12 +5,20 @@ venv/
 __pycache__/
 
 # Personal Claude Code tooling (not project artifacts)
-.claude/skills/
-.claude/worktrees/
+.claude/
 
 # Local dev runtime — DB copy, LightRAG storage, images, logs, local .env
 # Entirely off-repo to keep company-machine data confined to project folder
 .dev-runtime/
+
+# GSD orchestrator state — auto-regenerated, not project artifact
+.planning/config.json
+
+# Hermes session JSON dumps from query reproduction sessions (~600KB each)
+docs/queries/hermes_session_*/
+
+# Scratch / experimental work — never commit
+.scratch/
 
 # Data (Crucial to ignore these!)
 # Use data/* (not data/) so specific files can be un-ignored with ! below.
