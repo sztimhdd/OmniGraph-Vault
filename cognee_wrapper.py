@@ -114,40 +114,51 @@ async def remember_article(
 ) -> bool:
     """Store article metadata in Cognee episodic memory (fire-and-forget).
 
-    Per 2026 RAG best practices: dual-store at ingestion time.
-    LightRAG stores the full semantic content; Cognee stores episodic metadata
-    so queries like "what have I read about X?" can surface relevant articles.
+    D-20.15 (2026-05-06 Phase 20): refactored from the old 5.0s-timeout blocking
+    pattern to `asyncio.create_task` so the caller returns in <1ms regardless of
+    Cognee's internal latency. The prior implementation was blocking
+    the ingest fast-path for ~5s on every article (Research Q3, 20-RESEARCH.md).
 
-    Uses Cognee 1.0 remember() — times out at _COGNEE_TIMEOUT seconds.
-    Never raises — always returns bool.
+    Per 2026 RAG best practices: dual-store at ingestion time. LightRAG
+    stores the full semantic content; Cognee stores episodic metadata so
+    queries like "what have I read about X?" can surface relevant articles.
+
+    Returns True if the background task was scheduled successfully, False
+    if Cognee is unavailable or task creation failed.
+    Never raises — the inner coroutine swallows all exceptions and logs at debug level.
     """
     if not cognee:
         return False
-    try:
-        entity_str = ", ".join(entities[:15]) if entities else "none extracted"
-        gist = summary_gist[:500] if summary_gist else ""
-        text = (
-            f"Article: {title}\n"
-            f"URL: {url}\n"
-            f"Key entities: {entity_str}\n"
-            + (f"Summary: {gist}" if gist else "")
-        )
-        await asyncio.wait_for(
-            cognee.remember(
+
+    entity_str = ", ".join(entities[:15]) if entities else "none extracted"
+    gist = summary_gist[:500] if summary_gist else ""
+    text = (
+        f"Article: {title}\n"
+        f"URL: {url}\n"
+        f"Key entities: {entity_str}\n"
+        + (f"Summary: {gist}" if gist else "")
+    )
+
+    async def _bg_remember() -> None:
+        """Inner coroutine — runs as a fire-and-forget task. Never raises."""
+        try:
+            await cognee.remember(
                 text,
                 dataset_name=_ARTICLE_DATASET,
                 self_improvement=False,
-                run_in_background=True,   # fire-and-forget: returns immediately
-            ),
-            timeout=5.0,                   # only waiting for queue, not processing
-        )
-        logger.info("remember_article stored: %s", title[:80])
+                run_in_background=True,
+            )
+            logger.info("remember_article stored: %s", title[:80])
+        except Exception as e:
+            logger.debug("remember_article task failed: %s", e)
+
+    try:
+        asyncio.create_task(_bg_remember())
         return True
-    except asyncio.TimeoutError:
-        logger.debug("remember_article timed out (non-blocking, ok)")
-        return False
-    except Exception as e:
-        logger.debug("remember_article skipped: %s", e)
+    except RuntimeError as e:
+        # No running event loop — caller invoked from sync context. Log + return False.
+        # (Should not happen in production: this fn is `async def` so caller IS in a loop.)
+        logger.debug("remember_article: no running loop, skipping (%s)", e)
         return False
 
 
