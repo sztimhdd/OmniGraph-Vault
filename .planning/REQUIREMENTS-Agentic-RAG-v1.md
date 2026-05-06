@@ -141,59 +141,60 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Empty initially; populated by `gsd-roadmapper` during ROADMAP-Agentic-RAG-v1.md
-creation.
+Populated by `gsd-roadmapper` 2026-05-06.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LIB-01 | — | Pending |
-| LIB-02 | — | Pending |
-| LIB-03 | — | Pending |
-| LIB-04 | — | Pending |
-| LIB-05 | — | Pending |
-| LIB-06 | — | Pending |
-| LIB-07 | — | Pending |
-| LIB-08 | — | Pending |
-| LIB-09 | — | Pending |
-| ORCH-01 | — | Pending |
-| ORCH-02 | — | Pending |
-| ORCH-03 | — | Pending |
-| ORCH-04 | — | Pending |
-| ORCH-05 | — | Pending |
-| ORCH-06 | — | Pending |
-| ORCH-07 | — | Pending |
-| ORCH-08 | — | Pending |
-| ORCH-09 | — | Pending |
-| TOOL-01 | — | Pending |
-| TOOL-02 | — | Pending |
-| TOOL-03 | — | Pending |
-| TOOL-04 | — | Pending |
-| SKILL-01 | — | Pending |
-| SKILL-02 | — | Pending |
-| SKILL-03 | — | Pending |
-| SKILL-04 | — | Pending |
-| SKILL-05 | — | Pending |
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
-| CONFIG-01 | — | Pending |
-| CONFIG-02 | — | Pending |
-| CONFIG-03 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
-| TEST-03 | — | Pending |
-| TEST-04 | — | Pending |
-| TEST-05 | — | Pending |
-| TEST-06 | — | Pending |
-| CONTRACT-01 | — | Pending |
-| CONTRACT-02 | — | Pending |
+| LIB-01 | ar-1 | Pending |
+| LIB-02 | ar-1 | Pending |
+| LIB-03 | ar-1 | Pending |
+| LIB-04 | ar-1 | Pending |
+| LIB-05 | ar-1 | Pending |
+| LIB-06 | ar-1 | Pending |
+| LIB-07 | ar-1 | Pending |
+| LIB-08 | ar-4 | Pending |
+| LIB-09 | ar-1 | Pending |
+| ORCH-01 | ar-1 | Pending |
+| ORCH-02 | ar-1 | Pending |
+| ORCH-03 | ar-2 | Pending |
+| ORCH-04 | ar-3 | Pending |
+| ORCH-05 | ar-2 | Pending |
+| ORCH-06 | ar-1 | Pending |
+| ORCH-07 | ar-1 | Pending |
+| ORCH-08 | ar-1 | Pending |
+| ORCH-09 | ar-1 | Pending |
+| TOOL-01 | ar-3 | Pending |
+| TOOL-02 | ar-3 | Pending |
+| TOOL-03 | ar-3 | Pending |
+| TOOL-04 | ar-2 | Pending |
+| SKILL-01 | ar-1 | Pending |
+| SKILL-02 | ar-1 | Pending |
+| SKILL-03 | ar-1 | Pending |
+| SKILL-04 | ar-1 | Pending |
+| SKILL-05 | ar-1 | Pending |
+| CLI-01 | ar-1 | Pending |
+| CLI-02 | ar-4 | Pending |
+| CLI-03 | ar-2 | Pending |
+| CONFIG-01 | ar-1 | Pending |
+| CONFIG-02 | ar-1 | Pending |
+| CONFIG-03 | ar-3 | Pending |
+| TEST-01 | ar-1 | Pending |
+| TEST-02 | ar-3 | Pending |
+| TEST-03 | ar-2 | Pending |
+| TEST-04 | ar-3 | Pending |
+| TEST-05 | ar-4 | Pending |
+| TEST-06 | ar-4 | Pending |
+| CONTRACT-01 | ar-1 | Pending |
+| CONTRACT-02 | ar-1 | Pending |
 
 **Coverage:**
 
 - v1 requirements: 41 total (LIB:9 / ORCH:9 / TOOL:4 / SKILL:5 / CLI:3 / CONFIG:3 / TEST:6 / CONTRACT:2)
-- Mapped to phases: 0 (pending roadmapper)
-- Unmapped: 41 ⚠️
+- Mapped to phases: 41 ✓
+- Unmapped: 0 ✓
+
+**Phase distribution:** ar-1 (25) / ar-2 (5) / ar-3 (7) / ar-4 (4) = 41 ✓
 
 ---
 *Requirements defined: 2026-05-06*
-*Last updated: 2026-05-06 after independent review (3 BLOCK + 10 FLAG + 3 NIT applied: LIB-02 stage-output count corrected; LIB-09 added for package-import path; TOOL-01/02 callable signatures realigned to design `Callable[[str], list[dict]]`; ORCH-02 article-hash regex pinned; ORCH-05 changed to append-only per Axis 8; ORCH-08 image-server auto-bring-up added; ORCH-09 strict pipeline order added; SKILL-05 standard skill layout added; CLI-03 LLM-provider env-only clarified; CONFIG-03 Vertex detection mechanism pinned; TEST-05 cross-ref ORCH-08; TEST-06 manual-review owner + audit file; CONTRACT-01 enforcement mechanism added; CONTRACT-02 BASE_IMAGE_DIR clarified as constant not env var)*
+*Last updated: 2026-05-06 — phase mapping populated by `gsd-roadmapper` after roadmap creation. Previous update: independent review (3 BLOCK + 10 FLAG + 3 NIT applied: LIB-02 stage-output count corrected; LIB-09 added for package-import path; TOOL-01/02 callable signatures realigned to design `Callable[[str], list[dict]]`; ORCH-02 article-hash regex pinned; ORCH-05 changed to append-only per Axis 8; ORCH-08 image-server auto-bring-up added; ORCH-09 strict pipeline order added; SKILL-05 standard skill layout added; CLI-03 LLM-provider env-only clarified; CONFIG-03 Vertex detection mechanism pinned; TEST-05 cross-ref ORCH-08; TEST-06 manual-review owner + audit file; CONTRACT-01 enforcement mechanism added; CONTRACT-02 BASE_IMAGE_DIR clarified as constant not env var)*
