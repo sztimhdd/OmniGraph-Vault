@@ -445,6 +445,8 @@ If remote is ahead: push from remote, pull locally, and re-read any changed file
 
 4. **Manual reliability test is NOT a substitute for automated cron baseline.** Reliability-5 5/5 OK proves the pipeline is correct at 5-article scale; it does NOT prove the Hermes cron scheduler will not SIGTERM the process at the 600s inactivity ceiling, will not lose stdout buffering across hour-scale runs, will not interact badly with concurrent Hermes background tasks. Until the next 06:00 ADT cron fires successfully, the v3.4 milestone gate stays BLOCKED. Don't let "manual run worked" tempt you into lifting the gate early.
 
+5. **并发 GSD agent 共享 commit staging — `git reset --soft` race lost STK-02/03 file attribution.** 2026-05-06 evening Phase 21 quick (260506-rjs) shipped `scripts/cleanup_stuck_docs.py` + 13 unit tests + closure doc; the orchestrator's quick wrapper called a `git reset --soft` to repackage the commit message, but a parallel `gsd-roadmapper` agent on the same worktree had already staged its own roadmap files in the meantime. The reset rolled both agents' staged areas together, and the next commit (`8a4a18e`, message `docs(agentic-rag-v1): create roadmap`) swept the STK-02/03 deliverables into the roadmapper's commit — file contents byte-identical to spec, but attribution is wrong. Lesson: on a shared worktree with concurrent GSD agents, NEVER `git reset --soft`/`--mixed`/`--hard` and NEVER `git commit --amend` — those operations touch the staging area / HEAD, both shared between agents. Use only `git add <explicit-files>` + `git commit` (forward-only, atomic). Solo quick(无并发)无此风险。
+
 ## Vertex AI Migration Path
 
 ### Problem: Quota Coupling
