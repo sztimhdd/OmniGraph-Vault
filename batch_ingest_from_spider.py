@@ -1022,9 +1022,16 @@ async def _classify_full_body(
     # Legacy columns: first topic → old `topic` col; depth → old `depth_score`.
     legacy_topic = topics[0] if topics else "unknown"
     conn.execute(
-        """INSERT OR REPLACE INTO classifications
+        """INSERT INTO classifications
            (article_id, topic, depth_score, depth, topics, rationale, relevant)
-           VALUES (?, ?, ?, ?, ?, ?, 1)""",
+           VALUES (?, ?, ?, ?, ?, ?, 1)
+           ON CONFLICT(article_id) DO UPDATE SET
+               topic=excluded.topic,
+               depth_score=excluded.depth_score,
+               depth=excluded.depth,
+               topics=excluded.topics,
+               rationale=excluded.rationale,
+               relevant=excluded.relevant""",
         (
             article_id,
             legacy_topic,
@@ -1301,14 +1308,13 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     `LLM` / `RAG` / `NLP` / `CV`; cron passes lowercase tokens.
     """
     placeholders = " OR ".join("LOWER(c.topic) LIKE ?" for _ in topics)
+    # Post-migration 004: UNIQUE(article_id) on classifications guarantees
+    # one row per article, MAX(classified_at) subquery removed.
     sql = f"""
         SELECT a.id, a.title, a.url, acc.name, c.depth_score, a.body, a.digest
         FROM articles a
         JOIN accounts acc ON a.account_id = acc.id
         LEFT JOIN classifications c ON a.id = c.article_id
-          AND c.classified_at = (
-            SELECT MAX(classified_at) FROM classifications WHERE article_id = a.id
-          )
         WHERE (c.topic IS NULL OR ({placeholders}))
           AND a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
         ORDER BY a.id
