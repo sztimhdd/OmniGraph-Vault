@@ -947,8 +947,13 @@ async def _classify_full_body(
     title: str,
     body: str | None,
     api_key: str,
+    topic_filter: list[str] | None = None,
 ) -> dict | None:
     """Scrape-first per-article classification (D-10.01 / D-10.02 / D-10.04).
+
+    ``topic_filter`` is forwarded to ``_build_fullbody_prompt`` to bias the
+    LLM toward user-specified keywords. Default ``None`` = no hint
+    (backward compat). Quick-260506-en4: closes 99% CV-tag regression.
 
     Flow:
       1. If ``body`` is empty, scrape on-demand via
@@ -1001,7 +1006,7 @@ async def _classify_full_body(
     # 2. Call DeepSeek on the full body (D-10.02).
     from batch_classify_kol import _build_fullbody_prompt, _call_deepseek_fullbody
 
-    prompt = _build_fullbody_prompt(title, body)
+    prompt = _build_fullbody_prompt(title, body, topic_filter=topic_filter)
     result = _call_deepseek_fullbody(prompt, api_key)
     if result is None:
         logger.warning(
