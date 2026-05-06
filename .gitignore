@@ -16,6 +16,8 @@ __pycache__/
 
 # Hermes session JSON dumps from query reproduction sessions (~600KB each)
 docs/queries/hermes_session_*/
+# …except: 2026-05-06 session is committed as Agentic-RAG-v1 milestone ground truth
+!docs/queries/hermes_session_2026_05_06/
 
 # Scratch / experimental work — never commit
 .scratch/
