@@ -182,90 +182,13 @@ async def test_topic_filter_list_injects_hint_into_prompt(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Test 3 + 4: ingest_from_db -> _classify_full_body wiring
+# Tests 3+4 removed in Quick 260507-lai (v3.5 Ingest Refactor foundation).
+#
+# They asserted that ``ingest_from_db`` routes the topic argument into
+# ``_classify_full_body(topic_filter=...)``. The v3.5 foundation removes that
+# call from the ingest loop entirely (placeholder Layer 1/2 filters in
+# ``lib.article_filter`` replace the classify gate). The remaining tests in
+# this file still validate the ``_classify_full_body`` function's own
+# behaviour (signature + prompt construction); the function body is retained
+# even though the ingest loop no longer calls it.
 # ---------------------------------------------------------------------------
-
-
-async def _run_ingest_with_mocked_classify(
-    tmp_path: Path, monkeypatch, topic_arg
-) -> MagicMock:
-    """Drive ``ingest_from_db`` with all expensive paths mocked.
-
-    Returns the MagicMock that replaced ``_classify_full_body`` so callers
-    can assert on ``call_args.kwargs['topic_filter']``.
-    """
-    import batch_ingest_from_spider as bi
-
-    db_path = _seed_classify_db(tmp_path)
-    monkeypatch.setattr(bi, "DB_PATH", db_path)
-
-    # Mock _classify_full_body — capture call kwargs.
-    fake_classify = AsyncMock(
-        return_value={"depth": 3, "topics": ["agent"], "rationale": "ok"}
-    )
-    monkeypatch.setattr(bi, "_classify_full_body", fake_classify)
-
-    # Mock checkpoint helpers so the article isn't checkpoint-skipped.
-    monkeypatch.setattr(bi, "has_stage", lambda *_a, **_k: False)
-    monkeypatch.setattr(bi, "get_article_hash", lambda url: "deadbeef" * 2)
-
-    # Mock LightRAG init and the ingest_article call (these come AFTER classify).
-    fake_rag = MagicMock()
-    fake_rag.finalize_storages = AsyncMock(return_value=None)
-    monkeypatch.setattr(
-        "ingest_wechat.get_rag", AsyncMock(return_value=fake_rag)
-    )
-    monkeypatch.setattr(
-        bi, "ingest_article", AsyncMock(return_value=(True, 0.1))
-    )
-    # _drain_pending_vision_tasks is awaited inside the finally block.
-    monkeypatch.setattr(
-        bi, "_drain_pending_vision_tasks", AsyncMock(return_value=None)
-    )
-
-    # Mock the BODY-01 pre-scrape (article body is already non-NULL in seed,
-    # but defensive — scrape_url should never be reached).
-    monkeypatch.setattr(
-        "lib.scraper.scrape_url",
-        AsyncMock(side_effect=AssertionError("scrape_url should not be called")),
-    )
-
-    # Drive ingest_from_db.
-    await bi.ingest_from_db(
-        topic=topic_arg,
-        min_depth=1,
-        dry_run=False,
-        max_articles=1,
-    )
-
-    return fake_classify
-
-
-@pytest.mark.asyncio
-async def test_ingest_from_db_passes_list_topic_through(tmp_path, monkeypatch):
-    """Test 3: ingest_from_db(topic=['agent']) reaches _classify_full_body.
-
-    Asserts ``_classify_full_body.call_args.kwargs['topic_filter'] == ['agent']``.
-    """
-    fake_classify = await _run_ingest_with_mocked_classify(
-        tmp_path, monkeypatch, topic_arg=["agent"]
-    )
-
-    assert fake_classify.await_count == 1
-    assert fake_classify.call_args.kwargs["topic_filter"] == ["agent"]
-
-
-@pytest.mark.asyncio
-async def test_ingest_from_db_converts_str_topic_to_list(tmp_path, monkeypatch):
-    """Test 4: ingest_from_db(topic='agent') => topic_filter=['agent'] (str -> list).
-
-    The ingest_from_db function normalizes ``topic: str | list`` to ``topics: list``
-    at line 1341; this test confirms the str input survives the normalization
-    and reaches _classify_full_body as a single-element list.
-    """
-    fake_classify = await _run_ingest_with_mocked_classify(
-        tmp_path, monkeypatch, topic_arg="agent"
-    )
-
-    assert fake_classify.await_count == 1
-    assert fake_classify.call_args.kwargs["topic_filter"] == ["agent"]

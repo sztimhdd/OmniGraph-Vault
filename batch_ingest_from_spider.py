@@ -60,6 +60,7 @@ from lib.batch_timeout import (
     clamp_article_timeout,
     get_remaining_budget,
 )
+from lib.article_filter import layer1_pre_filter, layer2_full_body_score
 from lib.checkpoint import get_article_hash, has_stage
 
 PROJECT_ROOT = Path(__file__).parent
@@ -1291,35 +1292,36 @@ async def _graded_probe(
 
 
 def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
-    """Build the --from-db topic-filter SELECT as (sql, params).
+    """Build the --from-db candidate SELECT as (sql, params).
 
-    Case-insensitive: normalizes params to stripped+lowercased strings
-    and applies LOWER(c.topic) on the column side so rows written by
-    the DeepSeek classifier (capitalized: Agent / LLM / RAG / NLP / CV)
-    match cron-passed lowercase tokens (agent / llm / openclaw / ...).
+    v3.5 (260507-lai): the ``topics`` parameter is retained for API
+    compat but is NO LONGER used in the SQL. The ``classifications``
+    JOIN and ``c.depth_score`` / ``c.topic`` predicates were removed
+    when the v3.5 foundation moved candidate filtering out of the
+    SELECT and into ``lib.article_filter`` (Layer 1 pre-scrape +
+    Layer 2 post-scrape placeholders). The ingest loop now decides
+    pass/skip per-article instead of relying on classifier rows.
 
-    Preserves (non-negotiable):
-      - c.topic IS NULL branch (Phase 10 scrape-first dependency)
+    Preserved (non-negotiable):
+      - Column ordering: id, title, url, account_name, body, digest
+        (note: ``c.depth_score`` removed; consumers must drop that slot
+        from their unpack)
       - ORDER BY a.id (FIFO ingest order)
-      - Column list + ingestions anti-join unchanged
+      - Anti-join against ingestions WHERE status='ok' so already-
+        ingested articles are not retried
 
-    Day-1 cron fix (2026-05-03 sd7): DeepSeek classifier writes `Agent` /
-    `LLM` / `RAG` / `NLP` / `CV`; cron passes lowercase tokens.
+    The ``topics`` argument is silently accepted to avoid breaking
+    every call site at once; future quicks may drop the parameter
+    once the v3.5 ingest contract is fully cut over.
     """
-    placeholders = " OR ".join("LOWER(c.topic) LIKE ?" for _ in topics)
-    # Post-migration 004: UNIQUE(article_id) on classifications guarantees
-    # one row per article, MAX(classified_at) subquery removed.
-    sql = f"""
-        SELECT a.id, a.title, a.url, acc.name, c.depth_score, a.body, a.digest
+    sql = """
+        SELECT a.id, a.title, a.url, acc.name, a.body, a.digest
         FROM articles a
         JOIN accounts acc ON a.account_id = acc.id
-        LEFT JOIN classifications c ON a.id = c.article_id
-        WHERE (c.topic IS NULL OR ({placeholders}))
-          AND a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
+        WHERE a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
         ORDER BY a.id
     """
-    normalized = tuple(f"%{t.strip().lower()}%" for t in topics)
-    return sql, normalized
+    return sql, ()
 
 
 async def ingest_from_db(
@@ -1407,7 +1409,9 @@ async def ingest_from_db(
     try:
         processed = 0
         api_key = get_deepseek_api_key()
-        for i, (art_id, title, url, account, depth, body, digest) in enumerate(rows, 1):
+        # v3.5 (260507-lai): row tuple is (id, title, url, account_name, body, digest);
+        # depth_score column dropped along with the classifications JOIN.
+        for i, (art_id, title, url, account, body, digest) in enumerate(rows, 1):
             # JN6-02: stop AFTER successfully-processed rows hit the cap.
             # Skips (no URL, checkpoint, classify, depth) don't count, so the
             # cap limits real ingest work — correct semantics for rate limiting.
@@ -1418,7 +1422,7 @@ async def ingest_from_db(
                 )
                 break
 
-            logger.info("[%d/%d] [%s] (prior depth=%s) %s", i, len(rows), account, depth, title)
+            logger.info("[%d/%d] [%s] %s", i, len(rows), account, title)
 
             if not url:
                 logger.warning("  Skipping — no URL")
@@ -1477,14 +1481,33 @@ async def ingest_from_db(
                     conn.commit()
                     continue
 
-            # D-10.01..04: scrape-first per-article classify. Runs BEFORE
-            # the Phase 9 ingest_article call. No fail-open — skip on classify error.
-            if not dry_run and api_key:
-                # BODY-01: pre-scrape + persist body before classify. If scrape
-                # succeeds but classify or ingest later fails, body is durable
-                # on disk so the next batch run skips re-scraping
-                # (~75-90s/article saved). _classify_full_body's internal
-                # scrape-on-demand path remains as a defensive fallback.
+            # v3.5 Layer 1 (260507-lai): cheap pre-scrape filter on
+            # title + summary/digest + content_length (placeholder always-pass).
+            # Replaces the broken D-10.01..04 _classify_full_body gate that
+            # caused the 2026-05-07 cron CV mass-classify disaster (commit
+            # c786a83 reverted in 428b16f). Real Layer 1 logic ships in a
+            # follow-up quick.
+            if not dry_run:
+                layer1 = layer1_pre_filter(
+                    title=title,
+                    summary=digest or "",  # WeChat digest is 200-char summary
+                    content_length=None,   # WeChat doesn't have length until scrape
+                )
+                if not layer1.passed:
+                    logger.info(
+                        "  layer1 reject id=%s reason=%s",
+                        art_id, layer1.reason,
+                    )
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
+                        (art_id,),
+                    )
+                    conn.commit()
+                    continue
+
+                # Pre-scrape + persist body so the next batch run skips
+                # re-scraping (~75-90s/article saved) when downstream
+                # ingest fails. Mirrors the previous BODY-01 pattern.
                 if not body:
                     try:
                         from lib.scraper import scrape_url
@@ -1495,55 +1518,20 @@ async def ingest_from_db(
                                 body = persisted
                     except Exception as e:  # noqa: BLE001 -- never block main flow
                         logger.warning(
-                            "BODY-01 pre-classify scrape/persist failed for "
+                            "v3.5 pre-layer2 scrape/persist failed for "
                             "art_id=%s url=%s: %s", art_id, url[:80], e,
                         )
-                cls_result = await _classify_full_body(
-                    conn=conn,
+
+                # v3.5 Layer 2: full-body LLM scoring (placeholder always-pass).
+                layer2 = layer2_full_body_score(
                     article_id=art_id,
-                    url=url,
                     title=title,
-                    body=body,
-                    api_key=api_key,
-                    topic_filter=topics,
+                    body=body or "",
                 )
-                if cls_result is None:
-                    logger.info("  classify failed — skipping ingest (D-10.04 no fail-open)")
-                    conn.execute(
-                        "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
-                        (art_id,),
-                    )
-                    conn.commit()
-                    continue
-                cls_depth = cls_result.get("depth", 0)
-                # quick-260504-vm9: re-classified topic MUST match original filter.
-                # Without this, stale old classifications (e.g. Round 1 "Agent")
-                # serve as entry tickets for articles whose re-classified topics
-                # (e.g. "AI安全", "AGI", "NVIDIA GPU ecosystem") don't match.
-                cls_topics = cls_result.get("topics", []) or []
-                cls_topic_matches = (
-                    not cls_topics  # empty → pass-through (unclassified fallback)
-                    or any(
-                        any(kw in t.lower() for kw in normalized_topics)
-                        for t in cls_topics
-                    )
-                )
-                if not cls_topic_matches:
+                if not layer2.passed:
                     logger.info(
-                        "  re-classified topics %s don't match filter %s — skipping",
-                        cls_topics, normalized_topics,
-                    )
-                    conn.execute(
-                        "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
-                        (art_id,),
-                    )
-                    conn.commit()
-                    continue
-                if not isinstance(cls_depth, int) or cls_depth < min_depth:
-                    logger.info(
-                        "  depth=%s < min_depth=%d — skipping ingest",
-                        cls_depth,
-                        min_depth,
+                        "  layer2 reject id=%s reason=%s",
+                        art_id, layer2.reason,
                     )
                     conn.execute(
                         "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
