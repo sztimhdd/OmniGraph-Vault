@@ -1025,8 +1025,7 @@ async def _classify_full_body(
         """INSERT INTO classifications
            (article_id, topic, depth_score, depth, topics, rationale, relevant)
            VALUES (?, ?, ?, ?, ?, ?, 1)
-           ON CONFLICT(article_id) DO UPDATE SET
-               topic=excluded.topic,
+           ON CONFLICT(article_id, topic) DO UPDATE SET
                depth_score=excluded.depth_score,
                depth=excluded.depth,
                topics=excluded.topics,

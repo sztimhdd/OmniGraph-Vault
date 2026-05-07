@@ -114,8 +114,9 @@ async def test_default_topic_filter_none_no_hint_in_prompt(monkeypatch):
         """
         CREATE TABLE articles (id INTEGER PRIMARY KEY, body TEXT);
         CREATE TABLE classifications (
-            article_id INTEGER PRIMARY KEY, topic TEXT, depth_score INTEGER,
-            depth INTEGER, topics TEXT, rationale TEXT, relevant INTEGER
+            article_id INTEGER, topic TEXT, depth_score INTEGER,
+            depth INTEGER, topics TEXT, rationale TEXT, relevant INTEGER,
+            PRIMARY KEY (article_id, topic)
         );
         INSERT INTO articles (id, body) VALUES (1, 'sample body');
         """
@@ -155,8 +156,9 @@ async def test_topic_filter_list_injects_hint_into_prompt(monkeypatch):
         """
         CREATE TABLE articles (id INTEGER PRIMARY KEY, body TEXT);
         CREATE TABLE classifications (
-            article_id INTEGER PRIMARY KEY, topic TEXT, depth_score INTEGER,
-            depth INTEGER, topics TEXT, rationale TEXT, relevant INTEGER
+            article_id INTEGER, topic TEXT, depth_score INTEGER,
+            depth INTEGER, topics TEXT, rationale TEXT, relevant INTEGER,
+            PRIMARY KEY (article_id, topic)
         );
         INSERT INTO articles (id, body) VALUES (1, 'sample body');
         """

@@ -444,11 +444,10 @@ def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
             conn.execute(
                 """INSERT INTO classifications (article_id, topic, depth_score, relevant, excluded, reason)
                    VALUES (?, ?, ?, ?, 0, ?)
-                   ON CONFLICT(article_id) DO UPDATE SET
-                       topic=excluded.topic,
+                   ON CONFLICT(article_id, topic) DO UPDATE SET
                        depth_score=excluded.depth_score,
                        relevant=excluded.relevant,
-                       excluded=excluded.excluded,
+                       excluded=0,
                        reason=excluded.reason""",
                 (art["article_id"], topic, depth, 1 if relevant else 0, reason),
             )

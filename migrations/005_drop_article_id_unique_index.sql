@@ -1,0 +1,41 @@
+-- Migration: drop the article_id UNIQUE INDEX added by migration 004
+-- Quick:   260507-ent (2026-05-07)
+--
+-- Problem: Migration 004 (Quick 260506-se5) collapsed classifications to one
+--          row per article_id and added a single-column UNIQUE INDEX on
+--          article_id. This was incompatible with batch_classify_kol.py's
+--          multi-topic CLI loop (`--topic Agent --topic LLM ... --topic CV`),
+--          where each topic produces a separate INSERT for the same article.
+--          With the single-column UNIQUE constraint and `ON CONFLICT(article_id)
+--          DO UPDATE SET topic=excluded.topic`, every iteration overwrote the
+--          topic field of the prior row instead of inserting a new row, so
+--          only the LAST topic survived. Production cron at 2026-05-07 08:29
+--          ADT mass-classified all 653 articles as 'CV', and the downstream
+--          ingest filter (agent,hermes,openclaw,harness) returned zero
+--          candidates.
+--
+-- Fix:     Drop idx_classifications_article_id. The table-level UNIQUE(article_id, topic)
+--          constraint that has always been part of the schema becomes the
+--          binding uniqueness rule again, restoring the multi-row-per-article
+--          model. Both production call sites
+--          (batch_classify_kol.py:445 and batch_ingest_from_spider.py:1024)
+--          are reverted in this commit to ON CONFLICT(article_id, topic) DO
+--          UPDATE so they cleanly upsert into the multi-row schema.
+--
+-- ============================================================
+-- OPERATOR: BACKUP THE DB FILE BEFORE RUNNING THIS MIGRATION
+--   cp data/kol_scan.db data/kol_scan.db.backup-pre-mig005-$(date +%Y%m%d-%H%M%S)
+-- (Per CLAUDE.md Lessons 2026-05-06 #2 — backup file before any destructive
+-- DDL.)
+-- ============================================================
+--
+-- Run:     sqlite3 <path/to/kol_scan.db> < migrations/005_drop_article_id_unique_index.sql
+--
+-- Idempotent: DROP INDEX IF EXISTS is a no-op if the index is already gone.
+--
+-- Note:    The table-level UNIQUE(article_id, topic) constraint is preserved
+--          — it has always been part of the original schema and is correct.
+--          Only the article_id-only UNIQUE index added by migration 004 is
+--          removed.
+
+DROP INDEX IF EXISTS idx_classifications_article_id;
