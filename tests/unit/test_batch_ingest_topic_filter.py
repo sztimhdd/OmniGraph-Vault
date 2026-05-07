@@ -26,12 +26,19 @@ History:
     used ``--topic-filter agent --dry-run`` and never exercised the
     no-flag path; these regression tests pin the production-shape route.
 
-These tests pin the v3.5 contract:
+    v3.5 ir-1 (Quick — Real Layer 1 + KOL ingest wiring): the candidate SQL
+    gains a Layer 1 verdict predicate
+    ``(a.layer1_verdict IS NULL OR a.layer1_prompt_version IS NOT ?)``
+    bound to ``lib.article_filter.PROMPT_VERSION_LAYER1``. params is now
+    a 1-tuple, not (). topics arg remains silently accepted.
+
+These tests pin the v3.5 ir-1 contract:
     - SQL selects (a.id, a.title, a.url, acc.name, a.body, a.digest)
     - SQL JOINs accounts but does NOT JOIN classifications
     - SQL anti-joins ingestions WHERE status='ok'
     - SQL has ORDER BY a.id (FIFO)
-    - params is always ()
+    - SQL has Layer 1 predicate (layer1_verdict IS NULL OR layer1_prompt_version IS NOT ?)
+    - params is (PROMPT_VERSION_LAYER1,) — a 1-tuple
     - the function accepts any iterable of strings without raising
     - ``main()`` does NOT sys.exit(1) when ``--from-db`` is given without
       ``--topic-filter`` (path a) or with a normalising-to-None filter
@@ -92,20 +99,34 @@ def test_sql_orders_by_a_id():
 
 
 @pytest.mark.parametrize("topics", [["agent"], ["agent", "hermes"], []])
-def test_params_always_empty(topics):
-    """v3.5: params is always () regardless of topics — topics arg is
-    silently accepted for API compat but does not affect the SQL."""
+def test_params_bind_layer1_prompt_version(topics):
+    """v3.5 ir-1: params is always (PROMPT_VERSION_LAYER1,) regardless of
+    topics — topics arg is silently accepted for API compat but does not
+    affect the SQL. The single bind value is the current Layer 1 prompt
+    version, used by the LF-1.8 prompt-bump re-evaluation predicate."""
+    from lib.article_filter import PROMPT_VERSION_LAYER1
+
     _, params = _build_topic_filter_query(topics)
-    assert params == ()
+    assert params == (PROMPT_VERSION_LAYER1,)
 
 
 def test_topics_arg_accepted_silently():
-    """The function accepts arbitrary topic lists without raising."""
+    """The function accepts arbitrary topic lists without raising; SQL +
+    params are identical regardless of the topics list contents."""
+    from lib.article_filter import PROMPT_VERSION_LAYER1
+
     sql_a, params_a = _build_topic_filter_query(["agent"])
     sql_b, params_b = _build_topic_filter_query(["completely", "different", "list"])
-    # SQL is identical regardless of topics — they're silently ignored.
     assert sql_a == sql_b
-    assert params_a == params_b == ()
+    assert params_a == params_b == (PROMPT_VERSION_LAYER1,)
+
+
+def test_sql_layer1_predicate_present():
+    """v3.5 ir-1 (LF-3.4): SELECT must include the layer1 verdict +
+    prompt_version re-evaluation predicate."""
+    sql, _ = _build_topic_filter_query(["agent"])
+    assert "layer1_verdict IS NULL" in sql
+    assert "layer1_prompt_version IS NOT ?" in sql
 
 
 def test_return_types():
