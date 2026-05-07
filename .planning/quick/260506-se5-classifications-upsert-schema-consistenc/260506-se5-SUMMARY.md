@@ -167,7 +167,28 @@ After `git pull --ff-only` lands on Hermes:
 
 ## Pre-push audit (Step 5.4)
 
-To be filled when commit 5 lands and audit grep runs.
+**Per-commit file-attribution audit on MY 5 commits** (the plan's intent):
+
+| Commit | Files |
+|--------|-------|
+| `c786a83` (Task 1) | `batch_classify_kol.py`, `batch_ingest_from_spider.py`, `migrations/004_classifications_unique_article_id.sql`, `tests/unit/test_classifications_upsert.py` |
+| `4d0d221` (Task 2) | `tests/unit/test_schema_consistency.py` |
+| `8d149fb` (Task 3) | `.planning/MILESTONE_v3.5_CANDIDATES.md`, `.planning/PROJECT.md` |
+| `5b02371` (Task 4) | `CLAUDE.md` |
+| `deeddd8` (Task 5) | `.planning/quick/260506-se5-classifications-upsert-schema-consistenc/260506-se5-PLAN.md`, `.planning/quick/260506-se5-classifications-upsert-schema-consistenc/260506-se5-SUMMARY.md` |
+
+- **Phase 20 leakage in MY 5 commits: 0** (zero `.planning/phases/20-*/` paths)
+- **STATE.md leakage in MY 5 commits: 0** (zero `.planning/STATE.md` paths)
+
+**Note on `HEAD~5..HEAD` audit:** the plan's spec'd grep `git log --name-only
+HEAD~5..HEAD | grep -E "^\.planning/phases/20-"` was written assuming my 5
+commits would be the topmost 5 in git history. They are not — the Phase 20
+execute agent committed 4 times in parallel between my Task 4 and Task 5
+commits, so `HEAD~5..HEAD` now spans my last commit + 4 Phase 20 commits.
+Those 4 Phase 20 commits properly contain Phase 20 files (their own
+territory). My per-commit audit above confirms my 5 commits are clean.
+
+**Audit verdict: CLEAN. Push approved.**
 
 ## STATE.md deferral note
 
