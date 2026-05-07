@@ -1643,11 +1643,13 @@ def main() -> None:
             topic_keywords = None
 
     if args.from_db:
-        if not topic_keywords:
-            logger.error("--topic-filter is required with --from-db")
-            sys.exit(1)
+        # v3.5 (Quick 260507-lai patch): --topic-filter is silently ignored
+        # post-V35-FOUND-03 (candidate SQL no longer references topics). The
+        # previous required-flag check at this point is removed; topic_keywords
+        # is coalesced to [] so ingest_from_db's internal `for t in topics`
+        # loop receives an iterable in the no-filter case.
         coro = ingest_from_db(
-            topic_keywords, args.min_depth, args.dry_run,
+            topic_keywords or [], args.min_depth, args.dry_run,
             batch_timeout=args.batch_timeout,
             max_articles=args.max_articles,
         )
