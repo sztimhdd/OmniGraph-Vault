@@ -268,7 +268,7 @@
 ### Phases
 
 - [x] **Phase 19: Generic Scraper + Schema + KOL Hotfix (2026-05-04)** — `lib/scraper.py` with 4-layer cascade, KOL line-940 hotfix (SCR-06), `rss_articles` schema ALTER (SCH-01), hash migration to SHA-256 (SCH-02). 8/8 new unit tests GREEN; full regression 464 passed / 13 pre-existing failed / 0 new regressions. **Operator verification: COMPLETE 2026-05-06 via 5-article reliability test on Hermes — 5/5 OK in 22 min, 0 regressions on Phase 19 deliverables OR the 5 v3.4-prep follow-up fixes (8ac3cb1 body persist / 5c602a3 timeout / 359058b DocStatus / ecaa2df cascade / af01315 UA img merge).** Snapshot: `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/reliability_5_check_2026_05_06_1612.md`.
-- [ ] **Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite** — `rss_classify.py` full-body prompt port, `rss_ingest.py` rewrite with 5-stage KOL-identical path, timeout + drain guards
+- [x] **Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite** — `rss_classify.py` full-body prompt port, `rss_ingest.py` rewrite with 5-stage KOL-identical path, timeout + drain guards (completed 2026-05-07)
 - [ ] **Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness** — STK-01 diagnostic spike first, then CLI tool, then E2E fixture + bench harness matching gpt55 pattern
 - [ ] **Phase 22: Backlog Re-Ingest + Cross-Arm Regression + Cron Cutover** — delete-before-reinsert 1020-article backlog, cross-arm KOL+RSS smoke, stuck-doc isolation test, cron body cutover + kill-switch
 
@@ -311,7 +311,7 @@ Plans:
 Plans:
 - [x] 20-00-PLAN.md — Wave 0 RED test stubs (3 files: test_rss_classify_fullbody.py, test_rss_ingest_5stage.py, test_cognee_remember_detaches.py)
 - [x] 20-01-PLAN.md — Wave 1 RCL: rss_classify.py upgrade — import _build_fullbody_prompt + _call_fullbody_llm from batch_classify_kol; FULLBODY_THROTTLE_SECONDS=4.5; writes 5 columns to rss_articles
-- [ ] 20-02-PLAN.md — Wave 2 RIN: rss_ingest.py 5-stage rewrite + image_pipeline.download_images referer/SVG; per-module _pending_doc_ids; D-20.06 dual-doc-id rollback; PROCESSED gate preserved; translation removed
+- [x] 20-02-PLAN.md — Wave 2 RIN: rss_ingest.py 5-stage rewrite + image_pipeline.download_images referer/SVG; per-module _pending_doc_ids; D-20.06 dual-doc-id rollback; PROCESSED gate preserved; translation removed
 - [x] 20-03-PLAN.md — Wave 1+3 COG: COG-01 verified-only; COG-02 asyncio.create_task refactor of remember_article; COG-03 operator-gated retirement of OMNIGRAPH_COGNEE_INLINE after live Hermes 3-article smoke
 **UI hint**: no
 
@@ -350,6 +350,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 19. Generic Scraper + Schema + KOL Hotfix | 4/4 | Complete (verified at 5-article scale 2026-05-06) | 2026-05-04 |
-| 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 3/4 | In Progress|  |
+| 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 4/4 | Complete   | 2026-05-07 |
 | 21. Stuck-Doc Spike + CLI + RSS E2E Fixture + Bench | 0/TBD | Not started | - |
 | 22. Backlog Re-Ingest + Cross-Arm Regression + Cutover | 0/TBD | Not started | - |
