@@ -52,6 +52,12 @@ async def test_classify_full_body_uses_scraper(mocker):
         "depth INTEGER, topics TEXT, rationale TEXT, relevant INTEGER, "
         "PRIMARY KEY (article_id, topic))"
     )
+    # Mirror migration 004: production uses ON CONFLICT(article_id) DO UPDATE
+    # which requires a single-column UNIQUE constraint on article_id.
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_classifications_article_id "
+        "ON classifications(article_id)"
+    )
     conn.commit()
 
     result = await big._classify_full_body(
