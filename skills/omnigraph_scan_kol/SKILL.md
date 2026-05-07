@@ -54,7 +54,7 @@ always ensure you're in the repo root first.
    ```bash
    bash ./skills/omnigraph_scan_kol/scripts/scan_kol.sh
    ```
-   **Set terminal timeout >= 300s** — scan takes ~4.5 min (54 accounts × 5s delay + Python overhead).
+   **Set terminal timeout >= 420s (7 min)** — scan takes ~4.5 min best-case but can run longer when rate-limit retries fire (60s × 3 retries per account). 300s (5 min) is too tight — the scan can timeout mid-run after accounting for retry cooldowns.
 4. **If "请重新登录" visible** → session expired but cookies still valid:
    - `browser_click` on the "登录" link/button
    - Wait 3s for redirect to dashboard
@@ -64,7 +64,14 @@ always ensure you're in the repo root first.
 
 ### Retry on rate limit
 
-If `scan_kol.sh` exits with SESSION_ERROR (ret=200013 mid-scan), wait 30 minutes then re-run the full Decision Tree (step 1–5). If retry also fails, stop and notify.
+If `scan_kol.sh` exits with SESSION_ERROR (ret=200013 mid-scan):
+
+1. **Check DB for partial results first** (see "Partial results on rate limit" below) — report what was collected so far.
+2. Wait 30 minutes, then re-run the full Decision Tree (step 1–5) with fresh credentials from a browser refresh.
+3. If retry also fails, **report partial results and stop** — do not discard partial data. The ret=200013 is tied to the `slave_sid`/`data_ticket`/`rand_info` credential combo server-side. Recovery on the same session can take 60+ minutes (observed: 70+ min without recovery — see 2026-05-05 session).
+4. **Next day's scan will work** — the session resets overnight.
+
+On retry failure, send Telegram notification that the scan partially completed.
 
 ### Trigger: cron fires
 
@@ -86,6 +93,24 @@ checks WeChat MP session validity, auto-refreshes credentials, and verifies with
 single-account test scan. **Credentials must be refreshed every run** because the
 WeChat MP page token and some cookies (`_clck`, `_clsk`, `ua_id`) change with each
 pageload — even when the session is technically still valid.
+
+### Step 0: Clean LightRAG zombie documents (pre-flight)
+
+Before credential refresh, clean up any documents left in `processing` or `failed`
+state by a prior killed/crashed run. Without this, LightRAG retries the same stuck
+doc, wasting API quota on retries that will fail again.
+
+```bash
+cd /home/sztimhdd/OmniGraph-Vault
+venv/bin/python scripts/clean_lightrag_zombies.py
+```
+
+Expected output: JSON with `status: "cleaned"`, plus `purged` count. If purged > 0,
+note it in the final report.
+
+**Why this matters during health check (not just post-crash):** Even a good cron
+can encounter a single slow article that times out but leaves a `processing` doc
+behind. The next day's health check catches and resets it before the new scan runs.
 
 ### Step 1: Verify CDP & navigate to WeChat MP
 
@@ -176,7 +201,7 @@ Expected output includes `"Scan complete: 1 ok, 0 failed"` with exit code 0.
 
 - **ret=0** → credentials valid, health check passed
 - **ret=200003** → invalid session (possibly truncated `slave_sid`). Re-run from Step 1.
-- **ret=200013** → rate limited. Wait 30min and retry.
+- **ret=200013** → rate limited. Wait 30 min and retry. If retry also fails, report partial results — the `slave_sid`/`data_ticket` combo may need longer to recover (observed: 70+ min on the same credentials). The scan will resume on the next cron cycle.
 
 ### Step 6: Report
 
@@ -376,6 +401,38 @@ Then proceed to run `bash ./skills/omnigraph_scan_kol/scripts/scan_kol.sh`.
 - **Health check cron** (07:55 daily): runs the [Health Check Procedure](#health-check-procedure-pre-scan-5min-before-daily-scan)
   above — validates CDP, auto-refreshes credentials into `kol_config.py`, verifies
   with single-account test scan. Sends Telegram on failure; silent on success.
+
+### Partial results on rate limit
+
+When ret=200013 interrupts the scan mid-run, the data already stored in
+`data/kol_scan.db` is valid and should be reported — do not discard it.
+Check coverage with:
+
+```bash
+cd /home/sztimhdd/OmniGraph-Vault
+python3 -c "
+import sqlite3
+c = sqlite3.connect('data/kol_scan.db')
+today = '$(date +%Y-%m-%d)'
+rows = c.execute(
+    'SELECT a.account_id, k.name, COUNT(*)'
+    ' FROM articles a JOIN accounts k ON a.account_id = k.id'
+    ' WHERE a.scanned_at LIKE ? || \"%\"'
+    ' GROUP BY a.account_id', (today,)
+).fetchall()
+total = c.execute('SELECT COUNT(*) FROM accounts').fetchone()[0]
+print(f'Accounts scanned: {len(rows)}/{total}')
+for aid, name, cnt in rows:
+    print(f'  {name}: {cnt} articles')
+c.close()
+"
+```
+
+**Expected scan order is randomized** (`random.shuffle`), so different accounts are
+skipped each day if SESSION_LIMIT truncation happens. Over a week, all accounts
+should be covered. If the same accounts keep getting skipped, this indicates the
+SESSION_LIMIT is too low or the server-side budget is being consumed by other
+processes using the same credentials.
 
 ## Cron Reliability — Diagnosing Failures
 
