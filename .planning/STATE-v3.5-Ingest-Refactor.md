@@ -4,8 +4,8 @@ milestone: v3.5-Ingest-Refactor
 milestone_name: — Ingest 筛选重构(双层 LLM filter,替换 classify 架构)
 status: ready-for-execute
 stopped_at: "Charter 完工 2026-05-07,等 user 起 /gsd:autonomous v3.5-Ingest-Refactor"
-last_updated: "2026-05-07T18:43:14Z"
-last_activity: "2026-05-07 — milestone charter 完成 (PROJECT/REQUIREMENTS/ROADMAP/STATE 4 sibling docs); Foundation Quick 260507-lai PLAN exists at .planning/quick/260507-lai-v3-5-foundation-bypass-classify-gate-wir/260507-lai-PLAN.md but placeholder ship to main is pending."
+last_updated: "2026-05-07T19:01:43Z"
+last_activity: "2026-05-07 — charter shipped + 2 follow-on patches: ROADMAP Open notes expanded with Group A / Group B sequencing for Foundation-Quick-absorb path; STATE adds Current Hermes Operational State snapshot (4 crons)."
 progress:
   total_phases: 4
   completed_phases: 0
@@ -76,6 +76,30 @@ The three milestones do NOT share:
 - Phase numbering (v3.4 uses 19-22; Agentic-RAG-v1 uses `ar-N`; this uses `ir-N`)
 - Sibling planning files (this file vs `STATE.md` vs `STATE-Agentic-RAG-v1.md`)
 - Execute gates / blockers
+
+## Current Hermes Operational State (2026-05-07)
+
+Per user operational record at charter time. Source-of-truth is operator's
+view of the deployed Hermes box; this snapshot is what ir-1/ir-2/ir-3 deploys
+build on top of. Verify against `crontab -l` on Hermes before any deploy.
+
+| Cron job | State (2026-05-07) | Notes |
+|----------|--------------------|-------|
+| `daily-classify-kol` | **Permanently removed** | Retired per D-LF-1; classify is now an inline ingest stage, not a standalone cron. Foundation Quick 260507-lai's HERMES-DEPLOY runbook drove the removal. |
+| `daily-enrich` | **Permanently removed** | Off-scope dependency cleaned up alongside `daily-classify-kol`. |
+| `rss-classify` | **Permanently removed** | RSS-side classify cron retired in parallel with KOL classify; RSS will follow the same inline-Layer-1/Layer-2 pattern in Phase ir-4. |
+| `daily-ingest` | **Paused** | Will be re-enabled at end of Phase ir-1 / ir-2 deploys (per LF-4.1, LF-4.2). The "resume cron" step in `HERMES-DEPLOY.md` runbooks resumes from this paused state — not a first-time enable. |
+
+**Implication for HERMES-DEPLOY runbooks (ir-1/ir-2/ir-4):** the "resume cron"
+step assumes `daily-ingest` is currently paused. The runbook should `crontab -l`
+first to confirm pause state before resuming, and verify the cron command
+matches the current code (Foundation Quick may have edited the command shape
+during its own deploy).
+
+**Implication for Phase ir-3 observation:** ir-3 observes the cleaned-up cron
+environment — only `daily-ingest` runs. Zero contention from removed crons,
+but also zero pre-existing classify rows being written; all classify state lives
+inline on `articles.layer1_*` / `layer2_*` columns going forward.
 
 ## Hermes Deploy Protocol (operator scope)
 

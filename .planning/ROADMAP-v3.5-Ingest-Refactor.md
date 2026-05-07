@@ -232,9 +232,23 @@ No phase-internal parallelism is recommended; phases are strictly sequential.
 ## Open notes
 
 - **Foundation Quick 260507-lai status uncertainty:** at charter time (2026-05-07) the Foundation Quick PLAN exists at `.planning/quick/260507-lai-v3-5-foundation-bypass-classify-gate-wir/260507-lai-PLAN.md` but the placeholder code has not yet shipped to `main`. ir-1 plan-phase must (a) check `git log --oneline | grep 260507-lai` to confirm shipping status, (b) absorb V35-FOUND-01..04 if not shipped, (c) treat the existing PLAN as the contract for the placeholder shape regardless.
+  - **If absorb path is taken** (Foundation Quick not shipped): the ir-1 plan MUST sequence the work as **two task groups**:
+    1. **Group A — placeholder ship** (V35-FOUND-01..04): create `lib/article_filter.py` with `FilterResult` + always-pass `layer1_pre_filter` / `layer2_full_body_score`; add interface-contract unit tests; bypass `_classify_full_body` in `batch_ingest_from_spider.py`; rewrite `_build_topic_filter_query` to drop the `classifications` JOIN. Exact deliverables verbatim from `260507-lai-PLAN.md` § "must_haves.truths".
+    2. **Group B — Layer 1 real implementation** (LF-1.1..1.9 + LF-3.x): everything currently scoped in ir-1's success criteria.
+  - **Group B success criteria are unchanged** (they assume the placeholder interface exists — Group A guarantees that).
+  - **Group A success criteria are added on top**, lifted from `260507-lai-PLAN.md` § "must_haves.truths" verbatim:
+    - SC-A1: `lib/article_filter.py` exposes `FilterResult` dataclass + `layer1_pre_filter()` + `layer2_full_body_score()` placeholder functions (always-pass).
+    - SC-A2: `tests/unit/test_article_filter.py` — 7 contract tests pin placeholder interface; all GREEN.
+    - SC-A3: `batch_ingest_from_spider.py` ingest loop calls layer1 BEFORE scrape and layer2 AFTER scrape; no longer calls `_classify_full_body`.
+    - SC-A4: `_build_topic_filter_query` SELECT no longer joins `classifications` and no longer references `c.depth_score` / `c.topic`.
+    - SC-A5: `--min-depth` / `--topic-filter` CLI flags retained for back-compat (silently ignored).
+    - SC-A6: Dry-run smoke (`--dry-run --max-articles 1`) reaches layer1/layer2 placeholder code without crashing.
+    - SC-A7: HERMES-DEPLOY runbook (placeholder cutover scope only — Group B's LF-4.1 runbook is separate) exists.
+  - Group A → Group B is a hard sequence: Group B's LLM wiring assumes the placeholder shape from Group A is in place.
+  - **If Foundation Quick HAS shipped before ir-1 starts** (skip absorb path): Group A is fully delivered upstream; ir-1 plan only writes Group B tasks; ir-1 success criteria stay at the 9 items already listed.
 - **Parallel-track coordination with v3.4 (Phase 20-22) and Agentic-RAG-v1 (`ar-N`):** ir-1..ir-4 touch only `lib/article_filter.py`, `lib/llm_*.py` (read-only reuse), `batch_ingest_from_spider.py`, `rss_ingest.py` (ir-4), `migrations/`, `tests/unit/`, planning artifacts under `.planning/phases/ir-*`. Zero overlap with v3.4 Phases 20-22 or Agentic-RAG-v1 expected.
 - **No research stage:** Per spike validation already done (`.scratch/layer1-validation-20260507-151608.md`) and locked design (`.planning/PROJECT-v3.5-Ingest-Refactor.md`), `/gsd:plan-phase ir-N` should jump from spec → planning → execute. No `gsd-project-researcher` agents.
 
 ---
 *Roadmap created: 2026-05-07.*
-*Last updated: 2026-05-07 — initial draft chartered after CV mass-classify postmortem.*
+*Last updated: 2026-05-07 — Open notes expanded with Group A / Group B sequencing + SC-A1..SC-A7 increment for the absorb-Foundation-Quick path.*
