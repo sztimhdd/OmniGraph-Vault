@@ -136,6 +136,22 @@ closed; no further re-derivation).
 **Future milestone candidates**: see `.planning/MILESTONE_v3.5_CANDIDATES.md`
 (ingest pipeline simplification + operational hardening + agentic-rag-v1 enhancements).
 
+## Active Parallel Milestone: v3.5-Ingest-Refactor
+
+Initialized 2026-05-07 after CV mass-classify cron disaster (root cause analysis
+in Quick 260507-ent SUMMARY). Replaces independent classify pipeline with
+runtime-decision two-layer LLM filter.
+
+**Sibling planning files**:
+
+- `.planning/PROJECT-v3.5-Ingest-Refactor.md`
+- `.planning/REQUIREMENTS-v3.5-Ingest-Refactor.md`
+- `.planning/ROADMAP-v3.5-Ingest-Refactor.md`
+- `.planning/STATE-v3.5-Ingest-Refactor.md`
+
+**Cross-milestone contract**: KG-side ingest path changes only;
+Agentic-RAG-v1 (query side, `omnigraph_search.query.search()`) unchanged.
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
