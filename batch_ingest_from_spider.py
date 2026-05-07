@@ -60,7 +60,16 @@ from lib.batch_timeout import (
     clamp_article_timeout,
     get_remaining_budget,
 )
-from lib.article_filter import layer1_pre_filter, layer2_full_body_score
+from lib.article_filter import (
+    ArticleMeta,
+    ArticleWithBody,
+    FilterResult,
+    LAYER1_BATCH_SIZE,
+    PROMPT_VERSION_LAYER1,
+    layer1_pre_filter,
+    layer2_full_body_score,
+    persist_layer1_verdicts,
+)
 from lib.checkpoint import get_article_hash, has_stage
 
 PROJECT_ROOT = Path(__file__).parent
@@ -1294,34 +1303,33 @@ async def _graded_probe(
 def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     """Build the --from-db candidate SELECT as (sql, params).
 
-    v3.5 (260507-lai): the ``topics`` parameter is retained for API
-    compat but is NO LONGER used in the SQL. The ``classifications``
-    JOIN and ``c.depth_score`` / ``c.topic`` predicates were removed
-    when the v3.5 foundation moved candidate filtering out of the
-    SELECT and into ``lib.article_filter`` (Layer 1 pre-scrape +
-    Layer 2 post-scrape placeholders). The ingest loop now decides
-    pass/skip per-article instead of relying on classifier rows.
+    v3.5 ir-1 (LF-3.4): adds a Layer 1 verdict predicate. Rows are
+    candidates when:
+      - they are NOT in ingestions WHERE status='ok' (anti-join), AND
+      - (layer1_verdict IS NULL OR layer1_prompt_version IS NOT current)
+        — the OR clause re-evaluates rows under a bumped prompt_version
+        (LF-1.8 prompt-bump pattern).
+
+    The ``topics`` parameter is retained for --topic-filter / --min-depth
+    CLI back-compat (per Foundation Quick) but is NOT used in SQL;
+    Layer 1 LLM call replaces topic filtering. Returned params is a
+    1-tuple binding ``PROMPT_VERSION_LAYER1``.
 
     Preserved (non-negotiable):
       - Column ordering: id, title, url, account_name, body, digest
-        (note: ``c.depth_score`` removed; consumers must drop that slot
-        from their unpack)
+        (depth_score removed by Foundation Quick; consumers already adjusted)
       - ORDER BY a.id (FIFO ingest order)
-      - Anti-join against ingestions WHERE status='ok' so already-
-        ingested articles are not retried
-
-    The ``topics`` argument is silently accepted to avoid breaking
-    every call site at once; future quicks may drop the parameter
-    once the v3.5 ingest contract is fully cut over.
+      - Anti-join against ingestions WHERE status='ok'
     """
     sql = """
         SELECT a.id, a.title, a.url, acc.name, a.body, a.digest
         FROM articles a
         JOIN accounts acc ON a.account_id = acc.id
         WHERE a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
+          AND (a.layer1_verdict IS NULL OR a.layer1_prompt_version IS NOT ?)
         ORDER BY a.id
     """
-    return sql, ()
+    return sql, (PROMPT_VERSION_LAYER1,)
 
 
 async def ingest_from_db(
@@ -1387,6 +1395,80 @@ async def ingest_from_db(
 
     logger.info("%d articles to process (scrape-first) for topics %s", len(rows), topics)
 
+    # v3.5 ir-1 (LF-3.1): batch Layer 1 BEFORE scrape. Chunk candidate rows
+    # into LAYER1_BATCH_SIZE batches; each chunk: build ArticleMeta, call
+    # real Layer 1 LLM, persist verdicts atomically, write skipped
+    # ingestions for rejects, and accumulate candidates for the per-article
+    # loop below. Whole-batch failure (verdict=None for every result) leaves
+    # rows NULL — they will be re-evaluated on the next ingest tick.
+    chunks = [
+        rows[i:i + LAYER1_BATCH_SIZE]
+        for i in range(0, len(rows), LAYER1_BATCH_SIZE)
+    ]
+    candidate_rows: list = []
+    for chunk_idx, chunk in enumerate(chunks):
+        articles_meta = [
+            ArticleMeta(
+                id=row[0],
+                source="wechat",
+                title=row[1] or "",
+                summary=row[5] or None,  # row[5] = a.digest
+                content_length=None,     # WeChat: length unknown pre-scrape
+            )
+            for row in chunk
+        ]
+
+        t0 = time.monotonic()
+        layer1_results = await layer1_pre_filter(articles_meta)
+        wall_ms = int((time.monotonic() - t0) * 1000)
+
+        cand_count = sum(1 for r in layer1_results if r.verdict == "candidate")
+        rej_count = sum(1 for r in layer1_results if r.verdict == "reject")
+        null_count = sum(1 for r in layer1_results if r.verdict is None)
+
+        if null_count == len(layer1_results):
+            err_class = layer1_results[0].reason if layer1_results else "empty_batch"
+            logger.warning(
+                "[layer1] batch %d NULL reason=%s n=%d wall_ms=%d — rows stay NULL",
+                chunk_idx, err_class, len(chunk), wall_ms,
+            )
+            continue
+
+        logger.info(
+            "[layer1] batch %d n=%d candidate=%d reject=%d null=%d wall_ms=%d",
+            chunk_idx, len(chunk), cand_count, rej_count, null_count, wall_ms,
+        )
+
+        persist_layer1_verdicts(conn, articles_meta, layer1_results)
+
+        for row, result in zip(chunk, layer1_results):
+            if result.verdict == "reject":
+                logger.info(
+                    "[layer1] reject id=%s reason=%s",
+                    row[0], result.reason,
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO ingestions(article_id, status) "
+                    "VALUES (?, 'skipped')",
+                    (row[0],),
+                )
+            elif result.verdict == "candidate":
+                candidate_rows.append(row)
+        conn.commit()
+
+    if not candidate_rows:
+        logger.info(
+            "[layer1] no candidates after batch filtering "
+            "(total inputs=%d); nothing to ingest", len(rows),
+        )
+        conn.close()
+        return
+
+    logger.info(
+        "[layer1] total inputs=%d candidates=%d (per-article loop starts)",
+        len(rows), len(candidate_rows),
+    )
+
     # Phase 5-00b: initialize LightRAG ONCE; skip for dry-run.
     rag = None
     if not dry_run:
@@ -1409,9 +1491,11 @@ async def ingest_from_db(
     try:
         processed = 0
         api_key = get_deepseek_api_key()
-        # v3.5 (260507-lai): row tuple is (id, title, url, account_name, body, digest);
+        # v3.5 ir-1 (LF-3.1): iterate over candidate_rows (Layer 1 candidates only);
+        # rejects already wrote their skipped ingestions row above.
+        # Row tuple is (id, title, url, account_name, body, digest);
         # depth_score column dropped along with the classifications JOIN.
-        for i, (art_id, title, url, account, body, digest) in enumerate(rows, 1):
+        for i, (art_id, title, url, account, body, digest) in enumerate(candidate_rows, 1):
             # JN6-02: stop AFTER successfully-processed rows hit the cap.
             # Skips (no URL, checkpoint, classify, depth) don't count, so the
             # cap limits real ingest work — correct semantics for rate limiting.
@@ -1422,7 +1506,17 @@ async def ingest_from_db(
                 )
                 break
 
-            logger.info("[%d/%d] [%s] %s", i, len(rows), account, title)
+            logger.info("[%d/%d] [%s] %s", i, len(candidate_rows), account, title)
+
+            # v3.5 ir-1 (LF-3.6): dry-run short-circuits per-article work.
+            # Layer 1 already ran (cost intentional for filter-pipeline validation);
+            # scrape, Layer 2, ainsert, ingestions writes all skipped here.
+            if dry_run:
+                logger.info(
+                    "[dry-run] would-process candidate id=%d url=%s",
+                    art_id, url[:60] if url else "<no-url>",
+                )
+                continue
 
             if not url:
                 logger.warning("  Skipping — no URL")
@@ -1481,64 +1575,51 @@ async def ingest_from_db(
                     conn.commit()
                     continue
 
-            # v3.5 Layer 1 (260507-lai): cheap pre-scrape filter on
-            # title + summary/digest + content_length (placeholder always-pass).
-            # Replaces the broken D-10.01..04 _classify_full_body gate that
-            # caused the 2026-05-07 cron CV mass-classify disaster (commit
-            # c786a83 reverted in 428b16f). Real Layer 1 logic ships in a
-            # follow-up quick.
-            if not dry_run:
-                layer1 = layer1_pre_filter(
-                    title=title,
-                    summary=digest or "",  # WeChat digest is 200-char summary
-                    content_length=None,   # WeChat doesn't have length until scrape
-                )
-                if not layer1.passed:
-                    logger.info(
-                        "  layer1 reject id=%s reason=%s",
-                        art_id, layer1.reason,
+            # v3.5 ir-1 (LF-3.2): Layer 1 already ran at the chunk boundary
+            # above; this row is a candidate. Pre-scrape + persist body so
+            # the next batch run skips re-scraping (~75-90s/article saved)
+            # when downstream ingest fails. Mirrors the previous BODY-01
+            # pattern. Then call Layer 2 (placeholder always-pass; ir-2
+            # ships real DeepSeek call).
+            if not body:
+                try:
+                    from lib.scraper import scrape_url
+                    scraped = await scrape_url(url, site_hint="wechat")
+                    if scraped and not scraped.summary_only:
+                        persisted = _persist_scraped_body(conn, art_id, scraped)
+                        if persisted:
+                            body = persisted
+                except Exception as e:  # noqa: BLE001 -- never block main flow
+                    logger.warning(
+                        "v3.5 pre-layer2 scrape/persist failed for "
+                        "art_id=%s url=%s: %s", art_id, url[:80], e,
                     )
-                    conn.execute(
-                        "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
-                        (art_id,),
-                    )
-                    conn.commit()
-                    continue
 
-                # Pre-scrape + persist body so the next batch run skips
-                # re-scraping (~75-90s/article saved) when downstream
-                # ingest fails. Mirrors the previous BODY-01 pattern.
-                if not body:
-                    try:
-                        from lib.scraper import scrape_url
-                        scraped = await scrape_url(url, site_hint="wechat")
-                        if scraped and not scraped.summary_only:
-                            persisted = _persist_scraped_body(conn, art_id, scraped)
-                            if persisted:
-                                body = persisted
-                    except Exception as e:  # noqa: BLE001 -- never block main flow
-                        logger.warning(
-                            "v3.5 pre-layer2 scrape/persist failed for "
-                            "art_id=%s url=%s: %s", art_id, url[:80], e,
-                        )
-
-                # v3.5 Layer 2: full-body LLM scoring (placeholder always-pass).
-                layer2 = layer2_full_body_score(
-                    article_id=art_id,
+            # v3.5 ir-1 (LF-3.2 / LF-3.3): Layer 2 with new 3-field FilterResult
+            # shape. Placeholder returns verdict='candidate'; ir-2 will
+            # introduce 'ok' / 'reject' semantics. Reject → skip ainsert,
+            # write skipped ingestions row; reason logged at INFO (no
+            # ingestions.reason column per ir-1 scope).
+            layer2_results = layer2_full_body_score([
+                ArticleWithBody(
+                    id=art_id,
+                    source="wechat",
                     title=title,
                     body=body or "",
                 )
-                if not layer2.passed:
-                    logger.info(
-                        "  layer2 reject id=%s reason=%s",
-                        art_id, layer2.reason,
-                    )
-                    conn.execute(
-                        "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
-                        (art_id,),
-                    )
-                    conn.commit()
-                    continue
+            ])
+            layer2 = layer2_results[0]
+            if layer2.verdict == "reject":
+                logger.info(
+                    "  [layer2] reject id=%s reason=%s",
+                    art_id, layer2.reason,
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
+                    (art_id,),
+                )
+                conn.commit()
+                continue
 
             # Phase 17 BTIMEOUT-02: clamp per-article timeout to batch budget.
             remaining = get_remaining_budget(batch_start, total_batch_budget)
@@ -1573,7 +1654,7 @@ async def ingest_from_db(
             conn.commit()
 
             processed += 1
-            if not dry_run and processed < len(rows):
+            if not dry_run and processed < len(candidate_rows):
                 logger.info("  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...", SLEEP_BETWEEN_ARTICLES)
                 await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
 
@@ -1581,12 +1662,15 @@ async def ingest_from_db(
             if get_remaining_budget(batch_start, total_batch_budget) <= 0:
                 logger.warning(
                     "Batch budget exhausted (%ds elapsed >= %ds) — stopping loop; "
-                    "remaining %d article(s) will show as not_started in metrics.",
-                    int(time.time() - batch_start), total_batch_budget, len(rows) - i,
+                    "remaining %d candidate(s) will show as not_started in metrics.",
+                    int(time.time() - batch_start), total_batch_budget, len(candidate_rows) - i,
                 )
                 break
 
-        logger.info("Done — %d articles processed", len(rows))
+        logger.info(
+            "Done — %d candidates processed (of %d total inputs)",
+            processed, len(rows),
+        )
     finally:
         if rag is not None:
             # D-10.09: drain pending Vision worker tasks before flushing storages.
