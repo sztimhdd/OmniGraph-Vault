@@ -4,8 +4,8 @@ milestone: v3.5-Ingest-Refactor
 milestone_name: — Ingest 筛选重构(双层 LLM filter,替换 classify 架构)
 status: ready-for-execute
 stopped_at: "Charter 完工 2026-05-07,等 user 起 /gsd:autonomous v3.5-Ingest-Refactor"
-last_updated: "2026-05-07T19:01:43Z"
-last_activity: "2026-05-07 — charter shipped + 2 follow-on patches: ROADMAP Open notes expanded with Group A / Group B sequencing for Foundation-Quick-absorb path; STATE adds Current Hermes Operational State snapshot (4 crons)."
+last_updated: "2026-05-07T19:42:32Z"
+last_activity: "2026-05-07 — Foundation Quick 260507-lai deploy ✅ on Hermes; first v3.5 path execution scheduled 2026-05-08 09:00 ADT."
 progress:
   total_phases: 4
   completed_phases: 0
@@ -77,29 +77,42 @@ The three milestones do NOT share:
 - Sibling planning files (this file vs `STATE.md` vs `STATE-Agentic-RAG-v1.md`)
 - Execute gates / blockers
 
-## Current Hermes Operational State (2026-05-07)
+## Current Hermes Operational State (post-deploy 2026-05-07 ~16:35 ADT)
 
-Per user operational record at charter time. Source-of-truth is operator's
-view of the deployed Hermes box; this snapshot is what ir-1/ir-2/ir-3 deploys
-build on top of. Verify against `crontab -l` on Hermes before any deploy.
+Source-of-truth: `~/.hermes/cron/jobs.json` registry on the Hermes box. Verified
+post-deploy by operator after Foundation Quick 260507-lai HERMES-DEPLOY.md
+execution. Rollback artifact: `~/.hermes/cron/jobs.json.pre-v3.5-foundation.20260507-161555` (13 KB).
 
-| Cron job | State (2026-05-07) | Notes |
-|----------|--------------------|-------|
-| `daily-classify-kol` | **Permanently removed** | Retired per D-LF-1; classify is now an inline ingest stage, not a standalone cron. Foundation Quick 260507-lai's HERMES-DEPLOY runbook drove the removal. |
-| `daily-enrich` | **Permanently removed** | Off-scope dependency cleaned up alongside `daily-classify-kol`. |
-| `rss-classify` | **Permanently removed** | RSS-side classify cron retired in parallel with KOL classify; RSS will follow the same inline-Layer-1/Layer-2 pattern in Phase ir-4. |
-| `daily-ingest` | **Paused** | Will be re-enabled at end of Phase ir-1 / ir-2 deploys (per LF-4.1, LF-4.2). The "resume cron" step in `HERMES-DEPLOY.md` runbooks resumes from this paused state — not a first-time enable. |
+| Cron job (`job_id`) | State (post-deploy) |
+|---|---|
+| `daily-classify-kol` (`b50ec39b889f`) | **Permanently removed from jobs.json registry** by HERMES-DEPLOY.md execution 2026-05-07 ~16:35 ADT. Rollback artifact: `~/.hermes/cron/jobs.json.pre-v3.5-foundation.20260507-161555`. Retired per D-LF-1. |
+| `daily-enrich` (`fc768319e0c1`) | **Permanently removed from jobs.json registry** (same deploy event). Off-scope dependency cleaned up alongside `daily-classify-kol`. |
+| `rss-classify` (`c7ded378de8f`) | **Permanently removed from jobs.json registry** (same deploy event). RSS will get inline Layer 1/2 wiring in ir-4. |
+| `daily-ingest` (`2b7a8bee53e0`) | **Active**, prompt cleaned to `run batch_ingest_from_spider.py --from-db` (no-op flags `--topic-filter` / `--min-depth` removed), next run **2026-05-08 09:00 ADT** (first v3.5 path execution end-to-end). |
+| `每日KOL扫描` (`df7dc3fa0390`) | Active, daily 08:00 ADT — KOL scan, untouched by v3.5 deploy. |
+| `KOL扫描前健康检查` (`e7afccd9931b`) | Active, daily 07:55 ADT — pre-scan health check, untouched. |
+| `rss-fetch` (`29c3facf5023`) | Active, daily 06:00 ADT — RSS feed fetch, untouched. |
+| `daily-digest` (`43e85ec247e5`) | Active, daily 09:30 ADT — Telegram digest emission, untouched. |
+| `vertex-probe-monthly` (`d6421e78107a`) | Active, monthly — Vertex AI rate-limit canary, untouched. |
+| `batch-watchdog` (`9a917f7209eb`) | Disabled since 2026-05-03 00:04 ADT (pre-existing); untouched by v3.5 deploy; unrelated to v3.5 milestone. |
 
-**Implication for HERMES-DEPLOY runbooks (ir-1/ir-2/ir-4):** the "resume cron"
-step assumes `daily-ingest` is currently paused. The runbook should `crontab -l`
-first to confirm pause state before resuming, and verify the cron command
-matches the current code (Foundation Quick may have edited the command shape
-during its own deploy).
+**Total active jobs post-deploy: 6** (`daily-ingest` re-enabled + 5 untouched).
 
-**Implication for Phase ir-3 observation:** ir-3 observes the cleaned-up cron
-environment — only `daily-ingest` runs. Zero contention from removed crons,
-but also zero pre-existing classify rows being written; all classify state lives
-inline on `articles.layer1_*` / `layer2_*` columns going forward.
+**Implication for ir-1/ir-2/ir-4 HERMES-DEPLOY runbooks:** `daily-ingest` is
+now active. Subsequent migration deploys (006/007/008) must temporarily pause
+it before schema changes to avoid mid-batch column-mismatch races, then
+re-enable after migration verification + smoke. Pause/resume is Hermes
+CLI-driven; the cron command shape stays unchanged from the post-260507-lai
+cleanup (`run batch_ingest_from_spider.py --from-db`).
+
+**Implication for Phase ir-3 observation:** the 7-day window observes
+`daily-ingest` running alongside 5 still-active crons. `每日KOL扫描` + `rss-fetch`
+continue to populate `articles` / `rss_articles`; `daily-digest` consumes the
+previous day's `daily-ingest` output. **Zero crons write `classifications` rows
+anymore** — all filter state lives inline on `articles.layer1_* / layer2_*`
+columns. First-run backlog implication still applies per ROADMAP § ir-1 Notes
+(2026-05-08 09:00 ADT first run will see post-charter accumulation since
+2026-05-07 ~14:33 ADT).
 
 ## Hermes Deploy Protocol (operator scope)
 
