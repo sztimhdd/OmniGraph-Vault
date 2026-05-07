@@ -84,6 +84,11 @@ splits between LF-1 and LF-3 wiring (which are tightly coupled).
 - LF-3.2, LF-3.3 (Layer 2 wiring) are deferred to ir-2 — ir-1 ships Layer 1 and leaves the Layer 2 placeholder still in place. Articles passing Layer 1 still pass through the placeholder Layer 2 (always-pass) and reach LightRAG; this is intentional, gives a half-step rollout.
 - LF-1.6 migration 006 must precede first LF-1 unit test run; CI / local dev must apply 006 before pytest.
 - Foundation Quick 260507-lai's `_build_topic_filter_query` rewrite (V35-FOUND-03 in its PLAN) already drops the classifications JOIN; ir-1 only needs to add the `layer1_verdict IS NULL` predicate.
+- **Backlog warning — first cron resume after ir-1 deploy will hit a larger-than-normal candidate pool.** Verified 2026-05-07 via read-only SSH against `~/.hermes/cron/jobs.json`:
+  - **Paused** (today 14:03–14:33 ADT, `enabled=false`, jobs still in registry — not removed): `daily-classify-kol`, `daily-enrich`, `rss-classify`, `daily-ingest`. Resume is a one-shot Hermes CLI flip (no recreate).
+  - **Still scheduled and active** (continuing to produce data while the ingest pipeline is paused): `每日KOL扫描` (08:00 ADT daily, hits `articles` table), `KOL扫描前健康检查` (07:55 ADT daily), `rss-fetch` (06:00 ADT daily, hits `rss_articles` table), `daily-digest` (09:30 ADT daily — emits empty Telegram digest while `daily-ingest` is paused; expected, ignore).
+  - **Implication for ir-1 deploy:** between v3.5 charter (2026-05-07 ~14:33 ADT) and ir-1 deploy day, KOL扫描 + rss-fetch will keep adding rows. The first cron run of resumed `daily-ingest` post-ir-1 will see `layer1_verdict IS NULL` on the entire backlog, not just one day's articles. Layer 1 batch count on day 1 will be `ceil(backlog_size / 30)` — at ~30–50 new articles/day across both sources, expect 5–15 batches × 8s wall-clock + Gemini Flash Lite quota cost on day 1, vs ~2–3 batches in steady state. ir-1 HERMES-DEPLOY.md should warn the operator about this and budget extra wall-clock for the first cron run.
+  - **Implication for STATE doc accuracy:** the current STATE-v3.5 § "Current Hermes Operational State" describes the 3 paused crons as "Permanently removed" — that's a documentation drift. STATE patch is deferred until ir-1 Hermes deploy completes (one-shot patch with verified ground truth, per user direction).
 
 ---
 
@@ -251,4 +256,4 @@ No phase-internal parallelism is recommended; phases are strictly sequential.
 
 ---
 *Roadmap created: 2026-05-07.*
-*Last updated: 2026-05-07 — Open notes expanded with Group A / Group B sequencing + SC-A1..SC-A7 increment for the absorb-Foundation-Quick path.*
+*Last updated: 2026-05-07 — ir-1 Notes add backlog warning derived from SSH-verified Hermes cron registry (4 paused, 4 still active); STATE patch deferred to post-ir-1-deploy.*
