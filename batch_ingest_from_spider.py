@@ -1480,6 +1480,14 @@ async def ingest_from_db(
         # from a prior crashed run → no replay → no wasted embed quota.
         logger.info("Initializing fresh LightRAG instance (flush=True; STATE-01)...")
         rag = await get_rag(flush=True)
+        # v3.5 ir-2 hotfix: LightRAG get_rag() reconfigures root logger;
+        # restore our format so [layer2] batch lines are visible.
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s %(levelname)s %(name)s %(message)s',
+            datefmt='%H:%M:%S',
+            force=True,
+        )
 
     # Phase 17 BTIMEOUT-01: batch-budget state
     total_batch_budget = _resolve_batch_timeout(batch_timeout)
