@@ -136,6 +136,7 @@ def test_default_env_vars_documented() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
     expected_defaults = [
         "NODE_EXTRA_CA_CERTS",
+        "REQUESTS_CA_BUNDLE",
         "GOOGLE_APPLICATION_CREDENTIALS",
         "OMNIGRAPH_LLM_PROVIDER",
         "OMNIGRAPH_LLM_MODEL",

@@ -14,7 +14,11 @@
 #   help                                  — print usage + exit 0
 #
 # Env vars (defaults set, can override via existing env):
-#   NODE_EXTRA_CA_CERTS  — ~/.claude/certs/combined-ca-bundle.pem (Cisco Umbrella TLS)
+#   NODE_EXTRA_CA_CERTS  — ~/.claude/certs/combined-ca-bundle.pem (Node.js TLS)
+#   REQUESTS_CA_BUNDLE   — same path (Python `requests` / urllib3 don't read
+#                          NODE_EXTRA_CA_CERTS; without this, UA scrape on
+#                          public HTTPS sites fails SSL → cascade falls to
+#                          paid Apify, wasting quota)
 #   GOOGLE_APPLICATION_CREDENTIALS — $(pwd)/.dev-runtime/gcp-paid-sa.json
 #   OMNIGRAPH_LLM_PROVIDER         — vertex_gemini (corp blocks DeepSeek)
 #   OMNIGRAPH_LLM_MODEL            — gemini-3.1-flash-lite-preview
@@ -52,6 +56,7 @@ set -euo pipefail
 
 # Defaults — override via existing env (the ${VAR:-default} pattern)
 export NODE_EXTRA_CA_CERTS="${NODE_EXTRA_CA_CERTS:-${HOME}/.claude/certs/combined-ca-bundle.pem}"
+export REQUESTS_CA_BUNDLE="${REQUESTS_CA_BUNDLE:-${NODE_EXTRA_CA_CERTS}}"
 export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS:-$(pwd)/.dev-runtime/gcp-paid-sa.json}"
 export OMNIGRAPH_LLM_PROVIDER="${OMNIGRAPH_LLM_PROVIDER:-vertex_gemini}"
 export OMNIGRAPH_LLM_MODEL="${OMNIGRAPH_LLM_MODEL:-gemini-3.1-flash-lite-preview}"
