@@ -109,6 +109,10 @@ def _is_mcp_endpoint(url: str) -> bool:
     return bool(url) and url.rstrip("/").endswith("/mcp")
 # Phase 7: GEMINI_API_KEY now accessed via lib.current_key() — supports rotation
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
+# Quick 260508-ev2 F1a: Apify dual-token rotation. Backup token used only if
+# the primary raises (analogous to GEMINI_API_KEY_BACKUP). Module-level constant
+# so unittest.mock can patch it; reading at call-time is intentional.
+APIFY_TOKEN_BACKUP = os.environ.get("APIFY_TOKEN_BACKUP")
 
 DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH", str(Path(__file__).parent / "data" / "kol_scan.db")))
 
@@ -544,42 +548,85 @@ async def scrape_wechat_ua(url: str):
         return None
 
 
+async def _apify_call(token: str, url: str) -> "dict | None":
+    """Single Apify actor invocation with the given token.
+
+    Quick 260508-ev2 F1a: extracted from scrape_wechat_apify so primary →
+    backup rotation can wrap two calls with one shared body. Raises on actor /
+    network errors so the caller can decide whether to cascade to the backup
+    token. Returns the dict result on success, ``None`` only when the actor
+    runs successfully but yields zero items.
+    """
+    client = ApifyClient(token)
+    run_input = {
+        "startUrls": [{"url": url}],
+        "crawlerConfig": {
+            "magic": True,
+            "wait_until": "domcontentloaded",
+            "simulate_user": True,
+        },
+    }
+    # 增加 ingestion 超时时间，并在中间步骤添加打印以跟踪进度
+    print(f"Starting Apify actor for {url}...")
+    loop = asyncio.get_event_loop()
+    # 使用较长的 timeout
+    future = loop.run_in_executor(
+        None, lambda: client.actor("zOQWQaziNeBNFWN1O").call(run_input=run_input)
+    )
+    run = await asyncio.wait_for(future, timeout=300)
+    print("Apify run finished.")
+
+    results = [item for item in client.dataset(run["defaultDatasetId"]).iterate_items()]
+    if results:
+        item = results[0]
+        return {
+            "title": item.get("title", ""),
+            "markdown": item.get("markdown", item.get("data", "")),
+            "publish_time": item.get("publish_time", ""),
+            "url": url,
+            "method": "apify",
+        }
+    return None
+
+
 async def scrape_wechat_apify(url):
-    """Try scraping with Apify WeChat actor."""
-    if not APIFY_TOKEN:
+    """Try scraping with Apify WeChat actor.
+
+    Quick 260508-ev2 F1a: dual-token rotation. Tries APIFY_TOKEN first; on any
+    Exception falls through to APIFY_TOKEN_BACKUP. If both raise, re-raises the
+    LAST exception (preserves stack trace for the caller's circuit-break logic).
+    Both tokens unset preserves the legacy "skip Apify" path (returns None
+    silently). One token set + that one raises → returns None (legacy single-
+    token behavior — no fallback target available).
+    """
+    primary = APIFY_TOKEN
+    backup = APIFY_TOKEN_BACKUP
+    if not primary and not backup:
         print("Apify Token not found, skipping Apify.")
         return None
-        
-    try:
-        client = ApifyClient(APIFY_TOKEN)
-        run_input = {
-            "startUrls": [{"url": url}],
-            "crawlerConfig": {
-                "magic": True,
-                "wait_until": "domcontentloaded",
-                "simulate_user": True,
-            }
-        }
-        # 增加 ingestion 超时时间，并在中间步骤添加打印以跟踪进度
-        print(f"Starting Apify actor for {url}...")
-        loop = asyncio.get_event_loop()
-        # 使用较长的 timeout
-        future = loop.run_in_executor(None, lambda: client.actor("zOQWQaziNeBNFWN1O").call(run_input=run_input))
-        run = await asyncio.wait_for(future, timeout=300)
-        print("Apify run finished.")
-        
-        results = [item for item in client.dataset(run["defaultDatasetId"]).iterate_items()]
-        if results:
-            item = results[0]
-            return {
-                "title": item.get("title", ""),
-                "markdown": item.get("markdown", item.get("data", "")),
-                "publish_time": item.get("publish_time", ""),
-                "url": url,
-                "method": "apify"
-            }
-    except Exception as e:
-        print(f"Apify scraping failed: {e}")
+
+    last_exc: "Exception | None" = None
+    if primary:
+        try:
+            return await _apify_call(primary, url)
+        except Exception as e:  # noqa: BLE001 — cascade on any error
+            print(f"Apify scraping failed (primary): {e}")
+            last_exc = e
+            if not backup:
+                # Single-token legacy behavior: swallow and return None.
+                return None
+
+    if backup:
+        try:
+            return await _apify_call(backup, url)
+        except Exception as e:  # noqa: BLE001 — cascade on any error
+            print(f"Apify scraping failed (backup): {e}")
+            last_exc = e
+
+    # Both tokens tried and the last attempt raised — re-raise so the upstream
+    # cascade (lib/scraper.py / ingest_wechat orchestrator) records the failure.
+    if last_exc is not None:
+        raise last_exc
     return None
 
 async def scrape_wechat_mcp(url):
