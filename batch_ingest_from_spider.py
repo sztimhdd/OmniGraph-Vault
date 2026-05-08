@@ -1601,16 +1601,23 @@ async def ingest_from_db(
                     continue
 
                 # Verdict is 'ok' (or future non-reject value) → proceed to ainsert.
-                # Phase 17 BTIMEOUT-02: clamp per-article timeout to batch budget.
+                # Phase 17 BTIMEOUT-02 + 2026-05-08 fix: per-article timeout
+                # must scale with body length. Pre-fix: hardcoded
+                # _SINGLE_CHUNK_FLOOR_S=900s caused all 3 large articles (50
+                # chunks / 16 images) in Hermes manual smoke to timeout. Now
+                # uses _compute_article_budget_s which returns
+                # max(120 + 30*chunk_count, 900): 50-chunk article gets ~1620s
+                # budget, single-chunk article still gets the 900s floor.
+                article_budget = _compute_article_budget_s(body or "")
                 remaining = get_remaining_budget(batch_start, total_batch_budget)
                 effective_timeout = clamp_article_timeout(
-                    _SINGLE_CHUNK_FLOOR_S, remaining, BATCH_SAFETY_MARGIN_S
+                    article_budget, remaining, BATCH_SAFETY_MARGIN_S
                 )
-                if effective_timeout < _SINGLE_CHUNK_FLOOR_S:
+                if effective_timeout < article_budget:
                     clamped_count += 1
                     logger.info(
-                        "  Clamped article timeout: %ds (remaining=%.0fs, margin=%ds)",
-                        effective_timeout, remaining, BATCH_SAFETY_MARGIN_S,
+                        "  Clamped article timeout: %ds (article_budget=%ds remaining=%.0fs margin=%ds)",
+                        effective_timeout, article_budget, remaining, BATCH_SAFETY_MARGIN_S,
                     )
                 if remaining - BATCH_SAFETY_MARGIN_S <= 0:
                     safety_margin_triggered = True

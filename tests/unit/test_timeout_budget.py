@@ -48,3 +48,50 @@ def test_chunk_count_is_floored_at_1() -> None:
     """Content shorter than chunk_size still counts as 1 chunk."""
     # 1 char -> chunk_count = max(1, 0) = 1 -> 150 budget -> floor 900.
     assert _budget("x") == 900
+
+
+def test_drain_layer2_queue_call_site_uses_dynamic_budget() -> None:
+    """2026-05-08 regression: per-article timeout in _drain_layer2_queue
+    MUST compute budget from body length, not hardcode _SINGLE_CHUNK_FLOOR_S.
+
+    Pre-fix:
+        effective_timeout = clamp_article_timeout(
+            _SINGLE_CHUNK_FLOOR_S, remaining, BATCH_SAFETY_MARGIN_S
+        )
+    → 50-chunk articles (~1620s real need) all hit 900s timeout.
+
+    Post-fix:
+        article_budget = _compute_article_budget_s(body or "")
+        effective_timeout = clamp_article_timeout(
+            article_budget, remaining, BATCH_SAFETY_MARGIN_S
+        )
+    """
+    from pathlib import Path
+    src = Path(__file__).resolve().parent.parent.parent / "batch_ingest_from_spider.py"
+    content = src.read_text(encoding="utf-8")
+
+    # Locate _drain_layer2_queue body
+    drain_marker = "async def _drain_layer2_queue"
+    drain_start = content.index(drain_marker)
+    # End at the for-loop that starts the candidate iteration
+    drain_end = content.index("# v3.5 ir-1 (LF-3.1): iterate over candidate_rows", drain_start)
+    drain_body = content[drain_start:drain_end]
+
+    # Must call _compute_article_budget_s on the body
+    assert "_compute_article_budget_s(body" in drain_body, (
+        "_drain_layer2_queue must compute article budget from body length. "
+        "Without this, large articles (50+ chunks) timeout at hardcoded 900s. "
+        "See 2026-05-08 Hermes manual smoke (3/3 large articles failed)."
+    )
+
+    # Must NOT pass _SINGLE_CHUNK_FLOOR_S literal as the timeout arg to
+    # clamp_article_timeout (the bug we just fixed). The constant may still
+    # appear elsewhere as the formula's floor — that's fine.
+    # Specifically check the clamp_article_timeout call uses article_budget.
+    clamp_call_idx = drain_body.index("clamp_article_timeout(")
+    # Read the next ~100 chars after the call opening
+    clamp_call_snippet = drain_body[clamp_call_idx:clamp_call_idx + 200]
+    assert "article_budget" in clamp_call_snippet, (
+        "clamp_article_timeout in _drain_layer2_queue must receive "
+        "article_budget (dynamic), not _SINGLE_CHUNK_FLOOR_S (hardcoded 900s)."
+    )
