@@ -113,6 +113,15 @@ No pytest framework, no linting, no CI configured yet. Tests are manual verifica
 
 ### Local E2E testing (Cisco Umbrella corp network aware)
 
+> ⚠️ **CRITICAL — local harness is NOT a full e2e validator.** Corp network blocks DeepSeek (`api.deepseek.com`) and SiliconFlow unconditionally. These providers are required by:
+>
+> - `enrichment/rss_classify.py` (writes `rss_articles.depth` — RSS pipeline's stage ④ hard gate; without it, stage ② skips immediately)
+> - LightRAG entity extraction inside `rss_ingest.py:367` + `ingest_wechat.py` ainsert path (hardcoded `deepseek_model_complete`)
+> - Layer 2 (`lib/article_filter.layer2_full_body_score`) — `deepseek-chat` per LF-2.3 contract
+> - Vision cascade primary (SiliconFlow Qwen3-VL); cascade falls through to Gemini Vision (Vertex AI ✅)
+>
+> **Full happy-path validation only happens on Hermes** (production deploy + cron firing). The local harness is for: single-stage smoke (`layer1 N`, `wechat <url>`), dry-run dispatch verification, env validation, stuck-doc cleanup. **Do NOT plan local tasks that traverse stages ② → ⑥** — they will block at stage ④ (depth gate) or stage ⑥ (LightRAG entity extraction). 2026-05-08 RSS smoke ran 1/5 stages real (Apify scrape only); the other 4 were either gate-skipped or structurally unreachable. See `.scratch/rss-e2e-local-20260508-151955.md` for the audit.
+
 **`scripts/local_e2e.sh`** — single-entry harness for local end-to-end testing.
 Auto-configures all corp-network env vars (TLS CA bundle, Vertex SA, `OMNIGRAPH_BASE_DIR`, scrape cascade) and dispatches to the target script via a mode arg. **Use this for any local smoke / e2e / spike — do NOT manually export env vars.**
 
