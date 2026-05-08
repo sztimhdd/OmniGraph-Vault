@@ -138,6 +138,7 @@ def test_default_env_vars_documented() -> None:
         "NODE_EXTRA_CA_CERTS",
         "REQUESTS_CA_BUNDLE",
         "GOOGLE_APPLICATION_CREDENTIALS",
+        "GOOGLE_CLOUD_PROJECT",
         "OMNIGRAPH_LLM_PROVIDER",
         "OMNIGRAPH_LLM_MODEL",
         "OMNIGRAPH_BASE_DIR",

@@ -20,6 +20,9 @@
 #                          public HTTPS sites fails SSL → cascade falls to
 #                          paid Apify, wasting quota)
 #   GOOGLE_APPLICATION_CREDENTIALS — $(pwd)/.dev-runtime/gcp-paid-sa.json
+#   GOOGLE_CLOUD_PROJECT           — read from SA JSON (Vision Vertex fallback at
+#                                    image_pipeline.py:319-320 needs this; without
+#                                    it Vision falls to dev-API, not Vertex)
 #   OMNIGRAPH_LLM_PROVIDER         — vertex_gemini (corp blocks DeepSeek)
 #   OMNIGRAPH_LLM_MODEL            — gemini-3.1-flash-lite-preview
 #   OMNIGRAPH_BASE_DIR             — $(pwd)/.dev-runtime
@@ -58,6 +61,12 @@ set -euo pipefail
 export NODE_EXTRA_CA_CERTS="${NODE_EXTRA_CA_CERTS:-${HOME}/.claude/certs/combined-ca-bundle.pem}"
 export REQUESTS_CA_BUNDLE="${REQUESTS_CA_BUNDLE:-${NODE_EXTRA_CA_CERTS}}"
 export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS:-$(pwd)/.dev-runtime/gcp-paid-sa.json}"
+# GOOGLE_CLOUD_PROJECT: parse from SA JSON if unset (image_pipeline.py:319-320 Vision
+# Vertex fallback needs this). Uses python because jq may not be installed on Windows.
+if [[ -z "${GOOGLE_CLOUD_PROJECT:-}" ]] && [[ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
+  GOOGLE_CLOUD_PROJECT=$(python -c "import json; print(json.load(open(r'$GOOGLE_APPLICATION_CREDENTIALS'))['project_id'])" 2>/dev/null || true)
+fi
+export GOOGLE_CLOUD_PROJECT="${GOOGLE_CLOUD_PROJECT:-}"
 export OMNIGRAPH_LLM_PROVIDER="${OMNIGRAPH_LLM_PROVIDER:-vertex_gemini}"
 export OMNIGRAPH_LLM_MODEL="${OMNIGRAPH_LLM_MODEL:-gemini-3.1-flash-lite-preview}"
 export OMNIGRAPH_BASE_DIR="${OMNIGRAPH_BASE_DIR:-$(pwd)/.dev-runtime}"
