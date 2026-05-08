@@ -27,12 +27,16 @@
 #   DEEPSEEK_API_KEY               — dummy (Phase 5 cross-coupling defense)
 #   SCRAPE_CASCADE                 — ua,apify (free first)
 #
-# Known caveats:
-#   - .dev-runtime/gcp-paid-sa.json LACKS aiplatform.endpoints.predict permission;
-#     Vertex Gemini calls 403 → LF-1.5 graceful failure path. Happy-path validation
-#     runs on Hermes deploy.
-#   - DEEPSEEK_API_KEY=dummy 是 import-time defense,任何真 DeepSeek call 会失败 —
-#     这是预期(corp network 不可达 api.deepseek.com)。
+# Known caveats (verified 2026-05-08; full table in CLAUDE.md § Local E2E testing):
+#   - Vertex AI Gemini (embedding + LLM): ✅ reachable from corp network with this SA.
+#     Earlier "SA lacks aiplatform.endpoints.predict" claim was stale — both gemini-
+#     embedding-2 (global) and gemini-3.1-flash-lite-preview (global) live-probed OK.
+#   - DeepSeek (api.deepseek.com): ❌ blocked by corp. Any real DeepSeek call fails.
+#     DEEPSEEK_API_KEY=dummy is import-time defense for lib/__init__.py:35 — does
+#     NOT make calls succeed. Affects: enrichment/rss_classify.py, enrichment/
+#     rss_ingest.py, LightRAG entity extraction. Hermes-only happy path.
+#   - SiliconFlow / OpenRouter (Vision): ❌ blocked by corp. Vision cascade falls
+#     through to Gemini Vision (Vertex) which IS reachable.
 #
 # Output:
 #   .scratch/local-e2e-<mode>-<YYYYMMDD-HHMMSS>.log (all stdout+stderr)

@@ -125,10 +125,24 @@ Auto-configures all corp-network env vars (TLS CA bundle, Vertex SA, `OMNIGRAPH_
 
 Output goes to `.scratch/local-e2e-<mode>-<ts>.log` (gitignored). Existing env vars are honored via `${VAR:-default}` — set them in your shell to override any default.
 
-Known constraints (handled by the script — these are expected, not bugs):
+Known limitations (corp network reachability — verified 2026-05-08):
 
-- `.dev-runtime/gcp-paid-sa.json` lacks `aiplatform.endpoints.predict`, so any Vertex Gemini call in local mode 403s into the LF-1.5 graceful-failure path. Happy-path validation runs on Hermes deploy.
-- `DEEPSEEK_API_KEY=dummy` is an import-time defense against the Phase 5 cross-coupling bug. Corp network blocks `api.deepseek.com`, so any real DeepSeek call will fail — this is expected.
+| Provider | Status | Affects |
+|---|---|---|
+| Vertex AI Gemini (embedding + LLM) | ✅ Reachable | Layer 1 (`lib/article_filter.py`), Vertex LLM smoke via `OMNIGRAPH_LLM_PROVIDER=vertex_gemini` |
+| DeepSeek API (`api.deepseek.com`) | ❌ Blocked by corp | Layer 2, LightRAG entity extraction, legacy `enrichment/rss_classify.py` + `enrichment/rss_ingest.py` |
+| SiliconFlow (Qwen3-VL primary) | ❌ Blocked by corp | Vision cascade primary; cascade falls to Gemini Vision (Vertex AI) |
+| OpenRouter (Vision fallback) | ❓ Untested locally | Vision cascade secondary |
+| Apify | ✅ Reachable (with valid token) | Scrape cascade tier 2 |
+| UA scrape | ✅ Reachable | Scrape cascade tier 1 |
+
+**Implication**: full v3.5 e2e (Layer 1 → scrape → Layer 2 → ainsert → vision) is **NOT possible 100% locally** as of 2026-05-08 — each stage has a different reachability profile. Use individual mode runs (`layer1 N`, `wechat <url>`) for stages that work, and rely on Hermes deploy for stages that need DeepSeek / SiliconFlow.
+
+**Legacy script note**: `enrichment/rss_classify.py:129` and `enrichment/rss_ingest.py:367` both hardcode DeepSeek and bypass the `lib/llm_complete.py` dispatcher — `OMNIGRAPH_LLM_PROVIDER=vertex_gemini` has no effect on either. They will be retired in ir-4 (see `docs/research/rss-flow-as-of-260508.md`); post-ir-4, RSS will route through `batch_ingest_from_spider.py` + `lib/article_filter.py`. Layer 2 will still need DeepSeek (corp-blocked → Hermes-only), so RSS local e2e parity with KOL is bottlenecked on DeepSeek reachability regardless of ir-4. Realistic local-test scope: Layer 1 (Vertex), scrape (UA + Apify), individual stage smokes.
+
+**Stage-02 gate**: `.dev-runtime/data/kol_scan.db` rows with `rss_articles.depth IS NULL` will skip stage 02 in `enrichment/rss_ingest.py` regardless of body presence (legacy gate at `enrichment/rss_ingest.py:228-230`). To exercise stages 03+ locally, manually set `depth >= 2` on a fixture row, or run `enrichment/rss_classify.py` first (will fail without DeepSeek reachability).
+
+`DEEPSEEK_API_KEY=dummy` is the import-time defense against the Phase 5 cross-coupling bug at `lib/__init__.py:35` — prevents module import from failing. Any real DeepSeek call still fails, as expected.
 
 **For new local tests:** read `scripts/local_e2e.sh help` first. If an existing mode covers the target script, use it; if not, add a new `case)` branch — do not reinvent env setup.
 
