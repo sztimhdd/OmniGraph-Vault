@@ -68,6 +68,10 @@ OmniGraph-Vault is a personal knowledge base for **OpenClaw** and **Hermes Agent
 
 ## Common Commands
 
+> **For local testing / validation / smoke runs, ALWAYS use `scripts/local_e2e.sh`** (see "Local E2E testing" section below). The corp network has reachability constraints (DeepSeek + SiliconFlow blocked, Cisco Umbrella TLS interception) that the harness handles via auto-configured env vars. Manual `python` invocations bypass that handling and will fail or hit the wrong DB / quota.
+>
+> Available modes: `rss` / `kol` / `wechat <url>` / `layer1 N` / `layer2 N` / `cleanup` / `help`. The raw commands listed in this section are reference-only — for any new local invocation prefer the harness mode.
+
 ```bash
 # Setup
 python -m venv venv && source venv/bin/activate   # Linux/macOS

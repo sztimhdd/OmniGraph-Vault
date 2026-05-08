@@ -40,6 +40,13 @@
 #
 # Output:
 #   .scratch/local-e2e-<mode>-<YYYYMMDD-HHMMSS>.log (all stdout+stderr)
+#
+# Mode validation status (as of 2026-05-08):
+#   rss / kol / wechat / cleanup / help — exercised end-to-end via dispatch + smoke
+#   layer1 / layer2                     — mode dispatch + help paths verified, but
+#                                         inline python -c snippets NOT yet run e2e.
+#                                         First production use of these modes will
+#                                         surface any SQL / import issues; report back.
 
 set -euo pipefail
 
