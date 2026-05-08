@@ -88,7 +88,8 @@ from spiders.wechat_spider import RATE_LIMIT_SLEEP_ACCOUNTS, RATE_LIMIT_COOLDOWN
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
+    format='%(asctime)s %(levelname)s %(name)s %(message)s',
+    force=True,  # v3.5 ir-2 hotfix: prevent LightRAG get_rag() from swallowing [layer2] output
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
