@@ -980,13 +980,14 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
                     article_data = None
 
         # 3. CDP fallback (last resort)
+        # Cascade order ua → apify → cdp/mcp (cdp branch listed first; mcp via _is_mcp_endpoint check)
         if not article_data:
-            if _is_mcp_endpoint(CDP_URL):
-                print("UA & Apify failed. Falling back to remote Playwright MCP...")
-                article_data = await scrape_wechat_mcp(url)
-            else:
+            if not _is_mcp_endpoint(CDP_URL):
                 print("UA & Apify failed. Falling back to local CDP...")
                 article_data = await scrape_wechat_cdp(url)
+            else:
+                print("UA & Apify failed. Falling back to remote Playwright MCP...")
+                article_data = await scrape_wechat_mcp(url)
 
         if not article_data:
             print("Scraping failed (both Apify and browser fallback).")

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Optional
 from urllib.parse import urlparse
@@ -154,19 +155,76 @@ async def _fetch_with_backoff_on_429(
 
 # --- SCR-02 WeChat delegate ---------------------------------------------
 
+# Quick 260508-ev2 F1b: token → ingest_wechat function name mapping for
+# SCRAPE_CASCADE env-var override. Tokens are short / lowercase / readable in
+# crontab files (no need to type the scrape_wechat_ prefix).
+_CASCADE_TOKEN_MAP: dict[str, str] = {
+    "ua": "scrape_wechat_ua",
+    "apify": "scrape_wechat_apify",
+    "cdp": "scrape_wechat_cdp",
+    "mcp": "scrape_wechat_mcp",
+}
+
+# Default cascade order — UA first because the 2026-05-08 cron failure
+# (docs/bugreports/2026-05-08-cron-ingest-failure.md R1) showed UA was the
+# only path actually succeeding (5/5 articles), while Apify/CDP/MCP combined
+# wasted ~600s of the 900s budget on hard-fail loops. UA-first preserves all
+# four layers as fallbacks for sites where UA fails (e.g. login walls).
+_DEFAULT_CASCADE_ORDER: tuple[str, ...] = (
+    "scrape_wechat_ua",
+    "scrape_wechat_apify",
+    "scrape_wechat_cdp",
+    "scrape_wechat_mcp",
+)
+
+
+def _resolve_cascade_order() -> tuple[str, ...]:
+    """Resolve cascade order from SCRAPE_CASCADE env var.
+
+    Reads `SCRAPE_CASCADE` as a comma-separated list of tokens drawn from
+    {ua, apify, cdp, mcp}. Whitespace around tokens is stripped. Unknown
+    tokens (or an empty list after parsing) trigger a logger.warning and
+    fall back to the default order. Unset/empty env → default order.
+    """
+    raw = os.environ.get("SCRAPE_CASCADE")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_CASCADE_ORDER
+    tokens = [t.strip().lower() for t in raw.split(",") if t.strip()]
+    resolved: list[str] = []
+    for tok in tokens:
+        fn_name = _CASCADE_TOKEN_MAP.get(tok)
+        if fn_name is None:
+            logger.warning(
+                "scraper: invalid SCRAPE_CASCADE=%r — falling back to default",
+                raw,
+            )
+            return _DEFAULT_CASCADE_ORDER
+        resolved.append(fn_name)
+    if not resolved:
+        logger.warning(
+            "scraper: invalid SCRAPE_CASCADE=%r — falling back to default",
+            raw,
+        )
+        return _DEFAULT_CASCADE_ORDER
+    return tuple(resolved)
+
+
 async def _scrape_wechat(url: str) -> ScrapeResult:
     """Delegate to the existing ingest_wechat cascade.
 
-    Order: apify → cdp → mcp → ua. First non-None result wins.
+    Default order: ua → apify → cdp → mcp. First non-None result wins.
+    Override via SCRAPE_CASCADE env var (comma-separated subset of
+    {ua, apify, cdp, mcp}). Invalid/empty env → default order with a warning.
+
     content_html is preserved so batch_ingest_from_spider.py:940 consumer
     can call ingest_wechat.process_content on it downstream.
 
-    If all four layers return None, returns summary_only=True fallback.
+    If all configured layers return None, returns summary_only=True fallback.
     """
     import ingest_wechat
 
-    for fn_name in ("scrape_wechat_apify", "scrape_wechat_cdp",
-                    "scrape_wechat_mcp", "scrape_wechat_ua"):
+    cascade_order = _resolve_cascade_order()
+    for fn_name in cascade_order:
         fn = getattr(ingest_wechat, fn_name, None)
         if fn is None:
             continue
@@ -211,8 +269,10 @@ async def _scrape_wechat(url: str) -> ScrapeResult:
             summary_only=False,
             content_html=content_html,
         )
-    logger.warning("scraper: all 4 wechat layers returned None for %s",
-                   url[:80])
+    logger.warning(
+        "scraper: all wechat layers (%s) returned None for %s",
+        ",".join(cascade_order), url[:80],
+    )
     return ScrapeResult(
         markdown="", method="none", summary_only=True, content_html=None,
     )
