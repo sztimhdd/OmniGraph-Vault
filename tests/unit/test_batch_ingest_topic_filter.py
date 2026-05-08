@@ -123,10 +123,20 @@ def test_topics_arg_accepted_silently():
 
 def test_sql_layer1_predicate_present():
     """v3.5 ir-1 (LF-3.4): SELECT must include the layer1 verdict +
-    prompt_version re-evaluation predicate."""
+    prompt_version re-evaluation predicate.
+
+    2026-05-08 fix: also asserts the third OR clause (verdict='candidate')
+    that lets already-evaluated candidate rows reach per-article ingest stage.
+    Without it, any cron run after Layer 1 batch has stamped verdicts sees
+    zero rows and exits immediately (Hermes manual smoke caught this)."""
     sql, _ = _build_topic_filter_query(["agent"])
     assert "layer1_verdict IS NULL" in sql
     assert "layer1_prompt_version IS NOT ?" in sql
+    assert "layer1_verdict = 'candidate'" in sql, (
+        "SQL must include OR layer1_verdict='candidate' clause so per-article "
+        "ingest stage sees rows that already passed Layer 1 but haven't been "
+        "fully ingested yet (FK to ingestions ok rows excludes those that did)."
+    )
 
 
 def test_return_types():

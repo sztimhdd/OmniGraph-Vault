@@ -1307,11 +1307,24 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     """Build the --from-db candidate SELECT as (sql, params).
 
     v3.5 ir-1 (LF-3.4): adds a Layer 1 verdict predicate. Rows are
-    candidates when:
+    candidates when ALL of the following hold:
       - they are NOT in ingestions WHERE status='ok' (anti-join), AND
-      - (layer1_verdict IS NULL OR layer1_prompt_version IS NOT current)
-        — the OR clause re-evaluates rows under a bumped prompt_version
-        (LF-1.8 prompt-bump pattern).
+      - they fall into one of three buckets covered by the OR clause:
+        (a) layer1_verdict IS NULL — never evaluated; needs Layer 1 stage
+        (b) layer1_prompt_version IS NOT current — prompt-bump re-evaluation
+            (LF-1.8 pattern; existing verdict gets overwritten by Layer 1)
+        (c) layer1_verdict = 'candidate' — already passed Layer 1, ready
+            for per-article ingest stage (scrape + Layer 2 + ainsert)
+
+    Bucket (c) was added 2026-05-08 after Hermes manual smoke proved the
+    pre-fix SQL excluded all 145 layer1=candidate rows that yesterday's
+    cron had already evaluated but never finished ingesting (SIGTERM hit
+    during article 1's vision drain). Without this clause, every cron run
+    after Layer 1 has been done sees zero candidates and exits immediately.
+
+    Reject rows are excluded by the absence of an `OR layer1_verdict =
+    'reject'` clause — they already wrote `ingestions(status='skipped')`
+    rows at Layer 1 stage and don't need re-processing.
 
     The ``topics`` parameter is retained for --topic-filter / --min-depth
     CLI back-compat (per Foundation Quick) but is NOT used in SQL;
@@ -1329,7 +1342,11 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
         FROM articles a
         JOIN accounts acc ON a.account_id = acc.id
         WHERE a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
-          AND (a.layer1_verdict IS NULL OR a.layer1_prompt_version IS NOT ?)
+          AND (
+              a.layer1_verdict IS NULL
+              OR a.layer1_prompt_version IS NOT ?
+              OR a.layer1_verdict = 'candidate'
+          )
         ORDER BY a.id
     """
     return sql, (PROMPT_VERSION_LAYER1,)
