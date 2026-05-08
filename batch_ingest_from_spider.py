@@ -65,10 +65,12 @@ from lib.article_filter import (
     ArticleWithBody,
     FilterResult,
     LAYER1_BATCH_SIZE,
+    LAYER2_BATCH_SIZE,
     PROMPT_VERSION_LAYER1,
     layer1_pre_filter,
     layer2_full_body_score,
     persist_layer1_verdicts,
+    persist_layer2_verdicts,
 )
 from lib.checkpoint import get_article_hash, has_stage
 
@@ -1491,6 +1493,131 @@ async def ingest_from_db(
     try:
         processed = 0
         api_key = get_deepseek_api_key()
+
+        # v3.5 ir-2 (LF-3.2): Layer 2 batch accumulator.
+        # Successfully-scraped candidates queue here; drain at LAYER2_BATCH_SIZE
+        # boundaries (and once at end-of-loop for the final partial batch) to
+        # call the batched DeepSeek Layer 2.
+        layer2_queue: list[tuple[tuple, str]] = []  # (row_tuple, scraped_body)
+        layer2_chunk_idx = 0
+
+        async def _drain_layer2_queue() -> None:
+            """Drain pending layer2 batch: call layer2_full_body_score, persist
+            verdicts, ainsert non-rejected articles. Called when the queue
+            reaches LAYER2_BATCH_SIZE and once at end-of-loop."""
+            nonlocal layer2_chunk_idx, processed, timed_out_count, clamped_count, safety_margin_triggered
+            if not layer2_queue:
+                return
+
+            queue_snapshot = list(layer2_queue)
+            layer2_queue.clear()
+
+            articles_with_body = [
+                ArticleWithBody(
+                    id=row[0],
+                    source="wechat",
+                    title=row[1] or "",
+                    body=body or "",
+                )
+                for row, body in queue_snapshot
+            ]
+
+            t0 = time.monotonic()
+            layer2_results = await layer2_full_body_score(articles_with_body)
+            wall_ms = int((time.monotonic() - t0) * 1000)
+
+            ok_count = sum(1 for r in layer2_results if r.verdict == "ok")
+            rej_count = sum(1 for r in layer2_results if r.verdict == "reject")
+            null_count = sum(1 for r in layer2_results if r.verdict is None)
+
+            chunk_idx = layer2_chunk_idx
+            layer2_chunk_idx += 1
+
+            if null_count == len(layer2_results):
+                err_class = layer2_results[0].reason if layer2_results else "empty_batch"
+                logger.warning(
+                    "[layer2] batch %d NULL reason=%s n=%d wall_ms=%d — "
+                    "rows stay layer2_verdict=NULL, retry next tick",
+                    chunk_idx, err_class, len(queue_snapshot), wall_ms,
+                )
+                return
+
+            logger.info(
+                "[layer2] batch %d n=%d ok=%d reject=%d null=%d wall_ms=%d",
+                chunk_idx, len(queue_snapshot), ok_count, rej_count, null_count, wall_ms,
+            )
+
+            persist_layer2_verdicts(conn, articles_with_body, layer2_results)
+
+            # Per-row processing: reject → skipped, ok → ainsert, None → skip
+            # ainsert (mixed-batch failure; row stays NULL via persist above).
+            for (row, body), result in zip(queue_snapshot, layer2_results):
+                art_id_d = row[0]
+                url_d = row[2]
+
+                if result.verdict == "reject":
+                    logger.info(
+                        "  [layer2] reject id=%s reason=%s",
+                        art_id_d, result.reason,
+                    )
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ingestions(article_id, status) "
+                        "VALUES (?, 'skipped')",
+                        (art_id_d,),
+                    )
+                    conn.commit()
+                    continue
+
+                if result.verdict is None:
+                    # Mixed-batch failure on this slot. Row was just persisted
+                    # with verdict=NULL via persist_layer2_verdicts; next tick
+                    # will re-evaluate. Do NOT write ingestions row.
+                    continue
+
+                # Verdict is 'ok' (or future non-reject value) → proceed to ainsert.
+                # Phase 17 BTIMEOUT-02: clamp per-article timeout to batch budget.
+                remaining = get_remaining_budget(batch_start, total_batch_budget)
+                effective_timeout = clamp_article_timeout(
+                    _SINGLE_CHUNK_FLOOR_S, remaining, BATCH_SAFETY_MARGIN_S
+                )
+                if effective_timeout < _SINGLE_CHUNK_FLOOR_S:
+                    clamped_count += 1
+                    logger.info(
+                        "  Clamped article timeout: %ds (remaining=%.0fs, margin=%ds)",
+                        effective_timeout, remaining, BATCH_SAFETY_MARGIN_S,
+                    )
+                if remaining - BATCH_SAFETY_MARGIN_S <= 0:
+                    safety_margin_triggered = True
+
+                success, wall = await ingest_article(
+                    url_d, dry_run, rag, effective_timeout=effective_timeout
+                )
+                if dry_run:
+                    status = "dry_run"
+                elif success:
+                    status = "ok"
+                    completed_times.append(wall)
+                    timeout_histogram[_bucket_article_time(wall)] += 1
+                else:
+                    status = "failed"
+                    if wall >= effective_timeout:
+                        timed_out_count += 1
+                        timeout_histogram["900s+"] += 1
+
+                conn.execute(
+                    "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, ?)",
+                    (art_id_d, status),
+                )
+                conn.commit()
+
+                processed += 1
+                if not dry_run:
+                    logger.info(
+                        "  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...",
+                        SLEEP_BETWEEN_ARTICLES,
+                    )
+                    await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
+
         # v3.5 ir-1 (LF-3.1): iterate over candidate_rows (Layer 1 candidates only);
         # rejects already wrote their skipped ingestions row above.
         # Row tuple is (id, title, url, account_name, body, digest);
@@ -1595,77 +1722,48 @@ async def ingest_from_db(
                         "art_id=%s url=%s: %s", art_id, url[:80], e,
                     )
 
-            # v3.5 ir-1 (LF-3.2 / LF-3.3): Layer 2 with new 3-field FilterResult
-            # shape. Placeholder returns verdict='candidate'; ir-2 will
-            # introduce 'ok' / 'reject' semantics. Reject → skip ainsert,
-            # write skipped ingestions row; reason logged at INFO (no
-            # ingestions.reason column per ir-1 scope).
-            layer2_results = layer2_full_body_score([
-                ArticleWithBody(
-                    id=art_id,
-                    source="wechat",
-                    title=title,
-                    body=body or "",
+            # v3.5 ir-2 (LF-3.2): defer Layer 2 + ainsert to batched drain.
+            # Each successfully-scraped candidate is queued; the queue drains
+            # at LAYER2_BATCH_SIZE boundaries and once after the loop ends.
+            if not body:
+                # Scrape failed earlier in this iteration; do NOT enqueue. The
+                # article has no body to score; skip silently (next ingest
+                # tick will see body=NULL and re-attempt scrape).
+                logger.warning(
+                    "  layer2 enqueue skipped — no body for art_id=%s; will retry next tick",
+                    art_id,
                 )
-            ])
-            layer2 = layer2_results[0]
-            if layer2.verdict == "reject":
-                logger.info(
-                    "  [layer2] reject id=%s reason=%s",
-                    art_id, layer2.reason,
-                )
-                conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
-                    (art_id,),
-                )
-                conn.commit()
                 continue
 
-            # Phase 17 BTIMEOUT-02: clamp per-article timeout to batch budget.
-            remaining = get_remaining_budget(batch_start, total_batch_budget)
-            effective_timeout = clamp_article_timeout(
-                _SINGLE_CHUNK_FLOOR_S, remaining, BATCH_SAFETY_MARGIN_S
-            )
-            if effective_timeout < _SINGLE_CHUNK_FLOOR_S:
-                clamped_count += 1
+            layer2_queue.append((
+                (art_id, title, url, account, body, digest),
+                body,
+            ))
+
+            if len(layer2_queue) >= LAYER2_BATCH_SIZE:
+                await _drain_layer2_queue()
+                # Phase 17 BTIMEOUT-01: early-exit if budget fully exhausted.
+                if get_remaining_budget(batch_start, total_batch_budget) <= 0:
+                    logger.warning(
+                        "Batch budget exhausted (%ds elapsed >= %ds) — stopping loop; "
+                        "remaining %d candidate(s) will show as not_started in metrics.",
+                        int(time.time() - batch_start), total_batch_budget,
+                        len(candidate_rows) - i,
+                    )
+                    break
+
+            # Cap check post-drain: if max_articles cap reached, drain final
+            # partial queue and break.
+            if max_articles is not None and processed >= max_articles:
                 logger.info(
-                    "  Clamped article timeout: %ds (remaining=%.0fs, margin=%ds)",
-                    effective_timeout, remaining, BATCH_SAFETY_MARGIN_S,
+                    "max-articles cap reached (%d) — draining final layer2 queue and stopping.",
+                    max_articles,
                 )
-            if remaining - BATCH_SAFETY_MARGIN_S <= 0:
-                safety_margin_triggered = True
-
-            success, wall = await ingest_article(
-                url, dry_run, rag, effective_timeout=effective_timeout
-            )
-            if dry_run:
-                status = "dry_run"
-            elif success:
-                status = "ok"
-                completed_times.append(wall)
-                timeout_histogram[_bucket_article_time(wall)] += 1
-            else:
-                status = "failed"
-                if wall >= effective_timeout:  # heuristic for wait_for kill
-                    timed_out_count += 1
-                    timeout_histogram["900s+"] += 1
-
-            conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, ?)", (art_id, status))
-            conn.commit()
-
-            processed += 1
-            if not dry_run and processed < len(candidate_rows):
-                logger.info("  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...", SLEEP_BETWEEN_ARTICLES)
-                await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
-
-            # Phase 17 BTIMEOUT-01: early-exit if budget fully exhausted.
-            if get_remaining_budget(batch_start, total_batch_budget) <= 0:
-                logger.warning(
-                    "Batch budget exhausted (%ds elapsed >= %ds) — stopping loop; "
-                    "remaining %d candidate(s) will show as not_started in metrics.",
-                    int(time.time() - batch_start), total_batch_budget, len(candidate_rows) - i,
-                )
+                await _drain_layer2_queue()
                 break
+
+        # Drain any remaining partial batch (size < LAYER2_BATCH_SIZE).
+        await _drain_layer2_queue()
 
         logger.info(
             "Done — %d candidates processed (of %d total inputs)",
