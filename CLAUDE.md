@@ -107,6 +107,31 @@ python tests/verify_gate_c.py   # Entity disambiguation
 
 No pytest framework, no linting, no CI configured yet. Tests are manual verification scripts that hit live APIs.
 
+### Local E2E testing (Cisco Umbrella corp network aware)
+
+**`scripts/local_e2e.sh`** — single-entry harness for local end-to-end testing.
+Auto-configures all corp-network env vars (TLS CA bundle, Vertex SA, `OMNIGRAPH_BASE_DIR`, scrape cascade) and dispatches to the target script via a mode arg. **Use this for any local smoke / e2e / spike — do NOT manually export env vars.**
+
+```bash
+./scripts/local_e2e.sh help                           # show all modes
+./scripts/local_e2e.sh rss --max-articles 1           # RSS 1-article e2e
+./scripts/local_e2e.sh rss --dry-run                  # RSS dry-run (no scrape, no LLM)
+./scripts/local_e2e.sh kol --max-articles 1 --dry-run # KOL dry-run
+./scripts/local_e2e.sh wechat <url>                   # single WeChat URL
+./scripts/local_e2e.sh layer1 5                       # Layer 1 smoke on 5 candidates
+./scripts/local_e2e.sh layer2 5                       # Layer 2 smoke on 5 layer1=candidate articles
+./scripts/local_e2e.sh cleanup                        # stuck-doc dry-run
+```
+
+Output goes to `.scratch/local-e2e-<mode>-<ts>.log` (gitignored). Existing env vars are honored via `${VAR:-default}` — set them in your shell to override any default.
+
+Known constraints (handled by the script — these are expected, not bugs):
+
+- `.dev-runtime/gcp-paid-sa.json` lacks `aiplatform.endpoints.predict`, so any Vertex Gemini call in local mode 403s into the LF-1.5 graceful-failure path. Happy-path validation runs on Hermes deploy.
+- `DEEPSEEK_API_KEY=dummy` is an import-time defense against the Phase 5 cross-coupling bug. Corp network blocks `api.deepseek.com`, so any real DeepSeek call will fail — this is expected.
+
+**For new local tests:** read `scripts/local_e2e.sh help` first. If an existing mode covers the target script, use it; if not, add a new `case)` branch — do not reinvent env setup.
+
 ---
 
 ## Architecture
