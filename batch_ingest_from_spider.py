@@ -73,6 +73,7 @@ from lib.article_filter import (
     persist_layer2_verdicts,
 )
 from lib.checkpoint import get_article_hash, has_stage
+from lib.vision_tracking import drain_vision_tasks
 
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -108,49 +109,21 @@ VISION_DRAIN_TIMEOUT = 120.0
 
 
 async def _drain_pending_vision_tasks() -> None:
-    """Drain Vision worker tasks lingering on the event loop (D-10.09 / ARCH-04).
+    """Drain Vision worker tasks lingering on the event loop (D-10.09 / 260509-p1n).
 
-    Called from the `finally:` block of run() and ingest_from_db() BEFORE
-    rag.finalize_storages(). Without this, sub-doc ainsert may race with the
-    storage-flush and be lost.
+    Thin wrapper around ``lib.vision_tracking.drain_vision_tasks`` that
+    preserves the existing function name (call sites at :873 and :1937
+    unchanged) and the module-level ``VISION_DRAIN_TIMEOUT`` constant
+    (existing tests monkeypatch it).
 
-    Tasks still pending after VISION_DRAIN_TIMEOUT are cancelled; the caller
-    then proceeds to finalize_storages regardless. `asyncio.all_tasks()`
-    returns every task on the loop — the filter excludes the current coroutine
-    and any already-done tasks, leaving only the fire-and-forget Vision workers
-    spawned by ingest_wechat.ingest_article.
+    Replaces the prior ``asyncio.all_tasks()`` broad-scan implementation
+    that captured LightRAG / Cognee / kuzu library tasks alongside actual
+    Vision workers, causing the post-cap event-loop hang on Hermes
+    2026-05-09.  See ``lib/vision_tracking.py`` for the dedicated
+    ``_VISION_TASKS`` set + spawn-site registration via
+    ``track_vision_task``.
     """
-    pending = [
-        t
-        for t in asyncio.all_tasks()
-        if t is not asyncio.current_task() and not t.done()
-    ]
-    if not pending:
-        return
-    logger.info(
-        "Draining %d pending Vision task(s) (%.0fs deadline; D-10.09)...",
-        len(pending),
-        VISION_DRAIN_TIMEOUT,
-    )
-    try:
-        await asyncio.wait_for(
-            asyncio.gather(*pending, return_exceptions=True),
-            timeout=VISION_DRAIN_TIMEOUT,
-        )
-        logger.info("Vision tasks drained cleanly")
-    except asyncio.TimeoutError:
-        still_pending = [t for t in pending if not t.done()]
-        logger.warning(
-            "Vision drain timeout — %d/%d task(s) still pending (cancelling)",
-            len(still_pending),
-            len(pending),
-        )
-        for t in still_pending:
-            t.cancel()
-        # Give cancelled tasks a brief moment to process CancelledError so
-        # their observable side effects (log lines, test assertions) complete.
-        if still_pending:
-            await asyncio.gather(*still_pending, return_exceptions=True)
+    await drain_vision_tasks(timeout_s=VISION_DRAIN_TIMEOUT)
 
 
 # D-09.03 (TIMEOUT-03): per-article outer budget formula.

@@ -103,6 +103,7 @@ from lib.checkpoint import (
     write_metadata,
     list_vision_markers,
 )
+from lib.vision_tracking import track_vision_task
 
 
 def _is_mcp_endpoint(url: str) -> bool:
@@ -1183,7 +1184,7 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
     # tests await it; production orchestrator fires-and-forgets per D-10.09.
     vision_task: "asyncio.Task | None" = None
     if url_to_path:
-        vision_task = asyncio.create_task(_vision_worker_impl(
+        vision_task = track_vision_task(asyncio.create_task(_vision_worker_impl(
             rag=rag,
             article_hash=article_hash,
             url_to_path=url_to_path,
@@ -1192,7 +1193,7 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
             download_input_count=len(unique_img_urls),
             download_failed=download_failed,
             ckpt_hash=ckpt_hash,
-        ))
+        )))
     else:
         # Phase 12 D-SUBDOC: no images means no sub-doc to ingest. Write the
         # terminal marker immediately so resume logic does not loop on this

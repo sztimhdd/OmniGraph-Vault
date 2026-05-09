@@ -352,10 +352,15 @@ async def test_run_drains_pending_vision_tasks(monkeypatch, _fake_rag):
         await asyncio.sleep(0.2)
         drained.append("done")
 
+    # 260509-p1n: tasks are now tracked via lib.vision_tracking.track_vision_task
+    # at the real spawn site (ingest_wechat.py:1186); the fake must mirror that
+    # registration or the narrow-set drain will be a no-op.
+    from lib.vision_tracking import track_vision_task
+
     # Patch ingest_article so it spawns a Vision task and returns ok.
     # Phase 17: ingest_article now returns (success, wall_clock_seconds).
     async def _fake_ingest_article(url, dry_run, rag, effective_timeout=None):
-        asyncio.create_task(_fake_vision_work())
+        track_vision_task(asyncio.create_task(_fake_vision_work()))
         return True, 0.0
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
@@ -469,9 +474,12 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
         await asyncio.sleep(0.2)
         drained.append("done")
 
+    # 260509-p1n: register fake task via track_vision_task to match the real spawn site.
+    from lib.vision_tracking import track_vision_task
+
     # Phase 17: ingest_article now returns (success, wall_clock_seconds).
     async def _fake_ingest_article(url, dry_run, rag, effective_timeout=None):
-        asyncio.create_task(_fake_vision_work())
+        track_vision_task(asyncio.create_task(_fake_vision_work()))
         return True, 0.0
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
@@ -517,9 +525,12 @@ async def test_drain_timeout_cancels_stragglers(monkeypatch, _fake_rag):
             straggler_ref["cancelled"] = True
             raise
 
+    # 260509-p1n: register straggler via track_vision_task to match the real spawn site.
+    from lib.vision_tracking import track_vision_task
+
     # Phase 17: ingest_article now returns (success, wall_clock_seconds).
     async def _fake_ingest_article(url, dry_run, rag, effective_timeout=None):
-        straggler_ref["task"] = asyncio.create_task(_straggler())
+        straggler_ref["task"] = track_vision_task(asyncio.create_task(_straggler()))
         return True, 0.0
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
