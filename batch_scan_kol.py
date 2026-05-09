@@ -110,13 +110,20 @@ def init_db(db_path: Path) -> sqlite3.Connection:
             UNIQUE(article_id, topic)
         );
 
+        -- v3.5 ir-4 dual-source schema (see migration 008). FK to articles(id)
+        -- intentionally absent so source='rss' rows can reference rss_articles.id.
         CREATE TABLE IF NOT EXISTS ingestions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            article_id INTEGER NOT NULL REFERENCES articles(id),
-            status TEXT NOT NULL CHECK(status IN ('ok', 'failed', 'skipped')),
+            article_id INTEGER NOT NULL,
+            source TEXT NOT NULL DEFAULT 'wechat'
+                CHECK (source IN ('wechat', 'rss')),
+            status TEXT NOT NULL CHECK (status IN (
+                'ok', 'failed', 'skipped', 'skipped_ingested',
+                'dry_run', 'skipped_graded'
+            )),
             ingested_at TEXT DEFAULT (datetime('now', 'localtime')),
             enrichment_id TEXT,
-            UNIQUE(article_id)
+            UNIQUE (article_id, source)
         );
 
         CREATE TABLE IF NOT EXISTS extracted_entities (

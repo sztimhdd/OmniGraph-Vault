@@ -405,6 +405,9 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
     # Build a minimal SQLite DB matching the schema ingest_from_db SELECTs.
     db_path = tmp_path / "kol_scan.db"
     conn = sqlite3.connect(db_path)
+    # ir-4 dual-source: SQL also queries rss_articles + rss_feeds (UNION ALL),
+    # so the fixture must declare them. Empty tables are fine — UNION returns
+    # only the KOL row(s) we seeded below.
     conn.executescript(
         """
         CREATE TABLE accounts (
@@ -420,7 +423,18 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
             body TEXT,
             enriched INTEGER DEFAULT 0,
             content_hash TEXT,
-            digest TEXT
+            digest TEXT,
+            layer1_verdict TEXT NULL,
+            layer1_prompt_version TEXT NULL,
+            layer2_verdict TEXT NULL,
+            layer2_prompt_version TEXT NULL
+        );
+        CREATE TABLE rss_feeds (id INTEGER PRIMARY KEY, name TEXT);
+        CREATE TABLE rss_articles (
+            id INTEGER PRIMARY KEY, feed_id INTEGER NOT NULL,
+            title TEXT, url TEXT, body TEXT, summary TEXT,
+            layer1_verdict TEXT NULL, layer1_prompt_version TEXT NULL,
+            layer2_verdict TEXT NULL, layer2_prompt_version TEXT NULL
         );
         CREATE TABLE classifications (
             article_id INTEGER,

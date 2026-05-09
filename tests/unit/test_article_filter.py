@@ -244,6 +244,9 @@ def test_layer1_prompt_version_bump_invalidates_prior() -> None:
 
     # Behavioral check: simulate a row with stale prompt_version is still
     # candidate-selected (prompt_version mismatch path).
+    # ir-4 dual-source: SQL also queries rss_articles + rss_feeds, so the
+    # fixture must declare them (empty is fine — UNION ALL of zero RSS
+    # rows + KOL rows still returns KOL rows).
     conn = sqlite3.connect(":memory:")
     conn.executescript(
         """
@@ -255,7 +258,20 @@ def test_layer1_prompt_version_bump_invalidates_prior() -> None:
             layer1_verdict TEXT NULL, layer1_reason TEXT NULL,
             layer1_at TEXT NULL, layer1_prompt_version TEXT NULL
         );
-        CREATE TABLE ingestions (article_id INTEGER, status TEXT);
+        CREATE TABLE rss_feeds (id INTEGER PRIMARY KEY, name TEXT);
+        CREATE TABLE rss_articles (
+            id INTEGER PRIMARY KEY, feed_id INTEGER NOT NULL,
+            title TEXT, url TEXT, body TEXT, summary TEXT,
+            layer1_verdict TEXT NULL, layer1_prompt_version TEXT NULL
+        );
+        CREATE TABLE ingestions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_id INTEGER NOT NULL,
+            source TEXT NOT NULL DEFAULT 'wechat'
+                CHECK (source IN ('wechat', 'rss')),
+            status TEXT NOT NULL,
+            UNIQUE (article_id, source)
+        );
         INSERT INTO accounts VALUES (1, 'acct');
         INSERT INTO articles(id, account_id, title, url, body, digest,
                              layer1_verdict, layer1_prompt_version)
@@ -269,6 +285,7 @@ def test_layer1_prompt_version_bump_invalidates_prior() -> None:
     ids = sorted(r[0] for r in rows)
     # Both rows are candidates: id=10 because prompt_version differs;
     # id=11 because layer1_verdict is NULL.
+    # rss_articles is empty so the RSS UNION branch contributes 0 rows.
     assert ids == [10, 11]
 
 

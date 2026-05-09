@@ -1306,50 +1306,82 @@ async def _graded_probe(
 def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     """Build the --from-db candidate SELECT as (sql, params).
 
-    v3.5 ir-1 (LF-3.4): adds a Layer 1 verdict predicate. Rows are
-    candidates when ALL of the following hold:
-      - they are NOT in ingestions WHERE status='ok' (anti-join), AND
-      - they fall into one of three buckets covered by the OR clause:
-        (a) layer1_verdict IS NULL — never evaluated; needs Layer 1 stage
-        (b) layer1_prompt_version IS NOT current — prompt-bump re-evaluation
-            (LF-1.8 pattern; existing verdict gets overwritten by Layer 1)
-        (c) layer1_verdict = 'candidate' — already passed Layer 1, ready
-            for per-article ingest stage (scrape + Layer 2 + ainsert)
+    v3.5 ir-4 (LF-4.4): dual-source UNION ALL. Pulls candidates from BOTH
+    ``articles`` (KOL/WeChat) and ``rss_articles`` (RSS feeds) with a
+    constant 'wechat'/'rss' literal in the second column so the consumer
+    can dispatch persist + scrape paths by row[1].
 
-    Bucket (c) was added 2026-05-08 after Hermes manual smoke proved the
-    pre-fix SQL excluded all 145 layer1=candidate rows that yesterday's
-    cron had already evaluated but never finished ingesting (SIGTERM hit
-    during article 1's vision drain). Without this clause, every cron run
-    after Layer 1 has been done sees zero candidates and exits immediately.
+    Returned shape: 7 columns named (id, source, title, url, source_name,
+    body, summary). Source-name is ``accounts.name`` for KOL,
+    ``rss_feeds.name`` for RSS. Summary is ``articles.digest`` for KOL
+    (aliased) and ``rss_articles.summary`` for RSS (already named).
 
-    Reject rows are excluded by the absence of an `OR layer1_verdict =
-    'reject'` clause — they already wrote `ingestions(status='skipped')`
+    v3.5 ir-1 (LF-3.4) Layer 1 verdict predicate is preserved on each
+    UNION branch. Rows are candidates when ALL of the following hold:
+      - row is NOT in ingestions for the SAME source with status='ok'
+        (source-aware anti-join — KOL id=42 and RSS id=42 do NOT
+        cross-exclude each other), AND
+      - row falls into one of three buckets:
+        (a) layer1_verdict IS NULL — never evaluated; needs Layer 1
+        (b) layer1_prompt_version IS NOT current — prompt-bump re-eval
+            (LF-1.8 pattern)
+        (c) layer1_verdict = 'candidate' — passed Layer 1, ready for ingest
+
+    Reject rows are excluded by the absence of an ``OR layer1_verdict =
+    'reject'`` clause — they already wrote ``ingestions(status='skipped')``
     rows at Layer 1 stage and don't need re-processing.
 
     The ``topics`` parameter is retained for --topic-filter / --min-depth
-    CLI back-compat (per Foundation Quick) but is NOT used in SQL;
-    Layer 1 LLM call replaces topic filtering. Returned params is a
-    1-tuple binding ``PROMPT_VERSION_LAYER1``.
+    CLI back-compat (Foundation Quick V35-FOUND-03) but is NOT used in
+    SQL; Layer 1 LLM call replaces topic filtering. Returned params is a
+    2-tuple binding PROMPT_VERSION_LAYER1 once per UNION branch.
 
-    Preserved (non-negotiable):
-      - Column ordering: id, title, url, account_name, body, digest
-        (depth_score removed by Foundation Quick; consumers already adjusted)
-      - ORDER BY a.id (FIFO ingest order)
-      - Anti-join against ingestions WHERE status='ok'
+    ORDER BY ``source DESC, id``: 'wechat' DESC > 'rss' so KOL rows come
+    first (FIFO within KOL), then RSS rows (FIFO within RSS). Preserves
+    KOL priority while letting RSS clear over time.
+
+    rss_feeds JOIN: INNER JOIN — rss_articles.feed_id NOT NULL and
+    rss_feeds has 92 rows with name populated (W0 audit verified). An
+    orphan feed_id excludes the row, surfacing data corruption rather
+    than silently labeling it 'rss-feed-N'.
     """
     sql = """
-        SELECT a.id, a.title, a.url, acc.name, a.body, a.digest
-        FROM articles a
-        JOIN accounts acc ON a.account_id = acc.id
-        WHERE a.id NOT IN (SELECT article_id FROM ingestions WHERE status = 'ok')
-          AND (
-              a.layer1_verdict IS NULL
-              OR a.layer1_prompt_version IS NOT ?
-              OR a.layer1_verdict = 'candidate'
-          )
-        ORDER BY a.id
+        SELECT a.id   AS id,
+               'wechat' AS source,
+               a.title AS title,
+               a.url   AS url,
+               acc.name AS source_name,
+               a.body  AS body,
+               a.digest AS summary
+          FROM articles a
+          JOIN accounts acc ON a.account_id = acc.id
+         WHERE a.id NOT IN (
+                  SELECT article_id FROM ingestions
+                   WHERE source = 'wechat' AND status = 'ok'
+               )
+           AND (a.layer1_verdict IS NULL
+                OR a.layer1_prompt_version IS NOT ?
+                OR a.layer1_verdict = 'candidate')
+        UNION ALL
+        SELECT r.id,
+               'rss',
+               r.title,
+               r.url,
+               f.name,
+               r.body,
+               r.summary
+          FROM rss_articles r
+          JOIN rss_feeds f ON r.feed_id = f.id
+         WHERE r.id NOT IN (
+                  SELECT article_id FROM ingestions
+                   WHERE source = 'rss' AND status = 'ok'
+               )
+           AND (r.layer1_verdict IS NULL
+                OR r.layer1_prompt_version IS NOT ?
+                OR r.layer1_verdict = 'candidate')
+        ORDER BY source DESC, id
     """
-    return sql, (PROMPT_VERSION_LAYER1,)
+    return sql, (PROMPT_VERSION_LAYER1, PROMPT_VERSION_LAYER1)
 
 
 async def ingest_from_db(
@@ -1383,13 +1415,25 @@ async def ingest_from_db(
     _load_hermes_env()
 
     conn = sqlite3.connect(str(DB_PATH))
+    # v3.5 ir-4 (LF-4.4): dual-source schema — see migration 008. CREATE TABLE
+    # IF NOT EXISTS for fresh-DB bootstrap; existing tables migrate via the
+    # migrations/008_ingestions_dual_source.py runner. The FK to articles(id)
+    # is intentionally absent because dual-source rows can reference either
+    # articles.id (source='wechat') or rss_articles.id (source='rss');
+    # integrity is enforced at the application layer.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ingestions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            article_id INTEGER NOT NULL REFERENCES articles(id),
-            status TEXT NOT NULL CHECK(status IN ('ok', 'failed', 'skipped', 'skipped_ingested', 'dry_run', 'skipped_graded')),
+            article_id INTEGER NOT NULL,
+            source TEXT NOT NULL DEFAULT 'wechat'
+                CHECK (source IN ('wechat', 'rss')),
+            status TEXT NOT NULL CHECK (status IN (
+                'ok', 'failed', 'skipped', 'skipped_ingested',
+                'dry_run', 'skipped_graded'
+            )),
             ingested_at TEXT DEFAULT (datetime('now', 'localtime')),
-            UNIQUE(article_id)
+            enrichment_id TEXT,
+            UNIQUE (article_id, source)
         )
     """)
     conn.commit()
@@ -1427,13 +1471,17 @@ async def ingest_from_db(
     ]
     candidate_rows: list = []
     for chunk_idx, chunk in enumerate(chunks):
+        # v3.5 ir-4 (LF-4.4): row tuple is now 7 cols
+        # (id, source, title, url, source_name, body, summary).
+        # ArticleMeta.source comes from row[1] so persist_layer1_verdicts
+        # dispatches to articles vs rss_articles correctly.
         articles_meta = [
             ArticleMeta(
                 id=row[0],
-                source="wechat",
-                title=row[1] or "",
-                summary=row[5] or None,  # row[5] = a.digest
-                content_length=None,     # WeChat: length unknown pre-scrape
+                source=row[1],          # 'wechat' or 'rss' from SQL literal
+                title=row[2] or "",
+                summary=row[6] or None, # KOL: a.digest aliased; RSS: r.summary
+                content_length=None,    # neither source provides length pre-scrape
             )
             for row in chunk
         ]
@@ -1464,13 +1512,13 @@ async def ingest_from_db(
         for row, result in zip(chunk, layer1_results):
             if result.verdict == "reject":
                 logger.info(
-                    "[layer1] reject id=%s reason=%s",
-                    row[0], result.reason,
+                    "[layer1] reject id=%s source=%s reason=%s",
+                    row[0], row[1], result.reason,
                 )
                 conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, status) "
-                    "VALUES (?, 'skipped')",
-                    (row[0],),
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
+                    "VALUES (?, ?, 'skipped')",
+                    (row[0], row[1]),
                 )
             elif result.verdict == "candidate":
                 candidate_rows.append(row)
@@ -1538,11 +1586,15 @@ async def ingest_from_db(
             queue_snapshot = list(layer2_queue)
             layer2_queue.clear()
 
+            # v3.5 ir-4 (LF-4.4): row is the 7-col candidate tuple
+            # (id, source, title, url, source_name, body, summary).
+            # ArticleWithBody.source from row[1] so persist_layer2_verdicts
+            # dispatches verdict UPDATE to articles vs rss_articles correctly.
             articles_with_body = [
                 ArticleWithBody(
                     id=row[0],
-                    source="wechat",
-                    title=row[1] or "",
+                    source=row[1],
+                    title=row[2] or "",
                     body=body or "",
                 )
                 for row, body in queue_snapshot
@@ -1578,18 +1630,20 @@ async def ingest_from_db(
             # Per-row processing: reject → skipped, ok → ainsert, None → skip
             # ainsert (mixed-batch failure; row stays NULL via persist above).
             for (row, body), result in zip(queue_snapshot, layer2_results):
+                # v3.5 ir-4: 7-col tuple — url is at row[3] now (was [2]).
                 art_id_d = row[0]
-                url_d = row[2]
+                source_d = row[1]
+                url_d = row[3]
 
                 if result.verdict == "reject":
                     logger.info(
-                        "  [layer2] reject id=%s reason=%s",
-                        art_id_d, result.reason,
+                        "  [layer2] reject id=%s source=%s reason=%s",
+                        art_id_d, source_d, result.reason,
                     )
                     conn.execute(
-                        "INSERT OR REPLACE INTO ingestions(article_id, status) "
-                        "VALUES (?, 'skipped')",
-                        (art_id_d,),
+                        "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
+                        "VALUES (?, ?, 'skipped')",
+                        (art_id_d, source_d),
                     )
                     conn.commit()
                     continue
@@ -1638,8 +1692,8 @@ async def ingest_from_db(
                         timeout_histogram["900s+"] += 1
 
                 conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, ?)",
-                    (art_id_d, status),
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) VALUES (?, ?, ?)",
+                    (art_id_d, source_d, status),
                 )
                 conn.commit()
 
@@ -1651,11 +1705,13 @@ async def ingest_from_db(
                     )
                     await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
 
-        # v3.5 ir-1 (LF-3.1): iterate over candidate_rows (Layer 1 candidates only);
-        # rejects already wrote their skipped ingestions row above.
-        # Row tuple is (id, title, url, account_name, body, digest);
-        # depth_score column dropped along with the classifications JOIN.
-        for i, (art_id, title, url, account, body, digest) in enumerate(candidate_rows, 1):
+        # v3.5 ir-1 (LF-3.1) + ir-4 (LF-4.4): iterate over candidate_rows
+        # (Layer 1 candidates only). Rejects already wrote skipped ingestions
+        # rows above. Row tuple is now 7 cols
+        # (id, source, title, url, source_name, body, summary). The legacy
+        # 6-col shape (digest as last col) became the 7-col shape with
+        # 'wechat'/'rss' inserted at row[1] and digest aliased to summary.
+        for i, (art_id, source, title, url, account, body, summary) in enumerate(candidate_rows, 1):
             # JN6-02: stop AFTER successfully-processed rows hit the cap.
             # Skips (no URL, checkpoint, classify, depth) don't count, so the
             # cap limits real ingest work — correct semantics for rate limiting.
@@ -1680,7 +1736,11 @@ async def ingest_from_db(
 
             if not url:
                 logger.warning("  Skipping — no URL")
-                conn.execute("INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')", (art_id,))
+                conn.execute(
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
+                    "VALUES (?, ?, 'skipped')",
+                    (art_id, source),
+                )
                 conn.commit()
                 continue
 
@@ -1689,8 +1749,9 @@ async def ingest_from_db(
             if has_stage(ckpt_hash, "text_ingest"):
                 logger.info("checkpoint-skip: already-ingested hash=%s url=%s", ckpt_hash, url)
                 conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped_ingested')",
-                    (art_id,),
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
+                    "VALUES (?, ?, 'skipped_ingested')",
+                    (art_id, source),
                 )
                 conn.commit()
                 continue
@@ -1706,8 +1767,9 @@ async def ingest_from_db(
                     "pre-scrape skip: checkpoint scrape exists but body=NULL — "
                     "partial state, url=%s", url[:80])
                 conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, status) VALUES (?, 'skipped')",
-                    (art_id,),
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
+                    "VALUES (?, ?, 'skipped')",
+                    (art_id, source),
                 )
                 conn.commit()
                 continue
@@ -1718,30 +1780,35 @@ async def ingest_from_db(
             # articles BEFORE expensive scrape+classify. Threshold:
             # unrelated=True + confidence≥0.9. Fail-open on any error.
             GRADED_ENABLED = os.environ.get("OMNIGRAPH_GRADED_CLASSIFY", "0") == "1"
-            if GRADED_ENABLED and normalized_topics and digest:
+            if GRADED_ENABLED and normalized_topics and summary:
                 probe = await _graded_probe(
-                    title, account, digest, normalized_topics, api_key)
+                    title, account, summary, normalized_topics, api_key)
                 if probe and probe.get("unrelated") and probe.get("confidence", 0) >= 0.9:
                     logger.info(
-                        "graded-skip: art_id=%d conf=%.2f reason=%r",
-                        art_id, probe["confidence"], probe.get("reason", ""))
+                        "graded-skip: art_id=%d source=%s conf=%.2f reason=%r",
+                        art_id, source, probe["confidence"], probe.get("reason", ""))
                     logger.debug(
-                        "graded-skip-detail: title=%r digest=%r",
-                        title, digest.strip()[:200])
+                        "graded-skip-detail: title=%r summary=%r",
+                        title, summary.strip()[:200])
                     conn.execute(
-                        "INSERT OR REPLACE INTO ingestions(article_id, status) "
-                        "VALUES (?, 'skipped_graded')",
-                        (art_id,))
+                        "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
+                        "VALUES (?, ?, 'skipped_graded')",
+                        (art_id, source))
                     conn.commit()
                     continue
 
-            # v3.5 ir-1 (LF-3.2): Layer 1 already ran at the chunk boundary
-            # above; this row is a candidate. Pre-scrape + persist body so
-            # the next batch run skips re-scraping (~75-90s/article saved)
-            # when downstream ingest fails. Mirrors the previous BODY-01
-            # pattern. Then call Layer 2 (placeholder always-pass; ir-2
-            # ships real DeepSeek call).
-            if not body:
+            # v3.5 ir-1 (LF-3.2) + ir-4 (LF-4.4): Layer 1 already ran at the
+            # chunk boundary above; this row is a candidate. Pre-scrape +
+            # persist body so the next batch run skips re-scraping
+            # (~75-90s/article saved) when downstream ingest fails.
+            #
+            # ir-4 W1 gate: KOL only. RSS rows already have body in 27% of
+            # cases (W0 audit) and the no-body 73% will be handled by W2
+            # (scrape via lib.scraper.scrape_url() auto-route + persist to
+            # rss_articles). Without this gate, _persist_scraped_body would
+            # UPDATE articles WHERE id = rss_articles.id, potentially
+            # corrupting an unrelated KOL row whose id collides.
+            if not body and source == "wechat":
                 try:
                     from lib.scraper import scrape_url
                     scraped = await scrape_url(url, site_hint="wechat")
@@ -1768,8 +1835,11 @@ async def ingest_from_db(
                 )
                 continue
 
+            # v3.5 ir-4 (LF-4.4): 7-col tuple (id, source, title, url,
+            # source_name, body, summary) carried through the layer2 batch
+            # so source-aware persist + INSERT continues to work.
             layer2_queue.append((
-                (art_id, title, url, account, body, digest),
+                (art_id, source, title, url, account, body, summary),
                 body,
             ))
 
