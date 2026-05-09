@@ -24,12 +24,11 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Milestone: v3.4 (RSS-KOL Alignment)
-Phase: 20 (rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix) — EXECUTING
+Milestone: v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 + 20 shipped; Phase 21 STK track shipped via quicks; Phase 21 E2R-01/02 + Phase 22 SUPERSEDED-BY-ir4 — RSS pipeline retired)
+Phase: 20 (rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix) — Complete (2026-05-07)
 Plan: 4 of 4
-Status: Phase complete — ready for verification
-Execute gate: ⚠️ LIFTED via user override 2026-05-06 evening (originally blocked until cron baseline). Rationale: today's 5-article reliability test (5/5 OK, 0 regressions on the 5 v3.4-prep fixes) is the strongest positive signal we have; cron observation continues in parallel as monitoring rather than gate.
-Last activity: 2026-05-09 - Completed quick task 260509-msr: defensive vendor patch on Hermes `~/.hermes/hermes-agent/run_agent.py` for daily-ingest cron AttributeError (Priority B; cron remains PAUSED per STOP gate)
+Status: Milestone closed
+Last activity: 2026-05-09 - Completed quick task 260509-s29 Wave 1: v3.4 closure — Phase 21/22 marked SUPERSEDED-BY-ir4, milestone status flipped to CLOSED
 
 ### Immediate next step
 
@@ -53,12 +52,14 @@ After CONTEXT.md lands → `/gsd:plan-phase 20` → execute waves.
 
 ### v3.4 Phase Overview
 
-| Phase | Goal | REQs | Execute gate |
+✅ **Milestone v3.4 CLOSED 2026-05-09** — Phase 19 + 20 shipped; Phase 21 STK track shipped via quicks `260506-pa7` + `260506-rjs`; Phase 21 E2R-01/02 + Phase 22 BKF/E2R/CUT all SUPERSEDED-BY-ir4 (RSS pipeline retired in ir-4 workstream — `enrichment/rss_ingest.py` deleted, `step_7` RSS branch removed at commit `9ff330d`; cron cutover landed inside ir-4 deploy). v3.4 closure quick `260509-s29` Wave 1.
+
+| Phase | Goal | REQs | Status |
 |-------|------|------|--------------|
-| 19 | Generic scraper module + KOL line-940 hotfix + schema ALTER + hash migration | SCR-01..07, SCH-01..02 (9) | BLOCKED ~2026-05-06 |
-| 20 | RSS full-body classify port + rss_ingest.py 5-stage rewrite | RCL-01..03, RIN-01..06 (9) | BLOCKED + depends Phase 19 |
-| 21 | STK-01 NanoVectorDB spike (30min, first task) + CLI tool + RSS E2E fixture + bench harness | STK-01..03, E2R-01..02 (5) | BLOCKED + depends Phase 20 |
-| 22 | 1020-article backlog re-ingest + cross-arm smoke + stuck-doc isolation test + cron cutover | BKF-01..03, E2R-03..04, CUT-01..03 (10) | BLOCKED + depends Phase 21 |
+| 19 | Generic scraper module + KOL line-940 hotfix + schema ALTER + hash migration | SCR-01..07, SCH-01..02 (9) | ✅ Complete (2026-05-04) |
+| 20 | RSS full-body classify port + rss_ingest.py 5-stage rewrite | RCL-01..03, RIN-01..06 (9) | ✅ Complete (2026-05-07) |
+| 21 | STK-01 NanoVectorDB spike (30min, first task) + CLI tool + RSS E2E fixture + bench harness | STK-01..03, E2R-01..02 (5) | ⊘ STK-01..03 shipped via quicks 260506-pa7 + 260506-rjs; E2R-01/02 SUPERSEDED-BY-ir4 (RSS pipeline retired) |
+| 22 | 1020-article backlog re-ingest + cross-arm smoke + stuck-doc isolation test + cron cutover | BKF-01..03, E2R-03..04, CUT-01..03 (10) | ⊘ SUPERSEDED-BY-ir4 (RSS pipeline retired; cron cutover landed in ir-4 deploy) |
 
 ### Parallel: Day-1/2/3 KOL cron observation (NOT v3.4 execute scope)
 

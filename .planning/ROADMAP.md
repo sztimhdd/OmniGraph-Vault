@@ -246,9 +246,11 @@
 
 ---
 
-## Milestone v3.4 — RSS-KOL Alignment (ACTIVE)
+## Milestone v3.4 — RSS-KOL Alignment ✅ CLOSED (2026-05-09)
 
-**Milestone goal:** Close the RSS-vs-KOL architectural gap. RSS articles run through the full pipeline (scrape → full-body classify → multimodal ingest) except Zhihu enrichment — identical quality tier as KOL articles. Generic scraper defaults to full cascade (Apify → CDP → MCP → UA → fallback); failed-ingest stuck docs have a CLI cleanup tool and do not contaminate subsequent batches.
+**Closure summary (quick `260509-s29` Wave 1):** Phase 19 + 20 shipped per original plan; Phase 21 STK-01..03 (NanoVectorDB cleanup spike + CLI tool) shipped via quicks `260506-pa7` + `260506-rjs`. Phase 21 E2R-01/02 (RSS E2E fixture + bench harness) and Phase 22 BKF-01..03 + E2R-03..04 + CUT-01..03 (1020-article backlog + cross-arm smoke + cron cutover) **SUPERSEDED-BY-ir4** — the entire RSS arm was retired in the ir-4 workstream (`enrichment/rss_ingest.py` deleted, `step_7` RSS branch removed at commit `9ff330d`; cron cutover landed inside ir-4 deploy). Building RSS-arm fixtures, backlog re-ingest, and cron cutover for code that no longer exists is not useful. v3.4 milestone gate (6 success criteria + Day-1/2/3 observation) is satisfied via the v3.4 hardening track (5-article reliability test 5/5 OK 2026-05-06) plus ir-4 retirement of the RSS arm that the milestone was meant to align.
+
+**Milestone goal (historical):** Close the RSS-vs-KOL architectural gap. RSS articles run through the full pipeline (scrape → full-body classify → multimodal ingest) except Zhihu enrichment — identical quality tier as KOL articles. Generic scraper defaults to full cascade (Apify → CDP → MCP → UA → fallback); failed-ingest stuck docs have a CLI cleanup tool and do not contaminate subsequent batches.
 
 **Execute gate (HARD):** All v3.4 phase execution is BLOCKED until Day-1/2/3 KOL cron baseline observation completes (~2026-05-04 → 2026-05-06 ADT). Research and planning proceed now. No code changes until baseline confirmed stable. Reason: tuning decisions (subprocess timeout, max-articles cap, concurrency) require real cron data; must verify Day-1 KOL pipeline is stable on the new Vertex-corrected code path before RSS alignment amplifies any instability.
 
@@ -269,8 +271,8 @@
 
 - [x] **Phase 19: Generic Scraper + Schema + KOL Hotfix (2026-05-04)** — `lib/scraper.py` with 4-layer cascade, KOL line-940 hotfix (SCR-06), `rss_articles` schema ALTER (SCH-01), hash migration to SHA-256 (SCH-02). 8/8 new unit tests GREEN; full regression 464 passed / 13 pre-existing failed / 0 new regressions. **Operator verification: COMPLETE 2026-05-06 via 5-article reliability test on Hermes — 5/5 OK in 22 min, 0 regressions on Phase 19 deliverables OR the 5 v3.4-prep follow-up fixes (8ac3cb1 body persist / 5c602a3 timeout / 359058b DocStatus / ecaa2df cascade / af01315 UA img merge).** Snapshot: `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/reliability_5_check_2026_05_06_1612.md`.
 - [x] **Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite** — `rss_classify.py` full-body prompt port, `rss_ingest.py` rewrite with 5-stage KOL-identical path, timeout + drain guards (completed 2026-05-07)
-- [ ] **Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness** — STK-01 diagnostic spike first, then CLI tool, then E2E fixture + bench harness matching gpt55 pattern
-- [ ] **Phase 22: Backlog Re-Ingest + Cross-Arm Regression + Cron Cutover** — delete-before-reinsert 1020-article backlog, cross-arm KOL+RSS smoke, stuck-doc isolation test, cron body cutover + kill-switch
+- [⊘] **Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness (2026-05-09)** — STK-01..03 SHIPPED via quicks `260506-pa7` (NanoVectorDB cleanup spike) + `260506-rjs` (`scripts/cleanup_stuck_docs.py` CLI + 13/13 unit tests). E2R-01/02 (RSS E2E fixture + bench harness) **SUPERSEDED-BY-ir4** — RSS pipeline retired (`enrichment/rss_ingest.py` deleted at commit `9ff330d`); fixture + bench for retired code is not useful.
+- [⊘] **Phase 22: Backlog Re-Ingest + Cross-Arm Regression + Cron Cutover (2026-05-09)** — **SUPERSEDED-BY-ir4** — RSS pipeline retired in ir-4 workstream; 1020-article RSS backlog has no consumer; cross-arm smoke + cron cutover landed inside the ir-4 deploy.
 
 ## Phase Details
 
@@ -351,5 +353,5 @@ Plans:
 |-------|----------------|--------|-----------|
 | 19. Generic Scraper + Schema + KOL Hotfix | 4/4 | Complete (verified at 5-article scale 2026-05-06) | 2026-05-04 |
 | 20. RSS Full-Body Classify + Multimodal Ingest Rewrite | 4/4 | Complete   | 2026-05-07 |
-| 21. Stuck-Doc Spike + CLI + RSS E2E Fixture + Bench | 0/TBD | Not started | - |
-| 22. Backlog Re-Ingest + Cross-Arm Regression + Cutover | 0/TBD | Not started | - |
+| 21. Stuck-Doc Spike + CLI + RSS E2E Fixture + Bench | 3/5 | STK-01..03 shipped via quicks 260506-pa7 + 260506-rjs; E2R-01/02 SUPERSEDED-BY-ir4 | 2026-05-09 |
+| 22. Backlog Re-Ingest + Cross-Arm Regression + Cutover | 0/0 | SUPERSEDED-BY-ir4 (RSS pipeline retired in ir-4 workstream) | 2026-05-09 |
