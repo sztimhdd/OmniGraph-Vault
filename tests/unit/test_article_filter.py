@@ -240,7 +240,11 @@ def test_layer1_prompt_version_bump_invalidates_prior() -> None:
     sql, params = _build_topic_filter_query([])
     assert "layer1_verdict IS NULL" in sql
     assert "layer1_prompt_version" in sql
-    assert params[0] == PROMPT_VERSION_LAYER1
+    # Quick 260509-s29 Wave 2: params is now a 4-tuple
+    # (SKIP_REASON_VERSION_CURRENT, PROMPT_VERSION_LAYER1) per UNION
+    # branch. Layer 1 prompt version is at index 1, not 0.
+    assert params[1] == PROMPT_VERSION_LAYER1
+    assert params[3] == PROMPT_VERSION_LAYER1
 
     # Behavioral check: simulate a row with stale prompt_version is still
     # candidate-selected (prompt_version mismatch path).
@@ -270,6 +274,7 @@ def test_layer1_prompt_version_bump_invalidates_prior() -> None:
             source TEXT NOT NULL DEFAULT 'wechat'
                 CHECK (source IN ('wechat', 'rss')),
             status TEXT NOT NULL,
+            skip_reason_version INTEGER NOT NULL DEFAULT 0,
             UNIQUE (article_id, source)
         );
         INSERT INTO accounts VALUES (1, 'acct');

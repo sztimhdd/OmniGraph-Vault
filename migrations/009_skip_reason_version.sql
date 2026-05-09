@@ -1,0 +1,42 @@
+-- Migration 009: ingestions.skip_reason_version column
+-- Phase:   v3.5 follow-up (post-ir-4)
+-- Quick:   260509-s29 Wave 2
+-- REQ:     CLAUDE.md "Lessons Learned" 2026-05-05 #6 (reject-reason versioning)
+-- Date:    2026-05-09
+--
+-- Adds an INTEGER NOT NULL DEFAULT 0 column ``skip_reason_version`` to
+-- ``ingestions``. The candidate SELECT in
+-- ``batch_ingest_from_spider._build_topic_filter_query`` uses this column
+-- (paired with the application-side constant
+-- ``SKIP_REASON_VERSION_CURRENT``) to distinguish:
+--
+--   * status='ok' rows                 → permanently excluded (always)
+--   * status='skipped' AND version=current → permanently dead URL,
+--     do NOT retry (e.g. 404, page-structure boilerplate, deleted)
+--   * status='skipped' AND version≠current → reject taxonomy was bumped
+--     since this row was written, re-evaluate (re-enter candidate pool)
+--
+-- This is the schema half of the cohort gate. The application-side gate
+-- lives in ``batch_ingest_from_spider`` and is bumped manually whenever
+-- the Layer 1 reject taxonomy / prompt changes (deliberate, like
+-- PROMPT_VERSION_LAYER1 in lib.article_filter).
+--
+-- Why ADD COLUMN, not table-rebuild (cf. mig 008): mig 008 rebuilt
+-- because it had to DROP the FK to articles(id) and REPLACE the UNIQUE
+-- constraint — SQLite ALTER TABLE cannot do either. Adding a NOT NULL
+-- column with a constant DEFAULT is a single-statement ALTER and is
+-- idiomatic SQLite. Existing rows are backfilled to 0 automatically by
+-- the DEFAULT clause.
+--
+-- ============================================================
+-- OPERATOR: BACKUP THE DB FILE BEFORE RUNNING THIS MIGRATION
+--   cp data/kol_scan.db data/kol_scan.db.backup-pre-mig009-$(date +%Y%m%d-%H%M%S)
+-- (Per CLAUDE.md Lessons 2026-05-06 #2.)
+-- ============================================================
+--
+-- This .sql file is NOT idempotent: re-running on a post-009 DB raises
+-- "duplicate column name: skip_reason_version". For idempotent runs use
+-- the .py twin:
+--   python migrations/009_skip_reason_version.py [path/to/kol_scan.db] [--dry-run]
+
+ALTER TABLE ingestions ADD COLUMN skip_reason_version INTEGER NOT NULL DEFAULT 0;

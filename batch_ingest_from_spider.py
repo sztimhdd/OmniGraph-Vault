@@ -72,6 +72,20 @@ from lib.article_filter import (
     persist_layer1_verdicts,
     persist_layer2_verdicts,
 )
+
+
+# Quick 260509-s29 Wave 2: reject-reason cohort version.
+#
+# Bumped manually whenever the Layer 1 reject taxonomy or prompt changes
+# (deliberate, like PROMPT_VERSION_LAYER1). The candidate SELECT in
+# ``_build_topic_filter_query`` excludes ``status='skipped'`` rows whose
+# ``skip_reason_version`` matches this constant — so a permanently dead
+# URL stays excluded forever, but a taxonomy bump puts older skipped rows
+# back into the candidate pool for re-evaluation.
+#
+# 0 = legacy (backfill value applied by migrations/009_skip_reason_version)
+# 1 = current taxonomy (initial value at schema introduction)
+SKIP_REASON_VERSION_CURRENT = 1
 from lib.checkpoint import get_article_hash, has_stage
 from lib.vision_tracking import drain_vision_tasks
 
@@ -1354,7 +1368,12 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     The ``topics`` parameter is retained for --topic-filter / --min-depth
     CLI back-compat (Foundation Quick V35-FOUND-03) but is NOT used in
     SQL; Layer 1 LLM call replaces topic filtering. Returned params is a
-    2-tuple binding PROMPT_VERSION_LAYER1 once per UNION branch.
+    4-tuple — each UNION branch binds (SKIP_REASON_VERSION_CURRENT,
+    PROMPT_VERSION_LAYER1) for the source-aware anti-join's reject-cohort
+    gate (quick-260509-s29 Wave 2: skipped rows whose skip_reason_version
+    matches CURRENT are permanently dead URLs and stay excluded; rows
+    with version != CURRENT re-enter the candidate pool when the Layer 1
+    reject taxonomy is bumped) and the Layer 1 prompt-version predicate.
 
     ORDER BY ``source DESC, id``: 'wechat' DESC > 'rss' so KOL rows come
     first (FIFO within KOL), then RSS rows (FIFO within RSS). Preserves
@@ -1377,7 +1396,10 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
           JOIN accounts acc ON a.account_id = acc.id
          WHERE a.id NOT IN (
                   SELECT article_id FROM ingestions
-                   WHERE source = 'wechat' AND status = 'ok'
+                   WHERE source = 'wechat'
+                     AND (status = 'ok'
+                          OR (status = 'skipped'
+                              AND skip_reason_version = ?))
                )
            AND (a.layer1_verdict IS NULL
                 OR a.layer1_prompt_version IS NOT ?
@@ -1394,14 +1416,22 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
           JOIN rss_feeds f ON r.feed_id = f.id
          WHERE r.id NOT IN (
                   SELECT article_id FROM ingestions
-                   WHERE source = 'rss' AND status = 'ok'
+                   WHERE source = 'rss'
+                     AND (status = 'ok'
+                          OR (status = 'skipped'
+                              AND skip_reason_version = ?))
                )
            AND (r.layer1_verdict IS NULL
                 OR r.layer1_prompt_version IS NOT ?
                 OR r.layer1_verdict = 'candidate')
         ORDER BY source DESC, id
     """
-    return sql, (PROMPT_VERSION_LAYER1, PROMPT_VERSION_LAYER1)
+    return sql, (
+        SKIP_REASON_VERSION_CURRENT,
+        PROMPT_VERSION_LAYER1,
+        SKIP_REASON_VERSION_CURRENT,
+        PROMPT_VERSION_LAYER1,
+    )
 
 
 async def ingest_from_db(
@@ -1453,6 +1483,7 @@ async def ingest_from_db(
             )),
             ingested_at TEXT DEFAULT (datetime('now', 'localtime')),
             enrichment_id TEXT,
+            skip_reason_version INTEGER NOT NULL DEFAULT 0,
             UNIQUE (article_id, source)
         )
     """)
@@ -1536,9 +1567,9 @@ async def ingest_from_db(
                     row[0], row[1], result.reason,
                 )
                 conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
-                    "VALUES (?, ?, 'skipped')",
-                    (row[0], row[1]),
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                    "VALUES (?, ?, 'skipped', ?)",
+                    (row[0], row[1], SKIP_REASON_VERSION_CURRENT),
                 )
             elif result.verdict == "candidate":
                 candidate_rows.append(row)
@@ -1661,9 +1692,9 @@ async def ingest_from_db(
                         art_id_d, source_d, result.reason,
                     )
                     conn.execute(
-                        "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
-                        "VALUES (?, ?, 'skipped')",
-                        (art_id_d, source_d),
+                        "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                        "VALUES (?, ?, 'skipped', ?)",
+                        (art_id_d, source_d, SKIP_REASON_VERSION_CURRENT),
                     )
                     conn.commit()
                     continue
@@ -1712,8 +1743,9 @@ async def ingest_from_db(
                         timeout_histogram["900s+"] += 1
 
                 conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) VALUES (?, ?, ?)",
-                    (art_id_d, source_d, status),
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                    "VALUES (?, ?, ?, ?)",
+                    (art_id_d, source_d, status, SKIP_REASON_VERSION_CURRENT),
                 )
                 conn.commit()
 
@@ -1757,9 +1789,9 @@ async def ingest_from_db(
             if not url:
                 logger.warning("  Skipping — no URL")
                 conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
-                    "VALUES (?, ?, 'skipped')",
-                    (art_id, source),
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                    "VALUES (?, ?, 'skipped', ?)",
+                    (art_id, source, SKIP_REASON_VERSION_CURRENT),
                 )
                 conn.commit()
                 continue
@@ -1769,9 +1801,9 @@ async def ingest_from_db(
             if has_stage(ckpt_hash, "text_ingest"):
                 logger.info("checkpoint-skip: already-ingested hash=%s url=%s", ckpt_hash, url)
                 conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
-                    "VALUES (?, ?, 'skipped_ingested')",
-                    (art_id, source),
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                    "VALUES (?, ?, 'skipped_ingested', ?)",
+                    (art_id, source, SKIP_REASON_VERSION_CURRENT),
                 )
                 conn.commit()
                 continue
@@ -1787,9 +1819,9 @@ async def ingest_from_db(
                     "pre-scrape skip: checkpoint scrape exists but body=NULL — "
                     "partial state, url=%s", url[:80])
                 conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
-                    "VALUES (?, ?, 'skipped')",
-                    (art_id, source),
+                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                    "VALUES (?, ?, 'skipped', ?)",
+                    (art_id, source, SKIP_REASON_VERSION_CURRENT),
                 )
                 conn.commit()
                 continue
@@ -1811,9 +1843,9 @@ async def ingest_from_db(
                         "graded-skip-detail: title=%r summary=%r",
                         title, summary.strip()[:200])
                     conn.execute(
-                        "INSERT OR REPLACE INTO ingestions(article_id, source, status) "
-                        "VALUES (?, ?, 'skipped_graded')",
-                        (art_id, source))
+                        "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                        "VALUES (?, ?, 'skipped_graded', ?)",
+                        (art_id, source, SKIP_REASON_VERSION_CURRENT))
                     conn.commit()
                     continue
 

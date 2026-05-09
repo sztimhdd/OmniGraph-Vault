@@ -25,20 +25,31 @@ History:
     (id, source, title, url, source_name, body, summary). Anti-joins are
     source-aware so KOL id=42 and RSS id=42 do NOT cross-exclude each
     other. ORDER BY ``source DESC, id`` (KOL first, then RSS, FIFO within
-    each source). params is now a 2-tuple — one PROMPT_VERSION_LAYER1
+    each source). params is a 2-tuple — one PROMPT_VERSION_LAYER1
     binding per UNION branch.
 
-These tests pin the v3.5 ir-4 contract:
+    Quick 260509-s29 Wave 2 (skip_reason_version cohort gate): the anti-
+    join predicate gains a reject-cohort clause —
+    ``status='skipped' AND skip_reason_version = ?`` — so permanently
+    dead URLs stay excluded but a taxonomy bump puts older skipped rows
+    back in the candidate pool. params expands from 2-tuple to 4-tuple,
+    binding (SKIP_REASON_VERSION_CURRENT, PROMPT_VERSION_LAYER1) per
+    UNION branch in that order.
+
+These tests pin the post-Wave-2 contract:
     - SQL is a UNION ALL of two SELECTs (articles + rss_articles)
     - Output columns are (id, source, title, url, source_name, body, summary)
     - KOL UNION branch: JOIN accounts, anti-joins ``ingestions WHERE
-      source='wechat' AND status='ok'``, layer1 predicate on ``a.*``
+      source='wechat' AND (status='ok' OR (status='skipped' AND
+      skip_reason_version=?))``, layer1 predicate on ``a.*``
     - RSS UNION branch: JOIN rss_feeds, anti-joins ``ingestions WHERE
-      source='rss' AND status='ok'``, layer1 predicate on ``r.*``
+      source='rss' AND (status='ok' OR (status='skipped' AND
+      skip_reason_version=?))``, layer1 predicate on ``r.*``
     - source column is the literal 'wechat' / 'rss'
     - KOL aliases ``a.digest`` to ``summary``; RSS uses ``r.summary`` directly
     - ORDER BY ``source DESC, id`` (KOL first then RSS, FIFO within each)
-    - params is (PROMPT_VERSION_LAYER1, PROMPT_VERSION_LAYER1) — a 2-tuple
+    - params is (SKIP_REASON_VERSION_CURRENT, PROMPT_VERSION_LAYER1,
+      SKIP_REASON_VERSION_CURRENT, PROMPT_VERSION_LAYER1) — 4-tuple
     - the function accepts any iterable of strings without raising
     - no LIKE / classifications JOIN remain
     - ``main()`` does NOT sys.exit(1) when ``--from-db`` is given without
@@ -122,16 +133,30 @@ def test_sql_anti_join_source_aware():
     source-awareness, KOL id=42 and RSS id=42 would cross-exclude each
     other through the shared ingestions table.
 
-    ir-4 contract:
-      KOL: NOT IN (SELECT article_id FROM ingestions WHERE source='wechat' AND status='ok')
-      RSS: NOT IN (SELECT article_id FROM ingestions WHERE source='rss'    AND status='ok')
+    Wave 2 contract:
+      KOL: NOT IN (SELECT article_id FROM ingestions WHERE source='wechat'
+              AND (status='ok' OR (status='skipped' AND skip_reason_version=?)))
+      RSS: NOT IN (SELECT article_id FROM ingestions WHERE source='rss'
+              AND (status='ok' OR (status='skipped' AND skip_reason_version=?)))
     """
     sql, _ = _build_topic_filter_query([])
-    assert "source = 'wechat' AND status = 'ok'" in sql, (
-        "KOL anti-join must scope by source='wechat' (ir-4 dual-source)"
+    # The source-scope predicates must still be present on each branch.
+    assert "source = 'wechat'" in sql, (
+        "KOL anti-join must scope by source='wechat'"
     )
-    assert "source = 'rss' AND status = 'ok'" in sql, (
-        "RSS anti-join must scope by source='rss' (ir-4 dual-source)"
+    assert "source = 'rss'" in sql, (
+        "RSS anti-join must scope by source='rss'"
+    )
+    # Wave 2: the anti-join now has a compound predicate. status='ok' is
+    # unconditional; status='skipped' is gated by skip_reason_version.
+    assert sql.count("status = 'ok'") == 2, (
+        "Both branches must keep status='ok' as an unconditional exclusion"
+    )
+    assert sql.count("status = 'skipped'") == 2, (
+        "Both branches must guard status='skipped' by skip_reason_version"
+    )
+    assert sql.count("skip_reason_version = ?") == 2, (
+        "Both branches must bind skip_reason_version = ? in their anti-join"
     )
 
 
@@ -183,27 +208,39 @@ def test_sql_layer1_predicate_present_on_both_branches():
 
 
 @pytest.mark.parametrize("topics", [["agent"], ["agent", "hermes"], []])
-def test_params_two_tuple_one_per_union_branch(topics):
-    """ir-4: params is (PROMPT_VERSION_LAYER1, PROMPT_VERSION_LAYER1) — one
-    binding per UNION branch's layer1_prompt_version predicate. topics
-    arg is silently accepted for API compat but does not affect the
-    query."""
+def test_params_four_tuple_one_pair_per_union_branch(topics):
+    """Wave 2: params is (SKIP_REASON_VERSION_CURRENT, PROMPT_VERSION_LAYER1,
+    SKIP_REASON_VERSION_CURRENT, PROMPT_VERSION_LAYER1) — one binding pair
+    per UNION branch (cohort gate + layer1 prompt-version). topics arg is
+    silently accepted for API compat but does not affect the query."""
+    from batch_ingest_from_spider import SKIP_REASON_VERSION_CURRENT
     from lib.article_filter import PROMPT_VERSION_LAYER1
 
     _, params = _build_topic_filter_query(topics)
-    assert params == (PROMPT_VERSION_LAYER1, PROMPT_VERSION_LAYER1)
-    assert len(params) == 2
+    assert params == (
+        SKIP_REASON_VERSION_CURRENT,
+        PROMPT_VERSION_LAYER1,
+        SKIP_REASON_VERSION_CURRENT,
+        PROMPT_VERSION_LAYER1,
+    )
+    assert len(params) == 4
 
 
 def test_topics_arg_accepted_silently():
     """The function accepts arbitrary topic lists without raising; SQL +
     params are identical regardless of the topics list contents."""
+    from batch_ingest_from_spider import SKIP_REASON_VERSION_CURRENT
     from lib.article_filter import PROMPT_VERSION_LAYER1
 
     sql_a, params_a = _build_topic_filter_query(["agent"])
     sql_b, params_b = _build_topic_filter_query(["completely", "different", "list"])
     assert sql_a == sql_b
-    assert params_a == params_b == (PROMPT_VERSION_LAYER1, PROMPT_VERSION_LAYER1)
+    assert params_a == params_b == (
+        SKIP_REASON_VERSION_CURRENT,
+        PROMPT_VERSION_LAYER1,
+        SKIP_REASON_VERSION_CURRENT,
+        PROMPT_VERSION_LAYER1,
+    )
 
 
 def test_return_types():
@@ -284,6 +321,7 @@ def _seed_dual_source_db():
             source TEXT NOT NULL DEFAULT 'wechat'
                 CHECK (source IN ('wechat', 'rss')),
             status TEXT NOT NULL,
+            skip_reason_version INTEGER NOT NULL DEFAULT 0,
             UNIQUE(article_id, source)
         );
 
