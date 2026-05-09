@@ -917,12 +917,51 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
     logger.info("Done — %d ok, %d failed, %d filtered, %d skipped", ok, fail, filt, len(summary) - ok - fail - filt)
 
 
+# v3.5 ir-4 (LF-4.4): RSS rows with body length above this threshold are
+# trusted as "good enough" and skip the scrape stage. Below this threshold
+# (or NULL body) the row goes through ``lib.scraper.scrape_url`` which
+# auto-routes to the generic cascade for non-WeChat URLs. KOL rows always
+# skip scrape when body is non-empty (legacy semantic preserved).
+RSS_SCRAPE_THRESHOLD = 100
+
+
+def _needs_scrape(source: str, body: str | None) -> bool:
+    """Return True iff the per-article scrape stage should run.
+
+    KOL (source='wechat'): scrape only when body is missing/empty.
+    Preserves the pre-ir-4 behavior where KOL rows always re-use the DB
+    body if any was previously scraped (any length >0).
+
+    RSS (source='rss'): scrape when body is missing OR shorter than
+    ``RSS_SCRAPE_THRESHOLD`` chars. The RSS feed's <description> is often
+    a 50-char excerpt — too short for Layer 2 / ainsert. Lengths above
+    the threshold come from rss_fetch's full <content:encoded> path and
+    are good enough to skip the scrape (W0 audit: 27% of local RSS rows
+    already have body >100 chars).
+    """
+    if not body:
+        return True
+    if source == "rss" and len(body) <= RSS_SCRAPE_THRESHOLD:
+        return True
+    return False
+
+
+# v3.5 ir-4: source → source-table mapping for body persistence dispatch.
+_BODY_TABLE_FOR: dict[str, str] = {"wechat": "articles", "rss": "rss_articles"}
+
+
 def _persist_scraped_body(
     conn: sqlite3.Connection,
     article_id: int,
+    source: str,
     scrape: "ScrapeResult",  # forward-ref str — keeps lib.scraper import lazy
 ) -> str | None:
-    """BODY-01: atomically persist scraped body to articles.body.
+    """BODY-01 + ir-4: atomically persist scraped body to the correct
+    source-table.
+
+    Dispatch by ``source``:
+      ``wechat`` → ``articles.body``
+      ``rss``    → ``rss_articles.body``
 
     Idempotent: SQL guard ``body IS NULL OR length(body) < 500`` prevents
     overwriting an already-ingested body (race-safe across batch retries).
@@ -932,23 +971,31 @@ def _persist_scraped_body(
 
     DB failures are logged at WARNING and swallowed -- caller continues.
 
-    Returns the body string on successful UPDATE; None on any failure or no-op.
+    Returns the body string on successful UPDATE; None on any failure or
+    no-op (including unknown source — caller treated as a soft-skip).
     """
+    table = _BODY_TABLE_FOR.get(source)
+    if table is None:
+        logger.warning(
+            "BODY-01 persist refused: unknown source=%r article_id=%s",
+            source, article_id,
+        )
+        return None
     try:
         body = (scrape.markdown or "").strip() or (scrape.content_html or "").strip()
         if not body:
             return None
         conn.execute(
-            "UPDATE articles SET body = ? "
-            "WHERE id = ? AND (body IS NULL OR length(body) < 500)",
+            f"UPDATE {table} SET body = ? "
+            f"WHERE id = ? AND (body IS NULL OR length(body) < 500)",
             (body, article_id),
         )
         conn.commit()
         return body
     except Exception as e:  # noqa: BLE001 -- never raise into main loop
         logger.warning(
-            "BODY-01 persist failed for article_id=%s: %s",
-            article_id, e,
+            "BODY-01 persist failed for source=%s article_id=%s: %s",
+            source, article_id, e,
         )
         return None
 
@@ -1802,24 +1849,36 @@ async def ingest_from_db(
             # persist body so the next batch run skips re-scraping
             # (~75-90s/article saved) when downstream ingest fails.
             #
-            # ir-4 W1 gate: KOL only. RSS rows already have body in 27% of
-            # cases (W0 audit) and the no-body 73% will be handled by W2
-            # (scrape via lib.scraper.scrape_url() auto-route + persist to
-            # rss_articles). Without this gate, _persist_scraped_body would
-            # UPDATE articles WHERE id = rss_articles.id, potentially
-            # corrupting an unrelated KOL row whose id collides.
-            if not body and source == "wechat":
+            # ir-4 dispatch:
+            #   * KOL (source='wechat'): scrape only when body missing.
+            #     scrape_url auto-routes to _scrape_wechat for mp.weixin
+            #     URLs. _persist_scraped_body writes to articles.body.
+            #   * RSS (source='rss'): scrape when body missing OR shorter
+            #     than RSS_SCRAPE_THRESHOLD (rss_fetch sometimes only
+            #     captured the <description> excerpt; too short for
+            #     ainsert). scrape_url auto-routes to _scrape_generic for
+            #     non-WeChat URLs. _persist_scraped_body writes to
+            #     rss_articles.body.
+            #
+            # site_hint is intentionally NOT passed: ir-4's auto-route by
+            # URL is correct for both sources. The W1 hardcoded
+            # site_hint='wechat' would have forced WeChat cascade on
+            # non-WeChat RSS URLs.
+            if _needs_scrape(source, body):
                 try:
                     from lib.scraper import scrape_url
-                    scraped = await scrape_url(url, site_hint="wechat")
+                    scraped = await scrape_url(url)
                     if scraped and not scraped.summary_only:
-                        persisted = _persist_scraped_body(conn, art_id, scraped)
+                        persisted = _persist_scraped_body(
+                            conn, art_id, source, scraped
+                        )
                         if persisted:
                             body = persisted
                 except Exception as e:  # noqa: BLE001 -- never block main flow
                     logger.warning(
                         "v3.5 pre-layer2 scrape/persist failed for "
-                        "art_id=%s url=%s: %s", art_id, url[:80], e,
+                        "source=%s art_id=%s url=%s: %s",
+                        source, art_id, url[:80], e,
                     )
 
             # v3.5 ir-2 (LF-3.2): defer Layer 2 + ainsert to batched drain.

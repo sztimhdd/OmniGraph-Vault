@@ -7,6 +7,11 @@ Covers _persist_scraped_body() helper:
   - Test 1: NULL body + successful scrape → row body persisted, helper returns body
   - Test 2: body already >= 500 chars → SQL guard skips overwrite, body unchanged
   - Test 3: DB raises → returns None, exception swallowed, WARNING emitted
+
+v3.5 ir-4 (W2): the helper now takes a ``source`` argument (3rd positional)
+and dispatches the UPDATE to ``articles`` for source='wechat' or
+``rss_articles`` for source='rss'. These KOL-only tests pass source='wechat'
+explicitly. RSS persistence is exercised in tests/unit/test_dual_source_dispatch.py.
 """
 from __future__ import annotations
 
@@ -73,7 +78,7 @@ def test_persist_body_when_null():
     conn.commit()
 
     scrape = _make_scrape(markdown="x" * 1500)
-    persisted = _persist_scraped_body(conn, 1, scrape)
+    persisted = _persist_scraped_body(conn, 1, "wechat", scrape)
 
     row = conn.execute("SELECT body FROM articles WHERE id=1").fetchone()
     assert persisted is not None and len(persisted) == 1500
@@ -93,7 +98,7 @@ def test_persist_body_skips_existing_long_body():
     conn.commit()
 
     scrape = _make_scrape(markdown="x" * 1500)
-    _persist_scraped_body(conn, 1, scrape)
+    _persist_scraped_body(conn, 1, "wechat", scrape)
 
     row = conn.execute("SELECT body FROM articles WHERE id=1").fetchone()
     assert row[0] == "y" * 600  # unchanged — guard kept it
@@ -108,7 +113,7 @@ def test_persist_body_swallows_db_exception(caplog):
     scrape = _make_scrape(markdown="x" * 1500)
 
     with caplog.at_level("WARNING"):
-        result = _persist_scraped_body(conn, 1, scrape)
+        result = _persist_scraped_body(conn, 1, "wechat", scrape)
 
     assert result is None  # graceful — no raise
     # warning emitted (don't pin exact text, just that something logged at WARNING
