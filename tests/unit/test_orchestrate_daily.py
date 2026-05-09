@@ -241,8 +241,9 @@ def test_step_flag_runs_only_that_step() -> None:
         mock_sql.connect.return_value.execute.return_value.fetchall.return_value = []
         out = od.run(dry_run=True, skip_scan=False, step=7)
     assert "7_ingest_all" in out["results"]
+    # Other 7 active steps must be skipped (step_2 retired in ir-4 LF-5.2).
     for other in (
-        "1_fetch_rss", "2_classify_rss", "3_health_check", "4_scan_kol",
+        "1_fetch_rss", "3_health_check", "4_scan_kol",
         "5_classify_kol", "6_enrich_deep", "8_generate_digest", "9_deliver",
     ):
         assert other not in out["results"], f"{other} must be skipped when --step 7"
@@ -250,9 +251,11 @@ def test_step_flag_runs_only_that_step() -> None:
 
 
 # ---------------------------------------------------------------------
-# Test 11 — JN6-01: --max-kol appended only to KOL branch cmd
+# Test 11 — ir-4 LF-5.1: step_7 invokes ONLY batch_ingest_from_spider with
+# --from-db; the legacy enrichment/rss_ingest.py was retired so the second
+# sub-command is gone. --max-kol caps the unified dual-source pool.
 # ---------------------------------------------------------------------
-def test_max_kol_appended_to_kol_cmd() -> None:
+def test_max_kol_appended_to_unified_cmd() -> None:
     captured: list[list[str]] = []
 
     def fake_run(cmd, dry_run, critical=False):
@@ -260,20 +263,25 @@ def test_max_kol_appended_to_kol_cmd() -> None:
         return StepResult(True, "ok")
 
     with patch.object(od, "_run", side_effect=fake_run):
-        od.run(dry_run=True, skip_scan=False, step=7, max_kol=20, max_rss=None)
+        od.run(dry_run=True, skip_scan=False, step=7, max_kol=20)
 
     kol_cmds = [c for c in captured if any("batch_ingest_from_spider.py" in x for x in c)]
     rss_cmds = [c for c in captured if any("rss_ingest.py" in x for x in c)]
-    assert len(kol_cmds) == 1, f"expected 1 KOL cmd, got {kol_cmds}"
-    assert len(rss_cmds) == 1, f"expected 1 RSS cmd, got {rss_cmds}"
+    assert len(kol_cmds) == 1, f"expected 1 unified cmd, got {kol_cmds}"
+    assert len(rss_cmds) == 0, (
+        f"ir-4 LF-5.1: rss_ingest.py was retired; step_7 must NOT invoke "
+        f"it. Got: {rss_cmds}"
+    )
     assert kol_cmds[0][-2:] == ["--max-articles", "20"]
-    assert "--max-articles" not in rss_cmds[0]
 
 
 # ---------------------------------------------------------------------
-# Test 12 — JN6-01: --max-rss appended only to RSS branch cmd
+# Test 12 — ir-4 LF-5.1: step_7 unified — no separate --max-rss path.
 # ---------------------------------------------------------------------
-def test_max_rss_appended_to_rss_cmd() -> None:
+def test_step_7_does_not_invoke_legacy_rss_ingest() -> None:
+    """Regression guard: ensure no fallback path resurrects rss_ingest.py.
+    Run step_7 with no caps and no max_rss kwarg (the kwarg is gone) — only
+    the unified batch_ingest_from_spider command should be issued."""
     captured: list[list[str]] = []
 
     def fake_run(cmd, dry_run, critical=False):
@@ -281,11 +289,30 @@ def test_max_rss_appended_to_rss_cmd() -> None:
         return StepResult(True, "ok")
 
     with patch.object(od, "_run", side_effect=fake_run):
-        od.run(dry_run=True, skip_scan=False, step=7, max_kol=None, max_rss=5)
+        od.run(dry_run=True, skip_scan=False, step=7)
 
-    kol_cmds = [c for c in captured if any("batch_ingest_from_spider.py" in x for x in c)]
     rss_cmds = [c for c in captured if any("rss_ingest.py" in x for x in c)]
-    assert len(kol_cmds) == 1
-    assert len(rss_cmds) == 1
-    assert rss_cmds[0][-2:] == ["--max-articles", "5"]
-    assert "--max-articles" not in kol_cmds[0]
+    assert not rss_cmds, (
+        f"ir-4 LF-5.1: enrichment/rss_ingest.py was retired and step_7 "
+        f"must never spawn it. Got: {rss_cmds}"
+    )
+    # The dispatch should still produce exactly one ingest invocation.
+    ingest_cmds = [c for c in captured if any("batch_ingest_from_spider.py" in x for x in c)]
+    assert len(ingest_cmds) == 1
+
+
+def test_run_signature_drops_max_rss() -> None:
+    """ir-4 LF-5.1: the ``run()`` and ``step_7_ingest_all()`` signatures
+    must NOT accept a ``max_rss`` keyword. Pre-ir-4 callers passing it
+    should fail loudly so they stop being silently dropped."""
+    import inspect
+
+    run_params = list(inspect.signature(od.run).parameters)
+    assert "max_rss" not in run_params, (
+        f"ir-4 LF-5.1: run() must not accept max_rss; got {run_params}"
+    )
+    step7_params = list(inspect.signature(od.step_7_ingest_all).parameters)
+    assert "max_rss" not in step7_params, (
+        f"ir-4 LF-5.1: step_7_ingest_all() must not accept max_rss; "
+        f"got {step7_params}"
+    )

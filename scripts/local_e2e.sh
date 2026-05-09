@@ -5,12 +5,17 @@
 #   ./scripts/local_e2e.sh <mode> [args...]
 #
 # Modes:
-#   rss [--max-articles N | --dry-run]    — enrichment/rss_ingest.py
 #   kol [--max-articles N | --dry-run]    — batch_ingest_from_spider.py --from-db
+#                                           (post-ir-4: dual-source — KOL + RSS via
+#                                            UNION ALL candidate SQL; one mode covers
+#                                            both sources)
 #   wechat <url>                          — ingest_wechat.py 单 URL
 #   layer1 <N>                            — Layer 1 only smoke,N 篇 candidates
 #   layer2 <N>                            — Layer 2 only smoke,N 篇 (post-Layer1)
 #   cleanup                               — scripts/cleanup_stuck_docs.py --dry-run
+#   rss                                   — DEPRECATED post-ir-4 (LF-5.1).
+#                                           enrichment/rss_ingest.py was retired;
+#                                           prints a migration hint and exits 0.
 #   help                                  — print usage + exit 0
 #
 # Env vars (defaults set, can override via existing env):
@@ -27,8 +32,9 @@
 #   OMNIGRAPH_LLM_MODEL            — gemini-3.1-flash-lite-preview
 #   OMNIGRAPH_BASE_DIR             — $(pwd)/.dev-runtime
 #   KOL_SCAN_DB_PATH               — $OMNIGRAPH_BASE_DIR/data/kol_scan.db
-#                                    (rss_ingest / batch_ingest read this; defaults
-#                                    to repo-root data/kol_scan.db without it)
+#                                    (batch_ingest reads this; defaults to repo-root
+#                                    data/kol_scan.db without it. Pre-ir-4 also fed
+#                                    rss_ingest.py — that file was retired in W4.)
 #   PYTHONPATH                     — $(pwd) (so `python -c` snippets can import
 #                                    top-level modules like config / lib)
 #   DEEPSEEK_API_KEY               — dummy (Phase 5 cross-coupling defense)
@@ -40,22 +46,23 @@
 #     embedding-2 (global) and gemini-3.1-flash-lite-preview (global) live-probed OK.
 #   - DeepSeek (api.deepseek.com): ❌ blocked by corp. Any real DeepSeek call fails.
 #     DEEPSEEK_API_KEY=dummy is import-time defense for lib/__init__.py:35 — does
-#     NOT make calls succeed. Affects: lib.article_filter Layer 2,
-#     LightRAG entity extraction, enrichment/rss_ingest.py (legacy, retired in
-#     ir-4 W4). Hermes-only happy path. (Pre-ir-4 also affected
-#     enrichment/rss_classify.py — file deleted in ir-4 W3.)
+#     NOT make calls succeed. Affects: lib.article_filter Layer 2 + LightRAG entity
+#     extraction (Hermes-only happy path). Pre-ir-4 also affected
+#     enrichment/rss_classify.py (deleted W3) and enrichment/rss_ingest.py
+#     (deleted W4) — both files now gone.
 #   - SiliconFlow / OpenRouter (Vision): ❌ blocked by corp. Vision cascade falls
 #     through to Gemini Vision (Vertex) which IS reachable.
 #
 # Output:
 #   .scratch/local-e2e-<mode>-<YYYYMMDD-HHMMSS>.log (all stdout+stderr)
 #
-# Mode validation status (as of 2026-05-08):
-#   rss / kol / wechat / cleanup / help — exercised end-to-end via dispatch + smoke
+# Mode validation status (as of 2026-05-09):
+#   kol / wechat / cleanup / help       — exercised end-to-end via dispatch + smoke
 #   layer1 / layer2                     — mode dispatch + help paths verified, but
 #                                         inline python -c snippets NOT yet run e2e.
 #                                         First production use of these modes will
 #                                         surface any SQL / import issues; report back.
+#   rss                                 — deprecation hint only (file retired ir-4 W4)
 
 set -euo pipefail
 
@@ -122,11 +129,16 @@ EXIT=0
 set +e
 case "$MODE" in
   rss)
-    echo "[local-e2e] mode=rss → python -m enrichment.rss_ingest $*" | tee "$LOG"
-    # Module form so repo root stays on sys.path (enrichment/rss_ingest.py
-    # imports top-level image_pipeline / config — invoking the path directly
-    # makes Python set sys.path[0] = enrichment/ and the imports break).
-    "$PYTHON" -m enrichment.rss_ingest "$@" 2>&1 | tee -a "$LOG"
+    # v3.5 ir-4 LF-5.1: enrichment/rss_ingest.py was retired. RSS articles
+    # now flow through batch_ingest_from_spider's --from-db dual-source
+    # candidate SQL exactly the same way KOL articles do (UNION ALL across
+    # articles + rss_articles, source-aware Layer 1/2 + per-row scrape +
+    # ainsert dispatch). Use the kol mode for both KOL and RSS.
+    echo "[local-e2e] mode=rss → DEPRECATED post-ir-4 (LF-5.1)." | tee "$LOG"
+    echo "[local-e2e]   RSS now ingested via dual-source --from-db. Use:" | tee -a "$LOG"
+    echo "[local-e2e]     bash scripts/local_e2e.sh kol --max-articles N" | tee -a "$LOG"
+    echo "[local-e2e]   The 'kol' mode covers both KOL and RSS sources." | tee -a "$LOG"
+    EXIT=0
     ;;
   kol)
     echo "[local-e2e] mode=kol → batch_ingest_from_spider.py --from-db $*" | tee "$LOG"

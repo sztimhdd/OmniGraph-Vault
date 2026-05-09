@@ -82,8 +82,10 @@ def main() -> int:
     # D-07 REVISED 2026-05-02 + D-19: RSS is excluded from enrichment.
     # The branch exists for backwards-compat with any legacy caller; it
     # logs the exclusion and exits 0 WITHOUT resolving DB, WITHOUT invoking
-    # the enrich_article skill. RSS articles flow through
-    # enrichment/rss_ingest.py's direct translate -> ainsert path instead.
+    # the enrich_article skill. v3.5 ir-4 (LF-5.1) retired the legacy
+    # enrichment/rss_ingest.py — RSS articles now flow through
+    # batch_ingest_from_spider's --from-db dual-source candidate SQL, where
+    # Layer 1 / Layer 2 / ainsert handle them per-source.
     if args.source == "rss":
         print(
             "RSS excluded per D-07 REVISED 2026-05-02 + D-19 — "

@@ -30,9 +30,12 @@ PYEXE = sys.executable
 
 
 # (module_dotted, attr_name)
-# v3.5 ir-4 (LF-5.2): ``enrichment.rss_classify`` retired with the file
-# enrichment/rss_classify.py — removed from this list. RSS classification
-# now happens via Layer 1 inside batch_ingest_from_spider --from-db.
+# v3.5 ir-4 retirements:
+#   * LF-5.2: enrichment.rss_classify deleted (file gone) — pre-ir-4 W3
+#   * LF-5.1: enrichment.rss_ingest deleted (file gone) — ir-4 W4
+# Both removed from this list because the modules no longer import.
+# RSS classification now happens via Layer 1 inside batch_ingest_from_spider
+# --from-db; RSS ingest goes through the same dual-source candidate SQL.
 MODULES = [
     ("batch_classify_kol", "DB_PATH"),
     ("batch_scan_kol", "DB_PATH"),
@@ -42,7 +45,6 @@ MODULES = [
     ("enrichment.daily_digest", "DB"),
     ("enrichment.orchestrate_daily", "DB"),
     ("enrichment.rss_fetch", "DB"),
-    ("enrichment.rss_ingest", "DB"),
     ("enrichment.run_enrich_for_id", "DB"),
 ]
 

@@ -176,15 +176,21 @@ def step_6_enrich_deep(dry_run: bool) -> StepResult:
 def step_7_ingest_all(
     dry_run: bool,
     max_kol: int | None = None,
-    max_rss: int | None = None,
 ) -> StepResult:
-    """Ingest BOTH KOL (batch_ingest_from_spider) and RSS (rss_ingest).
+    """Ingest both KOL and RSS through batch_ingest_from_spider --from-db.
 
-    Non-blocking per-branch; aggregate summary so one branch's failure
-    doesn't mask the other.
+    v3.5 ir-4 (LF-5.1) collapses what used to be two parallel sub-commands
+    (KOL via batch_ingest_from_spider, RSS via the now-deleted
+    enrichment/rss_ingest.py) into a single dual-source invocation. The
+    --from-db candidate SELECT is a UNION ALL across articles +
+    rss_articles; per-row dispatch in ingest_from_db handles scrape +
+    persist by source.
 
-    max_kol / max_rss: if non-None, append `--max-articles N` to the
-    corresponding sub-command to rate-limit each cron fire.
+    max_kol: if non-None, append ``--max-articles N`` to cap the combined
+    KOL+RSS pool per cron fire (still named max_kol for back-compat with
+    the orchestrate_daily CLI flag; semantically caps the dual-source
+    pool now). The pre-ir-4 max_rss parameter was removed because the
+    pool is unified — caller passes ONE cap.
     """
     kol_cmd = [
         str(PYTHON),
@@ -198,13 +204,11 @@ def step_7_ingest_all(
     if max_kol is not None:
         kol_cmd += ["--max-articles", str(max_kol)]
     kol_r = _run(kol_cmd, dry_run, critical=False)
-    rss_cmd = [str(PYTHON), "enrichment/rss_ingest.py"]
-    if max_rss is not None:
-        rss_cmd += ["--max-articles", str(max_rss)]
-    rss_r = _run(rss_cmd, dry_run, critical=False)
-    combined_success = kol_r.success and rss_r.success
-    summary = f"KOL: {kol_r.summary[:200]} | RSS: {rss_r.summary[:200]}"
-    return StepResult(combined_success, summary, critical=False)
+    return StepResult(
+        kol_r.success,
+        f"dual-source: {kol_r.summary[:300]}",
+        critical=False,
+    )
 
 
 def step_8_generate_digest(dry_run: bool) -> StepResult:
@@ -261,7 +265,6 @@ def run(
     skip_scan: bool,
     step: int | None = None,
     max_kol: int | None = None,
-    max_rss: int | None = None,
 ) -> dict:
     # v3.5 ir-4 (LF-5.2): step_2_classify_rss retired — enrichment/rss_classify.py
     # was the legacy DeepSeek-only RSS classifier. RSS now flows through Layer 1
@@ -300,7 +303,7 @@ def run(
         if name == "9_deliver":
             r = fn(dry_run, results.get("8_generate_digest"))
         elif name == "7_ingest_all":
-            r = fn(dry_run, max_kol=max_kol, max_rss=max_rss)
+            r = fn(dry_run, max_kol=max_kol)
         else:
             r = fn(dry_run)
         results[name] = r
@@ -332,11 +335,12 @@ def main() -> None:
     )
     p.add_argument(
         "--max-kol", type=int, default=None,
-        help="Cap KOL sub-batch in step_7 (default unlimited).",
-    )
-    p.add_argument(
-        "--max-rss", type=int, default=None,
-        help="Cap RSS sub-batch in step_7 (default unlimited).",
+        help=(
+            "Cap step_7's combined KOL+RSS pool (default unlimited). "
+            "Pre-ir-4 this only capped KOL; post-ir-4 (LF-5.1) the pool "
+            "is dual-source so the same flag now caps both. The legacy "
+            "--max-rss flag was removed because the pool is unified."
+        ),
     )
     args = p.parse_args()
     out = run(
@@ -344,7 +348,6 @@ def main() -> None:
         args.skip_scan,
         step=args.step,
         max_kol=args.max_kol,
-        max_rss=args.max_rss,
     )
     logger.info("done: %s", out)
     sys.exit(0 if out["failures"] == 0 else 1)
