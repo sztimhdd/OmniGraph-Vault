@@ -169,11 +169,11 @@ splits between LF-1 and LF-3 wiring (which are tightly coupled).
 ## Progress Table
 
 | Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| ir-1: Real Layer 1 + KOL wiring | 0/? | Not started | — |
-| ir-2: Real Layer 2 + full-body scoring | 0/? | Not started | — |
-| ir-3: Production cutover + 1-week observation | 0/? | Not started | — |
-| ir-4: RSS integration + dead-code cleanup (optional) | 0/? | Not started | — |
+| ----- | -------------- | ------ | --------- |
+| ir-1: Real Layer 1 + KOL wiring | 4/4 | DONE | 2026-05-07 |
+| ir-2: Real Layer 2 + full-body scoring | 4/4 | DONE | 2026-05-07 |
+| ir-3: Production cutover + 1-week observation | — | in progress (calendar wait) | (target ~2026-05-16) |
+| ir-4: RSS integration + dead-code cleanup | 5/5 | code-complete on local main; awaiting user `继续` for push + Hermes deploy | 2026-05-09 |
 
 ---
 

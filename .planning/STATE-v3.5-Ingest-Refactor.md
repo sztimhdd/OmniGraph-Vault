@@ -35,12 +35,12 @@ Last activity: 2026-05-07 — 4 sibling planning docs written + PROJECT.md point
 
 ### Phase plan
 
-| Phase | Goal | REQs | T-shirt |
-|-------|------|------|---------|
-| ir-1 | Real Layer 1 + KOL ingest wiring | 14 | L |
-| ir-2 | Real Layer 2 + full-body scoring | 11 | L |
-| ir-3 | Production cutover + 1-week observation | 1 | S (3 days + 7-day wall-clock) |
-| ir-4 | RSS integration + dead-code cleanup (optional) | 4 | M |
+| Phase | Goal | REQs | T-shirt | Status |
+| ----- | ---- | ---- | ------- | ------ |
+| ir-1 | Real Layer 1 + KOL ingest wiring | 14 | L | DONE (commit `f1a963b`) |
+| ir-2 | Real Layer 2 + full-body scoring | 11 | L | DONE (commit `f8e90ef`) |
+| ir-3 | Production cutover + 1-week observation | 1 | S (3 days + 7-day wall-clock) | in progress (calendar wait) |
+| ir-4 | RSS integration + dead-code cleanup | 4 | M | **CODE-COMPLETE 2026-05-09** — 5 atomic commits on local main (`5d943f8`/`df495c8`/`4cc3757`/`9ff330d`/W5), awaiting user `继续` to push + Hermes deploy via `.planning/phases/ir-4-rss-integration-and-cleanup/HERMES-DEPLOY-ir-4.md`. **Scope deviation** (ack'd): user prompt redirected LF-5.1/5.2 from REQ-text targets to retiring `enrichment/rss_classify.py` + `rss_ingest.py` instead. Original LF-5.1/5.2/5.3 deletions remain pending in a follow-up. |
 
 Total: 30/30 v1 REQs mapped, 0 orphans.
 
