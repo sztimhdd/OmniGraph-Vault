@@ -15,13 +15,16 @@ from enrichment.orchestrate_daily import StepResult
 
 
 # ---------------------------------------------------------------------
-# Test 1 — all 9 step functions exist with correct signature shape
+# Test 1 — all 8 active step functions exist with correct signature shape.
+# v3.5 ir-4 (LF-5.2): step_2_classify_rss retired (rss_classify.py deleted;
+# RSS now flows through Layer 1 inside batch_ingest_from_spider --from-db).
+# Numeric IDs stay non-contiguous (1, 3, 4, ..., 9) so cron history that
+# references "step 2" cannot accidentally re-route.
 # ---------------------------------------------------------------------
-def test_nine_step_functions_defined() -> None:
+def test_eight_active_step_functions_defined() -> None:
     names = [n for n in dir(od) if n.startswith("step_") and not n.startswith("step_result")]
     expected = {
         "step_1_fetch_rss",
-        "step_2_classify_rss",
         "step_3_health_check",
         "step_4_scan_kol",
         "step_5_classify_kol",
@@ -31,6 +34,16 @@ def test_nine_step_functions_defined() -> None:
         "step_9_deliver",
     }
     assert expected.issubset(set(names))
+
+
+def test_step_2_classify_rss_retired() -> None:
+    """Regression guard: step_2_classify_rss must NOT be re-introduced
+    (would re-link the deleted enrichment/rss_classify.py)."""
+    assert not hasattr(od, "step_2_classify_rss"), (
+        "ir-4 LF-5.2: step_2_classify_rss was retired with rss_classify.py. "
+        "RSS classification now happens inside Layer 1 of "
+        "batch_ingest_from_spider's --from-db candidate SQL."
+    )
 
 
 # ---------------------------------------------------------------------
@@ -51,9 +64,9 @@ def test_success_path_traverses_all_9_steps() -> None:
             mock_conn.execute.return_value.fetchall.return_value = []
             out = od.run(dry_run=False, skip_scan=False)
     assert out["failures"] == 0
-    # All 9 step names present in results
+    # All 8 active step names present in results (step_2 retired in ir-4 LF-5.2)
     assert set(out["results"].keys()) == {
-        "1_fetch_rss", "2_classify_rss", "3_health_check", "4_scan_kol",
+        "1_fetch_rss", "3_health_check", "4_scan_kol",
         "5_classify_kol", "6_enrich_deep", "7_ingest_all",
         "8_generate_digest", "9_deliver",
     }
@@ -106,9 +119,9 @@ def test_dry_run_prints_without_subprocess() -> None:
     with patch("enrichment.orchestrate_daily.subprocess.run") as mock_subp:
         out = od.run(dry_run=True, skip_scan=False)
     assert mock_subp.call_count == 0
-    # All 9 steps completed successfully in dry-run
+    # All 8 active steps completed successfully in dry-run (step_2 retired in ir-4 LF-5.2)
     assert out["failures"] == 0
-    assert len(out["results"]) == 9
+    assert len(out["results"]) == 8
 
 
 # ---------------------------------------------------------------------
@@ -122,10 +135,14 @@ def test_skip_scan_skips_three_steps() -> None:
     assert "3_health_check" not in out["results"]
     assert "4_scan_kol" not in out["results"]
     assert "5_classify_kol" not in out["results"]
-    # Remaining 6 steps ran
-    for expected in ("1_fetch_rss", "2_classify_rss", "6_enrich_deep",
+    # Remaining 5 active steps ran (1, 6, 7, 8, 9 — step_2 retired in ir-4 LF-5.2)
+    for expected in ("1_fetch_rss", "6_enrich_deep",
                      "7_ingest_all", "8_generate_digest", "9_deliver"):
         assert expected in out["results"], f"{expected} should have run"
+    # Regression guard: step_2 must NOT appear in results dict
+    assert "2_classify_rss" not in out["results"], (
+        "ir-4 LF-5.2: step_2 was retired with rss_classify.py"
+    )
 
 
 # ---------------------------------------------------------------------

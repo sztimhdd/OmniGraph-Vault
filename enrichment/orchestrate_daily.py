@@ -79,12 +79,6 @@ def step_1_fetch_rss(dry_run: bool) -> StepResult:
     return _run([str(PYTHON), "enrichment/rss_fetch.py"], dry_run, critical=False)
 
 
-def step_2_classify_rss(dry_run: bool) -> StepResult:
-    return _run(
-        [str(PYTHON), "enrichment/rss_classify.py"], dry_run, critical=False
-    )
-
-
 def step_3_health_check(dry_run: bool) -> StepResult:
     # Delegated to the existing 07:55 health-check cron (id e7afccd9931b).
     # Orchestrator never runs health-check itself. Unconditional pass-through.
@@ -269,9 +263,14 @@ def run(
     max_kol: int | None = None,
     max_rss: int | None = None,
 ) -> dict:
+    # v3.5 ir-4 (LF-5.2): step_2_classify_rss retired — enrichment/rss_classify.py
+    # was the legacy DeepSeek-only RSS classifier. RSS now flows through Layer 1
+    # (lib.article_filter) inside batch_ingest_from_spider's --from-db dual-source
+    # candidate SQL, exercised by step_7. The numeric step IDs (1, 3, 4, ..., 9)
+    # are intentionally non-contiguous so cron jobs.json prompt history that
+    # references "step 2" doesn't silently re-route to a different step.
     steps: list[tuple[str, Callable]] = [
         ("1_fetch_rss", step_1_fetch_rss),
-        ("2_classify_rss", step_2_classify_rss),
         ("3_health_check", step_3_health_check),
         ("4_scan_kol", step_4_scan_kol),
         ("5_classify_kol", step_5_classify_kol),

@@ -78,9 +78,12 @@ add_job "rss-fetch" \
   "0 6 * * *" \
   "run enrichment/rss_fetch.py"
 
-add_job "rss-classify" \
-  "0 7 * * *" \
-  "run enrichment/rss_classify.py"
+# v3.5 ir-4 (LF-5.2): rss-classify cron retired. RSS classification now
+# happens inside Layer 1 of batch_ingest_from_spider's --from-db dual-source
+# candidate SQL, exercised by the daily-ingest cron below. The legacy
+# enrichment/rss_classify.py was deleted along with this registration block.
+# Operators upgrading from a pre-ir-4 deploy must remove the existing
+# 'rss-classify' job from Hermes manually:  hermes cron remove <id>
 
 add_job "daily-classify-kol" \
   "15 8 * * *" \

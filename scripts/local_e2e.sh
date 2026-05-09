@@ -40,8 +40,10 @@
 #     embedding-2 (global) and gemini-3.1-flash-lite-preview (global) live-probed OK.
 #   - DeepSeek (api.deepseek.com): ❌ blocked by corp. Any real DeepSeek call fails.
 #     DEEPSEEK_API_KEY=dummy is import-time defense for lib/__init__.py:35 — does
-#     NOT make calls succeed. Affects: enrichment/rss_classify.py, enrichment/
-#     rss_ingest.py, LightRAG entity extraction. Hermes-only happy path.
+#     NOT make calls succeed. Affects: lib.article_filter Layer 2,
+#     LightRAG entity extraction, enrichment/rss_ingest.py (legacy, retired in
+#     ir-4 W4). Hermes-only happy path. (Pre-ir-4 also affected
+#     enrichment/rss_classify.py — file deleted in ir-4 W3.)
 #   - SiliconFlow / OpenRouter (Vision): ❌ blocked by corp. Vision cascade falls
 #     through to Gemini Vision (Vertex) which IS reachable.
 #
