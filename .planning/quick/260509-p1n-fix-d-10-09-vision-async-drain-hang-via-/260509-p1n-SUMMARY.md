@@ -142,3 +142,50 @@ contract drift in `ingest_from_db` after Phase 20 RIN-01. Logged to
   documents short-circuit reason.
 
 ## Self-Check: PASSED
+
+---
+
+## Post-fix Addendum (2026-05-09 20:49 ADT) — Integration smoke against orchestrator wrapper
+
+User asked whether local repro could verify the fix beyond the unit tests. Honest constraints surfaced:
+
+1. **`.dev-runtime` DB schema drift** — migration 008 (`ingestions_dual_source`) hadn't been applied; `kol --max-articles 1` failed with `sqlite3.OperationalError: no such column: source` (pre-fix attempt logged as `.scratch/d10-09-prefix-hang-20260509-202149.log`)
+2. **Apify token in `.dev-runtime` lacks actor permissions** — every `_scrape_wechat_apify` call returns "This Actor requires full access to your account"; cached articles (id=27, 332, 336, 365 etc.) are not first in the candidate ORDER BY so a `--max-articles 1` won't reach them before scrape failures dominate
+3. **Even if ainsert reached, vision spawn requires image download success** — chain has too many breakpoints to reliably reach the post-cap drain path locally
+
+What was done instead (with user approval):
+
+### Step A — Apply migration 008 to align `.dev-runtime` with Hermes schema
+Backed up `.dev-runtime/data/kol_scan.db` to `.dev-runtime/data/kol_scan.db.backup-pre-mig008-20260509-203424` per CLAUDE.md Lessons #2; ran `venv/Scripts/python migrations/008_ingestions_dual_source.py .dev-runtime/data/kol_scan.db`; **577 rows migrated cleanly**, all stamped `source='wechat'`, integrity_check + foreign_key_check both clean.
+
+### Step B — Import smoke
+`from lib.vision_tracking import track_vision_task, drain_vision_tasks, _VISION_TASKS` + `import batch_ingest_from_spider as bif` + `import ingest_wechat` — all clean. Identity check: `ingest_wechat.track_vision_task is track_vision_task` → **True** (no circular import; the late-import inside `ingest_article` resolves to the same object).
+
+### Step C — Integration smoke (`.scratch/d10-09-integration-smoke.py`)
+Difference from `tests/unit/test_drain_cap.py`: unit tests exercise `lib.vision_tracking.drain_vision_tasks` directly. This smoke exercises **the real orchestrator wrapper** `batch_ingest_from_spider._drain_pending_vision_tasks()`, proving the 1-line delegate works end-to-end. Three scenarios mirroring the unit tests:
+
+| # | Scenario | Wall-clock | Verdict |
+|---|----------|------------|---------|
+| 1 | 3 tasks each `asyncio.sleep(0.05)` → drain with default cap=120s | 0.064 s | All `done() and not cancelled()`, drain returns clean, `_VISION_TASKS` empty afterward |
+| 2 | 2 tasks each `asyncio.sleep(60)` → cap=0.2s monkeypatched on `bif.VISION_DRAIN_TIMEOUT` | 0.201 s | All `cancelled()` true, warning log line emitted, drain returns within 2s wall-clock bound |
+| 3 | Empty `_VISION_TASKS` set → drain | <0.001 s | No-op, no log spam |
+
+`=== INTEGRATION SMOKE PASS ===` — log at `.scratch/d10-09-integration-smoke-20260509-204902.log`
+
+### What this proves vs what remains unverifiable locally
+
+✅ **Proven**:
+
+- `lib.vision_tracking` module imports clean (no circular imports between `batch_ingest_from_spider` ↔ `ingest_wechat` ↔ `lib.vision_tracking`)
+- `track_vision_task()` correctly registers tasks into the dedicated `_VISION_TASKS` set
+- `_VISION_TASKS.add_done_callback(_VISION_TASKS.discard)` correctly cleans the set on completion AND cancellation
+- `_drain_pending_vision_tasks()` orchestrator wrapper correctly delegates to `drain_vision_tasks(timeout_s=VISION_DRAIN_TIMEOUT)`
+- The 120 s deadline + cancel-on-timeout semantics work on REAL `asyncio.Task` objects (not mocks) at the public API surface
+- The `VISION_DRAIN_TIMEOUT` module constant on `batch_ingest_from_spider` still flows through to the helper (preserves existing `test_vision_worker.py:509` monkeypatch contract)
+
+❌ **Not locally verifiable** (gated by corp network + Apify actor permissions):
+
+- That the production hang under live `batch_ingest_from_spider --from-db --max-articles N` ACTUALLY closes the event loop after `max-articles cap reached`
+- That LightRAG / Cognee / kuzu lib tasks are NOT touched by the new narrow drain (the smoke uses fake `asyncio.sleep` tasks, not real lib tasks)
+
+The remaining unverified path is the one only Hermes can exercise (real LightRAG ainsert + real Vision spawn). That gate stays at **post-deploy Hermes manual smoke** (separate quick task).
