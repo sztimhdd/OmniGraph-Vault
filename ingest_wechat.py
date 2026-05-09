@@ -571,7 +571,7 @@ async def _apify_call(token: str, url: str) -> "dict | None":
     loop = asyncio.get_event_loop()
     # 使用较长的 timeout
     future = loop.run_in_executor(
-        None, lambda: client.actor("zOQWQaziNeBNFWN1O").call(run_input=run_input)
+        None, lambda: client.actor("zOQWQaziNeBNFWN1O").call(run_input=run_input, max_items=1)
     )
     run = await asyncio.wait_for(future, timeout=300)
     print("Apify run finished.")
