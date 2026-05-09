@@ -96,7 +96,7 @@ Post-commit `git diff --name-only HEAD~1 HEAD` shows ONLY:
 
 ## Commit
 
-- Hash: `<filled in below after commit>`
+- Hash: `5b22078` (full: `5b220789e9493e2fffbe80ae1bc2d068dec64f04`)
 - Subject: `fix(scraper-260509-apify): add max_items=1 to Apify .call() to unblock pay-per-result actor`
 - Forward-only single commit; explicit `git add <named-files>` (NO `-A`); no stash/reset/rebase/amend/force-push.
 
