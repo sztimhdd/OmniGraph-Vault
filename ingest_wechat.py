@@ -143,7 +143,6 @@ from lib import embedding_func
 # dev). Was: from lightrag_llm import deepseek_model_complete (Plan
 # 05-00c Task 0c.3 — DeepSeek release of Gemini generate_content pool
 # preserved as the dispatcher's default).
-from lib.llm_complete import get_llm_func
 
 nest_asyncio.apply()
 
@@ -315,7 +314,6 @@ async def get_rag(flush: bool = True) -> "LightRAG":
         working_dir=RAG_WORKING_DIR,
         llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
-        llm_model_name="deepseek-v4-flash",
         # v3.3 Day-1 postmortem: free-tier throttling removed — Vertex paid
         # tier (1000 RPM) allows higher concurrency.  Batch insert + higher
         # async limits reduce the per-article merge wall from ~40 min → ~5-10.
@@ -1089,10 +1087,6 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
         markdown, img_urls = process_content(article_data.get('content_html', ''))
 
     full_content = f"# {title}\n\nURL: {url}\nTime: {publish_time}\n\n{markdown}"
-
-    article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
-    article_dir = os.path.join(BASE_IMAGE_DIR, article_hash)
-    os.makedirs(article_dir, exist_ok=True)
 
     # Phase 12 Stage 2: classify (checkpoint guarded). Phase 12 writes a
     # placeholder — Phase 13 can replace with a real classify call. The
