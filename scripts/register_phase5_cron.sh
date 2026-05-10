@@ -89,6 +89,12 @@ add_job "daily-classify-kol" \
   "15 8 * * *" \
   "run batch_classify_kol.py --topic Agent --topic LLM --topic RAG --topic NLP --topic CV --min-depth 2 --days-back 1"
 
+# quick-260510-p1s: standalone Layer 2 classifier for RSS — drains
+# rss_articles where layer1_verdict='candidate' AND layer2_verdict IS NULL.
+add_job "daily-classify-rss-layer2" \
+  "20 8 * * *" \
+  "cd ~/OmniGraph-Vault && source venv/bin/activate && python batch_classify_rss_layer2.py 2>&1 | tee /tmp/rss-layer2-\$(date +%Y%m%d).log"
+
 # D-07 REVISED 2026-05-02 + D-19: KOL only, RSS excluded, forward-only
 # (today's fresh scans only). The prompt wording is load-bearing — the
 # Hermes skill resolver uses it to decide which table to enumerate.
