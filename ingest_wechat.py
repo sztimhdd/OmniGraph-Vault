@@ -49,8 +49,11 @@ def _status_is_processed(status_val) -> bool:
 # 2026-05-09/10 ainsert async-pipeline race where LightRAG's internal
 # enqueue had not yet promoted the doc to status='PROCESSED' by the time
 # the caller checked.
-PROCESSED_VERIFY_MAX_RETRIES = 3
-PROCESSED_VERIFY_BACKOFF_S = 2.0
+# 2026-05-10 quick 260510-h09b: budget envelope bumped 6s → 60s default
+# (30 × 2.0s) with OMNIGRAPH_PROCESSED_RETRY / OMNIGRAPH_PROCESSED_BACKOFF
+# env override; covers Phase 2 entity-merging on heavy WeChat articles.
+PROCESSED_VERIFY_MAX_RETRIES = int(os.getenv("OMNIGRAPH_PROCESSED_RETRY", "30"))
+PROCESSED_VERIFY_BACKOFF_S = float(os.getenv("OMNIGRAPH_PROCESSED_BACKOFF", "2.0"))
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")

@@ -215,6 +215,8 @@ All five are opt-in; unset values preserve Hermes production behavior.
 | `OMNIGRAPH_VISION_SKIP_PROVIDERS` | No | _(empty)_ | Comma-list of vision providers to drop from the cascade. Typical local value: `siliconflow,openrouter` (no paid balances / keys). |
 | `OMNIGRAPH_BASE_DIR` | Yes for local dev | `~/.hermes/omonigraph-vault` | Absolute path to runtime data root. Empty string treated as unset. |
 | `OMNIGRAPH_LLM_TIMEOUT_SEC` | No | `600` | Int seconds; applies to Vertex Gemini LLM calls only. DeepSeek path unaffected. |
+| `OMNIGRAPH_PROCESSED_RETRY` | No | `30` | Int. h09 PROCESSED-gate max retries; combined with `OMNIGRAPH_PROCESSED_BACKOFF` controls the post-ainsert verification budget (default 30 × 2.0s = 60s, was 3 × 2.0s = 6s before quick 260510-h09b). |
+| `OMNIGRAPH_PROCESSED_BACKOFF` | No | `2.0` | Float seconds. h09 PROCESSED-gate retry backoff. See `OMNIGRAPH_PROCESSED_RETRY`. |
 
 Full local-dev runbook: `docs/LOCAL_DEV_SETUP.md`.
 
