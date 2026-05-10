@@ -120,4 +120,4 @@ No edits to `cognee_wrapper.py`, `cognee_batch_processor.py`, `ingest_wechat.py`
 
 ## Final commit SHA
 
-(filled in after commit)
+`bc3d2e8` — `docs(quick-260509-syd): root-cause investigation for Cognee 422 NOT_FOUND`
