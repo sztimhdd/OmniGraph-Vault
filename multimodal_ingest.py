@@ -17,8 +17,10 @@ except ImportError as e:
 
 # Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
 from lib import embedding_func
-# Plan 05-00c Task 0c.3: LightRAG LLM routes to Deepseek via shared wrapper.
-from lightrag_llm import deepseek_model_complete
+# Quick 260509-s29 Wave 3: route via OMNIGRAPH_LLM_PROVIDER dispatcher
+# (defaults to deepseek; Plan 05-00c Task 0c.3 DeepSeek routing preserved
+# as the dispatcher's default).
+from lib.llm_complete import get_llm_func
 
 # VISION_LLM stays on Gemini — the describe_image() multimodal path is Gemini-only.
 from lib import INGESTION_LLM, VISION_LLM, current_key, get_limiter, generate_sync
@@ -57,7 +59,7 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 async def get_rag():
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
-        llm_model_func=deepseek_model_complete,
+        llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
         llm_model_name="deepseek-v4-flash",
         # Phase 4 throttle guardrails preserved (Gemini embedding RPM limits).

@@ -19,8 +19,11 @@ except ImportError as e:
 
 # Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
 from lib import embedding_func
-# Plan 05-00c Task 0c.3: route LightRAG LLM to Deepseek.
-from lightrag_llm import deepseek_model_complete
+# Quick 260509-s29 Wave 3: route LightRAG LLM via OMNIGRAPH_LLM_PROVIDER
+# dispatcher (defaults to deepseek; flip env to vertex_gemini for local
+# dev). Was: from lightrag_llm import deepseek_model_complete (Plan
+# 05-00c Task 0c.3).
+from lib.llm_complete import get_llm_func
 
 nest_asyncio.apply()
 
@@ -50,7 +53,7 @@ ENTITY_REGISTRY_FILE = Path(__file__).parent / "entity_registry.json"
 async def get_rag() -> LightRAG:
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
-        llm_model_func=deepseek_model_complete,
+        llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
         llm_model_name="deepseek-v4-flash",
     )

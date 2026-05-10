@@ -37,7 +37,8 @@ load_env()
 async def main() -> int:
     from lib.lightrag_embedding import _ROTATION_HITS, embedding_func
     from lib.api_keys import load_keys
-    from lightrag_llm import deepseek_model_complete
+    # quick-260509-s29 W3: dispatcher route (defaults to deepseek).
+    from lib.llm_complete import get_llm_func
     from lightrag import LightRAG
 
     # Pick smallest doc from .bak
@@ -65,7 +66,7 @@ async def main() -> int:
 
     rag = LightRAG(
         working_dir=tmp,
-        llm_model_func=deepseek_model_complete,
+        llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
         llm_model_name="deepseek-v4-flash",
         embedding_func_max_async=1,

@@ -19,8 +19,9 @@ from lightrag.lightrag import LightRAG, QueryParam
 
 from config import RAG_WORKING_DIR, load_env
 from lightrag_embedding import embedding_func as _embedding_func
-# Plan 05-00c Task 0c.3: LightRAG LLM routes to Deepseek via shared wrapper.
-from lightrag_llm import deepseek_model_complete
+# Quick 260509-s29 Wave 3: route via OMNIGRAPH_LLM_PROVIDER dispatcher
+# (defaults to deepseek; Plan 05-00c Task 0c.3 routing preserved as default).
+from lib.llm_complete import get_llm_func
 
 # Force standard Gemini API mode (not Vertex AI) — matches query_lightrag.py.
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
@@ -51,7 +52,7 @@ async def search(query_text: str, mode: str = "hybrid") -> str:
 
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
-        llm_model_func=deepseek_model_complete,
+        llm_model_func=get_llm_func(),
         embedding_func=_embedding_func,
         llm_model_name="deepseek-v4-flash",
     )

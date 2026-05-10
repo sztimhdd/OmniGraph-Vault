@@ -16,7 +16,7 @@ import asyncio
 import time
 
 from lightrag.lightrag import LightRAG, QueryParam
-from lib.llm_deepseek import deepseek_model_complete
+from lib.llm_complete import get_llm_func  # quick-260509-s29 W3: dispatcher
 from lib.lightrag_embedding import embedding_func
 
 # Phase 5 Wave 0 fix (2026-05-03): SYNTHESIS_LLM was gemini-2.5-flash-lite but
@@ -104,7 +104,7 @@ def _append_query_history(query: str, mode: str, response_len: int) -> None:
 
 
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
-    rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=deepseek_model_complete, embedding_func=embedding_func)
+    rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=get_llm_func(), embedding_func=embedding_func)
     if hasattr(rag, "initialize_storages"): await rag.initialize_storages()
         
     await asyncio.sleep(2)

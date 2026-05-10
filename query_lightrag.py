@@ -8,8 +8,9 @@ from config import RAG_WORKING_DIR, load_env
 
 # Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
 from lib import embedding_func
-# Plan 05-00c Task 0c.3: LightRAG LLM routes to Deepseek via shared wrapper.
-from lightrag_llm import deepseek_model_complete
+# Quick 260509-s29 Wave 3: route via OMNIGRAPH_LLM_PROVIDER dispatcher
+# (defaults to deepseek; Plan 05-00c Task 0c.3 routing preserved as default).
+from lib.llm_complete import get_llm_func
 
 # Force standard Gemini API mode (not Vertex AI)
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
@@ -23,7 +24,7 @@ async def query_and_synthesize(query_text: str):
     """Initializes LightRAG and performs a query to synthesize a markdown response."""
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
-        llm_model_func=deepseek_model_complete,
+        llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
         llm_model_name="deepseek-v4-flash",
     )

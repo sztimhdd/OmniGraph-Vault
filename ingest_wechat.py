@@ -67,9 +67,12 @@ except ImportError as e:
 
 # Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
 from lib import embedding_func
-# Plan 05-00c Task 0c.3: route LightRAG LLM to Deepseek — releases Gemini
-# generate_content pool so embedding quota is the only shared axis.
-from lightrag_llm import deepseek_model_complete
+# Quick 260509-s29 Wave 3: route LightRAG LLM via OMNIGRAPH_LLM_PROVIDER
+# dispatcher (defaults to deepseek; flip env to vertex_gemini for local
+# dev). Was: from lightrag_llm import deepseek_model_complete (Plan
+# 05-00c Task 0c.3 — DeepSeek release of Gemini generate_content pool
+# preserved as the dispatcher's default).
+from lib.llm_complete import get_llm_func
 
 nest_asyncio.apply()
 
@@ -833,7 +836,7 @@ async def extract_entities(text):
     """
     try:
         prompt = f"Extract a comma-separated list of key entities (people, organizations, technical concepts, products) from the following text:\n\n{text[:5000]}"
-        response_text = await deepseek_model_complete(prompt)
+        response_text = await get_llm_func()(prompt)
         entities = [e.strip() for e in response_text.split(',')]
         return [e for e in entities if e]
     except Exception as e:
