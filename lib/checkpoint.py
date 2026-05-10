@@ -3,9 +3,9 @@
 Public API documented in .planning/phases/12-checkpoint-resume/12-CONTEXT.md.
 6 stages: scrape, classify, image_download, text_ingest, vision_worker, sub_doc_ingest.
 
-Atomicity: every write follows the .tmp -> os.rename() pattern established by
-cognee_batch_processor.py. A crash mid-write leaves only a .tmp file which is
-invisible to has_stage() so resume logic is always safe.
+Atomicity: every write follows the .tmp -> os.rename() pattern. A crash mid-write
+leaves only a .tmp file which is invisible to has_stage() so resume logic is
+always safe.
 
 Path: ~/.hermes/omonigraph-vault/checkpoints/{article_hash}/
 (typo "omonigraph" is canonical per CLAUDE.md Lessons Learned -- do NOT rename.)
@@ -81,8 +81,7 @@ def _stage_path(article_hash: str, stage: str) -> Path:
 def _atomic_write_bytes(path: Path, data: bytes) -> None:
     """Write bytes via .tmp -> os.replace (crash-safe, overwrites on Windows).
 
-    Equivalent to the cognee_batch_processor.py os.rename pattern on POSIX but
-    os.replace is used so metadata.json upserts work on Windows (os.rename raises
+    Atomic os.replace pattern — works on POSIX and Windows alike (os.rename raises
     FileExistsError on Windows when the destination already exists; os.replace
     is the standard-library-documented atomic-and-portable spelling).
     """

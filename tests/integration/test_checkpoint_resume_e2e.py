@@ -109,11 +109,6 @@ def mock_ingest_deps(monkeypatch, tmp_path, fake_article_data):
 
     monkeypatch.setattr(iw, "_vision_worker_impl", fake_vision)
 
-    async def fake_remember(**kw):
-        return None
-
-    monkeypatch.setattr(iw.cognee_wrapper, "remember_article", fake_remember)
-
     imgs_dir = tmp_path / "images"
     imgs_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(iw, "BASE_IMAGE_DIR", str(imgs_dir))

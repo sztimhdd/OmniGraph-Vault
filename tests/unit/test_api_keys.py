@@ -1,9 +1,6 @@
 """Tests for lib/api_keys.py — Phase 7 Wave 0 Task 0.2.
 
 D-04: GEMINI_API_KEY_BACKUP folded into OMNIGRAPH_GEMINI_KEYS pool.
-Amendment 4: rotate_key() writes os.environ["COGNEE_LLM_API_KEY"] inline —
-  no formal cognee_bridge module, no observer pattern.
-refresh_cognee(): calls cognee.infrastructure.llm.config.get_llm_config.cache_clear()
 """
 from __future__ import annotations
 
@@ -19,7 +16,6 @@ def _reset_state(monkeypatch):
         "OMNIGRAPH_GEMINI_KEY",
         "GEMINI_API_KEY_BACKUP",
         "GEMINI_API_KEY",
-        "COGNEE_LLM_API_KEY",
     ):
         monkeypatch.delenv(var, raising=False)
     import lib.api_keys as k
@@ -85,23 +81,6 @@ def test_rotate_advances(monkeypatch):
     assert rotate_key() == "k1"  # wraps around
 
 
-def test_rotate_sets_cognee_env(monkeypatch):
-    """Amendment 4: rotate_key() propagates to os.environ["COGNEE_LLM_API_KEY"]."""
-    monkeypatch.setenv("OMNIGRAPH_GEMINI_KEYS", "k1,k2")
-    from lib.api_keys import current_key, rotate_key
-    current_key()  # init
-    rotate_key()
-    assert os.environ.get("COGNEE_LLM_API_KEY") == "k2"
-
-
-def test_init_seeds_cognee_env(monkeypatch):
-    """Amendment 4: first current_key() call seeds COGNEE_LLM_API_KEY."""
-    monkeypatch.setenv("GEMINI_API_KEY", "seed-key")
-    from lib.api_keys import current_key
-    current_key()
-    assert os.environ.get("COGNEE_LLM_API_KEY") == "seed-key"
-
-
 def test_rotate_fires_listener(monkeypatch):
     monkeypatch.setenv("OMNIGRAPH_GEMINI_KEYS", "k1,k2")
     from lib.api_keys import current_key, rotate_key, on_rotate
@@ -122,21 +101,3 @@ def test_listener_exception_swallowed(monkeypatch):
     assert result == "k2"
 
 
-def test_refresh_cognee_calls_cache_clear(monkeypatch, mocker):
-    """Amendment 4: refresh_cognee() clears Cognee's @lru_cache on get_llm_config."""
-    mock_cache_clear = mocker.patch(
-        "cognee.infrastructure.llm.config.get_llm_config.cache_clear"
-    )
-    from lib.api_keys import refresh_cognee
-    refresh_cognee()
-    mock_cache_clear.assert_called_once()
-
-
-def test_refresh_cognee_swallows_import_error(monkeypatch, mocker):
-    """refresh_cognee() does not raise when cognee is not importable."""
-    mocker.patch.dict("sys.modules", {"cognee": None, "cognee.infrastructure": None,
-                                       "cognee.infrastructure.llm": None,
-                                       "cognee.infrastructure.llm.config": None})
-    from lib.api_keys import refresh_cognee
-    # Should not raise
-    refresh_cognee()

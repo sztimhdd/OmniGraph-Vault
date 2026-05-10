@@ -21,9 +21,8 @@ from lib.lightrag_embedding import embedding_func
 
 # Phase 5 Wave 0 fix (2026-05-03): SYNTHESIS_LLM was gemini-2.5-flash-lite but
 # the routing rule is "ALL LLM → DeepSeek, Gemini ONLY for Vision+Embedding".
-# Also: Cognee import was triggering async pipelines at module level (Vertex AI
-# 404 cascade), blocking the event loop. Cognee is now lazy-imported only when
-# recall/remember succeeds — which it never does on free-tier Vertex AI anyway.
+# Cognee was removed from kg_synthesize on 2026-05-03 (commit 0109c02) and
+# fully retired from the repo on 2026-05-10 (quick 260510-gfg, Path A).
 
 # HYG-04 (Phase 18-03): single source of truth for the image-URL-preservation
 # directive. Captured from Wave 0 commit 0109c02. Any future synthesis-layer
@@ -38,9 +37,9 @@ IMAGE_URL_DIRECTIVE = (
     "Do NOT skip images. Do NOT drop URLs."
 )
 
-# HYG-03 (Phase 18-02): replacement for removed Cognee recall/remember flow.
-# Past-query memory is persisted as append-only JSONL. Never blocks synthesis —
-# read failures return empty list; write failures log a warning only.
+# HYG-03 (Phase 18-02): JSONL past-query memory (replaces the legacy memory
+# layer that was retired in quick 260510-gfg). Append-only file; never blocks
+# synthesis — read failures return empty list; write failures log a warning only.
 # Note: the parent dir name `omonigraph-vault` is the canonical typo (CLAUDE.md).
 QUERY_HISTORY_FILE = Path.home() / ".hermes" / "omonigraph-vault" / "query_history.jsonl"
 

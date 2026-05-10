@@ -6,7 +6,8 @@ Tests ``_read_recent_query_history`` + ``_append_query_history`` in
 ``~/.hermes/omonigraph-vault/``.
 
 Also includes a regression-guard grep test: Cognee must stay OUT of
-kg_synthesize.py (per Wave 0 commit 0109c02).
+kg_synthesize.py (per Wave 0 commit 0109c02 + 2026-05-10 quick 260510-gfg
+full Cognee retirement).
 """
 from __future__ import annotations
 
@@ -101,6 +102,7 @@ def test_cognee_regression_guard_kg_synthesize():
 
     Wave 0 commit 0109c02 removed `import cognee` and its call sites
     because Cognee's module-level import blocked the asyncio event loop.
+    Quick 260510-gfg (2026-05-10) retired Cognee from the entire repo.
     This test protects against accidental re-introduction.
     """
     source_path = Path(kg_synthesize.__file__)

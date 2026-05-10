@@ -155,12 +155,6 @@ def mock_ingest_deps(monkeypatch, tmp_path, fake_article_data):
 
     monkeypatch.setattr(iw, "_vision_worker_impl", fake_vision_worker)
 
-    # Stub cognee_wrapper.remember_article
-    async def fake_remember(**kwargs):
-        return None
-
-    monkeypatch.setattr(iw.cognee_wrapper, "remember_article", fake_remember)
-
     monkeypatch.setattr(iw, "save_markdown_with_images", MagicMock())
 
     # Redirect BASE_IMAGE_DIR so article_dir lands under tmp.

@@ -6,9 +6,8 @@ import os
 # setdefault preserves any explicit override from shell env or ~/.hermes/.env.
 os.environ.setdefault("LLM_TIMEOUT", "600")
 
-# 2026-05-05: suppress Cognee structlog INFO/WARNING noise (~600 lines/run).
-# Cognee respects LOG_LEVEL env var per official docs. ERROR keeps real
-# exceptions visible. setdefault preserves explicit user override.
+# 2026-05-05: suppress structlog INFO/WARNING noise (~600 lines/run).
+# ERROR keeps real exceptions visible. setdefault preserves explicit user override.
 os.environ.setdefault("LOG_LEVEL", "ERROR")
 
 import sys
@@ -124,7 +123,6 @@ from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 import html2text
 from google import genai
-import cognee_wrapper
 from apify_client import ApifyClient
 
 # For LightRAG
@@ -914,22 +912,6 @@ async def extract_entities(text):
         return []
 
 # --- Main Logic ---
-def _cognee_inline_enabled() -> bool:
-    """Return True iff OMNIGRAPH_COGNEE_INLINE is exactly "1".
-
-    2026-05-03 hotfix: the inline `cognee_wrapper.remember_article` call in `ingest_article`
-    was blocking the KOL ingest fast-path because Cognee's LiteLLM router sends
-    `gemini-embedding-2` requests to Google AI Studio (which returns 422 NOT_FOUND — the model
-    is Vertex-exclusive), triggering a minutes-long retry loop per article. Gating the call
-    behind this env var lets the Day-1 cron (2026-05-04 06:00 ADT) proceed with default OFF.
-
-    Strict `== "1"` match (not truthy-string) — operators must explicitly set `"1"` to re-enable.
-    Root fix: v3.4 Phase 20/21 (Cognee LiteLLM routing repair). Re-enable by setting
-    OMNIGRAPH_COGNEE_INLINE=1 once routing is fixed.
-    """
-    return os.environ.get("OMNIGRAPH_COGNEE_INLINE", "0") == "1"
-
-
 async def ingest_article(url, rag=None) -> "asyncio.Task | None":
     """Ingest a single WeChat article.
 
@@ -1216,7 +1198,7 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
         # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
         rag = await get_rag(flush=True)
 
-    # Cognee integration: Buffered
+    # Entity extraction buffered to SQLite + JSON for async processing.
     try:
         raw_entities = await extract_entities(full_content)
         buffer_data = {'url': url, 'raw_entities': raw_entities, 'timestamp': os.path.getmtime(article_dir)}
@@ -1277,25 +1259,6 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
                 write_metadata(ckpt_hash, {"last_completed_stage": "sub_doc_ingest"})
             except Exception as e:
                 logger.warning("sub_doc_ingest marker write failed: %s", e)
-
-    # Cognee episodic memory: fire-and-forget article metadata
-    # Per 2026 RAG best practices — dual-store: LightRAG (semantic) + Cognee (episodic)
-    # Never blocks the fast path — timeout 5s, all exceptions swallowed
-    #
-    # 2026-05-03 HOTFIX: gated behind OMNIGRAPH_COGNEE_INLINE (default "0" = OFF).
-    # Cognee's LiteLLM routing sends gemini-embedding-2 to AI Studio (Vertex-exclusive,
-    # returns 422 NOT_FOUND) — retry loop blocks the KOL ingest fast-path. Root fix in
-    # v3.4 Phase 20/21 (LiteLLM routing repair). Re-enable by setting OMNIGRAPH_COGNEE_INLINE=1.
-    if _cognee_inline_enabled():
-        try:
-            await cognee_wrapper.remember_article(
-                title=title,
-                url=url,
-                entities=raw_entities,
-                summary_gist=full_content[:1000],
-            )
-        except Exception:
-            pass
 
     # Save files via shared pipeline (atomic write, D-16)
     save_markdown_with_images(
@@ -1427,7 +1390,7 @@ async def ingest_pdf(file_path, rag=None):
         # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
         rag = await get_rag(flush=True)
 
-    # Cognee integration: Buffered
+    # Entity extraction buffered to SQLite + JSON for async processing.
     try:
         raw_entities = await extract_entities(full_text)
         buffer_data = {'url': file_path, 'raw_entities': raw_entities, 'timestamp': os.path.getmtime(article_dir)}

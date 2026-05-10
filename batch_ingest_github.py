@@ -38,7 +38,6 @@ REPOS = [
     "https://github.com/modelcontextprotocol/servers",
     "https://github.com/anthropics/anthropic-sdk-python",
     # Memory systems
-    "https://github.com/topoteretes/cognee",
     "https://github.com/mem0ai/mem0",
     "https://github.com/getzep/graphiti",
     # Eval / observability

@@ -115,11 +115,6 @@ def _patch_common(monkeypatch, _fake_rag, article_data, url_to_path):
     monkeypatch.setattr(
         ingest_wechat, "extract_entities", AsyncMock(return_value=[])
     )
-    import cognee_wrapper
-
-    monkeypatch.setattr(
-        cognee_wrapper, "remember_article", AsyncMock(return_value=None)
-    )
     monkeypatch.setattr(
         ingest_wechat, "save_markdown_with_images", MagicMock()
     )

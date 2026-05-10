@@ -41,7 +41,6 @@ MODULES = [
     ("batch_scan_kol", "DB_PATH"),
     ("ingest_wechat", "DB_PATH"),
     ("kg_synthesize", "DB_PATH"),
-    ("cognee_batch_processor", "DB_PATH"),
     ("enrichment.daily_digest", "DB"),
     ("enrichment.orchestrate_daily", "DB"),
     ("enrichment.rss_fetch", "DB"),

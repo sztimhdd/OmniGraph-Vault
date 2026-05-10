@@ -1,11 +1,6 @@
-"""Gemini API key loading, rotation, and Cognee propagation.
+"""Gemini API key loading and rotation.
 
 D-04: GEMINI_API_KEY_BACKUP is folded into OMNIGRAPH_GEMINI_KEYS pool.
-Amendment 4 (Hermes review): rotate_key() writes os.environ["COGNEE_LLM_API_KEY"]
-  inline as the entire propagation mechanism — no formal cognee_bridge module,
-  no observer pattern. Two lines of business logic, not 35.
-refresh_cognee(): long-running processes call this after rotate_key() to
-  invalidate Cognee's @lru_cache'd config singleton.
 """
 from __future__ import annotations
 
@@ -76,7 +71,6 @@ def _init_cycle() -> None:
     if _cycle is None:
         _cycle = itertools.cycle(load_keys())
         _current = next(_cycle)
-        os.environ["COGNEE_LLM_API_KEY"] = _current  # seed env for Cognee on first use
 
 
 def current_key() -> str:
@@ -87,17 +81,10 @@ def current_key() -> str:
 
 
 def rotate_key() -> str:
-    """Advance to next key in pool. Propagates to Cognee via env var for new imports.
-
-    Amendment 4: no formal cognee_bridge module. ``os.environ[...]`` write is the
-    entire propagation mechanism — short-lived scripts see fresh env on import;
-    long-running processes must additionally call refresh_cognee() to invalidate
-    Cognee's @lru_cache.
-    """
+    """Advance to next key in pool."""
     global _current
     _init_cycle()
     _current = next(_cycle)  # type: ignore[arg-type]
-    os.environ["COGNEE_LLM_API_KEY"] = _current
     for fn in _rotation_listeners:
         try:
             fn(_current)
@@ -154,21 +141,3 @@ def rotate_embedding_key() -> str:
     _init_embedding_cycle()
     _current_embedding = next(_embedding_cycle)  # type: ignore[arg-type]
     return _current_embedding
-
-
-def refresh_cognee() -> None:
-    """Invalidate Cognee's @lru_cache'd LLM config so a rotated key propagates.
-
-    Call at the top of long-running loops (kg_synthesize.py processing loop,
-    cognee_batch_processor.py poll cycle) after rotate_key(). Short-lived scripts
-    don't need it — they import Cognee after os.environ is already fresh.
-
-    Amendment 4: 5-line helper, not a module with observer scaffolding.
-    """
-    try:
-        from cognee.infrastructure.llm.config import get_llm_config
-        get_llm_config.cache_clear()
-    except ImportError:
-        logger.debug("Cognee not installed; refresh_cognee() is a no-op.")
-    except Exception as e:
-        logger.warning("refresh_cognee failed: %s", e)

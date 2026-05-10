@@ -3,7 +3,6 @@ beautifulsoup4
 Pillow
 playwright
 google-genai
-cognee
 pymupdf
 html2text
 numpy

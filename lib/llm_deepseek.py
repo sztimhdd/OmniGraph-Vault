@@ -47,9 +47,9 @@ _DEFAULT_MODEL = "deepseek-v4-flash"
 def _load_hermes_env() -> None:
     """Populate os.environ from ~/.hermes/.env WITHOUT overwriting existing values.
 
-    Mirrors cognee_wrapper.py's pattern. Required because lib.llm_deepseek is
-    imported BEFORE many scripts call config.load_env(), so DEEPSEEK_API_KEY
-    would otherwise be absent at module init.
+    Required because lib.llm_deepseek is imported BEFORE many scripts call
+    config.load_env(), so DEEPSEEK_API_KEY would otherwise be absent at module
+    init.
     """
     env_path = Path.home() / ".hermes" / ".env"
     if not env_path.exists():
