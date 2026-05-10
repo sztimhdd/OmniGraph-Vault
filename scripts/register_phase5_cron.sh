@@ -110,6 +110,14 @@ add_job "daily-digest" \
   "30 9 * * *" \
   "run enrichment/daily_digest.py"
 
+# quick-260510-k5q (RCN-01..05): daily reconciliation canary for commit
+# 949e3f4 (h09 PROCESSED-gate hot-fix). Detects ingestions=ok rows whose
+# LightRAG doc_status is missing or != 'processed' and exits 1 to surface
+# them in cron logs. RSS reconciliation deferred to ar-1.
+add_job "reconcile-ingestions" \
+  "30 9 * * *" \
+  "cd ~/OmniGraph-Vault && source venv/bin/activate && python scripts/reconcile_ingestions.py 2>&1 | tee /tmp/reconcile-\$(date +%Y%m%d).log"
+
 # -----------------------------------------------------------------------
 # Final state — show full cron table for operator verification.
 # -----------------------------------------------------------------------
