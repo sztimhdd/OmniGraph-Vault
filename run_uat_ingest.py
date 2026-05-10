@@ -20,10 +20,16 @@ sys.stdout.reconfigure(encoding="utf-8")
 # setdefault preserves any explicit override from shell env or ~/.hermes/.env.
 os.environ.setdefault("LLM_TIMEOUT", "600")
 
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 os.environ.setdefault("SSL_CERT_FILE", os.path.expanduser("~/.claude/certs/combined-ca-bundle.pem"))
 os.environ.setdefault("REQUESTS_CA_BUNDLE", os.path.expanduser("~/.claude/certs/combined-ca-bundle.pem"))
 os.environ.setdefault("TIKTOKEN_CACHE_DIR", os.path.expanduser("~/.tiktoken_cache"))
+
+# Quick 260510-l14 W2 (Defect A): consolidated boot via lib.cli_bootstrap.
+# Replaces unconditional os.environ['GOOGLE_GENAI_USE_VERTEXAI']='false' which
+# was breaking _is_vertex_mode() opt-in (Phase 11 D-11.08). Adds load_env()
+# coverage that was previously missing from this script.
+from lib.cli_bootstrap import bootstrap_cli
+bootstrap_cli()
 
 ARTICLES = [
     "https://mp.weixin.qq.com/s/Y_uRMYBmdLWUPnz_ac7jWA",

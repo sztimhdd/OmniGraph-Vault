@@ -1,9 +1,10 @@
-import os
-
 import asyncio
 import sys
 from lightrag.lightrag import LightRAG, QueryParam
-from config import RAG_WORKING_DIR, load_env
+from config import RAG_WORKING_DIR
+from lib.cli_bootstrap import bootstrap_cli
+
+bootstrap_cli()
 
 # Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.
 from lib import embedding_func
@@ -11,11 +12,6 @@ from lib import embedding_func
 # (defaults to deepseek; Plan 05-00c Task 0c.3 routing preserved as default).
 from lib.llm_complete import get_llm_func
 
-# Force standard Gemini API mode (not Vertex AI)
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
-
-# Initialize environment
-load_env()
 # Phase 7: GEMINI_API_KEY still used for EMBEDDING (via lib.embedding_func) —
 # LLM completion now uses DEEPSEEK_API_KEY via lightrag_llm.
 
@@ -25,7 +21,6 @@ async def query_and_synthesize(query_text: str):
         working_dir=RAG_WORKING_DIR,
         llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
-        llm_model_name="deepseek-v4-flash",
     )
     
     # Ensure storages are initialized (for newer versions of LightRAG)

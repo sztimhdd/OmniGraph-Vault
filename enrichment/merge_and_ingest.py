@@ -36,11 +36,12 @@ from typing import Optional
 
 from enrichment.merge_md import merge_wechat_with_haowen
 
-# Hermes env has GOOGLE_GENAI_USE_VERTEXAI=true globally which forces
-# genai.Client to Vertex AI (rejects API keys). Unset at import time so
-# any downstream genai.Client (via LightRAG's gemini wrappers) routes to
-# the Gemini API. Defensive redundancy vs config.py's pop. See test report 04-06.
-os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
+# Quick 260510-l14 W2 (Defect A): consolidated Vertex-aware boot via
+# lib.cli_bootstrap. Replaces the previous unconditional
+# os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None) which was a fail-shut
+# bandaid that silently disabled Vertex even when explicitly opted in.
+from lib.cli_bootstrap import bootstrap_cli
+bootstrap_cli()
 
 logger = logging.getLogger(__name__)
 

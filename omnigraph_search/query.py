@@ -17,16 +17,16 @@ import sys
 
 from lightrag.lightrag import LightRAG, QueryParam
 
-from config import RAG_WORKING_DIR, load_env
+from config import RAG_WORKING_DIR
+from lib.cli_bootstrap import bootstrap_cli
+
+bootstrap_cli()
+
 from lightrag_embedding import embedding_func as _embedding_func
 # Quick 260509-s29 Wave 3: route via OMNIGRAPH_LLM_PROVIDER dispatcher
 # (defaults to deepseek; Plan 05-00c Task 0c.3 routing preserved as default).
 from lib.llm_complete import get_llm_func
 
-# Force standard Gemini API mode (not Vertex AI) — matches query_lightrag.py.
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
-
-load_env()
 # GEMINI_API_KEY is still required for EMBEDDING (_embedding_func). LLM now
 # uses DEEPSEEK_API_KEY, validated at lib.llm_deepseek import time.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")

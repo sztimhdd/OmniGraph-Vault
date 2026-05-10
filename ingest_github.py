@@ -27,8 +27,9 @@ from lib.llm_complete import get_llm_func
 
 nest_asyncio.apply()
 
-from config import RAG_WORKING_DIR, load_env
-load_env()
+from config import RAG_WORKING_DIR
+from lib.cli_bootstrap import bootstrap_cli
+bootstrap_cli()
 
 # Phase 7: centralized model selection + key management.
 # D-05: ingest_github preserves the preview model via GITHUB_INGEST_LLM (not INGESTION_LLM).
@@ -39,7 +40,6 @@ logger = logging.getLogger("ingest_github")
 
 # Phase 7: GEMINI_API_KEY now accessed via lib.current_key() — supports rotation.
 
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 os.makedirs(RAG_WORKING_DIR, exist_ok=True)
 
 ENTITY_REGISTRY_FILE = Path(__file__).parent / "entity_registry.json"
