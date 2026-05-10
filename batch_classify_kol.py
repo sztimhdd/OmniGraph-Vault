@@ -42,36 +42,12 @@ try:
 except ImportError:
     genai_types = None
 
+from config import load_env
 from lib import INGESTION_LLM, generate_sync
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
 GEMINI_CLASSIFY_SLEEP = 5.0
-
-
-def _load_hermes_env() -> None:
-    dotenv_paths = [
-        Path.home() / ".hermes" / ".env",
-        Path("//wsl.localhost/Ubuntu-24.04/home/sztimhdd/.hermes/.env"),
-    ]
-    for p in dotenv_paths:
-        if p.exists():
-            dotenv_path = p
-            break
-    else:
-        return
-    try:
-        for line in dotenv_path.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, val = line.partition("=")
-            key = key.strip()
-            val = val.strip().strip("\"'")
-            if key and val and key not in os.environ:
-                os.environ[key] = val
-    except Exception:
-        pass
 
 
 def init_db() -> sqlite3.Connection:
@@ -391,7 +367,7 @@ def _call_gemini(prompt: str) -> list[dict] | None:
 
 
 def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
-    _load_hermes_env()
+    load_env()
     conn = init_db()
 
     rows = conn.execute(

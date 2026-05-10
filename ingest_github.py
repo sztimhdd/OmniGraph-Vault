@@ -55,7 +55,6 @@ async def get_rag() -> LightRAG:
         working_dir=RAG_WORKING_DIR,
         llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
-        llm_model_name="deepseek-v4-flash",
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()

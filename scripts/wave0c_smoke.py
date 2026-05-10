@@ -68,7 +68,6 @@ async def main() -> int:
         working_dir=tmp,
         llm_model_func=get_llm_func(),
         embedding_func=embedding_func,
-        llm_model_name="deepseek-v4-flash",
         embedding_func_max_async=1,
         embedding_batch_num=20,
         llm_model_max_async=2,

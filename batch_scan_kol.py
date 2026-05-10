@@ -24,6 +24,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import kol_config
 
+from config import load_env
 from enrichment.rss_schema import init_rss_schema
 from kol_registry import list_accounts
 from spiders.wechat_spider import (
@@ -42,32 +43,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("batch_scan_kol")
-
-
-def _load_hermes_env() -> None:
-    """Load env vars from ~/.hermes/.env if not already set."""
-    dotenv_paths = [
-        Path.home() / ".hermes" / ".env",
-        Path("//wsl.localhost/Ubuntu-24.04/home/sztimhdd/.hermes/.env"),
-    ]
-    for p in dotenv_paths:
-        if p.exists():
-            dotenv_path = p
-            break
-    else:
-        return
-    try:
-        for line in dotenv_path.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, val = line.partition("=")
-            key = key.strip()
-            val = val.strip().strip("\"'")
-            if key and val and key not in os.environ:
-                os.environ[key] = val
-    except Exception:
-        pass
 
 
 def init_db(db_path: Path) -> sqlite3.Connection:
@@ -255,7 +230,7 @@ def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: in
 
 def run(days_back: int, max_articles: int, account_filter: str | None, resume: bool,
         daily: bool = False, summary_json: bool = False) -> None:
-    _load_hermes_env()
+    load_env()
 
     conn = init_db(DB_PATH)
     try:
