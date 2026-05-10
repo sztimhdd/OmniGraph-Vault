@@ -185,8 +185,6 @@ OmniGraph‑Vault/
 ├── batch_ingest_from_spider.py  # KOL ingest (full-pipeline or --from-db)
 ├── kg_synthesize.py       # Synthesis & report generation
 ├── query_lightrag.py      # Direct KG queries
-├── cognee_wrapper.py      # Cognee memory integration
-├── cognee_batch_processor.py # Batch entity canonicalization
 ├── data/                  # SQLite DB + JSON run summaries (gitignored)
 ├── specs/                 # Design specifications
 ├── skills/                # Hermes agent skills
@@ -336,8 +334,6 @@ OmniGraph‑Vault/
 ├── batch_ingest_from_spider.py  # KOL 入库（完整管线或 --from-db）
 ├── kg_synthesize.py       # 综合与报告生成
 ├── query_lightrag.py      # 直接图谱查询
-├── cognee_wrapper.py      # Cognee 记忆集成
-├── cognee_batch_processor.py # 实体归一化批处理
 ├── data/                  # SQLite DB + JSON 运行汇总（gitignored）
 ├── specs/                 # 设计规格
 ├── skills/                # Hermes agent 技能

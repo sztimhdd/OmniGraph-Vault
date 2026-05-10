@@ -64,15 +64,21 @@
 - [x] **RIN-05**: `rss_ingest.run()` wraps per-article work in `asyncio.wait_for` with drain + rollback on timeout. On timeout: call `_drain_pending_vision_tasks()` with 120s cap, then `adelete_by_doc_id(article_id)` for partial state cleanup. **Fixes pitfall CP-04**.
 - [x] **RIN-06**: `aget_docs_by_ids` PROCESSED gate preserved from current `rss_ingest.py:184-207` — `enriched=2` is set only after LightRAG confirms the doc reached PROCESSED status (D-19 pattern). Must be retained identically in the rewrite.
 
-#### Cognee (COG) — Day-1 preview round 2 discovery (2026-05-03), revised post-74f7503
+#### Cognee (COG) — Day-1 preview round 2 discovery (2026-05-03), revised post-74f7503, RETIRED 2026-05-10 (quick 260510-gfg, commit 608372e)
 
 Emergency hotfix 2026-05-03 gated `ingest_wechat.py:1099-1108` inline Cognee call via `OMNIGRAPH_COGNEE_INLINE=0` (default disabled) to unblock Day-1 cron (commit `e2d16e4`). The **real root-cause fix** landed in parallel as commit `74f7503` — `cognee_wrapper.py:50` changed to `EMBEDDING_MODEL=gemini/gemini-embedding-2` (LiteLLM's `gemini/` provider prefix forces Google AI Studio routing) + dimensions bumped 768 → 3072. This supersedes my originally proposed fix paths (a) Vertex provider / (b) text-embedding-004 fallback — both were based on the incorrect assumption that `gemini-embedding-2` is Vertex-exclusive. It's actually available on both Vertex (via direct SDK) and AI Studio (via LiteLLM `gemini/` prefix). Cognee uses the AI Studio path because it's already wired via LiteLLM; LightRAG uses Vertex SDK directly.
 
-- [x] **COG-01** — LANDED via `74f7503` (2026-05-03 23:10 ADT). `cognee_wrapper.py:50` uses `EMBEDDING_MODEL="gemini/gemini-embedding-2"` routing to Google AI Studio (`generativelanguage.googleapis.com`) with 3072-dim native output. Eliminates the 422 NOT_FOUND retry loop that was blocking ingest fast-path.
+**2026-05-10 retirement update (Path A, quick 260510-gfg):** quick 260509-syd's investigation confirmed inline Cognee writes are dead writes (no readers; `kg_synthesize.py:41-44` Wave 0 already removed Cognee from synthesis path; `cognee_batch_processor.py` never called any `cognee.*` API). All three COG-01/02/03 requirements are RETIRED via dead-code removal in commit `608372e`; if an episodic-memory layer is needed for Agentic-RAG-v1, it will be designed inside the ar-* phase rather than via the retired Cognee path.
 
-- [x] **COG-02** — Cognee `run_in_background=True` detachment verification (not yet validated post-`74f7503`). 2026-05-03 round 2 observed `cognee.remember(..., run_in_background=True)` blocking the ingest fast-path, but that may have been the 422 retry loop amplifying rather than `run_in_background` genuinely failing to detach. **Must re-test with COG-01 fix in place** before deciding whether additional `asyncio.create_task` wrap is needed. Test plan: enable `OMNIGRAPH_COGNEE_INLINE=1` on Hermes → run `batch_ingest_from_spider.py --max-articles 3` → verify articles 2/3 start processing while article 1's Cognee task still runs in background. If fast-path still blocks, add wrap per original COG-02 design.
+- [x] **COG-01** — LANDED via `74f7503` (2026-05-03 23:10 ADT). `cognee_wrapper.py:50` used `EMBEDDING_MODEL="gemini/gemini-embedding-2"` routing to Google AI Studio (`generativelanguage.googleapis.com`) with 3072-dim native output. Eliminated the 422 NOT_FOUND retry loop that was blocking ingest fast-path. **RETIRED 2026-05-10 by `608372e` (quick 260510-gfg, Path A) — `cognee_wrapper.py` deleted; rationale: dead writes, no readers per quick 260509-syd Discovery 4.**
 
-- [ ] **COG-03** — Retire `OMNIGRAPH_COGNEE_INLINE` env gate after COG-02 validation passes. Remove gate in `ingest_wechat.py:1099-1108` (revert to unconditional inline call). Update `CLAUDE.md` env variables table to remove entry. Update this memory (`vertex_ai_smoke_validated.md`) to note Cognee dual-store restored. Must complete before CUT-01 cron cutover to avoid shipping band-aid permanently. Depends on COG-02 passing without additional async wrap — if COG-02 needs more work (full asyncio.create_task wrap in `cognee_wrapper.remember_article`), COG-03 waits.
+- [x] **COG-02** — Cognee `run_in_background=True` detachment verification (not yet validated post-`74f7503`). 2026-05-03 round 2 observed `cognee.remember(..., run_in_background=True)` blocking the ingest fast-path. **RETIRED 2026-05-10 by `608372e` (quick 260510-gfg, Path A) — entire inline call site deleted; rationale: dead writes, no readers per quick 260509-syd Discovery 4.**
+
+- [x] **COG-03** — Retire `OMNIGRAPH_COGNEE_INLINE` env gate after COG-02 validation passes. **RETIRED 2026-05-10 by `608372e` (quick 260510-gfg, Path A) — entire `OMNIGRAPH_COGNEE_INLINE` gate AND inline call removed; CLAUDE.md env-vars table row removed in same retirement commit.**
+
+#### Agentic-RAG Memory Placeholder (AGNT-MEM)
+
+- [ ] **AGNT-MEM-01** — TBD: episodic memory layer for Agentic-RAG-v1, if needed. Design happens inside the ar-* phase, not as a bolted-on Cognee replacement. Cognee was retired 2026-05-10 (quick 260510-gfg, commit `608372e`) as dead code; this placeholder records that a future requirement may emerge if Agentic-RAG-v1 design surfaces a need for cross-session memory beyond LightRAG's existing graph state.
 
 ---
 
@@ -127,9 +133,10 @@ Emergency hotfix 2026-05-03 gated `ingest_wechat.py:1099-1108` inline Cognee cal
 | RIN-04 | Phase 20 | Complete |
 | RIN-05 | Phase 20 | Complete |
 | RIN-06 | Phase 20 | Complete |
-| COG-01 | Phase 20 | Complete (landed 2026-05-03 via `74f7503`) |
-| COG-02 | Phase 20 | Complete |
-| COG-03 | Phase 20 | Pending (depends on COG-01 + COG-02) |
+| COG-01 | Phase 20 | RETIRED 2026-05-10 (quick 260510-gfg, `608372e`) |
+| COG-02 | Phase 20 | RETIRED 2026-05-10 (quick 260510-gfg, `608372e`) |
+| COG-03 | Phase 20 | RETIRED 2026-05-10 (quick 260510-gfg, `608372e`) |
+| AGNT-MEM-01 | TBD (ar-*) | Pending (placeholder; design inside Agentic-RAG-v1 milestone) |
 | STK-01 | Phase 21 | Pending |
 | STK-02 | Phase 21 | Pending |
 | STK-03 | Phase 21 | Pending |

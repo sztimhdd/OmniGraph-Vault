@@ -58,9 +58,9 @@ Strong success criteria let the LLM loop independently. Weak criteria ("make it 
 
 ## Project Summary
 
-OmniGraph-Vault is a personal knowledge base for **OpenClaw** and **Hermes Agent** AI assistants. It ingests web content (WeChat articles, PDFs) into a **LightRAG** knowledge graph enriched with **Cognee** async memory, then exposes that graph as agent skills.
+OmniGraph-Vault is a personal knowledge base for **OpenClaw** and **Hermes Agent** AI assistants. It ingests web content (WeChat articles, PDFs) into a **LightRAG** knowledge graph, then exposes that graph as agent skills.
 
-**Tech stack:** Python 3.11+, LightRAG (KG engine), Cognee (memory layer), Google Gemini 2.5 Pro/Flash (LLM + vision), Apify + Playwright CDP (scraping), local HTTP image server (port 8765)
+**Tech stack:** Python 3.11+, LightRAG (KG engine), Google Gemini 2.5 Pro/Flash (LLM + vision), Apify + Playwright CDP (scraping), local HTTP image server (port 8765)
 
 **Runtime data:** `~/.hermes/omonigraph-vault/` (note: the directory name has a typo — `omonigraph` not `omnigraph` — this is the actual path used in `config.py` and must be preserved)
 
@@ -80,7 +80,6 @@ pip install -r requirements.txt
 
 # Verify imports
 python -c "import lightrag; print('LightRAG OK')"
-python -c "import cognee; print('Cognee OK')"
 
 # Ingest a WeChat article (dual-path: Apify primary, CDP fallback)
 python ingest_wechat.py "https://mp.weixin.qq.com/s/..."
@@ -88,10 +87,10 @@ python ingest_wechat.py "https://mp.weixin.qq.com/s/..."
 # Ingest a local PDF with image extraction
 python multimodal_ingest.py "/path/to/document.pdf"
 
-# Query with Cognee memory context (modes: naive, local, global, hybrid, mix)
+# Query with synthesis (modes: naive, local, global, hybrid, mix)
 python kg_synthesize.py "What are the latest trends in AI Agents?" hybrid
 
-# Direct LightRAG query (no Cognee, for debugging)
+# Direct LightRAG query (for debugging)
 python query_lightrag.py "Explain the architecture of OmniGraph-Vault"
 
 # List graph entities
@@ -99,14 +98,6 @@ python list_entities.py
 
 # Start image server (background)
 cd ~/.hermes/omonigraph-vault && python -m http.server 8765 --directory images &
-
-# Run entity canonicalization batch (polls entity_buffer/)
-python cognee_batch_processor.py
-
-# Verification gates (manual test scripts, not pytest)
-python tests/verify_gate_a.py   # Cognee remember()
-python tests/verify_gate_b.py   # Cognee recall() + search()
-python tests/verify_gate_c.py   # Entity disambiguation
 ```
 
 No pytest framework, no linting, no CI configured yet. Tests are manual verification scripts that hit live APIs.
@@ -175,7 +166,8 @@ URL → ingest_wechat.py
   └─ LightRAG ainsert() → knowledge graph stored in lightrag_storage/
 ```
 
-Entity canonicalization runs **async and decoupled** via `cognee_batch_processor.py`, which polls `entity_buffer/` and writes to `canonical_map.json` atomically (tmp → rename).
+Raw entities are buffered to `entity_buffer/{hash}_entities.json` for downstream
+analysis (Cognee canonicalization was retired 2026-05-10 in quick 260510-gfg).
 
 ### Query/Synthesis Flow
 
@@ -183,17 +175,14 @@ Entity canonicalization runs **async and decoupled** via `cognee_batch_processor
 Query → kg_synthesize.py
   ├─ Load canonical_map.json → normalize entity names in query
   ├─ LightRAG aquery(mode=hybrid) → graph retrieval
-  ├─ cognee_wrapper.recall_previous_context() → past query memory
+  ├─ Past-query memory (HYG-03 JSONL append-only file)
   ├─ Combined prompt → Gemini generates Markdown report
-  ├─ cognee_wrapper.remember_synthesis() → store for future recall
   └─ Output → stdout + ~/.hermes/omonigraph-vault/synthesis_output.md
 ```
 
 ### Key Integration Points
 
 **LightRAG** — used in `ingest_wechat.py`, `multimodal_ingest.py`, `kg_synthesize.py`, `query_lightrag.py`. Configured with Gemini model wrappers (`gemini_model_complete`, `gemini_embed`). Storage: `~/.hermes/omonigraph-vault/lightrag_storage/`.
-
-**Cognee** — wrapped by `cognee_wrapper.py` (provides `remember_synthesis()`, `recall_previous_context()`, `disambiguate_entities()`). Batch processing in `cognee_batch_processor.py`. Must be configured via env vars *before* import: `LLM_PROVIDER=gemini`, `LLM_MODEL=gemini-2.5-flash`, `EMBEDDING_PROVIDER=gemini`.
 
 **config.py** — loads `~/.hermes/.env` at import time. All modules import it for `BASE_DIR`, `RAG_WORKING_DIR`, `BASE_IMAGE_DIR`, `CDP_URL`. The env loader does *not* overwrite existing env vars.
 
@@ -206,15 +195,12 @@ Query → kg_synthesize.py
 | `FIRECRAWL_API_KEY` | No | Firecrawl web scraping API |
 | `CDP_URL` | No | **Local mode** (default): `http://localhost:9223` — raw CDP WebSocket; `ingest_wechat.py` uses `playwright.connect_over_cdp()`. Start Edge with `msedge --remote-debugging-port=9223`. **Remote MCP mode** (testing fallback): `http://host:port/mcp` — Playwright MCP server (MCP-over-SSE); `ingest_wechat.py` auto-detects the `/mcp` suffix and uses `_MCPClient` + `browser_navigate`/`browser_evaluate` instead. Both modes are fully implemented. |
 | `OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP` | No | RSS classifier daily-batch safety cap (default 500 articles). Applies only when `--max-articles` CLI flag is NOT passed; CLI value always wins. Non-int values silently fall back to 500. |
-| `OMNIGRAPH_COGNEE_INLINE` | No | Enable inline Cognee `remember_article` call in ingest_wechat.py. Default `0` (disabled) since 2026-05-03 due to Cognee LiteLLM → AI Studio routing bug with Vertex-exclusive gemini-embedding-2 (422 NOT_FOUND → retry loop blocks ingest). Root fix in v3.4 Phase 20/21. Set `1` to re-enable once the LiteLLM routing is corrected. |
 
-Set in `~/.hermes/.env`. Cognee-specific vars (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, etc.) are hardcoded in each script that uses Cognee.
+Set in `~/.hermes/.env`.
 
 **Phase 7 scoped env vars** (added 2026-04-28): the preferred Gemini key variable is `OMNIGRAPH_GEMINI_KEY` (namespaced, won't collide with Hermes's own LLM vars). `GEMINI_API_KEY` remains as a fallback for local dev. For multi-account rotation set `OMNIGRAPH_GEMINI_KEYS` (comma-separated; only useful across different Google accounts / GCP projects). Model names are pure string constants in `lib/models.py` (NOT env-overridable per Amendment 1 — rollback is `git revert`). Per-model RPM caps ARE env-overridable via `OMNIGRAPH_RPM_*` (D-08 retained for paid-tier upgrade). Embedding default is `gemini-embedding-2` (D-10). Full deploy table in `Deploy.md`.
 
 **Phase 5 DeepSeek cross-coupling (Hermes FLAG 2):** `lib/__init__.py` eagerly imports `deepseek_model_complete`, which raises at import time if `DEEPSEEK_API_KEY` is unset. Gemini-only workloads still need `DEEPSEEK_API_KEY` set (use `DEEPSEEK_API_KEY=dummy` if you don't have a real one). This is a documented Phase 5 side-effect; soft-fail is a future Phase 5 follow-up, not a Phase 7 fix.
-
-**Standalone Cognee rotation caveat (Hermes FLAG 1):** `cognee_wrapper.py` seeds Cognee's config once at import. Long-running callers of `lib.rotate_key()` that import `cognee_wrapper` directly must also call `lib.refresh_cognee()` after rotation, or accept stale-key risk. Production paths (`cognee_batch_processor.run_batch`, `kg_synthesize.synthesize_response`) already call `refresh_cognee()` at the right entry points — ad-hoc scripts need to do so themselves. See `Deploy.md` § Known limitation.
 
 ### Local dev env vars (quick task 260504-g7a)
 
@@ -237,7 +223,6 @@ Full local-dev runbook: `docs/LOCAL_DEV_SETUP.md`.
 ## Development Conventions
 
 - **Atomic writes** for `canonical_map.json`: always write `.tmp` then rename
-- **Cognee is async** — never block the ingestion fast-path on any Cognee operation
 - **LLM output never goes directly into the graph** — always validate against real sources first
 - **Entity buffer idempotency** — write `.processed` marker after each batch run, never delete originals
 - **Image server must be running** for synthesized reports to render correctly (port 8765)
@@ -453,7 +438,6 @@ If remote is ahead: push from remote, pull locally, and re-read any changed file
 
 ## Lessons Learned
 
-- Cognee batch operations silently drop entities if the buffer path isn't checked for `.processed` markers — always verify idempotency
 - The runtime data directory is `omonigraph-vault` (typo is baked into config.py and deployed environments — do not "fix" it without a coordinated migration)
 - `CDP_URL` supports two modes auto-detected by the `/mcp` URL suffix: local Edge (`localhost:9223`) uses `playwright.connect_over_cdp()`; remote testing (`host:port/mcp`) uses `_MCPClient` (MCP-over-SSE with `mcp-session-id` header). The MCP server requires `initialize` first, then subsequent requests must include `mcp-session-id` in the header — without it every call returns "Server not initialized".
 
@@ -641,9 +625,9 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 ### Constraints
 
 - **Privacy**: All data stays local; no SaaS KB subscriptions; only Gemini API + Apify make external calls
-- **Platform**: Windows-primary (Edge for CDP); Cognee requires Python 3.12 venv per wrapper
+- **Platform**: Windows-primary (Edge for CDP)
 - **Single user**: No auth, no isolation required — personal tool only
-- **Stack**: Python 3.11+, LightRAG, Cognee, Gemini 2.5 Flash/Pro — no framework migrations
+- **Stack**: Python 3.11+, LightRAG, Gemini 2.5 Flash/Pro — no framework migrations
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:codebase/STACK.md -->
@@ -651,7 +635,6 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 
 ## Languages
 - Python 3.11+ - Entire application, core pipeline logic, ingestion, synthesis
-- Python 3.12 - Virtual environment target (referenced in `cognee_wrapper.py`)
 - Markdown - Documentation and content rendering (`.md` files, synthesis outputs)
 ## Runtime
 - Python 3.11+ interpreter
@@ -661,8 +644,7 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 - Lockfile: `requirements.txt` (present, pinned dependencies)
 ## Frameworks
 - LightRAG - Knowledge graph construction and querying engine
-- Cognee - Stateful memory layer for context tracking
-- pytest (implied from `tests/` directory structure with `verify_gate_*.py` files)
+- pytest (implied from `tests/` directory structure)
 - No explicit build system (pure Python scripts)
 - Environment: Python standard library + third-party packages
 ## Key Dependencies
@@ -709,9 +691,8 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 ## Conventions
 
 ## Naming Patterns
-- Module scripts: lowercase with underscores (`cognee_wrapper.py`, `multimodal_ingest.py`, `kg_synthesize.py`)
+- Module scripts: lowercase with underscores (`ingest_wechat.py`, `multimodal_ingest.py`, `kg_synthesize.py`)
 - Configuration: `config.py`
-- Test verification scripts: `verify_gate_*.py` (e.g., `verify_gate_a.py`)
 - Async functions: lowercase with underscores, descriptive names (`disambiguate_entities`, `ingest_pdf`, `synthesize_response`, `query_and_synthesize`)
 - Helper functions: lowercase with underscores (`load_env`, `describe_image`, `llm_model_func`, `embedding_func`)
 - Main entry points: `main()` in `if __name__ == "__main__"` blocks
@@ -728,9 +709,9 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 - Manual code review likely the primary quality control
 ## Import Organization
 - None detected. Full module paths used throughout (`from lightrag.lightrag import LightRAG`).
-- Local modules imported directly by name (`import cognee_wrapper`).
+- Local modules imported directly by name (`import config`, `import lib.scraper`).
 ## Error Handling
-- Return `None` on non-critical failures: `cognee_wrapper.py` functions
+- Return `None` on non-critical failures: helper functions in supporting modules
 - `sys.exit(1)` on critical startup failures (missing API keys, imports)
 - Print warnings and continue on recoverable errors
 ## Logging
@@ -764,7 +745,7 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 - Not used. Each module is self-contained.
 - `config.py` serves as shared configuration module.
 - Configuration loaded at module import time (top-level code execution)
-- Example from `cognee_wrapper.py` (lines 7-45): Environment variables, logging setup, and module imports all happen at import time
+- Example from `config.py`: Environment variables, logging setup, and module imports all happen at import time
 - This means configuration is not testable without modifying environment
 ## Async Patterns
 - `nest_asyncio.apply()` used to allow nested event loops (development/Jupyter compatibility)
@@ -778,7 +759,6 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 - Asynchronous pipeline-based processing (all I/O operations use `async`/`await`)
 - Dual-fallback scraping strategy (primary + redundant methods)
 - Pluggable LLM backends (Gemini for both generation and embeddings)
-- Decoupled memory layer (Cognee) for entity canonicalization and context recall
 - Local-first data persistence (all artifacts stored in `~/.hermes/kg-vault/`)
 ## Layers
 - Purpose: Extract content from external sources (web, PDF) and normalize to markdown
@@ -791,15 +771,10 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 - Contains: Graph construction via `ainsert()`, querying via `aquery()`
 - Depends on: Gemini LLM (generation) + Gemini Embeddings (vector representation)
 - Used by: Synthesis layer for retrieval and inference
-- Purpose: Track conversation history, learn entity aliases, deduplicate synonyms
-- Location: `cognee_wrapper.py`, `cognee_batch_processor.py`
-- Contains: Entity disambiguation, past query recall, synthesis memory storage
-- Depends on: Cognee library with Gemini backend
-- Used by: Synthesis layer to add historical context and entity normalization
-- Purpose: Answer queries by combining LightRAG retrieval with memory context
+- Purpose: Answer queries by combining LightRAG retrieval with synthesis
 - Location: `kg_synthesize.py`, `query_lightrag.py`
-- Contains: Custom prompt engineering, response generation, Cognee integration
-- Depends on: LightRAG queries + Cognee context recall
+- Contains: Custom prompt engineering, response generation
+- Depends on: LightRAG queries
 - Used by: External agents (Openclaw, Hermes Agent) via subprocess calls
 - Purpose: Centralized path and secret management
 - Location: `config.py`
@@ -808,13 +783,12 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 - Used by: All other layers during initialization
 ## Data Flow
 - **LightRAG index**: Persistent in `~/.hermes/kg-vault/lightrag_storage/` (graph edges, entities, embeddings)
-- **Cognee memory**: Persistent in Cognee's internal DB (conversation state, entity aliases)
 - **Canonical map**: JSON file at `~/.hermes/kg-vault/canonical_map.json` (entity normalization rules)
 - **Entity buffer**: Temporary JSON files in `entity_buffer/` directory, processed async by batch processor
 - **Images**: Local copies at `~/.hermes/kg-vault/images/{article_hash}/` with metadata.json + final_content.md
 ## Key Abstractions
 - Purpose: Represents a software tool or framework in the knowledge graph
-- Examples: LightRAG, Cognee, n8n, Cursor (as described in `specs/OMNIGRAPH_VISION_Statement.md`)
+- Examples: LightRAG, n8n, Cursor (as described in `specs/OMNIGRAPH_VISION_Statement.md`)
 - Pattern: Tree-like schema with identity fields (name, aliases, category), knowledge layers (official_docs, community_zh, tutorials), and relationship edges (BASED_ON, INTEGRATES, COMPETES, USED_WITH)
 - Purpose: Encapsulates query mode and response type for LightRAG
 - Examples: `QueryParam(mode="hybrid", response_type="Detailed Markdown Article")`
@@ -826,13 +800,13 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 - Location: Project root
 - Triggers: `python ingest_wechat.py <url>` (or default hardcoded URL)
 - Responsibilities: Primary ingestion script for WeChat articles and web content
-- Invokes: Apify client, CDP browser, Gemini Vision for images, LightRAG insertion, Cognee entity buffering
+- Invokes: Apify client, CDP browser, Gemini Vision for images, LightRAG insertion, entity buffering
 - Location: Project root
 - Triggers: `python kg_synthesize.py "<query>" [mode]` (subprocess call from agent)
 - Responsibilities: Answer user queries with synthesis
 - Returns: Markdown response to stdout and file at `~/.hermes/kg-vault/synthesis_output.md`
 - Location: Project root
-- Triggers: `python query_lightrag.py "<query>"` (direct LightRAG query without Cognee)
+- Triggers: `python query_lightrag.py "<query>"` (direct LightRAG query for debugging)
 - Responsibilities: Raw knowledge graph queries for debugging/validation
 - Returns: Direct LightRAG response to stdout
 - Location: Project root
@@ -847,20 +821,17 @@ A local, graph-based personal knowledge base that gives Hermes Agent (and Opencl
 - Scraping: Apify (primary) → CDP (secondary) → fail with clear message
 - Image download: HTTP error → log warning, continue (don't block article ingestion)
 - Image description: Gemini API error → fallback string "Error describing image: {e}"
-- Cognee operations: Always wrapped in try/except, warnings logged, main flow unaffected (async + non-blocking)
 - LightRAG queries: Retry loop (3 attempts with 5s backoff) before raising exception
 ```python
 ```
 ## Cross-Cutting Concerns
 - Print-based for CLI scripts (no structured logging framework)
-- File-based for batch processor: `cognee_batch.log` at `/home/sztimhdd/OmniGraph-Vault/cognee_batch.log`
 - Input URL validation: Basic `startswith('http')` checks for images
 - File existence checks before processing (PDFs, env files)
 - API response status code checks (HTTP 200 for image downloads)
 - Gemini API: Via environment variable `GEMINI_API_KEY`
 - Apify: Via `APIFY_TOKEN` (optional, non-critical fallback)
 - CDP: Via `CDP_URL` environment variable (default `http://localhost:9223`)
-- Cognee/LiteLLM: Credentials sourced from Gemini API key
 - Image downloads: Atomic write to temp, no partial files left behind
 - Canonical map: Atomic JSON write (write to `.tmp`, then `os.rename()`)
 - Entity buffer: Explicit `.processed` marker after each file processed (idempotent)

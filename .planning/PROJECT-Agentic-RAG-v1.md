@@ -84,7 +84,7 @@ source attribution, image relevance) on 0-5; pass = ≥3/5 on each
 | Eval framework | Hobby project, deferred indefinitely (Q8) |
 | Cost cap mechanism | ~$0.05/run measured; not a concern at single-user scale (Q9) |
 | Multi-turn UX | One-shot only; no interactive follow-up |
-| Cognee / query-history injection | Deferred until v3.4 Phase 20/21 + Cognee revival lands (Axis 7) |
+| Cognee / query-history injection | Cognee retired 2026-05-10 (quick 260510-gfg, commit `608372e`); memory layer if needed will be designed inside ar-* phase per AGNT-MEM-01 placeholder. |
 | HTTP endpoint pre-build | Future Phase within milestone; design rules guarantee easy add (~50 lines FastAPI) |
 | Tavily/Brave API key procurement | Operator task, not design |
 | Multi-language translation | Modern LLMs are language-agnostic (Q7) |

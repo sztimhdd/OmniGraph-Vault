@@ -59,24 +59,14 @@ OMNIGRAPH_RPM_GEMINI_EMBEDDING_2=1500
 
 See `.env.template` for the full template.
 
-### Known limitation — standalone Cognee rotation (Hermes FLAG 1)
+### Cognee retired 2026-05-10 (quick 260510-gfg, Path A)
 
-`cognee_wrapper.py` seeds Cognee's LLM config once at import via `current_key()`.
-For long-running production callers the rotation chain works correctly:
-
-- `cognee_batch_processor.run_batch()` calls `refresh_cognee()` at every poll
-  iteration.
-- `kg_synthesize.synthesize_response()` calls `refresh_cognee()` at every CLI
-  invocation entry.
-
-**Standalone scripts that long-live past a `rotate_key()` event (e.g. ad-hoc
-Python REPL sessions that `import cognee_wrapper` and never exit) will see a
-stale key after rotation.** Workaround: call `lib.refresh_cognee()` yourself
-after any manual rotation event, or restart the process. Short-lived CLI
-scripts are unaffected because they import after `os.environ` is already fresh.
-
-This limitation was flagged in `07-REVIEW-HERMES-WAVES-2-3.md §2` and is
-documented here for ops awareness — no code fix required in Phase 7.
+The earlier "standalone Cognee rotation caveat" no longer applies — `cognee_wrapper.py`,
+`cognee_batch_processor.py`, and `lib.refresh_cognee()` were all deleted in
+commit `608372e`. Cognee was a dead-write integration (no readers post Wave 0
+of v3.4 milestone). If a future episodic-memory layer is needed, it will be
+designed inside the Agentic-RAG-v1 milestone (`AGNT-MEM-01` placeholder in
+`REQUIREMENTS.md`).
 
 ---
 
@@ -160,7 +150,6 @@ pip install -r requirements.txt
 
 ```bash
 python -c "import lightrag; print('LightRAG OK')"
-python -c "import cognee; print('Cognee OK')"
 python -c "from google import genai; print('google-genai OK')"
 ```
 
