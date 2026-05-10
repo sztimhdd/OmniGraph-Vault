@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: verifying
-stopped_at: "Completed Phase 20 Plan 02: rss_ingest 5-stage rewrite + image_pipeline referer/SVG filter"
-last_updated: "2026-05-07T00:02:01.042Z"
-last_activity: 2026-05-07
+stopped_at: "Completed quick 260510-rl2: F-4 trivial cleanups in ingest_wechat.py (commit 5d4e294)"
+last_updated: "2026-05-10T00:00:00.000Z"
+last_activity: 2026-05-10
 progress:
   total_phases: 14
   completed_phases: 10
@@ -28,7 +28,7 @@ Milestone: v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 + 20 shi
 Phase: 20 (rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix) — Complete (2026-05-07)
 Plan: 4 of 4
 Status: Milestone closed
-Last activity: 2026-05-10 - Completed quick task 260510-oxq: eliminate outer/inner double-INSERT design smell on ingestions table. Outer `batch_ingest_from_spider.ingest_article` is now sole writer; inner `ingest_wechat.ingest_article` no longer writes to ingestions. doc_confirmed bool propagates via 3-tuple return; both main-loop call sites gate status='ok' on (success AND doc_confirmed). Touches: `ingest_wechat.py`, `batch_ingest_from_spider.py`, `tests/unit/test_ingest_article_processed_gate.py`.
+Last activity: 2026-05-10 - Completed quick task 260510-rl2 (commit `5d4e294`): F-4 trivial cleanups in `ingest_wechat.py` — 3 mechanical deletions (-6 LOC). (a) L146 duplicate `from lib.llm_complete import get_llm_func` removed (canonical L163 retained). (b) L318 hardcoded `llm_model_name="deepseek-v4-flash"` kwarg removed (LightRAG default applies; dispatcher controls actual provider). (c) L1093-1095 vestigial `article_hash` recompute removed (canonical L946 binding retained). **POLLUTION-AUDIT issue #2 FULLY CLOSED** across in-scope code (working-tree grep 0 hits). Pytest pre-fix == post-fix IDENTICAL 28/667 failure set (zero F-4-induced regressions). Previously 2026-05-10 - Completed quick task 260510-oxq: eliminate outer/inner double-INSERT design smell on ingestions table.
 
 ### Immediate next step
 
