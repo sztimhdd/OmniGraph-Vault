@@ -86,12 +86,12 @@ async def test_flush_false_also_returns_fresh_instance_today():
 def test_all_production_callers_pass_flush_explicitly():
     """Breaking-change scope: production sites pass flush=True explicitly (D-09.07)."""
     root = Path(__file__).resolve().parents[2]
+    # multimodal_ingest.py removed in quick 260510-l14 W3 (Defect E orphan).
     production_sites = [
         "ingest_wechat.py",
         "batch_ingest_from_spider.py",
         "enrichment/merge_and_ingest.py",
         "ingest_github.py",
-        "multimodal_ingest.py",
     ]
     for site in production_sites:
         src = (root / site).read_text(encoding="utf-8")

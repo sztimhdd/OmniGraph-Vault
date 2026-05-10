@@ -37,42 +37,20 @@ is actually invoked. The diagnostic message is preserved verbatim.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 from openai import AsyncOpenAI
+
+# Defect C (quick 260510-l14): use the canonical loader from config.py
+# instead of duplicating the .env parser. lib.llm_deepseek may import before
+# CLI scripts call bootstrap_cli(), so we still need to populate the env at
+# module top — but config.load_env() is now the single source of truth.
+from config import load_env
+
+load_env()
 
 
 _DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 _DEFAULT_MODEL = "deepseek-v4-flash"
-
-
-def _load_hermes_env() -> None:
-    """Populate os.environ from ~/.hermes/.env WITHOUT overwriting existing values.
-
-    Required because lib.llm_deepseek is imported BEFORE many scripts call
-    config.load_env(), so DEEPSEEK_API_KEY would otherwise be absent at module
-    init.
-    """
-    env_path = Path.home() / ".hermes" / ".env"
-    if not env_path.exists():
-        return
-    try:
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, _, v = line.partition("=")
-            k = k.strip()
-            v = v.strip().strip("'").strip('"')
-            if k and k not in os.environ:
-                os.environ[k] = v
-    except Exception:
-        # Silent-fall-through: callers will get the same RuntimeError if the
-        # key isn't set, which is the clear diagnostic we want.
-        pass
-
-
-_load_hermes_env()
 
 
 def _require_api_key() -> str:
