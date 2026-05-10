@@ -120,4 +120,8 @@ No edits to `cognee_wrapper.py`, `cognee_batch_processor.py`, `ingest_wechat.py`
 
 ## Final commit SHA
 
-`bc3d2e8` — `docs(quick-260509-syd): root-cause investigation for Cognee 422 NOT_FOUND`
+Rebased onto origin/main after concurrent push from another agent:
+
+- `a5f2d6e` — `docs(quick-260509-syd): root-cause investigation for Cognee 422 NOT_FOUND` (PLAN + INVESTIGATION + SUMMARY + scripts/cognee_diag/)
+- `faf6dde` — `docs(quick-260509-syd): record commit SHA in SUMMARY` (this self-reference; superseded by the SHA-correction commit below)
+- A subsequent commit replaces this section with the rebased SHA values.
