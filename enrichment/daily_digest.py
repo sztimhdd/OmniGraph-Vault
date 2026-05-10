@@ -1,22 +1,35 @@
-"""Daily digest: TOP N deep articles (KOL + RSS) → Markdown → Telegram + local archive.
+"""Daily digest: TOP N deep articles (KOL + RSS) -> Markdown -> Telegram + local archive.
 
-Per PRD §3.3.2 format. SQL + Markdown templating only; NO LLM synthesis pass
-(confirmed in 05-05 plan). Empty-state policy (CONTEXT Claude's Discretion §4):
-zero candidates → log "no candidates" + skip Telegram + skip archive; return 0.
+Per PRD SS3.3.2 format. SQL + Markdown templating only; NO LLM synthesis pass
+(confirmed in 05-05 plan). Empty-state policy (CONTEXT Claude's Discretion S4):
+zero candidates -> log "no candidates" + skip Telegram + skip archive; return 0.
 
-Asymmetric UNION ALL per D-07 REVISED 2026-05-02 + D-19:
-  - KOL branch: `articles JOIN classifications` requires `a.enriched = 2` per
-    Phase 4 contract (KOL must pass enrichment to qualify as "deep")
-  - RSS branch: `rss_articles JOIN rss_classifications` has NO `enriched`
-    filter — RSS is never enriched (D-07 REVISED); gating on enriched would
-    produce zero RSS candidates forever
-Both branches filter `date(fetched_at) = date('now','localtime') AND
-c.depth_score >= 2`. Sort: depth DESC, content_length DESC, classified_at DESC.
+Gating per v3.5 Layer 2 pipeline (Hermes fix 2026-05-09):
+  - KOL branch: `articles.layer2_verdict = 'ok'` - Layer 2 is the real gate,
+    replacing the old `classifications.depth_score >= 2 AND enriched = 2`.
+    `classifications` table is populated by `batch_classify_kol.py` (not always
+    run); Layer 2 runs inside `batch_ingest_from_spider.py` on every cron cycle.
+  - RSS branch: `rss_articles.layer2_verdict = 'ok'` - same gate. Note that RSS
+    Layer 2 only runs when `batch_ingest_from_spider.py` is extended to dual-table
+    (ir-4, pending). Until then, RSS layer2 is populated from prior bulk runs.
+  - `rss_classify.py` has been deleted (ir-4 cleanup); `rss_classifications` table
+    is empty and no longer written to. DO NOT revert to reading it.
+  - KOL `enriched = 2` gate REMOVED: enrichment is a separate pipeline (step_6),
+    not a prerequisite for digest quality. Layer 2 verdict is sufficient.
 
-Schema reality (verified 2026-05-03): `articles` has `scanned_at` (not
-`fetched_at`) and no `content_length` column; we alias `a.scanned_at AS
-fetched_at` and `LENGTH(COALESCE(a.digest,'')) AS content_length` for the
-KOL branch. RSS branch uses native columns.
+Topic column: KOL LEFT JOINs `classifications` for topic (populated by
+batch_classify_kol.py on some days); falls back to 'Agent' when NULL.
+RSS uses a fixed '深度内容' label (Layer 2 has no topic field).
+
+Asymmetric DESIGN preserved: KOL + RSS share the same Layer 2 gate but
+read from different source tables (articles vs rss_articles).
+
+Sort: content_length DESC, classified_at DESC.
+
+Schema reality: `articles` has `scanned_at` (not `fetched_at`) and no
+`content_length` column; we alias `a.scanned_at AS fetched_at` and
+`LENGTH(COALESCE(a.digest,'')) AS content_length` for the KOL branch.
+RSS branch uses native columns.
 
 Usage:
     venv/bin/python enrichment/daily_digest.py                # today, deliver
@@ -48,35 +61,36 @@ EXCERPT_MAX_CHARS = 120
 
 logger = logging.getLogger("daily_digest")
 
-# Asymmetric UNION ALL: KOL branch requires enriched=2, RSS branch has no
-# enriched filter. Both branches filter today's date + depth_score >= 2.
-# Three `?` placeholders: date(KOL), date(RSS), LIMIT.
+# Layer 2 verdict gate for both KOL and RSS branches.
+# KOL: articles.layer2_verdict = 'ok', LEFT JOIN classifications for topic.
+# RSS: rss_articles.layer2_verdict = 'ok', fixed topic label.
+# Two `?` placeholders: date(KOL), date(RSS). LIMIT is separate.
 CANDIDATE_SQL = """
 SELECT 'kol' AS src, a.id, a.title, a.url,
        acc.name AS source,
        COALESCE(a.digest, '') AS body,
-       c.topic, c.depth_score, c.classified_at,
+       COALESCE(c.topic, 'Agent') AS topic,
+       a.layer2_at AS classified_at,
        a.scanned_at AS fetched_at,
        LENGTH(COALESCE(a.digest, '')) AS content_length
 FROM articles a
-JOIN classifications c ON c.article_id = a.id
+LEFT JOIN classifications c ON c.article_id = a.id
 JOIN accounts acc ON acc.id = a.account_id
 WHERE date(a.scanned_at) = ?
-  AND c.depth_score >= 2
-  AND a.enriched = 2
+  AND a.layer2_verdict = 'ok'
 UNION ALL
 SELECT 'rss' AS src, a.id, a.title, a.url,
        f.name AS source,
        COALESCE(a.summary, '') AS body,
-       c.topic, c.depth_score, c.classified_at,
+       '深度内容' AS topic,
+       a.layer2_at AS classified_at,
        a.fetched_at,
        a.content_length
 FROM rss_articles a
-JOIN rss_classifications c ON c.article_id = a.id
 JOIN rss_feeds f ON f.id = a.feed_id
 WHERE date(a.fetched_at) = ?
-  AND c.depth_score >= 2
-ORDER BY depth_score DESC, content_length DESC, classified_at DESC
+  AND a.layer2_verdict = 'ok'
+ORDER BY content_length DESC, classified_at DESC
 LIMIT ?
 """
 
@@ -88,21 +102,19 @@ STATS_SQL_RSS_TOTAL = (
 )
 STATS_SQL_DEEP_TOTAL = """
 SELECT
-  (SELECT COUNT(DISTINCT a.id) FROM articles a
-   JOIN classifications c ON c.article_id = a.id
-   WHERE date(a.scanned_at) = ? AND c.depth_score >= 2)
+  (SELECT COUNT(*) FROM articles
+   WHERE date(scanned_at) = ? AND layer2_verdict = 'ok')
   +
-  (SELECT COUNT(DISTINCT a.id) FROM rss_articles a
-   JOIN rss_classifications c ON c.article_id = a.id
-   WHERE date(a.fetched_at) = ? AND c.depth_score >= 2)
+  (SELECT COUNT(*) FROM rss_articles
+   WHERE date(fetched_at) = ? AND layer2_verdict = 'ok')
 """
 STATS_SQL_INGESTED_TOTAL = """
 SELECT
   (SELECT COUNT(*) FROM articles
-   WHERE date(scanned_at) = ? AND enriched = 2)
+   WHERE date(scanned_at) = ? AND content_hash IS NOT NULL)
   +
   (SELECT COUNT(*) FROM rss_articles
-   WHERE date(fetched_at) = ? AND enriched = 2)
+   WHERE date(fetched_at) = ? AND content_hash IS NOT NULL)
 """
 
 
@@ -110,7 +122,7 @@ def _excerpt(body: str, max_chars: int = EXCERPT_MAX_CHARS) -> str:
     flat = re.sub(r"\s+", " ", (body or "").strip())
     if len(flat) <= max_chars:
         return flat
-    return flat[:max_chars].rstrip() + "…"
+    return flat[:max_chars].rstrip() + "\u2026"
 
 
 def gather(
@@ -135,7 +147,7 @@ def gather(
 
 
 def render(date: str, candidates: list[dict], stats: dict) -> str:
-    header = f"# OmniGraph-Vault today's quality picks — {date}\n"
+    header = f"# OmniGraph-Vault today's quality picks \u2014 {date}\n"
     lines: list[str] = [header]
     for i, c in enumerate(candidates, start=1):
         src_tag = "KOL" if c["src"] == "kol" else "RSS"
@@ -143,9 +155,9 @@ def render(date: str, candidates: list[dict], stats: dict) -> str:
         lines.append(
             f"**{i}. [{c['topic']}] {c['title']}** [[{src_tag}]]"
         )
-        lines.append(f"- 来源: {c['source']} · {channel}")
-        lines.append(f"- 摘要: {_excerpt(c['body'])}")
-        lines.append(f"- [阅读原文]({c['url']})")
+        lines.append(f"- \u6765\u6e90: {c['source']} \u00b7 {channel}")
+        lines.append(f"- \u6458\u8981: {_excerpt(c['body'])}")
+        lines.append(f"- [\u9605\u8bfb\u539f\u6587]({c['url']})")
         lines.append("")
     footer = (
         f"---\n"
