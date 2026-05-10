@@ -1311,11 +1311,6 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
                     "UPDATE articles SET enriched = ? WHERE url = ?",
                     (-1, url),
                 )
-            conn.execute(
-                "INSERT OR IGNORE INTO ingestions(article_id, source, status) "
-                "VALUES ((SELECT id FROM articles WHERE url = ?), 'wechat', 'ok')",
-                (url,),
-            )
             conn.commit()
             conn.close()
         except Exception as e:

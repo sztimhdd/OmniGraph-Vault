@@ -239,7 +239,7 @@ async def ingest_article(
     dry_run: bool,
     rag,
     effective_timeout: int | None = None,
-) -> tuple[bool, float]:
+) -> tuple[bool, float, bool]:
     """Ingest a single URL in-process against the shared LightRAG instance.
 
     Phase 5-00b refactor: replaces subprocess-per-article pattern. Shared ``rag``
@@ -267,7 +267,7 @@ async def ingest_article(
     """
     if dry_run:
         logger.info("  [dry-run] would ingest: %s", url)
-        return True, 0.0
+        return True, 0.0, False
 
     import ingest_wechat
 
@@ -286,7 +286,7 @@ async def ingest_article(
             ingest_wechat.ingest_article(url, rag=rag),
             timeout=timeout_s,
         )
-        return True, time.time() - t_start
+        return True, time.time() - t_start, True
     except asyncio.TimeoutError:
         wall = time.time() - t_start
         logger.warning("TIMEOUT (%ds) — skipping: %s", timeout_s, url[:80])
@@ -315,12 +315,12 @@ async def ingest_article(
             pass  # Phase 12 flush API not yet available; skip silently.
         except Exception as flush_exc:
             logger.warning("Checkpoint flush failed: %s", flush_exc)
-        return False, wall
+        return False, wall, False
     except Exception as exc:
         wall = time.time() - t_start
         logger.warning("Ingest failed (%s): %s — skipping: %s",
                        exc.__class__.__name__, exc, url[:80])
-        return False, wall
+        return False, wall, False
 
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
@@ -819,12 +819,12 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
             if remaining - BATCH_SAFETY_MARGIN_S <= 0:
                 safety_margin_triggered = True
 
-            success, wall = await ingest_article(
+            success, wall, doc_confirmed = await ingest_article(
                 url, dry_run, rag, effective_timeout=effective_timeout
             )
             if dry_run:
                 status = "dry_run"
-            elif success:
+            elif success and doc_confirmed:
                 status = "ok"
                 completed_times.append(wall)
                 timeout_histogram[_bucket_article_time(wall)] += 1
@@ -1727,12 +1727,12 @@ async def ingest_from_db(
                 if remaining - BATCH_SAFETY_MARGIN_S <= 0:
                     safety_margin_triggered = True
 
-                success, wall = await ingest_article(
+                success, wall, doc_confirmed = await ingest_article(
                     url_d, dry_run, rag, effective_timeout=effective_timeout
                 )
                 if dry_run:
                     status = "dry_run"
-                elif success:
+                elif success and doc_confirmed:
                     status = "ok"
                     completed_times.append(wall)
                     timeout_histogram[_bucket_article_time(wall)] += 1

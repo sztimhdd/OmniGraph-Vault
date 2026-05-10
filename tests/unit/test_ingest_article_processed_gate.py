@@ -192,7 +192,7 @@ async def test_outer_catches_inner_runtime_error_returns_failed(monkeypatch):
     rag = MagicMock()
     rag.adelete_by_doc_id = AsyncMock()
 
-    success, wall = await bif.ingest_article(
+    success, wall, doc_confirmed = await bif.ingest_article(
         url="https://example.com/test",
         dry_run=False,
         rag=rag,
@@ -201,3 +201,4 @@ async def test_outer_catches_inner_runtime_error_returns_failed(monkeypatch):
 
     assert success is False
     assert wall >= 0.0  # Sanity: wall_clock recorded even on failure.
+    assert doc_confirmed is False  # Inner raised RuntimeError → outer's generic Exception branch → doc_confirmed=False
