@@ -17,12 +17,22 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _ensure_deepseek_key(monkeypatch):
-    """All tests in this module assume DEEPSEEK_API_KEY is present."""
+    """All tests in this module assume DEEPSEEK_API_KEY is present.
+
+    Quick 260510-l14 (Defect D): the AsyncOpenAI client is now lazily
+    constructed by ``_get_client()`` on first call. We force a re-import +
+    reset the cached ``_client`` so each test starts with a fresh lazy slot
+    against the patched env.
+    """
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-deepseek-key")
-    # Force re-import so module-level _client is rebuilt against patched env.
+    # Force re-import so module-level state is rebuilt against patched env.
     import sys
     for mod in ("lib.llm_deepseek", "lightrag_llm"):
         sys.modules.pop(mod, None)
+    # Pre-build the lazy client so existing tests can patch ld._client.
+    import lib.llm_deepseek as _ld
+    _ld._client = None
+    _ld._get_client()
 
 
 def _make_chat_response(text: str) -> MagicMock:
@@ -136,6 +146,9 @@ async def test_deepseek_model_env_override(monkeypatch):
     import sys
     sys.modules.pop("lib.llm_deepseek", None)
     import lib.llm_deepseek as ld
+    # Re-import drops the autouse fixture's pre-built _client; rebuild lazily.
+    ld._client = None
+    ld._get_client()
 
     mock_create = AsyncMock(return_value=_make_chat_response("ok"))
     with patch.object(ld._client.chat.completions, "create", mock_create):
@@ -145,15 +158,20 @@ async def test_deepseek_model_env_override(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Test 6: Missing DEEPSEEK_API_KEY raises at module import
+# Test 6: Missing DEEPSEEK_API_KEY raises on first call (NOT at import)
 # ---------------------------------------------------------------------------
 
 
 def test_missing_api_key_raises_runtime_error(monkeypatch):
-    """If DEEPSEEK_API_KEY is absent, module import raises RuntimeError.
+    """If DEEPSEEK_API_KEY is absent, the FIRST CALL raises RuntimeError.
+
+    Quick 260510-l14 (Defect D): the key check is deferred from module import
+    to first call via ``_get_client()``. ``import lib.llm_deepseek`` itself
+    must succeed; only invocation of the async function (or _get_client()
+    directly) raises.
 
     Bypasses ~/.hermes/.env auto-load by monkeypatching HOME to a non-existent
-    directory so _load_hermes_env() is a no-op.
+    directory so config.load_env() is a no-op.
     """
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     # Redirect HOME so ~/.hermes/.env doesn't leak into this test.
@@ -162,8 +180,13 @@ def test_missing_api_key_raises_runtime_error(monkeypatch):
     import sys
     sys.modules.pop("lib.llm_deepseek", None)
 
+    # Import must succeed (no eager raise).
+    import lib.llm_deepseek as ld
+    # Reset the cached client so the autouse fixture's pre-build is undone.
+    ld._client = None
+
     with pytest.raises(RuntimeError) as exc_info:
-        import lib.llm_deepseek  # noqa: F401
+        ld._get_client()
 
     assert "DEEPSEEK_API_KEY" in str(exc_info.value)
 

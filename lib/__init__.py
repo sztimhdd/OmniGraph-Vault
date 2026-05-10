@@ -8,6 +8,13 @@ Embeddings are owned entirely by ``lib.lightrag_embedding.embedding_func``
 because LightRAG's embedding contract requires in-band multimodal logic (image
 fetching, task prefix injection, ``types.Part.from_bytes``) that cannot be
 layered externally.
+
+Defect D (quick 260510-l14): ``deepseek_model_complete`` is NOT re-exported
+from this package. Importing it eagerly here forced every ``import lib``
+caller to require ``DEEPSEEK_API_KEY`` even for Gemini/Vertex-only workloads
+(the documented "Phase 5 cross-coupling" / Hermes FLAG 2). Use the full path
+instead:
+    from lib.llm_deepseek import deepseek_model_complete
 """
 from .models import (
     INGESTION_LLM,
@@ -31,7 +38,6 @@ from .api_keys import (
 from .rate_limit import get_limiter
 from .llm_client import generate, generate_sync, aembed
 from .lightrag_embedding import embedding_func
-from .llm_deepseek import deepseek_model_complete
 
 __all__ = [
     "INGESTION_LLM",
@@ -54,5 +60,4 @@ __all__ = [
     "generate_sync",
     "aembed",
     "embedding_func",
-    "deepseek_model_complete",
 ]

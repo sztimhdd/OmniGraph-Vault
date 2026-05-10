@@ -28,9 +28,11 @@ Contract (matches LightRAG source venv/Lib/site-packages/lightrag/lightrag.py):
 Endpoint: ``https://api.deepseek.com/v1`` (OpenAI-compatible).
 Model: ``DEEPSEEK_MODEL`` env var, default ``deepseek-v4-flash``.
 
-Key validation: reads ``DEEPSEEK_API_KEY`` at import time; raises RuntimeError
-immediately if absent. This fails fast — better to blow up at startup than
-silently attempt API calls with no credentials.
+Key validation (Defect D — quick 260510-l14): the ``DEEPSEEK_API_KEY`` check is
+DEFERRED to first call via ``_get_client()`` rather than at module import.
+Gemini/Vertex-only workloads can ``from lib.llm_deepseek import ...`` without
+needing a DeepSeek key; the key is only required when ``deepseek_model_complete``
+is actually invoked. The diagnostic message is preserved verbatim.
 """
 from __future__ import annotations
 
@@ -83,8 +85,6 @@ def _require_api_key() -> str:
     return key
 
 
-# Module-level singletons — read env once at import.
-_API_KEY = _require_api_key()
 _MODEL = os.environ.get("DEEPSEEK_MODEL", _DEFAULT_MODEL).strip() or _DEFAULT_MODEL
 
 # D-09.02 (TIMEOUT-02): 120s request timeout prevents single-chunk runaway.
@@ -93,11 +93,30 @@ _MODEL = os.environ.get("DEEPSEEK_MODEL", _DEFAULT_MODEL).strip() or _DEFAULT_MO
 # outer budget has room to retry or fail cleanly. Bare float form — the
 # openai>=1.0 SDK accepts float as total request timeout.
 _DEEPSEEK_TIMEOUT_S = 120.0
-_client: AsyncOpenAI = AsyncOpenAI(
-    api_key=_API_KEY,
-    base_url=_DEEPSEEK_BASE_URL,
-    timeout=_DEEPSEEK_TIMEOUT_S,
-)
+
+# Defect D (quick 260510-l14): client is lazily constructed on first call so
+# importing this module never requires DEEPSEEK_API_KEY (Gemini/Vertex-only
+# workloads previously had to set DEEPSEEK_API_KEY=dummy as a band-aid).
+_client: AsyncOpenAI | None = None
+
+
+def _get_client() -> AsyncOpenAI:
+    """Return the cached AsyncOpenAI client, constructing it on first call.
+
+    Reads DEEPSEEK_API_KEY lazily so any process that imports
+    ``lib.llm_deepseek`` without ever calling ``deepseek_model_complete`` does
+    not need the key. Raises RuntimeError with the canonical diagnostic if the
+    key is missing at first-call time.
+    """
+    global _client
+    if _client is None:
+        api_key = _require_api_key()
+        _client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=_DEEPSEEK_BASE_URL,
+            timeout=_DEEPSEEK_TIMEOUT_S,
+        )
+    return _client
 
 
 async def deepseek_model_complete(
@@ -118,7 +137,7 @@ async def deepseek_model_complete(
         messages.extend(history_messages)
     messages.append({"role": "user", "content": prompt})
 
-    response = await _client.chat.completions.create(
+    response = await _get_client().chat.completions.create(
         model=_MODEL,
         messages=messages,
         stream=False,
