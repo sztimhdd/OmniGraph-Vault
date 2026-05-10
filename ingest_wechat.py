@@ -45,9 +45,79 @@ def _status_is_processed(status_val) -> bool:
     status_text = getattr(status_val, "value", None) or str(status_val)
     return status_text.upper() == "PROCESSED"
 
+# 2026-05-10 hot-fix (quick 260510-h09): retry budget for the post-ainsert
+# PROCESSED verification helper. Three attempts × 2s backoff covers the
+# 2026-05-09/10 ainsert async-pipeline race where LightRAG's internal
+# enqueue had not yet promoted the doc to status='PROCESSED' by the time
+# the caller checked.
+PROCESSED_VERIFY_MAX_RETRIES = 3
+PROCESSED_VERIFY_BACKOFF_S = 2.0
+
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 import asyncio
+
+
+async def _verify_doc_processed_or_raise(
+    rag,
+    doc_id: str,
+    *,
+    max_retries: int = PROCESSED_VERIFY_MAX_RETRIES,
+    backoff_s: float = PROCESSED_VERIFY_BACKOFF_S,
+) -> None:
+    """Verify LightRAG promoted ``doc_id`` to status='PROCESSED'; raise on failure.
+
+    2026-05-10 hot-fix (quick 260510-h09). Replaces silent log-warning skip
+    that was clobbered by outer ``batch_ingest_from_spider`` main-loop
+    ``INSERT OR REPLACE``. Now raises ``RuntimeError`` so outer's except
+    path converts to ``status='failed'`` (mig 009 retry pool re-queues
+    next cron).
+
+    Retries up to ``max_retries`` times with ``backoff_s`` seconds between
+    attempts to allow LightRAG's internal enqueue pipeline to finish
+    promoting the doc — covers the 2026-05-09/10 ainsert-async-pipeline
+    race.
+    """
+    last_status_val: str | None = None
+    last_exc: Exception | None = None
+
+    for attempt in range(max_retries):
+        try:
+            statuses = await rag.aget_docs_by_ids([doc_id])
+        except Exception as exc:
+            last_exc = exc
+            last_status_val = None
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_s)
+            continue
+
+        if not statuses or doc_id not in statuses:
+            last_status_val = None
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_s)
+            continue
+
+        entry = statuses[doc_id]
+        status_val = getattr(entry, "status", None)
+        if status_val is None and isinstance(entry, dict):
+            status_val = entry.get("status")
+        last_status_val = status_val
+
+        if _status_is_processed(status_val):
+            return  # success — caller sets doc_confirmed=True
+
+        if attempt < max_retries - 1:
+            await asyncio.sleep(backoff_s)
+
+    raise RuntimeError(
+        f"post-ainsert PROCESSED verification failed for doc_id={doc_id} "
+        f"after {max_retries} retries (backoff {backoff_s}s). "
+        f"Last status={last_status_val!r}, "
+        f"last_exc={last_exc.__class__.__name__ if last_exc else None}. "
+        f"This is the 2026-05-09/10 ainsert-async-pipeline race. The article "
+        f"will be marked 'failed' in ingestions and retried by next cron."
+    )
+
 import nest_asyncio
 import fitz  # PyMuPDF
 from playwright.async_api import async_playwright
@@ -1253,32 +1323,13 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
     # `aget_docs_by_ids` status=="PROCESSED" eliminates that drift.
     # Failure → leave content_hash NULL → batch re-scheduler retries next run
     # (aligns with Phase 12 checkpoint/resume semantics).
-    doc_confirmed = False
-    try:
-        statuses = await rag.aget_docs_by_ids([doc_id])
-    except Exception as exc:
-        logger.warning(
-            "post-ainsert verification raised (doc=%s): %s — skipping content_hash write",
-            doc_id, exc,
-        )
-        statuses = None
-    if statuses and doc_id in statuses:
-        entry = statuses[doc_id]
-        status_val = getattr(entry, "status", None)
-        if status_val is None and isinstance(entry, dict):
-            status_val = entry.get("status")
-        if _status_is_processed(status_val):
-            doc_confirmed = True
-        else:
-            logger.warning(
-                "post-ainsert verification: doc %s status=%r (not PROCESSED) — skipping content_hash write",
-                doc_id, status_val,
-            )
-    elif statuses is not None:
-        logger.warning(
-            "post-ainsert verification: doc %s absent from aget_docs_by_ids — skipping content_hash write",
-            doc_id,
-        )
+    #
+    # 2026-05-10 hot-fix (quick 260510-h09): verification now retries with
+    # backoff and RAISES on failure (was silent log+skip). Outer
+    # batch_ingest_from_spider.ingest_article's except path catches and
+    # marks ingestions.status='failed' so mig 009 retry pool re-queues.
+    await _verify_doc_processed_or_raise(rag, doc_id)
+    doc_confirmed = True
 
     # Update DB: store content_hash so batch processor can skip re-scrape.
     # Gated on doc_confirmed so unverified ingests leave content_hash NULL
@@ -1295,7 +1346,8 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
                     (-1, url),
                 )
             conn.execute(
-                "INSERT OR IGNORE INTO ingestions(article_id, status) VALUES ((SELECT id FROM articles WHERE url = ?), 'ok')",
+                "INSERT OR IGNORE INTO ingestions(article_id, source, status) "
+                "VALUES ((SELECT id FROM articles WHERE url = ?), 'wechat', 'ok')",
                 (url,),
             )
             conn.commit()

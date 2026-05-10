@@ -32,16 +32,46 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 EXCLUDE_DIRS = {"tests", "venv", ".venv", ".dev-runtime", "__pycache__", "node_modules"}
 
-# Permissive: matches `INSERT INTO ingestions ... VALUES ... '<word>'` across
-# arbitrary intervening text (column lists may include parens, so we allow
-# `.` not `[^)]`). Backstop, not a SQL parser. The `.{0,400}?` cap prevents
-# greedy runaway across unrelated SQL elsewhere in the file.
+# 2026-05-10 hot-fix (quick 260510-h09): regex made column-aware so it picks
+# the literal at the position of the ``status`` column, not the first quoted
+# literal after VALUES. Previously a multi-column INSERT with `'wechat'` in
+# the source column would cause the test to flag 'wechat' as a missing
+# status literal.
+#
+# INSERT_RE captures (col_list, values_list) so we can index by column name.
+# Backstop, not a SQL parser. The `.{0,400}?` cap prevents greedy runaway.
 INSERT_RE = re.compile(
-    r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+ingestions\b.{0,400}?VALUES.{0,400}?'(\w+)'",
+    r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+ingestions\s*\(([^)]+)\).{0,400}?VALUES\s*\((.{0,400}?)\)",
     re.IGNORECASE | re.DOTALL,
 )
 CHECK_RE = re.compile(r"CHECK\s*\(\s*status\s+IN\s*\(([^)]+)\)\s*\)", re.IGNORECASE)
 QUOTED_LITERAL_RE = re.compile(r"'([^']+)'")
+
+
+def _extract_status_literal(col_list: str, values_list: str) -> str | None:
+    """Return the literal at the position of the ``status`` column, or None.
+
+    Returns None when:
+      - ``status`` is not in the column list
+      - the value at status's position is a non-literal (e.g. ?, :placeholder,
+        or an embedded SELECT) — those are dynamic, not static literals.
+    """
+    cols = [c.strip().lower() for c in col_list.split(",")]
+    if "status" not in cols:
+        return None
+    idx = cols.index("status")
+    # Splitting values by comma is naive but adequate for the simple
+    # `((SELECT ... ?), 'wechat', 'ok')` shape used by all known call sites.
+    # If a SELECT subquery is at idx, it'll have parens that won't quote-strip
+    # — those return None (dynamic, not a literal).
+    vals = [v.strip() for v in values_list.split(",")]
+    if idx >= len(vals):
+        return None
+    val = vals[idx]
+    # Strip outer quotes if literal; otherwise this is a placeholder/expr.
+    if val.startswith("'") and val.endswith("'") and len(val) >= 2:
+        return val[1:-1]
+    return None
 
 
 def _iter_py_files(root: Path):
@@ -58,7 +88,12 @@ def _iter_sql_files(root: Path):
 
 
 def _scan_inserted_statuses() -> dict[str, set[str]]:
-    """Return mapping of status_literal -> set of source files mentioning it."""
+    """Return mapping of status_literal -> set of source files mentioning it.
+
+    Uses column-aware extraction so multi-column INSERTs (e.g. with a 'wechat'
+    source column added by mig 008) only flag literals from the actual
+    ``status`` column, not arbitrary quoted strings elsewhere in VALUES.
+    """
     found: dict[str, set[str]] = {}
     for py_path in _iter_py_files(REPO_ROOT):
         try:
@@ -66,7 +101,9 @@ def _scan_inserted_statuses() -> dict[str, set[str]]:
         except OSError:
             continue
         for m in INSERT_RE.finditer(text):
-            literal = m.group(1)
+            literal = _extract_status_literal(m.group(1), m.group(2))
+            if literal is None:
+                continue
             found.setdefault(literal, set()).add(
                 str(py_path.relative_to(REPO_ROOT)).replace("\\", "/")
             )

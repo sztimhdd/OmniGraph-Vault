@@ -137,6 +137,12 @@ def mock_ingest_deps(monkeypatch, tmp_path, fake_article_data):
     rag = MagicMock()
     rag.ainsert = AsyncMock()
     rag.adelete_by_doc_id = AsyncMock()
+    # 2026-05-10 hot-fix (quick 260510-h09): post-ainsert PROCESSED verification
+    # helper now retries + raises on failure. Make the mock return PROCESSED for
+    # any doc_id so the helper passes on first attempt without sleep.
+    rag.aget_docs_by_ids = AsyncMock(
+        side_effect=lambda ids: {i: {"status": "PROCESSED"} for i in ids}
+    )
 
     async def fake_get_rag(flush=True):
         return rag

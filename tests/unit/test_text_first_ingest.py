@@ -370,10 +370,18 @@ def test_phase9_rollback_registry_symbols_still_present():
 
 
 @pytest.mark.asyncio
-async def test_task08_hook_skips_content_hash_when_doc_absent_from_status(
+async def test_task08_hook_raises_runtime_error_when_doc_absent_from_status(
     monkeypatch, _fake_rag, _isolated_image_dir, tmp_path
 ):
-    """Task 0.8 case A: aget_docs_by_ids returns {} → content_hash NOT written."""
+    """Task 0.8 case A: aget_docs_by_ids returns {} → helper raises RuntimeError.
+
+    2026-05-10 hot-fix (quick 260510-h09): silent-skip replaced with raise so
+    outer batch_ingest_from_spider.ingest_article marks status='failed' and
+    mig 009 retry pool re-queues next cron. Renamed from
+    ``test_task08_hook_skips_content_hash_when_doc_absent_from_status``.
+    Reduce backoff_s effectively by patching the helper's defaults so the
+    test runs sub-second.
+    """
     import ingest_wechat
 
     db_path = tmp_path / "kol_scan.db"
@@ -383,7 +391,7 @@ async def test_task08_hook_skips_content_hash_when_doc_absent_from_status(
         "CREATE TABLE articles (id INTEGER PRIMARY KEY, url TEXT UNIQUE, content_hash TEXT, enriched INTEGER DEFAULT 0)"
     )
     conn.execute(
-        "CREATE TABLE ingestions (article_id INTEGER, status TEXT, PRIMARY KEY(article_id, status))"
+        "CREATE TABLE ingestions (article_id INTEGER, source TEXT NOT NULL DEFAULT 'wechat', status TEXT, PRIMARY KEY(article_id, status))"
     )
     url = "https://mp.weixin.qq.com/s/task08_case_a"
     conn.execute("INSERT INTO articles(url) VALUES (?)", (url,))
@@ -398,11 +406,15 @@ async def test_task08_hook_skips_content_hash_when_doc_absent_from_status(
         return None
 
     monkeypatch.setattr(ingest_wechat, "_vision_worker_impl", _noop_worker)
+    # Speed: zero backoff so retry loop completes sub-second.
+    monkeypatch.setattr(ingest_wechat, "PROCESSED_VERIFY_BACKOFF_S", 0.0)
     # Override default fixture: return empty dict (doc absent).
     _fake_rag.aget_docs_by_ids = AsyncMock(return_value={})
 
-    await ingest_wechat.ingest_article(url, rag=_fake_rag)
+    with pytest.raises(RuntimeError, match="PROCESSED verification failed"):
+        await ingest_wechat.ingest_article(url, rag=_fake_rag)
 
+    # content_hash NOT written because helper raised before the UPDATE statement.
     conn = sqlite3.connect(str(db_path))
     row = conn.execute(
         "SELECT content_hash FROM articles WHERE url = ?", (url,)
@@ -410,16 +422,21 @@ async def test_task08_hook_skips_content_hash_when_doc_absent_from_status(
     conn.close()
     assert row is not None
     assert row[0] is None, (
-        f"content_hash should remain NULL when doc absent from aget_docs_by_ids; "
-        f"got {row[0]!r}"
+        f"content_hash should remain NULL when helper raises; got {row[0]!r}"
     )
 
 
 @pytest.mark.asyncio
-async def test_task08_hook_skips_content_hash_when_status_not_processed(
+async def test_task08_hook_raises_runtime_error_when_status_not_processed(
     monkeypatch, _fake_rag, _isolated_image_dir, tmp_path
 ):
-    """Task 0.8 case B: status=='FAILED' → content_hash NOT written."""
+    """Task 0.8 case B: status=='FAILED' (never PROCESSED) → helper raises RuntimeError.
+
+    2026-05-10 hot-fix (quick 260510-h09): renamed from
+    ``test_task08_hook_skips_content_hash_when_status_not_processed``.
+    Mock returns FAILED for ALL retry attempts so helper exhausts retries
+    and raises.
+    """
     import ingest_wechat
 
     db_path = tmp_path / "kol_scan.db"
@@ -429,7 +446,7 @@ async def test_task08_hook_skips_content_hash_when_status_not_processed(
         "CREATE TABLE articles (id INTEGER PRIMARY KEY, url TEXT UNIQUE, content_hash TEXT, enriched INTEGER DEFAULT 0)"
     )
     conn.execute(
-        "CREATE TABLE ingestions (article_id INTEGER, status TEXT, PRIMARY KEY(article_id, status))"
+        "CREATE TABLE ingestions (article_id INTEGER, source TEXT NOT NULL DEFAULT 'wechat', status TEXT, PRIMARY KEY(article_id, status))"
     )
     url = "https://mp.weixin.qq.com/s/task08_case_b"
     conn.execute("INSERT INTO articles(url) VALUES (?)", (url,))
@@ -444,13 +461,17 @@ async def test_task08_hook_skips_content_hash_when_status_not_processed(
         return None
 
     monkeypatch.setattr(ingest_wechat, "_vision_worker_impl", _noop_worker)
-    # Override default fixture: status is FAILED, not PROCESSED.
+    # Speed: zero backoff so retry loop completes sub-second.
+    monkeypatch.setattr(ingest_wechat, "PROCESSED_VERIFY_BACKOFF_S", 0.0)
+    # Override default fixture: status is FAILED for ALL retry attempts.
     _fake_rag.aget_docs_by_ids = AsyncMock(
         side_effect=lambda ids: {i: {"status": "FAILED"} for i in ids}
     )
 
-    await ingest_wechat.ingest_article(url, rag=_fake_rag)
+    with pytest.raises(RuntimeError, match="PROCESSED verification failed"):
+        await ingest_wechat.ingest_article(url, rag=_fake_rag)
 
+    # content_hash NOT written because helper raised before the UPDATE statement.
     conn = sqlite3.connect(str(db_path))
     row = conn.execute(
         "SELECT content_hash FROM articles WHERE url = ?", (url,)
@@ -458,7 +479,7 @@ async def test_task08_hook_skips_content_hash_when_status_not_processed(
     conn.close()
     assert row is not None
     assert row[0] is None, (
-        f"content_hash should remain NULL when status != PROCESSED; got {row[0]!r}"
+        f"content_hash should remain NULL when helper raises; got {row[0]!r}"
     )
 
 
@@ -466,7 +487,12 @@ async def test_task08_hook_skips_content_hash_when_status_not_processed(
 async def test_task08_hook_writes_content_hash_when_status_processed(
     monkeypatch, _fake_rag, _isolated_image_dir, tmp_path
 ):
-    """Task 0.8 case C: status=='PROCESSED' → content_hash IS written (happy path)."""
+    """Task 0.8 case C: status=='PROCESSED' → content_hash IS written (happy path).
+
+    2026-05-10 hot-fix (quick 260510-h09): the test's fixture sqlite DB
+    needs the ``source TEXT NOT NULL DEFAULT 'wechat'`` column added (predates
+    mig 008) so the new INSERT's ``source='wechat'`` field has a target.
+    """
     import ingest_wechat
 
     db_path = tmp_path / "kol_scan.db"
@@ -476,7 +502,7 @@ async def test_task08_hook_writes_content_hash_when_status_processed(
         "CREATE TABLE articles (id INTEGER PRIMARY KEY, url TEXT UNIQUE, content_hash TEXT, enriched INTEGER DEFAULT 0)"
     )
     conn.execute(
-        "CREATE TABLE ingestions (article_id INTEGER, status TEXT, PRIMARY KEY(article_id, status))"
+        "CREATE TABLE ingestions (article_id INTEGER, source TEXT NOT NULL DEFAULT 'wechat', status TEXT, PRIMARY KEY(article_id, status))"
     )
     url = "https://mp.weixin.qq.com/s/task08_case_c"
     conn.execute("INSERT INTO articles(url) VALUES (?)", (url,))
