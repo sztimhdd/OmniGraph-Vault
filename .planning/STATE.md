@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: verifying
-stopped_at: "Completed quick 260510-uai: source-aware ingest dispatch — RSS articles use rss_ doc_id prefix + body-length fail-fast (zero NEW regressions vs siw baseline; 3 new tests pass)"
-last_updated: "2026-05-10T22:30:00.000Z"
-last_activity: 2026-05-10
+stopped_at: Completed quick-260511-b3y-PLAN.md
+last_updated: "2026-05-11T11:19:03.188Z"
+last_activity: 2026-05-11
 progress:
   total_phases: 14
   completed_phases: 10
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 Milestone: v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 + 20 shipped; Phase 21 STK track shipped via quicks; Phase 21 E2R-01/02 + Phase 22 SUPERSEDED-BY-ir4 — RSS pipeline retired)
 Phase: 20 (rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix) — Complete (2026-05-07)
 Plan: 4 of 4
-Status: Milestone closed
-Last activity: 2026-05-10 - Completed quick task 260510-uai (commit `a66622c`): source-aware ingest dispatch — RSS articles use `rss_<hash>` doc_id prefix + body-length fail-fast (`MIN_INGEST_BODY_LEN=500`) eliminates short-body ainsert failures. Closes the t1o-investigation gap (4/4 RSS rows reaching ainsert all FAILED in production: 3 had body<200 chars hitting WeChat-only code paths on non-WeChat URLs, 1 had real content but doc_id was hardcoded `wechat_*`). Code: outer `batch_ingest_from_spider.ingest_article(source, url, ...)` first-positional `source` param threaded into inner `ingest_wechat.ingest_article(url, *, source: str = "wechat", rag=None)` (kwarg-only); main-article doc_id parameterized at 2 sites (cache-hit + post-scrape) as `f"{source or 'wechat'}_{article_hash}"`; L450 Vision sub-doc (`wechat_<hash>_images`) preserved (separate lifecycle). BOTH outer call sites updated: L828 hardcodes `'wechat'` literal (legacy KOL-only branch); L1736 threads `source_d` from row tuple (dual-source UNION ALL drain). 4 existing test files updated for new signature + 5 callsites in `test_rollback_on_timeout.py` (L63/L91/L124/L162/L170) injected `source='wechat'` kwarg + 4 inner-mock signature changes for kwarg-only `source`. 3 NEW tests in `test_text_first_ingest.py`: T1 RSS source → `rss_` prefix; T2 default → `wechat_` prefix; T3 short body → ValueError + ainsert NOT called (cache-hit branch). Rule 3 deviation: extended fixture body content ≥500 chars in `_make_article_data` + `process_content` mock + `test_cache_hit_returns_none` cached body + `fake_article_data` content_html so existing tests don't trip the new MIN_INGEST_BODY_LEN guard. New `_isolated_checkpoint_dir` fixture pins `OMNIGRAPH_CHECKPOINT_BASE_DIR` to tmp (without it, prior test runs left `text_ingest.done` markers in `~/.hermes/omonigraph-vault/checkpoints/` that skip ainsert). Pytest: 22 failed / 630 passed / 5 skipped (zero NEW regressions vs siw rl2 baseline; 3 new tests added all pass). gkw WIP guard: sha256 of `tests/unit/test_ainsert_persistence_contract.py` byte-equal pre vs post — file pre-existing M from gkw, NOT staged. Single atomic forward-only commit; `git fetch origin && git rebase origin/main` defensive pre-push. Previously 2026-05-10 - Completed quick task 260510-t1o (commit `0c977a8`): READ-ONLY RSS pipeline empirical investigation. Verdict: **`~50 LOC quick scope`** — the "0 RSS ingestions=ok despite 546 RSS bodies" gap is NOT an ar-1 milestone. Every layer EXCEPT the final ainsert dispatch is already source-aware (dual-source UNION ALL candidate SQL at `batch_ingest_from_spider.py:1407`, source-aware Layer 1/Layer 2 persistence at `lib/article_filter.py:585`+`:639` writing to `rss_articles`, source-aware `_needs_scrape` at `:931`, source-aware ingestions inserts at `:1697`+`:1746`). The only missing branch: `batch_ingest_from_spider.py:286` dispatches every URL to `ingest_wechat.ingest_article` (which is WeChat-specific — cache dir, image namespace, doc_id `wechat_*` at `ingest_wechat.py:984`). Of 1604 RSS ingestions rows: 1561 are correct Layer 1/Layer 2 rejects (1058 layer1=reject no-body + 503 layer1=reject body-from-rss-fetch); 4 reached ainsert and ALL FAILED (3 had <200 char bodies that bypassed `RSS_SCRAPE_THRESHOLD=100`, 1 had 61665 chars that hit the WeChat-specific path on a non-WeChat URL). 80 candidates unprocessed (cron pending). No production code/DB/env mutations. Previously 2026-05-10 - Completed quick task 260510-rl2 (commit `5d4e294`): F-4 trivial cleanups in `ingest_wechat.py` — 3 mechanical deletions (-6 LOC). (a) L146 duplicate `from lib.llm_complete import get_llm_func` removed (canonical L163 retained). (b) L318 hardcoded `llm_model_name="deepseek-v4-flash"` kwarg removed (LightRAG default applies; dispatcher controls actual provider). (c) L1093-1095 vestigial `article_hash` recompute removed (canonical L946 binding retained). **POLLUTION-AUDIT issue #2 FULLY CLOSED** across in-scope code (working-tree grep 0 hits). Pytest pre-fix == post-fix IDENTICAL 28/667 failure set (zero F-4-induced regressions). Previously 2026-05-10 - Completed quick task 260510-oxq: eliminate outer/inner double-INSERT design smell on ingestions table.
+Status: Phase complete — ready for verification
+Last activity: 2026-05-11
 
 ### Immediate next step
 
@@ -163,6 +163,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase 20 P01 | 8 | 1 tasks | 1 files |
 | Phase 20 P03 | 3 | 2 tasks | 1 files |
 | Phase 20 P02 | 20 | 2 tasks | 2 files |
+| Phase quick-260511-b3y P01 | 525618 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -230,6 +231,7 @@ Recent decisions affecting current work:
 - [Phase 20]: Task 3.3 (COG-03) PARKED: OMNIGRAPH_COGNEE_INLINE env gate retirement requires live Hermes 3-article smoke per D-20.14 before proceeding
 - [Phase 20]: Always call download_images with empty URL list to preserve monkeypatch injection points in tests
 - [Phase 20]: import image_pipeline as module (not from import) so monkeypatch.setattr works on test call sites
+- [Phase quick-260511-b3y]: Default GOOGLE_CLOUD_LOCATION to global in _make_client(); gemini-embedding-2 requires global endpoint (not us-central1)
 
 ### Pending Todos
 
@@ -301,8 +303,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-07T00:02:01.036Z
-Stopped at: Completed Phase 20 Plan 02: rss_ingest 5-stage rewrite + image_pipeline referer/SVG filter
+Last session: 2026-05-11T11:19:03.173Z
+Stopped at: Completed quick-260511-b3y-PLAN.md
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 
