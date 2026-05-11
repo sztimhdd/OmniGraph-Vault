@@ -48,7 +48,7 @@ async def test_timeout_triggers_adelete_by_doc_id(monkeypatch, _fake_rag):
     # success, so on cancellation the orchestrator's error path can read it.
     import ingest_wechat
 
-    async def _slow_ingest(_url, rag=None):
+    async def _slow_ingest(_url, *, source="wechat", rag=None):
         ingest_wechat._register_pending_doc_id(tracker_hash, expected_doc_id)
         await asyncio.sleep(10)
 
@@ -60,7 +60,7 @@ async def test_timeout_triggers_adelete_by_doc_id(monkeypatch, _fake_rag):
     monkeypatch.setattr(bi, "_SINGLE_CHUNK_FLOOR_S", 0.1)
 
     # Phase 17: ingest_article now returns (success, wall_clock_seconds).
-    ok, _wall = await bi.ingest_article(url=url, dry_run=False, rag=_fake_rag)
+    ok, _wall = await bi.ingest_article(source='wechat', url=url, dry_run=False, rag=_fake_rag)
 
     assert ok is False
     _fake_rag.adelete_by_doc_id.assert_awaited_once_with(expected_doc_id)
@@ -74,7 +74,7 @@ async def test_successful_ingest_does_not_call_adelete(monkeypatch, _fake_rag):
     url = "https://test.example/ok"
     import ingest_wechat
 
-    async def _fast_ingest(_url, rag=None):
+    async def _fast_ingest(_url, *, source="wechat", rag=None):
         # Simulate successful ainsert — register AND clear.
         tracker_hash = get_article_hash(_url)
         md5_hash = hashlib.md5(_url.encode()).hexdigest()[:10]
@@ -88,7 +88,7 @@ async def test_successful_ingest_does_not_call_adelete(monkeypatch, _fake_rag):
     import batch_ingest_from_spider as bi
 
     # Phase 17: ingest_article now returns (success, wall_clock_seconds).
-    ok, _wall = await bi.ingest_article(url=url, dry_run=False, rag=_fake_rag)
+    ok, _wall = await bi.ingest_article(source='wechat', url=url, dry_run=False, rag=_fake_rag)
 
     assert ok is True
     _fake_rag.adelete_by_doc_id.assert_not_called()
@@ -108,7 +108,7 @@ async def test_rollback_failure_is_logged_not_raised(monkeypatch, _fake_rag, cap
 
     import ingest_wechat
 
-    async def _slow_ingest(_url, rag=None):
+    async def _slow_ingest(_url, *, source="wechat", rag=None):
         ingest_wechat._register_pending_doc_id(tracker_hash, f"wechat_{md5_hash}")
         await asyncio.sleep(10)
 
@@ -121,7 +121,7 @@ async def test_rollback_failure_is_logged_not_raised(monkeypatch, _fake_rag, cap
 
     # No exception should propagate.
     # Phase 17: ingest_article now returns (success, wall_clock_seconds).
-    ok, _wall = await bi.ingest_article(url=url, dry_run=False, rag=_fake_rag)
+    ok, _wall = await bi.ingest_article(source='wechat', url=url, dry_run=False, rag=_fake_rag)
     assert ok is False
     # And log message contains the diagnostic.
     assert any("Rollback FAILED" in rec.message for rec in caplog.records)
@@ -141,7 +141,7 @@ async def test_idempotent_reingest_after_rollback(monkeypatch, _fake_rag):
 
     call_count = {"n": 0}
 
-    async def _first_slow_then_fast(_url, rag=None):
+    async def _first_slow_then_fast(_url, *, source="wechat", rag=None):
         call_count["n"] += 1
         ingest_wechat._register_pending_doc_id(tracker_hash, expected_doc_id)
         if call_count["n"] == 1:
@@ -159,7 +159,7 @@ async def test_idempotent_reingest_after_rollback(monkeypatch, _fake_rag):
 
     # First call: timeout → rollback.
     # Phase 17: ingest_article now returns (success, wall_clock_seconds).
-    ok1, _wall1 = await bi.ingest_article(url=url, dry_run=False, rag=_fake_rag)
+    ok1, _wall1 = await bi.ingest_article(source='wechat', url=url, dry_run=False, rag=_fake_rag)
     assert ok1 is False
     _fake_rag.adelete_by_doc_id.assert_awaited_once_with(expected_doc_id)
 
@@ -167,7 +167,7 @@ async def test_idempotent_reingest_after_rollback(monkeypatch, _fake_rag):
     monkeypatch.setattr(bi, "_SINGLE_CHUNK_FLOOR_S", 30)
 
     # Second call: succeeds.
-    ok2, _wall2 = await bi.ingest_article(url=url, dry_run=False, rag=_fake_rag)
+    ok2, _wall2 = await bi.ingest_article(source='wechat', url=url, dry_run=False, rag=_fake_rag)
     assert ok2 is True
 
     # adelete_by_doc_id was called EXACTLY once (from the first timeout only).

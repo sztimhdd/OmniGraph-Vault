@@ -173,7 +173,7 @@ async def test_outer_catches_inner_runtime_error_returns_failed(monkeypatch):
     """Outer ingest_article must return (False, wall) when inner raises."""
     import batch_ingest_from_spider as bif
 
-    async def _fake_inner_ingest(url, rag=None):
+    async def _fake_inner_ingest(url, *, source="wechat", rag=None):
         raise RuntimeError(
             "post-ainsert PROCESSED verification failed for doc_id=test"
         )
@@ -193,6 +193,7 @@ async def test_outer_catches_inner_runtime_error_returns_failed(monkeypatch):
     rag.adelete_by_doc_id = AsyncMock()
 
     success, wall, doc_confirmed = await bif.ingest_article(
+        source="wechat",
         url="https://example.com/test",
         dry_run=False,
         rag=rag,

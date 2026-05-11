@@ -235,12 +235,18 @@ def _build_batch_timeout_metrics(
 
 
 async def ingest_article(
+    source: str,
     url: str,
     dry_run: bool,
     rag,
     effective_timeout: int | None = None,
 ) -> tuple[bool, float, bool]:
     """Ingest a single URL in-process against the shared LightRAG instance.
+
+    Phase quick-260510-uai: accepts ``source`` (positional 0) — threaded into
+    ``ingest_wechat.ingest_article`` kwarg so RSS rows get doc_id ``rss_<hash>``
+    instead of ``wechat_<hash>``. Closes the t1o-investigation gap where every
+    URL was dispatched to the WeChat-specific ingester regardless of source.
 
     Phase 5-00b refactor: replaces subprocess-per-article pattern. Shared ``rag``
     (created once by the caller) eliminates 15-30s per-article LightRAG init
@@ -283,7 +289,7 @@ async def ingest_article(
         # D-09.03: 900s floor covers a worst-case single-chunk 800s DeepSeek call.
         # Phase 17 (BTIMEOUT-02): if the caller passed a clamped budget, use it.
         await asyncio.wait_for(
-            ingest_wechat.ingest_article(url, rag=rag),
+            ingest_wechat.ingest_article(url, source=source, rag=rag),
             timeout=timeout_s,
         )
         return True, time.time() - t_start, True
@@ -820,7 +826,7 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
                 safety_margin_triggered = True
 
             success, wall, doc_confirmed = await ingest_article(
-                url, dry_run, rag, effective_timeout=effective_timeout
+                'wechat', url, dry_run, rag, effective_timeout=effective_timeout
             )
             if dry_run:
                 status = "dry_run"
@@ -1728,7 +1734,7 @@ async def ingest_from_db(
                     safety_margin_triggered = True
 
                 success, wall, doc_confirmed = await ingest_article(
-                    url_d, dry_run, rag, effective_timeout=effective_timeout
+                    source_d, url_d, dry_run, rag, effective_timeout=effective_timeout
                 )
                 if dry_run:
                     status = "dry_run"

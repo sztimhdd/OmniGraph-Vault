@@ -66,10 +66,15 @@ def _isolated_image_dir(tmp_path, monkeypatch):
 def _make_article_data(
     url: str, img_urls: list[str] | None = None
 ) -> dict:
-    """Build a minimal UA-scraped article_data dict."""
+    """Build a minimal UA-scraped article_data dict.
+
+    Quick 260510-uai: body padded to >MIN_INGEST_BODY_LEN=500 chars so the
+    production body-length fail-fast guard does not reject these fixtures.
+    """
+    long_body = " ".join(["Body text long enough to clear MIN_INGEST_BODY_LEN."] * 12)
     return {
         "title": "Test Article",
-        "content_html": "<p>Body text</p>",
+        "content_html": f"<p>{long_body}</p>",
         "img_urls": img_urls or [],
         "url": url,
         "publish_time": "2026-04-29",
@@ -86,8 +91,11 @@ def _patch_common(monkeypatch, _fake_rag, article_data, url_to_path):
         "scrape_wechat_ua",
         AsyncMock(return_value=article_data),
     )
+    # Quick 260510-uai: long_md is >500 chars so the production body-length
+    # fail-fast guard (MIN_INGEST_BODY_LEN=500) does not reject these fixtures.
+    long_md = " ".join(["body markdown long enough to clear MIN_INGEST_BODY_LEN."] * 12)
     monkeypatch.setattr(
-        ingest_wechat, "process_content", lambda html: ("body markdown", [])
+        ingest_wechat, "process_content", lambda html: (long_md, [])
     )
     monkeypatch.setattr(
         ingest_wechat, "download_images", MagicMock(return_value=url_to_path)
@@ -307,8 +315,11 @@ async def test_cache_hit_returns_none(
     article_dir = _isolated_image_dir / article_hash
     article_dir.mkdir(parents=True, exist_ok=True)
     # Pre-seed the cache.
+    # Quick 260510-uai: cached body padded to >MIN_INGEST_BODY_LEN=500 chars
+    # so the production body-length fail-fast guard does not reject it.
+    long_cached_body = " ".join(["Body with [Image 0 Description]: cached desc."] * 12)
     (article_dir / "final_content.md").write_text(
-        "# Cached Title\n\nBody with [Image 0 Description]: cached desc",
+        f"# Cached Title\n\n{long_cached_body}",
         encoding="utf-8",
     )
     (article_dir / "metadata.json").write_text(
@@ -531,3 +542,124 @@ async def test_task08_hook_writes_content_hash_when_status_processed(
     assert len(row[0]) >= 8, (
         f"content_hash should be a non-trivial hash; got {row[0]!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Quick 260510-uai — source-aware doc_id + body-length fail-fast
+#
+# T1: source='rss' yields rss_<hash> doc_id.
+# T2: default source ('wechat') yields wechat_<hash> doc_id (back-compat).
+# T3: body shorter than MIN_INGEST_BODY_LEN raises ValueError before ainsert.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _isolated_checkpoint_dir(monkeypatch, tmp_path):
+    """Quick 260510-uai: redirect checkpoint BASE_DIR to tmp via env seam.
+
+    Without this, prior test runs leave per-URL checkpoints in
+    ~/.hermes/omonigraph-vault/checkpoints/ that cause subsequent tests to
+    skip rag.ainsert (text_ingest.done marker hit). Mirrors the
+    _checkpoint_base fixture in test_checkpoint_ingest_integration.py.
+    """
+    import importlib
+    base = tmp_path / "ckpt"
+    base.mkdir(parents=True)
+    monkeypatch.setenv("OMNIGRAPH_CHECKPOINT_BASE_DIR", str(base))
+    import lib.checkpoint as ckpt
+    importlib.reload(ckpt)
+    import ingest_wechat
+    for _name in (
+        "has_stage", "read_stage", "write_stage",
+        "write_vision_description", "write_metadata", "list_vision_markers",
+    ):
+        monkeypatch.setattr(ingest_wechat, _name, getattr(ckpt, _name))
+    monkeypatch.setattr(ingest_wechat, "_ckpt_hash_fn", ckpt.get_article_hash)
+    yield base
+
+
+@pytest.mark.asyncio
+async def test_inner_ingest_article_rss_source_yields_rss_doc_id(
+    monkeypatch, _fake_rag, _isolated_image_dir, _isolated_checkpoint_dir
+):
+    """quick-260510-uai T1: source='rss' → doc_id starts with rss_."""
+    import ingest_wechat
+
+    url = "https://example.com/some-rss-article-uai-t1"
+    article_data = _make_article_data(url, img_urls=[])
+    _patch_common(monkeypatch, _fake_rag, article_data, {})
+
+    async def _noop_worker(**kwargs):
+        return None
+
+    monkeypatch.setattr(ingest_wechat, "_vision_worker_impl", _noop_worker)
+
+    await ingest_wechat.ingest_article(url, source="rss", rag=_fake_rag)
+
+    assert _fake_rag.ainsert.await_count >= 1
+    call_kwargs = _fake_rag.ainsert.await_args_list[0].kwargs
+    ids = call_kwargs.get("ids")
+    assert ids is not None and len(ids) == 1
+    assert ids[0].startswith("rss_"), (
+        f"expected rss_ prefix when source='rss', got {ids[0]!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_inner_ingest_article_default_source_yields_wechat_doc_id(
+    monkeypatch, _fake_rag, _isolated_image_dir, _isolated_checkpoint_dir
+):
+    """quick-260510-uai T2: default source='wechat' → doc_id starts with wechat_."""
+    import ingest_wechat
+
+    url = "https://mp.weixin.qq.com/s/test_default_source_uai_t2"
+    article_data = _make_article_data(url, img_urls=[])
+    _patch_common(monkeypatch, _fake_rag, article_data, {})
+
+    async def _noop_worker(**kwargs):
+        return None
+
+    monkeypatch.setattr(ingest_wechat, "_vision_worker_impl", _noop_worker)
+
+    # No source kwarg — relies on default 'wechat'.
+    await ingest_wechat.ingest_article(url, rag=_fake_rag)
+
+    assert _fake_rag.ainsert.await_count >= 1
+    call_kwargs = _fake_rag.ainsert.await_args_list[0].kwargs
+    ids = call_kwargs.get("ids")
+    assert ids is not None and len(ids) == 1
+    assert ids[0].startswith("wechat_"), (
+        f"expected wechat_ prefix when source default, got {ids[0]!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_inner_ingest_article_rejects_short_body(
+    monkeypatch, _fake_rag, _isolated_image_dir
+):
+    """quick-260510-uai T3: body < MIN_INGEST_BODY_LEN raises ValueError before ainsert.
+
+    Uses cache-hit branch: pre-seed final_content.md with a 9-char body so the
+    guard fires before rag.ainsert is reached. Asserts ValueError with the
+    expected message and rag.ainsert is NOT called.
+    """
+    import ingest_wechat
+
+    url = "https://mp.weixin.qq.com/s/test_short_body_reject"
+    article_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+    article_dir = _isolated_image_dir / article_hash
+    article_dir.mkdir(parents=True, exist_ok=True)
+    # 9-char body — well below MIN_INGEST_BODY_LEN=500.
+    (article_dir / "final_content.md").write_text("too short", encoding="utf-8")
+    (article_dir / "metadata.json").write_text(
+        json.dumps({"title": "Short", "images": []}), encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        ingest_wechat, "extract_entities", AsyncMock(return_value=[])
+    )
+
+    with pytest.raises(ValueError, match="Body too short for ingest"):
+        await ingest_wechat.ingest_article(url, rag=_fake_rag)
+
+    _fake_rag.ainsert.assert_not_called()

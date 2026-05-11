@@ -60,13 +60,17 @@ def sample_url():
 
 @pytest.fixture
 def fake_article_data():
+    # Quick 260510-uai: body padded to >MIN_INGEST_BODY_LEN=500 chars so the
+    # production body-length fail-fast guard does not reject these fixtures.
+    # The previous ~70-char body (sufficient pre-uai) was bypassing the guard
+    # introduced for short-body RSS rows that bypassed RSS_SCRAPE_THRESHOLD=100.
+    long_body = " ".join(["Body text with enough content to be non-trivial for LightRAG."] * 12)
     return {
         "method": "ua",
         "title": "Test Article",
         "publish_time": "2026-04-30",
         "content_html": (
-            "<html><body><h1>Test</h1><p>Body text with enough content "
-            "to be non-trivial for LightRAG</p>"
+            f"<html><body><h1>Test</h1><p>{long_body}</p>"
             "<img src='https://cdn.test/img0.jpg'/></body></html>"
         ),
         "img_urls": ["https://cdn.test/img0.jpg"],

@@ -55,6 +55,12 @@ def _status_is_processed(status_val) -> bool:
 PROCESSED_VERIFY_MAX_RETRIES = int(os.getenv("OMNIGRAPH_PROCESSED_RETRY", "30"))
 PROCESSED_VERIFY_BACKOFF_S = float(os.getenv("OMNIGRAPH_PROCESSED_BACKOFF", "2.0"))
 
+# Phase quick-260510-uai: defends against short-body bypass of RSS_SCRAPE_THRESHOLD=100.
+# t1o investigation showed 3 RSS rows with body<200 chars reached ainsert and failed.
+# 500 is a soft floor — well above the 200-char floor used by Layer 2 prompt tolerance,
+# well below the typical real-article length (61k chars in the t1o sample row).
+MIN_INGEST_BODY_LEN = 500
+
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 import asyncio
@@ -913,13 +919,19 @@ async def extract_entities(text):
         return []
 
 # --- Main Logic ---
-async def ingest_article(url, rag=None) -> "asyncio.Task | None":
+async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.Task | None":
     """Ingest a single WeChat article.
 
     Phase 5-00b refactor: accepts an optional pre-initialized LightRAG instance
     so batch orchestrators can share one rag across many articles (eliminates
     15-30s per-article init overhead). If ``rag`` is None, falls back to the
     per-call init path — preserves the single-URL CLI contract.
+
+    Phase quick-260510-uai: ``source`` parameter (default 'wechat') threads source
+    label into MAIN-ARTICLE doc_id; non-WeChat sources (e.g. 'rss') get prefix
+    ``<source>_<article_hash>`` per quick 260510-t1o investigation. Vision
+    sub-doc ids at L450 (``wechat_<hash>_images``) are unchanged — separate
+    lifecycle, not part of source-aware dispatch.
 
     Phase 10 D-10.05 (ARCH-01): split into text-first + async Vision worker.
     This function now returns AFTER ``rag.ainsert(full_content, ids=[doc_id])``
@@ -972,6 +984,18 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
         print(f'Buffered {len(raw_entities)} entities (from cache).')
         _persist_entities_to_sqlite(url, raw_entities)
 
+        # Phase quick-260510-uai: body-length fail-fast guard — defends
+        # against short-body bypass of RSS_SCRAPE_THRESHOLD=100 surfaced
+        # by t1o investigation (3 RSS rows <200 chars reached ainsert).
+        # Placed BEFORE the try/except so ValueError propagates to the outer
+        # batch orchestrator (per plan Task 2 behavior — outer's generic
+        # except Exception path returns (False, wall, False)).
+        if len(full_content) < MIN_INGEST_BODY_LEN:
+            raise ValueError(
+                f"Body too short for ingest: len={len(full_content)} < "
+                f"MIN_INGEST_BODY_LEN={MIN_INGEST_BODY_LEN} (url={url[:80]})"
+            )
+
         try:
             if rag is None:
                 # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
@@ -981,7 +1005,9 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
             # to match batch_ingest_from_spider.py:275 which now uses get_article_hash(url).
             # The doc_id value still uses article_hash (MD5[:10]) — image-dir namespace
             # preserved. Only the registry key changed; the value is opaque.
-            doc_id = f"wechat_{article_hash}"
+            # Phase quick-260510-uai: doc_id prefix is parameterized by `source`
+            # (default 'wechat'); RSS dispatch produces `rss_<hash>`.
+            doc_id = f"{source or 'wechat'}_{article_hash}"
             _register_pending_doc_id(ckpt_hash, doc_id)
             await rag.ainsert(full_content, ids=[doc_id])
             # Clear only on successful completion — on CancelledError / TimeoutError
@@ -1213,10 +1239,20 @@ async def ingest_article(url, rag=None) -> "asyncio.Task | None":
     # Phase 19 SCH-02 (Rule 1 auto-fix): tracker key is ckpt_hash (SHA-256[:16]) to
     # match batch_ingest_from_spider.py:275 which now uses get_article_hash(url).
     # doc_id value keeps MD5[:10] for image-dir / LightRAG namespace compatibility.
-    doc_id = f"wechat_{article_hash}"
+    # Phase quick-260510-uai: doc_id prefix is parameterized by `source`
+    # (default 'wechat'); RSS dispatch produces `rss_<hash>`.
+    doc_id = f"{source or 'wechat'}_{article_hash}"
     if has_stage(ckpt_hash, "text_ingest"):
         logger.info("checkpoint hit: text_ingest (hash=%s) — skipping rag.ainsert", ckpt_hash)
     else:
+        # Phase quick-260510-uai: body-length fail-fast guard — defends
+        # against short-body bypass of RSS_SCRAPE_THRESHOLD=100 surfaced
+        # by t1o investigation (3 RSS rows <200 chars reached ainsert).
+        if len(full_content) < MIN_INGEST_BODY_LEN:
+            raise ValueError(
+                f"Body too short for ingest: len={len(full_content)} < "
+                f"MIN_INGEST_BODY_LEN={MIN_INGEST_BODY_LEN} (url={url[:80]})"
+            )
         _register_pending_doc_id(ckpt_hash, doc_id)
         try:
             await rag.ainsert(full_content, ids=[doc_id])
