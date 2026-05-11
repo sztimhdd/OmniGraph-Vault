@@ -50,6 +50,12 @@ always ensure you're in the repo root first.
 2. **Check session**: `browser_navigate` to `https://mp.weixin.qq.com/` (ROOT URL — not `/cgi-bin/home`).
    The root auto-redirects with a fresh `?token=...` parameter. Subpath without token
    shows "请重新登录" even when cookies are still valid server-side.
+   
+   **Quick shortcut — check existing tabs first:** Run `browser_cdp(method="Target.getTargets")` 
+   before navigating. If an existing tab already shows a dashboard URL 
+   (`/cgi-bin/home?t=home/index&lang=zh_CN&token=...`) with a logged-in username, you can 
+   navigate directly to that URL instead of going through the root. This avoids triggering a 
+   new redirect that might land on the landing page instead of the dashboard.
 3. **If dashboard visible** (user stats, recent articles) → session active, run the scan:
    ```bash
    bash ./skills/omnigraph_scan_kol/scripts/scan_kol.sh
@@ -60,7 +66,22 @@ always ensure you're in the repo root first.
    - Wait 3s for redirect to dashboard
    - Verify with `browser_snapshot` (look for user content)
    - Then run scan as in step 3.
-5. **If clicking login still shows re-login page** → cookies truly expired, enter **QR Code Login Flow** (below). This flow captures the WeChat login QR code via CDP, sends it to Telegram, polls until the user scans, then resumes the scan automatically.
+5. **If clicking login still shows re-login page** → cookies truly expired. Try the **Account Login Fallback** first (below) before entering the full QR Code Login Flow. The browser may have saved credentials that work faster than QR scanning.
+
+### Account Login Fallback (try before QR flow)
+
+When the root page shows the login landing (no QR code on login page, just "使用账号登录" link):
+
+1. **Click "使用账号登录"** (the account login link, ref=e12)
+2. **Check for saved credentials** — `browser_snapshot()` should show a pre-filled email/username (huhai.orion@gmail.com) and password field (••••••••••••••). If filled, proceed.
+3. **Click the "登录" button** (ref=e18) on the account form
+4. **Wait 5s for the redirect chain**: The login POST goes to a security verification page (`/cgi-bin/bizlogin?action=validate`). Even if a "安全保护" (Security Protection) page shows with a QR code, the session may have already been established server-side. The browser may auto-redirect to the dashboard within seconds.
+5. **Check session state** via `browser_console` with `document.body.innerText.substring(0, 500)` — look for "AI老兵日记", "原创", "新的创作", or dashboard stats. If found → session recovered, proceed to Step 3 (credential extraction).
+6. **If still on security page after 15s** → the session may or may not be established server-side. Try navigating to `https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=` directly — if it redirects to dashboard with a token, the login succeeded despite the security page. If it shows "请重新登录", proceed to QR Code Login Flow.
+
+**When this fallback works:** The account login bypasses QR code scanning entirely. The saved browser credentials perform a password-based login that may work even when cookie-based sessions expire. This is particularly useful for cron jobs where QR code polling is impractical.
+
+**When this fallback fails** → cookies truly expired, enter **QR Code Login Flow** (below). This flow captures the WeChat login QR code via CDP, sends it to Telegram, polls until the user scans, then resumes the scan automatically.
 
 ### Retry on rate limit
 
@@ -133,6 +154,10 @@ browser_snapshot()
 
 - **Dashboard visible** (username "AI老兵日记", user stats with 原创/总用户数/近期发表,
   "新的创作" buttons) → session active, proceed to Step 3.
+  **⚠️ Caveat:** An existing tab that shows a fully loaded dashboard with "AI老兵日记"
+  may still have **stale server-side cookies**. The dashboard can be a cached server-side
+  render. Always verify with the test scan (Step 5) — if `ret=200003` comes back despite
+  a dashboard-looking tab, the cookies are stale. Proceed to QR Code Login Flow.
 - **"请重新登录" visible** → cookies still valid but page token stale:
   1. `browser_click` on the "登录" link/button (ref=e2)
   2. Wait 3s for redirect
@@ -168,6 +193,47 @@ cookie_str = "; ".join(cookie_parts)
 
 Include ALL cookies (both `mp.weixin.qq.com` and `.qq.com` domain cookies).
 
+**⚠️ Known limitation — CDP may not return critical auth cookies**
+Even when a dashboard tab shows a fully active session ("AI老兵日记", stats, "新的创作"), `Network.getCookies` may NOT return `slave_sid`, `data_ticket`, `rand_info`, `bizuin`, or `slave_user`. These HttpOnly cookies with specific path/domain constraints are sometimes invisible to CDP's cookie API even when the browser possesses them.
+
+   **⚠️ CRITICAL: Terminal output redacts secret-looking values as `***`**
+
+   When extracting the TOKEN via CDP `Runtime.evaluate`, the value is returned
+   correctly in the CDP response object. However, Hermes terminal tool output
+   redacts credential-looking strings (TOKEN, COOKIE values) as `***` in display.
+   If a script uses the DISPLAYED value (e.g. `token = '***'`), it writes the
+   literal string `***` to kol_config.py, causing ALL API calls to fail with
+   ret=200003 or ret=200040.
+
+   **Prevention:** Always verify TOKEN/Cookie values via hex/binary:
+   ```python
+   with open('kol_config.py', 'rb') as f:
+       data = f.read()
+   idx = data.find(b'TOKEN=')
+   print(f'TOKEN hex: {data[idx:idx+30].hex()}')
+   # If hex decodes to "***" (373937343438373930), redacted display was used
+   ```
+   Use `browser_cdp` with `returnByValue=true` for extraction — this API
+   returns the **real** value and does NOT redact.
+
+   **⚠️ CSRF token mismatch (ret=200040) after QR login**
+
+   After a successful QR code login, the dashboard URL shows a new `?token=XXXXX`.
+   This token is from the POST-LOGIN redirect and is **not yet bound** to the
+   session cookies. The first API call will return `ret=200040: invalid csrf token`.
+
+   **Fix:** After extracting the token from the URL, navigate back to the root
+   `https://mp.weixin.qq.com/` — this triggers a full server-side session bind,
+   returning a NEW token in the URL that IS bound to the cookies. Extract THAT token
+   and update `kol_config.py` with it. The test scan (Step 5) will then pass.
+
+If these cookies are missing from the CDP response but the page clearly shows a logged-in dashboard:
+1. **Do NOT assume the session is valid** — the dashboard may be a cached server-side render. Always run the test scan (Step 5) to verify.
+2. **Use the existing `kol_config.py` cookie values** for the missing cookies — they persist across page loads for the same session.
+3. After the test scan confirms validity (`ret=0`), the full scan will use the cookie string as-is. The existing `slave_sid`/`data_ticket` values are still correct.
+
+If the test scan returns `ret=200003` (invalid session) despite a dashboard-looking tab, the cookies are stale — proceed to the **QR Code Login Flow**.
+
 ### Step 4: Write credentials to kol_config.py
 
 `patch()` the TOKEN line and any changed cookie values in
@@ -177,6 +243,31 @@ Include ALL cookies (both `mp.weixin.qq.com` and `.qq.com` domain cookies).
 - **Cookies**: typically only `_clck`, `_clsk`, `ua_id` change between page loads.
   Critical auth cookies (`slave_sid`, `data_ticket`, `rand_info`, `bizuin`,
   `slave_user`, `xid`, `wxuin`) persist across sessions.
+
+**⚠️ Escape-drift when patching string continuation lines:**
+
+`kol_config.py` uses Python implicit string concatenation inside `COOKIE = (...)`,
+so each cookie line ends with `" ` (a `"` character before the line-end). When you
+pass `\"` in the `old_string` or `new_string` to `patch()`, it triggers an
+**"Escape-drift detected"** error because the tool's string parser interprets
+your `\"` as a literal escaped quote rather than matching the file's actual `"`
+character.
+
+**Fix:** When patching cookie values, match only the VALUE portion, excluding the
+surrounding `" ` delimiters:
+
+```python
+# DON'T (triggers escape-drift):
+patch(old_string='_clck=3964447985|1|g5x|0; "',
+      new_string='_clck=3964447985|1|g5y|0; "')
+
+# DO (match only the value text):
+patch(old_string='_clck=3964447985|1|g5x|0',
+      new_string='_clck=3964447985|1|g5y|0')
+```
+
+This works because the value portion is unique enough within the file. Always
+verify with a hex check afterward.
 
 **Important:** The `read_file`/`grep` tools may redact secret-looking values as `***`
 in display. Verify actual file content with:
@@ -288,6 +379,12 @@ send_message(target="telegram:Hai Hu (dm)",
 even when vision analysis fails — the `screenshot_path` is returned in the error.
 Use that path directly. Always save the screenshot_path for fallback.
 
+**If both `browser_vision` AND `Page.captureScreenshot` fail:** Go straight to
+**canvas `toDataURL()`** (see Pitfall 5). This avoids screenshots entirely and works
+when CDP reports "no visible display" or connection issues. The canvas approach
+renders the QR `<img>` element into a canvas client-side and returns a ~8-14KB
+base64 PNG.
+
 **Why `Page.captureScreenshot` is dangerous:** A full-viewport screenshot in base64
 at scale=2 on a 2560px display = ~3MB of base64 text. Hermes freezes trying to
 process this in the tool response. The QR code expires while Hermes is frozen.
@@ -373,6 +470,41 @@ Other sites (Zhihu, etc.) use different selectors. Always verify via
 `Runtime.evaluate` before attempting to get coordinates. Fallback: search
 for any `img` with `qrcode` or `scanlogin` in the `src` attribute.
 
+**Pitfall 5: Both `browser_vision` and `Page.captureScreenshot` freeze/timeout.**
+
+When CDP screenshots fail (browser reports "no visible display", `browser_vision` times out at 30s, and `Page.captureScreenshot` also times out), use **canvas `toDataURL()`** to extract the QR code directly from the DOM:
+
+```
+# Step 1: Check QR code exists via DOM
+browser_cdp(method="Runtime.evaluate",
+  params={"expression": "document.querySelector('img.login__type__container__scan__qrcode') ? 'found' : 'not found'",
+          "returnByValue": true},
+  target_id="<tab-id>"
+)
+
+# Step 2: Extract QR code as base64 PNG via canvas
+browser_cdp(method="Runtime.evaluate",
+  params={"awaitPromise": true,
+          "expression": "(async function(){var q=document.querySelector('img.login__type__container__scan__qrcode'); if(!q) return 'no_element'; var c=document.createElement('canvas'); c.width=q.naturalWidth; c.height=q.naturalHeight; var ctx=c.getContext('2d'); ctx.drawImage(q,0,0); return c.toDataURL('image/png');})()",
+          "returnByValue": true},
+  target_id="<tab-id>"
+)
+```
+
+The returned string is a `data:image/png;base64,...` URL (~8-14KB for QR codes). Save to file:
+
+```python
+import base64
+b64 = response.split(",")[1]  # strip "data:image/png;base64," prefix
+img_data = base64.b64decode(b64)
+with open("/tmp/wx_qr_code.png", "wb") as f:
+    f.write(img_data)
+```
+
+**Advantage:** No CDP screenshot required at all. The canvas `drawImage` renders the already-loaded `<img>` element into a canvas client-side and encodes it. Works regardless of screenshot limitations. The QR code is typically 472x472 pixels at full resolution from the natural dimensions.
+
+**When to use this fallback:** If `browser_vision` 503s or times out AND `Page.captureScreenshot` also fails, go straight to canvas `toDataURL()`. Do not retry the screenshot approaches — the QR code expires in ~2 minutes.
+
 ### Step Q4: Post-login credential extraction
 
 Login succeeded — the dashboard is now visible. Proceed to the normal
@@ -436,6 +568,9 @@ processes using the same credentials.
 
 ## Cron Reliability — Diagnosing Failures
 
+**Quick reference:** `references/cron-session-diagnostics.md` — session dump JSON structure,
+extraction commands, common error patterns, and post-mortem protocol.
+
 When the unattended cron fails, diagnose in this order:
 
 1. **Check the cron session dump**: `~/.hermes/sessions/session_cron_df7dc3fa0390_*.json`
@@ -473,4 +608,5 @@ When the unattended cron fails, diagnose in this order:
 ## References
 
 - Session refresh steps: `references/session-refresh.md`
+- Account login fallback: `references/account-login-flow.md`
 - Crawl safety: `scripts/scan_kol.sh` stops before WeChat's ~60 request limit
