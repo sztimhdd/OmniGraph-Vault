@@ -28,6 +28,9 @@
 #   GOOGLE_CLOUD_PROJECT           — read from SA JSON (Vision Vertex fallback at
 #                                    image_pipeline.py:319-320 needs this; without
 #                                    it Vision falls to dev-API, not Vertex)
+#   GOOGLE_CLOUD_LOCATION          — global (gemini-embedding-2 GA endpoint;
+#                                    must NOT default to us-central1 — see
+#                                    .planning/debug/ainsert-async-race-260510)
 #   OMNIGRAPH_LLM_PROVIDER         — vertex_gemini (corp blocks DeepSeek)
 #   OMNIGRAPH_LLM_MODEL            — gemini-3.1-flash-lite-preview
 #   OMNIGRAPH_BASE_DIR             — $(pwd)/.dev-runtime
@@ -79,6 +82,8 @@ export GOOGLE_CLOUD_PROJECT="${GOOGLE_CLOUD_PROJECT:-}"
 export OMNIGRAPH_LLM_PROVIDER="${OMNIGRAPH_LLM_PROVIDER:-vertex_gemini}"
 export OMNIGRAPH_LLM_MODEL="${OMNIGRAPH_LLM_MODEL:-gemini-3.1-flash-lite-preview}"
 export OMNIGRAPH_BASE_DIR="${OMNIGRAPH_BASE_DIR:-$(pwd)/.dev-runtime}"
+# Vertex embedding requires global endpoint — gemini-embedding-2 not available on us-central1.
+export GOOGLE_CLOUD_LOCATION="${GOOGLE_CLOUD_LOCATION:-global}"
 export KOL_SCAN_DB_PATH="${KOL_SCAN_DB_PATH:-${OMNIGRAPH_BASE_DIR}/data/kol_scan.db}"
 export PYTHONPATH="${PYTHONPATH:-$(pwd)}"
 export DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-dummy}"

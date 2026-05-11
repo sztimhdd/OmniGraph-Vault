@@ -131,14 +131,14 @@ def _make_client(api_key: str) -> "genai.Client":
 
     Vertex mode (both env vars set) uses SA JSON auth — ``api_key`` is not
     forwarded. Free-tier mode uses the rotation-managed ``api_key`` as
-    before. Location defaults to ``us-central1`` when
-    ``GOOGLE_CLOUD_LOCATION`` is unset.
+    before. Location defaults to ``global`` when
+    ``GOOGLE_CLOUD_LOCATION`` is unset (gemini-embedding-2 GA endpoint).
     """
     if _is_vertex_mode():
         return genai.Client(
             vertexai=True,
             project=os.environ["GOOGLE_CLOUD_PROJECT"],
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
         )
     return genai.Client(api_key=api_key, vertexai=False)
 

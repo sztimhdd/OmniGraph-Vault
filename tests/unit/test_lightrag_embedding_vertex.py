@@ -126,7 +126,7 @@ async def test_free_tier_path_default(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_vertex_mode_both_env_vars_set(monkeypatch):
-    """Both env vars set → genai.Client(vertexai=True, project=..., location='us-central1')."""
+    """Both env vars set → genai.Client(vertexai=True, project=..., location='global')."""
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/fake/sa.json")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project-123")
 
@@ -139,7 +139,7 @@ async def test_vertex_mode_both_env_vars_set(monkeypatch):
     ckw = captured["client_kwargs"][0]
     assert ckw.get("vertexai") is True
     assert ckw.get("project") == "my-project-123"
-    assert ckw.get("location") == "us-central1"  # default when GOOGLE_CLOUD_LOCATION unset
+    assert ckw.get("location") == "global"  # default when GOOGLE_CLOUD_LOCATION unset; gemini-embedding-2 requires global endpoint
     # In Vertex mode the SA handles auth — api_key must NOT be forwarded.
     assert "api_key" not in ckw or ckw.get("api_key") in (None, "")
 
