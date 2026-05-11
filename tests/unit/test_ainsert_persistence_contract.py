@@ -37,6 +37,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -227,3 +228,263 @@ async def test_t3_real_vertex_gemini_single_doc(tmp_path: Path) -> None:
         timeout=300,
     )
     _assert_doc_status_processed(tmp_path, doc_id)
+
+
+# ---------------------------------------------------------------------------
+# Quick 260510-gkw — T3a + T3b multi-snapshot real-Vertex contract spike
+# ---------------------------------------------------------------------------
+# T1+T2 (mock) PASSED in predecessor 260509-t4i ⇒ LightRAG framework healthy.
+# Original T3 (single-doc real-Vertex, single post-finalize snapshot) leaves
+# the production-bug surface unobserved: did doc_status flip to 'processed'
+# at post-AWAIT (where production marks ingestions=ok), or only later at
+# post-FINALIZE? T3a + T3b add the missing snapshots.
+#
+# 2026-05-10 09:00 ADT cron forensic: 4 ingestions=ok wechat, but only
+# 1-2 LightRAG kv_store_doc_status='processed', 21min gap between graphml
+# mtime (09:12) and finalize log (09:33). Hypothesis under test: ainsert
+# returns BEFORE doc_status flips to 'processed'.
+# ---------------------------------------------------------------------------
+
+
+def _read_doc_status(tmp_path: Path, doc_id: str) -> str | None:
+    """Return ``store[doc_id]['status']`` or ``None`` if file/key missing.
+
+    Reads ``kv_store_doc_status.json`` directly off disk — same surface the
+    production bug observes. Does NOT raise on missing file (lets caller
+    distinguish "file does not exist yet" from "file exists, key missing").
+    """
+    status_path = tmp_path / "kv_store_doc_status.json"
+    if not status_path.exists():
+        return None
+    raw = status_path.read_text(encoding="utf-8")
+    try:
+        store = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    entry = store.get(doc_id)
+    if not isinstance(entry, dict):
+        return None
+    val = entry.get("status")
+    return val if isinstance(val, str) else None
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not Path(".dev-runtime/gcp-paid-sa.json").is_file()
+    or not os.environ.get("GOOGLE_CLOUD_PROJECT"),
+    reason="T3a requires .dev-runtime/gcp-paid-sa.json + GOOGLE_CLOUD_PROJECT env var",
+)
+async def test_t3a_real_vertex_post_await_vs_post_finalize(tmp_path: Path) -> None:
+    """T3a — single doc, real Vertex, snapshot status at post-await + post-finalize.
+
+    Diagnostic value: if ``post_await_status != 'processed'`` but
+    ``post_finalize_status == 'processed'``, the contract violation is
+    isolated to the post-await window — production's ingestions=ok marker
+    fires before LightRAG has flipped the status file.
+
+    Main assertion (literal): ``post_await_status == 'processed'``.
+    """
+    vertex_mod = pytest.importorskip("lib.vertex_gemini_complete")
+    embed_mod = pytest.importorskip("lib.lightrag_embedding")
+
+    vertex_gemini_model_complete = getattr(
+        vertex_mod, "vertex_gemini_model_complete", None
+    )
+    real_embedding_func = getattr(embed_mod, "embedding_func", None)
+    if vertex_gemini_model_complete is None or real_embedding_func is None:
+        pytest.skip(
+            "Required public names not found: "
+            "lib.vertex_gemini_complete.vertex_gemini_model_complete or "
+            "lib.lightrag_embedding.embedding_func"
+        )
+
+    rag = LightRAG(
+        working_dir=str(tmp_path),
+        llm_model_func=vertex_gemini_model_complete,
+        embedding_func=real_embedding_func,
+    )
+    await rag.initialize_storages()
+
+    doc_id = "doc-t3a-real-001"
+    content = "x" * 5000  # ≥1 chunk at default chunk_token_size=1200
+
+    print(f"\n[T3a working_dir] {tmp_path}", flush=True)
+
+    # --- Snapshot 1: post-await ainsert ---
+    t_before = time.monotonic()
+    await asyncio.wait_for(
+        rag.ainsert(content, ids=[doc_id]),
+        timeout=300,
+    )
+    t_post_await = time.monotonic()
+    post_await_elapsed = t_post_await - t_before
+
+    status_path = tmp_path / "kv_store_doc_status.json"
+    assert status_path.exists(), (
+        f"[T3a] ainsert returned but kv_store_doc_status.json does not exist "
+        f"at {status_path}"
+    )
+    post_await_status = _read_doc_status(tmp_path, doc_id)
+    print(
+        f"[T3a status] post-await: {post_await_status}",
+        flush=True,
+    )
+
+    # --- Snapshot 2: post-finalize_storages ---
+    await rag.finalize_storages()
+    t_post_finalize = time.monotonic()
+    post_finalize_elapsed = t_post_finalize - t_before
+
+    post_finalize_status = _read_doc_status(tmp_path, doc_id)
+    print(
+        f"[T3a status] post-finalize: {post_finalize_status}",
+        flush=True,
+    )
+
+    print(
+        f"[T3a verdict] post-await={post_await_status} "
+        f"post-finalize={post_finalize_status} "
+        f"dt_await={post_await_elapsed:.1f}s "
+        f"dt_total={post_finalize_elapsed:.1f}s",
+        flush=True,
+    )
+
+    # Main assertion — literal string compare per plan.
+    assert post_await_status == "processed", (
+        f"contract violation: post-await status={post_await_status!r}, "
+        f"expected 'processed'. post-finalize status={post_finalize_status!r}. "
+        f"dt_await={post_await_elapsed:.1f}s dt_total={post_finalize_elapsed:.1f}s"
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not Path(".dev-runtime/gcp-paid-sa.json").is_file()
+    or not os.environ.get("GOOGLE_CLOUD_PROJECT"),
+    reason="T3b requires .dev-runtime/gcp-paid-sa.json + GOOGLE_CLOUD_PROJECT env var",
+)
+async def test_t3b_sequential_5_real_vertex_per_article_status(
+    tmp_path: Path,
+) -> None:
+    """T3b — 5 sequential ainserts on ONE rag instance, real Vertex, per-doc snapshot.
+
+    For each iter ``i``:
+      * Call ``await asyncio.wait_for(rag.ainsert(...), 300)``
+      * Snapshot ``kv_store_doc_status.json[doc_id]['status']``
+      * Print ``[T3b iter {i}] doc={doc_id} status=... dt={iter_elapsed:.1f}s``
+
+    After loop:
+      * Call ``rag.finalize_storages()`` once.
+      * Re-snapshot status for all 5 doc_ids.
+
+    Verdict lines:
+      * ``[T3b verdict] post-await processed: X/5``
+      * ``[T3b verdict] post-finalize processed: Y/5``
+
+    Main assertion: ``not not_processed`` where ``not_processed`` = list of
+    ``(doc_id, status)`` from the post-await snapshot list with
+    ``status != 'processed'``.
+
+    Loop runs all 5 iters before asserting — observable X/5 ratio in log
+    even if iter 0 already violates.
+    """
+    vertex_mod = pytest.importorskip("lib.vertex_gemini_complete")
+    embed_mod = pytest.importorskip("lib.lightrag_embedding")
+
+    vertex_gemini_model_complete = getattr(
+        vertex_mod, "vertex_gemini_model_complete", None
+    )
+    real_embedding_func = getattr(embed_mod, "embedding_func", None)
+    if vertex_gemini_model_complete is None or real_embedding_func is None:
+        pytest.skip(
+            "Required public names not found: "
+            "lib.vertex_gemini_complete.vertex_gemini_model_complete or "
+            "lib.lightrag_embedding.embedding_func"
+        )
+
+    rag = LightRAG(
+        working_dir=str(tmp_path),
+        llm_model_func=vertex_gemini_model_complete,
+        embedding_func=real_embedding_func,
+    )
+    await rag.initialize_storages()
+
+    print(f"\n[T3b working_dir] {tmp_path}", flush=True)
+
+    post_await_snapshots: list[tuple[str, str | None]] = []
+    iter_elapsed_list: list[float] = []
+    doc_ids: list[str] = []
+    t_loop_start = time.monotonic()
+
+    for i in range(5):
+        doc_id = f"doc-t3b-{i:03d}"
+        doc_ids.append(doc_id)
+        # ~3KB unique content per doc — mixed ASCII + CJK, ≥ chunk threshold.
+        content = (
+            f"article-{i}-prefix "
+            + ("lorem ipsum " * 200)
+            + ("中文样本 " * 100)
+        )
+
+        t_iter_start = time.monotonic()
+        await asyncio.wait_for(
+            rag.ainsert(content, ids=[doc_id]),
+            timeout=300,
+        )
+        iter_elapsed = time.monotonic() - t_iter_start
+        iter_elapsed_list.append(iter_elapsed)
+
+        current_status = _read_doc_status(tmp_path, doc_id)
+        post_await_snapshots.append((doc_id, current_status))
+        print(
+            f"[T3b iter {i}] doc={doc_id} status={current_status} "
+            f"dt={iter_elapsed:.1f}s",
+            flush=True,
+        )
+
+    t_loop_end = time.monotonic()
+
+    # --- Single post-finalize_storages call after the loop ---
+    await rag.finalize_storages()
+    t_finalize_end = time.monotonic()
+
+    post_finalize_snapshots: list[tuple[str, str | None]] = [
+        (doc_id, _read_doc_status(tmp_path, doc_id)) for doc_id in doc_ids
+    ]
+    for doc_id, status in post_finalize_snapshots:
+        print(
+            f"[T3b post-finalize] doc={doc_id} status={status}",
+            flush=True,
+        )
+
+    not_processed = [
+        (d, s) for d, s in post_await_snapshots if s != "processed"
+    ]
+    not_processed_final = [
+        (d, s) for d, s in post_finalize_snapshots if s != "processed"
+    ]
+
+    print(
+        f"[T3b verdict] post-await processed: "
+        f"{5 - len(not_processed)}/5",
+        flush=True,
+    )
+    print(
+        f"[T3b verdict] post-finalize processed: "
+        f"{5 - len(not_processed_final)}/5",
+        flush=True,
+    )
+    print(
+        f"[T3b timing] loop_elapsed={t_loop_end - t_loop_start:.1f}s "
+        f"finalize_elapsed={t_finalize_end - t_loop_end:.1f}s "
+        f"total={t_finalize_end - t_loop_start:.1f}s "
+        f"per_iter={[f'{x:.1f}s' for x in iter_elapsed_list]}",
+        flush=True,
+    )
+
+    # Main assertion — literal per plan.
+    assert not not_processed, (
+        f"contract violation: {len(not_processed)}/5 docs not 'processed' "
+        f"at post-await: {not_processed!r}. "
+        f"post-finalize not_processed: {not_processed_final!r}"
+    )
