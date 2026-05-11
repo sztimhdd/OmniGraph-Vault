@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: verifying
-stopped_at: Completed quick-260511-lmc-PLAN.md
-last_updated: "2026-05-11T19:12:04.263Z"
-last_activity: "2026-05-11 — Completed quick 260511-lmx: `--max-articles` strict hard cap on ok+failed only"
+stopped_at: Completed quick 260511-lmw — DeepSeek client-side per-call timeout 300s with env override (OMNIGRAPH_DEEPSEEK_TIMEOUT)
+last_updated: "2026-05-11T19:42:53.379Z"
+last_activity: "2026-05-11 — Completed quick 260511-lmc: h09 TOCTOU race fix — stable-state + error_msg guard"
 progress:
   total_phases: 14
   completed_phases: 10
@@ -232,6 +232,7 @@ Recent decisions affecting current work:
 - [Phase 20]: Always call download_images with empty URL list to preserve monkeypatch injection points in tests
 - [Phase 20]: import image_pipeline as module (not from import) so monkeypatch.setattr works on test call sites
 - [Phase quick-260511-b3y]: Default GOOGLE_CLOUD_LOCATION to global in _make_client(); gemini-embedding-2 requires global endpoint (not us-central1)
+- [Phase quick-260511-lmw]: Raise DeepSeek per-call timeout default 120s→300s; env-overridable via OMNIGRAPH_DEEPSEEK_TIMEOUT
 
 ### Pending Todos
 
@@ -309,8 +310,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-11T19:12:04.244Z
-Stopped at: Completed quick-260511-lmc-PLAN.md
+Last session: 2026-05-11T19:42:47.196Z
+Stopped at: Completed quick 260511-lmw — DeepSeek client-side per-call timeout 300s with env override (OMNIGRAPH_DEEPSEEK_TIMEOUT)
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 
