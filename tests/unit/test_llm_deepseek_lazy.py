@@ -117,3 +117,56 @@ def test_lib_init_does_not_export_deepseek_anymore(monkeypatch: pytest.MonkeyPat
         "Callers should use 'from lib.llm_deepseek import deepseek_model_complete'."
     )
     assert "deepseek_model_complete" not in getattr(lib, "__all__", [])
+
+
+def test_default_timeout_is_300(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AsyncOpenAI client must be constructed with timeout=300.0 by default.
+
+    Pins DSTO-01: _DEEPSEEK_TIMEOUT_S reads from OMNIGRAPH_DEEPSEEK_TIMEOUT
+    with a default of 300 (raised from 120).
+    """
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    monkeypatch.delenv("OMNIGRAPH_DEEPSEEK_TIMEOUT", raising=False)
+    _purge_modules(["lib", "lib.llm_deepseek", "lightrag_llm"])
+
+    import lib.llm_deepseek as ld
+
+    ld._client = None
+
+    captured_timeout = None
+
+    def mock_ctor(**kwargs):
+        nonlocal captured_timeout
+        captured_timeout = kwargs.get("timeout")
+        return MagicMock()
+
+    with patch.object(ld, "AsyncOpenAI", side_effect=mock_ctor):
+        ld._get_client()
+
+    assert captured_timeout == 300.0, f"Expected 300.0, got {captured_timeout}"
+
+
+def test_env_override_changes_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """OMNIGRAPH_DEEPSEEK_TIMEOUT env var overrides the default at construction time.
+
+    Pins DSTO-01: setting the env var to '60' results in timeout=60.0.
+    """
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    monkeypatch.setenv("OMNIGRAPH_DEEPSEEK_TIMEOUT", "60")
+    _purge_modules(["lib", "lib.llm_deepseek", "lightrag_llm"])
+
+    import lib.llm_deepseek as ld
+
+    ld._client = None
+
+    captured_timeout = None
+
+    def mock_ctor(**kwargs):
+        nonlocal captured_timeout
+        captured_timeout = kwargs.get("timeout")
+        return MagicMock()
+
+    with patch.object(ld, "AsyncOpenAI", side_effect=mock_ctor):
+        ld._get_client()
+
+    assert captured_timeout == 60.0, f"Expected 60.0, got {captured_timeout}"

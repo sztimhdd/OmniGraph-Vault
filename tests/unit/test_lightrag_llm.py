@@ -217,28 +217,40 @@ def test_root_shim_reexports_same_object():
 
 
 # ---------------------------------------------------------------------------
-# D-09.02 / TIMEOUT-02: AsyncOpenAI client-side timeout=120.0
+# D-09.02 / TIMEOUT-02: AsyncOpenAI client-side timeout=300.0 (DSTO-01)
 # ---------------------------------------------------------------------------
 
 
-def test_deepseek_client_has_120s_timeout():
-    """Module-level _client is constructed with timeout=120.0 (D-09.02).
+def test_deepseek_client_has_120s_timeout(monkeypatch):
+    """Module-level _client is constructed with timeout=300.0 (D-09.02 / DSTO-01).
+
+    Default raised from 120s to 300s in quick 260511-lmw; override via
+    OMNIGRAPH_DEEPSEEK_TIMEOUT env var.
 
     The openai SDK stores the ``timeout`` kwarg on ``self.timeout`` (either as
     a bare float or a wrapped ``httpx.Timeout``). We assert the observable
-    value is 120 regardless of the internal wrapper shape.
+    value is 300 regardless of the internal wrapper shape.
+
+    Uses explicit module purge + rebuild to avoid cross-test contamination
+    from preceding tests that may leave a stale 120.0 client in _client.
     """
+    import sys
+
+    monkeypatch.delenv("OMNIGRAPH_DEEPSEEK_TIMEOUT", raising=False)
+    sys.modules.pop("lib.llm_deepseek", None)
     import lib.llm_deepseek as ld
+    ld._client = None
+    ld._get_client()
 
     client_timeout = getattr(ld._client, "timeout", None)
     # Cross-version safety: bare float, httpx.Timeout, or a NOT_GIVEN-like sentinel.
     if isinstance(client_timeout, (int, float)):
-        assert client_timeout == 120.0
+        assert client_timeout == 300.0
     else:
         # httpx.Timeout case: `read` attr is the per-read deadline; some
         # versions expose the total as `.timeout` instead.
         read_val = getattr(client_timeout, "read", None)
         total_val = getattr(client_timeout, "timeout", None)
-        assert read_val == 120.0 or total_val == 120.0, (
-            f"Expected 120.0 timeout on _client; got {client_timeout!r}"
+        assert read_val == 300.0 or total_val == 300.0, (
+            f"Expected 300.0 timeout on _client; got {client_timeout!r}"
         )

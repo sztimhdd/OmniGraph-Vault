@@ -233,6 +233,7 @@ All five are opt-in; unset values preserve Hermes production behavior.
 | `OMNIGRAPH_LLM_TIMEOUT_SEC` | No | `600` | Int seconds; applies to Vertex Gemini LLM calls only. DeepSeek path unaffected. |
 | `OMNIGRAPH_PROCESSED_RETRY` | No | `30` | Int. h09 PROCESSED-gate max retries; combined with `OMNIGRAPH_PROCESSED_BACKOFF` controls the post-ainsert verification budget (default 30 × 2.0s = 60s, was 3 × 2.0s = 6s before quick 260510-h09b). |
 | `OMNIGRAPH_PROCESSED_BACKOFF` | No | `2.0` | Float seconds. h09 PROCESSED-gate retry backoff. See `OMNIGRAPH_PROCESSED_RETRY`. |
+| `OMNIGRAPH_DEEPSEEK_TIMEOUT` | No | `300` | Float seconds. DeepSeek client-side per-call timeout. Kills any single hung `chat.completions.create` call; distinct from `LIGHTRAG_LLM_TIMEOUT` (per-task outer budget). See `lib/llm_deepseek.py`. |
 
 Full local-dev runbook: `docs/LOCAL_DEV_SETUP.md`.
 
