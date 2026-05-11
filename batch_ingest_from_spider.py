@@ -1770,13 +1770,17 @@ async def ingest_from_db(
         # 6-col shape (digest as last col) became the 7-col shape with
         # 'wechat'/'rss' inserted at row[1] and digest aliased to summary.
         for i, (art_id, source, title, url, account, body, summary) in enumerate(candidate_rows, 1):
-            # JN6-02: stop AFTER successfully-processed rows hit the cap.
-            # Skips (no URL, checkpoint, classify, depth) don't count, so the
-            # cap limits real ingest work — correct semantics for rate limiting.
-            if max_articles is not None and processed >= max_articles:
+            # quick-260511-mxc: strict hard cap. Pre-fix this check was
+            # processed-only, so queued-but-not-yet-drained rows leaked past
+            # the cap (up to LAYER2_BATCH_SIZE-1 = 4 extra). Charging the
+            # in-flight queue against the budget at enqueue time makes
+            # --max-articles a true per-article hard cap on ok+failed
+            # (skipped statuses are excluded by their `continue` branches
+            # below). See quick 260511-lmx investigation_findings.
+            if max_articles is not None and (processed + len(layer2_queue)) >= max_articles:
                 logger.info(
-                    "max-articles cap reached (%d); stopping --from-db loop.",
-                    max_articles,
+                    "max-articles cap reached (processed=%d + queued=%d >= %d); stopping --from-db loop.",
+                    processed, len(layer2_queue), max_articles,
                 )
                 break
 
