@@ -3,7 +3,7 @@ phase: quick-260510-uai
 plan: 01
 status: complete
 date: 2026-05-10
-commit: <pending>
+commit: a66622c
 ---
 
 # Quick 260510-uai Summary: Source-Aware Ingest Dispatch
@@ -171,10 +171,21 @@ Will be filled in post-commit. Expectation:
 
 ## Commit + Push
 
-To be filled in post-commit:
-- Commit SHA: `<pending>`
-- Commit message (full): `fix(ingest-260510-uai): source-aware dispatch — RSS articles use rss_ doc_id prefix + body-length fail-fast eliminates short-body ainsert failures`
-- Push timestamp: `<pending>`
+- Commit SHA: `a66622c` (full: `a66622ccd0fb3ae57431c1cb73337bd92e8d0edc`)
+- Commit message: `fix(ingest-260510-uai): source-aware dispatch — RSS articles use rss_ doc_id prefix + body-length fail-fast eliminates short-body ainsert failures`
+- Commit timestamp: `2026-05-10 22:37:44 -0300`
+- 9 files changed, 1088 insertions(+), 25 deletions(-)
+- Files in commit (verified via `git show --stat HEAD`):
+  - `.planning/STATE.md` (+7/-1)
+  - `.planning/quick/260510-uai-.../260510-uai-PLAN.md` (new, +697)
+  - `.planning/quick/260510-uai-.../260510-uai-SUMMARY.md` (new, +186)
+  - `batch_ingest_from_spider.py` (+12/-1)
+  - `ingest_wechat.py` (+42/-9)
+  - `tests/unit/test_checkpoint_ingest_integration.py` (+8/-2)
+  - `tests/unit/test_ingest_article_processed_gate.py` (+3/-1)
+  - `tests/unit/test_rollback_on_timeout.py` (+18/-7)
+  - `tests/unit/test_text_first_ingest.py` (+140/-4)
+- `tests/unit/test_ainsert_persistence_contract.py` NOT in commit (verified via `git show --stat HEAD | grep test_ainsert_persistence_contract.py` = empty); remains in worktree M state from gkw quick.
 
 ## Self-Check
 
