@@ -78,6 +78,17 @@ add_job "rss-fetch" \
   "0 6 * * *" \
   "run enrichment/rss_fetch.py"
 
+# quick-260511-b4k follow-up: rescrape rss_articles where layer1_verdict
+# ='candidate' AND body IS NULL via b4k-fixed lib.scraper.scrape_url.
+# Drains the stuck-in-scrape backlog (45+ rows discovered 2026-05-11
+# per .scratch/scraper-coverage-matrix-20260510.md — UA fallback retrieves
+# them, but body=NULL rows are not picked up by ingest's candidate SQL,
+# so a dedicated daily pass writes the body back). Runs after rss-fetch
+# (06:00) and before daily-classify-kol (08:15).
+add_job "rss-rescrape-bodies" \
+  "30 6 * * *" \
+  "cd ~/OmniGraph-Vault && source venv/bin/activate && python enrichment/rss_rescrape_bodies.py 2>&1 | tee /tmp/rss-rescrape-\$(date +%Y%m%d).log"
+
 # v3.5 ir-4 (LF-5.2): rss-classify cron retired. RSS classification now
 # happens inside Layer 1 of batch_ingest_from_spider's --from-db dual-source
 # candidate SQL, exercised by the daily-ingest cron below. The legacy
