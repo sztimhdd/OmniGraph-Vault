@@ -45,10 +45,12 @@ def _make_client() -> genai.Client:
     forwarded. Free-tier mode uses the rotation-managed key as before.
     """
     if _is_vertex_mode():
+        # Quick 260511-n0b mirror of b3y (b1e7fc8) — Vertex 'global' endpoint pools quota
+        # across projects + avoids 404 NOT_FOUND on gemini-embedding-2 / GA endpoints.
         return genai.Client(
             vertexai=True,
             project=os.environ["GOOGLE_CLOUD_PROJECT"],
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
         )
     return genai.Client(api_key=current_key(), vertexai=False)
 
