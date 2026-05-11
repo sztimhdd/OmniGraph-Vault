@@ -14,8 +14,18 @@ import sqlite3
 import sys
 from pathlib import Path
 
-# Project-root imports (requires PYTHONPATH=.)
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "kol_scan.db"
+# Defensive sys.path insert: cron Script-type delivery (no_agent=true) does NOT
+# pre-set PYTHONPATH, so `from lib.scraper import scrape_url` would ImportError.
+# Inserting project-root makes the script work under all invocation forms
+# (manual `python enrichment/rss_rescrape_bodies.py`, Hermes Script-type cron,
+# `cd ~/OmniGraph-Vault && python enrichment/rss_rescrape_bodies.py` bash form).
+# Discovered 2026-05-11 17:55 ADT during manual fire (21/21 ImportError → 20/21
+# OK after `PYTHONPATH=. python ...`).
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+DB_PATH = _PROJECT_ROOT / "data" / "kol_scan.db"
 DELAY_S = 1.5   # polite delay between scrapes
 
 logger = logging.getLogger(__name__)
