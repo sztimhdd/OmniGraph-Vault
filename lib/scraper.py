@@ -26,7 +26,10 @@ logger = logging.getLogger(__name__)
 
 # --- SCR-04 constants ---------------------------------------------------
 
-_MIN_CONTENT_LENGTH: int = 500
+_MIN_CONTENT_LENGTH: int = 200
+# Lowered 500→200 in quick 260511-b4k — short-form RSS link-blog posts
+# (e.g. simonwillison.net) routinely produce 200-400 char extracts that
+# are still real content. 200-char floor still blocks pure-boilerplate scrapes.
 
 _LOGIN_WALL_PATTERNS: tuple[str, ...] = (
     "Sign in",
@@ -151,6 +154,57 @@ async def _fetch_with_backoff_on_429(
         # else 429 → loop to next backoff iteration
     logger.warning("scraper: 429 persisted after 3 backoffs — cascading")
     return None
+
+
+# --- Quick 260511-b4k Layer 2 extraction-fallback chain ----------------
+
+def _extract_with_fallbacks(html: str) -> tuple[Optional[str], dict]:
+    """Layer 2 extraction-fallback chain. Try precision → recall → html2text;
+    return (markdown, info) where markdown is the first passing extract or
+    None if all three fail. info records each extractor's output length for
+    diagnostic logging on exhaustion. On success, info also carries 'method'
+    naming the extractor that won. (Quick 260511-b4k.)
+    """
+    import trafilatura
+    import html2text as _html2text_mod  # alias to avoid shadowing fn arg
+
+    lengths: dict[str, int] = {"precision": 0, "recall": 0, "html2text": 0}
+
+    # Extractor 1: trafilatura precision (current behavior)
+    md_p = trafilatura.extract(
+        html,
+        output_format="markdown",
+        include_images=True,
+        include_links=True,
+        favor_precision=True,
+    )
+    lengths["precision"] = len(md_p) if md_p else 0
+    if _passes_quality_gate(md_p):
+        return md_p, {"method": "trafilatura-precision", **lengths}
+
+    # Extractor 2: trafilatura recall (less aggressive boilerplate filter)
+    md_r = trafilatura.extract(
+        html,
+        output_format="markdown",
+        include_images=True,
+        include_links=True,
+        favor_recall=True,
+    )
+    lengths["recall"] = len(md_r) if md_r else 0
+    if _passes_quality_gate(md_r):
+        return md_r, {"method": "trafilatura-recall", **lengths}
+
+    # Extractor 3: html2text (most lenient — accepts almost any HTML)
+    try:
+        md_h = _html2text_mod.html2text(html)
+    except Exception as e:  # noqa: BLE001 — last-resort, swallow + record
+        logger.warning("scraper: html2text raised %s — treating as empty", e)
+        md_h = ""
+    lengths["html2text"] = len(md_h) if md_h else 0
+    if _passes_quality_gate(md_h):
+        return md_h, {"method": "html2text", **lengths}
+
+    return None, lengths
 
 
 # --- SCR-02 WeChat delegate ---------------------------------------------
@@ -309,22 +363,26 @@ async def _scrape_generic(url: str) -> ScrapeResult:
                 content_html=None,
             )
 
-    # Layer 2: requests (with 429 backoff) + trafilatura extract
+    # Layer 2: requests (with 429 backoff) + extraction-fallback chain
+    # (Quick 260511-b4k: extractor cascade precision → recall → html2text)
     html2 = await _fetch_with_backoff_on_429(url)
     if html2:
-        md2 = trafilatura.extract(
-            html2,
-            output_format="markdown",
-            include_images=True,
-            include_links=True,
-            favor_precision=True,
-        )
-        if _passes_quality_gate(md2):
+        md2, info = _extract_with_fallbacks(html2)
+        if md2 is not None:
             return ScrapeResult(
-                markdown=md2 or "",
-                method="requests+trafilatura",
+                markdown=md2,
+                method=f"requests+{info['method']}",
                 content_html=None,
             )
+        # All 3 extractors failed gate — log lengths and cascade to Layer 4
+        logger.warning(
+            "scraper: layer 2 exhausted url=%s precision_len=%d "
+            "recall_len=%d html2text_len=%d",
+            url[:80],
+            info.get("precision", 0),
+            info.get("recall", 0),
+            info.get("html2text", 0),
+        )
 
     # Layer 3: SKIPPED in Phase 19 per D-RSS-SCRAPER-SCOPE Option A scope
     # Generic CDP/MCP is deferred to Phase 20.

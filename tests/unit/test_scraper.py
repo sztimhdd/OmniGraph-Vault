@@ -47,15 +47,15 @@ def test_quality_gate():
     # None / empty fails
     assert _passes_quality_gate(None) is False
     assert _passes_quality_gate("") is False
-    # 499 chars fails (below 500 threshold)
-    assert _passes_quality_gate("a" * 499) is False
-    # 500 chars + no login-wall keyword passes
-    assert _passes_quality_gate("a" * 500) is True
+    # 199 chars fails (below 200 threshold; lowered 500→200 in quick 260511-b4k)
+    assert _passes_quality_gate("a" * 199) is False
+    # 200 chars + no login-wall keyword passes
+    assert _passes_quality_gate("a" * 200) is True
     # Login-wall keyword (English, mid-text, case-insensitive) fails
-    content = "a" * 250 + " please Sign in to continue " + "a" * 250
+    content = "a" * 100 + " please Sign in to continue " + "a" * 100
     assert _passes_quality_gate(content) is False
     # Login-wall keyword (Chinese) fails
-    content_cn = "a" * 250 + " 请先登录 再查看 " + "a" * 250
+    content_cn = "a" * 100 + " 请先登录 再查看 " + "a" * 100
     assert _passes_quality_gate(content_cn) is False
     # Sanity: 16 patterns defined
     assert len(_LOGIN_WALL_PATTERNS) == 16
@@ -153,3 +153,111 @@ async def test_cascade_layer_order(mocker):
         "layer 2 _fetch_with_backoff_on_429 must be awaited exactly once "
         "(proves cascade from layer 1 to layer 2 fired)"
     )
+
+
+# Quick 260511-b4k: Layer 2 extraction-fallback chain ---------------------
+
+@pytest.mark.asyncio
+async def test_scrape_generic_layer2_recall_wins_when_precision_short(mocker):
+    """Layer 2 fallback chain: precision returns short → recall returns ≥200 chars → wins.
+
+    Proves: (1) extraction-fallback chain wired; (2) recall extractor invoked
+    when precision fails gate; (3) html2text NOT called when recall passes
+    (short-circuit); (4) method label is requests+trafilatura-recall.
+    """
+    # Layer 1: trafilatura.fetch_url returns html, extract returns 50 chars (fails 200 gate)
+    async def fake_run_in_executor(executor, func):
+        return func()
+    fake_loop = mocker.MagicMock()
+    fake_loop.run_in_executor = fake_run_in_executor
+    mocker.patch("lib.scraper.asyncio.get_event_loop", return_value=fake_loop)
+
+    fake_trafilatura = mocker.MagicMock()
+    fake_trafilatura.fetch_url = mocker.MagicMock(return_value="html_layer1")
+
+    # extract called multiple times: Layer 1 once (precision, returns "p"*50),
+    # Layer 2 helper twice (precision returns "p"*80, recall returns "r"*250).
+    # Sequence by call order:
+    #   call 1: Layer 1 precision → "p"*50  (fails 200 gate)
+    #   call 2: Layer 2 helper precision → "p"*80 (fails 200 gate)
+    #   call 3: Layer 2 helper recall → "r"*250 (passes 200 gate, wins)
+    extract_calls = ["p" * 50, "p" * 80, "r" * 250]
+    call_idx = {"i": 0}
+    def fake_extract(*args, **kwargs):
+        i = call_idx["i"]
+        call_idx["i"] += 1
+        return extract_calls[i]
+    fake_trafilatura.extract = mocker.MagicMock(side_effect=fake_extract)
+    mocker.patch.dict("sys.modules", {"trafilatura": fake_trafilatura})
+
+    # Layer 2 fetch returns "html_layer2" (non-None → triggers helper)
+    mocker.patch(
+        "lib.scraper._fetch_with_backoff_on_429",
+        new=mocker.AsyncMock(return_value="html_layer2"),
+    )
+
+    # html2text — must NOT be called (recall already won at call_idx 2)
+    fake_html2text = mocker.MagicMock()
+    fake_html2text.html2text = mocker.MagicMock(return_value="should_not_be_called")
+    mocker.patch.dict("sys.modules", {"html2text": fake_html2text})
+
+    result = await _scrape_generic("https://simonwillison.net/2026/05/post")
+
+    assert result.summary_only is False, "Should NOT cascade to Layer 4"
+    assert result.markdown == "r" * 250, (
+        f"Recall extract should win, got {result.markdown[:40]!r}"
+    )
+    assert result.method == "requests+trafilatura-recall", (
+        f"Method label must record which extractor won, got {result.method!r}"
+    )
+    # Tight: precision called twice (Layer 1 + Layer 2 helper), recall called once,
+    # html2text NEVER called (short-circuit on recall success).
+    assert fake_trafilatura.extract.call_count == 3, (
+        f"Expected 3 extract calls (L1 precision + L2 precision + L2 recall), "
+        f"got {fake_trafilatura.extract.call_count}"
+    )
+    assert fake_html2text.html2text.call_count == 0, (
+        "html2text must NOT be called when recall wins (short-circuit broken)"
+    )
+
+
+@pytest.mark.asyncio
+async def test_scrape_generic_layer2_html2text_wins_when_both_trafilatura_short(mocker):
+    """Layer 2 fallback chain: precision short → recall short → html2text wins.
+
+    Proves: (1) html2text IS the third extractor; (2) called when both
+    trafilatura modes fail gate; (3) method label is requests+html2text.
+    """
+    async def fake_run_in_executor(executor, func):
+        return func()
+    fake_loop = mocker.MagicMock()
+    fake_loop.run_in_executor = fake_run_in_executor
+    mocker.patch("lib.scraper.asyncio.get_event_loop", return_value=fake_loop)
+
+    fake_trafilatura = mocker.MagicMock()
+    fake_trafilatura.fetch_url = mocker.MagicMock(return_value="html_layer1")
+    # 3 extract calls expected: L1 precision (50), L2 precision (50), L2 recall (80)
+    extract_calls = ["p" * 50, "p" * 50, "r" * 80]
+    call_idx = {"i": 0}
+    def fake_extract(*args, **kwargs):
+        i = call_idx["i"]
+        call_idx["i"] += 1
+        return extract_calls[i]
+    fake_trafilatura.extract = mocker.MagicMock(side_effect=fake_extract)
+    mocker.patch.dict("sys.modules", {"trafilatura": fake_trafilatura})
+
+    mocker.patch(
+        "lib.scraper._fetch_with_backoff_on_429",
+        new=mocker.AsyncMock(return_value="html_layer2"),
+    )
+
+    fake_html2text = mocker.MagicMock()
+    fake_html2text.html2text = mocker.MagicMock(return_value="h" * 250)
+    mocker.patch.dict("sys.modules", {"html2text": fake_html2text})
+
+    result = await _scrape_generic("https://example.com/post")
+
+    assert result.summary_only is False
+    assert result.markdown == "h" * 250
+    assert result.method == "requests+html2text"
+    assert fake_html2text.html2text.call_count == 1
