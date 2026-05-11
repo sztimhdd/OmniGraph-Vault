@@ -56,6 +56,22 @@ For multi-step tasks, state a brief plan:
 3. [Step] → verify: [check]
 Strong success criteria let the LLM loop independently. Weak criteria ("make it work") require constant clarification.
 
+5. Don't Outsource Mechanical Work to the User
+
+Two execution channels exist; pick the right one and run it yourself.
+
+The wrong pattern is making the user copy-paste SSH commands, bash one-liners, or any other rote command the agent could run. The agent has a Bash tool. The user has higher-leverage work to do.
+
+| Need | Channel | Who runs |
+| --- | --- | --- |
+| Mutate Hermes prod state (cron, env, deploy, restart, ssh-side script registration) | Write a Hermes operator prompt | Hermes (paste-ready prompt for user to forward) |
+| Read-only diagnostic / file ops on Hermes prod | Run SSH yourself via the Bash tool | Agent |
+| Read/grep local repo, run pytest locally, git commit, edit local files | Run yourself via Bash/Read/Edit/Grep | Agent |
+
+Hard rule: never write "paste this SSH command and report back" to the user. Either run the SSH yourself with Bash, or write a Hermes prompt that does the work in prod. The only thing the user should be pasting is Hermes report output (because they own that channel) or explicit decisions ("go", "stop", "A or B").
+
+If you're tempted to write a `ssh -p 49221 ...` block for the user to copy, stop. Either run it yourself or convert it into a Hermes prompt.
+
 ## Project Summary
 
 OmniGraph-Vault is a personal knowledge base for **OpenClaw** and **Hermes Agent** AI assistants. It ingests web content (WeChat articles, PDFs) into a **LightRAG** knowledge graph, then exposes that graph as agent skills.
