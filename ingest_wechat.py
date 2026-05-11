@@ -55,6 +55,13 @@ def _status_is_processed(status_val) -> bool:
 PROCESSED_VERIFY_MAX_RETRIES = int(os.getenv("OMNIGRAPH_PROCESSED_RETRY", "30"))
 PROCESSED_VERIFY_BACKOFF_S = float(os.getenv("OMNIGRAPH_PROCESSED_BACKOFF", "2.0"))
 
+# quick-260511-lmc: stable-state re-poll delay. After first 'processed' observation,
+# wait this many seconds and re-poll to confirm status is stable (not about to flip
+# to 'failed' due to TOCTOU race). Eliminates 2026-05-11 mystery rows where
+# ingestions.status='ok' was written despite LightRAG doc_status='failed' + error_msg
+# set (DeepSeek 402 partial-failure scenario).
+STABLE_VERIFY_DELAY_S = float(os.getenv("OMNIGRAPH_STABLE_VERIFY_DELAY", "5.0"))
+
 # Phase quick-260510-uai: defends against short-body bypass of RSS_SCRAPE_THRESHOLD=100.
 # t1o investigation showed 3 RSS rows with body<200 chars reached ainsert and failed.
 # 500 is a soft floor — well above the 200-char floor used by Layer 2 prompt tolerance,
@@ -72,6 +79,7 @@ async def _verify_doc_processed_or_raise(
     *,
     max_retries: int = PROCESSED_VERIFY_MAX_RETRIES,
     backoff_s: float = PROCESSED_VERIFY_BACKOFF_S,
+    stable_delay_s: float = STABLE_VERIFY_DELAY_S,
 ) -> None:
     """Verify LightRAG promoted ``doc_id`` to status='PROCESSED'; raise on failure.
 
@@ -85,6 +93,20 @@ async def _verify_doc_processed_or_raise(
     attempts to allow LightRAG's internal enqueue pipeline to finish
     promoting the doc — covers the 2026-05-09/10 ainsert-async-pipeline
     race.
+
+    2026-05-11 quick-260511-lmc: combined Option C TOCTOU guard.
+
+    Option B — error_msg guard: a genuinely processed doc has error_msg=None.
+    If status='processed' AND error_msg is non-empty, LightRAG wrote a FAILED
+    state that overlaps the 'processed' window (DeepSeek 402 partial-failure).
+    Treat as failure and continue retry loop.
+    (lightrag/base.py:784; lightrag.py:2104,2236)
+
+    Option A — stable-state re-poll: if status='processed' AND error_msg empty,
+    sleep ``stable_delay_s`` and re-poll once to confirm the status is stable
+    before returning True. If the re-poll fails or shows non-processed/error_msg,
+    continue retry loop. This eliminates the 2026-05-11 mystery rows where
+    ingestions.status='ok' was written despite LightRAG doc_status='failed'.
     """
     last_status_val: str | None = None
     last_exc: Exception | None = None
@@ -112,7 +134,46 @@ async def _verify_doc_processed_or_raise(
         last_status_val = status_val
 
         if _status_is_processed(status_val):
-            return  # success — caller sets doc_confirmed=True
+            # Option B — error_msg guard: a genuinely processed doc has
+            # error_msg=None. If error_msg is set, LightRAG wrote FAILED after
+            # our status read — treat as failure and continue retry loop.
+            # (lightrag/base.py:784; lightrag.py:2104,2236)
+            error_msg = getattr(entry, "error_msg", None)
+            if error_msg is None and isinstance(entry, dict):
+                error_msg = entry.get("error_msg")
+            if error_msg:
+                last_status_val = f"processed-with-error: {str(error_msg)[:120]}"
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(backoff_s)
+                continue
+
+            # Option A — stable-state re-poll: sleep briefly then re-fetch to
+            # confirm 'processed' is stable (not a stale entry about to flip).
+            await asyncio.sleep(stable_delay_s)
+            try:
+                stable_statuses = await rag.aget_docs_by_ids([doc_id])
+            except Exception:
+                # Re-poll failed; don't trust the initial 'processed' — retry
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(backoff_s)
+                continue
+            stable_entry = (stable_statuses or {}).get(doc_id)
+            stable_status_val = getattr(stable_entry, "status", None)
+            if stable_status_val is None and isinstance(stable_entry, dict):
+                stable_status_val = (stable_entry or {}).get("status")
+            stable_error_msg = getattr(stable_entry, "error_msg", None)
+            if stable_error_msg is None and isinstance(stable_entry, dict):
+                stable_error_msg = (stable_entry or {}).get("error_msg")
+            if _status_is_processed(stable_status_val) and not stable_error_msg:
+                return  # confirmed stable: no error_msg, still processed
+            # Stable check failed — update last_status_val and continue retry
+            last_status_val = (
+                f"unstable-processed: recheck={stable_status_val!r} "
+                f"error={str(stable_error_msg or '')[:80]}"
+            )
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoff_s)
+            continue
 
         if attempt < max_retries - 1:
             await asyncio.sleep(backoff_s)
@@ -122,8 +183,8 @@ async def _verify_doc_processed_or_raise(
         f"after {max_retries} retries (backoff {backoff_s}s). "
         f"Last status={last_status_val!r}, "
         f"last_exc={last_exc.__class__.__name__ if last_exc else None}. "
-        f"This is the 2026-05-09/10 ainsert-async-pipeline race. The article "
-        f"will be marked 'failed' in ingestions and retried by next cron."
+        f"Checked both error_msg guard (Option B) and stable-state re-poll (Option A). "
+        f"The article will be marked 'failed' in ingestions and retried by next cron."
     )
 
 import nest_asyncio
