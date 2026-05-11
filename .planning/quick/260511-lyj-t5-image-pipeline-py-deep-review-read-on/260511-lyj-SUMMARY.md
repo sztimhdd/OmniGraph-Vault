@@ -27,7 +27,7 @@ evidence_density:
   a2_plus_a3_total: 17
   target: 8
   exceeded_by: "2.1×"
-commit_sha: PENDING_POST_COMMIT
+commit_sha: 1054f7d
 ---
 
 # Quick 260511-lyj — T5 image_pipeline.py Deep Review (read-only post-release hygiene)
@@ -104,4 +104,4 @@ Deep audit of `image_pipeline.py` (645 LOC, last commit `ce8127a`) found **2 HIG
 
 ## Commit SHA
 
-To be pinned post-commit (forward-only atomic — no `--amend`, no `git reset`).
+**`1054f7d`** — `docs(quick-260511-lyj): T5 image_pipeline.py deep review (release hygiene)`. Forward-only atomic — no `--amend`, no `git reset`. SHA pin landed in a follow-up forward commit.
