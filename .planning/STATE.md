@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: verifying
-stopped_at: "Completed quick 260510-rl2: F-4 trivial cleanups in ingest_wechat.py (commit 5d4e294)"
+stopped_at: "Completed quick 260510-t1o: RSS pipeline empirical investigation — verdict ~50 LOC quick scope (commit 0c977a8)"
 last_updated: "2026-05-10T00:00:00.000Z"
 last_activity: 2026-05-10
 progress:
@@ -28,7 +28,7 @@ Milestone: v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 + 20 shi
 Phase: 20 (rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix) — Complete (2026-05-07)
 Plan: 4 of 4
 Status: Milestone closed
-Last activity: 2026-05-10 - Completed quick task 260510-rl2 (commit `5d4e294`): F-4 trivial cleanups in `ingest_wechat.py` — 3 mechanical deletions (-6 LOC). (a) L146 duplicate `from lib.llm_complete import get_llm_func` removed (canonical L163 retained). (b) L318 hardcoded `llm_model_name="deepseek-v4-flash"` kwarg removed (LightRAG default applies; dispatcher controls actual provider). (c) L1093-1095 vestigial `article_hash` recompute removed (canonical L946 binding retained). **POLLUTION-AUDIT issue #2 FULLY CLOSED** across in-scope code (working-tree grep 0 hits). Pytest pre-fix == post-fix IDENTICAL 28/667 failure set (zero F-4-induced regressions). Previously 2026-05-10 - Completed quick task 260510-oxq: eliminate outer/inner double-INSERT design smell on ingestions table.
+Last activity: 2026-05-10 - Completed quick task 260510-t1o (commit `0c977a8`): READ-ONLY RSS pipeline empirical investigation. Verdict: **`~50 LOC quick scope`** — the "0 RSS ingestions=ok despite 546 RSS bodies" gap is NOT an ar-1 milestone. Every layer EXCEPT the final ainsert dispatch is already source-aware (dual-source UNION ALL candidate SQL at `batch_ingest_from_spider.py:1407`, source-aware Layer 1/Layer 2 persistence at `lib/article_filter.py:585`+`:639` writing to `rss_articles`, source-aware `_needs_scrape` at `:931`, source-aware ingestions inserts at `:1697`+`:1746`). The only missing branch: `batch_ingest_from_spider.py:286` dispatches every URL to `ingest_wechat.ingest_article` (which is WeChat-specific — cache dir, image namespace, doc_id `wechat_*` at `ingest_wechat.py:984`). Of 1604 RSS ingestions rows: 1561 are correct Layer 1/Layer 2 rejects (1058 layer1=reject no-body + 503 layer1=reject body-from-rss-fetch); 4 reached ainsert and ALL FAILED (3 had <200 char bodies that bypassed `RSS_SCRAPE_THRESHOLD=100`, 1 had 61665 chars that hit the WeChat-specific path on a non-WeChat URL). 80 candidates unprocessed (cron pending). No production code/DB/env mutations. Previously 2026-05-10 - Completed quick task 260510-rl2 (commit `5d4e294`): F-4 trivial cleanups in `ingest_wechat.py` — 3 mechanical deletions (-6 LOC). (a) L146 duplicate `from lib.llm_complete import get_llm_func` removed (canonical L163 retained). (b) L318 hardcoded `llm_model_name="deepseek-v4-flash"` kwarg removed (LightRAG default applies; dispatcher controls actual provider). (c) L1093-1095 vestigial `article_hash` recompute removed (canonical L946 binding retained). **POLLUTION-AUDIT issue #2 FULLY CLOSED** across in-scope code (working-tree grep 0 hits). Pytest pre-fix == post-fix IDENTICAL 28/667 failure set (zero F-4-induced regressions). Previously 2026-05-10 - Completed quick task 260510-oxq: eliminate outer/inner double-INSERT design smell on ingestions table.
 
 ### Immediate next step
 
