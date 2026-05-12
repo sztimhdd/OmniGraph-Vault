@@ -19,6 +19,7 @@ import re
 import time
 import sqlite3
 from pathlib import Path
+from lib.lightrag_queue_probe import compute_dynamic_budget
 
 logger = logging.getLogger(__name__)
 # 2026-05-05: suppress LiteLLM cost/debug logger
@@ -111,7 +112,16 @@ async def _verify_doc_processed_or_raise(
     last_status_val: str | None = None
     last_exc: Exception | None = None
 
-    for attempt in range(max_retries):
+    # gqu Pattern A: dynamic budget — read live LightRAG queue depth and
+    # extend the retry envelope when many docs are queued for serial
+    # processing. Existing OMNIGRAPH_PROCESSED_RETRY/BACKOFF env vars set
+    # the floor (base_budget_s); per_doc_avg_s and cap_s are constants
+    # for v1 (see lib/lightrag_queue_probe.py).
+    base_budget_s = max_retries * backoff_s
+    effective_budget_s = compute_dynamic_budget(base_budget_s=base_budget_s)
+    effective_max_retries = max(max_retries, int(effective_budget_s / backoff_s))
+
+    for attempt in range(effective_max_retries):
         try:
             statuses = await rag.aget_docs_by_ids([doc_id])
         except Exception as exc:
@@ -180,8 +190,9 @@ async def _verify_doc_processed_or_raise(
 
     raise RuntimeError(
         f"post-ainsert PROCESSED verification failed for doc_id={doc_id} "
-        f"after {max_retries} retries (backoff {backoff_s}s). "
-        f"Last status={last_status_val!r}, "
+        f"after {effective_max_retries} retries (configured floor "
+        f"{max_retries}, backoff {backoff_s}s, dynamic budget "
+        f"{effective_budget_s:.0f}s). Last status={last_status_val!r}, "
         f"last_exc={last_exc.__class__.__name__ if last_exc else None}. "
         f"Checked both error_msg guard (Option B) and stable-state re-poll (Option A). "
         f"The article will be marked 'failed' in ingestions and retried by next cron."

@@ -1,0 +1,213 @@
+{
+  "wechat_a36a66bc44": {
+    "status": "processed",
+    "chunks_count": 3,
+    "chunks_list": [
+      "chunk-4e2ebff8e9cb075039147d54413ebf9e",
+      "chunk-e33389ecbb7b2c78ecb1c7e76537b80d",
+      "chunk-f073c852f98f5c8ffade281f8ef736f6"
+    ],
+    "content_summary": "# FlashQLA：让 Qwen 的注意力层跑得更快\n\nURL: http://mp.weixin.qq.com/s?__biz=MzkxMTYyMTAzNA==&mid=2247500951&idx=1&sn=838d7b8d4133d9ed3e6514f9ac879f56&chksm=c11bea52f66c6344d73199afe2e8ed86c1fc045c59b2ca28b8b9d96b8d839ac6a2144a469850#rd\nTime: 2026-04-29 08:08:3...",
+    "content_length": 6268,
+    "created_at": "2026-05-02T20:19:12.419292+00:00",
+    "updated_at": "2026-05-02T20:23:55.772300+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260502_171912_ce0594e6",
+    "metadata": {
+      "processing_start_time": 1777753152,
+      "processing_end_time": 1777753435
+    }
+  },
+  "wechat_3738bfe579": {
+    "status": "processed",
+    "chunks_count": 11,
+    "chunks_list": [
+      "chunk-07906969bd3b244d8e10c9cc9bb7a673",
+      "chunk-dd14e67d5085c2bc4b3ffc67b73ab882",
+      "chunk-58233b349986f3f149d25e0e8b3641da",
+      "chunk-75ae0760b7baccfcb1507c065bcf20ab",
+      "chunk-b5f342e02a47584bf614f51568084992",
+      "chunk-41b71b03f5310014cd231cc5f4041b6b",
+      "chunk-e6a80fc89c65e29819f623904d8a0cc1",
+      "chunk-ec783477ca5d7513bba1ae3fbb49b035",
+      "chunk-2a70252962c86edee6aa7723273690d9",
+      "chunk-c66bc0504c344136f066c5c982fb7ff7",
+      "chunk-12f105af0665ab9627f03e1f11d00215"
+    ],
+    "content_summary": "# \n\nURL: http://mp.weixin.qq.com/s?__biz=Mzg2MzcyODQ5MQ==&mid=2247500767&idx=1&sn=b3d620a57e8833c4928da40f67fdecd1&chksm=ce76a5dbf9012ccdd1b4702fc96b85fe496591549c109333872f89d16b133323ade3b9e07a94#rd\nTime: \n\n![cover_image](http://localhost:8765/3738...",
+    "content_length": 23440,
+    "created_at": "2026-05-04T00:03:36.278685+00:00",
+    "updated_at": "2026-05-04T00:10:59.578280+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260503_210336_851d758c",
+    "metadata": {
+      "processing_start_time": 1777853016,
+      "processing_end_time": 1777853459
+    }
+  },
+  "wechat_f4a4741182": {
+    "status": "processed",
+    "chunks_count": 4,
+    "chunks_list": [
+      "chunk-daa987013e8292c57cf57c70f3ba9615",
+      "chunk-d3fab970db43b6eabd397b298d9f392c",
+      "chunk-080ca3680d33e9c3fddd72139341962a",
+      "chunk-b13f631cce50b9935e1c0c26b29e429e"
+    ],
+    "content_summary": "# 从 6 个月到 1 天，Anthropic 改了 PM 这份工作\n\nURL: http://mp.weixin.qq.com/s?__biz=MzYyNTQwNzIwNA==&mid=2247497877&idx=1&sn=02ed8b3f2e98524b44f5c06b5b2f41a0&chksm=f02a1d1ec75d940818693bac1fc73bdf6aaaf44fa279f8bfc96ebb608d29df51decce0671b10#rd\nTime: 2026-04-26 ...",
+    "content_length": 4893,
+    "created_at": "2026-05-04T00:11:30.115784+00:00",
+    "updated_at": "2026-05-04T00:16:45.396591+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260503_211130_a1bd5151",
+    "metadata": {
+      "processing_start_time": 1777853490,
+      "processing_end_time": 1777853805
+    }
+  },
+  "wechat_16e23156b6": {
+    "status": "processed",
+    "chunks_count": 4,
+    "chunks_list": [
+      "chunk-09d663d0821164fdfdcc30c9082ebf00",
+      "chunk-852ebd8647b719e6291e3e3e12d91547",
+      "chunk-b616b993eeea07b335f2e92772615b71",
+      "chunk-fb73ce90693448cfb486940080fc2ae6"
+    ],
+    "content_summary": "# Untitled\n\nURL: http://mp.weixin.qq.com/s?__biz=MzYyNTQwNzIwNA==&mid=2247497866&idx=1&sn=e1180e59135fe80094bb46be76340c11&chksm=f02a1d01c75d94170a022b9f994e905de9de606c77474aeefaae2bb419639cc3942a38c61735#rd\nTime: \n\n#  对话 Sam 和 Greg：这波 AI，很多人看错了\n\n原创...",
+    "content_length": 5302,
+    "created_at": "2026-05-04T00:17:14.222915+00:00",
+    "updated_at": "2026-05-04T00:45:18.342338+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260503_211714_209e6008",
+    "metadata": {
+      "processing_start_time": 1777855159,
+      "processing_end_time": 1777855518
+    }
+  },
+  "wechat_91ef15cf6b": {
+    "status": "processed",
+    "chunks_count": 3,
+    "chunks_list": [
+      "chunk-fc40b6f6812966c02a9a240e03d787c6",
+      "chunk-e5369a7f706e2f16899a0e339e7cf48d",
+      "chunk-dbaf3ae801004e312a0e304812b6cbb9"
+    ],
+    "content_summary": "# 会干活的 AI，火到 TED 了\n\nURL: http://mp.weixin.qq.com/s?__biz=MzYyNTQwNzIwNA==&mid=2247497842&idx=1&sn=494b5f30cbbaea98cc883dc1e6815ff9&chksm=f02a1df9c75d94efdb8868d908c54f06e6c37fa95c9ea6a460ae190748da17ca6227229d9a19#rd\nTime: 2026-04-19 20:56:22\n\n#  会干活...",
+    "content_length": 3992,
+    "created_at": "2026-05-04T00:39:19.027387+00:00",
+    "updated_at": "2026-05-04T00:46:39.913766+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260503_213919_140cd9f6",
+    "metadata": {
+      "processing_start_time": 1777855159,
+      "processing_end_time": 1777855599
+    }
+  },
+  "wechat_e965180f9d": {
+    "status": "processed",
+    "chunks_count": 3,
+    "chunks_list": [
+      "chunk-00e9419b945b09b01f28083185b0e30c",
+      "chunk-16e3cc1c4b75e5176d770929136067c6",
+      "chunk-7943c554fdb5606ad4275a4283630ae6"
+    ],
+    "content_summary": "# 黄仁勋：很多人只看到了芯片\n\nURL: http://mp.weixin.qq.com/s?__biz=MzYyNTQwNzIwNA==&mid=2247497826&idx=1&sn=d491fce9698e56a2006eaa6bf294b4e5&chksm=f02a1de9c75d94ff6c64a59bec4530922a18d9af359fdf5ca2e25134605d23696231ba53392b#rd\nTime: 2026-04-15 20:55:47\n\n#  黄仁勋：很多...",
+    "content_length": 4023,
+    "created_at": "2026-05-04T00:47:40.571080+00:00",
+    "updated_at": "2026-05-04T01:11:55.223462+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260503_214740_4ad53391",
+    "metadata": {
+      "processing_start_time": 1777856826,
+      "processing_end_time": 1777857115
+    }
+  },
+  "wechat_0cfaea92ea": {
+    "status": "processed",
+    "chunks_count": 3,
+    "chunks_list": [
+      "chunk-f373241a39c7668578059ad2c5ebf6cb",
+      "chunk-3df58933277e77485c390a9bdd338b2a",
+      "chunk-ffe4bcc2481ccae0386b8746d339de2a"
+    ],
+    "content_summary": "# AI 教父不用 ChatGPT 了，他在担心什么\n\nURL: http://mp.weixin.qq.com/s?__biz=MzYyNTQwNzIwNA==&mid=2247497659&idx=1&sn=88e1778996de9bfffac2acbd8056bfa9&chksm=f02a1230c75d9b26d44f75fa057a8a8a4b78e07e5584c27c633bc0d38e125a789ac66aeeb54c#rd\nTime: 2026-03-28 21:01:52...",
+    "content_length": 3499,
+    "created_at": "2026-05-04T01:07:06.577223+00:00",
+    "updated_at": "2026-05-04T01:12:23.415982+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260503_220706_df498ebf",
+    "metadata": {
+      "processing_start_time": 1777856826,
+      "processing_end_time": 1777857143
+    }
+  },
+  "wechat_ba2462ddca": {
+    "status": "processed",
+    "chunks_count": 4,
+    "chunks_list": [
+      "chunk-f80305e9d26fed8c1a456336137df599",
+      "chunk-c002ff15c3e0ddf8a72b6b411928d843",
+      "chunk-613d732fe103c48eeef1bc91c0e2ce68",
+      "chunk-6560bec8f9feddcfe6897a5cd6fc337f"
+    ],
+    "content_summary": "# Untitled\n\nURL: http://mp.weixin.qq.com/s?__biz=MzYyNTQwNzIwNA==&mid=2247497647&idx=1&sn=5f0340e6aad2e223793158cae0a01b75&chksm=f02a1224c75d9b32d798f6f2e5547bbdceabcbc79944e7eb76d56842dccca1e6d817209e3d8d#rd\nTime: \n\n#  Qwen 前负责人亲述：合并失败后，我为什么转向 Agent...",
+    "content_length": 5857,
+    "created_at": "2026-05-04T13:15:34.825286+00:00",
+    "updated_at": "2026-05-04T13:22:02.365790+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260504_101534_2c8ac082",
+    "metadata": {
+      "processing_start_time": 1777900534,
+      "processing_end_time": 1777900922
+    }
+  },
+  "wechat_43ccc4b10e": {
+    "status": "processed",
+    "chunks_count": 7,
+    "chunks_list": [
+      "chunk-2ec9e18bbd372dd4a2ec4f316bdc2905",
+      "chunk-defba2f2fd2f90e1f9294341ca18673f",
+      "chunk-d56595d889719276a80fa765ca6623ee",
+      "chunk-b789adcfc6b2db78137b0676e66ca9b3",
+      "chunk-29b2098cb3e5c948cf919c46776a45b7",
+      "chunk-cf6673d363413248ee06876fede429c0",
+      "chunk-d17046aa2a4cb09d1a5cfa4cb4500dfe"
+    ],
+    "content_summary": "# Untitled\n\nURL: http://mp.weixin.qq.com/s?__biz=Mzg2MzcyODQ5MQ==&mid=2247501036&idx=1&sn=a9b4e3f113fde4f1fa1966f4bc5a5c90&chksm=ce76a2e8f9012bfe61f19d67bc61ff8f33ad89525a53fff8ac69a72f7202e92eb6d1ff5c1785#rd\nTime: \n\n#  Hermes 的核心架构 Harness：上下文、工具、权限...",
+    "content_length": 12450,
+    "created_at": "2026-05-04T14:13:05.124269+00:00",
+    "updated_at": "2026-05-04T14:24:24.047207+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260504_111305_e64ab23e",
+    "metadata": {
+      "processing_start_time": 1777903985,
+      "processing_end_time": 1777904664
+    }
+  },
+  "wechat_43ccc4b10e_images": {
+    "status": "processed",
+    "chunks_count": 9,
+    "chunks_list": [
+      "chunk-e64493c7cc4456fd0b3d01a30299f787",
+      "chunk-7bf640c4a20f4bf4d50e7dbf8e839c85",
+      "chunk-10cd54584834b4db352271b44a5ad090",
+      "chunk-50e6b52c48a05fe106cd7ffcc0bde62e",
+      "chunk-73d5954122740ecfc1945420f0ba3e37",
+      "chunk-521fd3a79c3b282e1f0cdd0516b102b5",
+      "chunk-9f223059d981784159f7309b89e06d49",
+      "chunk-463466d933a62ddea3096087e33533d8",
+      "chunk-51be4b79da4a5ec175d4af164d79d716"
+    ],
+    "content_summary": "# Images for Untitled\n\n- [image 0]: 该图像是一张结构化的系统提示词（Prompt）拼接顺序与前缀缓存（Prefix Cache）优化原理的示意图，旨在最大化利用前缀缓存以实现更高效、更稳定的AI代理（Agent）行为。图表主体由一个从顶部“越稳定”到底部“越动态”的垂直梯度轴线构成，沿此轴线自上而下展示了7个层级的提示词组件，每个层级都包含编号、中文名称、英文名称、图标、具体内容及说明。\n\n**层级结构（自上而下）：**\n1.  **身份 (Identity)...",
+    "content_length": 14418,
+    "created_at": "2026-05-04T14:28:56.915290+00:00",
+    "updated_at": "2026-05-04T14:49:09.677709+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20260504_112856_89406de1",
+    "metadata": {
+      "processing_start_time": 1777904936,
+      "processing_end_time": 1777906149
+    }
+  }
+}
