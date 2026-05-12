@@ -18,6 +18,10 @@
 
 set -euo pipefail
 
+# Omnigraph installation root — supports env override for non-standard deployments
+OMNIGRAPH_DIR="${OMNIGRAPH_DIR:-/home/sztimhdd/OmniGraph-Vault}"
+VENV_PY="${OMNIGRAPH_DIR}/venv/bin/python"
+
 # Model is controlled by the agent's config, not per-job, per H-12.
 # All 6 jobs use whatever model the agent is currently configured with.
 
@@ -87,7 +91,7 @@ add_job "rss-fetch" \
 # (06:00) and before daily-classify-kol (08:15).
 add_job "rss-rescrape-bodies" \
   "30 6 * * *" \
-  "cd ~/OmniGraph-Vault && source venv/bin/activate && python enrichment/rss_rescrape_bodies.py 2>&1 | tee /tmp/rss-rescrape-\$(date +%Y%m%d).log"
+  "cd ${OMNIGRAPH_DIR} && ${VENV_PY} enrichment/rss_rescrape_bodies.py 2>&1 | tee /tmp/rss-rescrape-\$(date +%Y%m%d).log"
 
 # v3.5 ir-4 (LF-5.2): rss-classify cron retired. RSS classification now
 # happens inside Layer 1 of batch_ingest_from_spider's --from-db dual-source
@@ -104,7 +108,7 @@ add_job "daily-classify-kol" \
 # rss_articles where layer1_verdict='candidate' AND layer2_verdict IS NULL.
 add_job "daily-classify-rss-layer2" \
   "20 8 * * *" \
-  "cd ~/OmniGraph-Vault && source venv/bin/activate && python batch_classify_rss_layer2.py 2>&1 | tee /tmp/rss-layer2-\$(date +%Y%m%d).log"
+  "cd ${OMNIGRAPH_DIR} && ${VENV_PY} batch_classify_rss_layer2.py 2>&1 | tee /tmp/rss-layer2-\$(date +%Y%m%d).log"
 
 # D-07 REVISED 2026-05-02 + D-19: KOL only, RSS excluded, forward-only
 # (today's fresh scans only). The prompt wording is load-bearing — the
@@ -133,7 +137,7 @@ add_job "daily-digest" \
 # them in cron logs. RSS reconciliation deferred to ar-1.
 add_job "reconcile-ingestions" \
   "30 9 * * *" \
-  "cd ~/OmniGraph-Vault && source venv/bin/activate && python scripts/reconcile_ingestions.py 2>&1 | tee /tmp/reconcile-\$(date +%Y%m%d).log"
+  "cd ${OMNIGRAPH_DIR} && ${VENV_PY} scripts/reconcile_ingestions.py 2>&1 | tee /tmp/reconcile-\$(date +%Y%m%d).log"
 
 # -----------------------------------------------------------------------
 # Final state — show full cron table for operator verification.
