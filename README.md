@@ -1,5 +1,32 @@
 # 🧠 OmniGraph-Vault: AI Agent Personal Knowledge Base
 
+> ## 🎉 v1.0-rc1 — declared 2026-05-12
+>
+> **Knowledge Collection + Ingestion subsystem reached stable baseline.**
+> Final v1.0 gate: 2026-05-13 09:35 ADT cron data verification.
+>
+> ### What's stable (v1.0 ✅)
+> - End-to-end pipeline: scan → Layer 1 filter → scrape → Layer 2 filter → enrich → ainsert → reconcile
+> - Multi-source ingestion: WeChat KOL articles + RSS feeds (both first-class as of 2026-05-12)
+> - Production cron: 11 Hermes agent cron jobs daily, 10/11 typical pass rate
+> - Quality controls: Layer 1 v1 (HARD-KEEP RULE 0 for project keywords) + Layer 2 depth analysis
+> - Observability: daily reconcile canary (RSS+KOL dual scope), h09 verification, gqu Pattern A budget logger
+> - Resilience: atomic commits, version-bumped prompts auto-reclassify, Vertex AI paid embedding (no quota wall)
+>
+> ### Pending v1.0 final gate
+> - gqu Pattern A poll-based budget activation in real prod burst (commit `178dd6e`)
+> - Layer 1 v1 prompt natural reclassify cycle via LF-1.8 (commit `aea2872`)
+> - Reconcile dual scope on multi-source candidates (commit `587fa85`)
+>
+> ### Known caveats (post v1.0 patches)
+> - Layer 2 prompt audit deferred (RSS pass-rate 10% vs KOL 77%, suspected calibration issue)
+> - subprocess buffering fix shipped today (commit `e0ca633`), first natural cron pending
+> - Pattern A activates only under queue burst — daily cron load may not routinely exercise it
+>
+> **Stats (2026-05-12)**: 92 articles in graph (85 KOL + 7 RSS) · 174 LightRAG docs · 14 KOL accounts · 5 RSS domains active · ~$1-5/day operating cost
+>
+> **Cognee memory layer was retired 2026-05-10** (quick `260510-gfg`). Sections below referencing Cognee describe the historical architecture; current production uses LightRAG entity/edge construction directly without Cognee canonicalization. See [CLAUDE.md](CLAUDE.md) for current architecture.
+
 **[English](#english-version) | [中文版](#chinese-version)**
 
 ---

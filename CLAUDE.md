@@ -82,6 +82,22 @@ OmniGraph-Vault is a personal knowledge base for **OpenClaw** and **Hermes Agent
 
 ---
 
+## Release Status
+
+**Knowledge Collection + Ingestion subsystem: v1.0-rc1** (declared 2026-05-12 evening).
+
+End-to-end pipeline (scan → Layer 1 → scrape → Layer 2 → enrich → ainsert → reconcile) is a stable baseline. Multi-source ingestion (WeChat KOL + RSS feeds) both first-class as of 2026-05-12. 11 Hermes agent cron jobs daily, 92 articles in graph (85 KOL + 7 RSS), ~$1-5/day operating cost.
+
+**Final v1.0 gate (2026-05-13 09:35 ADT cron data verification):** gqu Pattern A burst activation (`178dd6e`), Layer 1 v1 natural reclassify (`aea2872`), reconcile dual scope (`587fa85`).
+
+**Known v1.0.x patch candidates:** Layer 2 prompt audit (RSS 10% vs KOL 77% pass-rate gap), `orchestrate_daily.py` Popen refactor (post `e0ca633` buffering fix), Pattern A `OMNIGRAPH_PER_DOC_AVG_S` env override.
+
+**Future milestones:** v1.1 KB content scale-up · v2.0 / agentic-rag-v1 (query + synthesis + agent skill bridge — design converged 2026-05-06, see `docs/design/agentic_rag_internal_api.md`).
+
+See [README.md](README.md) for full v1.0-rc1 declaration.
+
+---
+
 ## Common Commands
 
 > **For local testing / validation / smoke runs, ALWAYS use `scripts/local_e2e.sh`** (see "Local E2E testing" section below). The corp network has reachability constraints (DeepSeek + SiliconFlow blocked, Cisco Umbrella TLS interception) that the harness handles via auto-configured env vars. Manual `python` invocations bypass that handling and will fail or hit the wrong DB / quota.
