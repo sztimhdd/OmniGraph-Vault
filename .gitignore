@@ -52,6 +52,9 @@ spiders/*.zip
 # Binary archives
 *.zip
 
+# Knowledge Base build output (SSG-generated, not source)
+kb/output/
+
 # Vertex AI service account keys — directory contents excluded, template tracked
 # NOTE: pattern is `credentials/*` (not `credentials/`) because git cannot re-include
 # a file whose parent directory is excluded by a dir-pattern. Using `credentials/*`
