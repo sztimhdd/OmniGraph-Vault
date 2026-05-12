@@ -35,7 +35,7 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ---
 
-## v2.0 Requirements (37 REQs across 9 categories)
+## v2.0 Requirements (50 REQs across 9 categories)
 
 ### I18N — Bilingual Core (8)
 
@@ -149,8 +149,63 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ---
 
-## Traceability (filled by roadmap in Step 10)
+## Traceability
+
+> Mapped by `gsd-roadmapper` 2026-05-12 — see `.planning/ROADMAP-KB-v2.md` for
+> phase decomposition rationale, success criteria, and T-shirt sizing.
+> 50/50 v2.0 REQs mapped, 0 orphans, 0 duplicates.
 
 | REQ | Phase | Status |
 |-----|-------|--------|
-| (TBD by gsd-roadmapper) | | |
+| I18N-01 | kb-1 | Not started |
+| I18N-02 | kb-1 | Not started |
+| I18N-03 | kb-1 | Not started |
+| I18N-04 | kb-1 | Not started |
+| I18N-05 | kb-1 | Not started |
+| I18N-06 | kb-1 | Not started |
+| I18N-07 | kb-3 | Not started |
+| I18N-08 | kb-1 | Not started |
+| DATA-01 | kb-1 | Not started |
+| DATA-02 | kb-1 | Not started |
+| DATA-03 | kb-1 | Not started |
+| DATA-04 | kb-1 | Not started |
+| DATA-05 | kb-1 | Not started |
+| DATA-06 | kb-1 | Not started |
+| EXPORT-01 | kb-1 | Not started |
+| EXPORT-02 | kb-1 | Not started |
+| EXPORT-03 | kb-1 | Not started |
+| EXPORT-04 | kb-1 | Not started |
+| EXPORT-05 | kb-1 | Not started |
+| EXPORT-06 | kb-1 | Not started |
+| UI-01 | kb-1 | Not started |
+| UI-02 | kb-1 | Not started |
+| UI-03 | kb-1 | Not started |
+| UI-04 | kb-1 | Not started |
+| UI-05 | kb-1 | Not started |
+| UI-06 | kb-1 | Not started |
+| UI-07 | kb-1 | Not started |
+| API-01 | kb-3 | Not started |
+| API-02 | kb-3 | Not started |
+| API-03 | kb-3 | Not started |
+| API-04 | kb-3 | Not started |
+| API-05 | kb-3 | Not started |
+| API-06 | kb-3 | Not started |
+| API-07 | kb-3 | Not started |
+| API-08 | kb-3 | Not started |
+| SEARCH-01 | kb-3 | Not started |
+| SEARCH-02 | kb-3 | Not started |
+| SEARCH-03 | kb-3 | Not started |
+| QA-01 | kb-3 | Not started |
+| QA-02 | kb-3 | Not started |
+| QA-03 | kb-3 | Not started |
+| QA-04 | kb-3 | Not started |
+| QA-05 | kb-3 | Not started |
+| DEPLOY-01 | kb-4 | Not started |
+| DEPLOY-02 | kb-4 | Not started |
+| DEPLOY-03 | kb-4 | Not started |
+| DEPLOY-04 | kb-4 | Not started |
+| DEPLOY-05 | kb-4 | Not started |
+| CONFIG-01 | kb-1 | Not started |
+| CONFIG-02 | kb-3 | Not started |
+
+**Phase totals:** kb-1 = 27, kb-3 = 18, kb-4 = 5 → **50 total**.
