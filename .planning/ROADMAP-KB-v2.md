@@ -119,7 +119,16 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
   8. `kb/config.py` reads `KB_DB_PATH`, `KB_IMAGES_DIR`, `KB_OUTPUT_DIR`, `KB_PORT`,
      `KB_DEFAULT_LANG`, `KB_SYNTHESIZE_TIMEOUT` from env with documented defaults;
      no path is hardcoded outside config.py (CONFIG-01).
-**Plans:** TBD
+**Plans:** 9 plans across 4 waves (created 2026-05-12 by gsd-phase-planner)
+- [ ] kb-1-01-config-skeleton-PLAN.md — kb/ package skeleton + env-driven kb/config.py (Wave 1)
+- [ ] kb-1-02-migration-lang-detect-PLAN.md — DATA-01 migration + lang_detect helper (Wave 1)
+- [ ] kb-1-03-i18n-locale-PLAN.md — zh-CN.json + en.json + Jinja2 t() filter (Wave 1)
+- [ ] kb-1-04-static-css-js-PLAN.md — style.css + lang.js + brand assets (Wave 1, has checkpoint)
+- [ ] kb-1-05-detect-script-driver-PLAN.md — detect_article_lang.py CLI driver (Wave 2)
+- [ ] kb-1-06-article-query-PLAN.md — DATA-04..06 read-only query layer (Wave 2)
+- [ ] kb-1-07-base-template-pages-PLAN.md — base.html + index/articles_index/ask templates (Wave 3)
+- [ ] kb-1-08-article-detail-template-PLAN.md — article.html with content lang + JSON-LD (Wave 3)
+- [ ] kb-1-09-export-driver-PLAN.md — export_knowledge_base.py SSG entry + integration test (Wave 4)
 **UI hint:** yes
 **Notes:**
 - I18N-04 lives in kb-1 because the filter capability is grounded in `DATA-04`
@@ -268,7 +277,7 @@ fallback all working; smoke #1 requires kb-1's i18n).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| kb-1: SSG Export + i18n Foundation | 0/? | Not started | — |
+| kb-1: SSG Export + i18n Foundation | 0/9 | Plans created | — |
 | kb-3: FastAPI Backend + Bilingual API + Search + Q&A | 0/? | Not started | — |
 | kb-4: Ubuntu Deploy + Cron + Smoke Verification | 0/? | Not started | — |
 

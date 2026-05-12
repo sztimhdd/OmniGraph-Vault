@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: KB-v2
 milestone_name: — KB-v2 (parallel-track)
-status: ready-for-discuss-phase
-last_updated: "2026-05-12T18:00:00Z"
-last_activity: "2026-05-12 — ROADMAP-KB-v2.md created by gsd-roadmapper; 50/50 REQs mapped across 3 phases (kb-1, kb-3, kb-4)"
+status: kb-1-planned-ready-for-execute
+last_updated: "2026-05-12T20:00:00Z"
+last_activity: "2026-05-12 — kb-1 phase planned: 10 plans across 5 waves, 27/27 REQs covered, plan-checker verified after 1 revision iteration (all critical/major/minor issues resolved + wave anomaly bumped 08→W4 / 09→W5)"
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 10
   completed_plans: 0
 ---
 
@@ -26,28 +26,39 @@ progress:
 ## Current Position
 
 Milestone: KB-v2 (parallel-track to v3.4 / v3.5 / Agentic-RAG-v1)
-Phase: Not started — roadmap approved, ready for first phase planning
-Plan: —
-Status: Ready for `/gsd:discuss-phase kb-1` (or `/gsd:plan-phase kb-1` to skip discussion)
-Last activity: 2026-05-12 — ROADMAP-KB-v2.md created by gsd-roadmapper; 50/50 REQs mapped across 3 phases (kb-1, kb-3, kb-4)
+Phase: **kb-1 planned** — 10 plans across 5 waves, ready for execution
+Plan: 0/10 executed
+Status: Ready for `/gsd:execute-phase kb-1`
+Last activity: 2026-05-12 — kb-1 phase planning complete; CONTEXT.md synthesized via PRD-express-path equivalent (no /gsd:discuss-phase round-trip), planner spawned, checker found 1 critical + 3 major + 4 minor issues, planner revised (split kb-1-04 → 04+04b, fixed sitemap idempotency / test recursive sha256 / dead --db-path / og fallback / TODO markers / .gitignore / locale cache doc), wave anomaly fixed manually (kb-1-08 W3→W4, kb-1-09 W4→W5).
 
 ### Phase plan
 
-| Phase | Goal | REQs | T-shirt |
-|-------|------|------|---------|
-| kb-1 | SSG Export + i18n Foundation (data layer + Jinja2 + bilingual chrome) | 27 | L |
-| kb-3 | FastAPI Backend + Bilingual API + Search + Q&A | 18 | L |
-| kb-4 | Ubuntu Deploy + Cron + Smoke Verification | 5 | S |
+| Phase | Goal | REQs | T-shirt | Plans | Status |
+|-------|------|------|---------|-------|--------|
+| kb-1 | SSG Export + i18n Foundation (data layer + Jinja2 + bilingual chrome) | 27 | L | 10 | ✅ planned, ready for execute |
+| kb-3 | FastAPI Backend + Bilingual API + Search + Q&A | 18 | L | TBD | not started |
+| kb-4 | Ubuntu Deploy + Cron + Smoke Verification | 5 | S | TBD | not started |
 
-Total: 50/50 v2.0 REQs mapped, 0 orphans, 0 duplicates.
+Total: 50/50 v2.0 REQs mapped, 0 orphans, 0 duplicates. kb-1: 10 plans, 27 REQs, 5 waves.
 
 > **Note:** kb-2 (entity pages + topic Pillar pages) explicitly skipped this
 > milestone — deferred to v2.1 per PROJECT-KB-v2.md "Out of Scope".
 
+### kb-1 Wave Structure (10 plans, 5 waves)
+
+| Wave | Plans (parallel within wave) | Goal |
+|------|-------------------------------|------|
+| 1 | 01 (config), 02 (migration+lang_detect), 03 (i18n locale), 04 (CSS+JS), 04b (brand assets checkpoint) | Foundation — no inter-deps |
+| 2 | 05 (detect script driver), 06 (article_query) | Data layer — depends on Wave 1 |
+| 3 | 07 (base.html + index/articles_index/ask templates) | Chrome templates — depends on 03 (locale) + 04 (CSS) |
+| 4 | 08 (article.html detail) | Detail template — extends 07 base.html |
+| 5 | 09 (export_knowledge_base.py SSG driver + integration test) | Orchestrator — depends on all prior |
+
 ### Immediate next step
 
-`/gsd:discuss-phase kb-1` (preferred) or `/gsd:plan-phase kb-1` if ready to skip
-discussion.
+`/gsd:execute-phase kb-1` (use `/clear` first for fresh context window)
+
+After all 10 plans execute green: kb-1 success criteria 8 conditions verified, then plan kb-3.
 
 ## Parallel-Track Boundary
 
