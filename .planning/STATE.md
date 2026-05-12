@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: verifying
-stopped_at: Completed quick 260512-cpf — Fix cron PATH bug in register_phase5_cron.sh (absolute venv python, no bare python, env override support)
-last_updated: "2026-05-12T10:45:00.000Z"
-last_activity: "2026-05-12 — Completed quick 260512-cpf: Fix cron PATH bug in register_phase5_cron.sh (4c63851) — adds OMNIGRAPH_DIR + VENV_PY variables with env override, replaces bare 'python' with ${VENV_PY} in 3 jobs (rss-rescrape-bodies, daily-classify-rss-layer2, reconcile-ingestions), replaces cd ~/ with cd ${OMNIGRAPH_DIR}; 7/7 validation checks pass, unit tests added, Hermes deploy prompt ready; eliminates manual PATH workaround requirement"
+stopped_at: Completed quick 260512-rrx — Extend reconcile-ingestions to monitor RSS in addition to WeChat (closes observability gap)
+last_updated: "2026-05-12T11:30:00.000Z"
+last_activity: "2026-05-12 — Completed quick 260512-rrx: Extend reconcile-ingestions canary scope from wechat-only to wechat+rss (b106697) — adds source parameter to doc_id computation, extends SQL to UNION articles+rss_articles, tracks mystery per-source, extends output format with (wechat: X, rss: Y) breakdown; 13/13 unit tests pass, backward compatible, no schema changes; Hermes deploy prompt ready"
 progress:
   total_phases: 14
   completed_phases: 10
