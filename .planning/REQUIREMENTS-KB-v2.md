@@ -159,14 +159,14 @@ Lighthouse LCP < 2.5s on article detail page.
 |-----|-------|--------|
 | I18N-01 | kb-1 | Complete (kb-1-04) |
 | I18N-02 | kb-1 | Complete (kb-1-04) |
-| I18N-03 | kb-1 | Not started |
+| I18N-03 | kb-1 | Complete (kb-1-03) |
 | I18N-04 | kb-1 | Not started |
 | I18N-05 | kb-1 | Not started |
 | I18N-06 | kb-1 | Not started |
 | I18N-07 | kb-3 | Not started |
 | I18N-08 | kb-1 | Complete (kb-1-04) |
-| DATA-01 | kb-1 | Not started |
-| DATA-02 | kb-1 | Not started |
+| DATA-01 | kb-1 | Complete (kb-1-02) |
+| DATA-02 | kb-1 | Complete — algorithm (kb-1-02); driver pending kb-1-05 |
 | DATA-03 | kb-1 | Not started |
 | DATA-04 | kb-1 | Not started |
 | DATA-05 | kb-1 | Not started |
