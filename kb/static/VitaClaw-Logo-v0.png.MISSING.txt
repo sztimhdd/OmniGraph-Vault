@@ -1,0 +1,29 @@
+VitaClaw-Logo-v0.png — MISSING (placeholder stub)
+
+Status: NOT YET SOURCED
+Reason: vitaclaw-site sibling repo not present at any of the candidate locations
+checked at plan kb-1-04b execution time (2026-05-12):
+
+  - ../vitaclaw-site/public/                              (not found)
+  - C:/Users/huxxha/Desktop/vitaclaw-site/public/         (not found)
+  - ~/vitaclaw-site/public/                               (Linux/Hermes — N/A locally)
+
+Graceful degradation
+--------------------
+The base.html template (delivered by plan kb-1-07) references the logo as:
+
+  <img src="/static/VitaClaw-Logo-v0.png"
+       alt="VitaClaw"
+       onerror="this.style.display='none'">
+
+The `onerror="this.style.display='none'"` attribute means the missing PNG
+degrades gracefully — the broken-image icon never appears; the nav simply
+omits the logo.
+
+Required action before kb-4 public deploy
+-----------------------------------------
+If kb-4 launches publicly (not internal preview), source the real
+`VitaClaw-Logo-v0.png` from vitaclaw-site (`public/VitaClaw-Logo-v0.png`)
+and drop it into `kb/static/`, then delete this `.MISSING.txt` stub.
+
+Documented as kb-4 prerequisite per plan kb-1-04b SUMMARY.md.
