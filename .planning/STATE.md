@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: verifying
-stopped_at: Completed quick 260511-rsp — Formalize Hermes-authored `enrichment/rss_prefilter.py` (byte-equal, no cron, no production caller yet — TRACK per WIP audit)
-last_updated: "2026-05-11T20:55:00.000Z"
-last_activity: "2026-05-11 — Completed quick 260511-rsp: Formalize Hermes-authored `enrichment/rss_prefilter.py` (189 LOC, sha256 a5e8f5...) — byte-equal copy from production Hermes via SCP, hash verified, import smoke OK, zero new pytest regressions (22 pre-existing failures all unrelated; no test imports rss_prefilter); CASE B per Phase 0 (live + audit-blessed TRACK + no cron yet + no production caller — `test_prefilter_30.py` itself classified DEAD); single atomic commit, no `register_phase5_cron.sh` edit (no cron to register)"
+stopped_at: Completed quick 260512-cpf — Fix cron PATH bug in register_phase5_cron.sh (absolute venv python, no bare python, env override support)
+last_updated: "2026-05-12T10:45:00.000Z"
+last_activity: "2026-05-12 — Completed quick 260512-cpf: Fix cron PATH bug in register_phase5_cron.sh (4c63851) — adds OMNIGRAPH_DIR + VENV_PY variables with env override, replaces bare 'python' with ${VENV_PY} in 3 jobs (rss-rescrape-bodies, daily-classify-rss-layer2, reconcile-ingestions), replaces cd ~/ with cd ${OMNIGRAPH_DIR}; 7/7 validation checks pass, unit tests added, Hermes deploy prompt ready; eliminates manual PATH workaround requirement"
 progress:
   total_phases: 14
   completed_phases: 10
