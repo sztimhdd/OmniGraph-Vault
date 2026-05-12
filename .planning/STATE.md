@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: executing
-stopped_at: Completed kb-1-04-static-css-js-PLAN.md
-last_updated: "2026-05-12T23:47:38.248Z"
-last_activity: 2026-05-12 -- Phase kb-1-ssg-export-i18n execution started
+stopped_at: Completed kb-1-02-PLAN.md
+last_updated: "2026-05-12T23:48:54.712Z"
+last_activity: 2026-05-12
 progress:
   total_phases: 14
   completed_phases: 10
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 Milestone: v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 + 20 shipped; Phase 21 STK track shipped via quicks; Phase 21 E2R-01/02 + Phase 22 SUPERSEDED-BY-ir4 — RSS pipeline retired)
 Phase: kb-1-ssg-export-i18n (foundation) — EXECUTING
-Plan: 1 of 10
-Status: Executing Phase kb-1-ssg-export-i18n
-Last activity: 2026-05-12 -- Phase kb-1-ssg-export-i18n execution started
+Plan: 3 of 10
+Status: Ready to execute
+Last activity: 2026-05-12
 
 ### Immediate next step
 
@@ -165,6 +165,9 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase 20 P02 | 20 | 2 tasks | 2 files |
 | Phase quick-260511-b3y P01 | 525618 | 3 tasks | 3 files |
 | Phase kb-1-ssg-export-i18n-foundation P04 | 3min | 2 tasks | 2 files |
+| Phase kb-1-ssg-export-i18n-foundation P01 | 3m | 3 tasks | 11 files |
+| Phase kb-1-ssg-export-i18n-foundation P03 | 4m | 2 tasks | 4 files |
+| Phase kb-1-ssg-export-i18n-foundation Pkb-1-02 | 10min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -235,6 +238,9 @@ Recent decisions affecting current work:
 - [Phase quick-260511-b3y]: Default GOOGLE_CLOUD_LOCATION to global in _make_client(); gemini-embedding-2 requires global endpoint (not us-central1)
 - [Phase quick-260511-lmw]: Raise DeepSeek per-call timeout default 120s→300s; env-overridable via OMNIGRAPH_DEEPSEEK_TIMEOUT
 - [Phase kb-1-ssg-export-i18n-foundation]: kb-1-04: Pygments Monokai CSS embedded inline in style.css (not separate render-time file); ES5 IIFE for lang.js for older WeChat browser compat
+- [Phase kb-1-ssg-export-i18n-foundation]: kb.config uses module-level constants + importlib.reload pattern for env override (vs getter functions); .gitignore converted to kb/output/* + !kb/output/.gitignore to allow per-dir gitignore tracking, mirroring credentials/* idiom
+- [Phase kb-1-ssg-export-i18n-foundation]: kb-1-03: i18n foundation shipped — 45-key locale JSONs (zh-CN+en parity) + kb.i18n module with t()/register_jinja2_filter()/validate_key_parity()/load_locales(), 8/8 unit tests pass
+- [Phase kb-1-ssg-export-i18n-foundation]: kb-1-02: Mirrored enrichment/rss_schema.py PRAGMA table_info pattern for lang column migration; spy via SpyConn proxy class (sqlite3.Connection.execute is read-only in CPython 3.13)
 
 ### Pending Todos
 
@@ -319,8 +325,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-12T23:47:38.239Z
-Stopped at: Completed kb-1-04-static-css-js-PLAN.md
+Last session: 2026-05-12T23:48:54.703Z
+Stopped at: Completed kb-1-02-PLAN.md
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 

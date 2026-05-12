@@ -41,7 +41,7 @@ Lighthouse LCP < 2.5s on article detail page.
 
 - [x] **I18N-01**: System detects user's preferred language from the `Accept-Language` HTTP header on first visit. Defaults to `zh-CN` if neither `zh` nor `en` is acceptable.
 - [x] **I18N-02**: User can switch UI language via `?lang=en` or `?lang=zh` query param. Selection persists for 1 year via `kb_lang` cookie.
-- [ ] **I18N-03**: All UI chrome strings (nav, labels, buttons, footer, page titles, form placeholders) load from `kb/locale/zh-CN.json` + `kb/locale/en.json` via a `{{ t('key.path') }}` Jinja2 filter. Estimated ~50 string keys.
+- [x] **I18N-03**: All UI chrome strings (nav, labels, buttons, footer, page titles, form placeholders) load from `kb/locale/zh-CN.json` + `kb/locale/en.json` via a `{{ t('key.path') }}` Jinja2 filter. Estimated ~50 string keys. *(Shipped kb-1-03: 45 keys, 8/8 tests pass.)*
 - [ ] **I18N-04**: User can filter article list by content language via `?lang=zh-CN` or `?lang=en`; default shows all languages mixed.
 - [ ] **I18N-05**: Article detail page sets `<html lang="zh-CN">` or `<html lang="en">` matching the article's **content** language (independent of UI chrome language).
 - [ ] **I18N-06**: Article detail page shows a visible badge ("中文" / "English") indicating content language at the top of the article.
@@ -50,8 +50,8 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ### DATA — Data Layer (6)
 
-- [ ] **DATA-01**: One-time SQLite migration adds nullable `lang TEXT` column to both `articles` and `rss_articles` tables. Idempotent — re-running is safe (uses `PRAGMA table_info` pre-check).
-- [ ] **DATA-02**: `kb/scripts/detect_article_lang.py` populates `lang` column based on Chinese character ratio: `> 30%` → `zh-CN`, otherwise `en`. Produces stdout coverage report (`{zh-CN: N, en: M, unknown: K}`).
+- [x] **DATA-01**: One-time SQLite migration adds nullable `lang TEXT` column to both `articles` and `rss_articles` tables. Idempotent — re-running is safe (uses `PRAGMA table_info` pre-check). *(kb-1-02, 2026-05-12)*
+- [x] **DATA-02**: `kb/scripts/detect_article_lang.py` populates `lang` column based on Chinese character ratio: `> 30%` → `zh-CN`, otherwise `en`. Produces stdout coverage report (`{zh-CN: N, en: M, unknown: K}`). *(kb-1-02 algorithm only — kb/data/lang_detect.py; driver in kb-1-05)*
 - [ ] **DATA-03**: `kb/scripts/detect_article_lang.py` runs incrementally — only updates rows where `lang IS NULL`. Safe to re-invoke daily via cron.
 - [ ] **DATA-04**: `kb/data/article_query.py` exposes `list_articles(lang=None, source=None, limit=20, offset=0)` returning paginated `ArticleRecord` dataclass list sorted by `update_time DESC`.
 - [ ] **DATA-05**: `kb/data/article_query.py` exposes `get_article_by_hash(hash: str)` resolving `md5[:10]` hash → `ArticleRecord | None`. Searches both KOL `articles` and RSS `rss_articles` tables.
@@ -111,7 +111,7 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ### CONFIG — Env-Driven Configuration (2)
 
-- [ ] **CONFIG-01**: `kb/config.py` reads all paths and ports from environment variables with sensible defaults. Required keys: `KB_DB_PATH` (default `~/.hermes/data/kol_scan.db`), `KB_IMAGES_DIR` (default `~/.hermes/omonigraph-vault/images`), `KB_OUTPUT_DIR` (default `kb/output`), `KB_PORT` (default `8766`), `KB_DEFAULT_LANG` (default `zh-CN`), `KB_SYNTHESIZE_TIMEOUT` (default `60`).
+- [x] **CONFIG-01**: `kb/config.py` reads all paths and ports from environment variables with sensible defaults. Required keys: `KB_DB_PATH` (default `~/.hermes/data/kol_scan.db`), `KB_IMAGES_DIR` (default `~/.hermes/omonigraph-vault/images`), `KB_OUTPUT_DIR` (default `kb/output`), `KB_PORT` (default `8766`), `KB_DEFAULT_LANG` (default `zh-CN`), `KB_SYNTHESIZE_TIMEOUT` (default `60`).
 - [ ] **CONFIG-02**: KB does not introduce new LLM provider env vars. Q&A delegates to existing `lib.llm_complete.get_llm_func()` which honors `OMNIGRAPH_LLM_PROVIDER={deepseek, vertex_gemini}` (K-1).
 
 ---
@@ -205,7 +205,7 @@ Lighthouse LCP < 2.5s on article detail page.
 | DEPLOY-03 | kb-4 | Not started |
 | DEPLOY-04 | kb-4 | Not started |
 | DEPLOY-05 | kb-4 | Not started |
-| CONFIG-01 | kb-1 | Not started |
+| CONFIG-01 | kb-1 | Complete |
 | CONFIG-02 | kb-3 | Not started |
 
 **Phase totals:** kb-1 = 27, kb-3 = 18, kb-4 = 5 → **50 total**.
