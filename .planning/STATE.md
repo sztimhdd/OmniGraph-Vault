@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
-status: verifying
-stopped_at: Completed quick 260512-rln — Drop capture_output in orchestrate _run + log Pattern A budget activation
-last_updated: "2026-05-12T22:57:00.000Z"
-last_activity: "2026-05-12 — Completed quick 260512-rln: chore(observability) drop capture_output in orchestrate _run + log Pattern A budget activation (fa5499b) — orchestrate_daily.py _run() no longer capture_output (child stdout streams directly to tee), PYTHONUNBUFFERED=1 added, StepResult.summary simplified; lib/lightrag_queue_probe.py compute_dynamic_budget() emits 1 logger.info per call so gqu Pattern A activation is grep-able; new caplog test (7/7 PASS, was 6); zero source refactor beyond surgical edits; tomorrow 09:00 ADT cron is validation site"
+status: executing
+stopped_at: Completed kb-1-04-static-css-js-PLAN.md
+last_updated: "2026-05-12T23:47:38.248Z"
+last_activity: 2026-05-12 -- Phase kb-1-ssg-export-i18n execution started
 progress:
   total_phases: 14
   completed_phases: 10
@@ -20,15 +20,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Phase 20 — rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix
+**Current focus:** Phase kb-1-ssg-export-i18n — foundation
 
 ## Current Position
 
 Milestone: v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 + 20 shipped; Phase 21 STK track shipped via quicks; Phase 21 E2R-01/02 + Phase 22 SUPERSEDED-BY-ir4 — RSS pipeline retired)
-Phase: 20 (rss-full-body-classify-multimodal-ingest-rewrite-cognee-routing-fix) — Complete (2026-05-07)
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-05-12 — Completed quick 260512-rln: observability fix — drop capture_output in orchestrate `_run` + 1 `logger.info` for Pattern A budget activation (commit `fa5499b`)
+Phase: kb-1-ssg-export-i18n (foundation) — EXECUTING
+Plan: 1 of 10
+Status: Executing Phase kb-1-ssg-export-i18n
+Last activity: 2026-05-12 -- Phase kb-1-ssg-export-i18n execution started
 
 ### Immediate next step
 
@@ -164,6 +164,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase 20 P03 | 3 | 2 tasks | 1 files |
 | Phase 20 P02 | 20 | 2 tasks | 2 files |
 | Phase quick-260511-b3y P01 | 525618 | 3 tasks | 3 files |
+| Phase kb-1-ssg-export-i18n-foundation P04 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -233,6 +234,7 @@ Recent decisions affecting current work:
 - [Phase 20]: import image_pipeline as module (not from import) so monkeypatch.setattr works on test call sites
 - [Phase quick-260511-b3y]: Default GOOGLE_CLOUD_LOCATION to global in _make_client(); gemini-embedding-2 requires global endpoint (not us-central1)
 - [Phase quick-260511-lmw]: Raise DeepSeek per-call timeout default 120s→300s; env-overridable via OMNIGRAPH_DEEPSEEK_TIMEOUT
+- [Phase kb-1-ssg-export-i18n-foundation]: kb-1-04: Pygments Monokai CSS embedded inline in style.css (not separate render-time file); ES5 IIFE for lang.js for older WeChat browser compat
 
 ### Pending Todos
 
@@ -317,8 +319,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-12T22:57:00.000Z
-Stopped at: Completed quick 260512-rln — Drop capture_output in orchestrate _run + log Pattern A budget activation (fa5499b)
+Last session: 2026-05-12T23:47:38.239Z
+Stopped at: Completed kb-1-04-static-css-js-PLAN.md
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 

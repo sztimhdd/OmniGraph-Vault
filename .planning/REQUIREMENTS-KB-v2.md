@@ -39,14 +39,14 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ### I18N — Bilingual Core (8)
 
-- [ ] **I18N-01**: System detects user's preferred language from the `Accept-Language` HTTP header on first visit. Defaults to `zh-CN` if neither `zh` nor `en` is acceptable.
-- [ ] **I18N-02**: User can switch UI language via `?lang=en` or `?lang=zh` query param. Selection persists for 1 year via `kb_lang` cookie.
+- [x] **I18N-01**: System detects user's preferred language from the `Accept-Language` HTTP header on first visit. Defaults to `zh-CN` if neither `zh` nor `en` is acceptable.
+- [x] **I18N-02**: User can switch UI language via `?lang=en` or `?lang=zh` query param. Selection persists for 1 year via `kb_lang` cookie.
 - [ ] **I18N-03**: All UI chrome strings (nav, labels, buttons, footer, page titles, form placeholders) load from `kb/locale/zh-CN.json` + `kb/locale/en.json` via a `{{ t('key.path') }}` Jinja2 filter. Estimated ~50 string keys.
 - [ ] **I18N-04**: User can filter article list by content language via `?lang=zh-CN` or `?lang=en`; default shows all languages mixed.
 - [ ] **I18N-05**: Article detail page sets `<html lang="zh-CN">` or `<html lang="en">` matching the article's **content** language (independent of UI chrome language).
 - [ ] **I18N-06**: Article detail page shows a visible badge ("中文" / "English") indicating content language at the top of the article.
 - [ ] **I18N-07**: Q&A endpoint accepts `lang` parameter (`zh` / `en`); KB layer prepends `"请用中文回答。\n\n"` or `"Please answer in English.\n\n"` directive to the query before calling `kg_synthesize.synthesize_response()`. **Function signature unchanged** (C1 preserved).
-- [ ] **I18N-08**: Language switcher control visible in top nav on all pages — text label "中 / EN" or equivalent, click toggles `?lang=` and updates cookie.
+- [x] **I18N-08**: Language switcher control visible in top nav on all pages — text label "中 / EN" or equivalent, click toggles `?lang=` and updates cookie.
 
 ### DATA — Data Layer (6)
 
@@ -68,9 +68,9 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ### UI — Presentation (7)
 
-- [ ] **UI-01**: Global design tokens inherited from vitaclaw-site暗色主题: `--bg: #0f172a` / `--bg-card: #1e293b` / `--text: #f0f4f8` / `--accent: #3b82f6` / `--accent-green: #22d3a0`. Defined in single `kb/static/style.css` file.
-- [ ] **UI-02**: Font stack: `'Inter', 'Noto Sans SC', system-ui, sans-serif` — covers Latin and Chinese glyphs without external font loading on first paint.
-- [ ] **UI-03**: All pages responsive across mobile (320-767px), tablet (768-1023px), desktop (1024px+). No horizontal scroll on mobile viewport.
+- [x] **UI-01**: Global design tokens inherited from vitaclaw-site暗色主题: `--bg: #0f172a` / `--bg-card: #1e293b` / `--text: #f0f4f8` / `--accent: #3b82f6` / `--accent-green: #22d3a0`. Defined in single `kb/static/style.css` file.
+- [x] **UI-02**: Font stack: `'Inter', 'Noto Sans SC', system-ui, sans-serif` — covers Latin and Chinese glyphs without external font loading on first paint.
+- [x] **UI-03**: All pages responsive across mobile (320-767px), tablet (768-1023px), desktop (1024px+). No horizontal scroll on mobile viewport.
 - [ ] **UI-04**: Brand assets reused from vitaclaw-site (logo `VitaClaw-Logo-v0.png` in nav, `favicon.svg`). No new asset files in this milestone.
 - [ ] **UI-05**: Every page emits Open Graph meta tags: `og:title`, `og:description`, `og:image`, `og:type`, `og:locale` (matches `<html lang>` for content pages). Web courtesy for IM share previews.
 - [ ] **UI-06**: Article detail pages emit JSON-LD `Article` schema with `inLanguage` field matching article content language. **Web courtesy baseline, not SEO push.**
@@ -157,14 +157,14 @@ Lighthouse LCP < 2.5s on article detail page.
 
 | REQ | Phase | Status |
 |-----|-------|--------|
-| I18N-01 | kb-1 | Not started |
-| I18N-02 | kb-1 | Not started |
+| I18N-01 | kb-1 | Complete (kb-1-04) |
+| I18N-02 | kb-1 | Complete (kb-1-04) |
 | I18N-03 | kb-1 | Not started |
 | I18N-04 | kb-1 | Not started |
 | I18N-05 | kb-1 | Not started |
 | I18N-06 | kb-1 | Not started |
 | I18N-07 | kb-3 | Not started |
-| I18N-08 | kb-1 | Not started |
+| I18N-08 | kb-1 | Complete (kb-1-04) |
 | DATA-01 | kb-1 | Not started |
 | DATA-02 | kb-1 | Not started |
 | DATA-03 | kb-1 | Not started |
@@ -177,9 +177,9 @@ Lighthouse LCP < 2.5s on article detail page.
 | EXPORT-04 | kb-1 | Not started |
 | EXPORT-05 | kb-1 | Not started |
 | EXPORT-06 | kb-1 | Not started |
-| UI-01 | kb-1 | Not started |
-| UI-02 | kb-1 | Not started |
-| UI-03 | kb-1 | Not started |
+| UI-01 | kb-1 | Complete (kb-1-04) |
+| UI-02 | kb-1 | Complete (kb-1-04) |
+| UI-03 | kb-1 | Complete (kb-1-04) |
 | UI-04 | kb-1 | Not started |
 | UI-05 | kb-1 | Not started |
 | UI-06 | kb-1 | Not started |
