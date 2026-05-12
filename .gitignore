@@ -53,7 +53,12 @@ spiders/*.zip
 *.zip
 
 # Knowledge Base build output (SSG-generated, not source)
-kb/output/
+# Pattern is `kb/output/*` (not `kb/output/`) so per-dir `kb/output/.gitignore`
+# can be re-included via the negation below — same fix pattern as credentials/
+# below. This lets the kb/output/ directory exist in git (via the .gitignore
+# file itself) while excluding all SSG build artifacts.
+kb/output/*
+!kb/output/.gitignore
 
 # Vertex AI service account keys — directory contents excluded, template tracked
 # NOTE: pattern is `credentials/*` (not `credentials/`) because git cannot re-include
