@@ -1,0 +1,55 @@
+{
+  "site.brand": "企小勤",
+  "site.brand_aux": "VitaClaw",
+  "site.tagline": "AI Agent 技术圈双语知识库",
+  "site.title": "企小勤知识库 — AI Agent 技术内容站",
+
+  "nav.home": "首页",
+  "nav.articles": "文章",
+  "nav.ask": "AI 问答",
+  "nav.search_placeholder": "搜索文章、实体、主题…",
+
+  "lang.toggle_to_en": "EN",
+  "lang.toggle_to_zh": "中",
+  "lang.current_zh": "中文",
+  "lang.current_en": "English",
+  "lang.switcher_aria": "切换语言",
+
+  "home.hero_title": "AI Agent 技术圈双语知识库",
+  "home.hero_subtitle": "汇聚 KOL 文章、技术分析、问答合成",
+  "home.section_latest": "最新文章",
+  "home.section_ask_cta": "试试智能问答",
+  "home.section_ask_desc": "基于知识图谱的深度问答,3-10 秒返回",
+
+  "articles.page_title": "全部文章",
+  "articles.filter_lang": "语言",
+  "articles.filter_source": "来源",
+  "articles.filter_all": "全部",
+  "articles.filter_lang_zh": "中文",
+  "articles.filter_lang_en": "English",
+  "articles.filter_source_wechat": "公众号",
+  "articles.filter_source_rss": "RSS",
+  "articles.empty": "暂无文章",
+  "articles.read_more": "阅读全文",
+
+  "article.lang_zh": "中文",
+  "article.lang_en": "English",
+  "article.source_label": "来源",
+  "article.published_at": "发布于",
+  "article.body_source_enriched": "已增强",
+  "article.body_source_raw": "原始内容",
+  "article.cta_ask": "对这篇文章有疑问?问 AI →",
+
+  "breadcrumb.home": "首页",
+  "breadcrumb.articles": "文章",
+
+  "ask.page_title": "AI 智能问答",
+  "ask.input_placeholder": "输入你的问题,基于知识库为你解答…",
+  "ask.submit": "深度问答",
+  "ask.hot_questions": "热门问题",
+  "ask.disclaimer": "回答由 AI 基于知识库合成,仅供参考",
+
+  "footer.copyright": "© 2026 企小勤 VitaClaw",
+  "footer.about": "关于",
+  "footer.contact": "联系我们"
+}

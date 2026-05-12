@@ -1,0 +1,55 @@
+{
+  "site.brand": "VitaClaw",
+  "site.brand_aux": "企小勤",
+  "site.tagline": "Bilingual AI Agent Tech Knowledge Base",
+  "site.title": "VitaClaw KB — AI Agent Tech Content",
+
+  "nav.home": "Home",
+  "nav.articles": "Articles",
+  "nav.ask": "Ask AI",
+  "nav.search_placeholder": "Search articles, entities, topics…",
+
+  "lang.toggle_to_en": "EN",
+  "lang.toggle_to_zh": "中",
+  "lang.current_zh": "中文",
+  "lang.current_en": "English",
+  "lang.switcher_aria": "Switch language",
+
+  "home.hero_title": "Bilingual AI Agent Tech Knowledge Base",
+  "home.hero_subtitle": "KOL articles, deep analysis, RAG Q&A",
+  "home.section_latest": "Latest Articles",
+  "home.section_ask_cta": "Try AI Q&A",
+  "home.section_ask_desc": "Deep KG-backed Q&A — 3-10 seconds",
+
+  "articles.page_title": "All Articles",
+  "articles.filter_lang": "Language",
+  "articles.filter_source": "Source",
+  "articles.filter_all": "All",
+  "articles.filter_lang_zh": "中文",
+  "articles.filter_lang_en": "English",
+  "articles.filter_source_wechat": "WeChat",
+  "articles.filter_source_rss": "RSS",
+  "articles.empty": "No articles yet",
+  "articles.read_more": "Read more",
+
+  "article.lang_zh": "中文",
+  "article.lang_en": "English",
+  "article.source_label": "Source",
+  "article.published_at": "Published",
+  "article.body_source_enriched": "Enriched",
+  "article.body_source_raw": "Raw content",
+  "article.cta_ask": "Question about this article? Ask AI →",
+
+  "breadcrumb.home": "Home",
+  "breadcrumb.articles": "Articles",
+
+  "ask.page_title": "AI Knowledge Q&A",
+  "ask.input_placeholder": "Type your question — KB-backed answer in seconds…",
+  "ask.submit": "Ask",
+  "ask.hot_questions": "Popular Questions",
+  "ask.disclaimer": "Answer synthesized by AI from knowledge base — for reference only",
+
+  "footer.copyright": "© 2026 VitaClaw 企小勤",
+  "footer.about": "About",
+  "footer.contact": "Contact"
+}

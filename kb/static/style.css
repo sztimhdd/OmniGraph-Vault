@@ -1,0 +1,587 @@
+/* kb/static/style.css
+ *
+ * KB-v2 Phase kb-1 — Plan kb-1-04 (UI-01, UI-02, UI-03)
+ *
+ * Single CSS file for the SSG output. Vanilla CSS, no preprocessor, no Tailwind.
+ * No external font URLs; system Inter / Noto Sans SC fallback chain.
+ *
+ * Sections:
+ *   1. CSS variables (design tokens) — UI-01, UI-02
+ *   2. Reset + base
+ *   3. Layout primitives
+ *   4. Top nav (lang toggle)
+ *   5. i18n span toggling — paired with kb/static/lang.js
+ *   6. Article list cards
+ *   7. Article detail
+ *   8. Responsive (mobile-first) — UI-03
+ *   9. Pygments Monokai (offline-generated, embedded)
+ */
+
+/* ==========================================================================
+ * 1. CSS variables (design tokens) — UI-01, UI-02
+ * ========================================================================== */
+
+:root {
+  --bg: #0f172a;
+  --bg-card: #1e293b;
+  --text: #f0f4f8;
+  --text-secondary: #94a3b8;
+  --accent: #3b82f6;
+  --accent-green: #22d3a0;
+  --border: rgba(255, 255, 255, 0.1);
+  --font-sans: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ==========================================================================
+ * 2. Reset + base
+ * ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+ul,
+ol {
+  padding-left: 1.5rem;
+}
+
+/* ==========================================================================
+ * 3. Layout primitives
+ * ========================================================================== */
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.btn {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.btn:hover {
+  opacity: 0.85;
+  text-decoration: none;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-card);
+}
+
+/* ==========================================================================
+ * 4. Top nav (used by base.html in plan 06)
+ * ========================================================================== */
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.nav-brand img {
+  height: 32px;
+  width: auto;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-links a {
+  color: var(--text);
+}
+
+.nav-links a:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.lang-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 0.25rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.lang-toggle:hover {
+  background: var(--bg-card);
+}
+
+/* ==========================================================================
+ * 5. i18n span toggling — paired with kb/static/lang.js
+ * ========================================================================== */
+
+[data-lang] {
+  display: none;
+}
+
+html[lang="zh-CN"] [data-lang="zh"],
+html[lang="zh"] [data-lang="zh"] {
+  display: inline;
+}
+
+html[lang="en"] [data-lang="en"] {
+  display: inline;
+}
+
+/* Block-level i18n elements (paragraphs, divs) need block display */
+html[lang="zh-CN"] .lang-block[data-lang="zh"],
+html[lang="zh"] .lang-block[data-lang="zh"],
+html[lang="en"] .lang-block[data-lang="en"] {
+  display: block;
+}
+
+/* ==========================================================================
+ * 6. Article list cards
+ * ========================================================================== */
+
+.article-list {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 0;
+  list-style: none;
+  margin: 0;
+}
+
+.article-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  transition: border-color 0.15s ease;
+}
+
+.article-card:hover {
+  border-color: var(--accent);
+}
+
+.article-card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.article-card-title a {
+  color: var(--text);
+}
+
+.article-card-title a:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.article-card-meta {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.article-card-snippet {
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.lang-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  background: var(--accent-green);
+  color: var(--bg);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.source-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  background: var(--bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+/* ==========================================================================
+ * 7. Article detail
+ * ========================================================================== */
+
+.breadcrumb {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 1rem 0;
+}
+
+.breadcrumb a {
+  color: var(--text-secondary);
+}
+
+.breadcrumb a:hover {
+  color: var(--accent);
+}
+
+.breadcrumb-sep {
+  margin: 0 0.5rem;
+  color: var(--border);
+}
+
+.article-header {
+  max-width: 720px;
+  margin: 1rem auto 2rem;
+}
+
+.article-header h1 {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.article-header .article-card-meta {
+  margin-top: 0.5rem;
+}
+
+.article-body {
+  line-height: 1.8;
+  max-width: 720px;
+  margin: 2rem auto;
+  color: var(--text);
+}
+
+.article-body h1,
+.article-body h2,
+.article-body h3,
+.article-body h4 {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.article-body h1 {
+  font-size: 1.6rem;
+}
+
+.article-body h2 {
+  font-size: 1.35rem;
+}
+
+.article-body h3 {
+  font-size: 1.15rem;
+}
+
+.article-body p {
+  margin-bottom: 1rem;
+}
+
+.article-body ul,
+.article-body ol {
+  margin-bottom: 1rem;
+}
+
+.article-body li {
+  margin-bottom: 0.25rem;
+}
+
+.article-body img {
+  margin: 1.5rem auto;
+  border-radius: 8px;
+}
+
+.article-body blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border-radius: 0 4px 4px 0;
+}
+
+.article-body pre {
+  background: #272822;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.article-body code {
+  background: var(--bg-card);
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.article-body pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.article-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.article-body th,
+.article-body td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.article-body th {
+  background: var(--bg-card);
+}
+
+/* Footer */
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 1.5rem 1rem;
+  margin-top: 3rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+/* ==========================================================================
+ * 8. Responsive (mobile-first) — UI-03
+ *
+ * Default styles target mobile (320-767px). Breakpoints add adjustments.
+ * ========================================================================== */
+
+/* Mobile defaults (320-767px) — keep nav tight at 320px */
+.nav-links {
+  font-size: 0.875rem;
+  gap: 1rem;
+}
+
+.article-header h1 {
+  font-size: 1.4rem;
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding: 0 2rem;
+  }
+
+  .nav {
+    padding: 1rem 2rem;
+  }
+
+  .nav-links {
+    font-size: 1rem;
+    gap: 1.5rem;
+  }
+
+  .article-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .article-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .article-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .article-body {
+    margin: 2rem auto;
+  }
+
+  .article-detail-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    gap: 2rem;
+    max-width: 1024px;
+    margin: 0 auto;
+  }
+
+  .article-detail-layout .article-body {
+    margin: 0;
+    max-width: none;
+  }
+}
+
+/* ==========================================================================
+ * 9. Pygments Monokai (offline-generated via:
+ *    python -c "from pygments.formatters import HtmlFormatter; \
+ *      print(HtmlFormatter(style='monokai').get_style_defs('.codehilite'))"
+ * ========================================================================== */
+
+pre { line-height: 125%; }
+td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+.codehilite .hll { background-color: #49483e }
+.codehilite { background: #272822; color: #F8F8F2 }
+.codehilite .c { color: #959077 } /* Comment */
+.codehilite .err { color: #ED007E; background-color: #1E0010 } /* Error */
+.codehilite .esc { color: #F8F8F2 } /* Escape */
+.codehilite .g { color: #F8F8F2 } /* Generic */
+.codehilite .k { color: #66D9EF } /* Keyword */
+.codehilite .l { color: #AE81FF } /* Literal */
+.codehilite .n { color: #F8F8F2 } /* Name */
+.codehilite .o { color: #FF4689 } /* Operator */
+.codehilite .x { color: #F8F8F2 } /* Other */
+.codehilite .p { color: #F8F8F2 } /* Punctuation */
+.codehilite .ch { color: #959077 } /* Comment.Hashbang */
+.codehilite .cm { color: #959077 } /* Comment.Multiline */
+.codehilite .cp { color: #959077 } /* Comment.Preproc */
+.codehilite .cpf { color: #959077 } /* Comment.PreprocFile */
+.codehilite .c1 { color: #959077 } /* Comment.Single */
+.codehilite .cs { color: #959077 } /* Comment.Special */
+.codehilite .gd { color: #FF4689 } /* Generic.Deleted */
+.codehilite .ge { color: #F8F8F2; font-style: italic } /* Generic.Emph */
+.codehilite .ges { color: #F8F8F2; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.codehilite .gr { color: #F8F8F2 } /* Generic.Error */
+.codehilite .gh { color: #F8F8F2 } /* Generic.Heading */
+.codehilite .gi { color: #A6E22E } /* Generic.Inserted */
+.codehilite .go { color: #66D9EF } /* Generic.Output */
+.codehilite .gp { color: #FF4689; font-weight: bold } /* Generic.Prompt */
+.codehilite .gs { color: #F8F8F2; font-weight: bold } /* Generic.Strong */
+.codehilite .gu { color: #959077 } /* Generic.Subheading */
+.codehilite .gt { color: #F8F8F2 } /* Generic.Traceback */
+.codehilite .kc { color: #66D9EF } /* Keyword.Constant */
+.codehilite .kd { color: #66D9EF } /* Keyword.Declaration */
+.codehilite .kn { color: #FF4689 } /* Keyword.Namespace */
+.codehilite .kp { color: #66D9EF } /* Keyword.Pseudo */
+.codehilite .kr { color: #66D9EF } /* Keyword.Reserved */
+.codehilite .kt { color: #66D9EF } /* Keyword.Type */
+.codehilite .ld { color: #E6DB74 } /* Literal.Date */
+.codehilite .m { color: #AE81FF } /* Literal.Number */
+.codehilite .s { color: #E6DB74 } /* Literal.String */
+.codehilite .na { color: #A6E22E } /* Name.Attribute */
+.codehilite .nb { color: #F8F8F2 } /* Name.Builtin */
+.codehilite .nc { color: #A6E22E } /* Name.Class */
+.codehilite .no { color: #66D9EF } /* Name.Constant */
+.codehilite .nd { color: #A6E22E } /* Name.Decorator */
+.codehilite .ni { color: #F8F8F2 } /* Name.Entity */
+.codehilite .ne { color: #A6E22E } /* Name.Exception */
+.codehilite .nf { color: #A6E22E } /* Name.Function */
+.codehilite .nl { color: #F8F8F2 } /* Name.Label */
+.codehilite .nn { color: #F8F8F2 } /* Name.Namespace */
+.codehilite .nx { color: #A6E22E } /* Name.Other */
+.codehilite .py { color: #F8F8F2 } /* Name.Property */
+.codehilite .nt { color: #FF4689 } /* Name.Tag */
+.codehilite .nv { color: #F8F8F2 } /* Name.Variable */
+.codehilite .ow { color: #FF4689 } /* Operator.Word */
+.codehilite .pm { color: #F8F8F2 } /* Punctuation.Marker */
+.codehilite .w { color: #F8F8F2 } /* Text.Whitespace */
+.codehilite .mb { color: #AE81FF } /* Literal.Number.Bin */
+.codehilite .mf { color: #AE81FF } /* Literal.Number.Float */
+.codehilite .mh { color: #AE81FF } /* Literal.Number.Hex */
+.codehilite .mi { color: #AE81FF } /* Literal.Number.Integer */
+.codehilite .mo { color: #AE81FF } /* Literal.Number.Oct */
+.codehilite .sa { color: #E6DB74 } /* Literal.String.Affix */
+.codehilite .sb { color: #E6DB74 } /* Literal.String.Backtick */
+.codehilite .sc { color: #E6DB74 } /* Literal.String.Char */
+.codehilite .dl { color: #E6DB74 } /* Literal.String.Delimiter */
+.codehilite .sd { color: #E6DB74 } /* Literal.String.Doc */
+.codehilite .s2 { color: #E6DB74 } /* Literal.String.Double */
+.codehilite .se { color: #AE81FF } /* Literal.String.Escape */
+.codehilite .sh { color: #E6DB74 } /* Literal.String.Heredoc */
+.codehilite .si { color: #E6DB74 } /* Literal.String.Interpol */
+.codehilite .sx { color: #E6DB74 } /* Literal.String.Other */
+.codehilite .sr { color: #E6DB74 } /* Literal.String.Regex */
+.codehilite .s1 { color: #E6DB74 } /* Literal.String.Single */
+.codehilite .ss { color: #E6DB74 } /* Literal.String.Symbol */
+.codehilite .bp { color: #F8F8F2 } /* Name.Builtin.Pseudo */
+.codehilite .fm { color: #A6E22E } /* Name.Function.Magic */
+.codehilite .vc { color: #F8F8F2 } /* Name.Variable.Class */
+.codehilite .vg { color: #F8F8F2 } /* Name.Variable.Global */
+.codehilite .vi { color: #F8F8F2 } /* Name.Variable.Instance */
+.codehilite .vm { color: #F8F8F2 } /* Name.Variable.Magic */
+.codehilite .il { color: #AE81FF } /* Literal.Number.Integer.Long */
