@@ -56,19 +56,19 @@ def _run(cmd: list[str], dry_run: bool, critical: bool = False) -> StepResult:
     if dry_run:
         return StepResult(True, f"dry: {' '.join(cmd)}")
     try:
+        # NOTE: do NOT capture_output — let child stdout/stderr stream directly
+        # to the parent (terminal / tee). 2026-05-12 Hermes evening manual fire
+        # confirmed capture_output=True silently swallowed orchestrate sub-step
+        # logs. PYTHONUNBUFFERED=1 forces Python child line-flush so tee sees
+        # progress in real time.
         r = subprocess.run(
             cmd,
-            capture_output=True,
-            text=True,
             timeout=SUBPROCESS_TIMEOUT_SECONDS,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
         if r.returncode != 0:
-            return StepResult(
-                False,
-                f"exit={r.returncode} stderr={r.stderr[:500]}",
-                critical=critical,
-            )
-        return StepResult(True, r.stdout[:500])
+            return StepResult(False, f"exit={r.returncode}", critical=critical)
+        return StepResult(True, "ok")
     except subprocess.TimeoutExpired:
         return StepResult(False, "timeout", critical=critical)
     except Exception as ex:

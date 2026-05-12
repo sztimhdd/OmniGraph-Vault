@@ -69,4 +69,9 @@ def compute_dynamic_budget(
             if isinstance(d, dict) and d.get("status") == "processing"
         )
     candidate = max(base_budget_s, queue_depth * per_doc_avg_s)
-    return float(min(candidate, cap_s))
+    effective = float(min(candidate, cap_s))
+    logger.info(
+        "gqu Pattern A: queue_depth=%d effective_budget_s=%.0f base=%.0f cap=%.0f",
+        queue_depth, effective, base_budget_s, cap_s,
+    )
+    return effective

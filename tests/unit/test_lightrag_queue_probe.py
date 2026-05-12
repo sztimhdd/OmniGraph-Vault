@@ -60,3 +60,23 @@ def test_fixture_busy_has_real_processing_docs():
     # Sanity: budget must be > base_budget_s when fixture has real busy state
     budget = compute_dynamic_budget(data, base_budget_s=300.0)
     assert budget >= 300.0
+
+
+@pytest.mark.unit
+def test_compute_dynamic_budget_emits_pattern_a_log_line(caplog):
+    """gqu Pattern A burst activation must be directly grep-able via 'gqu Pattern A' marker."""
+    import logging as _logging
+    caplog.set_level(_logging.INFO, logger="lib.lightrag_queue_probe")
+    ds = {"d0": {"status": "processing"}, "d1": {"status": "processing"}}
+    budget = compute_dynamic_budget(
+        ds, base_budget_s=300.0, per_doc_avg_s=60.0, cap_s=1800.0
+    )
+    # Math sanity: queue_depth=2, 2*60=120, max(300,120)=300, min(300,1800)=300
+    assert budget == 300.0
+    # Exactly one INFO record from the probe module
+    records = [r for r in caplog.records if r.name == "lib.lightrag_queue_probe"]
+    assert len(records) == 1, f"expected 1 INFO record, got {len(records)}"
+    msg = records[0].getMessage()
+    assert "gqu Pattern A" in msg, f"missing marker: {msg!r}"
+    assert "queue_depth=2" in msg, f"missing queue_depth: {msg!r}"
+    assert "effective_budget_s=300" in msg, f"missing effective_budget_s: {msg!r}"
