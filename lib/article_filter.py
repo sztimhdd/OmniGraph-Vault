@@ -72,7 +72,7 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------- constants
 
-PROMPT_VERSION_LAYER1: str = "layer1_v0_20260507"
+PROMPT_VERSION_LAYER1: str = "layer1_v1_20260512"
 """Bumping this string forces re-evaluation of all rows whose
 ``articles.layer1_prompt_version`` does not match (LF-1.8).
 Spike validating this exact version: ``.scratch/layer1-validation-20260507-151608.md``."""
@@ -172,12 +172,50 @@ class FilterResult:
 
 # ------------------------------------------------------------ Layer 1 v0 prompt
 
-_LAYER1_V0_PROMPT_BODY: str = """\
+_LAYER1_V1_PROMPT_BODY: str = """\
 你是一个文章 pre-filter,任务是 reject 明显不需要进入知识库的文章。
 知识库的核心兴趣是:**agent / LLM / RAG / prompt 工程 / AI 工程实践**。
 非此核心的内容,即便挂着 "AI" 招牌,也要 reject。
 
-REJECT(verdict="reject")的判断顺序(命中任一立刻 reject,不要再找 keep 理由):
+按以下三层裁决,**HIGHER 层胜出后立刻输出,不再评估更低层**:
+
+═════════════════════════════════════════════════════════════════
+RULE 0 — HARD-KEEP(项目核心硬规则,优先级高于 REJECT)
+═════════════════════════════════════════════════════════════════
+
+title 或 digest 整词包含以下任一关键字(大小写不敏感)→
+**立刻输出 verdict="candidate",不再评估下面的 REJECT 规则**:
+
+[A] 项目自身 / Anthropic CLI / 用户文档:
+   - "OpenClaw" / "Hermes Agent"(连写两词)/ "OmniGraph"
+   - "Harness"(在 Anthropic / agent / CLI 上下文中)
+   - "CLAUDE.md" / "AGENTS.md"
+
+[B] 用户核心 stack 工具:
+   - "Claude Code"(连写两词)
+   - "Cursor"(IDE / agent 上下文)
+   - "Aider" / "Codex CLI" / "Continue"(IDE 插件)
+
+[C] Agent SDK / 协议:
+   - "MCP" / "Model Context Protocol"
+   - "OpenAI Agents SDK" / "Anthropic Agents SDK" / "Anthropic Skills" / "Skills.md"
+
+⚠️ 精确匹配规则(防止 LLM 过度解释):
+- "Claude Code" 必须作为完整两词短语出现才算命中
+- 裸 "Claude"(如 "Claude 取消限制" / "Claude 性能") → 不走 R0,KEEP/REJECT 正常评判
+- "Cursor" 必须在 IDE / agent 上下文,排除 "cursor pointer" / "DB cursor" / "鼠标 cursor"
+- "Harness" 只在同句含 "Anthropic" / "agent" / "Claude Code" / "CLAUDE.md" 才触发
+- "MCP" 优先假设是 "Model Context Protocol"(其他含义概率低)
+
+**重要**:即使文章是新闻 / 八卦 / 软文,只要严格命中 RULE 0,仍然 keep —
+   用户需要这些信号(eg "OpenClaw 用户离开" / "Anthropic Harness 工程被骂")。
+
+**不要**单看模糊概念(如裸 "Agent / LLM / 大模型 / 智能体")— 那些走下面 KEEP 兜底,
+   不进 RULE 0 白名单(否则会让一切 AI 文章 keep)。
+
+═════════════════════════════════════════════════════════════════
+REJECT(verdict="reject")命中任一立刻 reject(同 v0,字字未改):
+═════════════════════════════════════════════════════════════════
 
 1. **多模态 / 视觉 / 视频 / 语音 模型本身** ⚠️ 高频漏放点:
    主题是 image generation、video generation、ASR / TTS、CV 论文(CVPR/ICCV/ECCV/NeurIPS 视觉方向)、
@@ -197,15 +235,28 @@ REJECT(verdict="reject")的判断顺序(命中任一立刻 reject,不要再找 k
 
 5. **长度明确不足**:content_length 已知且 < 1000。WeChat content_length 为 null 时跳过此项。
 
-KEEP(verdict="candidate")只在以下情况:
+═════════════════════════════════════════════════════════════════
+KEEP(verdict="candidate")— 兜底 keep 规则(同 v0,字字未改):
+═════════════════════════════════════════════════════════════════
+
 - agent / LLM / RAG / prompt / Claude / DeepSeek / Gemini / Hermes / OpenClaw / Harness / 智能体 /
   大模型 / 工具调用 — 且不踩上面任何一条 reject。
 - AI 工程实践、agent 框架对比、LLM 应用案例、MLOps、prompt 工程、推理优化(投机解码、KV cache 等)、
   agent 安全 / 评估 / benchmark / 编排、长上下文 / 上下文工程。
 - 长度未知(WeChat scrape 前 content_length=null)不能作为 reject 理由。
 
-**冲突处理**:文章同时挂 "agent / LLM" 招牌但实质是规则 1 / 2 命中 → REJECT 优先级高于 KEEP。
-**保守原则**:reject 边界吃不准时,倾向 reject(后续还有 Layer 2 兜底)。
+═════════════════════════════════════════════════════════════════
+冲突处理 + 输出
+═════════════════════════════════════════════════════════════════
+
+- **RULE 0 > REJECT**:RULE 0 命中 → 立刻 keep,REJECT 不再评估
+- **REJECT > KEEP**:RULE 0 不命中时,REJECT 命中即 reject,KEEP 兜底
+- **保守原则**:reject 边界吃不准时,倾向 reject(后续还有 Layer 2 兜底)
+
+reason 字段(≤30字)用以下格式标明命中层,方便 audit:
+- RULE 0 命中:"R0:OpenClaw" / "R0:Claude Code" / "R0:CLAUDE.md"
+- REJECT:"多模态" / "软文" / "新闻" / "不沾边" / "短"
+- KEEP:"agent 框架对比" / "推理优化"
 
 输入是 30 篇文章的 metadata 列表。
 输出**严格 JSON 数组**,每篇文章对应 1 个对象。
@@ -373,7 +424,7 @@ async def layer1_pre_filter(
         for a in articles
     ]
     prompt = (
-        _LAYER1_V0_PROMPT_BODY
+        _LAYER1_V1_PROMPT_BODY
         + _LAYER1_OUTPUT_SCHEMA_HINT
         + "\n输入文章 metadata 列表(JSON):\n"
         + json.dumps(payload, ensure_ascii=False)
