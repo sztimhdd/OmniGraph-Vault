@@ -67,6 +67,14 @@ def _seed_ingestions_db(db_path: Path, rows: list[dict]) -> None:
         )
         conn.execute(
             """
+            CREATE TABLE rss_articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE ingestions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 article_id INTEGER,
@@ -77,11 +85,14 @@ def _seed_ingestions_db(db_path: Path, rows: list[dict]) -> None:
             """
         )
         for row in rows:
-            # Insert article row keyed by article_id; if multiple ingestions
+            # Insert article row keyed by article_id+source; if multiple ingestions
             # share article_id (legitimate retry), the article row is created
-            # once via INSERT OR IGNORE.
+            # once via INSERT OR IGNORE. Post-rrx the script JOINs both
+            # ``articles`` (wechat) and ``rss_articles`` (rss) — fixture must
+            # mirror that.
+            target_table = "rss_articles" if row["source"] == "rss" else "articles"
             conn.execute(
-                "INSERT OR IGNORE INTO articles (id, url) VALUES (?, ?)",
+                f"INSERT OR IGNORE INTO {target_table} (id, url) VALUES (?, ?)",
                 (row["article_id"], row["url"]),
             )
             conn.execute(
@@ -117,6 +128,8 @@ def test_zero_mystery_returns_exit_zero(tmp_path, capsys, reconcile_main):
     url = "https://mp.weixin.qq.com/s/abc"
     doc_id = _expected_doc_id(url)
 
+    rss_url = "https://example.com/rss/1"
+    rss_doc_id = f"rss_{hashlib.md5(rss_url.encode()).hexdigest()[:10]}"
     _seed_ingestions_db(
         db,
         [
@@ -127,17 +140,24 @@ def test_zero_mystery_returns_exit_zero(tmp_path, capsys, reconcile_main):
                 "status": "ok",
                 "ingested_at": "2026-05-10T09:00:00",
             },
-            # RSS row should be silently skipped (deferred to ar-1)
+            # RSS row now in-scope (quick 260512-rrx) — must also have a
+            # matching doc_status entry to remain non-mystery.
             {
                 "article_id": 2,
-                "url": "https://example.com/rss/1",
+                "url": rss_url,
                 "source": "rss",
                 "status": "ok",
                 "ingested_at": "2026-05-10T09:01:00",
             },
         ],
     )
-    _write_doc_status(storage, {doc_id: {"status": "processed"}})
+    _write_doc_status(
+        storage,
+        {
+            doc_id: {"status": "processed"},
+            rss_doc_id: {"status": "processed"},
+        },
+    )
 
     exit_code = reconcile_main([
         "--date", "2026-05-10",

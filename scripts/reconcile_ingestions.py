@@ -33,32 +33,21 @@ logger = logging.getLogger("reconcile_ingestions")
 
 DEFAULT_DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH") or "data/kol_scan.db")
 
-# Import get_article_hash for RSS doc_id computation (uses SHA256[:16])
-try:
-    from lib.checkpoint import get_article_hash
-except ImportError:
-    get_article_hash = None  # type: ignore
-
 
 def _compute_doc_id(url: str, source: str = "wechat") -> str:
-    """Compute doc_id based on source.
+    """Compute doc_id from URL.
 
-    WeChat: mirrors ``ingest_wechat.py:943,983`` — MD5[:10].
-    RSS: uses ``lib.checkpoint.get_article_hash`` — SHA256[:16].
+    Both WeChat and RSS use ``MD5(url)[:10]`` (mirrors ``ingest_wechat.py:1017``).
+    Only the prefix differs. Verified against prod kv_store_doc_status.json
+    on 2026-05-12 — the seangoedecke RSS row has doc_id ``rss_9f52f6cbef``
+    which equals ``f"rss_{md5(url)[:10]}"``.
 
     Any deviation creates a silent reconciliation gap — ingested docs must
     have matching doc_id in LightRAG kv_store_doc_status.json.
     """
-    if source == "rss":
-        # RSS uses SHA256[:16] (matches batch_ingest_from_spider.py + ingest_wechat.py dispatch)
-        if get_article_hash:
-            h = get_article_hash(url)
-        else:
-            h = hashlib.sha256(url.encode()).hexdigest()[:16]
-        return f"rss_{h}"
-    else:
-        # WeChat pattern (default)
-        return f"wechat_{hashlib.md5(url.encode()).hexdigest()[:10]}"
+    h = hashlib.md5(url.encode()).hexdigest()[:10]
+    prefix = "rss" if source == "rss" else "wechat"
+    return f"{prefix}_{h}"
 
 
 def _load_doc_status(storage_dir: Path) -> dict[str, dict[str, Any]]:

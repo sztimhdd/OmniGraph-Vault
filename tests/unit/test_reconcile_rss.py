@@ -152,9 +152,14 @@ def test_compute_doc_id_wechat() -> None:
 
 
 def test_compute_doc_id_rss() -> None:
-    """Test: RSS doc_id uses SHA256[:16] with rss_ prefix."""
+    """Test: RSS doc_id uses MD5[:10] with rss_ prefix.
+
+    Verified 2026-05-12 against prod kv_store_doc_status.json:
+    seangoedecke article (id=60, url=https://seangoedecke.com/fast-llm-inference/)
+    has doc_id ``rss_9f52f6cbef`` which equals ``f"rss_{md5(url)[:10]}"``.
+    """
     url = "https://example.com/feed/item/456"
-    expected_hash = hashlib.sha256(url.encode()).hexdigest()[:16]
+    expected_hash = hashlib.md5(url.encode()).hexdigest()[:10]
     expected_doc_id = f"rss_{expected_hash}"
 
     doc_id = _compute_doc_id(url, source="rss")
@@ -168,6 +173,19 @@ def test_compute_doc_id_default() -> None:
     doc_id_explicit = _compute_doc_id(url, source="wechat")
 
     assert doc_id_default == doc_id_explicit
+
+
+def test_compute_doc_id_rss_prod_regression() -> None:
+    """Regression: pin formula to actual prod RSS doc_id from 2026-05-12.
+
+    The seangoedecke "Fast LLM Inference" article is the historical first
+    RSS source='ok' row. Its prod doc_id (verified via SSH on the live
+    LightRAG kv_store_doc_status.json) is ``rss_9f52f6cbef``. If this
+    test fails, the formula drifted and reconcile will silently report
+    every RSS row as mystery.
+    """
+    url = "https://seangoedecke.com/fast-llm-inference/"
+    assert _compute_doc_id(url, source="rss") == "rss_9f52f6cbef"
 
 
 def test_query_ok_rows_wechat_only(tmp_db: Path) -> None:
