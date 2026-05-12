@@ -1,11 +1,12 @@
 """Daily reconciliation cron — detect mystery ingestion rows.
 
-Reads ingestions=ok rows for a date window and confirms each has a
-corresponding LightRAG ``doc_status='processed'`` entry in
+Reads ingestions=ok rows for a date window (WeChat + RSS sources) and confirms
+each has a corresponding LightRAG ``doc_status='processed'`` entry in
 ``kv_store_doc_status.json``. Read-only canary for commit ``949e3f4``
 (quick 260510-h09 PROCESSED-gate hot-fix).
 
-Quick 260510-k5q. RSS reconciliation deferred to ar-1.
+Quick 260510-k5q: WeChat support (initial).
+Quick 260512-rrx: RSS support (scope extension).
 
 Exit codes:
     0 — zero mystery rows detected (silent healthy day)
@@ -32,14 +33,32 @@ logger = logging.getLogger("reconcile_ingestions")
 
 DEFAULT_DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH") or "data/kol_scan.db")
 
+# Import get_article_hash for RSS doc_id computation (uses SHA256[:16])
+try:
+    from lib.checkpoint import get_article_hash
+except ImportError:
+    get_article_hash = None  # type: ignore
 
-def _compute_doc_id(url: str) -> str:
-    """Mirror ``ingest_wechat.py:943,983`` byte-for-byte.
 
-    Any deviation here creates a silent reconciliation gap — every wechat
-    ingest must hash the URL identically to its production ingest path.
+def _compute_doc_id(url: str, source: str = "wechat") -> str:
+    """Compute doc_id based on source.
+
+    WeChat: mirrors ``ingest_wechat.py:943,983`` — MD5[:10].
+    RSS: uses ``lib.checkpoint.get_article_hash`` — SHA256[:16].
+
+    Any deviation creates a silent reconciliation gap — ingested docs must
+    have matching doc_id in LightRAG kv_store_doc_status.json.
     """
-    return f"wechat_{hashlib.md5(url.encode()).hexdigest()[:10]}"
+    if source == "rss":
+        # RSS uses SHA256[:16] (matches batch_ingest_from_spider.py + ingest_wechat.py dispatch)
+        if get_article_hash:
+            h = get_article_hash(url)
+        else:
+            h = hashlib.sha256(url.encode()).hexdigest()[:16]
+        return f"rss_{h}"
+    else:
+        # WeChat pattern (default)
+        return f"wechat_{hashlib.md5(url.encode()).hexdigest()[:10]}"
 
 
 def _load_doc_status(storage_dir: Path) -> dict[str, dict[str, Any]]:
@@ -52,19 +71,20 @@ def _load_doc_status(storage_dir: Path) -> dict[str, dict[str, Any]]:
 def _query_ok_rows(
     db_path: Path, date_start: date, date_end: date
 ) -> list[dict[str, Any]]:
-    """Join ingestions → articles on article_id to recover URL.
+    """Join ingestions → articles (WeChat) OR rss_articles (RSS) to recover URL.
 
-    Production schema (mig 008) does NOT carry ``url`` on ``ingestions`` —
-    the column lives on ``articles``. Pattern mirrors ``run_uat_ingest.py:65``.
+    Production schema (mig 008) carries ``url`` on ``articles`` (WeChat) and
+    ``rss_articles`` (RSS). Uses LEFT JOIN with source-specific conditions.
     """
     with sqlite3.connect(str(db_path)) as conn:
         conn.row_factory = sqlite3.Row
         cur = conn.execute(
             "SELECT i.id AS id, i.article_id AS article_id, "
-            "       a.url AS url, i.source AS source, "
+            "       COALESCE(a.url, r.url) AS url, i.source AS source, "
             "       i.ingested_at AS ingested_at "
             "FROM ingestions i "
-            "LEFT JOIN articles a ON a.id = i.article_id "
+            "LEFT JOIN articles a ON a.id = i.article_id AND i.source = 'wechat' "
+            "LEFT JOIN rss_articles r ON r.id = i.article_id AND i.source = 'rss' "
             "WHERE i.status='ok' "
             "AND date(i.ingested_at) BETWEEN date(?) AND date(?) "
             "ORDER BY i.ingested_at",
@@ -120,19 +140,23 @@ def main(argv: list[str] | None = None) -> int:
 
     ok_count = len(rows)
     mystery_count = 0
+    mystery_count_wechat = 0
+    mystery_count_rss = 0
     processed_count = 0
 
     for row in rows:
-        if row["source"] != "wechat":
-            # RSS reconciliation deferred to ar-1
-            continue
-        doc_id = _compute_doc_id(row["url"])
+        # Extended scope: support both wechat and rss sources
+        doc_id = _compute_doc_id(row["url"], row["source"])
         entry = status_map.get(doc_id)
         actual = entry.get("status") if isinstance(entry, dict) else None
         if isinstance(actual, str) and actual.lower() == "processed":
             processed_count += 1
             continue
         mystery_count += 1
+        if row["source"] == "rss":
+            mystery_count_rss += 1
+        else:
+            mystery_count_wechat += 1
         sys.stdout.write(
             json.dumps(
                 {
@@ -153,7 +177,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     sys.stdout.write(
         f"{date_range}: {ok_count} ok rows / "
-        f"{processed_count} matched / {mystery_count} mystery\n"
+        f"{processed_count} matched / {mystery_count} mystery "
+        f"(wechat: {mystery_count_wechat}, rss: {mystery_count_rss})\n"
     )
     return 1 if mystery_count > 0 else 0
 
