@@ -13,6 +13,10 @@ from pathlib import Path
 from kb.data.article_query import (
     EntityCount,
     TopicSummary,
+    cooccurring_entities_in_topic,
+    entity_articles_query,
+    related_entities_for_article,
+    related_topics_for_article,
     slugify_entity_name,
     topic_articles_query,
 )
@@ -119,10 +123,118 @@ def test_topic_articles_read_only(fixture_db):
     assert all(s.lstrip().upper().startswith("SELECT") for s in spy.statements)
 
 
-# Sanity: dataclass shapes are importable (they will be exercised in Task 2).
 def test_dataclass_shapes_importable():
     """Test 11: EntityCount + TopicSummary dataclasses are constructable."""
     e = EntityCount(name="OpenAI", slug="openai", article_count=42)
     assert e.name == "OpenAI" and e.slug == "openai" and e.article_count == 42
     t = TopicSummary(slug="agent", raw_topic="Agent")
     assert t.slug == "agent" and t.raw_topic == "Agent"
+
+
+# ---------- entity_articles_query (3 tests) ----------
+
+
+def test_entity_articles_above_threshold(fixture_db):
+    """Test 12: OpenAI freq=5 returns 5 articles (3 KOL + 2 RSS)."""
+    with _conn(fixture_db) as c:
+        results = entity_articles_query("OpenAI", min_freq=5, conn=c)
+    assert len(results) == 5  # OpenAI in 1, 3, 5 KOL + 10, 11 RSS
+    ids = {(r.id, r.source) for r in results}
+    assert (1, "wechat") in ids and (10, "rss") in ids
+
+
+def test_entity_articles_below_threshold_empty(fixture_db):
+    """Test 13: ObscureLib freq=2 below threshold 5 returns []."""
+    with _conn(fixture_db) as c:
+        results = entity_articles_query("ObscureLib", min_freq=5, conn=c)
+    assert results == []
+
+
+def test_entity_articles_lowered_threshold_returns_all(fixture_db):
+    """Test 14: lowering min_freq to 2 reveals ObscureLib's 2 articles."""
+    with _conn(fixture_db) as c:
+        results = entity_articles_query("ObscureLib", min_freq=2, conn=c)
+    assert len(results) == 2
+
+
+# ---------- related_entities_for_article (2 tests) ----------
+
+
+def test_related_entities_for_article(fixture_db):
+    """Test 15: article 1 returns ≤5 EntityCounts; all above global threshold; slugified."""
+    with _conn(fixture_db) as c:
+        results = related_entities_for_article(1, "wechat", conn=c)
+    assert all(isinstance(r, EntityCount) for r in results)
+    assert len(results) <= 5
+    # Each entity's article_count is its global frequency, which must be ≥ 5
+    for r in results:
+        assert r.article_count >= 5
+    # OpenAI slugified
+    names_to_slugs = {r.name: r.slug for r in results}
+    if "OpenAI" in names_to_slugs:
+        assert names_to_slugs["OpenAI"] == "openai"
+
+
+def test_related_entities_limit_honored(fixture_db):
+    """Test 16: limit=3 caps result at 3."""
+    with _conn(fixture_db) as c:
+        results = related_entities_for_article(1, "wechat", limit=3, conn=c)
+    assert len(results) <= 3
+
+
+# ---------- related_topics_for_article (2 tests) ----------
+
+
+def test_related_topics_for_article(fixture_db):
+    """Test 17: article 1 has Agent (depth=3), LLM (depth=2), RAG (depth=2)."""
+    with _conn(fixture_db) as c:
+        results = related_topics_for_article(1, "wechat", conn=c)
+    assert len(results) == 3
+    slugs = [t.slug for t in results]
+    assert slugs[0] == "agent"  # depth=3 first
+
+
+def test_related_topics_depth_filter(fixture_db):
+    """Test 18: depth_min=3 narrows to only Agent."""
+    with _conn(fixture_db) as c:
+        results = related_topics_for_article(1, "wechat", depth_min=3, conn=c)
+    assert len(results) == 1
+    assert results[0].slug == "agent"
+    assert results[0].raw_topic == "Agent"
+
+
+# ---------- cooccurring_entities_in_topic (1 test) ----------
+
+
+def test_cooccurring_entities_in_topic(fixture_db):
+    """Test 19: top entities within Agent cohort, ranked DESC by topic frequency."""
+    with _conn(fixture_db) as c:
+        results = cooccurring_entities_in_topic("Agent", limit=5, conn=c)
+    assert all(isinstance(r, EntityCount) for r in results)
+    assert len(results) <= 5
+    # Sorted by topic frequency DESC
+    if len(results) >= 2:
+        assert results[0].article_count >= results[1].article_count
+    # All slugged
+    for r in results:
+        assert r.slug == slugify_entity_name(r.name)
+
+
+# ---------- read-only enforcement across all 4 new queries (1 test) ----------
+
+
+def test_kb2_queries_read_only(fixture_db):
+    """Test 20: every SQL emitted by the 4 new queries starts with SELECT or WITH (CTE)."""
+    with _conn(fixture_db) as c:
+        c.row_factory = sqlite3.Row
+        spy = _SpyConn(c)
+        entity_articles_query("OpenAI", conn=spy)
+        related_entities_for_article(1, "wechat", conn=spy)
+        related_topics_for_article(1, "wechat", conn=spy)
+        cooccurring_entities_in_topic("Agent", conn=spy)
+    assert spy.statements, "no SQL captured"
+    for s in spy.statements:
+        head = s.lstrip().upper()
+        assert head.startswith("SELECT") or head.startswith("WITH"), (
+            f"non-read SQL leaked: {s[:80]!r}"
+        )

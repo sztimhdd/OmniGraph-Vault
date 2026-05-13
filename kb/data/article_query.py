@@ -296,6 +296,9 @@ class TopicSummary:
 _SLUG_DROP_CHARS = re.compile(r"[/\\&\"'<>?#%]+")
 _SLUG_WS = re.compile(r"\s+")
 
+# Stable mapping for the 5 known topics — avoids fragile `.lower()` per emission.
+_SLUG_TOPIC_MAP = {"Agent": "agent", "CV": "cv", "LLM": "llm", "NLP": "nlp", "RAG": "rag"}
+
 
 def slugify_entity_name(name: str) -> str:
     """ENTITY-02: lowercase + URL-safe slug, Unicode preserved.
@@ -368,3 +371,184 @@ def topic_articles_query(
             conn.close()
 
 
+def entity_articles_query(
+    entity_name: str,
+    min_freq: int = 5,
+    conn: Optional[sqlite3.Connection] = None,
+) -> list[ArticleRecord]:
+    """ENTITY-01 + ENTITY-03: list articles mentioning entity_name.
+
+    If COUNT(DISTINCT (article_id, source)) for entity_name < min_freq, returns
+    [] — entity below threshold, do not surface a list page.
+    Otherwise UNIONs `articles` + `rss_articles` whose id appears in
+    `extracted_entities` for this name. Sorted by update_time DESC.
+    """
+    own_conn = conn is None
+    if own_conn:
+        conn = _connect()
+    conn.row_factory = sqlite3.Row
+    try:
+        (freq,) = conn.execute(
+            "SELECT COUNT(DISTINCT article_id || '-' || source) "
+            "FROM extracted_entities WHERE name = ?",
+            (entity_name,),
+        ).fetchone()
+        if freq < min_freq:
+            return []
+        results: list[ArticleRecord] = []
+        for row in conn.execute(
+            "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time "
+            "FROM articles a JOIN extracted_entities e "
+            "ON e.article_id = a.id AND e.source = 'wechat' "
+            "WHERE e.name = ?",
+            (entity_name,),
+        ):
+            results.append(_row_to_record_kol(row))
+        for row in conn.execute(
+            "SELECT r.id, r.title, r.url, r.body, r.content_hash, r.lang, "
+            "r.published_at, r.fetched_at "
+            "FROM rss_articles r JOIN extracted_entities e "
+            "ON e.article_id = r.id AND e.source = 'rss' "
+            "WHERE e.name = ?",
+            (entity_name,),
+        ):
+            results.append(_row_to_record_rss(row))
+        results.sort(key=lambda r: r.update_time, reverse=True)
+        return results
+    finally:
+        if own_conn:
+            conn.close()
+
+
+def related_entities_for_article(
+    article_id: int,
+    source: str,
+    limit: int = 5,
+    min_global_freq: int = 5,
+    conn: Optional[sqlite3.Connection] = None,
+) -> list[EntityCount]:
+    """LINK-01: 3-5 entities for this article ordered by GLOBAL article frequency DESC.
+
+    Excludes entities whose corpus-wide DISTINCT-article frequency < min_global_freq
+    (so we don't link to a /entities/{slug}.html page that won't exist).
+    """
+    own_conn = conn is None
+    if own_conn:
+        conn = _connect()
+    conn.row_factory = sqlite3.Row
+    try:
+        sql = (
+            "SELECT e.name, "
+            "(SELECT COUNT(DISTINCT article_id || '-' || source) "
+            " FROM extracted_entities WHERE name = e.name) AS global_freq "
+            "FROM extracted_entities e "
+            "WHERE e.article_id = ? AND e.source = ? "
+            "GROUP BY e.name "
+            "HAVING global_freq >= ? "
+            "ORDER BY global_freq DESC, e.name ASC "
+            "LIMIT ?"
+        )
+        return [
+            EntityCount(
+                name=row["name"],
+                slug=slugify_entity_name(row["name"]),
+                article_count=row["global_freq"],
+            )
+            for row in conn.execute(sql, (article_id, source, min_global_freq, limit))
+        ]
+    finally:
+        if own_conn:
+            conn.close()
+
+
+def related_topics_for_article(
+    article_id: int,
+    source: str,
+    depth_min: int = 2,
+    limit: int = 3,
+    conn: Optional[sqlite3.Connection] = None,
+) -> list[TopicSummary]:
+    """LINK-02: 1-3 topics where classifications.depth_score >= depth_min for this article.
+
+    Sorted by depth_score DESC then topic alpha. Returns TopicSummary with the
+    slug already lowercased (matching kb/output/topics/{slug}.html convention).
+    """
+    own_conn = conn is None
+    if own_conn:
+        conn = _connect()
+    conn.row_factory = sqlite3.Row
+    try:
+        return [
+            TopicSummary(
+                slug=_SLUG_TOPIC_MAP.get(row["topic"], row["topic"].lower()),
+                raw_topic=row["topic"],
+            )
+            for row in conn.execute(
+                "SELECT topic, depth_score FROM classifications "
+                "WHERE article_id = ? AND source = ? AND depth_score >= ? "
+                "ORDER BY depth_score DESC, topic ASC LIMIT ?",
+                (article_id, source, depth_min, limit),
+            )
+        ]
+    finally:
+        if own_conn:
+            conn.close()
+
+
+def cooccurring_entities_in_topic(
+    topic: str,
+    limit: int = 5,
+    min_global_freq: int = 5,
+    depth_min: int = 2,
+    conn: Optional[sqlite3.Connection] = None,
+) -> list[EntityCount]:
+    """TOPIC-05: top entities by article-frequency within the topic article cohort.
+
+    Cohort gate identical to topic_articles_query: classifications.depth_score >= depth_min
+    AND (layer1_verdict = 'candidate' OR layer2_verdict = 'ok').
+    Filters out entities whose GLOBAL frequency < min_global_freq.
+    """
+    own_conn = conn is None
+    if own_conn:
+        conn = _connect()
+    conn.row_factory = sqlite3.Row
+    try:
+        sql = """
+            WITH topic_articles AS (
+                SELECT a.id AS article_id, 'wechat' AS source
+                FROM articles a
+                JOIN classifications c ON c.article_id = a.id AND c.source = 'wechat'
+                WHERE c.topic = ? AND c.depth_score >= ?
+                  AND (a.layer1_verdict = 'candidate' OR a.layer2_verdict = 'ok')
+                UNION ALL
+                SELECT r.id AS article_id, 'rss' AS source
+                FROM rss_articles r
+                JOIN classifications c ON c.article_id = r.id AND c.source = 'rss'
+                WHERE c.topic = ? AND c.depth_score >= ?
+                  AND (r.layer1_verdict = 'candidate' OR r.layer2_verdict = 'ok')
+            )
+            SELECT e.name,
+                   COUNT(DISTINCT e.article_id || '-' || e.source) AS topic_freq,
+                   (SELECT COUNT(DISTINCT article_id || '-' || source)
+                      FROM extracted_entities WHERE name = e.name) AS global_freq
+            FROM extracted_entities e
+            JOIN topic_articles t
+              ON t.article_id = e.article_id AND t.source = e.source
+            GROUP BY e.name
+            HAVING global_freq >= ?
+            ORDER BY topic_freq DESC, e.name ASC
+            LIMIT ?
+        """
+        return [
+            EntityCount(
+                name=row["name"],
+                slug=slugify_entity_name(row["name"]),
+                article_count=row["topic_freq"],
+            )
+            for row in conn.execute(
+                sql, (topic, depth_min, topic, depth_min, min_global_freq, limit)
+            )
+        ]
+    finally:
+        if own_conn:
+            conn.close()
