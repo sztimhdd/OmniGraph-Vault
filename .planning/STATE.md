@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: executing
-stopped_at: Completed kb-1-02-PLAN.md
-last_updated: "2026-05-12T23:48:54.712Z"
-last_activity: 2026-05-12
+stopped_at: Completed kb-1-09-export-driver-PLAN.md
+last_updated: "2026-05-13T00:29:59.625Z"
+last_activity: 2026-05-13
 progress:
   total_phases: 14
   completed_phases: 10
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 Milestone: v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 + 20 shipped; Phase 21 STK track shipped via quicks; Phase 21 E2R-01/02 + Phase 22 SUPERSEDED-BY-ir4 — RSS pipeline retired)
 Phase: kb-1-ssg-export-i18n (foundation) — EXECUTING
-Plan: 3 of 10
+Plan: 4 of 10
 Status: Ready to execute
-Last activity: 2026-05-12
+Last activity: 2026-05-13
 
 ### Immediate next step
 
@@ -168,6 +168,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase kb-1-ssg-export-i18n-foundation P01 | 3m | 3 tasks | 11 files |
 | Phase kb-1-ssg-export-i18n-foundation P03 | 4m | 2 tasks | 4 files |
 | Phase kb-1-ssg-export-i18n-foundation Pkb-1-02 | 10min | 2 tasks | 4 files |
+| Phase kb-1-ssg-export-i18n-foundation P09 | 7min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -241,6 +242,9 @@ Recent decisions affecting current work:
 - [Phase kb-1-ssg-export-i18n-foundation]: kb.config uses module-level constants + importlib.reload pattern for env override (vs getter functions); .gitignore converted to kb/output/* + !kb/output/.gitignore to allow per-dir gitignore tracking, mirroring credentials/* idiom
 - [Phase kb-1-ssg-export-i18n-foundation]: kb-1-03: i18n foundation shipped — 45-key locale JSONs (zh-CN+en parity) + kb.i18n module with t()/register_jinja2_filter()/validate_key_parity()/load_locales(), 8/8 unit tests pass
 - [Phase kb-1-ssg-export-i18n-foundation]: kb-1-02: Mirrored enrichment/rss_schema.py PRAGMA table_info pattern for lang column migration; spy via SpyConn proxy class (sqlite3.Connection.execute is read-only in CPython 3.13)
+- [Phase kb-1-ssg-export-i18n-foundation]: kb-1-09: DB path override is env-only (KB_DB_PATH=/path), NOT a CLI flag — config.KB_DB_PATH is bound at module import before argparse runs (REVISION 1 / Issue #3)
+- [Phase kb-1-ssg-export-i18n-foundation]: kb-1-09: Sitemap <lastmod> derived from max(article.update_time[:10]) for index URLs and per-article update_time for detail URLs; deterministic _LASTMOD_FALLBACK='1970-01-01' for missing data; never datetime.now() (REVISION 1 / Issue #1)
+- [Phase kb-1-ssg-export-i18n-foundation]: kb-1-09: Defensive sys.path guard at module top — replace kb/ entry with project root when invoked as script, so stdlib 'locale' resolves correctly while 'from kb import' still works. kb/locale subpackage shadows stdlib locale otherwise
 
 ### Pending Todos
 
@@ -325,8 +329,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-12T23:48:54.703Z
-Stopped at: Completed kb-1-02-PLAN.md
+Last session: 2026-05-13T00:29:48.776Z
+Stopped at: Completed kb-1-09-export-driver-PLAN.md
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 
