@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="{{ article.lang }}" data-fixed-lang="true">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ article.title }} — {{ 'site.brand' | t('zh-CN') }} / {{ 'site.brand' | t('en') }}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+
+  {# UI-05 og:* meta — article type, locale matches content lang #}
+  <meta property="og:title" content="{{ og.title }}">
+  <meta property="og:description" content="{{ og.description }}">
+  <meta property="og:image" content="{{ og.image }}">
+  <meta property="og:type" content="article">
+  <meta property="og:locale" content="{{ og.locale }}">
+  <meta property="og:url" content="{{ page_url }}">
+
+  {# UI-06 JSON-LD Article schema with inLanguage #}
+  <script type="application/ld+json">
+  {{ json_ld | tojson }}
+  </script>
+</head>
+<body>
+  <header class="nav-wrap">
+    <div class="container">
+      <nav class="nav">
+        <a href="/" class="nav-brand">
+          <img src="/static/VitaClaw-Logo-v0.png" alt="" onerror="this.style.display='none'">
+          <span data-lang="zh">{{ 'site.brand' | t('zh-CN') }}</span><span data-lang="en">{{ 'site.brand' | t('en') }}</span>
+        </a>
+        <div class="nav-links">
+          <a href="/"><span data-lang="zh">{{ 'nav.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.home' | t('en') }}</span></a>
+          <a href="/articles/"><span data-lang="zh">{{ 'nav.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.articles' | t('en') }}</span></a>
+          <a href="/ask/"><span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.ask' | t('en') }}</span></a>
+          <button class="lang-toggle" type="button" aria-label="{{ 'lang.switcher_aria' | t('zh-CN') }}">
+            <span data-lang="zh">{{ 'lang.toggle_to_en' | t('zh-CN') }}</span><span data-lang="en">{{ 'lang.toggle_to_zh' | t('en') }}</span>
+          </button>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      {# UI-07 breadcrumb with localized labels #}
+      <nav class="breadcrumb" aria-label="breadcrumb">
+        <a href="/">
+          <span data-lang="zh">{{ 'breadcrumb.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'breadcrumb.home' | t('en') }}</span>
+        </a>
+        <span> &gt; </span>
+        <a href="/articles/">
+          <span data-lang="zh">{{ 'breadcrumb.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'breadcrumb.articles' | t('en') }}</span>
+        </a>
+        <span> &gt; </span>
+        <span>{{ article.title }}</span>
+      </nav>
+
+      <article class="article-body">
+        <header>
+          <h1>{{ article.title }}</h1>
+          {# I18N-06 visible content lang badge — emits as the FIXED content lang #}
+          <div class="article-meta">
+            <span class="lang-badge">
+              {% if article.lang == 'zh-CN' %}{{ 'article.lang_zh' | t('zh-CN') }}{% elif article.lang == 'en' %}{{ 'article.lang_en' | t('zh-CN') }}{% else %}—{% endif %}
+            </span>
+            <span>
+              <span data-lang="zh">{{ 'article.source_label' | t('zh-CN') }}:</span><span data-lang="en">{{ 'article.source_label' | t('en') }}:</span>
+              {{ article.source }}
+            </span>
+            <span>
+              <span data-lang="zh">{{ 'article.published_at' | t('zh-CN') }}:</span><span data-lang="en">{{ 'article.published_at' | t('en') }}:</span>
+              {{ article.update_time }}
+            </span>
+            {% if article.body_source == 'vision_enriched' %}
+            <span class="badge-enriched">
+              <span data-lang="zh">{{ 'article.body_source_enriched' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.body_source_enriched' | t('en') }}</span>
+            </span>
+            {% endif %}
+          </div>
+        </header>
+
+        {# EXPORT-04 body — pre-rendered HTML with Pygments highlighting baked in #}
+        <div class="article-content">
+          {{ body_html | safe }}
+        </div>
+
+        <footer class="article-footer">
+          <a href="/ask/" class="btn btn-secondary">
+            <span data-lang="zh">{{ 'article.cta_ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.cta_ask' | t('en') }}</span>
+          </a>
+        </footer>
+      </article>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>
+        <span data-lang="zh">{{ 'footer.copyright' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.copyright' | t('en') }}</span>
+      </p>
+    </div>
+  </footer>
+  <script src="/static/lang.js"></script>
+</body>
+</html>
