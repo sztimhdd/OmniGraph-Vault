@@ -50,6 +50,60 @@ def test_chunk_count_is_floored_at_1() -> None:
     assert _budget("x") == 900
 
 
+# T1 (2026-05-13): image-aware budget tests.
+# Hermes prod data: 60-image batch avg 24.5s/img; 34-image article = 933s actual.
+# Formula: max(120 + 30*chunks + 30*images, 900). No upper cap.
+
+_IMG_TOKEN = "![](https://example.com/img.png)"
+
+
+def _body_with_images(text_chars: int, image_count: int) -> str:
+    """Construct a body with ``text_chars`` of filler + ``image_count`` md image tokens."""
+    return ("x" * text_chars) + ("\n" + _IMG_TOKEN) * image_count
+
+
+def test_zero_images_no_change() -> None:
+    """Body with 0 images uses pre-T1 formula. Regression guard."""
+    # 50 chunks → 120 + 1500 + 0 = 1620 (matches pre-T1 test_scales_above_floor)
+    assert _budget("x" * 240_000) == 1620
+
+
+def test_few_images_under_floor() -> None:
+    """5 images + small text → still hits 900s floor (no scale up)."""
+    # 5 images × 30s = 150s. text=150 (1 chunk). total=300. max(300, 900) = 900.
+    assert _budget(_body_with_images(1000, 5)) == 900
+
+
+def test_34_image_article_covers_hermes_failure() -> None:
+    """Hermes 2026-05-13 failure case: 34 images, ~10k body, took 933s actual.
+
+    Pre-T1: max(120 + 30*2, 900) = 900 → timeout.
+    Post-T1: max(120 + 60 + 34*30, 900) = max(1200, 900) = 1200 → covers 933s.
+    """
+    body = _body_with_images(10_000, 34)
+    assert _budget(body) >= 1200, f"34-image budget too tight: {_budget(body)}"
+
+
+def test_51_image_article_post_fix() -> None:
+    """Original failed article: 51 images, ~10k body. Pre-T1 = 900, Post-T1 ≥ 1500."""
+    body = _body_with_images(10_000, 51)
+    expected = 120 + 30 * max(1, len(body) // 4800) + 30 * 51
+    assert _budget(body) == max(expected, 900)
+    assert _budget(body) >= 1500, "51-image article must have headroom above 900s floor"
+
+
+def test_no_upper_cap_text_heavy() -> None:
+    """100 chunks (text-only) → 3120s budget, no cap. Regression of pre-T1 behavior."""
+    assert _budget("x" * 480_000) == 3120
+
+
+def test_image_only_no_text_scaling() -> None:
+    """0-chunk text + 30 images → max(120+30+900, 900) = 1050, no underflow."""
+    body = _body_with_images(0, 30)
+    # text term: 1 chunk → 150. image: 30*30 = 900. total: 1050. max(1050, 900) = 1050.
+    assert _budget(body) == 1050
+
+
 def test_drain_layer2_queue_call_site_uses_dynamic_budget() -> None:
     """2026-05-08 regression: per-article timeout in _drain_layer2_queue
     MUST compute budget from body length, not hardcode _SINGLE_CHUNK_FLOOR_S.
@@ -74,7 +128,7 @@ def test_drain_layer2_queue_call_site_uses_dynamic_budget() -> None:
     drain_marker = "async def _drain_layer2_queue"
     drain_start = content.index(drain_marker)
     # End at the for-loop that starts the candidate iteration
-    drain_end = content.index("# v3.5 ir-1 (LF-3.1): iterate over candidate_rows", drain_start)
+    drain_end = content.index("iterate over candidate_rows", drain_start)
     drain_body = content[drain_start:drain_end]
 
     # Must call _compute_article_budget_s on the body

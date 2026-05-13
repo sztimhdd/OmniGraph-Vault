@@ -22,6 +22,7 @@ import argparse
 import asyncio
 import json
 import logging
+import re
 import sqlite3
 import sys
 import time
@@ -146,24 +147,58 @@ async def _drain_pending_vision_tasks() -> None:
 _CHUNK_SIZE_CHARS = 4800        # ~1200 tokens × 4 chars/token; LightRAG default chunk size
 _BASE_BUDGET_S = 120
 _PER_CHUNK_S = 30
+_PER_IMAGE_S = 30               # T1 (2026-05-13): vision cascade per image, with safety
+                                # Hermes prod measurement 2026-05-13: 60-image batch avg 24.5s/img,
+                                # 34-image article = 833s vision + 100s ainsert = 933s actual.
+                                # 30s/img = ~20% safety margin above empirical avg.
+                                # No image-side cap: vision cascade (SiliconFlow primary +
+                                # OpenRouter fallback) is stable; large articles let cascade
+                                # finish naturally rather than truncating image set.
 _SINGLE_CHUNK_FLOOR_S = 900     # guarantees one slow 800s DeepSeek chunk completes
 
 
+_MD_IMAGE_RE = re.compile(r'!\[[^\]]*\]\([^)]+\)')
+
+
+def _count_images_in_body(body: str) -> int:
+    """Estimate image count from markdown ``![...](...)`` references.
+
+    Matches both ``![alt](url)`` and ``![](url)`` patterns. Returns 0 on
+    empty body. Used by ``_compute_article_budget_s`` to scale the outer
+    timeout for image-heavy articles.
+    """
+    if not body:
+        return 0
+    return len(_MD_IMAGE_RE.findall(body))
+
+
 def _compute_article_budget_s(full_content: str) -> int:
-    """Compute outer asyncio.wait_for budget for an article (D-09.03).
+    """Compute outer asyncio.wait_for budget for an article.
 
     Two-layer timeout semantics:
       - Outer (this budget): governs whole-article ingest call.
       - Inner (LLM_TIMEOUT=600 via D-09.01): governs each per-chunk LLM call.
 
-    Formula: max(BASE + PER_CHUNK * chunk_count, FLOOR).
+    Formula:
+        text_budget = BASE + PER_CHUNK * chunk_count
+        image_budget = PER_IMAGE * image_count
+        budget = max(text_budget + image_budget, FLOOR)
 
-    chunk_count is derived from ``len(full_content) // _CHUNK_SIZE_CHARS``
-    (floor, minimum 1). Linear scaling matters more than exact token math;
-    ~4800 chars ≈ 1200 tokens ≈ LightRAG's default chunk_token_size.
+    chunk_count derived from ``len(full_content) // _CHUNK_SIZE_CHARS`` (floor, min 1).
+    image_count derived from markdown ``![](...)`` references in the body.
+    No upper cap — vision cascade is stable, large articles let it finish.
+
+    T1 (2026-05-13): pre-fix had no image term, 51-image article hit 900s
+    floor and timed out (Hermes prod measurement: 34-image needed 933s, 60-image
+    1468s; vision avg 24.5s/img + ainsert overhead). Post-fix the same 51-image
+    article (text=180s + 51×30=1530s) gets max(1710, 900) = 1710s budget.
+    Light articles (≤5 images) unaffected because text+image still under floor.
     """
     chunk_count = max(1, len(full_content) // _CHUNK_SIZE_CHARS)
-    return max(_BASE_BUDGET_S + _PER_CHUNK_S * chunk_count, _SINGLE_CHUNK_FLOOR_S)
+    image_count = _count_images_in_body(full_content)
+    text_budget = _BASE_BUDGET_S + _PER_CHUNK_S * chunk_count
+    image_budget = _PER_IMAGE_S * image_count
+    return max(text_budget + image_budget, _SINGLE_CHUNK_FLOOR_S)
 
 
 # --- Phase 17 (BTIMEOUT-04): batch-timeout metrics helpers ---
@@ -1720,14 +1755,22 @@ async def ingest_from_db(
                         result.verdict, art_id_d,
                     )
                     continue
-                # Phase 17 BTIMEOUT-02 + 2026-05-08 fix: per-article timeout
-                # must scale with body length. Pre-fix: hardcoded
-                # _SINGLE_CHUNK_FLOOR_S=900s caused all 3 large articles (50
-                # chunks / 16 images) in Hermes manual smoke to timeout. Now
-                # uses _compute_article_budget_s which returns
-                # max(120 + 30*chunk_count, 900): 50-chunk article gets ~1620s
-                # budget, single-chunk article still gets the 900s floor.
+                # Phase 17 BTIMEOUT-02 (2026-05-08) + T1 (2026-05-13): per-article
+                # timeout scales with both text length AND image count.
+                # Pre-T1: only text term, 51-image articles hit 900s floor and
+                # timed out (real vision pipeline needs ~10s/image cascade).
+                # Post-T1: budget = max(120 + 30*chunks + 20*images, 900) capped
+                # at 2700s. Light articles unchanged; image-heavy articles get
+                # proportional budget headroom.
                 article_budget = _compute_article_budget_s(body or "")
+                _img_count = _count_images_in_body(body or "")
+                if _img_count >= 10 or article_budget > _SINGLE_CHUNK_FLOOR_S:
+                    logger.info(
+                        "  article budget=%ds (chunks=%d images=%d)",
+                        article_budget,
+                        max(1, len(body or "") // _CHUNK_SIZE_CHARS),
+                        _img_count,
+                    )
                 remaining = get_remaining_budget(batch_start, total_batch_budget)
                 effective_timeout = clamp_article_timeout(
                     article_budget, remaining, BATCH_SAFETY_MARGIN_S
