@@ -70,7 +70,7 @@ def fixture_db(tmp_path: Path) -> Path:
                 body TEXT,
                 content_hash TEXT,
                 lang TEXT,
-                update_time TEXT
+                update_time INTEGER
             );
             CREATE TABLE rss_articles (
                 id INTEGER PRIMARY KEY,
@@ -95,7 +95,7 @@ def fixture_db(tmp_path: Path) -> Path:
                 _BODY_WITH_LOCALHOST,
                 "abc1234567",  # 10-char content_hash (KOL form)
                 "zh-CN",
-                "2026-05-12 10:00:00",
+                1778270400,  # epoch for 2026-05-12 10:00:00 UTC; production schema is INTEGER
             ),
         )
         # Article 2 — KOL with NULL content_hash, en, short body (Test 6 og fallback)
@@ -109,7 +109,7 @@ def fixture_db(tmp_path: Path) -> Path:
                 _BODY_SHORT_FOR_OG_FALLBACK,
                 None,  # forces md5(body)[:10] runtime fallback
                 "en",
-                "2026-05-11 09:00:00",
+                1778180400,  # epoch for 2026-05-11 09:00:00 UTC; sorts before Article 1
             ),
         )
         # Article 3 — RSS with full md5 content_hash, en, longer body

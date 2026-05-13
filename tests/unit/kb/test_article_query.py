@@ -419,3 +419,105 @@ def test_get_article_body_rewrites_all_occurrences(tmp_path, monkeypatch):
     body, _source = get_article_body(rec)
     assert body.count("/static/img/") == 3
     assert "localhost:8765" not in body
+
+
+# ---------- kb-1-10: production-shape regression tests for update_time mixed-type bug ----------
+#
+# Production DB has articles.update_time INTEGER (Unix epoch) and
+# rss_articles.published_at/fetched_at TEXT (ISO-8601). The earlier
+# integration fixture uniformly used TEXT for both, masking the mixed-type
+# TypeError that surfaces against real production data. These tests pin the
+# fixture to production schema so future regressions of the same shape break
+# CI rather than reaching prod.
+
+
+@pytest.fixture
+def fixture_conn_prod_shape() -> sqlite3.Connection:
+    """In-memory SQLite mirroring PRODUCTION schema (articles.update_time INTEGER)."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(
+        """
+        CREATE TABLE articles (
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL,
+            body TEXT,
+            content_hash TEXT,
+            lang TEXT,
+            update_time INTEGER
+        );
+        CREATE TABLE rss_articles (
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL,
+            body TEXT,
+            content_hash TEXT,
+            lang TEXT,
+            published_at TEXT,
+            fetched_at TEXT
+        );
+        """
+    )
+    # 1 KOL row with INTEGER Unix epoch (real prod sample value)
+    conn.execute(
+        "INSERT INTO articles (id, title, url, body, content_hash, lang, update_time) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (1, "K_prod", "u/1", "kol body", "abcd012345", "zh-CN", 1777249680),
+    )
+    # 1 RSS row with TEXT ISO-8601 (real prod sample value)
+    conn.execute(
+        "INSERT INTO rss_articles (id, title, url, body, content_hash, lang, "
+        "published_at, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            10,
+            "R_prod",
+            "r/10",
+            "rss body",
+            "e2a95c834a47f0f64c8e5826b5c3b9ab",
+            "en",
+            "2026-05-02T17:26:40+00:00",
+            "2026-05-02T17:26:40+00:00",
+        ),
+    )
+    conn.commit()
+    return conn
+
+
+def test_list_articles_handles_mixed_int_text_update_time(fixture_conn_prod_shape):
+    """Production-shape regression: articles.update_time INTEGER vs rss.published_at TEXT.
+
+    Pre-fix: list_articles raises `TypeError: '<' not supported between instances
+    of 'int' and 'str'` at the merge sort. Post-fix: the row mapper normalizes
+    the INT epoch to an ISO-8601 string so both record sets sort lexicographically.
+    """
+    # MUST NOT raise TypeError
+    results = list_articles(conn=fixture_conn_prod_shape, limit=10)
+    assert len(results) == 2
+    # Every record's update_time must be a string (so the merge sort works)
+    for r in results:
+        assert isinstance(r.update_time, str), (
+            f"update_time should be str after row-mapper normalization; "
+            f"got {type(r.update_time).__name__}={r.update_time!r}"
+        )
+
+
+def test_row_to_record_kol_normalizes_epoch_int_to_iso(fixture_conn_prod_shape):
+    """Direct unit test: _row_to_record_kol turns Unix epoch INT into sortable ISO string."""
+    from kb.data.article_query import _row_to_record_kol
+
+    row = fixture_conn_prod_shape.execute(
+        "SELECT id, title, url, body, content_hash, lang, update_time "
+        "FROM articles WHERE id = 1"
+    ).fetchone()
+    rec = _row_to_record_kol(row)
+    assert isinstance(rec.update_time, str), (
+        f"update_time should be str; got {type(rec.update_time).__name__}"
+    )
+    # 1777249680 -> 2026-... (any ISO-recognizable form is acceptable)
+    assert rec.update_time.startswith("2026"), (
+        f"update_time should be an ISO-8601 string starting with '2026'; got {rec.update_time!r}"
+    )
+    assert "-" in rec.update_time, (
+        f"update_time should contain ISO date separators; got {rec.update_time!r}"
+    )
