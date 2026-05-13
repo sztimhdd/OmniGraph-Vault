@@ -1692,10 +1692,10 @@ async def ingest_from_db(
                 source_d = row[1]
                 url_d = row[3]
 
-                if result.verdict == "reject":
+                if result.verdict in ("reject", "scrape_fail"):
                     logger.info(
-                        "  [layer2] reject id=%s source=%s reason=%s",
-                        art_id_d, source_d, result.reason,
+                        "  [layer2] %s id=%s source=%s reason=%s",
+                        result.verdict, art_id_d, source_d, result.reason,
                     )
                     conn.execute(
                         "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
@@ -1711,7 +1711,15 @@ async def ingest_from_db(
                     # will re-evaluate. Do NOT write ingestions row.
                     continue
 
-                # Verdict is 'ok' (or future non-reject value) → proceed to ainsert.
+                # Verdict must be 'ok' to reach ainsert. Future non-'ok' verdicts
+                # (post 'scrape_fail' precedent) MUST add an explicit branch above —
+                # do not fall through to ainsert on unknown verdict values.
+                if result.verdict != "ok":
+                    logger.warning(
+                        "  [layer2] unexpected verdict=%r id=%s — skipping (future verdicts need explicit handling)",
+                        result.verdict, art_id_d,
+                    )
+                    continue
                 # Phase 17 BTIMEOUT-02 + 2026-05-08 fix: per-article timeout
                 # must scale with body length. Pre-fix: hardcoded
                 # _SINGLE_CHUNK_FLOOR_S=900s caused all 3 large articles (50
