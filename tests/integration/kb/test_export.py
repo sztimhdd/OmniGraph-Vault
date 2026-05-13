@@ -87,8 +87,12 @@ def test_export_produces_expected_output_tree(
     # Sitemap, robots, _url_index
     sitemap = (out / "sitemap.xml").read_text(encoding="utf-8")
     assert sitemap.startswith('<?xml version="1.0"')
-    # 11 <url> elements: 3 index URLs + 8 article URLs
-    assert sitemap.count("<url>") == 11, f"expected 11 <url> blocks, got {sitemap.count('<url>')}"
+    # 22 <url> elements: 3 index URLs + 8 article URLs + 5 kb-2 topic URLs +
+    # 6 kb-2 entity URLs (fixture qualifies 6 entities at default min_freq=5).
+    assert sitemap.count("<url>") == 22, f"expected 22 <url> blocks, got {sitemap.count('<url>')}"
+    # kb-2 sitemap extension (UI-SPEC §8 #32-33): topics + entities listed.
+    assert "/topics/agent.html" in sitemap
+    assert "/entities/" in sitemap
 
     robots = (out / "robots.txt").read_text(encoding="utf-8")
     assert "User-agent: *" in robots

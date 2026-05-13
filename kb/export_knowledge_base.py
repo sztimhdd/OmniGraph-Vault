@@ -282,15 +282,50 @@ def _build_json_ld(article_dict: dict[str, Any]) -> dict[str, Any]:
 
 
 def render_article_detail(
-    env: Environment, rec: ArticleRecord, output_dir: Path
+    env: Environment,
+    rec: ArticleRecord,
+    output_dir: Path,
+    conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
-    """Render one article detail page. Returns the dict added to _url_index.json."""
+    """Render one article detail page. Returns the dict added to _url_index.json.
+
+    kb-2 LINK-01 + LINK-02: when `conn` is provided, the article context gains
+    `related_entities` (top 5 by global frequency) + `related_topics` (top 3 by
+    depth_score). When `conn` is None, those fields are empty lists — the
+    template hides the aside cleanly. `conn` optional preserves kb-1 callers
+    (e.g., direct script harness usage).
+    """
     url_hash = resolve_url_hash(rec)
     body_md, body_source = get_article_body(rec)
     body_html = _annotate_code_block_lang_label(_render_body_html(body_md))
 
     article_dict = _record_to_dict(rec, url_hash, body_md=body_md)
     article_dict["body_source"] = body_source
+
+    related_entities: list[dict[str, Any]] = []
+    related_topics: list[dict[str, Any]] = []
+    if conn is not None:
+        ui_lang = rec.lang or "zh-CN"
+        related_entity_objs = related_entities_for_article(
+            rec.id,
+            rec.source,
+            limit=5,
+            min_global_freq=KB_ENTITY_MIN_FREQ,
+            conn=conn,
+        )
+        related_topic_objs = related_topics_for_article(
+            rec.id, rec.source, depth_min=2, limit=3, conn=conn
+        )
+        related_entities = [
+            {"name": e.name, "slug": e.slug} for e in related_entity_objs
+        ]
+        related_topics = [
+            {
+                "slug": ts.slug,
+                "localized_name": i18n_t(f"topic.{ts.slug}.name", ui_lang),
+            }
+            for ts in related_topic_objs
+        ]
 
     ctx = {
         "lang": rec.lang or "zh-CN",
@@ -299,6 +334,8 @@ def render_article_detail(
         "og": _build_og(article_dict, body_html),
         "page_url": f"/articles/{url_hash}.html",
         "json_ld": _build_json_ld(article_dict),
+        "related_entities": related_entities,
+        "related_topics": related_topics,
     }
     html = env.get_template("article.html").render(**ctx)
     _write_atomic(output_dir / "articles" / f"{url_hash}.html", html)
@@ -306,13 +343,23 @@ def render_article_detail(
 
 
 def render_index_pages(
-    env: Environment, articles: list[ArticleRecord], output_dir: Path
+    env: Environment,
+    articles: list[ArticleRecord],
+    output_dir: Path,
+    conn: sqlite3.Connection | None = None,
+    qualifying_entities: list[dict[str, Any]] | None = None,
 ) -> None:
     """Render index.html (homepage), articles/index.html (list), ask/index.html (Q&A entry).
 
     Card snippets + reading-time are derived from body_md ONLY for the homepage's
     20 cards (filesystem read per row). The full /articles/ list keeps body_md=None
     to avoid 1800x filesystem reads — those cards show meta + title without snippet.
+
+    kb-2 LINK-03: when `conn` is provided, the homepage context gains:
+        - `topics`: 5 fixed (KB2_TOPICS) sorted by article_count DESC, alpha tiebreak
+        - `featured_entities`: top 12 of `qualifying_entities` (article_count DESC,
+          alpha tiebreak). If `qualifying_entities` is None and conn is provided,
+          it is recomputed (allows callers to pass it pre-computed for reuse).
     """
     # Homepage: 20 most recent — read body_md to enrich cards with snippet + reading_time
     home_dicts: list[dict[str, Any]] = []
@@ -321,11 +368,49 @@ def render_index_pages(
         body_md, _src = get_article_body(rec)
         home_dicts.append(_record_to_dict(rec, url_hash, body_md=body_md))
 
+    # kb-2 LINK-03 — Browse by Topic (5 fixed) + Featured Entities (top 12)
+    topics_ctx: list[dict[str, Any]] = []
+    featured_entities_ctx: list[dict[str, Any]] = []
+    if conn is not None:
+        # Topic discovery — 5 fixed, ordered by article_count DESC, alpha tiebreak.
+        # The homepage card uses zh-CN copy because index.html flips data-lang in
+        # the DOM (see kb-1 lang-toggle pattern); we precompute both labels via
+        # the i18n filter only for the page-language axis (zh-CN).
+        # NOTE: index.html shows BOTH labels via per-element lang spans, but the
+        # render context only ships one localized field per topic. The template
+        # consumes `t.localized_name` for both spans (the template's zh/en spans
+        # both reference the same key indirectly via section header `t()` filter
+        # rather than the dict). For card body the dict provides one localized
+        # value; index.html template currently uses it for the visible card.
+        for raw_topic in KB2_TOPICS:
+            slug = TOPIC_SLUG_MAP[raw_topic]
+            topic_articles = topic_articles_query(raw_topic, depth_min=2, conn=conn)
+            topics_ctx.append({
+                "slug": slug,
+                "raw_topic": raw_topic,
+                "localized_name": i18n_t(f"topic.{slug}.name", "zh-CN"),
+                "localized_desc": i18n_t(f"topic.{slug}.desc", "zh-CN"),
+                "article_count": len(topic_articles),
+            })
+        topics_ctx.sort(key=lambda t: (-t["article_count"], t["slug"]))
+
+        # Featured entities — top 12 by article_count DESC, alpha tiebreak.
+        if qualifying_entities is None:
+            qualifying_entities = _discover_qualifying_entities(
+                conn, KB_ENTITY_MIN_FREQ
+            )
+        featured_entities_ctx = sorted(
+            qualifying_entities,
+            key=lambda e: (-e["article_count"], e["name"]),
+        )[:12]
+
     home_html = env.get_template("index.html").render(
         lang="zh-CN",
         articles=home_dicts,
         topic_chip_keys=HERO_TOPIC_CHIP_KEYS,
         page_url="/",
+        topics=topics_ctx,
+        featured_entities=featured_entities_ctx,
     )
     _write_atomic(output_dir / "index.html", home_html)
 
@@ -385,6 +470,17 @@ def render_sitemap(articles: list[ArticleRecord], output_dir: Path) -> None:
         url_hash = resolve_url_hash(rec)
         lastmod = (rec.update_time or "")[:10] or _LASTMOD_FALLBACK
         urls.append((f"/articles/{url_hash}.html", lastmod))
+
+    # kb-2: extend sitemap with topic + entity pages discovered on disk.
+    # Scanning the rendered output dir keeps sitemap in lockstep with what
+    # actually shipped (no chance of stale topic/entity URLs after threshold
+    # changes). Sorted for idempotency.
+    for sub in ("topics", "entities"):
+        sub_dir = output_dir / sub
+        if not sub_dir.exists():
+            continue
+        for html_path in sorted(sub_dir.glob("*.html")):
+            urls.append((f"/{sub}/{html_path.name}", index_lastmod))
 
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -647,22 +743,52 @@ def main(argv: list[str] | None = None) -> int:
         articles = articles[: args.limit]
     print(f"Rendering {len(articles)} article detail pages...")
 
-    article_index: list[dict] = []
-    for i, rec in enumerate(articles):
-        try:
-            idx_entry = render_article_detail(env, rec, output_dir)
-            article_index.append(idx_entry)
-        except Exception as exc:
-            print(
-                f"ERROR rendering article id={rec.id} ({rec.source}): {exc}",
-                file=sys.stderr,
-            )
-            continue
-        if (i + 1) % 50 == 0:
-            print(f"  {i + 1}/{len(articles)}")
+    # kb-2: a single read-only conn shared across kb-1 article-detail render
+    # (for related-link injection) + homepage extension + topic/entity loops.
+    # Read-only URI mode preserves EXPORT-02.
+    db_uri = f"file:{config.KB_DB_PATH}?mode=ro"
+    with sqlite3.connect(db_uri, uri=True) as conn:
+        conn.row_factory = sqlite3.Row
 
-    print("Rendering index pages (home, articles list, ask)...")
-    render_index_pages(env, articles, output_dir)
+        article_index: list[dict] = []
+        for i, rec in enumerate(articles):
+            try:
+                idx_entry = render_article_detail(env, rec, output_dir, conn=conn)
+                article_index.append(idx_entry)
+            except Exception as exc:
+                print(
+                    f"ERROR rendering article id={rec.id} ({rec.source}): {exc}",
+                    file=sys.stderr,
+                )
+                continue
+            if (i + 1) % 50 == 0:
+                print(f"  {i + 1}/{len(articles)}")
+
+        # kb-2: discover qualifying entities ONCE (used by both _render_entity_pages
+        # and render_index_pages for the featured_entities context).
+        qualifying_entities = _discover_qualifying_entities(conn, KB_ENTITY_MIN_FREQ)
+        print(
+            f"[kb-2] qualifying entities (>= {KB_ENTITY_MIN_FREQ} articles): "
+            f"{len(qualifying_entities)}"
+        )
+
+        print("Rendering index pages (home, articles list, ask)...")
+        render_index_pages(
+            env, articles, output_dir, conn=conn, qualifying_entities=qualifying_entities
+        )
+
+        # kb-2 TOPIC-01 + ENTITY-01 — topic pillar pages + entity detail pages.
+        # Single-language render (zh-CN page lang; templates use the lang-toggle
+        # JS pattern from base.html for visible bilingual chrome).
+        print("[kb-2] Rendering topic pillar pages...")
+        topic_count = _render_topic_pages(env, output_dir, conn, lang="zh-CN")
+        print(f"[kb-2] topic pages rendered: {topic_count}")
+
+        print("[kb-2] Rendering entity detail pages...")
+        entity_count = _render_entity_pages(
+            env, output_dir, conn, qualifying_entities, lang="zh-CN"
+        )
+        print(f"[kb-2] entity pages rendered: {entity_count}")
 
     print("Rendering sitemap.xml + robots.txt...")
     render_sitemap(articles, output_dir)
