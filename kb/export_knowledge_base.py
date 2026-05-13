@@ -38,8 +38,10 @@ if sys.path and Path(sys.path[0]).resolve() == _THIS_DIR:
 import argparse  # noqa: E402  -- must come after sys.path fix above
 import json
 import logging
+import os
 import re
 import shutil
+import sqlite3
 from typing import Any
 from xml.sax.saxutils import escape as xml_escape
 
@@ -52,8 +54,15 @@ from kb.data.article_query import (  # noqa: E402
     get_article_body,
     list_articles,
     resolve_url_hash,
+    # kb-2 additions:
+    cooccurring_entities_in_topic,
+    entity_articles_query,
+    related_entities_for_article,
+    related_topics_for_article,
+    slugify_entity_name,
+    topic_articles_query,
 )
-from kb.i18n import register_jinja2_filter, validate_key_parity  # noqa: E402
+from kb.i18n import register_jinja2_filter, t as i18n_t, validate_key_parity  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +176,19 @@ HERO_TOPIC_CHIP_KEYS = [
 
 # Hot questions on /ask/ (5 fixed for v2.0; locale keys)
 ASK_HOT_QUESTION_KEYS = [f"ask.hot_q_{i}" for i in range(1, 6)]
+
+# kb-2 topic enumeration — 5 fixed raw classifications.topic values, alpha-ordered.
+# Slug map kept stable for URL idempotency (kb/output/topics/{slug}.html).
+KB2_TOPICS: tuple[str, ...] = ("Agent", "CV", "LLM", "NLP", "RAG")
+TOPIC_SLUG_MAP: dict[str, str] = {
+    "Agent": "agent",
+    "CV": "cv",
+    "LLM": "llm",
+    "NLP": "nlp",
+    "RAG": "rag",
+}
+# Entity surface threshold (ENTITY-01). Env-overridable for fixture/dev DBs.
+KB_ENTITY_MIN_FREQ: int = int(os.environ.get("KB_ENTITY_MIN_FREQ", "5"))
 
 # EXPORT-01 idempotency: deterministic fallback for missing update_time.
 # NEVER use datetime.now() anywhere in this module -- would break byte-equality
@@ -392,6 +414,153 @@ def copy_static_assets(output_dir: Path) -> None:
             continue
         if item.is_file():
             shutil.copy2(item, target / item.name)
+
+
+# ---- kb-2 helpers (TOPIC + ENTITY render loops) ----
+
+
+def _record_to_card_dict(rec: ArticleRecord) -> dict[str, Any]:
+    """Build a card-shape dict for topic.html / entity.html article rows.
+
+    Mirrors kb-1's `_record_to_dict(rec, url_hash, body_md=...)` pattern, adding
+    a precomputed `update_time_human` (zh-CN by default — matches existing
+    article-card meta convention; kb-1 templates also pass `humanize` filter
+    inline, so this is just a precomputation for entity.html which uses the
+    pre-resolved value).
+
+    Body is read from filesystem to derive snippet + reading_time (mirrors
+    homepage card flow). For idempotency, body source is deterministic.
+    """
+    url_hash = resolve_url_hash(rec)
+    body_md, _src = get_article_body(rec)
+    out = _record_to_dict(rec, url_hash, body_md=body_md)
+    # entity.html consumes a pre-humanized field (rest of templates use the
+    # humanize filter inline). Pass zh-CN form — base.html's lang-toggle JS
+    # rewrites visible date strings on en-mode if needed, but most cards
+    # show zh-CN by default per kb-1 convention.
+    from kb.i18n import humanize_date
+
+    out["update_time_human"] = humanize_date(rec.update_time, "zh-CN")
+    return out
+
+
+def _discover_qualifying_entities(
+    conn: sqlite3.Connection, min_freq: int
+) -> list[dict[str, Any]]:
+    """Return list of entity dicts crossing the freq threshold.
+
+    Each dict: {name, slug, article_count, lang_zh, lang_en, lang_unknown}.
+    Sorted by name ASC for idempotency (EXPORT-01).
+
+    Single SQL aggregation — no Python-side bucketing. Joins extracted_entities
+    against both source tables (articles for source='wechat', rss_articles for
+    source='rss') to derive per-language counts. Articles with NULL lang count
+    as 'unknown'.
+    """
+    sql = """
+        SELECT
+          e.name,
+          COUNT(DISTINCT e.article_id || '-' || e.source) AS total_count,
+          SUM(CASE WHEN COALESCE(a.lang, r.lang) = 'zh-CN' THEN 1 ELSE 0 END) AS lang_zh,
+          SUM(CASE WHEN COALESCE(a.lang, r.lang) = 'en'    THEN 1 ELSE 0 END) AS lang_en,
+          SUM(CASE WHEN COALESCE(a.lang, r.lang) NOT IN ('zh-CN','en')
+                       OR COALESCE(a.lang, r.lang) IS NULL THEN 1 ELSE 0 END) AS lang_unknown
+        FROM extracted_entities e
+        LEFT JOIN articles      a ON e.source = 'wechat' AND a.id = e.article_id
+        LEFT JOIN rss_articles  r ON e.source = 'rss'    AND r.id = e.article_id
+        GROUP BY e.name
+        HAVING total_count >= ?
+        ORDER BY e.name ASC
+    """
+    return [
+        {
+            "name": row["name"],
+            "slug": slugify_entity_name(row["name"]),
+            "article_count": row["total_count"],
+            "lang_zh": row["lang_zh"] or 0,
+            "lang_en": row["lang_en"] or 0,
+            "lang_unknown": row["lang_unknown"] or 0,
+        }
+        for row in conn.execute(sql, (min_freq,))
+    ]
+
+
+def _render_topic_pages(
+    env: Environment,
+    output_dir: Path,
+    conn: sqlite3.Connection,
+    lang: str = "zh-CN",
+) -> int:
+    """TOPIC-01 + TOPIC-03: render kb/output/topics/{slug}.html × 5.
+
+    Returns count rendered (always 5; pages with zero qualifying articles emit
+    the empty-state version per topic.html template). Idempotent.
+    """
+    tpl = env.get_template("topic.html")
+    topics_dir = output_dir / "topics"
+    topics_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for raw_topic in KB2_TOPICS:
+        slug = TOPIC_SLUG_MAP[raw_topic]
+        articles = topic_articles_query(raw_topic, depth_min=2, conn=conn)
+        cooccurring = cooccurring_entities_in_topic(
+            raw_topic,
+            limit=5,
+            min_global_freq=KB_ENTITY_MIN_FREQ,
+            conn=conn,
+        )
+        topic_ctx = {
+            "slug": slug,
+            "raw_topic": raw_topic,
+            "localized_name": i18n_t(f"topic.{slug}.name", lang),
+            "localized_desc": i18n_t(f"topic.{slug}.desc", lang),
+        }
+        prepared = [_record_to_card_dict(rec) for rec in articles]
+        page_url = f"/topics/{slug}.html"
+        html = tpl.render(
+            lang=lang,
+            topic=topic_ctx,
+            articles=prepared,
+            cooccurring_entities=cooccurring,
+            page_url=page_url,
+            origin="",
+        )
+        _write_atomic(topics_dir / f"{slug}.html", html)
+        count += 1
+    return count
+
+
+def _render_entity_pages(
+    env: Environment,
+    output_dir: Path,
+    conn: sqlite3.Connection,
+    qualifying: list[dict[str, Any]],
+    lang: str = "zh-CN",
+) -> int:
+    """ENTITY-01 + ENTITY-03: render kb/output/entities/{slug}.html × N.
+
+    `qualifying` is precomputed by _discover_qualifying_entities (avoid re-scan).
+    Sorted by entity name ASC (already from query) for idempotent file order.
+    """
+    tpl = env.get_template("entity.html")
+    entities_dir = output_dir / "entities"
+    entities_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for ent in qualifying:
+        articles = entity_articles_query(
+            ent["name"], min_freq=KB_ENTITY_MIN_FREQ, conn=conn
+        )
+        prepared = [_record_to_card_dict(rec) for rec in articles]
+        page_url = f"/entities/{ent['slug']}.html"
+        html = tpl.render(
+            lang=lang,
+            entity=ent,
+            articles=prepared,
+            page_url=page_url,
+        )
+        _write_atomic(entities_dir / f"{ent['slug']}.html", html)
+        count += 1
+    return count
 
 
 def _ensure_lang_column(db_path: Path) -> None:
