@@ -104,6 +104,115 @@ def test_image_only_no_text_scaling() -> None:
     assert _budget(body) == 1050
 
 
+# T1-b1 (issue #2): disk fallback when body has no markdown image markers.
+# WeChat post-vision-description bodies have ![](...)  stripped — regex
+# returns 0. For re-ingestion paths the previous scrape left files under
+# images/{md5(url)[:10]}/ on disk; the disk count is the source of truth.
+# Note: fresh-article path (no prior scrape) gets disk_count=0 too — that's
+# a known limitation deferred to v1.0.y (D2 schema column or post-scrape
+# budget rerouting).
+
+def test_disk_fallback_url_none_returns_zero(tmp_path, monkeypatch) -> None:
+    """No url provided → no disk lookup → regex-only behavior."""
+    from batch_ingest_from_spider import _count_images_in_body
+    monkeypatch.setenv("OMNIGRAPH_BASE_DIR", str(tmp_path))
+    # Empty body, no url. Disk lookup not attempted.
+    assert _count_images_in_body("", url=None) == 0
+
+
+def test_disk_fallback_missing_dir_returns_zero(tmp_path, monkeypatch) -> None:
+    """url given but images/{hash}/ dir doesn't exist → 0 (fresh-article case)."""
+    from batch_ingest_from_spider import _count_images_in_body
+    monkeypatch.setenv("OMNIGRAPH_BASE_DIR", str(tmp_path))
+    assert _count_images_in_body("", url="https://example.com/fresh") == 0
+
+
+def test_disk_fallback_counts_image_files(tmp_path, monkeypatch) -> None:
+    """url + body-no-markers + disk has 5 jpgs → returns 5."""
+    import hashlib
+    from batch_ingest_from_spider import _count_images_in_body
+
+    monkeypatch.setenv("OMNIGRAPH_BASE_DIR", str(tmp_path))
+    url = "https://mp.weixin.qq.com/s/test123"
+    h = hashlib.md5(url.encode()).hexdigest()[:10]
+    img_dir = tmp_path / "images" / h
+    img_dir.mkdir(parents=True)
+    # 5 image files + 1 non-image (should be ignored)
+    for i in range(1, 6):
+        (img_dir / f"{i}.jpg").write_bytes(b"fake")
+    (img_dir / "metadata.json").write_text("{}")
+    assert _count_images_in_body("body without image markers", url=url) == 5
+
+
+def test_disk_fallback_mixed_extensions(tmp_path, monkeypatch) -> None:
+    """Counts jpg/jpeg/png/webp/gif uniformly; ignores .json/.txt/etc."""
+    import hashlib
+    from batch_ingest_from_spider import _count_images_in_body
+
+    monkeypatch.setenv("OMNIGRAPH_BASE_DIR", str(tmp_path))
+    url = "https://example.com/mixed"
+    h = hashlib.md5(url.encode()).hexdigest()[:10]
+    img_dir = tmp_path / "images" / h
+    img_dir.mkdir(parents=True)
+    (img_dir / "1.jpg").write_bytes(b"")
+    (img_dir / "2.JPG").write_bytes(b"")  # case insensitive ext
+    (img_dir / "3.png").write_bytes(b"")
+    (img_dir / "4.webp").write_bytes(b"")
+    (img_dir / "5.gif").write_bytes(b"")
+    (img_dir / "manifest.json").write_text("{}")
+    (img_dir / "log.txt").write_text("")
+    assert _count_images_in_body("", url=url) == 5
+
+
+def test_regex_takes_precedence_over_disk(tmp_path, monkeypatch) -> None:
+    """When body has markdown markers, regex wins (cheaper, source of truth for fresh).
+
+    This protects the canonical RSS path where body retains ``![](...)`` —
+    we should NOT silently fall back to disk if the body told us already.
+    """
+    import hashlib
+    from batch_ingest_from_spider import _count_images_in_body
+
+    monkeypatch.setenv("OMNIGRAPH_BASE_DIR", str(tmp_path))
+    url = "https://example.com/regex-wins"
+    h = hashlib.md5(url.encode()).hexdigest()[:10]
+    img_dir = tmp_path / "images" / h
+    img_dir.mkdir(parents=True)
+    # Disk has 10 files...
+    for i in range(1, 11):
+        (img_dir / f"{i}.jpg").write_bytes(b"")
+    # ...but body says 3 markdown images. Regex wins.
+    body = "text " + ("\n" + _IMG_TOKEN) * 3
+    assert _count_images_in_body(body, url=url) == 3
+
+
+def test_compute_article_budget_with_url_kwarg(tmp_path, monkeypatch) -> None:
+    """End-to-end: body has no markers, disk has 34 files → budget = max(120+30+34*30, 900) = 1200."""
+    import hashlib
+    from batch_ingest_from_spider import _compute_article_budget_s
+
+    monkeypatch.setenv("OMNIGRAPH_BASE_DIR", str(tmp_path))
+    url = "https://mp.weixin.qq.com/s/issue2"
+    h = hashlib.md5(url.encode()).hexdigest()[:10]
+    img_dir = tmp_path / "images" / h
+    img_dir.mkdir(parents=True)
+    for i in range(1, 35):
+        (img_dir / f"{i}.jpg").write_bytes(b"")
+    # Body: 1k chars (1 chunk), no image markers — same shape as Hermes id=65 case.
+    body = "x" * 1000
+    # text=120+30*1=150, image=34*30=1020, total=1170, max(1170, 900)=1170.
+    assert _compute_article_budget_s(body, url=url) == 1170
+
+
+def test_compute_article_budget_url_optional_back_compat(tmp_path) -> None:
+    """url= kwarg defaults to None → disk lookup skipped → pre-T1-b1 behavior preserved."""
+    from batch_ingest_from_spider import _compute_article_budget_s
+    # No monkeypatch needed: url=None means disk path never accessed.
+    body = _body_with_images(10_000, 34)
+    # Regex finds 34 images → budget scales as before T1-b1.
+    assert _compute_article_budget_s(body) >= 1200
+
+
 def test_drain_layer2_queue_call_site_uses_dynamic_budget() -> None:
     """2026-05-08 regression: per-article timeout in _drain_layer2_queue
     MUST compute budget from body length, not hardcode _SINGLE_CHUNK_FLOOR_S.

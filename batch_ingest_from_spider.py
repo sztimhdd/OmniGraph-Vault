@@ -20,6 +20,7 @@ Deepseek. Full pipeline now uses Deepseek for LLM, Gemini only for embeds.
 """
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -159,20 +160,60 @@ _SINGLE_CHUNK_FLOOR_S = 900     # guarantees one slow 800s DeepSeek chunk comple
 
 _MD_IMAGE_RE = re.compile(r'!\[[^\]]*\]\([^)]+\)')
 
+# Image extensions counted on disk fallback. Lower-case match.
+_IMG_EXT = (".jpg", ".jpeg", ".png", ".webp", ".gif")
 
-def _count_images_in_body(body: str) -> int:
-    """Estimate image count from markdown ``![...](...)`` references.
 
-    Matches both ``![alt](url)`` and ``![](url)`` patterns. Returns 0 on
-    empty body. Used by ``_compute_article_budget_s`` to scale the outer
-    timeout for image-heavy articles.
+def _count_images_on_disk(url: str | None) -> int:
+    """Count downloaded image files in ``$BASE/images/{md5(url)[:10]}/``.
+
+    Production images are stored under article-URL-based MD5[:10] hash
+    (verified 2026-05-13: same scheme for WeChat and RSS — see
+    ``ingest_wechat.py:1017`` and prod kv_store sample ``rss_9f52f6cbef``).
+
+    Returns 0 on missing dir / missing url / I/O error. This is a budget
+    *estimator*, never a correctness gate.
+    """
+    if not url:
+        return 0
+    base = os.environ.get("OMNIGRAPH_BASE_DIR") or str(Path("~/.hermes/omonigraph-vault").expanduser())
+    article_hash = hashlib.md5(url.encode("utf-8")).hexdigest()[:10]
+    img_dir = Path(base).expanduser() / "images" / article_hash
+    if not img_dir.is_dir():
+        return 0
+    try:
+        return sum(
+            1 for p in img_dir.iterdir()
+            if p.is_file() and p.suffix.lower() in _IMG_EXT
+        )
+    except OSError:
+        return 0
+
+
+def _count_images_in_body(body: str, *, url: str | None = None) -> int:
+    """Best-effort image count for budget computation.
+
+    Strategy (cheap → expensive):
+      1. Markdown ``![...](...)`` regex — works for fresh RSS and articles
+         where image markers are preserved.
+      2. Disk fallback — when regex returns 0 AND ``url`` provided, count
+         downloaded files in ``$BASE/images/{md5(url)[:10]}/``. Catches
+         the WeChat case where post-vision-description bodies have image
+         markers stripped/replaced (issue #2, T1-b1).
+
+    Returns 0 on empty body and no disk fallback hit. ``url`` is keyword-only
+    to keep call sites self-documenting.
     """
     if not body:
-        return 0
-    return len(_MD_IMAGE_RE.findall(body))
+        # Fresh ingest path may have empty body. Try disk anyway if url given.
+        return _count_images_on_disk(url)
+    md_count = len(_MD_IMAGE_RE.findall(body))
+    if md_count > 0:
+        return md_count
+    return _count_images_on_disk(url)
 
 
-def _compute_article_budget_s(full_content: str) -> int:
+def _compute_article_budget_s(full_content: str, *, url: str | None = None) -> int:
     """Compute outer asyncio.wait_for budget for an article.
 
     Two-layer timeout semantics:
@@ -195,7 +236,7 @@ def _compute_article_budget_s(full_content: str) -> int:
     Light articles (≤5 images) unaffected because text+image still under floor.
     """
     chunk_count = max(1, len(full_content) // _CHUNK_SIZE_CHARS)
-    image_count = _count_images_in_body(full_content)
+    image_count = _count_images_in_body(full_content, url=url)
     text_budget = _BASE_BUDGET_S + _PER_CHUNK_S * chunk_count
     image_budget = _PER_IMAGE_S * image_count
     return max(text_budget + image_budget, _SINGLE_CHUNK_FLOOR_S)
@@ -1755,15 +1796,15 @@ async def ingest_from_db(
                         result.verdict, art_id_d,
                     )
                     continue
-                # Phase 17 BTIMEOUT-02 (2026-05-08) + T1 (2026-05-13): per-article
-                # timeout scales with both text length AND image count.
-                # Pre-T1: only text term, 51-image articles hit 900s floor and
-                # timed out (real vision pipeline needs ~10s/image cascade).
-                # Post-T1: budget = max(120 + 30*chunks + 20*images, 900) capped
-                # at 2700s. Light articles unchanged; image-heavy articles get
-                # proportional budget headroom.
-                article_budget = _compute_article_budget_s(body or "")
-                _img_count = _count_images_in_body(body or "")
+                # Phase 17 BTIMEOUT-02 (2026-05-08) + T1 (2026-05-13) + T1-b1 (issue #2):
+                # per-article timeout scales with text length AND image count.
+                # Image count uses regex on body first (cheap), falls back to
+                # disk count under $BASE/images/{md5(url)[:10]}/ when regex=0
+                # (catches WeChat post-vision-description bodies that have
+                # image markers stripped). Pre-T1 51-image article hit 900s
+                # floor; post-fix gets proportional headroom.
+                article_budget = _compute_article_budget_s(body or "", url=url_d)
+                _img_count = _count_images_in_body(body or "", url=url_d)
                 if _img_count >= 10 or article_budget > _SINGLE_CHUNK_FLOOR_S:
                     logger.info(
                         "  article budget=%ds (chunks=%d images=%d)",
