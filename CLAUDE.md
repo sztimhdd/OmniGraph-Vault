@@ -84,17 +84,30 @@ OmniGraph-Vault is a personal knowledge base for **OpenClaw** and **Hermes Agent
 
 ## Release Status
 
-**Knowledge Collection + Ingestion subsystem: v1.0-rc1** (declared 2026-05-12 evening).
+**Knowledge Collection + Ingestion subsystem: v1.0** (declared 2026-05-13 morning, all final gates passed).
 
-End-to-end pipeline (scan → Layer 1 → scrape → Layer 2 → enrich → ainsert → reconcile) is a stable baseline. Multi-source ingestion (WeChat KOL + RSS feeds) both first-class as of 2026-05-12. 11 Hermes agent cron jobs daily, 92 articles in graph (85 KOL + 7 RSS), ~$1-5/day operating cost.
+End-to-end pipeline (scan → Layer 1 → scrape → Layer 2 → enrich → ainsert → reconcile) is a stable baseline. Multi-source ingestion (WeChat KOL + RSS feeds) both first-class as of 2026-05-12. 11 Hermes agent cron jobs daily, 94 articles in graph (87 KOL + 7 RSS), ~$1-5/day operating cost.
 
-**Final v1.0 gate (2026-05-13 09:35 ADT cron data verification):** gqu Pattern A burst activation (`178dd6e`), Layer 1 v1 natural reclassify (`aea2872`), reconcile dual scope (`587fa85`).
+**v1.0 final gate verdict (2026-05-13 09:00 ADT cron natural test):**
+- ✅ h09 race fix: 0 raise / 0 retry in production
+- ✅ Reconcile dual scope: 2 ok / 2 matched / 0 mystery (commit `587fa85`)
+- ✅ Layer 1 v1 at scale: 1386 RSS Layer 1 reject = ~95% real noise as predicted (commit `aea2872`)
+- ✅ gqu Pattern A insurance: deployed and silently degrading correctly (commit `178dd6e`)
 
-**Known v1.0.x patch candidates:** Layer 2 prompt audit (RSS 10% vs KOL 77% pass-rate gap), `orchestrate_daily.py` Popen refactor (post `e0ca633` buffering fix), Pattern A `OMNIGRAPH_PER_DOC_AVG_S` env override.
+**v1.0.x patches:**
+- ✅ **Patch B shipped** (commit `a7a8ab6` + dispatcher fix `3740678`): scrape_fail pre-check rescues RSS articles with project HARD-KEEP keywords lost to scrape failures
+- 🟡 **Patch A in flight** (quick `260513-lyt`): Layer 2 v1 prompt with HARD-KEEP RULE 0 + LF-2.7 English long-form relaxation. Targets ~52% real-body Layer 2 false-negative rate found in 2026-05-13 audit
+- 🟡 **T1 in flight**: vision timeout scale fix (51-image article hit 900s despite `_compute_article_budget_s` calculating 1620s)
 
-**Future milestones:** v1.1 KB content scale-up · v2.0 / agentic-rag-v1 (query + synthesis + agent skill bridge — design converged 2026-05-06, see `docs/design/agentic_rag_internal_api.md`).
+**Known v1.x candidates (not v1.0 blockers):**
+- Throughput: daily-ingest ~3 articles/run × 1 cron/day; vision pipeline single-article timeout ate 30%+ of 09:00 cron wallclock; needs vision parallelism + max-articles cap raise
+- `orchestrate_daily.py` Popen streaming refactor (post `e0ca633` buffering fix)
+- Pattern A `OMNIGRAPH_PER_DOC_AVG_S` env override
+- KOL Layer 2 scrape failure rate ~45% (WeChat MP API anti-scrape, deferred — Patch B defends downstream)
 
-See [README.md](README.md) for full v1.0-rc1 declaration.
+**Future milestones:** v1.1 KB content scale-up + throughput · v2.0 / agentic-rag-v1 (query + synthesis + agent skill bridge — design converged 2026-05-06, see `docs/design/agentic_rag_internal_api.md`).
+
+See [README.md](README.md) for full v1.0 declaration.
 
 ---
 

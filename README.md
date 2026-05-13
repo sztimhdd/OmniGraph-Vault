@@ -1,31 +1,36 @@
 # 🧠 OmniGraph-Vault: AI Agent Personal Knowledge Base
 
-> ## 🎉 v1.0-rc1 — declared 2026-05-12
+> ## 🎉 v1.0 — declared 2026-05-13
 >
 > **Knowledge Collection + Ingestion subsystem reached stable baseline.**
-> Final v1.0 gate: 2026-05-13 09:35 ADT cron data verification.
+> All v1.0 final gates passed in 2026-05-13 09:00 ADT cron natural test.
+>
+> ### v1.0 final gate verdict (2026-05-13)
+> - ✅ **h09 race fix**: 0 raise / 0 retry in production burst
+> - ✅ **Reconcile dual scope**: 2 ok / 2 matched / 0 mystery (commit `587fa85`)
+> - ✅ **Layer 1 v1 at scale**: 1386 RSS Layer 1 reject = ~95% real noise as predicted (commit `aea2872`)
+> - ✅ **gqu Pattern A insurance**: deployed and silently degrading correctly when no burst (commit `178dd6e`)
+> - ✅ **Multi-source ingestion**: KOL + RSS both first-class with reconcile observability
 >
 > ### What's stable (v1.0 ✅)
 > - End-to-end pipeline: scan → Layer 1 filter → scrape → Layer 2 filter → enrich → ainsert → reconcile
-> - Multi-source ingestion: WeChat KOL articles + RSS feeds (both first-class as of 2026-05-12)
+> - Multi-source ingestion: WeChat KOL articles + RSS feeds
 > - Production cron: 11 Hermes agent cron jobs daily, 10/11 typical pass rate
-> - Quality controls: Layer 1 v1 (HARD-KEEP RULE 0 for project keywords) + Layer 2 depth analysis
-> - Observability: daily reconcile canary (RSS+KOL dual scope), h09 verification, gqu Pattern A budget logger
-> - Resilience: atomic commits, version-bumped prompts auto-reclassify, Vertex AI paid embedding (no quota wall)
+> - Quality controls: Layer 1 v1 (HARD-KEEP RULE 0) + Layer 2 (v0 + scrape_fail defense)
+> - Observability: daily reconcile canary (RSS+KOL dual scope), h09 verification, Pattern A budget logger
+> - Resilience: atomic commits, version-bumped prompts auto-reclassify, Vertex AI paid embedding
 >
-> ### Pending v1.0 final gate
-> - gqu Pattern A poll-based budget activation in real prod burst (commit `178dd6e`)
-> - Layer 1 v1 prompt natural reclassify cycle via LF-1.8 (commit `aea2872`)
-> - Reconcile dual scope on multi-source candidates (commit `587fa85`)
+> ### v1.0.x patch candidates (in flight)
+> - **Patch A (in flight)**: Layer 2 v1 prompt with HARD-KEEP RULE 0 + LF-2.7 English long-form relaxation. Targets ~52% real-body Layer 2 false-negative rate found in 2026-05-13 audit (21/40 English long-form blogs unjustly rejected as "无机制")
+> - **Patch B (shipped 2026-05-13, commit `a7a8ab6` + `3740678`)**: scrape_fail pre-check rescues 7 RSS articles with project HARD-KEEP keywords lost to scrape failures
 >
-> ### Known caveats (post v1.0 patches)
-> - Layer 2 prompt audit deferred (RSS pass-rate 10% vs KOL 77%, suspected calibration issue)
-> - subprocess buffering fix shipped today (commit `e0ca633`), first natural cron pending
-> - Pattern A activates only under queue burst — daily cron load may not routinely exercise it
+> ### Known v1.x scope (not v1.0 blockers)
+> - **Throughput**: daily-ingest currently ~3 articles/run × 1 cron/day; vision pipeline single-article timeout ate 30%+ of 09:00 cron wallclock; needs vision parallelism + max-articles cap raise
+> - **Vision timeout scaling**: 51-image article hit 900s cap despite `_compute_article_budget_s` calculating 1620s budget (T1 fix in flight)
 >
-> **Stats (2026-05-12)**: 92 articles in graph (85 KOL + 7 RSS) · 174 LightRAG docs · 14 KOL accounts · 5 RSS domains active · ~$1-5/day operating cost
+> **Stats (2026-05-13)**: 94 articles in graph (87 KOL + 7 RSS) · 11 Hermes agent cron jobs · 14 KOL accounts · 5 RSS domains active · ~$1-5/day operating cost
 >
-> **Cognee memory layer was retired 2026-05-10** (quick `260510-gfg`). Sections below referencing Cognee describe the historical architecture; current production uses LightRAG entity/edge construction directly without Cognee canonicalization. See [CLAUDE.md](CLAUDE.md) for current architecture.
+> **Cognee memory layer was retired 2026-05-10** (quick `260510-gfg`). Sections below referencing Cognee describe the historical architecture; current production uses LightRAG entity/edge construction directly. See [CLAUDE.md](CLAUDE.md) for current architecture.
 
 **[English](#english-version) | [中文版](#chinese-version)**
 
