@@ -269,6 +269,30 @@ def copy_static_assets(output_dir: Path) -> None:
             shutil.copy2(item, target / item.name)
 
 
+def _ensure_lang_column(db_path: Path) -> None:
+    """Pre-flight check: fail fast if articles.lang or rss_articles.lang are absent.
+
+    The export driver hard-depends on the lang column (DATA-04 list_articles filters
+    by it; templates emit `<html lang>` from it). If the migration was never run on
+    this DB, list_articles raises an opaque sqlite3.OperationalError mid-loop. Catch
+    it here and surface an operator-actionable error pointing at the migration +
+    detection scripts.
+    """
+    import sqlite3
+
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        for table in ("articles", "rss_articles"):
+            cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+            if "lang" not in cols:
+                raise SystemExit(
+                    f"ERROR: '{table}.lang' column missing in {db_path}.\n"
+                    f"Run the lang-column migration + detection first:\n"
+                    f"  KB_DB_PATH={db_path} venv/Scripts/python.exe -m kb.scripts.migrate_lang_column\n"
+                    f"  KB_DB_PATH={db_path} venv/Scripts/python.exe -m kb.scripts.detect_article_lang\n"
+                    f"Both scripts are idempotent — safe to re-run."
+                )
+
+
 def write_url_index(article_index: list[dict], output_dir: Path) -> None:
     """CONTEXT.md stability concern: record (hash, article_id) for URL drift detection.
 
@@ -315,6 +339,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # Validate i18n key parity at build time (fail-fast if locales drift)
     validate_key_parity()
+
+    # Pre-flight: fail fast with operator-actionable error if lang columns absent
+    # (DATA-04 list_articles hard-depends on articles.lang + rss_articles.lang)
+    _ensure_lang_column(config.KB_DB_PATH)
 
     env = _build_env()
 
