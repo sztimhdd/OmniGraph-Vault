@@ -1,75 +1,196 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 
 {% block title %}{{ 'articles.page_title' | t('zh-CN') }} / {{ 'articles.page_title' | t('en') }} — {{ 'site.brand' | t('zh-CN') }}{% endblock %}
 
 {% block content %}
-<h1>
-  <span data-lang="zh">{{ 'articles.page_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.page_title' | t('en') }}</span>
-</h1>
+<header class="section">
+  <h1>
+    <span data-lang="zh">{{ 'articles.page_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.page_title' | t('en') }}</span>
+  </h1>
+  <p class="hero-subtitle hero-subtitle--inline">
+    <span data-lang="zh">{{ 'articles.page_subtitle' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.page_subtitle' | t('en') }}</span>
+  </p>
+</header>
 
-<div class="filter-bar card">
-  <label>
-    <span data-lang="zh">{{ 'articles.filter_lang' | t('zh-CN') }}:</span><span data-lang="en">{{ 'articles.filter_lang' | t('en') }}:</span>
-    <select id="filter-lang" onchange="applyFilters()">
-      <option value="">{{ 'articles.filter_all' | t('zh-CN') }} / {{ 'articles.filter_all' | t('en') }}</option>
-      <option value="zh-CN">{{ 'articles.filter_lang_zh' | t('zh-CN') }}</option>
-      <option value="en">{{ 'articles.filter_lang_en' | t('zh-CN') }}</option>
-    </select>
-  </label>
-  <label>
-    <span data-lang="zh">{{ 'articles.filter_source' | t('zh-CN') }}:</span><span data-lang="en">{{ 'articles.filter_source' | t('en') }}:</span>
-    <select id="filter-source" onchange="applyFilters()">
-      <option value="">{{ 'articles.filter_all' | t('zh-CN') }}</option>
-      <option value="wechat">{{ 'articles.filter_source_wechat' | t('zh-CN') }} / {{ 'articles.filter_source_wechat' | t('en') }}</option>
-      <option value="rss">RSS</option>
-    </select>
-  </label>
+<div class="filter-bar">
+  <div class="filter-group">
+    <span class="filter-group__label">
+      <span data-lang="zh">{{ 'articles.filter_lang' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.filter_lang' | t('en') }}</span>
+    </span>
+    <button type="button" class="filter-chip is-active" data-filter="lang" data-value="" aria-pressed="true">
+      <span data-lang="zh">{{ 'articles.filter_all' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.filter_all' | t('en') }}</span>
+    </button>
+    <button type="button" class="filter-chip" data-filter="lang" data-value="zh-CN" aria-pressed="false">
+      中文
+    </button>
+    <button type="button" class="filter-chip" data-filter="lang" data-value="en" aria-pressed="false">
+      English
+    </button>
+  </div>
+
+  <div class="filter-group">
+    <span class="filter-group__label">
+      <span data-lang="zh">{{ 'articles.filter_source' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.filter_source' | t('en') }}</span>
+    </span>
+    <button type="button" class="filter-chip is-active" data-filter="source" data-value="" aria-pressed="true">
+      <span data-lang="zh">{{ 'articles.filter_all' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.filter_all' | t('en') }}</span>
+    </button>
+    <button type="button" class="filter-chip" data-filter="source" data-value="wechat" aria-pressed="false">
+      {{ icon('wechat', size=13) }}
+      <span data-lang="zh">{{ 'source.wechat' | t('zh-CN') }}</span><span data-lang="en">{{ 'source.wechat' | t('en') }}</span>
+    </button>
+    <button type="button" class="filter-chip" data-filter="source" data-value="rss" aria-pressed="false">
+      {{ icon('rss', size=13) }}
+      RSS
+    </button>
+  </div>
 </div>
 
-<div id="article-list">
+<p class="filter-counter" id="filter-counter" aria-live="polite">
+  <span data-lang="zh">{{ 'articles.counter_showing' | t('zh-CN') }} <strong id="filter-shown">{{ articles|length }}</strong> / <strong>{{ articles|length }}</strong> {{ 'articles.counter_articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.counter_showing' | t('en') }} <strong id="filter-shown-en">{{ articles|length }}</strong> / <strong>{{ articles|length }}</strong> {{ 'articles.counter_articles' | t('en') }}</span>
+</p>
+
+<div id="article-list" class="article-list">
   {% for article in articles %}
-  <article class="card article-card" data-lang="{{ article.lang or 'unknown' }}" data-source="{{ article.source }}">
-    <h3 class="article-card-title">
-      <a href="/articles/{{ article.url_hash }}.html">{{ article.title }}</a>
-    </h3>
+  <a class="article-card" href="/articles/{{ article.url_hash }}.html"
+     data-lang="{{ article.lang or 'unknown' }}" data-source="{{ article.source }}">
     <div class="article-card-meta">
-      <span class="lang-badge">
-        {% if article.lang == 'zh-CN' %}{{ 'article.lang_zh' | t('zh-CN') }}{% elif article.lang == 'en' %}{{ 'article.lang_en' | t('zh-CN') }}{% else %}—{% endif %}
+      <span class="lang-badge" data-lang="{{ article.lang or 'unknown' }}">
+        {%- if article.lang == 'zh-CN' -%}
+          <span data-lang="zh">{{ 'article.lang_zh' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.lang_zh' | t('en') }}</span>
+        {%- elif article.lang == 'en' -%}
+          <span data-lang="zh">{{ 'article.lang_en' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.lang_en' | t('en') }}</span>
+        {%- else -%}
+          <span data-lang="zh">{{ 'article.lang_unknown' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.lang_unknown' | t('en') }}</span>
+        {%- endif -%}
       </span>
-      <span>{{ article.update_time }}</span>
-      <span>{{ article.source }}</span>
+      <span class="source-chip">
+        {%- if article.source == 'wechat' -%}
+          {{ icon('wechat', size=13) }} <span data-lang="zh">{{ 'source.wechat' | t('zh-CN') }}</span><span data-lang="en">{{ 'source.wechat' | t('en') }}</span>
+        {%- elif article.source == 'rss' -%}
+          {{ icon('rss', size=13) }} RSS
+        {%- else -%}
+          {{ icon('web', size=13) }} <span data-lang="zh">{{ 'source.web' | t('zh-CN') }}</span><span data-lang="en">{{ 'source.web' | t('en') }}</span>
+        {%- endif -%}
+      </span>
+      <span class="meta-dot">·</span>
+      <span>
+        <span data-lang="zh">{{ article.update_time | humanize('zh-CN') }}</span><span data-lang="en">{{ article.update_time | humanize('en') }}</span>
+      </span>
     </div>
-  </article>
+    <h3 class="article-card-title">{{ article.title }}</h3>
+    {% if article.snippet %}
+    <p class="article-card-snippet">{{ article.snippet }}</p>
+    {% endif %}
+    <span class="article-card-readmore">
+      <span data-lang="zh">{{ 'article.read_more' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.read_more' | t('en') }}</span>
+      {{ icon('arrow-right', size=14) }}
+    </span>
+  </a>
   {% else %}
-  <p id="empty-msg">
-    <span data-lang="zh">{{ 'articles.empty' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty' | t('en') }}</span>
-  </p>
+  <div class="empty-state">
+    {{ icon('inbox', size=48, cls='empty-state__icon') }}
+    <h3 class="empty-state__title">
+      <span data-lang="zh">{{ 'articles.empty_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty_title' | t('en') }}</span>
+    </h3>
+    <p class="empty-state__hint">
+      <span data-lang="zh">{{ 'articles.empty' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty' | t('en') }}</span>
+    </p>
+  </div>
   {% endfor %}
+</div>
+
+<div id="empty-filter-state" class="empty-state" hidden>
+  {{ icon('inbox', size=48, cls='empty-state__icon') }}
+  <h3 class="empty-state__title">
+    <span data-lang="zh">{{ 'articles.empty_filter_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty_filter_title' | t('en') }}</span>
+  </h3>
+  <p class="empty-state__hint">
+    <span data-lang="zh">{{ 'articles.empty_filter_hint' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty_filter_hint' | t('en') }}</span>
+  </p>
+  <button type="button" class="empty-state__action" id="reset-filters">
+    <span data-lang="zh">{{ 'articles.empty_filter_reset' | t('zh-CN') }} →</span><span data-lang="en">{{ 'articles.empty_filter_reset' | t('en') }} →</span>
+  </button>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-  // I18N-04 SSG-side: JS-only filter of pre-rendered cards. Reads ?lang= and ?source= from URL,
-  // syncs select values, and toggles card visibility.
   (function () {
-    var params = new URLSearchParams(window.location.search);
-    var initLang = params.get('lang') || '';
-    var initSrc = params.get('source') || '';
-    var langSel = document.getElementById('filter-lang');
-    var srcSel = document.getElementById('filter-source');
-    if (langSel) langSel.value = initLang;
-    if (srcSel) srcSel.value = initSrc;
-    window.applyFilters = function () {
-      var l = langSel ? langSel.value : '';
-      var s = srcSel ? srcSel.value : '';
-      var cards = document.querySelectorAll('#article-list .article-card');
-      cards.forEach(function (c) {
-        var matchLang = !l || c.getAttribute('data-lang') === l;
-        var matchSrc = !s || c.getAttribute('data-source') === s;
-        c.style.display = (matchLang && matchSrc) ? '' : 'none';
+    var totalCount = document.querySelectorAll('#article-list .article-card').length;
+    var current = { lang: '', source: '' };
+
+    function readQuery() {
+      var p = new URLSearchParams(window.location.search);
+      current.lang = p.get('lang') || '';
+      current.source = p.get('source') || '';
+    }
+
+    function setActiveChip(filterKey, value) {
+      document.querySelectorAll('.filter-chip[data-filter="' + filterKey + '"]').forEach(function (b) {
+        var active = (b.getAttribute('data-value') || '') === value;
+        if (active) b.classList.add('is-active'); else b.classList.remove('is-active');
+        b.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
-    };
+    }
+
+    function applyFilters() {
+      var cards = document.querySelectorAll('#article-list .article-card');
+      var shown = 0;
+      cards.forEach(function (c) {
+        var matchLang = !current.lang || c.getAttribute('data-lang') === current.lang;
+        var matchSrc = !current.source || c.getAttribute('data-source') === current.source;
+        var visible = matchLang && matchSrc;
+        c.style.display = visible ? '' : 'none';
+        if (visible) shown++;
+      });
+
+      var listEl = document.getElementById('article-list');
+      var emptyEl = document.getElementById('empty-filter-state');
+      if (shown === 0 && totalCount > 0) {
+        if (listEl) listEl.hidden = true;
+        if (emptyEl) emptyEl.hidden = false;
+      } else {
+        if (listEl) listEl.hidden = false;
+        if (emptyEl) emptyEl.hidden = true;
+      }
+
+      var counters = ['filter-shown', 'filter-shown-en'];
+      counters.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = shown;
+      });
+    }
+
+    document.querySelectorAll('.filter-chip').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-filter');
+        var value = btn.getAttribute('data-value') || '';
+        current[key] = value;
+        setActiveChip(key, value);
+        var url = new URL(window.location.href);
+        if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
+        history.replaceState(null, '', url.toString());
+        applyFilters();
+      });
+    });
+
+    var resetBtn = document.getElementById('reset-filters');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        current.lang = ''; current.source = '';
+        setActiveChip('lang', ''); setActiveChip('source', '');
+        var url = new URL(window.location.href);
+        url.searchParams.delete('lang'); url.searchParams.delete('source');
+        history.replaceState(null, '', url.toString());
+        applyFilters();
+      });
+    }
+
+    readQuery();
+    setActiveChip('lang', current.lang);
+    setActiveChip('source', current.source);
     applyFilters();
   })();
 </script>

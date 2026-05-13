@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% from "_icons.html" import icon %}<!DOCTYPE html>
 <html lang="{{ lang|default('zh-CN') }}">
 <head>
   <meta charset="UTF-8">
@@ -19,35 +19,97 @@
 <body>
   <header class="nav-wrap">
     <div class="container">
-      <nav class="nav">
+      <nav class="nav" aria-label="primary">
         <a href="/" class="nav-brand">
           <img src="/static/VitaClaw-Logo-v0.png" alt="" onerror="this.style.display='none'">
-          <span data-lang="zh">{{ 'site.brand' | t('zh-CN') }}</span><span data-lang="en">{{ 'site.brand' | t('en') }}</span>
+          <span class="nav-brand__zh" data-lang="zh">{{ 'site.brand' | t('zh-CN') }}</span><span class="nav-brand__en" data-lang="en">{{ 'site.brand' | t('en') }}</span>
         </a>
         <div class="nav-links">
-          <a href="/"><span data-lang="zh">{{ 'nav.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.home' | t('en') }}</span></a>
-          <a href="/articles/"><span data-lang="zh">{{ 'nav.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.articles' | t('en') }}</span></a>
-          <a href="/ask/"><span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.ask' | t('en') }}</span></a>
+          <a href="/">
+            {{ icon('home', size=16) }}
+            <span data-lang="zh">{{ 'nav.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.home' | t('en') }}</span>
+          </a>
+          <a href="/articles/">
+            {{ icon('articles', size=16) }}
+            <span data-lang="zh">{{ 'nav.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.articles' | t('en') }}</span>
+          </a>
+          <a href="/ask/">
+            {{ icon('ask', size=16) }}
+            <span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.ask' | t('en') }}</span>
+          </a>
           <button class="lang-toggle" type="button" aria-label="{{ 'lang.switcher_aria' | t('zh-CN') }}">
+            {{ icon('globe-alt', size=14) }}
             <span data-lang="zh">{{ 'lang.toggle_to_en' | t('zh-CN') }}</span><span data-lang="en">{{ 'lang.toggle_to_zh' | t('en') }}</span>
           </button>
         </div>
       </nav>
     </div>
   </header>
+
   <main>
     <div class="container">
       {% block content %}{% endblock %}
     </div>
   </main>
-  <footer class="footer">
+
+  <footer class="site-footer">
     <div class="container">
-      <p>
-        <span data-lang="zh">{{ 'footer.copyright' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.copyright' | t('en') }}</span>
-      </p>
+      <div class="site-footer__grid">
+        <div class="site-footer__col">
+          <h4>
+            <span data-lang="zh">{{ 'footer.about_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.about_title' | t('en') }}</span>
+          </h4>
+          <p>
+            <span data-lang="zh">{{ 'footer.about_short' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.about_short' | t('en') }}</span>
+          </p>
+        </div>
+        <div class="site-footer__col">
+          <h4>
+            <span data-lang="zh">{{ 'footer.nav_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.nav_title' | t('en') }}</span>
+          </h4>
+          <ul>
+            <li><a href="/"><span data-lang="zh">{{ 'nav.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.home' | t('en') }}</span></a></li>
+            <li><a href="/articles/"><span data-lang="zh">{{ 'nav.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.articles' | t('en') }}</span></a></li>
+            <li><a href="/ask/"><span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.ask' | t('en') }}</span></a></li>
+          </ul>
+        </div>
+        <div class="site-footer__col">
+          <h4>
+            <span data-lang="zh">{{ 'footer.lang_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.lang_title' | t('en') }}</span>
+          </h4>
+          <ul>
+            <li><a href="?lang=zh-CN">中文</a></li>
+            <li><a href="?lang=en">English</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>
+          <span data-lang="zh">{{ 'footer.copyright' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.copyright' | t('en') }}</span>
+        </span>
+        <span>
+          <span data-lang="zh">{{ 'footer.tech_credit' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.tech_credit' | t('en') }}</span>
+        </span>
+      </div>
     </div>
   </footer>
+
   <script src="/static/lang.js"></script>
+  <script>
+    (function () {
+      var nav = document.querySelector('.nav-wrap');
+      if (!nav) return;
+      var ticking = false;
+      function update() {
+        if (window.scrollY > 20) nav.classList.add('scrolled');
+        else nav.classList.remove('scrolled');
+        ticking = false;
+      }
+      window.addEventListener('scroll', function () {
+        if (!ticking) { window.requestAnimationFrame(update); ticking = true; }
+      }, { passive: true });
+    })();
+  </script>
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

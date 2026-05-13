@@ -1,47 +1,122 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 
 {% block title %}{{ 'site.brand' | t('zh-CN') }} / {{ 'site.brand' | t('en') }} — {{ 'site.tagline' | t('zh-CN') }}{% endblock %}
 
 {% block content %}
-<section class="hero">
-  <h1 class="lang-block" data-lang="zh">{{ 'home.hero_title' | t('zh-CN') }}</h1>
-  <h1 class="lang-block" data-lang="en">{{ 'home.hero_title' | t('en') }}</h1>
-  <p class="lang-block" data-lang="zh">{{ 'home.hero_subtitle' | t('zh-CN') }}</p>
-  <p class="lang-block" data-lang="en">{{ 'home.hero_subtitle' | t('en') }}</p>
-</section>
-
-<section class="latest-articles">
-  <h2>
-    <span data-lang="zh">{{ 'home.section_latest' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.section_latest' | t('en') }}</span>
-  </h2>
-  {% for article in articles %}
-  <article class="card article-card">
-    <h3 class="article-card-title">
-      <a href="/articles/{{ article.url_hash }}.html">{{ article.title }}</a>
-    </h3>
-    <div class="article-card-meta">
-      <span class="lang-badge">
-        {% if article.lang == 'zh-CN' %}{{ 'article.lang_zh' | t('zh-CN') }}{% elif article.lang == 'en' %}{{ 'article.lang_en' | t('zh-CN') }}{% else %}—{% endif %}
-      </span>
-      <span>{{ article.update_time }}</span>
-      <span>{{ article.source }}</span>
-    </div>
-  </article>
-  {% else %}
-  <p>
-    <span data-lang="zh">{{ 'articles.empty' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty' | t('en') }}</span>
+<section class="hero" aria-labelledby="hero-title">
+  <h1 id="hero-title">
+    <span data-lang="zh">{{ 'home.hero_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.hero_title' | t('en') }}</span>
+  </h1>
+  <p class="hero-subtitle">
+    <span data-lang="zh">{{ 'home.hero_subtitle' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.hero_subtitle' | t('en') }}</span>
   </p>
-  {% endfor %}
+
+  <div class="hero-search">
+    {{ icon('search', size=18, cls='hero-search__icon') }}
+    <input
+      type="search"
+      placeholder="{{ 'hero.search_placeholder' | t('zh-CN') }} / {{ 'hero.search_placeholder' | t('en') }}"
+      aria-label="{{ 'hero.search_aria' | t('zh-CN') }}"
+      onkeydown="if(event.key==='Enter'){var q=this.value.trim();if(q)location.href='/articles/?q='+encodeURIComponent(q);}">
+  </div>
+
+  <div class="hero-chips" role="list">
+    {% for chip_key in ['hero.chip_ai_agent', 'hero.chip_rpa', 'hero.chip_llm', 'hero.chip_kg', 'hero.chip_mcp'] %}
+    <a class="chip" href="/articles/?q={{ chip_key.split('.')[-1] }}" role="listitem">
+      <span data-lang="zh">{{ chip_key | t('zh-CN') }}</span><span data-lang="en">{{ chip_key | t('en') }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="hero-cta-row">
+    <a class="btn glow" href="/articles/">
+      <span data-lang="zh">{{ 'hero.cta_explore' | t('zh-CN') }}</span><span data-lang="en">{{ 'hero.cta_explore' | t('en') }}</span>
+      {{ icon('arrow-right', size=16) }}
+    </a>
+    <a class="btn btn-secondary glow-green" href="/ask/">
+      <span data-lang="zh">{{ 'hero.cta_ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'hero.cta_ask' | t('en') }}</span>
+      {{ icon('ask', size=16) }}
+    </a>
+  </div>
 </section>
 
-<section class="ask-cta card">
-  <h2>
-    <span data-lang="zh">{{ 'home.section_ask_cta' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.section_ask_cta' | t('en') }}</span>
-  </h2>
-  <p class="lang-block" data-lang="zh">{{ 'home.section_ask_desc' | t('zh-CN') }}</p>
-  <p class="lang-block" data-lang="en">{{ 'home.section_ask_desc' | t('en') }}</p>
-  <a href="/ask/" class="btn">
-    <span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }} →</span><span data-lang="en">{{ 'nav.ask' | t('en') }} →</span>
-  </a>
+<section class="section section--latest" aria-labelledby="latest-title">
+  <header class="section-header">
+    <h2 id="latest-title">
+      <span data-lang="zh">{{ 'home.section_latest' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.section_latest' | t('en') }}</span>
+    </h2>
+    <a class="section-header__hint" href="/articles/">
+      <span data-lang="zh">{{ 'home.view_all' | t('zh-CN') }} →</span><span data-lang="en">{{ 'home.view_all' | t('en') }} →</span>
+    </a>
+  </header>
+
+  {% if articles %}
+  <div class="article-list">
+    {% for article in articles %}
+    <a class="article-card" href="/articles/{{ article.url_hash }}.html"
+       data-lang="{{ article.lang or 'unknown' }}" data-source="{{ article.source }}">
+      <div class="article-card-meta">
+        <span class="lang-badge" data-lang="{{ article.lang or 'unknown' }}">
+          {%- if article.lang == 'zh-CN' -%}
+            <span data-lang="zh">{{ 'article.lang_zh' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.lang_zh' | t('en') }}</span>
+          {%- elif article.lang == 'en' -%}
+            <span data-lang="zh">{{ 'article.lang_en' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.lang_en' | t('en') }}</span>
+          {%- else -%}
+            <span data-lang="zh">{{ 'article.lang_unknown' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.lang_unknown' | t('en') }}</span>
+          {%- endif -%}
+        </span>
+        <span class="source-chip">
+          {%- if article.source == 'wechat' -%}
+            {{ icon('wechat', size=13) }} <span data-lang="zh">{{ 'source.wechat' | t('zh-CN') }}</span><span data-lang="en">{{ 'source.wechat' | t('en') }}</span>
+          {%- elif article.source == 'rss' -%}
+            {{ icon('rss', size=13) }} RSS
+          {%- else -%}
+            {{ icon('web', size=13) }} <span data-lang="zh">{{ 'source.web' | t('zh-CN') }}</span><span data-lang="en">{{ 'source.web' | t('en') }}</span>
+          {%- endif -%}
+        </span>
+        <span class="meta-dot">·</span>
+        <span class="article-card-date">
+          <span data-lang="zh">{{ article.update_time | humanize('zh-CN') }}</span><span data-lang="en">{{ article.update_time | humanize('en') }}</span>
+        </span>
+      </div>
+      <h3 class="article-card-title">{{ article.title }}</h3>
+      {% if article.snippet %}
+      <p class="article-card-snippet">{{ article.snippet }}</p>
+      {% endif %}
+      <span class="article-card-readmore">
+        <span data-lang="zh">{{ 'article.read_more' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.read_more' | t('en') }}</span>
+        {{ icon('arrow-right', size=14) }}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    {{ icon('inbox', size=48, cls='empty-state__icon') }}
+    <h3 class="empty-state__title">
+      <span data-lang="zh">{{ 'articles.empty_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty_title' | t('en') }}</span>
+    </h3>
+    <p class="empty-state__hint">
+      <span data-lang="zh">{{ 'articles.empty' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty' | t('en') }}</span>
+    </p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="section section--ask-cta" aria-labelledby="ask-cta-title">
+  <div class="ask-bottom-cta">
+    <h3 id="ask-cta-title">
+      <span data-lang="zh">{{ 'home.section_ask_cta' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.section_ask_cta' | t('en') }}</span>
+    </h3>
+    <p>
+      <span data-lang="zh">{{ 'home.section_ask_desc' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.section_ask_desc' | t('en') }}</span>
+    </p>
+    <a href="/ask/" class="btn glow">
+      {{ icon('sparkle', size=16) }}
+      <span data-lang="zh">{{ 'home.try_ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.try_ask' | t('en') }}</span>
+      {{ icon('arrow-right', size=16) }}
+    </a>
+  </div>
 </section>
 {% endblock %}

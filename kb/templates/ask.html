@@ -1,38 +1,148 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 
 {% block title %}{{ 'ask.page_title' | t('zh-CN') }} / {{ 'ask.page_title' | t('en') }} — {{ 'site.brand' | t('zh-CN') }}{% endblock %}
 
 {% block content %}
-<h1>
-  <span data-lang="zh">{{ 'ask.page_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.page_title' | t('en') }}</span>
-</h1>
+<div class="ask-page">
+  <header class="ask-hero">
+    <h1>
+      <span data-lang="zh">{{ 'ask.page_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.page_title' | t('en') }}</span>
+    </h1>
+    <p>
+      <span data-lang="zh">{{ 'ask.hero_subtitle' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.hero_subtitle' | t('en') }}</span>
+    </p>
+  </header>
 
-<form id="ask-form" class="card" onsubmit="return submitAsk(event)">
-  <textarea
-    id="ask-input"
-    rows="4"
-    placeholder="{{ 'ask.input_placeholder' | t('zh-CN') }} / {{ 'ask.input_placeholder' | t('en') }}"
-    required></textarea>
-  <button type="submit" class="btn">
-    <span data-lang="zh">{{ 'ask.submit' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.submit' | t('en') }}</span>
-  </button>
-</form>
+  <form id="ask-form" class="ask-form" onsubmit="return submitAsk(event)">
+    <textarea
+      id="ask-input"
+      class="ask-textarea"
+      rows="5"
+      placeholder="{{ 'ask.input_placeholder' | t('zh-CN') }} / {{ 'ask.input_placeholder' | t('en') }}"
+      aria-label="{{ 'ask.input_aria' | t('zh-CN') }}"
+      required></textarea>
+    <div class="ask-form__actions">
+      <button type="submit" class="btn btn-large glow">
+        {{ icon('sparkle', size=16) }}
+        <span data-lang="zh">{{ 'ask.submit_long' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.submit_long' | t('en') }}</span>
+        {{ icon('arrow-right', size=16) }}
+      </button>
+    </div>
+  </form>
 
-<div id="ask-result" class="card" style="display: none; margin-top: 1rem;"></div>
+  <section class="ask-hot" aria-labelledby="hot-questions-title">
+    <h2 id="hot-questions-title" class="ask-hot__title">
+      {{ icon('fire', size=16) }}
+      <span data-lang="zh">{{ 'ask.hot_questions_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.hot_questions_title' | t('en') }}</span>
+    </h2>
+    <ul class="ask-hot__list">
+      {%- for q_key in ['ask.hot_q_1', 'ask.hot_q_2', 'ask.hot_q_3', 'ask.hot_q_4', 'ask.hot_q_5'] -%}
+      <li>
+        <button type="button" class="ask-hot__item" data-question-zh="{{ q_key | t('zh-CN') }}" data-question-en="{{ q_key | t('en') }}">
+          <span>
+            <span data-lang="zh">{{ q_key | t('zh-CN') }}</span><span data-lang="en">{{ q_key | t('en') }}</span>
+          </span>
+          {{ icon('arrow-right', size=14, cls='ask-hot__item__arrow') }}
+        </button>
+      </li>
+      {%- endfor -%}
+    </ul>
+  </section>
 
-<p class="disclaimer">
-  <span data-lang="zh">{{ 'ask.disclaimer' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.disclaimer' | t('en') }}</span>
-</p>
+  <section id="ask-result" class="ask-result" aria-live="polite" hidden>
+    <div class="ask-result__section">
+      <h3 class="ask-result__heading">
+        {{ icon('sparkle', size=16) }}
+        <span data-lang="zh">{{ 'ask.result_answer_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_answer_title' | t('en') }}</span>
+      </h3>
+      <div id="ask-result-answer" class="ask-result__placeholder">
+        <span data-lang="zh">{{ 'ask.result_kb3_pending' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_kb3_pending' | t('en') }}</span>
+      </div>
+    </div>
+    <div class="ask-result__section">
+      <h3 class="ask-result__heading">
+        {{ icon('sources', size=16) }}
+        <span data-lang="zh">{{ 'ask.result_sources_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_sources_title' | t('en') }}</span>
+      </h3>
+      <div class="ask-result__placeholder">
+        <span data-lang="zh">{{ 'ask.result_sources_placeholder' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_sources_placeholder' | t('en') }}</span>
+      </div>
+    </div>
+    <div class="ask-result__section">
+      <h3 class="ask-result__heading">
+        {{ icon('tag', size=16) }}
+        <span data-lang="zh">{{ 'ask.result_entities_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_entities_title' | t('en') }}</span>
+      </h3>
+      <div class="ask-result__placeholder">
+        <span data-lang="zh">{{ 'ask.result_entities_placeholder' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_entities_placeholder' | t('en') }}</span>
+      </div>
+    </div>
+    <div class="ask-result__section">
+      <div class="ask-result__feedback">
+        <button type="button" aria-label="{{ 'ask.feedback_helpful' | t('zh-CN') }}">
+          {{ icon('thumb-up', size=14) }}
+          <span data-lang="zh">{{ 'ask.feedback_helpful' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.feedback_helpful' | t('en') }}</span>
+        </button>
+        <button type="button" aria-label="{{ 'ask.feedback_unhelpful' | t('zh-CN') }}">
+          {{ icon('thumb-down', size=14) }}
+          <span data-lang="zh">{{ 'ask.feedback_unhelpful' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.feedback_unhelpful' | t('en') }}</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <p class="disclaimer">
+    {{ icon('warning', size=18) }}
+    <span>
+      <span data-lang="zh">{{ 'ask.disclaimer' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.disclaimer' | t('en') }}</span>
+    </span>
+  </p>
+
+  <section class="ask-bottom-cta" aria-labelledby="ask-bottom-cta-title">
+    <h3 id="ask-bottom-cta-title">
+      <span data-lang="zh">{{ 'ask.bottom_cta_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.bottom_cta_title' | t('en') }}</span>
+    </h3>
+    <p>
+      <span data-lang="zh">{{ 'ask.bottom_cta_text' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.bottom_cta_text' | t('en') }}</span>
+    </p>
+    <a href="/articles/" class="btn btn-secondary glow-green">
+      {{ icon('articles', size=16) }}
+      <span data-lang="zh">{{ 'ask.bottom_cta_btn' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.bottom_cta_btn' | t('en') }}</span>
+      {{ icon('arrow-right', size=16) }}
+    </a>
+  </section>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-  // Placeholder: real submission goes to /api/synthesize in kb-3. For SSG MVP show a "coming soon" message.
+  (function () {
+    var input = document.getElementById('ask-input');
+    var result = document.getElementById('ask-result');
+
+    document.querySelectorAll('.ask-hot__item').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var lang = document.documentElement.lang || 'zh-CN';
+        var attr = lang.startsWith('zh') ? 'data-question-zh' : 'data-question-en';
+        var q = btn.getAttribute(attr) || btn.textContent.trim();
+        input.value = q;
+        input.focus();
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  })();
+
+  // Placeholder: real submission goes to /api/synthesize in kb-3.
+  // For SSG MVP show the result framework with a "kb-3 pending" notice
+  // so layout can be visually verified.
   function submitAsk(e) {
     e.preventDefault();
     var result = document.getElementById('ask-result');
-    result.style.display = 'block';
-    result.textContent = 'Q&A backend will be wired in kb-3 (FastAPI /api/synthesize). For now, this form is a placeholder.';
+    if (result) {
+      result.hidden = false;
+      result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     return false;
   }
 </script>

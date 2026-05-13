@@ -1,0 +1,74 @@
+{# kb/templates/_icons.html — inline SVG icon macros (Heroicons-style stroke 1.5)
+
+   Usage:
+     {% from "_icons.html" import icon %}
+     {{ icon('home', size=16) }}
+
+   Cohesive icon family: 24x24 viewBox, stroke="currentColor", stroke-width="1.5",
+   fill="none". All inline (no external CDN, no icon font).
+#}
+
+{% macro icon(name, size=20, cls='') %}
+  {%- set sz = size|string -%}
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+       width="{{ sz }}" height="{{ sz }}" aria-hidden="true"
+       {% if cls %}class="{{ cls }}"{% endif %}>
+  {%- if name == 'home' -%}
+    <path d="M3 12L12 4l9 8M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/>
+  {%- elif name == 'articles' -%}
+    <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V5z"/>
+    <path d="M8 8h8M8 12h8M8 16h5"/>
+  {%- elif name == 'ask' -%}
+    <path d="M3 5.25A2.25 2.25 0 0 1 5.25 3h13.5A2.25 2.25 0 0 1 21 5.25v9A2.25 2.25 0 0 1 18.75 16.5h-3l-3.75 3-.75-3H5.25A2.25 2.25 0 0 1 3 14.25v-9z"/>
+    <path d="M8.5 9.5a3.5 3.5 0 0 1 7 0c0 1.5-1 2.25-2 2.5-.5.125-1 .5-1 1.25"/>
+    <circle cx="12" cy="15" r="0.5" fill="currentColor"/>
+  {%- elif name == 'chevron-right' -%}
+    <path d="M9 6l6 6-6 6"/>
+  {%- elif name == 'arrow-right' -%}
+    <path d="M5 12h14M13 5l7 7-7 7"/>
+  {%- elif name == 'search' -%}
+    <circle cx="11" cy="11" r="7"/>
+    <path d="M21 21l-4.35-4.35"/>
+  {%- elif name == 'wechat' -%}
+    <path d="M9 4.5C5.5 4.5 3 6.8 3 9.7c0 1.6.8 3 2 4l-.5 2 2.2-1.2c.7.2 1.5.4 2.3.4l.6-.05"/>
+    <path d="M21 14.3c0-2.4-2.2-4.3-5-4.3s-5 1.9-5 4.3c0 2.4 2.2 4.3 5 4.3.6 0 1.1-.05 1.6-.2l1.7.95-.4-1.6c1.3-.85 2.1-2.1 2.1-3.45z"/>
+    <circle cx="14" cy="14" r="0.4" fill="currentColor"/>
+    <circle cx="18" cy="14" r="0.4" fill="currentColor"/>
+  {%- elif name == 'rss' -%}
+    <path d="M5 5a14 14 0 0 1 14 14"/>
+    <path d="M5 11a8 8 0 0 1 8 8"/>
+    <circle cx="6" cy="18" r="1.2"/>
+  {%- elif name == 'web' -%}
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+  {%- elif name == 'inbox' -%}
+    <path d="M3 13l3-9h12l3 9M3 13v6a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-6M3 13h5l1 2h6l1-2h5"/>
+  {%- elif name == 'globe-alt' -%}
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M3.5 9h17M3.5 15h17M12 3a12 12 0 0 1 0 18M12 3a12 12 0 0 0 0 18"/>
+  {%- elif name == 'fire' -%}
+    <path d="M12 3c1 4 5 4 5 9a5 5 0 0 1-10 0c0-2 1-3 2-4 0 1.5 1 2 2 2 0-3-1-4 1-7z"/>
+  {%- elif name == 'thumb-up' -%}
+    <path d="M7 22V11M7 11l4-7a2 2 0 0 1 4 1v5h5a2 2 0 0 1 2 2.4l-1.5 6A2 2 0 0 1 18.5 20H7"/>
+  {%- elif name == 'thumb-down' -%}
+    <path d="M17 2v11M17 13l-4 7a2 2 0 0 1-4-1v-5H4a2 2 0 0 1-2-2.4l1.5-6A2 2 0 0 1 5.5 4H17"/>
+  {%- elif name == 'sources' -%}
+    <path d="M14 3l-1 18M9 7l-1 14M19 9l-2 12"/>
+    <path d="M4 6h2M4 13h2M4 19h2"/>
+  {%- elif name == 'tag' -%}
+    <path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9z"/>
+    <circle cx="7.5" cy="7.5" r="1"/>
+  {%- elif name == 'warning' -%}
+    <path d="M12 4l10 17H2L12 4z"/>
+    <path d="M12 10v5"/>
+    <circle cx="12" cy="18" r="0.5" fill="currentColor"/>
+  {%- elif name == 'clock' -%}
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M12 7v5l3 2"/>
+  {%- elif name == 'sparkle' -%}
+    <path d="M12 3l1.5 5L18 9l-4.5 1L12 15l-1.5-5L6 9l4.5-1z"/>
+    <path d="M19 16l.7 2 2 .7-2 .7L19 22l-.7-1.6-2-.7 2-.7z"/>
+  {%- endif -%}
+  </svg>
+{% endmacro %}
