@@ -213,20 +213,32 @@ def _count_images_in_body(body: str, *, url: str | None = None) -> int:
     return _count_images_on_disk(url)
 
 
-def _compute_article_budget_s(full_content: str, *, url: str | None = None) -> int:
+def _compute_article_budget_s(
+    full_content: str,
+    *,
+    url: str | None = None,
+    image_count: int | None = None,
+) -> int:
     """Compute outer asyncio.wait_for budget for an article.
 
     Two-layer timeout semantics:
       - Outer (this budget): governs whole-article ingest call.
       - Inner (LLM_TIMEOUT=600 via D-09.01): governs each per-chunk LLM call.
 
-    Formula:
-        text_budget = BASE + PER_CHUNK * chunk_count
-        image_budget = PER_IMAGE * image_count
-        budget = max(text_budget + image_budget, FLOOR)
+    Image count resolution priority (D2 + T1 + T1-b1):
+      1. Explicit ``image_count`` kwarg — preferred. Populated at scrape
+         time from articles.image_count (mig 011, D2). Includes the case
+         where caller knows the exact count and wants to bypass body /
+         disk lookup.
+      2. Markdown ``![](...)`` regex on body — RSS path (body retains
+         remote refs) and KOL pre-vision path.
+      3. Disk fallback under ``$BASE/images/{md5(url)[:10]}/`` — T1-b1
+         defense-in-depth for WeChat re-ingestion when post-vision body
+         has stripped markers.
+
+    Formula: ``max(BASE + PER_CHUNK*chunks + PER_IMAGE*images, FLOOR)``
 
     chunk_count derived from ``len(full_content) // _CHUNK_SIZE_CHARS`` (floor, min 1).
-    image_count derived from markdown ``![](...)`` references in the body.
     No upper cap — vision cascade is stable, large articles let it finish.
 
     T1 (2026-05-13): pre-fix had no image term, 51-image article hit 900s
@@ -236,9 +248,12 @@ def _compute_article_budget_s(full_content: str, *, url: str | None = None) -> i
     Light articles (≤5 images) unaffected because text+image still under floor.
     """
     chunk_count = max(1, len(full_content) // _CHUNK_SIZE_CHARS)
-    image_count = _count_images_in_body(full_content, url=url)
+    if image_count is not None and image_count >= 0:
+        resolved_image_count = image_count
+    else:
+        resolved_image_count = _count_images_in_body(full_content, url=url)
     text_budget = _BASE_BUDGET_S + _PER_CHUNK_S * chunk_count
-    image_budget = _PER_IMAGE_S * image_count
+    image_budget = _PER_IMAGE_S * resolved_image_count
     return max(text_budget + image_budget, _SINGLE_CHUNK_FLOOR_S)
 
 
@@ -1473,7 +1488,8 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
                a.url   AS url,
                acc.name AS source_name,
                a.body  AS body,
-               a.digest AS summary
+               a.digest AS summary,
+               COALESCE(a.image_count, 0) AS image_count
           FROM articles a
           JOIN accounts acc ON a.account_id = acc.id
          WHERE a.id NOT IN (
@@ -1493,7 +1509,8 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
                r.url,
                f.name,
                r.body,
-               r.summary
+               r.summary,
+               COALESCE(r.image_count, 0) AS image_count
           FROM rss_articles r
           JOIN rss_feeds f ON r.feed_id = f.id
          WHERE r.id NOT IN (
@@ -1803,7 +1820,11 @@ async def ingest_from_db(
                 # (catches WeChat post-vision-description bodies that have
                 # image markers stripped). Pre-T1 51-image article hit 900s
                 # floor; post-fix gets proportional headroom.
-                article_budget = _compute_article_budget_s(body or "", url=url_d)
+                # D2 (issue #2 follow-up): row[7] is COALESCE(image_count, 0) from SELECT.
+                # Pre-mig-011 rows = 0 -> falls through to T1 regex / T1-b1 disk via the
+                # priority ladder inside _compute_article_budget_s.
+                image_count_d = row[7]
+                article_budget = _compute_article_budget_s(body or "", url=url_d, image_count=image_count_d)
                 _img_count = _count_images_in_body(body or "", url=url_d)
                 if _img_count >= 10 or article_budget > _SINGLE_CHUNK_FLOOR_S:
                     logger.info(
@@ -1861,7 +1882,7 @@ async def ingest_from_db(
         # (id, source, title, url, source_name, body, summary). The legacy
         # 6-col shape (digest as last col) became the 7-col shape with
         # 'wechat'/'rss' inserted at row[1] and digest aliased to summary.
-        for i, (art_id, source, title, url, account, body, summary) in enumerate(candidate_rows, 1):
+        for i, (art_id, source, title, url, account, body, summary, image_count_row) in enumerate(candidate_rows, 1):
             # quick-260511-mxc: strict hard cap. Pre-fix this check was
             # processed-only, so queued-but-not-yet-drained rows leaked past
             # the cap (up to LAYER2_BATCH_SIZE-1 = 4 extra). Charging the

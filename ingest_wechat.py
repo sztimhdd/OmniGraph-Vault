@@ -1273,6 +1273,22 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
         write_stage(ckpt_hash, "image_download", manifest)
         write_metadata(ckpt_hash, {"last_completed_stage": "image_download"})
 
+        # D2 (issue #2 follow-up): persist image_count for fresh-article budget calc.
+        # Hermes 2026-05-13 design review § 4: only WeChat needs this -- RSS images are
+        # remote-URL refs in body markdown (regex covers them in _count_images_in_body).
+        # Failure is non-fatal: image_count is a budget hint, not a correctness gate.
+        # Fall-through: T1-b1 disk count on next ingest attempt, or regex on RSS path.
+        if DB_PATH.exists():
+            try:
+                with sqlite3.connect(str(DB_PATH)) as _ic_conn:
+                    _ic_conn.execute(
+                        "UPDATE articles SET image_count = ? WHERE url = ?",
+                        (len(manifest), url),
+                    )
+                    _ic_conn.commit()
+            except Exception as _ic_exc:
+                logger.warning("image_count persist failed: %s", _ic_exc)
+
     # Phase 10 D-10.05 (ARCH-01): parent doc body contains image REFERENCE
     # lines only. Image DESCRIPTIONS arrive via sub-doc inserted by the
     # background _vision_worker_impl (spawned below after parent ainsert).

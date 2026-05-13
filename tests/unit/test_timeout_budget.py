@@ -258,3 +258,69 @@ def test_drain_layer2_queue_call_site_uses_dynamic_budget() -> None:
         "clamp_article_timeout in _drain_layer2_queue must receive "
         "article_budget (dynamic), not _SINGLE_CHUNK_FLOOR_S (hardcoded 900s)."
     )
+
+
+# D2 (issue #2 follow-up): image_count kwarg takes priority over regex+disk.
+# Hermes 2026-05-13 design review: scrape time persists len(manifest), the
+# budget call reads it directly to avoid the body-stripped fresh-cron gap.
+
+def test_image_count_kwarg_takes_precedence_over_regex() -> None:
+    """Kwarg image_count=34 wins even when body has 5 markdown image markers."""
+    from batch_ingest_from_spider import _compute_article_budget_s
+    body = ("x" * 1000) + ("\n" + _IMG_TOKEN) * 5
+    # If kwarg ignored: 1 chunk + 5 images = 120+30+150 = 300 -> floor 900
+    # If kwarg honored: 1 chunk + 34 images = 120+30+1020 = 1170
+    assert _compute_article_budget_s(body, image_count=34) == 1170
+
+
+def test_image_count_kwarg_takes_precedence_over_disk(tmp_path, monkeypatch) -> None:
+    """Kwarg image_count wins over T1-b1 disk count (md5 hash dir).
+
+    Discriminating value: kwarg=50 makes total cleanly escape the 900s floor.
+    If disk path used:    1 chunk + 10 images = 120+30+300 = 450 -> floor 900 (would NOT match 1650)
+    If kwarg=50 honored:  1 chunk + 50 images = 120+30+1500 = 1650 (escapes floor cleanly)
+    """
+    import hashlib
+    from batch_ingest_from_spider import _compute_article_budget_s
+    monkeypatch.setenv("OMNIGRAPH_BASE_DIR", str(tmp_path))
+    url = "https://example.com/kwarg-vs-disk"
+    h = hashlib.md5(url.encode()).hexdigest()[:10]
+    img_dir = tmp_path / "images" / h
+    img_dir.mkdir(parents=True)
+    for i in range(1, 11):
+        (img_dir / f"{i}.jpg").write_bytes(b"")
+    # body empty (1 chunk via max(1, ...)), disk has 10 jpgs.
+    # kwarg=50 wins -> budget escapes floor -> asserts the discriminating shape.
+    assert _compute_article_budget_s("", url=url, image_count=50) == 1650
+
+
+def test_image_count_zero_explicit_no_image_budget() -> None:
+    """Explicit image_count=0 must skip image_budget term entirely.
+
+    Body sized so the image term controls the total (above 900s floor):
+    50 chunks of "x" + 51 markdown image markers in the body.
+      - kwarg=0 honored:    120 + 30·50 + 30·0  = 1620
+      - kwarg ignored:      120 + 30·50 + 30·51 = 3150 (regex would re-derive 51)
+
+    Pair-check pattern: the second assertion (kwarg=None default) proves the
+    regex actually finds 51 images, so the first assertion's 1620 IS
+    discriminating between honored-vs-ignored.
+    """
+    from batch_ingest_from_spider import _compute_article_budget_s
+    body = ("x" * 240_000) + ("\n" + _IMG_TOKEN) * 51
+    # kwarg=0 short-circuits regex -> image term zero
+    assert _compute_article_budget_s(body, image_count=0) == 1620
+    # default uses regex=51 -> cross-check proves discrimination
+    assert _compute_article_budget_s(body) == 3150
+
+
+def test_image_count_none_falls_back_to_regex_or_disk() -> None:
+    """Back-compat: image_count=None preserves T1 / T1-b1 regex+disk fallback.
+
+    Old callers that don't pass image_count must keep working. Body with
+    51 markers must still scale per pre-D2 formula.
+    """
+    from batch_ingest_from_spider import _compute_article_budget_s
+    body = ("x" * 10_000) + ("\n" + _IMG_TOKEN) * 51
+    # Same as test_51_image_article_post_fix: regex finds 51 -> >=1500
+    assert _compute_article_budget_s(body, image_count=None) >= 1500
