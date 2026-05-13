@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="{{ lang|default('zh-CN') }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ 'site.title' | t('zh-CN') }} / {{ 'site.title' | t('en') }}{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+  {% block og %}
+  <meta property="og:title" content="{{ 'site.title' | t('zh-CN') }}">
+  <meta property="og:description" content="{{ 'site.tagline' | t('zh-CN') }}">
+  <meta property="og:image" content="/static/VitaClaw-Logo-v0.png">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:url" content="{{ page_url|default('/') }}">
+  {% endblock %}
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <header class="nav-wrap">
+    <div class="container">
+      <nav class="nav">
+        <a href="/" class="nav-brand">
+          <img src="/static/VitaClaw-Logo-v0.png" alt="" onerror="this.style.display='none'">
+          <span data-lang="zh">{{ 'site.brand' | t('zh-CN') }}</span><span data-lang="en">{{ 'site.brand' | t('en') }}</span>
+        </a>
+        <div class="nav-links">
+          <a href="/"><span data-lang="zh">{{ 'nav.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.home' | t('en') }}</span></a>
+          <a href="/articles/"><span data-lang="zh">{{ 'nav.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.articles' | t('en') }}</span></a>
+          <a href="/ask/"><span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.ask' | t('en') }}</span></a>
+          <button class="lang-toggle" type="button" aria-label="{{ 'lang.switcher_aria' | t('zh-CN') }}">
+            <span data-lang="zh">{{ 'lang.toggle_to_en' | t('zh-CN') }}</span><span data-lang="en">{{ 'lang.toggle_to_zh' | t('en') }}</span>
+          </button>
+        </div>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+  <footer class="footer">
+    <div class="container">
+      <p>
+        <span data-lang="zh">{{ 'footer.copyright' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.copyright' | t('en') }}</span>
+      </p>
+    </div>
+  </footer>
+  <script src="/static/lang.js"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>
