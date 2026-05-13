@@ -198,7 +198,14 @@ CONFIG-02 (18 REQs)
      and `lib.llm_complete.get_llm_func()` honors `OMNIGRAPH_LLM_PROVIDER` —
      the KB layer adds zero new LLM provider env vars (CONFIG-02).
 **Plans:** TBD
-**UI hint:** no
+**UI hint:** **yes** (revised 2026-05-13 per kb-1-DESIGN-AUDIT.md — ask.html result region is a non-trivial UI surface, even though most of kb-3 is backend)
+**Required Skills (HARD — see kb/docs/10-DESIGN-DISCIPLINE.md):**
+- `Skill(skill="ui-ux-pro-max", ...)` — at plan time, design Q&A result component (markdown render container + source-article chip row + entity chip row + feedback +/- buttons + state matrix: loading/streaming/done/error/timeout/fallback). Output → `kb-3-UI-SPEC.md`.
+- `Skill(skill="frontend-design", ...)` — at plan time, implement the spec into `kb/templates/ask.html` result region + `kb/static/qa.js` (or extend lang.js). Reuse kb-1 redesign tokens (chips, glow, icons, state classes) — do NOT re-design.
+- `Skill(skill="api-design", ...)` — at plan time, lock REST contract for /api/articles, /api/article/{hash}, /api/search, /api/synthesize before implementation.
+- `Skill(skill="python-patterns", ...)` — at code time, FastAPI dependency injection, BackgroundTasks, async/sqlite patterns.
+- `Skill(skill="writing-tests", ...)` — at test time, Testing Trophy: integration tests against real SQLite + LightRAG, unit tests only for pure helpers.
+**Pre-execution gate:** `kb-3-UI-SPEC.md` MUST exist before any code task. `kb-1-UI-SPEC.md` (from kb-1 redesign) MUST be in `<read_first>` of every UI-touching task — kb-3 inherits the locked design language, does not re-design.
 **Notes:**
 - I18N-07 lives in kb-3 (not kb-1) because it is a Q&A-endpoint behavior, not a
   UI chrome rule. The directive is injected at the wrapper layer, not at the
@@ -212,6 +219,8 @@ CONFIG-02 (18 REQs)
   grep -i "llm\|deepseek\|gemini" | grep -v lib/llm_complete` should be empty.
 - Caddy is **not** configured in kb-3; that's kb-4. Until kb-4, all access is
   direct via `localhost:8766`.
+- **Verification regex (run before declaring kb-3 complete):**
+  `grep "Skill(skill=\"ui-ux-pro-max\"" .planning/phases/kb-3-*/*-SUMMARY.md` — must return ≥1 match. Same for `frontend-design` / `api-design`. Zero matches = phase NOT complete regardless of REQ checkboxes.
 
 ---
 
@@ -259,7 +268,13 @@ fallback all working; smoke #1 requires kb-1's i18n).
      `rss_articles.lang` are 100% non-NULL post-rebuild (PROJECT-KB-v2.md "Pass
      conditions" §4).
 **Plans:** TBD
-**UI hint:** no
+**UI hint:** **conditional yes** (revised 2026-05-13 — smoke verification at 3 viewports against production-data-rendered output is the milestone gate; visual regressions surfaced by smoke MUST be closed by re-invoking design Skills, not by ad-hoc CSS patches)
+**Required Skills (HARD — see kb/docs/10-DESIGN-DISCIPLINE.md):**
+- `Skill(skill="ui-ux-pro-max", ...)` — IF smoke discovers visual gaps (overflow, truncation, responsive issues, RTL chars, long-title wrapping, etc.), invoke to design proper component-level fix — do NOT band-aid with one-off CSS overrides.
+- `Skill(skill="frontend-design", ...)` — IF kb-4 needs polish iteration, invoke alongside ui-ux-pro-max output. Do NOT hand-write CSS / template patches.
+- `Skill(skill="database-reviewer", ...)` — at cron-script time, review `kb/scripts/daily_rebuild.sh` for race conditions with running uvicorn / ingest cron / lock contention against SQLite + LightRAG storage.
+- `Skill(skill="security-reviewer", ...)` — at deploy time, review systemd unit + Caddy snippet + FastAPI /api/* surface for info-leakage / path-traversal / ReDoS / JSON-injection. Public deploy without auth means API surface needs scrutiny.
+**Pre-execution gate:** kb-4 inherits `kb-1-UI-SPEC.md` + `kb-3-UI-SPEC.md` as locked design contracts. Smoke verification MUST compare Playwright screenshots vs kb-1 + kb-3 baselines; any visual regression = phase NOT complete. Real PNG sourced for `kb/static/VitaClaw-Logo-v0.png` (UI-04 carry-forward gate from kb-1 + kb-1-04b).
 **Notes:**
 - DEPLOY-05 is intentionally narrow: the milestone verifies same-host only.
   Different-host deploy is "not blocked" but not certified — calling that out
@@ -269,6 +284,8 @@ fallback all working; smoke #1 requires kb-1's i18n).
   (timeout vs exception vs storage-path missing). Budget time accordingly.
 - No Caddy TLS / HTTPS / ICP-备案 in scope — Caddy automatic TLS is a deploy
   concern handled by the operator, not a milestone artifact.
+- **Verification regex (run before declaring kb-4 complete):**
+  If any visual gap was closed in this phase, `grep "Skill(skill=\"ui-ux-pro-max\"" .planning/phases/kb-4-*/*-SUMMARY.md` must return ≥1 match. Same for `frontend-design` if templates/CSS were touched. `Skill(skill="security-reviewer"` must always match (deploy surface review is non-negotiable).
 - No new functional code in this phase. Any code change beyond
   `kb/deploy/*` + `kb/scripts/daily_rebuild.sh` is a regression patch on kb-1 /
   kb-3 surfaced by smoke; allowed but should be flagged in the plan.
