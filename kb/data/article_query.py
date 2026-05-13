@@ -16,6 +16,7 @@ import hashlib
 import re
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -83,6 +84,26 @@ def _connect() -> sqlite3.Connection:
     return sqlite3.connect(uri, uri=True)
 
 
+def _normalize_update_time(raw) -> str:
+    """Normalize the raw articles.update_time column to a sortable ISO-8601 string.
+
+    Production: articles.update_time is INTEGER (Unix epoch seconds, e.g. 1777249680).
+    Legacy/test: may be TEXT ISO-8601. Both must produce ISO-8601 string output so
+    list_articles can sort uniformly across articles + rss_articles (rss has TEXT
+    published_at/fetched_at, mixing them with raw INT epochs raised TypeError at
+    the merge sort — see kb-1-VERIFICATION.md gap 1).
+
+    Returns '' on None / empty / zero (preserves prior empty-string contract).
+    """
+    if raw is None or raw == "" or raw == 0:
+        return ""
+    if isinstance(raw, int):
+        return datetime.fromtimestamp(raw, tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%S+00:00"
+        )
+    return str(raw)  # TEXT path: pass through unchanged
+
+
 def _row_to_record_kol(row) -> ArticleRecord:
     return ArticleRecord(
         id=row["id"],
@@ -92,7 +113,7 @@ def _row_to_record_kol(row) -> ArticleRecord:
         body=row["body"] or "",
         content_hash=row["content_hash"],
         lang=row["lang"],
-        update_time=row["update_time"] or "",
+        update_time=_normalize_update_time(row["update_time"]),
         publish_time=None,
     )
 
