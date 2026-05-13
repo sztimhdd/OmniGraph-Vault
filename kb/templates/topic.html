@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+
+{% block title %}{{ topic.localized_name }} — {{ 'site.brand' | t(lang) }}{% endblock %}
+
+{% block og %}
+<meta property="og:title" content="{{ topic.localized_name }}">
+<meta property="og:description" content="{{ topic.localized_desc }}">
+<meta property="og:image" content="/static/VitaClaw-Logo-v0.png">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="{{ 'zh_CN' if lang == 'zh-CN' else 'en_US' }}">
+<meta property="og:url" content="{{ page_url }}">
+{% endblock %}
+
+{% block extra_head %}
+<meta name="description" content="{{ topic.localized_desc }}">
+<link rel="canonical" href="{{ page_url }}">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": {{ topic.localized_name | tojson }},
+  "description": {{ topic.localized_desc | tojson }},
+  "url": {{ page_url | tojson }},
+  "inLanguage": {{ lang | tojson }},
+  "numberOfItems": {{ articles | length }},
+  "breadcrumb": {
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": {{ (origin ~ "/") | tojson }}},
+      {"@type": "ListItem", "position": 2, "name": "Topics", "item": {{ (origin ~ "/topics/") | tojson }}},
+      {"@type": "ListItem", "position": 3, "name": {{ topic.localized_name | tojson }}}
+    ]
+  }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="breadcrumb">
+  <a href="/">{{ icon('home', size=14) }} {{ 'breadcrumb.home' | t(lang) }}</a>
+  {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
+  <a href="/topics/">{{ 'breadcrumb.topics' | t(lang) }}</a>
+  {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
+  <span class="breadcrumb__current">{{ topic.localized_name }}</span>
+</nav>
+
+<header class="topic-pillar-header">
+  <h1 class="topic-pillar-header__title">{{ topic.localized_name }}</h1>
+  <p class="topic-pillar-header__desc">{{ topic.localized_desc }}</p>
+  <div class="topic-pillar-header__meta">
+    <span class="chip chip--count">
+      {{ icon('articles', size=13) }}
+      {{ articles | length }} {{ 'topic.article_count_label' | t(lang) }}
+    </span>
+    <div class="topic-pillar-header__filter" role="group" aria-label="Source filter">
+      <button type="button" class="chip chip--toggle is-active" data-source="all" aria-pressed="true">All</button>
+      <button type="button" class="chip chip--toggle" data-source="wechat" aria-pressed="false">
+        {{ icon('wechat', size=13) }} WeChat
+      </button>
+      <button type="button" class="chip chip--toggle" data-source="rss" aria-pressed="false">
+        {{ icon('rss', size=13) }} RSS
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="topic-pillar-layout">
+  <section class="topic-pillar-articles" aria-label="{{ topic.localized_name }}">
+    {% if articles %}
+    <div class="article-list">
+      {% for article in articles %}
+      <a class="article-card" href="/articles/{{ article.url_hash }}.html"
+         data-lang="{{ article.lang or 'unknown' }}" data-source="{{ article.source }}">
+        <div class="article-card-meta">
+          <span class="lang-badge" data-lang="{{ article.lang or 'unknown' }}">
+            {%- if article.lang == 'zh-CN' -%}
+              {{ 'article.lang_zh' | t(lang) }}
+            {%- elif article.lang == 'en' -%}
+              {{ 'article.lang_en' | t(lang) }}
+            {%- else -%}
+              {{ 'article.lang_unknown' | t(lang) }}
+            {%- endif -%}
+          </span>
+          <span class="source-chip">
+            {%- if article.source == 'wechat' -%}
+              {{ icon('wechat', size=13) }} {{ 'source.wechat' | t(lang) }}
+            {%- elif article.source == 'rss' -%}
+              {{ icon('rss', size=13) }} RSS
+            {%- else -%}
+              {{ icon('web', size=13) }} {{ 'source.web' | t(lang) }}
+            {%- endif -%}
+          </span>
+          <span class="meta-dot">·</span>
+          <span>{{ article.update_time | humanize(lang) }}</span>
+        </div>
+        <h3 class="article-card-title">{{ article.title }}</h3>
+        {% if article.snippet %}
+        <p class="article-card-snippet">{{ article.snippet }}</p>
+        {% endif %}
+        <span class="article-card-readmore">
+          {{ 'article.read_more' | t(lang) }} {{ icon('arrow-right', size=14) }}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      {{ icon('inbox', size=32, cls='empty-state__icon') }}
+      <h2 class="empty-state__title">{{ 'topic.empty_title' | t(lang) }}</h2>
+      <p class="empty-state__hint">{{ 'topic.empty_hint' | t(lang) }}</p>
+    </div>
+    {% endif %}
+  </section>
+
+  {% if cooccurring_entities %}
+  <aside class="topic-pillar-sidebar" aria-label="{{ 'topic.cooccurring_entities_title' | t(lang) }}">
+    <h2 class="topic-pillar-sidebar__title">
+      {{ icon('users', size=16) }}
+      {{ 'topic.cooccurring_entities_title' | t(lang) }}
+    </h2>
+    <ul class="topic-pillar-sidebar__list">
+      {% for e in cooccurring_entities %}
+      <li>
+        <a class="chip chip--entity" href="/entities/{{ e.slug }}.html">
+          {{ icon('tag', size=12) }}
+          <span class="chip-label">{{ e.name }}</span>
+          <span class="chip-count">{{ e.article_count }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}
