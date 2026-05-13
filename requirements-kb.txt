@@ -1,0 +1,13 @@
+# KB-v2 milestone runtime deps (kb-1 + kb-3 + kb-4)
+# Add to existing project requirements.txt at deploy time:
+#   pip install -r requirements.txt -r requirements-kb.txt
+
+# kb-1 (SSG)
+jinja2>=3.1
+markdown>=3.5
+pygments>=2.17
+
+# kb-3 (FastAPI) — listed here so install order is unified
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.6
