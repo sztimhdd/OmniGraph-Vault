@@ -14,6 +14,7 @@ import pytest
 
 from kb.data.article_query import (
     ArticleRecord,
+    get_article_body,
     get_article_by_hash,
     list_articles,
     resolve_url_hash,
@@ -299,3 +300,122 @@ def test_queries_are_read_only_no_mutation_sql(fixture_conn):
     for stmt in spy.statements:
         first_word = stmt.strip().split()[0].upper()
         assert first_word == "SELECT", f"non-SELECT SQL leaked: {stmt!r}"
+
+
+# ---------- Task 3: get_article_body D-14 fallback + EXPORT-05 image rewrite ----------
+
+
+def _make_kol_rec(*, body: str, content_hash: str = "deadbeef01") -> ArticleRecord:
+    """Helper to build a wechat ArticleRecord for body-resolution tests."""
+    return ArticleRecord(
+        id=1,
+        source="wechat",
+        title="t",
+        url="u",
+        body=body,
+        content_hash=content_hash,
+        lang="zh-CN",
+        update_time="2026-01-01",
+        publish_time=None,
+    )
+
+
+def test_get_article_body_prefers_enriched_md(tmp_path, monkeypatch):
+    """Test 1: final_content.enriched.md exists -> read it; source='vision_enriched'."""
+    from kb import config as kb_config
+
+    monkeypatch.setattr(kb_config, "KB_IMAGES_DIR", tmp_path)
+    rec = _make_kol_rec(body="db body should NOT be used")
+    article_dir = tmp_path / "deadbeef01"
+    article_dir.mkdir()
+    (article_dir / "final_content.enriched.md").write_text(
+        "# Enriched body\n\ncontent here", encoding="utf-8"
+    )
+    # Also write a regular final_content.md to verify enriched wins
+    (article_dir / "final_content.md").write_text("# regular body", encoding="utf-8")
+
+    body, source = get_article_body(rec)
+    assert source == "vision_enriched"
+    assert "Enriched body" in body
+    assert "regular body" not in body
+
+
+def test_get_article_body_falls_back_to_final_content_md(tmp_path, monkeypatch):
+    """Test 2: enriched absent, final_content.md present -> read it; source='vision_enriched'."""
+    from kb import config as kb_config
+
+    monkeypatch.setattr(kb_config, "KB_IMAGES_DIR", tmp_path)
+    rec = _make_kol_rec(body="db body unused")
+    article_dir = tmp_path / "deadbeef01"
+    article_dir.mkdir()
+    (article_dir / "final_content.md").write_text("# Plain body", encoding="utf-8")
+
+    body, source = get_article_body(rec)
+    assert source == "vision_enriched"
+    assert "Plain body" in body
+
+
+def test_get_article_body_falls_back_to_db_body_when_files_absent(tmp_path, monkeypatch):
+    """Test 3: neither file exists -> rec.body returned; source='raw_markdown'."""
+    from kb import config as kb_config
+
+    monkeypatch.setattr(kb_config, "KB_IMAGES_DIR", tmp_path)
+    rec = _make_kol_rec(body="# DB body content\n\nhello")
+
+    body, source = get_article_body(rec)
+    assert source == "raw_markdown"
+    assert body == "# DB body content\n\nhello"
+
+
+def test_get_article_body_returns_empty_string_when_all_sources_empty(tmp_path, monkeypatch):
+    """Test 4: all 3 sources missing/empty -> ('', 'raw_markdown'), no exception."""
+    from kb import config as kb_config
+
+    monkeypatch.setattr(kb_config, "KB_IMAGES_DIR", tmp_path)
+    rec = _make_kol_rec(body="")  # empty body, no files on disk
+
+    body, source = get_article_body(rec)
+    assert body == ""
+    assert source == "raw_markdown"
+
+
+def test_get_article_body_rewrites_localhost_8765_image_url(tmp_path, monkeypatch):
+    """Test 5: 'http://localhost:8765/' is rewritten to '/static/img/' (EXPORT-05)."""
+    from kb import config as kb_config
+
+    monkeypatch.setattr(kb_config, "KB_IMAGES_DIR", tmp_path)
+    rec = _make_kol_rec(body="# Title\n\n![](http://localhost:8765/abc/img.png)\n\nText")
+
+    body, _source = get_article_body(rec)
+    assert "/static/img/abc/img.png" in body
+    assert "localhost:8765" not in body
+
+
+def test_get_article_body_does_not_rewrite_unprefixed_localhost(tmp_path, monkeypatch):
+    """Test 6: 'localhost:8765' without 'http://' prefix is NOT rewritten."""
+    from kb import config as kb_config
+
+    monkeypatch.setattr(kb_config, "KB_IMAGES_DIR", tmp_path)
+    raw = "see localhost:8765/path or visit our site"
+    rec = _make_kol_rec(body=raw)
+
+    body, _source = get_article_body(rec)
+    # No 'http://' prefix -> regex must not match
+    assert body == raw
+
+
+def test_get_article_body_rewrites_all_occurrences(tmp_path, monkeypatch):
+    """Test 7: multiple 'http://localhost:8765/' occurrences all get rewritten."""
+    from kb import config as kb_config
+
+    monkeypatch.setattr(kb_config, "KB_IMAGES_DIR", tmp_path)
+    raw = (
+        "![a](http://localhost:8765/x/1.png)\n"
+        "![b](http://localhost:8765/y/2.png)\n"
+        "![c](http://localhost:8765/z/3.png)\n"
+    )
+    rec = _make_kol_rec(body=raw)
+
+    body, _source = get_article_body(rec)
+    assert body.count("/static/img/") == 3
+    assert "localhost:8765" not in body
