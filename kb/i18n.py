@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
@@ -87,9 +89,84 @@ def t(key: str, lang: str | None = None) -> str:
     return translation
 
 
-def register_jinja2_filter(env: Any) -> None:
-    """Register `t` as a Jinja2 filter on the given Environment.
+_MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
-    Usage in templates: `{{ 'nav.home' | t(lang) }}`
+
+def _parse_any_datetime(value: str | int | None) -> datetime | None:
+    """Best-effort parse of ISO 8601 / RFC 822 / Unix epoch into UTC datetime."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(int(value), tz=timezone.utc)
+        except (OSError, ValueError, OverflowError):
+            return None
+    s = str(value).strip()
+    if not s:
+        return None
+    try:
+        # ISO 8601 — support trailing Z
+        iso = s.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        pass
+    try:
+        # RFC 822 (e.g. "Wed, 04 Sep 2024 04:31:00 +0000")
+        dt = parsedate_to_datetime(s)
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (TypeError, ValueError):
+        return None
+
+
+def humanize_date(value: str | int | None, lang: str = "zh-CN",
+                  now: datetime | None = None) -> str:
+    """RFC 822 / ISO 8601 / Unix epoch -> human-readable string per locale.
+
+    < 1 day:  "今天" / "Today"
+    < 7 days: "X 天前" / "X days ago"
+    else:     "2024 年 9 月 4 日" / "Sep 4, 2024"
+
+    Falls back to the original string on parse failure (never raises).
+    `now` is injectable for deterministic tests.
+    """
+    if value is None or value == "":
+        return ""
+    dt = _parse_any_datetime(value)
+    if dt is None:
+        return str(value)
+    ref = now or datetime.now(tz=timezone.utc)
+    if ref.tzinfo is None:
+        ref = ref.replace(tzinfo=timezone.utc)
+    delta_days = (ref.date() - dt.date()).days
+    is_zh = (lang or "").startswith("zh")
+    if delta_days <= 0:
+        return "今天" if is_zh else "Today"
+    if delta_days < 7:
+        return f"{delta_days} 天前" if is_zh else f"{delta_days} day{'s' if delta_days != 1 else ''} ago"
+    if is_zh:
+        return f"{dt.year} 年 {dt.month} 月 {dt.day} 日"
+    return f"{_MONTHS_EN[dt.month - 1]} {dt.day}, {dt.year}"
+
+
+def humanize_filter(value: str | int | None, lang: str = "zh-CN") -> str:
+    """Jinja2 filter wrapper for humanize_date."""
+    return humanize_date(value, lang)
+
+
+def register_jinja2_filter(env: Any) -> None:
+    """Register `t` and `humanize` as Jinja2 filters on the given Environment.
+
+    Usage in templates:
+      `{{ 'nav.home' | t(lang) }}`
+      `{{ article.update_time | humanize('zh-CN') }}`
     """
     env.filters["t"] = t
+    env.filters["humanize"] = humanize_filter

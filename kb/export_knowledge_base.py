@@ -64,6 +64,110 @@ STATIC_SOURCE_DIR = KB_ROOT / "static"
 # Markdown extensions (CONTEXT.md "Markdown rendering")
 MD_EXTENSIONS = ["fenced_code", "codehilite", "tables", "toc", "nl2br"]
 
+# Pygments lexer class -> human label for code-block top-right corner
+# (mapping is small; keep inline rather than a separate JSON)
+_LANG_LABEL = {
+    "python": "Python", "py": "Python",
+    "bash": "Bash", "sh": "Shell", "shell": "Shell",
+    "javascript": "JavaScript", "js": "JavaScript", "ts": "TypeScript", "typescript": "TypeScript",
+    "json": "JSON", "yaml": "YAML", "yml": "YAML", "toml": "TOML",
+    "go": "Go", "rust": "Rust", "rs": "Rust",
+    "java": "Java", "kotlin": "Kotlin", "scala": "Scala",
+    "html": "HTML", "css": "CSS", "scss": "SCSS",
+    "sql": "SQL", "graphql": "GraphQL",
+    "c": "C", "cpp": "C++", "csharp": "C#", "cs": "C#",
+    "ruby": "Ruby", "php": "PHP", "perl": "Perl",
+    "nix": "Nix", "lua": "Lua", "dart": "Dart", "swift": "Swift",
+    "dockerfile": "Dockerfile", "docker": "Dockerfile",
+    "markdown": "Markdown", "md": "Markdown",
+    "diff": "Diff", "patch": "Patch", "xml": "XML",
+}
+
+# Pygments emits `<div class="codehilite"><pre><span class="...">` and inside that
+# wraps with `<code class="language-XXX">`. We post-process to add `data-lang-label`
+# to the wrapper div so the CSS ::before reads it via attr().
+_CODEHILITE_LANG_RE = re.compile(
+    r'(<div class="codehilite">)\s*<pre><span></span><code class="language-([a-zA-Z0-9_+-]+)"',
+    re.MULTILINE,
+)
+
+# Jekyll/Rouge pattern (used by some RSS-scraped articles whose source HTML pre-renders
+# code blocks): `<div class="language-X highlighter-rouge"><div class="highlight"><pre>`.
+# We add `data-lang-label="X"` to the outer div so the same CSS ::before applies.
+_ROUGE_LANG_RE = re.compile(
+    r'<div class="language-([a-zA-Z0-9_+-]+) highlighter-rouge">',
+)
+
+
+def _annotate_code_block_lang_label(html: str) -> str:
+    """Inject data-lang-label onto Pygments .codehilite divs AND Jekyll/Rouge
+    .language-X.highlighter-rouge wrappers, so the CSS ::before reads it via attr().
+
+    Idempotent: re-running on annotated HTML is a no-op (matches the unannotated
+    pattern, so already-annotated nodes are skipped).
+    """
+    def _sub_codehilite(m: re.Match[str]) -> str:
+        lang_class = m.group(2).lower()
+        label = _LANG_LABEL.get(lang_class, lang_class.upper())
+        return f'<div class="codehilite" data-lang-label="{label}"><pre><span></span><code class="language-{m.group(2)}"'
+
+    def _sub_rouge(m: re.Match[str]) -> str:
+        lang_class = m.group(1).lower()
+        label = _LANG_LABEL.get(lang_class, lang_class.upper())
+        return f'<div class="language-{m.group(1)} highlighter-rouge" data-lang-label="{label}">'
+
+    html = _CODEHILITE_LANG_RE.sub(_sub_codehilite, html)
+    html = _ROUGE_LANG_RE.sub(_sub_rouge, html)
+    return html
+
+
+def _make_snippet(body_md: str, max_chars: int = 200) -> str:
+    """Strip markdown markup crudely + return ~max_chars char snippet for cards."""
+    if not body_md:
+        return ""
+    # Strip code fences first (don't want code in card snippets)
+    text = re.sub(r"```[\s\S]*?```", "", body_md)
+    # Strip inline code, links, images, headings, html tags, emphasis, list bullets
+    text = re.sub(r"`[^`]*`", "", text)
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"^[#>\-\*\+]+\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"\*([^*]+)\*", r"\1", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars].rstrip() + "…"
+
+
+def _estimate_reading_time(body_md: str) -> int:
+    """Estimate reading time in whole minutes (rounded up).
+    Heuristic: 250 wpm for Latin / 500 cpm for CJK (mixed content averages out).
+    Returns 1 for any non-empty body so the badge reads naturally.
+    """
+    if not body_md:
+        return 0
+    # Crude unit count: count CJK chars + Latin word-tokens
+    text = re.sub(r"<[^>]+>", "", body_md)
+    cjk = sum(1 for c in text if "一" <= c <= "鿿")
+    latin_words = len(re.findall(r"[A-Za-z]+", text))
+    minutes = max(1, round((cjk / 500) + (latin_words / 250)))
+    return minutes
+
+
+# Topic chips on homepage hero (5 fixed for v2.0; matched against locale keys)
+HERO_TOPIC_CHIP_KEYS = [
+    "hero.chip_ai_agent",
+    "hero.chip_rpa",
+    "hero.chip_llm",
+    "hero.chip_kg",
+    "hero.chip_mcp",
+]
+
+# Hot questions on /ask/ (5 fixed for v2.0; locale keys)
+ASK_HOT_QUESTION_KEYS = [f"ask.hot_q_{i}" for i in range(1, 6)]
+
 # EXPORT-01 idempotency: deterministic fallback for missing update_time.
 # NEVER use datetime.now() anywhere in this module -- would break byte-equality
 # across runs on different days. See REVISION 1 / Issue #1.
@@ -86,9 +190,19 @@ def _render_body_html(body_md: str) -> str:
     return md.convert(body_md)
 
 
-def _record_to_dict(rec: ArticleRecord, url_hash: str) -> dict[str, Any]:
-    """Shape an ArticleRecord into the dict that templates expect."""
-    return {
+def _record_to_dict(
+    rec: ArticleRecord,
+    url_hash: str,
+    *,
+    body_md: str | None = None,
+) -> dict[str, Any]:
+    """Shape an ArticleRecord into the dict that templates expect.
+
+    `body_md` (optional): if provided, derive `snippet` (~200-char excerpt) and
+    `reading_time` (minutes) for card / detail rendering. Pass None when these
+    fields are not needed (sitemap / url-index path).
+    """
+    out: dict[str, Any] = {
         "id": rec.id,
         "title": rec.title,
         "url_hash": url_hash,
@@ -98,6 +212,10 @@ def _record_to_dict(rec: ArticleRecord, url_hash: str) -> dict[str, Any]:
         "update_time": rec.update_time,
         "publish_time": rec.publish_time,
     }
+    if body_md is not None:
+        out["snippet"] = _make_snippet(body_md)
+        out["reading_time"] = _estimate_reading_time(body_md)
+    return out
 
 
 def _write_atomic(path: Path, content: str) -> None:
@@ -147,9 +265,9 @@ def render_article_detail(
     """Render one article detail page. Returns the dict added to _url_index.json."""
     url_hash = resolve_url_hash(rec)
     body_md, body_source = get_article_body(rec)
-    body_html = _render_body_html(body_md)
+    body_html = _annotate_code_block_lang_label(_render_body_html(body_md))
 
-    article_dict = _record_to_dict(rec, url_hash)
+    article_dict = _record_to_dict(rec, url_hash, body_md=body_md)
     article_dict["body_source"] = body_source
 
     ctx = {
@@ -168,26 +286,32 @@ def render_article_detail(
 def render_index_pages(
     env: Environment, articles: list[ArticleRecord], output_dir: Path
 ) -> None:
-    """Render index.html (homepage), articles/index.html (list), ask/index.html (Q&A entry)."""
-    # Build article dicts once, reused across pages
-    article_dicts = [
-        {**_record_to_dict(rec, resolve_url_hash(rec))}
-        for rec in articles
-    ]
+    """Render index.html (homepage), articles/index.html (list), ask/index.html (Q&A entry).
 
-    # Homepage: 20 most recent
-    # TODO v2.1: env-overridable KB_HOME_LATEST_LIMIT
+    Card snippets + reading-time are derived from body_md ONLY for the homepage's
+    20 cards (filesystem read per row). The full /articles/ list keeps body_md=None
+    to avoid 1800x filesystem reads — those cards show meta + title without snippet.
+    """
+    # Homepage: 20 most recent — read body_md to enrich cards with snippet + reading_time
+    home_dicts: list[dict[str, Any]] = []
+    for rec in articles[:20]:
+        url_hash = resolve_url_hash(rec)
+        body_md, _src = get_article_body(rec)
+        home_dicts.append(_record_to_dict(rec, url_hash, body_md=body_md))
+
     home_html = env.get_template("index.html").render(
         lang="zh-CN",
-        articles=article_dicts[:20],
+        articles=home_dicts,
+        topic_chip_keys=HERO_TOPIC_CHIP_KEYS,
         page_url="/",
     )
     _write_atomic(output_dir / "index.html", home_html)
 
-    # Article list: all
+    # Article list: all rows, no body_md (would be 1800x FS reads = slow)
+    list_dicts = [_record_to_dict(rec, resolve_url_hash(rec)) for rec in articles]
     list_html = env.get_template("articles_index.html").render(
         lang="zh-CN",
-        articles=article_dicts,
+        articles=list_dicts,
         page_url="/articles/",
     )
     _write_atomic(output_dir / "articles" / "index.html", list_html)
@@ -195,6 +319,7 @@ def render_index_pages(
     # Q&A entry
     ask_html = env.get_template("ask.html").render(
         lang="zh-CN",
+        hot_question_keys=ASK_HOT_QUESTION_KEYS,
         page_url="/ask/",
     )
     _write_atomic(output_dir / "ask" / "index.html", ask_html)
