@@ -20,6 +20,16 @@ def _reload_config():
     return importlib.reload(cfg)
 
 
+@pytest.fixture(autouse=True)
+def _restore_kb_config_after_test():
+    """Tests here reload kb.config under monkeypatched env. Without this finalizer,
+    the polluted module-level constants leak into other test files (e.g. test_i18n.py
+    sees KB_DEFAULT_LANG='en' instead of 'zh-CN'). Reload once more after monkeypatch
+    has reverted the env to restore real defaults."""
+    yield
+    _reload_config()
+
+
 def test_kb_db_path_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("KB_DB_PATH", raising=False)
     cfg = _reload_config()
