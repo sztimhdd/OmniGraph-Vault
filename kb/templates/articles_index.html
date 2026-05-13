@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'articles.page_title' | t('zh-CN') }} / {{ 'articles.page_title' | t('en') }} — {{ 'site.brand' | t('zh-CN') }}{% endblock %}
+
+{% block content %}
+<h1>
+  <span data-lang="zh">{{ 'articles.page_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.page_title' | t('en') }}</span>
+</h1>
+
+<div class="filter-bar card">
+  <label>
+    <span data-lang="zh">{{ 'articles.filter_lang' | t('zh-CN') }}:</span><span data-lang="en">{{ 'articles.filter_lang' | t('en') }}:</span>
+    <select id="filter-lang" onchange="applyFilters()">
+      <option value="">{{ 'articles.filter_all' | t('zh-CN') }} / {{ 'articles.filter_all' | t('en') }}</option>
+      <option value="zh-CN">{{ 'articles.filter_lang_zh' | t('zh-CN') }}</option>
+      <option value="en">{{ 'articles.filter_lang_en' | t('zh-CN') }}</option>
+    </select>
+  </label>
+  <label>
+    <span data-lang="zh">{{ 'articles.filter_source' | t('zh-CN') }}:</span><span data-lang="en">{{ 'articles.filter_source' | t('en') }}:</span>
+    <select id="filter-source" onchange="applyFilters()">
+      <option value="">{{ 'articles.filter_all' | t('zh-CN') }}</option>
+      <option value="wechat">{{ 'articles.filter_source_wechat' | t('zh-CN') }} / {{ 'articles.filter_source_wechat' | t('en') }}</option>
+      <option value="rss">RSS</option>
+    </select>
+  </label>
+</div>
+
+<div id="article-list">
+  {% for article in articles %}
+  <article class="card article-card" data-lang="{{ article.lang or 'unknown' }}" data-source="{{ article.source }}">
+    <h3 class="article-card-title">
+      <a href="/articles/{{ article.url_hash }}.html">{{ article.title }}</a>
+    </h3>
+    <div class="article-card-meta">
+      <span class="lang-badge">
+        {% if article.lang == 'zh-CN' %}{{ 'article.lang_zh' | t('zh-CN') }}{% elif article.lang == 'en' %}{{ 'article.lang_en' | t('zh-CN') }}{% else %}—{% endif %}
+      </span>
+      <span>{{ article.update_time }}</span>
+      <span>{{ article.source }}</span>
+    </div>
+  </article>
+  {% else %}
+  <p id="empty-msg">
+    <span data-lang="zh">{{ 'articles.empty' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty' | t('en') }}</span>
+  </p>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // I18N-04 SSG-side: JS-only filter of pre-rendered cards. Reads ?lang= and ?source= from URL,
+  // syncs select values, and toggles card visibility.
+  (function () {
+    var params = new URLSearchParams(window.location.search);
+    var initLang = params.get('lang') || '';
+    var initSrc = params.get('source') || '';
+    var langSel = document.getElementById('filter-lang');
+    var srcSel = document.getElementById('filter-source');
+    if (langSel) langSel.value = initLang;
+    if (srcSel) srcSel.value = initSrc;
+    window.applyFilters = function () {
+      var l = langSel ? langSel.value : '';
+      var s = srcSel ? srcSel.value : '';
+      var cards = document.querySelectorAll('#article-list .article-card');
+      cards.forEach(function (c) {
+        var matchLang = !l || c.getAttribute('data-lang') === l;
+        var matchSrc = !s || c.getAttribute('data-source') === s;
+        c.style.display = (matchLang && matchSrc) ? '' : 'none';
+      });
+    };
+    applyFilters();
+  })();
+</script>
+{% endblock %}
