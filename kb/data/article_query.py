@@ -13,8 +13,10 @@ All functions are read-only.
 from __future__ import annotations
 
 import hashlib
+import re
 import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal, Optional
 
 from kb import config
@@ -215,3 +217,36 @@ def get_article_by_hash(
     finally:
         if own_conn:
             conn.close()
+
+
+# ---- Body resolution (D-14) ----
+
+# EXPORT-05: rewrite the local image-server URL prefix to the static mount path.
+_IMAGE_SERVER_REWRITE = re.compile(r"http://localhost:8765/")
+
+
+def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
+    """D-14 fallback chain for article body markdown.
+
+    Resolution order:
+        1. {KB_IMAGES_DIR}/{hash}/final_content.enriched.md  -> 'vision_enriched'
+        2. {KB_IMAGES_DIR}/{hash}/final_content.md            -> 'vision_enriched'
+        3. rec.body (from DB row)                              -> 'raw_markdown'
+
+    Applies EXPORT-05 rewrite at read time:
+        'http://localhost:8765/' -> '/static/img/'
+
+    Returns:
+        (body_markdown, body_source) tuple.
+    """
+    url_hash = resolve_url_hash(rec)
+    images_dir = Path(config.KB_IMAGES_DIR)
+    for fname in ("final_content.enriched.md", "final_content.md"):
+        p = images_dir / url_hash / fname
+        if p.exists():
+            md = p.read_text(encoding="utf-8")
+            md = _IMAGE_SERVER_REWRITE.sub("/static/img/", md)
+            return md, "vision_enriched"
+    body = rec.body or ""
+    body = _IMAGE_SERVER_REWRITE.sub("/static/img/", body)
+    return body, "raw_markdown"
