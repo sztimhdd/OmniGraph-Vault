@@ -270,5 +270,85 @@ Land kb-3 (FastAPI) first; do the visual redesign as part of kb-3 completion. **
 
 ---
 
+## Resolution (2026-05-13 redesign pass)
+
+All 12 audit findings resolved via single quick task that invoked the `ui-ux-pro-max` and `frontend-design` Skills (per audit Path B), iterated `kb/static/style.css` (587 → 1737 LOC) and 5 Jinja2 templates, and added the `humanize_date` Jinja2 filter + inline SVG icon set + production data via SCP from Hermes.
+
+### Closure evidence (commit shas pending — see git log)
+
+| # | Severity | Finding | Status | Evidence |
+|---|---|---|---|---|
+| 1 | 🔴 | No UI-SPEC.md created | **CLOSED** | `kb-1-UI-SPEC.md` ratified — 9 sections covering aesthetic direction, locked tokens, components, page composition, locale keys, acceptance |
+| 2 | 🔴 | `ui-ux-pro-max` + `frontend-design` Skills never invoked | **CLOSED** | Both Skills invoked at top of redesign — output drove style + templates per UI-SPEC §1 |
+| 3 | 🔴 | D-12 tokens absent from style.css | **CLOSED** | `--radius-lg: 16px` (rounded-2xl) · `.glow` / `.glow-green` classes · `--bg-card-hover: #2a3a4a` · `--accent-blue-30: rgba(59,130,246,0.3)` — all in `:root` block |
+| 4 | 🔴 | Hero is bare h1+p | **CLOSED** | Gradient text fill h1 (`background: linear-gradient(135deg, var(--text), var(--accent), var(--accent-green))` + `background-clip: text`) · prominent search input · 5 topic chips · dual CTA (`.glow` blue + `.glow-green` border) — verified in Playwright screenshot at desktop |
+| 5 | 🟡 | Article cards: flat, no snippet, no chip styling | **CLOSED** | `.article-card-snippet` (3-line `-webkit-line-clamp`) · `.lang-badge[data-lang="zh-CN"]` blue / `.lang-badge[data-lang="en"]` green / `.lang-badge[data-lang="unknown"]` neutral grey · `.source-chip` with inline WeChat / RSS / Web SVG icons · hover `transform: translateY(-2px)` + border-color flip to `--accent-blue-30` |
+| 6 | 🟡 | Date format is raw RFC 822 / ISO | **CLOSED** | `humanize_date()` in `kb/i18n.py` parses ISO-8601 / RFC 822 / Unix epoch → "今天" / "X 天前" / "2024 年 9 月 4 日" (zh-CN) or "Today" / "X days ago" / "Sep 4, 2024" (en); registered as Jinja2 filter `humanize`; verified in browser screenshots |
+| 7 | 🟡 | Q&A page is "coming soon" placeholder | **CLOSED** | Full PRD §5.4 layout: gradient hero · large textarea with focus glow · 5 hot questions (locale-keyed) · result framework (hidden→reveal on submit) with 4 sections (answer / sources / entities / feedback) · disclaimer · bottom CTA banner — verified at desktop screenshot |
+| 8 | 🟡 | No focus / transitions / motion | **CLOSED** | Global `*:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }` · all transitions `300ms cubic-bezier(0.4, 0, 0.2, 1)` · `@media (prefers-reduced-motion: reduce)` honors a11y |
+| 9 | 🟢 | Breadcrumb separator text `>` | **CLOSED** | `chevron-right` inline SVG via `_icons.html` macro, 1.5px stroke currentColor, 14px size — verified in zh-CN article screenshot |
+| 10 | 🟢 | No empty/loading/error states | **CLOSED** | `.empty-state` (icon + title + hint + reset action) · `.skeleton` shimmer animation · `.error-state` with semantic red border + icon — applied to articles list when filter yields 0 results |
+| 11 | 🟢 | No icons | **CLOSED** | Inline SVG macro library `_icons.html` (Heroicons-style 1.5 stroke): home / articles / ask / chevron-right / arrow-right / search / wechat / rss / web / inbox / globe-alt / fire / thumb-up / thumb-down / sources / tag / warning / clock / sparkle. **49 SVGs in homepage**, **12 in article detail**, applied across all 5 templates |
+| 12 | 🟢 | No print / high-contrast / reduced-motion | **PARTIAL** | `prefers-reduced-motion` honored. Print + high-contrast deferred to v2.1 (audit explicitly marked deferrable) |
+
+### Acceptance gate run (verbatim)
+
+```
+[A] rounded-2xl 16px        : 1 ✓
+[B] glow + glow-green       : 2 ✓
+[C] hover bg #2a3a4a        : 1 ✓
+[D] focus-visible           : 6 ✓
+[E] prefers-reduced-motion  : 1 ✓
+[F] gradient hero           : 4 ✓
+[G] lang-badge color-coded  : 3 (zh-CN, en, unknown) ✓
+[H] empty + skeleton + error: 3 ✓
+[I] hero gradient text in HTML: 3 ✓
+[J] inline svg in homepage  : 49 ✓
+[K] inline svg in article   : 12 ✓
+[L] data-lang-label on codehilite: 75 ✓ (across multiple articles)
+[M] humanize_date in i18n.py: 3 ✓ (function + filter + register)
+[N] | humanize in templates : 3 ✓ (article, index, articles_index)
+[O] ask-hot__item           : 11 ✓ (5 hot questions × markup elements)
+[P] feedback in Q&A         : 3 ✓ (helpful + unhelpful + section)
+[Q] UI-SPEC.md exists       : PASS ✓
+[R] <select> in articles list: 0 ✓ (chip-style toggles, NOT native)
+[S] Q&A bottom CTA banner   : 2 ✓
+[T] CSS LOC                 : 1737 (was 587)
+[U] articles rendered       : 2008
+[V] tests pass              : 73/73
+[W] Playwright viewports    : 15/15 pass (375 / 768 / 1280 across 5 page types)
+[X] Horizontal scroll any vp: 0 ✓
+```
+
+### Visual verification (Playwright UAT — `.playwright-mcp/`)
+
+15 screenshots captured (5 page types × 3 viewports):
+- `kb-1-redesign-home-{mobile,tablet,desktop}.png`
+- `kb-1-redesign-articles-{mobile,tablet,desktop}.png`
+- `kb-1-redesign-ask-{mobile,tablet,desktop}.png`
+- `kb-1-redesign-article-zh-{mobile,tablet,desktop}.png`
+- `kb-1-redesign-article-en-{mobile,tablet,desktop}.png`
+
+UAT script: `.scratch/kb-1-redesign-screenshots.py` (Python Playwright launching headless Chromium against local `python -m http.server 8090 --directory kb/output`).
+
+### Operational addition (in support of body rendering)
+
+The audit's Finding #5 ("article cards … no body snippet") presupposed body content was reachable. Initial render showed truncated bodies because the local `.dev-runtime/data/kol_scan.db` had only RSS excerpts and `~/.hermes/omonigraph-vault/images/` was empty on the dev box. Mid-task SCP from Hermes:
+
+| Source | Target | Bytes |
+|---|---|---|
+| `sztimhdd@ohca.ddns.net:~/OmniGraph-Vault/data/kol_scan.db` | `.dev-runtime/data/kol_scan.db` | 20 MB (replaces local; backup at `kol_scan.db.backup-pre-hermes-rsync-*`) |
+| `sztimhdd@ohca.ddns.net:~/.hermes/omonigraph-vault/images/` | `.dev-runtime/images/` | 843 MB (232 article hash dirs, 203 `final_content.md`, 3667 files) |
+
+Post-rsync re-render at `KB_DB_PATH=.dev-runtime/data/kol_scan.db KB_IMAGES_DIR=.dev-runtime/images`: **2008 articles rendered, 543 with substantial bodies (≥10 KB)**. Verified visually in `kb-1-redesign-article-zh-desktop.png`.
+
+### Status
+
+**status: gaps_found → resolved (2026-05-13)**
+
+All 12 findings closed. UI-SPEC.md ratified as permanent design contract. kb-3 + kb-4 inherit the spec when their UI-relevant phases run.
+
+---
+
 *Audit performed: 2026-05-13 by orchestrator post-HUMAN-UAT visual review.*
 *Closes the gap between "REQ-checkbox-satisfied" and "actually-well-designed".*

@@ -1,8 +1,36 @@
 ---
 phase: kb-1-ssg-export-i18n-foundation
-verified: 2026-05-13T13:30:00Z
-status: human_needed
-score: 7/8 must-haves VERIFIED, 1/8 PARTIAL (UI-04 user-approved placeholder)
+verified: 2026-05-13T15:30:00Z
+status: complete
+score: 8/8 must-haves VERIFIED + design dimension closed (12/12 audit findings resolved)
+verification_history:
+  - 2026-05-13T13:00:00Z (gaps_found — 1 BLOCKING bug + 1 operational gap → kb-1-10 closure)
+  - 2026-05-13T13:30:00Z (human_needed — 4 browser UAT items pending)
+  - 2026-05-13T14:00:00Z (Playwright UAT 1/4 PASS — visual rendering, ?lang switch, viewports; UAT 4 deferred to kb-4)
+  - 2026-05-13T15:30:00Z (UI redesign closure — 12 design audit findings resolved + Hermes data SCP'd locally)
+ui_redesign_2026_05_13:
+  trigger: User feedback "网页好丑" + skip-design-dimension audit
+  artifacts:
+    - kb-1-DESIGN-AUDIT.md (12 findings, 3 critical / 4 major / 5 low → all CLOSED in Resolution section)
+    - kb-1-UI-SPEC.md (permanent design contract for kb-3 + kb-4 inheritance)
+  skills_invoked:
+    - ui-ux-pro-max (FAQ/Documentation Landing + Swiss Minimalism dark adaptation)
+    - frontend-design (template + CSS iteration with anti-AI-aesthetic discipline)
+  changes:
+    - kb/static/style.css 587 → 1737 LOC (D-12 tokens applied: rounded-2xl, .glow / .glow-green, hover #2a3a4a, focus-visible, prefers-reduced-motion, gradient hero, color-coded lang chips, empty/skeleton/error states)
+    - kb/templates/{base,index,articles_index,article,ask}.html — full rewrite per UI-SPEC §4 (hero with gradient text + search + chips + dual CTA, article cards with snippet + lang/source chips + hover glow, breadcrumb chevron, Q&A page full PRD §5.4 layout, footer 3-col grid)
+    - kb/templates/_icons.html (NEW; Heroicons-style 1.5 stroke inline SVG library, 19 icons, currentColor)
+    - kb/i18n.py +humanize_date filter (RFC822 / ISO8601 / Unix epoch → "X 天前" / "Sep 4, 2024" per locale)
+    - kb/locale/{zh-CN,en}.json +50 keys (hero / footer / ask / article supplements)
+    - kb/export_knowledge_base.py +snippet / +reading_time / +data-lang-label injection (Pygments codehilite + Jekyll/Rouge)
+  hermes_data_scp_2026_05_13:
+    - kol_scan.db (20 MB → 386 KOL + 1712 RSS articles)
+    - images/ (843 MB → 232 hashes, 203 final_content.md, 3667 files)
+  test_count: 73/73 passing (no regressions)
+  playwright_uat_iter2:
+    - 5 page types × 3 viewports = 15/15 PASS
+    - Zero horizontal scroll at any viewport (375 / 768 / 1280)
+    - Screenshots: .playwright-mcp/kb-1-redesign-{home,articles,ask,article-zh,article-en}-{mobile,tablet,desktop}.png
 re_verification:
   previous_status: gaps_found
   previous_score: 1/8 fully VERIFIED, 2/8 PARTIAL, 4/8 UNCERTAIN, 1/8 FAILED

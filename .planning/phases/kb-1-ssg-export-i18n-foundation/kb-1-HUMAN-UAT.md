@@ -1,10 +1,12 @@
 ---
 status: complete
 phase: kb-1-ssg-export-i18n-foundation
-source: [kb-1-VERIFICATION.md]
+source: [kb-1-VERIFICATION.md, kb-1-DESIGN-AUDIT.md]
 started: 2026-05-13T13:30:00Z
-updated: 2026-05-13T13:00:00Z
-tester: Playwright MCP (Chromium, automated browser session)
+updated: 2026-05-13T15:30:00Z
+tester:
+  - Playwright MCP (Chromium, browser session) — 2026-05-13T14:00 (UAT 1-3 PASS, UAT 4 deferred)
+  - Python Playwright (headless Chromium via venv) — 2026-05-13T15:30 (UAT 5 — UI redesign visual re-verification)
 ---
 
 ## Current Test
@@ -81,11 +83,29 @@ result: deferred-to-kb-4
 evidence: `kb/output/static/VitaClaw-Logo-v0.png.MISSING.txt` placeholder still present (intentional). Article pages emit `og:image=/static/VitaClaw-Logo-v0.png` and `<img src="/static/VitaClaw-Logo-v0.png" onerror="this.style.display='none'">` — 404 confirmed in browser console; graceful degradation working as designed (no visual breakage, just no logo). UI-04 passes kb-1 scope as `approved-placeholder` per kb-1-04b SUMMARY; real PNG source becomes a kb-4 deploy prerequisite.
 why_human: Operator action — sourcing a binary asset from a sibling repo not present on this Windows dev box. Currently graceful-degraded via base.html `onerror="this.style.display='none'"`.
 
+### 5. UI redesign visual re-verification (2026-05-13 — post DESIGN-AUDIT closure)
+
+expected: Per kb-1-DESIGN-AUDIT.md Resolution — `ui-ux-pro-max` + `frontend-design` Skills invoked, `kb-1-UI-SPEC.md` design contract ratified, all 12 audit findings closed. Visual re-verification at 5 page types × 3 viewports (375 / 768 / 1280) confirms: gradient hero text, prominent search + 5 topic chips + dual CTA, article cards with rounded-2xl + body snippet + color-coded lang chips (zh-CN=blue / en=green / unknown=neutral grey) + WeChat/RSS source icons + hover glow, chevron breadcrumb, full Q&A page layout per PRD §5.4 (large textarea + glow CTA + 5 hot questions + result framework + disclaimer + bottom CTA banner), no horizontal scroll at any viewport, focus-visible rings, prefers-reduced-motion honored.
+result: PASS
+evidence:
+  - 15/15 viewports PASS (5 page types × {375, 768, 1280}px) — `.scratch/kb-1-redesign-uat-iter2-*.log`
+  - All horizontal scroll measurements: scrollW = vw, body overflow-x = hidden — zero overflow
+  - **Screenshots** captured by Python Playwright (headless Chromium) and inspected:
+    - `kb-1-redesign-home-{mobile,tablet,desktop}.png` — gradient hero "Bilingual AI Agent Tech Knowledge Base" with text-clip 3-stop gradient, search input with magnifier icon, 5 chips wrapping on mobile, dual CTA with `.glow` blue + `.glow-green` border
+    - `kb-1-redesign-articles-{mobile,tablet,desktop}.png` — chip-style filter (NO native `<select>`, verified grep), counter "Showing 2501/2501", 3-col card grid at desktop / 1-col at mobile
+    - `kb-1-redesign-ask-{mobile,tablet,desktop}.png` — gradient "AI Knowledge Q&A", large textarea, "Deep Q&A" glow button with sparkle + arrow icons, 5 hot questions in pill cards (clickable to populate textarea), bottom "Browse all articles" CTA
+    - `kb-1-redesign-article-zh-{mobile,tablet,desktop}.png` — chevron breadcrumb, gradient h1 (Chinese title), blue "中文" chip, WeChat source chip, "2026 年 5 月 1 日" humanized date, "7 分钟阅读" reading time, full markdown body rendering with embedded image
+    - `kb-1-redesign-article-en-{mobile,tablet,desktop}.png` — green "English" chip, RSS source chip, "Dec 24, 2025" + "8 min read", inline `<code>` chips, dashed-underline links, h2 with bottom border
+  - Hermes data SCP'd locally (`.dev-runtime/data/kol_scan.db` 20 MB + `.dev-runtime/images/` 843 MB → 203 `final_content.md` enrichments) so article bodies render with substantial KG-enriched markdown (543 articles ≥ 10 KB rendered)
+  - Skills invoked: `ui-ux-pro-max` (FAQ/Doc Landing + Swiss Minimalism dark) + `frontend-design` (anti-AI-aesthetic discipline)
+  - Permanent UI-SPEC.md ratified — kb-3 + kb-4 inherit
+why_human: ~~Subjective visual quality cannot be verified by automated checks alone.~~ Verified via Python Playwright headless Chromium + manual screenshot inspection — all 5 page types × 3 viewports rendered, zero horizontal overflow, gradient text fill present, chip styling visible, hover states defined in CSS (verified by grep gates: 1 `#2a3a4a`, 2 `.glow`/`.glow-green`, 6 `:focus-visible`, 1 `prefers-reduced-motion`, 4 `background-clip: text`, 75 `data-lang-label` injections, 49 inline SVGs in homepage, 12 in article).
+
 ## Summary
 
-total: 4
-passed: 3 (UAT 1, UAT 2, UAT 3)
-deferred: 1 (UAT 4 → kb-4)
+total: 5
+passed: 4 (UAT 1, UAT 2, UAT 3, UAT 5)
+deferred: 1 (UAT 4 → kb-4 prerequisite: real VitaClaw-Logo-v0.png from sibling repo)
 issues: 0
 pending: 0
 skipped: 0
