@@ -3,8 +3,8 @@
 **Milestone:** KB-v2 (parallel-track to v3.4 / v3.5 / Agentic-RAG-v1)
 **Created:** 2026-05-12
 **Phase prefix:** `kb-N-*` (sibling to `ar-N-*`; main project uses 19-22)
-**Granularity:** Standard (3 phases — kb-1, kb-3, kb-4; kb-2 explicitly skipped)
-**Coverage:** 50/50 v2.0 REQs mapped, no orphans, no duplicates
+**Granularity:** Standard (4 phases — kb-1, kb-2, kb-3, kb-4) — **revised 2026-05-13:** kb-2 (Topic Pillar + Entity pages + cross-link) un-skipped after Hermes prod data verification
+**Coverage:** 62/62 v2.0 REQs mapped, no orphans, no duplicates
 
 > **Locked design:** `kb/docs/01-PRD.md` (§4 SEO 章节作废), `kb/docs/02-DECISIONS.md`,
 > `kb/docs/03-ARCHITECTURE.md`, `kb/docs/09-AGENT-QA-HANDBOOK.md`.
@@ -12,11 +12,10 @@
 > `omnigraph_search.query.search()`, C3 `kol_scan.db` schema (additive only),
 > C4 `images/{hash}/final_content.md` path. **Read-only**, do NOT break.
 
-> **Note on REQ count:** REQUIREMENTS-KB-v2.md header text says "37 REQs"; the
-> actual category breakdown sums to **50** (I18N 8 + DATA 6 + EXPORT 6 + UI 7 +
-> API 8 + SEARCH 3 + QA 5 + DEPLOY 5 + CONFIG 2 = 50). Roadmap uses the actual
-> count. Header text in REQUIREMENTS-KB-v2.md left untouched per "do not modify
-> sibling milestone scope" instruction; can be reconciled in a separate doc fix.
+> **Note on REQ count history:**
+> - 2026-05-12 initial roadmap mapped 50 REQs across 9 categories.
+> - 2026-05-13 kb-2 revival added 12 REQs across 3 new categories (TOPIC 5 + ENTITY 4 + LINK 3) → **62 REQs total across 12 categories**.
+> - kb-2 was originally "explicitly skipped" based on local dev DB data (0 classifications, 13 canonical entities). Hermes prod data (3945 classifications, 5257 extracted_entities, 91 entities at ≥5-article freq) supports kb-2 implementation today. Three v2.1 dependencies — LLM canonicalization (CANON-*), entity_type fill (TYPED-*), topic taxonomy hierarchy (TOPIC-HIER-*) — are explicitly deferred and won't block this milestone.
 
 ---
 
@@ -50,21 +49,20 @@ because the SSG export is already the natural "thin slice" (it exercises the ful
 data layer end-to-end on a static target). Layered decomposition is strictly
 simpler given this risk profile.
 
-**Phase count: 3** — explicitly skips kb-2 (entity pages + topic Pillar pages,
-deferred to v2.1; only 13 canonical entities exist today, can't support a real
-entity-page surface). The 1 → 3 → 4 numbering is intentional: it preserves
-cross-reference compatibility with `kb/docs/04-KB1` / `06-KB3` / `07-KB4` execution
-specs.
+**Phase count: 4** — kb-1 → kb-2 → kb-3 → kb-4. The numbering preserves cross-reference compatibility with `kb/docs/04-KB1` / `05-KB2-ENTITY-SEO.md` / `06-KB3` / `07-KB4` execution specs (kb-2 doc was authored 2026-05-12 anticipating this phase).
+
+**kb-2 placement rationale (after kb-1, before kb-3):** kb-2 is pure SSG (Jinja2 templates + data layer queries against existing tables — `classifications`, `extracted_entities` — plus extensions to kb-1's `article_query.py`). It produces topic + entity HTML pages that kb-3 then mounts via FastAPI and kb-4 deploys. kb-2 inherits the kb-1 redesigned UI tokens (chips, glow, icons, state classes from `kb-1-UI-SPEC.md`) — it does NOT re-design components.
+
+**Original 2026-05-12 reasoning that turned out to be wrong:** "only 13 canonical entities exist today, can't support a real entity-page surface" was true for the local dev DB (which had 0 classifications and 13 manually-seeded canonical entities). Hermes prod has 5 classified topics × 789 articles + 91 entities at ≥5-article frequency — entirely sufficient for v2.0 scope. The lesson: **always verify against production data before deferring scope** (now captured in `feedback_parallel_track_gates_manual_run.md` memory).
 
 ---
 
 ## Phases
 
-- [x] **Phase kb-1: SSG Export + i18n Foundation** — Completed 2026-05-13. Bilingual data layer, content_hash runtime resolution, Jinja2 SSG templates, sitemap/robots/og/JSON-LD baseline. The full read path goes from `kol_scan.db` to static HTML. (26/27 REQs satisfied; UI-04 placeholder accepted, real PNG carried to kb-4. 4 human-verifiable browser UAT items in kb-1-HUMAN-UAT.md.)
+- [x] **Phase kb-1: SSG Export + i18n Foundation** — Completed 2026-05-13. Bilingual data layer, content_hash runtime resolution, Jinja2 SSG templates, sitemap/robots/og/JSON-LD baseline. The full read path goes from `kol_scan.db` to static HTML. (26/27 REQs satisfied; UI-04 placeholder accepted, real PNG carried to kb-4. 4 human-verifiable browser UAT items in kb-1-HUMAN-UAT.md. UI redesign in progress 2026-05-13 to close design-dimension audit findings — `kb-1-DESIGN-AUDIT.md`.)
+- [ ] **Phase kb-2: Topic Pillar + Entity Pages + Cross-Link Network** — Generate `/topics/{slug}.html` × 5 (Agent / CV / LLM / NLP / RAG) + `/entities/{slug}.html` × ~91 (entities ≥5 articles) + JSON-LD CollectionPage / Thing. Article detail page gains related-entities + related-topics sidebar. Homepage adds "Browse by Topic" + "Featured Entities" sections. Inherits kb-1 redesigned UI tokens — no re-design.
 - [ ] **Phase kb-3: FastAPI Backend + Bilingual API + Search + Q&A** — `/api/articles` / `/api/article/{hash}` / `/api/search` (FTS5 + KG mode) / `/api/synthesize` (async + lang directive + FTS5 fallback) / `/static/img` mount.
 - [ ] **Phase kb-4: Ubuntu Deploy + Cron + Smoke Verification** — systemd unit + Caddy snippet + `install.sh` + `daily_rebuild.sh` cron + 3 smoke scenarios pass.
-
-> **kb-2 (entity pages + topic Pillar pages) explicitly skipped** — deferred to v2.1.
 
 ---
 
@@ -147,6 +145,40 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
   must distinguish these. Document both code paths in the implementation plan.
 - vitaclaw-site brand assets (`VitaClaw-Logo-v0.png`, `favicon.svg`, `#0f172a`
   暗色 palette) are reused as-is per UI-04 — no new design files in this milestone.
+
+---
+
+### Phase kb-2: Topic Pillar + Entity Pages + Cross-Link Network
+**Goal:** Generate topic pillar pages (`/topics/{slug}.html` × 5) and entity pages (`/entities/{slug}.html` × ~91) with cross-linking from article details. Homepage gains topic + entity discovery sections. Pure SSG (Jinja2 + data layer extensions); no HTTP, no new LLM calls. Inherits kb-1 redesigned UI tokens.
+**Depends on:** Phase kb-1 (article_query.py + kb-1-UI-SPEC.md tokens for chips/glow/icons/state-classes; templates `base.html` + `article.html` to extend; export driver to extend).
+**Requirements:** TOPIC-01..05, ENTITY-01..04, LINK-01..03 (12 REQs)
+**Success Criteria** (what must be TRUE):
+  1. `python kb/export_knowledge_base.py` against Hermes-prod-shape DB produces:
+     - `kb/output/topics/agent.html`, `cv.html`, `llm.html`, `nlp.html`, `rag.html` (5 files)
+     - `kb/output/entities/<slug>.html` for ~91 entities (verified by `ls kb/output/entities/*.html | wc -l ≥ 50` against threshold KB_ENTITY_MIN_FREQ=5)
+  2. Each topic page header shows localized name + description + accurate article count; lists articles where `classifications.depth_score >= 2 AND (layer1='candidate' OR layer2='ok')`, sorted by `update_time DESC`. UNION over KOL + RSS articles.
+  3. Each topic page sidebar lists 5 co-occurring entities (top by article frequency in this topic's article set), each linking to `/entities/{slug}.html`.
+  4. Each entity page lists all articles mentioning that entity, reusing kb-1 redesigned `.article-card` (no re-design). Header shows entity name + article count + lang distribution chip row.
+  5. Article detail page (`kb/templates/article.html`) gains a related-entities chip row (3-5 entities) + related-topics chip row (1-3 topics), wired through render context from export driver.
+  6. Homepage gains 2 new sections between "Latest Articles" and "Try AI Q&A": "🗂 Browse by Topic" (5 topic chip cards) + "💡 Featured Entities" (top 12 entities).
+  7. `kb/output/sitemap.xml` includes all topic + entity URLs (recursive `Path.rglob("*")` — auto-handles new pages).
+  8. Topic pages emit JSON-LD `CollectionPage` schema; entity pages emit JSON-LD `Thing` schema (generic `@type`, `entity_type` typing deferred to v2.1 CANON-* / TYPED-* per REQUIREMENTS).
+**Plans:** TBD
+**UI hint:** **yes** — kb-2 ships new page types (topic, entity) with new component requirements (chip cards on homepage, sidebar layouts, related-link rows). Even though tokens are inherited from kb-1, the layouts are new.
+**Required Skills (HARD — see kb/docs/10-DESIGN-DISCIPLINE.md):**
+- `Skill(skill="ui-ux-pro-max", ...)` — at plan time, design (a) topic pillar page layout (header + article list + sidebar with co-occurring entities), (b) entity page layout (header with lang distribution + article list), (c) homepage chip-card patterns for topics + entity cloud, (d) related-link sidebar/footer pattern for article detail. Output → `kb-2-UI-SPEC.md`. MUST reference kb-1-UI-SPEC.md and reuse its chip/glow/icon/state tokens.
+- `Skill(skill="frontend-design", ...)` — at plan time, implement spec into 2 new templates (`topic.html`, `entity.html`) + extend `index.html` (add 2 sections) + extend `article.html` (related sidebar). Reuse kb-1 redesigned tokens — do NOT re-design.
+- `Skill(skill="python-patterns", ...)` — at code time, idiomatic data layer extensions: `topic_articles_query(topic, depth_min)`, `entity_articles_query(entity_name, min_freq)`, `related_entities_for_article(article_id)`, `related_topics_for_article(article_id)`, `cooccurring_entities_in_topic(topic)`. All read-only, follow kb-1's `article_query.py` conventions.
+- `Skill(skill="writing-tests", ...)` — at test time, TDD for new query functions (table-driven against fixture mirroring Hermes-prod schema with classifications + extracted_entities) + integration test for export driver topic/entity rendering.
+**Pre-execution gate:** `kb-2-UI-SPEC.md` MUST exist before any code task. `kb-1-UI-SPEC.md` (from kb-1 redesign) MUST be in `<read_first>` of every UI-touching task — kb-2 reuses kb-1 chip / glow / icon / state classes verbatim. `tests/integration/kb/test_export.py` fixture MUST add `classifications` + `extracted_entities` table data (mirroring Hermes prod shape) BEFORE testing — local dev DB has 0 classifications, can't be used as ground truth.
+**Notes:**
+- TOPIC-02 cohort filter `depth_score >= 2 AND (layer1='candidate' OR layer2='ok')` is the right balance: depth >= 3 alone is only 19-38 per topic (too sparse), depth >= 2 alone is 650-720 per topic (too noisy — multi-topic LLM gives every article depth=2 for everything). The Layer 1/2 quality gate prunes the noise.
+- ENTITY-01 threshold `>= 5 articles` produces ~91 entity pages on Hermes prod (verified 2026-05-13). Lower threshold (>= 3) yields ~198 entities but quality drops; higher (>= 10) yields 26 — sparse. v2.0 picks 5 as the sweet spot, env-overridable via `KB_ENTITY_MIN_FREQ`.
+- ENTITY-04 emits `@type: Thing` (generic) rather than `Person/Organization/SoftwareApplication` because `entity_canonical.entity_type` is NULL across the corpus. v2.1 CANON-* + TYPED-* will populate this.
+- Cross-link discovery (LINK-01, LINK-02) is computed by the export driver at build time, not at request time — render context for `article.html` includes pre-computed `related_entities[]` and `related_topics[]` lists.
+- LINK-03 homepage chip cards reuse kb-1 redesigned `.article-card` styling (rounded-2xl, hover glow, etc.) — do NOT introduce a new card variant unless ui-ux-pro-max recommends one.
+- **Verification regex (run before declaring kb-2 complete):**
+  `grep "Skill(skill=\"ui-ux-pro-max\"" .planning/phases/kb-2-*/*-SUMMARY.md` — must return ≥1 match. Same for `frontend-design`. Zero matches = phase NOT complete regardless of REQ checkboxes.
 
 ---
 
@@ -296,7 +328,8 @@ fallback all working; smoke #1 requires kb-1's i18n).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| kb-1: SSG Export + i18n Foundation | 11/11 | Complete (26/27 REQs; UI-04 partial → kb-4 PNG carry-forward; 4 human UAT items pending browser test) | 2026-05-13 |
+| kb-1: SSG Export + i18n Foundation | 11/11 + redesign-quick-in-progress | Complete pre-redesign (26/27 REQs; UI-04 partial → kb-4 PNG carry-forward); UI redesign quick task in progress 2026-05-13 to close design-dimension audit | 2026-05-13 |
+| kb-2: Topic Pillar + Entity Pages + Cross-Link Network | 0/? | Not started — added 2026-05-13 from "skipped" status after Hermes prod data verification | — |
 | kb-3: FastAPI Backend + Bilingual API + Search + Q&A | 0/? | Not started | — |
 | kb-4: Ubuntu Deploy + Cron + Smoke Verification | 0/? | Not started | — |
 
@@ -304,14 +337,15 @@ fallback all working; smoke #1 requires kb-1's i18n).
 
 ## Coverage validation
 
-**50/50 v2.0 requirements mapped, no orphans, no duplicates.**
+**62/62 v2.0 requirements mapped, no orphans, no duplicates.**
 
 | Phase | Count | REQs |
 |-------|-------|------|
 | kb-1 | 27 | I18N-01, I18N-02, I18N-03, I18N-04, I18N-05, I18N-06, I18N-08, DATA-01, DATA-02, DATA-03, DATA-04, DATA-05, DATA-06, EXPORT-01, EXPORT-02, EXPORT-03, EXPORT-04, EXPORT-05, EXPORT-06, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07, CONFIG-01 |
+| kb-2 | 12 | TOPIC-01, TOPIC-02, TOPIC-03, TOPIC-04, TOPIC-05, ENTITY-01, ENTITY-02, ENTITY-03, ENTITY-04, LINK-01, LINK-02, LINK-03 |
 | kb-3 | 18 | I18N-07, API-01, API-02, API-03, API-04, API-05, API-06, API-07, API-08, SEARCH-01, SEARCH-02, SEARCH-03, QA-01, QA-02, QA-03, QA-04, QA-05, CONFIG-02 |
 | kb-4 | 5 | DEPLOY-01, DEPLOY-02, DEPLOY-03, DEPLOY-04, DEPLOY-05 |
-| **Total** | **50** | |
+| **Total** | **62** | |
 
 By category breakdown:
 
@@ -319,6 +353,9 @@ By category breakdown:
 - DATA (6): kb-1 has all 6 ✓
 - EXPORT (6): kb-1 has all 6 ✓
 - UI (7): kb-1 has all 7 ✓
+- TOPIC (5): kb-2 has all 5 ✓ [NEW 2026-05-13]
+- ENTITY (4): kb-2 has all 4 ✓ [NEW 2026-05-13]
+- LINK (3): kb-2 has all 3 ✓ [NEW 2026-05-13]
 - API (8): kb-3 has all 8 ✓
 - SEARCH (3): kb-3 has all 3 ✓
 - QA (5): kb-3 has all 5 ✓
@@ -333,14 +370,12 @@ Coarse calibration; refined per-plan inside `/gsd:plan-phase`.
 
 | Phase | T-shirt | Reasoning |
 |-------|---------|-----------|
-| kb-1 | **L** (3-4 days) | 27 REQs and the broadest surface area: 3 categories' worth of templates (UI), full data layer (DATA), SSG renderer (EXPORT), and the bilingual chrome system (I18N). Most work is straightforward Jinja2 + SQL queries, but volume + cross-cutting concerns (i18n filter on every template, content_hash resolution in 3 places) push this above M. content_hash format mismatch between KOL (md5[:10]) and RSS (full md5 truncated) needs care per `kb/docs/09-AGENT-QA-HANDBOOK.md` Q1. |
+| kb-1 | **L** (3-4 days, +0.5 day for redesign quick) | 27 REQs and the broadest surface area: 3 categories' worth of templates (UI), full data layer (DATA), SSG renderer (EXPORT), and the bilingual chrome system (I18N). Most work is straightforward Jinja2 + SQL queries, but volume + cross-cutting concerns (i18n filter on every template, content_hash resolution in 3 places) push this above M. content_hash format mismatch between KOL (md5[:10]) and RSS (full md5 truncated) needs care per `kb/docs/09-AGENT-QA-HANDBOOK.md` Q1. **+0.5d UI redesign quick added 2026-05-13** to close design-dimension audit gaps (Skill-invocation discipline + D-12 token compliance + chip / glow / icon / state-class system). |
+| kb-2 | **M** (1.5-2 days) | 12 REQs across 3 new categories (TOPIC + ENTITY + LINK). Pure SSG (Jinja2 + data layer extensions); no HTTP, no LLM, no new infra. Reuses kb-1 redesigned tokens — does NOT re-design components. Main work: 5 query functions in `kb.data.article_query`, 2 new templates (`topic.html`, `entity.html`), 2 new homepage sections in `index.html`, 1 sidebar extension to `article.html`, ~96 new HTML pages rendered by export driver (5 topic + ~91 entity), JSON-LD CollectionPage + Thing schemas. Sub-1-day if not for the entity-slug edge cases (Unicode names, dup variants, threshold tuning). |
 | kb-3 | **L** (3-4 days) | 18 REQs but the highest behavioral complexity: two BackgroundTasks-backed async job stores, FTS5 trigram setup including UNION view of KOL + RSS, `/synthesize` wrapper with timeout + never-500 fallback, KG-mode search wrapper (C2-stable), and the static image mount replacing `:8765`. Multi-worker known limitation tabled to v2.1 (QA-03), but single-worker still has subtle timing edges (job_id collision with restart, in-memory loss). |
 | kb-4 | **S** (1 day) | 5 REQs, all ops: install.sh (one shell file), systemd unit (one ini-style file), Caddy snippet (one block), cron script (one shell file). The dominant work is the 3 smoke scenarios and any debug-and-patch loop that surfaces — but those are observation, not coding. Budget +0.5 day for one regression iteration on smoke 3. |
 
-**Milestone total: ~7-9 days of focused work.** Likely longer wall-clock with
-parallel-track context switching against v3.4 / v3.5 / Agentic-RAG-v1, smoke-test
-debug iteration, and Ubuntu deploy environment quirks (SQLite version check on
-host, Caddy reload semantics, cron environment variables).
+**Milestone total: ~9-11 days of focused work** (was ~7-9 before kb-2 revival; +1.5-2d for kb-2 + 0.5d for kb-1 redesign quick). Likely longer wall-clock with parallel-track context switching against v3.4 / v3.5 / Agentic-RAG-v1, smoke-test debug iteration, and Ubuntu deploy environment quirks.
 
 ---
 
@@ -348,8 +383,9 @@ host, Caddy reload semantics, cron environment variables).
 
 - kb-1 depends on: nothing (greenfield within milestone; existing `kol_scan.db` +
   `~/.hermes/omonigraph-vault/images/` are read-only inputs).
+- kb-2 depends on: kb-1 (`kb.config`, `kb.data.article_query` for extension, `kb-1-UI-SPEC.md` redesigned tokens, `kb/templates/article.html` to extend, `kb/export_knowledge_base.py` to extend with topic + entity rendering loops). Also reads new tables `classifications` + `extracted_entities` directly (read-only — no schema changes).
 - kb-3 depends on: kb-1 (`kb.config`, `kb.data.article_query`, populated `lang`
-  columns, content_hash resolution, SSG output for `final_content.md` consumption).
+  columns, content_hash resolution, SSG output for `final_content.md` consumption) + kb-2 (its new query functions become candidates for HTTP exposure: `/api/topic/{slug}`, `/api/entity/{slug}` — though API-* REQs don't currently mandate them, kb-3 plan can add them as bonus).
 - kb-4 depends on: kb-3 (smoke 2 + smoke 3 exercise the API and synthesize
   endpoints).
 
@@ -366,11 +402,14 @@ re-map the REQ.
 | REQ | First delivered | Touch-points |
 |-----|----------------|--------------|
 | I18N-04 | kb-1 | kb-3 reuses `list_articles(lang=...)` for API-02 — same query function, same lang filter semantics; do not duplicate logic |
-| DATA-04 | kb-1 | kb-3 API-02 imports it directly |
+| DATA-04 | kb-1 | kb-2 + kb-3 API-02 import it directly. kb-2 may extend with `topic_articles_query` / `entity_articles_query` in same module |
 | DATA-05 | kb-1 | kb-3 API-03 imports it directly |
-| DATA-06 | kb-1 | kb-3 API-03 reuses runtime content_hash resolution for unified URL handling |
-| EXPORT-05 | kb-1 | kb-3 API-03 reuses the `localhost:8765` → `/static/img/` rewrite when serving `body_md` over JSON |
-| CONFIG-01 | kb-1 | kb-3 reads `KB_PORT` and `KB_SYNTHESIZE_TIMEOUT` from the same `kb.config`; kb-4 reads paths for systemd `Environment=` |
+| DATA-06 | kb-1 | kb-3 API-03 reuses runtime content_hash resolution for unified URL handling. kb-2 entity / topic page links use same hash format |
+| EXPORT-05 | kb-1 | kb-3 API-03 reuses the `localhost:8765` → `/static/img/` rewrite when serving `body_md` over JSON. kb-2 entity-page article-card images need same rewrite |
+| CONFIG-01 | kb-1 | kb-2 adds `KB_ENTITY_MIN_FREQ` env var to `kb/config.py`; kb-3 reads `KB_PORT` and `KB_SYNTHESIZE_TIMEOUT`; kb-4 reads paths for systemd `Environment=` |
+| TOPIC-* / ENTITY-* / LINK-* | kb-2 | kb-3 may expose `/api/topic/{slug}` / `/api/entity/{slug}` (bonus; not in current API-* REQs). kb-4 smoke verifies topic + entity pages render at 3 viewports without horizontal scroll |
+| Article-card component | kb-1 (redesign) | kb-2 reuses verbatim for entity/topic article lists. kb-3 result page may reuse for source-articles section |
+| Chip component (lang chip / topic chip / entity chip) | kb-1 (redesign) | kb-2 entity-cloud + topic-card homepage sections + LINK-01/02 sidebars all reuse |
 | SEARCH-01 | kb-3 | kb-4 `daily_rebuild.sh` invokes `rebuild_fts.py` which is owned by SEARCH-02 — kb-4 does not modify the rebuild script, only schedules it |
 
 ---

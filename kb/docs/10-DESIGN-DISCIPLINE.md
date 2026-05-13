@@ -40,6 +40,25 @@ Orchestrator MUST manually:
 
 ## Required Skill invocations per phase
 
+### kb-2 (Topic Pillar + Entity Pages + Cross-Link Network) [revived 2026-05-13]
+
+| Skill | When | Why | Args (sketch) |
+|---|---|---|---|
+| `ui-ux-pro-max` | At plan time, BEFORE writing topic.html / entity.html / extending index.html / article.html | 4 new component patterns (topic pillar layout, entity page layout, homepage chip-card sections, related-link sidebar) — must inherit kb-1 chip/glow/icon/state tokens but the LAYOUTS are new | "design 4 component patterns: (1) topic pillar page (header with localized name + count + sub-source filter chip + article list reusing .article-card + co-occurring entities sidebar), (2) entity page (header with name + article count + lang-distribution chip row + article list), (3) homepage chip-card sections (Browse by Topic = 5 topic cards with article count, Featured Entities = top 12 chip cloud), (4) related-link rows on article detail (sidebar desktop / footer mobile, related entities + related topics chips). Reuse kb-1-UI-SPEC.md tokens — do NOT re-design chip/glow/icon/state classes." |
+| `frontend-design` | At plan time, after ui-ux-pro-max output | Implement 2 new templates + extend 2 existing | "implement spec into NEW templates kb/templates/topic.html + kb/templates/entity.html; EXTEND kb/templates/index.html (add 2 sections between Latest Articles and Try AI Q&A) + kb/templates/article.html (add related-entities + related-topics sidebar/footer). Reuse kb-1 redesigned tokens verbatim. Output: Jinja2 templates only — no new CSS classes unless ui-ux-pro-max spec requires them." |
+| `python-patterns` | At code time | 5 new query functions in kb/data/article_query.py (`topic_articles_query`, `entity_articles_query`, `related_entities_for_article`, `related_topics_for_article`, `cooccurring_entities_in_topic`) + export driver loop extensions | "FastAPI-style type hints, dataclass returns, sql parameterization, no string concat. Mirror existing list_articles/get_article_by_hash conventions in same file." |
+| `writing-tests` | At test time | Fixture mirrors Hermes prod schema (classifications + extracted_entities) — local dev DB has 0 classifications, can't be ground truth | "Testing Trophy: integration tests for query functions against fixture with classifications + extracted_entities populated; integration test for export driver verifying topic + entity HTML output count + JSON-LD presence; no mocks." |
+
+**Mandatory pre-execution gate:**
+- `kb-2-UI-SPEC.md` MUST exist before any code task
+- `kb-1-UI-SPEC.md` (from kb-1 redesign, when complete) MUST be in `<read_first>` of every UI-touching task — kb-2 inherits chip / glow / icon / state classes verbatim
+- `tests/integration/kb/test_export.py` fixture MUST add `classifications` + `extracted_entities` rows mirroring Hermes prod shape (5 topics × N articles + 5+ entities × N articles each) BEFORE writing the new query function tests — without fixture data, the new tests can't run against meaningful data
+- Cross-reference: kb-2 article detail extension must match kb-1 redesigned `article.html` structure (chip system, sidebar grid breakpoints) — coordinate with kb-1 redesign agent if redesign is still in flight
+
+**Topic + entity threshold tuning:**
+- `KB_ENTITY_MIN_FREQ=5` is the v2.0 default (~91 entity pages on Hermes prod). Do NOT lower to 3 (yields 198 but quality drops — too many one-off mentions). Do NOT raise to 10 (yields 26 — too sparse). Threshold is env-overridable for ops tuning.
+- Topic cohort filter: `depth_score >= 2 AND (layer1_verdict='candidate' OR layer2_verdict='ok')` — depth alone is too noisy (multi-topic LLM gives every article depth=2 for everything), depth=3 alone is too sparse (19-38 per topic). Layer 1/2 quality gate prunes the noise.
+
 ### kb-3 (FastAPI Backend + Bilingual API + Search + Q&A)
 
 | Skill | When | Why | Args (sketch) |

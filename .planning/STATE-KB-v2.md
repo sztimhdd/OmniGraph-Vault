@@ -35,14 +35,14 @@ Last activity: 2026-05-13 — kb-1 fully verified end-to-end. 1800 article HTMLs
 
 | Phase | Goal | REQs | T-shirt | Plans | Status |
 |-------|------|------|---------|-------|--------|
-| kb-1 | SSG Export + i18n Foundation (data layer + Jinja2 + bilingual chrome) | 27 | L | 10+1 (kb-1-10 gap) | ✅ **COMPLETE** (26/27 codebase-satisfied; UI-04 logo deferred to kb-4) |
-| kb-3 | FastAPI Backend + Bilingual API + Search + Q&A | 18 | L | TBD | not started — **next up** |
+| kb-1 | SSG Export + i18n Foundation (data layer + Jinja2 + bilingual chrome) | 27 | L+0.5d redesign | 10+1 (kb-1-10 gap) + redesign-quick | ✅ **COMPLETE pre-redesign** (26/27 codebase-satisfied; UI-04 logo deferred to kb-4); UI redesign quick task in progress 2026-05-13 to close design-dimension audit |
+| **kb-2** | Topic Pillar + Entity Pages + Cross-Link Network | **12** | M (1.5-2d) | TBD | **NEW 2026-05-13** — revived from "skipped" after Hermes prod data verification |
+| kb-3 | FastAPI Backend + Bilingual API + Search + Q&A | 18 | L | TBD | not started |
 | kb-4 | Ubuntu Deploy + Cron + Smoke Verification | 5 | S | TBD | not started (UI-04 carry-forward gate) |
 
-Total: 50/50 v2.0 REQs mapped. kb-1: 26/27 satisfied + 1 deferred-by-approval (UI-04). kb-3: 18 REQs pending.
+Total: **62/62 v2.0 REQs** mapped (was 50; +12 from kb-2 revival). kb-1: 26/27 satisfied + 1 deferred-by-approval (UI-04). kb-2/3/4: 35 REQs pending.
 
-> **Note:** kb-2 (entity pages + topic Pillar pages) explicitly skipped this
-> milestone — deferred to v2.1 per PROJECT-KB-v2.md "Out of Scope".
+> **Note:** kb-2 (Topic Pillar + Entity pages + cross-link) **revived 2026-05-13**. Hermes prod has `classifications` 3945 rows + `extracted_entities` 5257 rows / 91 entities at ≥5-article frequency — sufficient for v2.0 scope. v2.1 dependencies (CANON-* LLM canonicalize, TYPED-* entity_type, TOPIC-HIER-* taxonomy) remain deferred and won't block v2.0.
 
 ### kb-1 Verification Summary (2026-05-13)
 
@@ -127,6 +127,12 @@ This-session decisions:
   topic Pillar pages) deferred to v2.1 because only 13 canonical entities exist
   today, can't support a real entity-page surface (per PROJECT-KB-v2.md "Out of
   Scope" + `kb/docs/09-AGENT-QA-HANDBOOK.md` Q3 K-3).
+- **2026-05-13 — REVISED to 4 phases.** kb-2 un-skipped after SSH verification against Hermes prod DB found:
+  - `classifications` table: 3945 rows (5 topics × 789 articles) — local dev DB had 0 rows, leading to wrong "deferred" judgment
+  - `extracted_entities`: 5257 rows / 3319 distinct names; 91 entities at ≥5-article freq, 26 at ≥10-article freq
+  - kb-2 viable today using raw `extracted_entities` + frequency threshold (skip canonicalization). v2.1 dependencies (CANON-* / TYPED-* / TOPIC-HIER-*) remain deferred.
+  - 12 new REQs: TOPIC-01..05 + ENTITY-01..04 + LINK-01..03. Total 62/62. T-shirt M (1.5-2 days).
+  - **Lesson captured in memory `feedback_parallel_track_gates_manual_run.md`:** always verify against Hermes prod data before deferring scope — local dev DB is sparse and misleading.
 
 ### What's locked (do not re-discuss)
 

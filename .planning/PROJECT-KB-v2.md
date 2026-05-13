@@ -10,9 +10,10 @@ Build a **public, bilingual (zh-CN / en) Agent-tech content site** on top of Omn
 existing data assets. The site exposes:
 
 1. **Article browse** — list / filter / detail page for KOL + RSS articles
-2. **Search** — fast keyword search across both languages
-3. **RAG Q&A** — natural-language deep-research backed by the LightRAG knowledge graph
-4. **Public access** — zero login, zero auth, runs on a single Ubuntu server
+2. **Topic + Entity navigation** — 5 topic pillar pages (Agent / CV / LLM / NLP / RAG) + ~91 entity pages with cross-link network (kb-2, revived 2026-05-13)
+3. **Search** — fast keyword search across both languages
+4. **RAG Q&A** — natural-language deep-research backed by the LightRAG knowledge graph
+5. **Public access** — zero login, zero auth, runs on a single Ubuntu server
 
 The KB module lives under `kb/` in this repo. It is a **complete sibling module**
 (frontend + backend + deploy + maintenance — all our responsibility), not an
@@ -117,7 +118,9 @@ KG 团队 / 数据团队 free 改动 LightRAG 版本、embedding 模型、storag
 |------|--------------|
 | **文章内容 LLM 自动翻译** | 成本 + 幻觉风险;v2.0 只做 UI 双语 + 内容原文展示 |
 | **跨语言搜索 / 跨语言 Q&A** | 中文 query 映射到 English 文章库 / 反之 — v2.1 |
-| **KB-2 实体页 + 主题 Pillar 页** | canonical 实体仅 13 个,撑不起;v2.1 等数据稠密后再做 |
+| **LLM 实体规范化(canonicalize 全量 extracted_entities)** | v2.1 CANON-* — kb-2 v2.0 直接基于 raw extracted_entities + 频次门槛(≥5 articles)出实体页,允许 dup 名(`Anthropic` / `anthropic` 各一页)。canonicalize 推迟避免阻塞 v2.0 |
+| **typed JSON-LD `@type`(Person / Organization / SoftwareApplication)** | v2.1 TYPED-* — `entity_canonical.entity_type` 全 NULL,kb-2 v2.0 用 generic `Thing` schema |
+| **主题层级 taxonomy(sub-topic → parent)** | v2.1 TOPIC-HIER-* — 当前 5 topics(Agent / CV / LLM / NLP / RAG)是平的 |
 | **Databricks Apps 部署** | 工作区鉴权与公开访问不兼容;v2.1 EDC 内部预览专项 |
 | **Rate limiting / Redis 令牌桶** | D-01 假设零流量,不优化假性能瓶颈;v2.1 |
 | **Repository 数据层抽象 (Protocol pattern)** | K-3 推迟到 v2.1;v2.0 直接 SQLite + filesystem |
@@ -170,15 +173,16 @@ Following the Agentic-RAG-v1 / v3.5-Ingest-Refactor parallel-track precedent:
 
 ## Phase Numbering
 
-KB-v2 phases 用 **`kb-N-*` 前缀**,跟主项目 phase 编号(目前已到 22)解耦。从 `kb-1` 起步:
+KB-v2 phases 用 **`kb-N-*` 前缀**,跟主项目 phase 编号(目前已到 22)解耦。从 `kb-1` 起步,4 个 phase:
 
 ```
 kb-1 → SSG export + Jinja2 + i18n + content_hash 运行时计算 + 一次性 lang detect 脚本
+kb-2 → Topic Pillar 页(× 5)+ Entity 页(× ~91)+ 跨页内链网络  ← 2026-05-13 revived from "skipped"
 kb-3 → FastAPI :8766 + bilingual API + FTS5 trigram + /synthesize KB-side wrapping
 kb-4 → Ubuntu systemd + Caddy 反代 + 每日 cron + smoke 验证
 ```
 
-(KB-2 跳过,直接 1 → 3 → 4 — 与 PRD §6 Phase 编号一致,易于交叉引用)
+**Note on kb-2 revival (2026-05-13):** Originally listed as "deferred to v2.1" based on local dev DB readings (0 classifications, 13 canonical entities). SSH verification against Hermes prod DB found `classifications` table fully populated (3945 rows = 5 topics × 789 articles) and `extracted_entities` at 5257 rows / 3319 distinct names with 91 entities at ≥5-article frequency. kb-2 is **viable today** with raw extracted_entities (skip canonicalization, accept dup names like `Anthropic`/`anthropic` as separate pages — fix in v2.1 CANON-*). Phase numbering matches `kb/docs/05-KB2-ENTITY-SEO.md` exec spec authored 2026-05-12.
 
 ## Future Milestones (after KB v2.0)
 

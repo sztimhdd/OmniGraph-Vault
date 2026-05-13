@@ -35,7 +35,9 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ---
 
-## v2.0 Requirements (50 REQs across 9 categories)
+## v2.0 Requirements (62 REQs across 12 categories)
+
+> **Revision 2026-05-13:** kb-2 (Topic Pillar pages + Entity pages + cross-link network) revived from "deferred to v2.1" → in-scope this milestone. Triggered by Hermes prod data verification: `classifications` has 3945 rows (5 topics × 789 articles), `extracted_entities` has 5257 rows / 3319 distinct names with 91 entities at ≥5-article frequency / 26 at ≥10-article frequency. The earlier "13 canonical entities can't support entity surface" judgment was based on local dev DB (which had 0 classifications). Real production data supports 5 topic pillar pages + 26-91 entity pages today without requiring upstream LLM canonicalization. Three new REQ categories added: TOPIC (5) / ENTITY (4) / LINK (3) = 12 new REQs.
 
 ### I18N — Bilingual Core (8)
 
@@ -109,6 +111,27 @@ Lighthouse LCP < 2.5s on article detail page.
 - [ ] **DEPLOY-04**: `kb/scripts/daily_rebuild.sh` is a cron-invoked script that runs `detect_article_lang.py` → `export_knowledge_base.py` → `rebuild_fts.py` in sequence. Logs to `/var/log/kb-rebuild.log`. Fires daily at 12:00 server-local time.
 - [ ] **DEPLOY-05**: Deployment supports same-host setup (KB on the box where `~/.hermes/omonigraph-vault/` lives, zero data sync) by env config. Different-host setup with bind-mount / NFS is not in scope this milestone but is not architecturally blocked (paths configurable per CONFIG-01).
 
+### TOPIC — Topic Pillar Pages (5) [kb-2 NEW 2026-05-13]
+
+- [ ] **TOPIC-01**: Generate `kb/output/topics/{slug}.html` for each of 5 hardcoded topics (Agent / CV / LLM / NLP / RAG). Slug = topic.lower(). Topic list derives from `classifications.topic` distinct values; 5 hardcoded for v2.0 since the LLM classifier writes only these 5.
+- [ ] **TOPIC-02**: Topic page lists articles where `classifications.depth_score >= 2 AND (articles.layer1_verdict = 'candidate' OR articles.layer2_verdict = 'ok')`. Same JOIN handles `rss_articles` via UNION. Sorted by `update_time DESC`.
+- [ ] **TOPIC-03**: Topic page header has localized topic name + 1-2 line description (i18n keys `topic.{slug}.name` + `topic.{slug}.desc`) + article count. Sub-source filter (kbol / rss) optional via JS-only chip toggle (mirrors articles_index.html pattern).
+- [ ] **TOPIC-04**: Topic page emits JSON-LD `CollectionPage` schema with `name`, `description`, `numberOfItems`, `inLanguage` per UI chrome lang.
+- [ ] **TOPIC-05**: Topic page sidebar (or footer on mobile) lists top 5 entities co-occurring in this topic's articles (computed from `extracted_entities` ∩ topic article set, ordered by article frequency). Each entity links to `/entities/{slug}.html`.
+
+### ENTITY — Entity Pages (4) [kb-2 NEW 2026-05-13]
+
+- [ ] **ENTITY-01**: Generate `kb/output/entities/{slug}.html` for each entity in `extracted_entities` with `COUNT(DISTINCT article_id) >= 5` (~91 pages on Hermes prod data). Threshold env-overridable via `KB_ENTITY_MIN_FREQ` for tuning.
+- [ ] **ENTITY-02**: Slug derivation: lowercase + URL-safe (replace spaces with `-`, drop `/` and other special chars), preserve Unicode (Chinese names like `叶小钗` URL-encoded). Stable across re-runs (no random hashing).
+- [ ] **ENTITY-03**: Entity page lists all articles mentioning this entity (sorted by article `update_time DESC`). Reuses `.article-card` from kb-1 redesigned templates. Page header shows entity name + total article count + lang distribution chip row.
+- [ ] **ENTITY-04**: Entity page emits JSON-LD `Thing` schema with `name`, `alternateName` (if any inferred dups), generic `@type: Thing` (specific typing — Person / Organization / SoftwareApplication — deferred to v2.1 because `entity_canonical.entity_type` is NULL across the corpus).
+
+### LINK — Cross-page Internal Linking (3) [kb-2 NEW 2026-05-13]
+
+- [ ] **LINK-01**: `kb/templates/article.html` adds a sidebar (desktop) / footer-section (mobile) listing 3-5 related entities (from `extracted_entities` for that article_id, top by global frequency). Each entity is a chip linking to `/entities/{slug}.html`.
+- [ ] **LINK-02**: `kb/templates/article.html` adds 1-3 topic chips (from `classifications` WHERE `depth_score >= 2 AND article_id = ?`). Each topic chip links to `/topics/{slug}.html`.
+- [ ] **LINK-03**: Homepage (`kb/output/index.html`) gains 2 new sections: "🗂 Browse by Topic" (5 topic chip cards with article count) and "💡 Featured Entities" (top 12 entities by frequency, chip cloud). These sit between the existing "Latest Articles" section and the "Try AI Q&A" CTA.
+
 ### CONFIG — Env-Driven Configuration (2)
 
 - [x] **CONFIG-01**: `kb/config.py` reads all paths and ports from environment variables with sensible defaults. Required keys: `KB_DB_PATH` (default `~/.hermes/data/kol_scan.db`), `KB_IMAGES_DIR` (default `~/.hermes/omonigraph-vault/images`), `KB_OUTPUT_DIR` (default `kb/output`), `KB_PORT` (default `8766`), `KB_DEFAULT_LANG` (default `zh-CN`), `KB_SYNTHESIZE_TIMEOUT` (default `60`).
@@ -120,7 +143,9 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ### v2.1 candidates
 
-- **KB2-ENTITY-\***: 实体页 + 主题 Pillar 页 + JSON-LD CollectionPage / Thing schema(等 `entity_canonical` 增长到 50+ 后)
+- **CANON-\***: LLM 实体规范化 — 跑全量 `extracted_entities` (3319 distinct names) 通过 LLM canonicalize → 写入 `entity_canonical` (目标 ≥150 canonical 实体);消除 dup (Anthropic / anthropic / Anthropic 公司 → 1 个 canonical)
+- **TYPED-\***: `entity_canonical.entity_type` 列规范填充 (Person / Organization / SoftwareApplication / Concept) → kb-2 实体页升级为 typed JSON-LD `@type` (替代 generic `Thing`)
+- **TOPIC-HIER-\***: 主题层级 (sub-topic → parent-topic 树) — 当前 5 个 topics (Agent / CV / LLM / NLP / RAG) 是平的,v2.1 设计层级 taxonomy
 - **REPO-\***: Repository pattern 数据层抽象(`kb/data/repository.py` Protocol),为 Databricks 路径降本
 - **DBX-\***: Databricks Apps EDC 内部预览部署(Foundation Model serving 替代 DeepSeek,Volume 挂 images)
 - **RATE-\***: Rate limiting 公开端点(/synthesize Redis 令牌桶,防 LLM 配额炸)
