@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'ask.page_title' | t('zh-CN') }} / {{ 'ask.page_title' | t('en') }} — {{ 'site.brand' | t('zh-CN') }}{% endblock %}
+
+{% block content %}
+<h1>
+  <span data-lang="zh">{{ 'ask.page_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.page_title' | t('en') }}</span>
+</h1>
+
+<form id="ask-form" class="card" onsubmit="return submitAsk(event)">
+  <textarea
+    id="ask-input"
+    rows="4"
+    placeholder="{{ 'ask.input_placeholder' | t('zh-CN') }} / {{ 'ask.input_placeholder' | t('en') }}"
+    required></textarea>
+  <button type="submit" class="btn">
+    <span data-lang="zh">{{ 'ask.submit' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.submit' | t('en') }}</span>
+  </button>
+</form>
+
+<div id="ask-result" class="card" style="display: none; margin-top: 1rem;"></div>
+
+<p class="disclaimer">
+  <span data-lang="zh">{{ 'ask.disclaimer' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.disclaimer' | t('en') }}</span>
+</p>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Placeholder: real submission goes to /api/synthesize in kb-3. For SSG MVP show a "coming soon" message.
+  function submitAsk(e) {
+    e.preventDefault();
+    var result = document.getElementById('ask-result');
+    result.style.display = 'block';
+    result.textContent = 'Q&A backend will be wired in kb-3 (FastAPI /api/synthesize). For now, this form is a placeholder.';
+    return false;
+  }
+</script>
+{% endblock %}
