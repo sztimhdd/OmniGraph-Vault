@@ -104,6 +104,61 @@
   {% endif %}
 </section>
 
+{# kb-2 LINK-03: Browse by Topic — 5 topic cards reusing .article-card #}
+<section class="section section--topics" aria-labelledby="topics-title">
+  <header class="section-header">
+    <h2 id="topics-title">
+      {{ icon('folder-tag', size=20) }}
+      <span data-lang="zh">{{ 'home.section.topics_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.section.topics_title' | t('en') }}</span>
+    </h2>
+    <a class="section-header__hint" href="/topics/">
+      <span data-lang="zh">{{ 'home.view_all' | t('zh-CN') }} →</span><span data-lang="en">{{ 'home.view_all' | t('en') }} →</span>
+    </a>
+  </header>
+
+  <div class="article-list article-list--topics">
+    {% for t in topics %}
+    <a class="article-card article-card--topic" href="/topics/{{ t.slug }}.html"
+       data-topic-slug="{{ t.slug }}">
+      <div class="article-card-meta">
+        <span class="chip chip--count">
+          {{ icon('articles', size=12) }} {{ t.article_count }}
+        </span>
+      </div>
+      <h3 class="article-card-title">{{ t.localized_name }}</h3>
+      <p class="article-card-snippet">{{ t.localized_desc }}</p>
+      <span class="article-card-readmore">
+        <span data-lang="zh">{{ 'home.topic.browse' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.topic.browse' | t('en') }}</span>
+        {{ icon('arrow-right', size=14) }}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+{# kb-2 LINK-03: Featured Entities — top 12 chip cloud reusing .chip #}
+<section class="section section--entities" aria-labelledby="entities-title">
+  <header class="section-header">
+    <h2 id="entities-title">
+      {{ icon('sparkle', size=20) }}
+      <span data-lang="zh">{{ 'home.section.entities_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.section.entities_title' | t('en') }}</span>
+    </h2>
+    <a class="section-header__hint" href="/entities/">
+      <span data-lang="zh">{{ 'home.view_all' | t('zh-CN') }} →</span><span data-lang="en">{{ 'home.view_all' | t('en') }} →</span>
+    </a>
+  </header>
+
+  <div class="entity-cloud" role="list">
+    {% for e in featured_entities %}
+    <a class="chip chip--entity-cloud" href="/entities/{{ e.slug }}.html" role="listitem">
+      <span class="chip-label">{{ e.name }}</span>
+      <span class="chip-sep" aria-hidden="true">·</span>
+      <span class="chip-count">{{ e.article_count }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
 <section class="section section--ask-cta" aria-labelledby="ask-cta-title">
   <div class="ask-bottom-cta">
     <h3 id="ask-cta-title">
