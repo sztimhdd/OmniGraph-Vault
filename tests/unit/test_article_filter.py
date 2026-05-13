@@ -65,6 +65,7 @@ from lib.article_filter import (
     LAYER2_BATCH_SIZE,
     PROMPT_VERSION_LAYER1,
     PROMPT_VERSION_LAYER2,
+    _LAYER2_V1_PROMPT_BODY,
     layer1_pre_filter,
     layer2_full_body_score,
     persist_layer1_verdicts,
@@ -675,3 +676,50 @@ async def test_layer2_over_max_raises() -> None:
     arts = [_with_body(i) for i in range(LAYER2_BATCH_SIZE + 2)]  # 7
     with pytest.raises(ValueError, match="Layer 2 batch size"):
         await layer2_full_body_score(arts)
+
+
+# =========================================================================
+# Patch A v1 prompt (2026-05-13 Layer 2 audit) — prompt-shape tests
+# =========================================================================
+# These tests pin user-explicit spec values (RULE 0, LF-2.7, keyword list,
+# precision rules) — NOT impl-derived constants. If any test fails, the
+# v1 prompt has drifted from spec and requires audit.
+
+def test_prompt_version_layer2_is_v1_20260513() -> None:
+    """Pin version-bump invariant — drift triggers loud test failure."""
+    assert PROMPT_VERSION_LAYER2 == "layer2_v1_20260513"
+
+
+def test_v1_prompt_body_contains_rule_0() -> None:
+    """Pin RULE 0 - HARD-KEEP section header presence."""
+    assert "RULE 0" in _LAYER2_V1_PROMPT_BODY
+    assert "HARD-KEEP" in _LAYER2_V1_PROMPT_BODY
+
+
+def test_v1_prompt_body_contains_lf_2_7() -> None:
+    """Pin LF-2.7 English long-form section presence."""
+    assert "LF-2.7" in _LAYER2_V1_PROMPT_BODY
+    assert "英文长文" in _LAYER2_V1_PROMPT_BODY
+
+
+def test_v1_prompt_body_contains_core_keywords() -> None:
+    """Pin top-6 project-core keyword list (subset of cross-layer
+    byte-identical mirror; full list is implicitly pinned by the
+    Layer 1 v1 RULE 0 reference site)."""
+    for kw in ["OpenClaw", "Hermes Agent", "OmniGraph", "Claude Code", "MCP", "CLAUDE.md"]:
+        assert kw in _LAYER2_V1_PROMPT_BODY, f"missing core keyword: {kw}"
+
+
+def test_v1_prompt_body_contains_precision_matching_rules() -> None:
+    """Pin the 5-line precision matching defense — if RULE 0 ever drifts,
+    this test fails and forces audit."""
+    assert "精确匹配规则" in _LAYER2_V1_PROMPT_BODY
+    fragments = [
+        '"Claude Code" 必须作为完整两词短语',
+        '裸 "Claude"',
+        '"Cursor" 必须',
+        '"Harness" 只在',
+        '"MCP" 优先假设',
+    ]
+    for frag in fragments:
+        assert frag in _LAYER2_V1_PROMPT_BODY, f"missing precision rule fragment: {frag!r}"

@@ -77,11 +77,15 @@ PROMPT_VERSION_LAYER1: str = "layer1_v1_20260512"
 ``articles.layer1_prompt_version`` does not match (LF-1.8).
 Spike validating this exact version: ``.scratch/layer1-validation-20260507-151608.md``."""
 
-PROMPT_VERSION_LAYER2: str = "layer2_v0_20260507"
-"""Bumped from placeholder by ir-2-00. Bumping this string forces
-re-evaluation of all rows whose ``articles.layer2_prompt_version`` does
-not match (LF-2.7). Spike report:
-``.scratch/layer2-validation-20260507-210423.md``."""
+PROMPT_VERSION_LAYER2: str = "layer2_v1_20260513"
+"""v1 ships HARD-KEEP RULE 0 (mirrored byte-identical from Layer 1 v1)
++ LF-2.7 English long-form depth default = 2 — Patch A of the
+2026-05-13 Layer 2 audit. Bumping this string forces re-evaluation of
+all rows whose ``articles.layer2_prompt_version`` does not match
+(LF-2.6 re-eval predicate semantics unchanged from v0).
+Audit doc: ``docs/research/layer2-audit-20260513.md`` (closes 52% true-body
+reject FN against English long-form tech blogs — seangoedecke / lucumr /
+antirez / grantslatton)."""
 
 LAYER1_BATCH_SIZE: int = 30
 """D-LF-3 — exactly 30 articles per Gemini Flash Lite batch."""
@@ -301,15 +305,63 @@ _LAYER1_OUTPUT_SCHEMA_HINT: str = (
 )
 
 
-# ------------------------------------------------------------ Layer 2 v0 prompt
-# Verbatim from .scratch/layer2-validation-20260507-210423.md § "Final prompt"
-# (spike report lines 43-118). Editing requires re-running the spike +
-# bumping PROMPT_VERSION_LAYER2.
+# ------------------------------------------------------------ Layer 2 v1 prompt
+# v1 = HARD-KEEP RULE 0 (mirror Layer 1 v1) + LF-2.7 English long-form
+# (Patch A of 2026-05-13 audit) + verbatim v0 sections (header, depth_score,
+# relevant, reason, 关键判断窍门 A-E, 输出格式). v0 (commit `1cd24a4`) is
+# preserved in git history; bumping PROMPT_VERSION_LAYER2 above auto-triggers
+# LF-2.6 reclassify of all rows whose layer2_prompt_version != v1.
 
-_LAYER2_V0_PROMPT_BODY: str = """\
+_LAYER2_V1_PROMPT_BODY: str = """\
 你是一个 AI/LLM 文章 Layer 2 深度过滤器。任务是在 Layer 1(基于 title+summary)之后,基于完整正文,判断每篇文章是否值得进入知识库。Layer 1 已 reject 大量明显跑偏文章,Layer 2 是 second-line filter — 主要 catch "AI 招牌但实质浅 / 软文" 这一 Layer 1 难以判断的类别。
 
 知识库核心兴趣:agent / LLM / RAG / prompt 工程 / Claude Code / DeepSeek / Gemini / Hermes / OpenClaw / Harness / 智能体 / 大模型架构 / 推理优化 / Agent 框架 / 工程实践。
+
+═════════════════════════════════════════════════════════════════
+RULE 0 — HARD-KEEP(项目核心硬规则,优先级最高) v1 新增
+═════════════════════════════════════════════════════════════════
+
+title 或 body 整词包含以下任一关键字(大小写不敏感)→
+**立刻输出 verdict='ok' (depth_score=3, relevant=true, skip 深度判断)**:
+
+[A] 项目自身 / Anthropic CLI / 用户文档:
+   - "OpenClaw" / "Hermes Agent"(连写两词)/ "OmniGraph"
+   - "Harness"(在 Anthropic / agent / CLI 上下文中)
+   - "CLAUDE.md" / "AGENTS.md"
+
+[B] 用户核心 stack 工具:
+   - "Claude Code"(连写两词)
+   - "Cursor"(IDE / agent 上下文)
+   - "Aider" / "Codex CLI" / "Continue"(IDE 插件)
+
+[C] Agent SDK / 协议:
+   - "MCP" / "Model Context Protocol"
+   - "OpenAI Agents SDK" / "Anthropic Agents SDK" / "Anthropic Skills" / "Skills.md"
+
+⚠️ 精确匹配规则(防止 LLM 过度解释):
+- "Claude Code" 必须作为完整两词短语出现才算命中
+- 裸 "Claude"(如 "Claude 取消限制" / "Claude 性能") → 不走 R0,KEEP/REJECT 正常评判
+- "Cursor" 必须在 IDE / agent 上下文,排除 "cursor pointer" / "DB cursor" / "鼠标 cursor"
+- "Harness" 只在同句含 "Anthropic" / "agent" / "Claude Code" / "CLAUDE.md" 才触发
+- "MCP" 优先假设是 "Model Context Protocol"(其他含义概率低)
+
+**重要**:即使文章是新闻 / 八卦 / 软文,只要严格命中 RULE 0,仍输出 depth_score=3 relevant=true,verdict='ok'。
+
+═════════════════════════════════════════════════════════════════
+LF-2.7 — 英文长文宽放(v1 新增)
+═════════════════════════════════════════════════════════════════
+
+当以下 3 个条件**全部成立**时,depth_score 默认 = 2(除非是纯产品发布 / 课程营销 / 招生招聘 → depth=1):
+
+- body 前 500 字符 ≥ 90% ASCII
+- body 总长度 ≥ 5000 chars
+- relevant = true (核心仍在 agent / LLM / AI 工程范围)
+
+**理由**:英文 tech blog (seangoedecke / lucumr / antirez / grantslatton) 风格 narrative + analytical reasoning,本身是 effort signal,不应因缺少中文 mechanism 章节就被打入 depth=1。
+
+**Out of scope**:中文文章不适用 LF-2.7;沿用 v0 校准。
+
+---
 
 每篇文章给出 3 个判断:
 
@@ -327,7 +379,17 @@ _LAYER2_V0_PROMPT_BODY: str = """\
 
 ## 3. reason (≤30 中文字符)
 
-简短说明 verdict 依据。
+简短说明 verdict 依据。reason 格式建议:
+- R0 命中:"R0:OpenClaw" / "R0:Claude Code" / "R0:CLAUDE.md"
+- LF-2.7 命中:"LF2.7:lucumr 英文长文" / "LF2.7:seangoedecke"
+- 标准 keep:"depth=2:具体场景拆解" / "depth=3:架构源码"
+- reject:"reject:营销" / "reject:非AI"
+
+## verdict 决策(同 v0 LF-2.5 决策规则)
+
+verdict = 'ok' if (relevant AND depth_score >= 2) else 'reject'
+
+注:RULE 0 命中输出 depth=3 + relevant=true 自然落入 'ok'(formula 一致)。
 
 ---
 
@@ -607,7 +669,7 @@ async def layer2_full_body_score(
         for a in real_payload_articles
     ]
     prompt = (
-        _LAYER2_V0_PROMPT_BODY
+        _LAYER2_V1_PROMPT_BODY
         + "\n"
         + json.dumps(payload, ensure_ascii=False)
     )
