@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'site.brand' | t('zh-CN') }} / {{ 'site.brand' | t('en') }} — {{ 'site.tagline' | t('zh-CN') }}{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="lang-block" data-lang="zh">{{ 'home.hero_title' | t('zh-CN') }}</h1>
+  <h1 class="lang-block" data-lang="en">{{ 'home.hero_title' | t('en') }}</h1>
+  <p class="lang-block" data-lang="zh">{{ 'home.hero_subtitle' | t('zh-CN') }}</p>
+  <p class="lang-block" data-lang="en">{{ 'home.hero_subtitle' | t('en') }}</p>
+</section>
+
+<section class="latest-articles">
+  <h2>
+    <span data-lang="zh">{{ 'home.section_latest' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.section_latest' | t('en') }}</span>
+  </h2>
+  {% for article in articles %}
+  <article class="card article-card">
+    <h3 class="article-card-title">
+      <a href="/articles/{{ article.url_hash }}.html">{{ article.title }}</a>
+    </h3>
+    <div class="article-card-meta">
+      <span class="lang-badge">
+        {% if article.lang == 'zh-CN' %}{{ 'article.lang_zh' | t('zh-CN') }}{% elif article.lang == 'en' %}{{ 'article.lang_en' | t('zh-CN') }}{% else %}—{% endif %}
+      </span>
+      <span>{{ article.update_time }}</span>
+      <span>{{ article.source }}</span>
+    </div>
+  </article>
+  {% else %}
+  <p>
+    <span data-lang="zh">{{ 'articles.empty' | t('zh-CN') }}</span><span data-lang="en">{{ 'articles.empty' | t('en') }}</span>
+  </p>
+  {% endfor %}
+</section>
+
+<section class="ask-cta card">
+  <h2>
+    <span data-lang="zh">{{ 'home.section_ask_cta' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.section_ask_cta' | t('en') }}</span>
+  </h2>
+  <p class="lang-block" data-lang="zh">{{ 'home.section_ask_desc' | t('zh-CN') }}</p>
+  <p class="lang-block" data-lang="en">{{ 'home.section_ask_desc' | t('en') }}</p>
+  <a href="/ask/" class="btn">
+    <span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }} →</span><span data-lang="en">{{ 'nav.ask' | t('en') }} →</span>
+  </a>
+</section>
+{% endblock %}
