@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: KB-v2
 milestone_name: — KB-v2 (parallel-track)
-status: kb-1-planned-ready-for-execute
-last_updated: "2026-05-12T20:00:00Z"
-last_activity: "2026-05-12 — kb-1 phase planned: 10 plans across 5 waves, 27/27 REQs covered, plan-checker verified after 1 revision iteration (all critical/major/minor issues resolved + wave anomaly bumped 08→W4 / 09→W5)"
+status: kb-1-complete-ready-for-kb-3
+last_updated: "2026-05-13T17:00:00Z"
+last_activity: "2026-05-13 — kb-1 fully verified: kb-1-10 gap-closure (update_time epoch→ISO + lang-column defensive guard) shipped; kb-1-VERIFICATION.md status=gaps_found→complete; HUMAN-UAT.md 3/4 PASS (UAT 1+2+3 verified via Playwright MCP browser session — bilingual UI, 中文/English badges, og:* + JSON-LD inLanguage, FTS5-trigger-free SSG, no horizontal scroll on 375/768/1280); UAT 4 logo PNG deferred to kb-4 per approved-placeholder. 26/27 REQs codebase-satisfied. Phase kb-1 ready to close."
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 10
-  completed_plans: 0
+  completed_plans: 10
 ---
 
 # Project State — KB-v2 (parallel)
@@ -26,39 +26,42 @@ progress:
 ## Current Position
 
 Milestone: KB-v2 (parallel-track to v3.4 / v3.5 / Agentic-RAG-v1)
-Phase: **kb-1 planned** — 10 plans across 5 waves, ready for execution
-Plan: 0/10 executed
-Status: Ready for `/gsd:execute-phase kb-1`
-Last activity: 2026-05-12 — kb-1 phase planning complete; CONTEXT.md synthesized via PRD-express-path equivalent (no /gsd:discuss-phase round-trip), planner spawned, checker found 1 critical + 3 major + 4 minor issues, planner revised (split kb-1-04 → 04+04b, fixed sitemap idempotency / test recursive sha256 / dead --db-path / og fallback / TODO markers / .gitignore / locale cache doc), wave anomaly fixed manually (kb-1-08 W3→W4, kb-1-09 W4→W5).
+Phase: **kb-1 ✅ complete** — 10/10 plans + gap-closure (kb-1-10) + HUMAN-UAT 3/4 PASS
+Plan: 10/10 executed and verified
+Status: Ready for `/gsd:plan-phase kb-3`
+Last activity: 2026-05-13 — kb-1 fully verified end-to-end. 1800 article HTMLs generated against production `.dev-runtime/data/kol_scan.db`; Playwright MCP automated browser UAT confirmed bilingual UI + content-language badges + cookie persistence + responsive viewports.
 
 ### Phase plan
 
 | Phase | Goal | REQs | T-shirt | Plans | Status |
 |-------|------|------|---------|-------|--------|
-| kb-1 | SSG Export + i18n Foundation (data layer + Jinja2 + bilingual chrome) | 27 | L | 10 | ✅ planned, ready for execute |
-| kb-3 | FastAPI Backend + Bilingual API + Search + Q&A | 18 | L | TBD | not started |
-| kb-4 | Ubuntu Deploy + Cron + Smoke Verification | 5 | S | TBD | not started |
+| kb-1 | SSG Export + i18n Foundation (data layer + Jinja2 + bilingual chrome) | 27 | L | 10+1 (kb-1-10 gap) | ✅ **COMPLETE** (26/27 codebase-satisfied; UI-04 logo deferred to kb-4) |
+| kb-3 | FastAPI Backend + Bilingual API + Search + Q&A | 18 | L | TBD | not started — **next up** |
+| kb-4 | Ubuntu Deploy + Cron + Smoke Verification | 5 | S | TBD | not started (UI-04 carry-forward gate) |
 
-Total: 50/50 v2.0 REQs mapped, 0 orphans, 0 duplicates. kb-1: 10 plans, 27 REQs, 5 waves.
+Total: 50/50 v2.0 REQs mapped. kb-1: 26/27 satisfied + 1 deferred-by-approval (UI-04). kb-3: 18 REQs pending.
 
 > **Note:** kb-2 (entity pages + topic Pillar pages) explicitly skipped this
 > milestone — deferred to v2.1 per PROJECT-KB-v2.md "Out of Scope".
 
-### kb-1 Wave Structure (10 plans, 5 waves)
+### kb-1 Verification Summary (2026-05-13)
 
-| Wave | Plans (parallel within wave) | Goal |
-|------|-------------------------------|------|
-| 1 | 01 (config), 02 (migration+lang_detect), 03 (i18n locale), 04 (CSS+JS), 04b (brand assets checkpoint) | Foundation — no inter-deps |
-| 2 | 05 (detect script driver), 06 (article_query) | Data layer — depends on Wave 1 |
-| 3 | 07 (base.html + index/articles_index/ask templates) | Chrome templates — depends on 03 (locale) + 04 (CSS) |
-| 4 | 08 (article.html detail) | Detail template — extends 07 base.html |
-| 5 | 09 (export_knowledge_base.py SSG driver + integration test) | Orchestrator — depends on all prior |
+| Source | Result |
+|---|---|
+| `kb-1-VERIFICATION.md` (gsd-verifier, 2026-05-13 13:00 UTC) | gaps_found → complete after kb-1-10 |
+| `kb-1-10-final-verification` (post-gap-closure) | 4/8 truths VERIFIED + 4 human-verifiable |
+| `kb-1-HUMAN-UAT.md` (Playwright MCP, 2026-05-13 17:00 UTC) | 3/4 PASS (UAT 1+2+3) + 1 deferred (UAT 4 logo PNG → kb-4) |
+| Real-DB SSG run | 1800 articles HTML, 0 errors, idempotency byte-match verified |
+| Test count | 73/73 passing (was 71/71 pre-gap-closure) |
+| Score | 26/27 REQs (was 22/27 pre-gap-closure) |
 
 ### Immediate next step
 
-`/gsd:execute-phase kb-1` (use `/clear` first for fresh context window)
+`/gsd:plan-phase kb-3` — plan FastAPI :8766 backend (18 REQs across API/SEARCH/QA/CONFIG categories).
 
-After all 10 plans execute green: kb-1 success criteria 8 conditions verified, then plan kb-3.
+Use `/clear` first for fresh context window. The data layer functions (`list_articles`, `get_article_by_hash`, `resolve_url_hash`, `get_article_body`) shipped in kb-1-06 are ready for HTTP wrapping.
+
+After kb-3 ships: plan kb-4 (Ubuntu deploy + Caddy + cron + 3 smoke scenarios + UI-04 logo PNG sourcing).
 
 ## Parallel-Track Boundary
 
