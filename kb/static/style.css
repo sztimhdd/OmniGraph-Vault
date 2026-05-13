@@ -1838,3 +1838,142 @@ html[lang="en"] .lang-flex[data-lang="en"] {
 @media (max-width: 767px) {
   .chip--entity { width: auto; }
 }
+
+/* ============================================================
+   kb-2 — Entity Page (UI-SPEC §3.2)
+   Entity h1 is SOLID color — restraint principle (no gradient).
+   Lang-distribution chip row is the page's signature moment.
+   ============================================================ */
+
+.entity-header {
+  padding: 2rem 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+.entity-header__title {
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text);    /* SOLID — entities are data, not hero copy */
+  margin-bottom: 0.75rem;
+  word-break: break-word;
+}
+.entity-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+.entity-lang-distribution {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: center;
+}
+
+/* ============================================================
+   kb-2 — Homepage Sections (UI-SPEC §3.3)
+   Topics: 5/3/2/1 col grid (different from kb-1 .article-list 1/2/3).
+   Entities: flex-wrap chip cloud.
+   ZERO new :root tokens.
+   ============================================================ */
+
+/* §3.3.1 — Browse by Topic grid (5 cards = 5 cols at full desktop) */
+.article-list--topics {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 1199px) {
+  .article-list--topics { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 767px) {
+  .article-list--topics { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 479px) {
+  .article-list--topics { grid-template-columns: 1fr; }
+}
+
+/* §3.3.2 — Featured Entities chip cloud */
+.entity-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.chip--entity-cloud {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+.chip--entity-cloud .chip-sep {
+  color: var(--text-tertiary);
+  margin: 0 0.125rem;
+}
+.chip--entity-cloud .chip-count {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem;
+}
+.chip--entity-cloud:hover .chip-count {
+  color: var(--text-secondary);
+}
+
+/* ============================================================
+   kb-2 — Article Detail Aside (UI-SPEC §3.4)
+   Sticky sidebar on desktop ≥1024; stacked below body on mobile.
+   ZERO new :root tokens. Note: kb-1 declared a 240px stub for
+   .article-detail-layout at line ~1573; the ≥1024px rule below
+   overrides via cascade order (same specificity, later wins).
+   ============================================================ */
+
+.article-detail-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+@media (min-width: 1024px) {
+  .article-detail-layout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: start;
+  }
+  .article-aside {
+    position: sticky;
+    top: 88px;          /* kb-1 nav 64px + 24px breathing */
+    max-height: calc(100vh - 104px);
+    overflow-y: auto;
+  }
+}
+
+.article-aside__group + .article-aside__group {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.article-aside__heading {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-bottom: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.article-aside__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+@media (min-width: 1024px) {
+  .article-aside__list { flex-direction: column; }
+  .article-aside__list .chip { width: 100%; justify-content: flex-start; }
+}
+
+/* Topic chip variant — minor hover hue distinguishes from .chip--entity */
+.chip--topic:hover {
+  border-color: var(--accent-green-30);
+  color: var(--accent-green);
+}
