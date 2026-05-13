@@ -105,5 +105,36 @@
   "footer.nav_title": "导航",
   "footer.lang_title": "语言",
   "footer.tech_credit": "由 OmniGraph + LightRAG 驱动",
-  "footer.back_to_articles": "返回文章列表"
+  "footer.back_to_articles": "返回文章列表",
+
+  "breadcrumb.topics": "主题",
+  "breadcrumb.entities": "实体",
+
+  "topic.agent.name": "AI 智能体",
+  "topic.agent.desc": "框架对比、部署模式、企业落地实践",
+  "topic.cv.name": "计算机视觉",
+  "topic.cv.desc": "图像理解、多模态视觉、视觉模型",
+  "topic.llm.name": "大语言模型",
+  "topic.llm.desc": "基础模型、能力评估、推理技术",
+  "topic.nlp.name": "自然语言处理",
+  "topic.nlp.desc": "语言理解、文本生成、对话系统",
+  "topic.rag.name": "检索增强生成",
+  "topic.rag.desc": "向量检索、知识图谱、问答系统",
+  "topic.article_count_label": "篇文章",
+  "topic.cooccurring_entities_title": "相关实体",
+  "topic.empty_title": "暂无文章",
+  "topic.empty_hint": "这个主题暂无符合质量门槛的文章。请稍后再来。",
+
+  "entity.article_count_label": "篇文章提及",
+  "entity.lang_distribution_aria": "语言分布",
+  "entity.empty_title": "暂无相关文章",
+  "entity.empty_hint": "暂无文章提及该实体。",
+
+  "home.section.topics_title": "🗂 主题分类",
+  "home.section.entities_title": "💡 热门实体",
+  "home.topic.browse": "查看主题",
+
+  "article.related_aria": "相关链接",
+  "article.related_entities": "🏷 相关实体",
+  "article.related_topics": "📂 相关主题"
 }

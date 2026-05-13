@@ -105,5 +105,36 @@
   "footer.nav_title": "Navigate",
   "footer.lang_title": "Language",
   "footer.tech_credit": "Powered by OmniGraph + LightRAG",
-  "footer.back_to_articles": "Back to articles"
+  "footer.back_to_articles": "Back to articles",
+
+  "breadcrumb.topics": "Topics",
+  "breadcrumb.entities": "Entities",
+
+  "topic.agent.name": "AI Agents",
+  "topic.agent.desc": "Frameworks, deployment patterns, enterprise practice",
+  "topic.cv.name": "Computer Vision",
+  "topic.cv.desc": "Image understanding, multimodal vision, visual models",
+  "topic.llm.name": "Large Language Models",
+  "topic.llm.desc": "Foundation models, evaluation, reasoning",
+  "topic.nlp.name": "NLP",
+  "topic.nlp.desc": "Language understanding, text generation, dialogue",
+  "topic.rag.name": "Retrieval-Augmented Generation",
+  "topic.rag.desc": "Vector retrieval, knowledge graphs, Q&A",
+  "topic.article_count_label": "articles",
+  "topic.cooccurring_entities_title": "Related Entities",
+  "topic.empty_title": "No articles yet",
+  "topic.empty_hint": "No articles in this topic yet. Check back soon.",
+
+  "entity.article_count_label": "articles mention this",
+  "entity.lang_distribution_aria": "Language distribution",
+  "entity.empty_title": "No articles yet",
+  "entity.empty_hint": "No articles mention this entity yet.",
+
+  "home.section.topics_title": "🗂 Browse by Topic",
+  "home.section.entities_title": "💡 Featured Entities",
+  "home.topic.browse": "Browse topic",
+
+  "article.related_aria": "Related links",
+  "article.related_entities": "🏷 Related Entities",
+  "article.related_topics": "📂 Related Topics"
 }
