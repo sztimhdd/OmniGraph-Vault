@@ -53,6 +53,7 @@ import asyncio
 import json
 import sqlite3
 from dataclasses import FrozenInstanceError
+from types import SimpleNamespace
 
 import pytest
 
@@ -324,6 +325,38 @@ def _with_body(i: int, body: str | None = None, source: str = "wechat") -> Artic
     )
 
 
+def _with_body_cl(
+    i: int,
+    body: str,
+    content_length: int | None,
+    source: str = "wechat",
+) -> SimpleNamespace:
+    """Builds an ArticleWithBody-shaped object that ALSO carries
+    content_length — used by Patch B (2026-05-13) scrape_fail tests.
+    SimpleNamespace duck-types the dataclass for the read-only access
+    patterns inside layer2_full_body_score (id / source / title / body /
+    content_length). Avoids mutating the frozen ArticleWithBody dataclass."""
+    return SimpleNamespace(
+        id=i,
+        source=source,
+        title=f"article {i}",
+        body=body,
+        content_length=content_length,
+    )
+
+
+def _counting_llm_factory(response: str):
+    """Like _fake_llm_factory but counts calls so tests can assert
+    the LLM was (or wasn't) invoked. Returns (fake_llm, call_count_dict)."""
+    call_count = {"n": 0}
+
+    async def _fake(prompt, **kwargs):  # noqa: ANN001
+        call_count["n"] += 1
+        return response
+
+    return _fake, call_count
+
+
 def _setup_articles_with_layer2(conn: sqlite3.Connection) -> None:
     """Schema with both layer1_* and layer2_* columns for round-trip tests."""
     conn.executescript(
@@ -533,6 +566,100 @@ def test_layer2_reject_writes_skipped_via_persist_round_trip() -> None:
     ).fetchall()
     assert rows[0] == (20, "reject", "软文,无机制")
     assert rows[1] == (21, "ok", "架构解读")
+
+
+# ============================================================
+# Patch B (2026-05-13 Layer 2 audit) — scrape_fail pre-check
+# ============================================================
+
+async def test_layer2_scrape_fail_short_body_long_content(monkeypatch) -> None:
+    """body=140 + content_length=11127 → scrape_fail short-circuit (no LLM)."""
+    # Sentinel LLM: raises if called — proves short-circuit path.
+    async def _must_not_be_called(prompt, **kwargs):  # noqa: ANN001
+        raise AssertionError("LLM was called for a scrape_fail article")
+
+    monkeypatch.setattr(
+        "lib.llm_deepseek.deepseek_model_complete",
+        _must_not_be_called,
+    )
+
+    arts = [_with_body_cl(437, body="x" * 140, content_length=11127)]
+    results = await layer2_full_body_score(arts)
+
+    assert len(results) == 1
+    assert results[0].verdict == "scrape_fail"
+    assert "body=140" in results[0].reason
+    assert results[0].prompt_version == PROMPT_VERSION_LAYER2
+
+
+async def test_layer2_scrape_fail_short_body_short_content_no_trigger(monkeypatch) -> None:
+    """body=100 + content_length=300 → goes to LLM (300 < 2000, not scrape_fail)."""
+    response = json.dumps([
+        {"id": 437, "depth_score": 1, "relevant": True, "reason": "短文测试"}
+    ], ensure_ascii=False)
+    fake_llm, call_count = _counting_llm_factory(response)
+    monkeypatch.setattr(
+        "lib.llm_deepseek.deepseek_model_complete",
+        fake_llm,
+    )
+
+    arts = [_with_body_cl(437, body="x" * 100, content_length=300)]
+    results = await layer2_full_body_score(arts)
+
+    assert call_count["n"] == 1, (
+        "LLM must be called when content_length is below scrape_fail threshold"
+    )
+    assert len(results) == 1
+    assert results[0].verdict in ("ok", "reject"), (
+        f"expected LLM verdict, got {results[0].verdict}"
+    )
+
+
+async def test_layer2_scrape_fail_long_body_no_trigger(monkeypatch) -> None:
+    """body=600 (>=500) + content_length=11000 → goes to LLM (regression check)."""
+    response = json.dumps([
+        {"id": 437, "depth_score": 2, "relevant": True, "reason": "实战教程"}
+    ], ensure_ascii=False)
+    fake_llm, call_count = _counting_llm_factory(response)
+    monkeypatch.setattr(
+        "lib.llm_deepseek.deepseek_model_complete",
+        fake_llm,
+    )
+
+    arts = [_with_body_cl(437, body="x" * 600, content_length=11000)]
+    results = await layer2_full_body_score(arts)
+
+    assert call_count["n"] == 1, (
+        "LLM must be called when body is at or above SCRAPE_FAIL_BODY_MIN"
+    )
+    assert len(results) == 1
+    assert results[0].verdict in ("ok", "reject"), (
+        f"expected LLM verdict, got {results[0].verdict}"
+    )
+
+
+async def test_layer2_scrape_fail_null_content_no_trigger(monkeypatch) -> None:
+    """body=100 + content_length=None → goes to LLM (None must not trigger)."""
+    response = json.dumps([
+        {"id": 437, "depth_score": 1, "relevant": True, "reason": "短测试"}
+    ], ensure_ascii=False)
+    fake_llm, call_count = _counting_llm_factory(response)
+    monkeypatch.setattr(
+        "lib.llm_deepseek.deepseek_model_complete",
+        fake_llm,
+    )
+
+    arts = [_with_body_cl(437, body="x" * 100, content_length=None)]
+    results = await layer2_full_body_score(arts)
+
+    assert call_count["n"] == 1, (
+        "LLM must be called when content_length is None — None must NEVER "
+        "trigger scrape_fail (would falsely punish legacy rows)"
+    )
+    assert len(results) == 1
+    assert results[0].verdict in ("ok", "reject"), (
+        f"expected LLM verdict, got {results[0].verdict}"
+    )
 
 
 # ----------------- regression — empty batch returns [] ---------------------

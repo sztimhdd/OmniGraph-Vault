@@ -106,6 +106,16 @@ LAYER2_BODY_TRUNCATION_CHARS: int = 8000
 """Validated by spike (max prompt 23.7K tokens, well under DeepSeek 64K
 context for batch=5)."""
 
+SCRAPE_FAIL_BODY_MIN: int = 500
+"""Patch B (2026-05-13 Layer 2 audit): bodies shorter than this are
+candidates for scrape_fail short-circuit. See _detect_scrape_failed."""
+
+SCRAPE_FAIL_CONTENT_MIN: int = 2000
+"""Patch B (2026-05-13 Layer 2 audit): pre-scrape content_length above
+this threshold combined with body < SCRAPE_FAIL_BODY_MIN signals a
+failed scrape (real article exists, but the body we got is truncated /
+a verification page / login wall). See _detect_scrape_failed."""
+
 
 # ----------------------------------------------------------- data classes
 
@@ -165,9 +175,31 @@ class FilterResult:
             stale rows.
     """
 
-    verdict: Literal["candidate", "reject", "ok"] | None
+    verdict: Literal["candidate", "reject", "ok", "scrape_fail"] | None
     reason: str
     prompt_version: str
+
+
+# ----------------------------------------------- Patch B helper (scrape_fail)
+
+def _detect_scrape_failed(
+    body: str | None,
+    content_length: int | None,
+) -> bool:
+    """Patch B (2026-05-13 Layer 2 audit) — scrape failure detector.
+
+    Returns True iff the post-scrape body looks suspiciously truncated
+    relative to a known pre-scrape content_length. This catches:
+      - WeChat verification page (body=140 chars but content_length=11000)
+      - RSS feed scrape that returned a 502 / login wall
+      - generic short-body but feed-side content_length signals real article
+
+    Returns False when content_length is unknown (None) — caller must NOT
+    trigger scrape_fail when we cannot prove a real article exists.
+    """
+    body_len = len(body or "")
+    content_len = content_length or 0
+    return body_len < SCRAPE_FAIL_BODY_MIN and content_len > SCRAPE_FAIL_CONTENT_MIN
 
 
 # ------------------------------------------------------------ Layer 1 v0 prompt
@@ -542,13 +574,37 @@ async def layer2_full_body_score(
             "Caller must chunk."
         )
 
+    # Patch B (2026-05-13): partition pass — short-circuit articles whose
+    # post-scrape body is suspiciously short relative to a known pre-scrape
+    # content_length. These get verdict='scrape_fail' WITHOUT an LLM call;
+    # remaining articles go to the LLM as before. Input order preserved
+    # via index-based fill-in.
+    results: list[FilterResult | None] = [None] * len(articles)
+    real_payload_indices: list[int] = []
+    real_payload_articles: list[ArticleWithBody] = []
+    for i, a in enumerate(articles):
+        content_length = getattr(a, "content_length", None)
+        if _detect_scrape_failed(a.body, content_length):
+            results[i] = FilterResult(
+                verdict="scrape_fail",
+                reason=f"body={len(a.body or '')} content={content_length or 0}",
+                prompt_version=PROMPT_VERSION_LAYER2,
+            )
+        else:
+            real_payload_indices.append(i)
+            real_payload_articles.append(a)
+
+    # All articles short-circuited → no LLM call needed.
+    if not real_payload_articles:
+        return [r for r in results if r is not None]  # type: ignore[misc]
+
     payload = [
         {
             "id": a.id,
             "title": a.title,
             "body": (a.body or "")[:LAYER2_BODY_TRUNCATION_CHARS],
         }
-        for a in articles
+        for a in real_payload_articles
     ]
     prompt = (
         _LAYER2_V0_PROMPT_BODY
@@ -563,8 +619,16 @@ async def layer2_full_body_score(
                 reason=reason,
                 prompt_version=PROMPT_VERSION_LAYER2,
             )
-            for _ in articles
+            for _ in real_payload_articles
         ]
+
+    def _fill_in(llm_results: list[FilterResult]) -> list[FilterResult]:
+        """Write llm_results into the pre-allocated `results` list at the
+        real-payload indices, preserving original input order. scrape_fail
+        slots stay scrape_fail."""
+        for k, r in enumerate(llm_results):
+            results[real_payload_indices[k]] = r
+        return [r for r in results if r is not None]  # type: ignore[misc]
 
     try:
         with _layer2_timeout_env():
@@ -574,15 +638,15 @@ async def layer2_full_body_score(
                 timeout=LAYER2_TIMEOUT_SEC,
             )
     except asyncio.TimeoutError:
-        logger.warning("[layer2] timeout for batch of %d", len(articles))
-        return _all_null("timeout")
+        logger.warning("[layer2] timeout for batch of %d", len(real_payload_articles))
+        return _fill_in(_all_null("timeout"))
     except Exception as exc:  # noqa: BLE001 — whole-batch fail per LF-2.6
         logger.warning(
             "[layer2] LLM error %s: %s",
             type(exc).__name__,
             str(exc)[:200],
         )
-        return _all_null(f"exception:{type(exc).__name__}")
+        return _fill_in(_all_null(f"exception:{type(exc).__name__}"))
 
     # Strip any markdown code fence the model might wrap the JSON in.
     cleaned = raw.strip()
@@ -598,17 +662,17 @@ async def layer2_full_body_score(
         parsed = json.loads(cleaned)
     except json.JSONDecodeError:
         logger.warning("[layer2] non-JSON response: %r", raw[:200])
-        return _all_null("non_json")
+        return _fill_in(_all_null("non_json"))
 
     if not isinstance(parsed, list):
-        return _all_null("non_json")
-    if len(parsed) != len(articles):
+        return _fill_in(_all_null("non_json"))
+    if len(parsed) != len(real_payload_articles):
         logger.warning(
             "[layer2] row_count_mismatch: expected %d got %d",
-            len(articles),
+            len(real_payload_articles),
             len(parsed),
         )
-        return _all_null("row_count_mismatch")
+        return _fill_in(_all_null("row_count_mismatch"))
 
     out: list[FilterResult] = []
     for entry in parsed:
@@ -617,9 +681,9 @@ async def layer2_full_body_score(
             relevant = bool(entry["relevant"])
             reason = str(entry.get("reason", ""))[:60]  # ≤30 中文 chars (UTF-8)
         except (KeyError, TypeError, ValueError):
-            return _all_null("partial_json")
+            return _fill_in(_all_null("partial_json"))
         if depth_score not in (1, 2, 3):
-            return _all_null("partial_json")
+            return _fill_in(_all_null("partial_json"))
         # LF-2.5 decision rule: keep iff relevant AND depth >= 2.
         # Spike report § "Decision rule (post-classify)" same shape.
         verdict = "ok" if (relevant and depth_score >= 2) else "reject"
@@ -630,7 +694,7 @@ async def layer2_full_body_score(
                 prompt_version=PROMPT_VERSION_LAYER2,
             )
         )
-    return out
+    return _fill_in(out)
 
 
 def persist_layer1_verdicts(
@@ -745,6 +809,8 @@ __all__ = [
     "LAYER2_BATCH_SIZE",
     "LAYER2_TIMEOUT_SEC",
     "LAYER2_BODY_TRUNCATION_CHARS",
+    "SCRAPE_FAIL_BODY_MIN",
+    "SCRAPE_FAIL_CONTENT_MIN",
     "layer1_pre_filter",
     "layer2_full_body_score",
     "persist_layer1_verdicts",

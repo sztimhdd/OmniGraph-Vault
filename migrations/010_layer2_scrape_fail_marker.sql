@@ -1,0 +1,33 @@
+-- Migration 010: Layer 2 verdict alphabet expansion — 'scrape_fail' marker
+-- Phase:   quick-260513-d1d (Patch B of 2026-05-13 Layer 2 audit)
+-- REQ:     LYF-2 (defense pre-check verdict expansion)
+-- Date:    2026-05-13
+--
+-- ============================================================
+-- THIS IS A MARKER MIGRATION — NO DDL CHANGES.
+-- ============================================================
+--
+-- Background: lib/article_filter.layer2_full_body_score now emits a new
+-- verdict value 'scrape_fail' when a post-scrape body looks suspiciously
+-- truncated relative to a known pre-scrape content_length (body < 500 chars
+-- AND content_length > 2000 chars). See _detect_scrape_failed.
+--
+-- Schema impact: NONE. The articles.layer2_verdict and
+-- rss_articles.layer2_verdict columns are TEXT NULL with NO CHECK constraint
+-- (verified 2026-05-13 against migrations/007_layer2_columns.sql lines 19-27).
+-- A new TEXT value lands transparently — no ALTER, no rebuild, no UPDATE.
+--
+-- Verdict alphabet (post-quick-260513-d1d):
+--   - 'ok'           — Layer 2 LLM kept (relevant=true AND depth_score>=2)
+--   - 'reject'       — Layer 2 LLM rejected
+--   - 'scrape_fail'  — NEW: short-circuited before LLM (body suspiciously short)
+--   - NULL           — pending re-evaluation (LLM error / not yet evaluated)
+--
+-- Rollback: not applicable (no DDL). Reverting Patch B is a code revert in
+-- lib/article_filter.py; existing 'scrape_fail' rows can be reset with:
+--   UPDATE articles     SET layer2_verdict = NULL WHERE layer2_verdict = 'scrape_fail';
+--   UPDATE rss_articles SET layer2_verdict = NULL WHERE layer2_verdict = 'scrape_fail';
+-- (Out of scope for this quick — see CLAUDE.md "Out of scope: Retroactive SQL UPDATE.")
+
+-- Intentionally empty.
+SELECT 'migration 010 is a marker — no DDL' AS note;
