@@ -271,3 +271,100 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
     body = rec.body or ""
     body = _IMAGE_SERVER_REWRITE.sub("/static/img/", body)
     return body, "raw_markdown"
+
+
+# ---- kb-2 query functions (TOPIC + ENTITY + LINK) ----
+
+
+@dataclass(frozen=True)
+class EntityCount:
+    """Entity name + URL slug + article count (used by entity cloud + sidebar)."""
+
+    name: str
+    slug: str  # lowercase + URL-safe (per ENTITY-02)
+    article_count: int
+
+
+@dataclass(frozen=True)
+class TopicSummary:
+    """Topic slug + raw DB value (used by related-topics chip + topic loops)."""
+
+    slug: str  # 'agent' | 'cv' | 'llm' | 'nlp' | 'rag'
+    raw_topic: str  # 'Agent' | 'CV' | 'LLM' | 'NLP' | 'RAG' (db value)
+
+
+_SLUG_DROP_CHARS = re.compile(r"[/\\&\"'<>?#%]+")
+_SLUG_WS = re.compile(r"\s+")
+
+
+def slugify_entity_name(name: str) -> str:
+    """ENTITY-02: lowercase + URL-safe slug, Unicode preserved.
+
+    Rules:
+        - lowercase
+        - strip leading/trailing whitespace
+        - drop URL-unsafe ASCII chars (slash, backslash, ampersand, quote, lt/gt, ?, #, %)
+        - collapse internal whitespace to single '-'
+        - preserve Unicode (CJK names like 叶小钗 stay as-is; URL-encoding happens
+          at template emission time)
+    """
+    s = (name or "").strip().lower()
+    s = _SLUG_DROP_CHARS.sub("", s)
+    s = _SLUG_WS.sub("-", s)
+    return s
+
+
+def topic_articles_query(
+    topic: str,
+    depth_min: int = 2,
+    conn: Optional[sqlite3.Connection] = None,
+) -> list[ArticleRecord]:
+    """TOPIC-02 cohort filter.
+
+    Returns ArticleRecords UNION-ed across `articles` + `rss_articles` where:
+        classifications.depth_score >= depth_min
+        AND (a.layer1_verdict = 'candidate' OR a.layer2_verdict = 'ok')
+    Sorted by update_time DESC.
+
+    Args:
+        topic: raw DB value — one of 'Agent', 'CV', 'LLM', 'NLP', 'RAG'
+        depth_min: minimum depth_score (default 2 per UI-SPEC TOPIC-02)
+        conn: optional injected connection for tests
+    """
+    own_conn = conn is None
+    if own_conn:
+        conn = _connect()
+    conn.row_factory = sqlite3.Row
+    try:
+        results: list[ArticleRecord] = []
+        # KOL articles
+        sql_kol = (
+            "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time "
+            "FROM articles a "
+            "JOIN classifications c ON c.article_id = a.id AND c.source = 'wechat' "
+            "WHERE c.topic = ? AND c.depth_score >= ? "
+            "AND (a.layer1_verdict = 'candidate' OR a.layer2_verdict = 'ok')"
+        )
+        for row in conn.execute(sql_kol, (topic, depth_min)):
+            results.append(_row_to_record_kol(row))
+        # RSS articles
+        sql_rss = (
+            "SELECT r.id, r.title, r.url, r.body, r.content_hash, r.lang, "
+            "r.published_at, r.fetched_at "
+            "FROM rss_articles r "
+            "JOIN classifications c ON c.article_id = r.id AND c.source = 'rss' "
+            "WHERE c.topic = ? AND c.depth_score >= ? "
+            "AND (r.layer1_verdict = 'candidate' OR r.layer2_verdict = 'ok')"
+        )
+        for row in conn.execute(sql_rss, (topic, depth_min)):
+            results.append(_row_to_record_rss(row))
+        # Merge sort by update_time DESC (lexicographic — kb-1-10 normalizes
+        # epoch INTs to ISO-8601 strings via _normalize_update_time, so KOL +
+        # RSS rows compare correctly).
+        results.sort(key=lambda r: r.update_time, reverse=True)
+        return results
+    finally:
+        if own_conn:
+            conn.close()
+
+
