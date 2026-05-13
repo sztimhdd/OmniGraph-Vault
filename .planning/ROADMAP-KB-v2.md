@@ -119,7 +119,7 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
   8. `kb/config.py` reads `KB_DB_PATH`, `KB_IMAGES_DIR`, `KB_OUTPUT_DIR`, `KB_PORT`,
      `KB_DEFAULT_LANG`, `KB_SYNTHESIZE_TIMEOUT` from env with documented defaults;
      no path is hardcoded outside config.py (CONFIG-01).
-**Plans:** 9 plans across 4 waves (created 2026-05-12 by gsd-phase-planner)
+**Plans:** 10 plans across 5 waves (kb-1-10 gap-closure added 2026-05-13 by gsd-phase-planner)
 - [ ] kb-1-01-config-skeleton-PLAN.md — kb/ package skeleton + env-driven kb/config.py (Wave 1)
 - [ ] kb-1-02-migration-lang-detect-PLAN.md — DATA-01 migration + lang_detect helper (Wave 1)
 - [ ] kb-1-03-i18n-locale-PLAN.md — zh-CN.json + en.json + Jinja2 t() filter (Wave 1)
@@ -129,6 +129,7 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
 - [ ] kb-1-07-base-template-pages-PLAN.md — base.html + index/articles_index/ask templates (Wave 3)
 - [ ] kb-1-08-article-detail-template-PLAN.md — article.html with content lang + JSON-LD (Wave 3)
 - [ ] kb-1-09-export-driver-PLAN.md — export_knowledge_base.py SSG entry + integration test (Wave 4)
+- [ ] kb-1-10-gap-time-normalization-PLAN.md — gap-closure: KOL update_time epoch INT->ISO normalization + _ensure_lang_column defensive guard (Wave 5, gap-closure from kb-1-VERIFICATION.md)
 **UI hint:** yes
 **Notes:**
 - I18N-04 lives in kb-1 because the filter capability is grounded in `DATA-04`
