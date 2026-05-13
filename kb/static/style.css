@@ -1735,3 +1735,106 @@ html[lang="en"] .lang-flex[data-lang="en"] {
 .codehilite .vi { color: #F8F8F2 }
 .codehilite .vm { color: #F8F8F2 }
 .codehilite .il { color: #AE81FF }
+
+/* ============================================================
+   kb-2 — Topic Pillar Page (UI-SPEC §3.1)
+   ZERO new :root tokens — composes kb-1 locked tokens only.
+   ============================================================ */
+
+.topic-pillar-header {
+  padding: 2rem 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+.topic-pillar-header__title {
+  font-size: clamp(1.875rem, 4vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  /* Signature moment — gradient text fill (reuses kb-1 hero gradient stops) */
+  background: linear-gradient(135deg, var(--text) 0%, var(--accent) 50%, var(--accent-green) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin-bottom: 0.75rem;
+}
+.topic-pillar-header__desc {
+  color: var(--text-secondary);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  max-width: 64ch;
+  margin-bottom: 1.25rem;
+}
+.topic-pillar-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+.topic-pillar-header__filter {
+  display: inline-flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.topic-pillar-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 2rem;
+}
+@media (max-width: 1023px) {
+  .topic-pillar-layout { grid-template-columns: 1fr 240px; }
+}
+@media (max-width: 767px) {
+  .topic-pillar-layout { grid-template-columns: 1fr; }
+  .topic-pillar-sidebar__list {
+    display: flex; flex-direction: row; gap: 0.5rem;
+    overflow-x: auto; padding-bottom: 0.5rem;
+  }
+}
+.topic-pillar-sidebar__title {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-bottom: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.topic-pillar-sidebar__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* New chip variants — composed from kb-1 .chip primitive */
+.chip--count {
+  cursor: default;
+  pointer-events: none;
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+.chip--toggle[aria-pressed="true"],
+.chip--toggle.is-active {
+  background: var(--accent-blue-soft);
+  color: var(--accent);
+  border-color: var(--accent-blue-30);
+}
+.chip--entity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  justify-content: space-between;
+}
+.chip--entity .chip-label { flex: 1; text-align: left; }
+.chip--entity .chip-count {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+}
+@media (max-width: 767px) {
+  .chip--entity { width: auto; }
+}
