@@ -108,9 +108,54 @@
       </header>
 
       {# EXPORT-04 body — pre-rendered HTML with Pygments highlighting baked in #}
-      <article class="article-body">
-        {{ body_html | safe }}
-      </article>
+      {# kb-2 LINK-01 + LINK-02: wrap body + sibling .article-aside in .article-detail-layout #}
+      <div class="article-detail-layout">
+        <article class="article-body">
+          {{ body_html | safe }}
+        </article>
+
+        {% if related_entities or related_topics %}
+        <aside class="article-aside" aria-label="{{ 'article.related_aria' | t('zh-CN') }}">
+          {% if related_entities %}
+          <section class="article-aside__group">
+            <h2 class="article-aside__heading">
+              {{ icon('tag', size=14) }}
+              <span data-lang="zh">{{ 'article.related_entities' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.related_entities' | t('en') }}</span>
+            </h2>
+            <ul class="article-aside__list" role="list">
+              {% for e in related_entities %}
+              <li>
+                <a class="chip chip--entity" href="/entities/{{ e.slug }}.html">
+                  {{ icon('tag', size=12) }}
+                  <span class="chip-label">{{ e.name }}</span>
+                </a>
+              </li>
+              {% endfor %}
+            </ul>
+          </section>
+          {% endif %}
+
+          {% if related_topics %}
+          <section class="article-aside__group">
+            <h2 class="article-aside__heading">
+              {{ icon('folder-tag', size=14) }}
+              <span data-lang="zh">{{ 'article.related_topics' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.related_topics' | t('en') }}</span>
+            </h2>
+            <ul class="article-aside__list" role="list">
+              {% for t in related_topics %}
+              <li>
+                <a class="chip chip--topic" href="/topics/{{ t.slug }}.html">
+                  {{ icon('folder-tag', size=12) }}
+                  <span class="chip-label">{{ t.localized_name }}</span>
+                </a>
+              </li>
+              {% endfor %}
+            </ul>
+          </section>
+          {% endif %}
+        </aside>
+        {% endif %}
+      </div>
 
       <div class="article-footer">
         <p>
