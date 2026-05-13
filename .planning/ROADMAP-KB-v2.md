@@ -60,7 +60,7 @@ simpler given this risk profile.
 ## Phases
 
 - [x] **Phase kb-1: SSG Export + i18n Foundation** — Completed 2026-05-13. Bilingual data layer, content_hash runtime resolution, Jinja2 SSG templates, sitemap/robots/og/JSON-LD baseline. The full read path goes from `kol_scan.db` to static HTML. (26/27 REQs satisfied; UI-04 placeholder accepted, real PNG carried to kb-4. 4 human-verifiable browser UAT items in kb-1-HUMAN-UAT.md. UI redesign in progress 2026-05-13 to close design-dimension audit findings — `kb-1-DESIGN-AUDIT.md`.)
-- [ ] **Phase kb-2: Topic Pillar + Entity Pages + Cross-Link Network** — Generate `/topics/{slug}.html` × 5 (Agent / CV / LLM / NLP / RAG) + `/entities/{slug}.html` × ~91 (entities ≥5 articles) + JSON-LD CollectionPage / Thing. Article detail page gains related-entities + related-topics sidebar. Homepage adds "Browse by Topic" + "Featured Entities" sections. Inherits kb-1 redesigned UI tokens — no re-design.
+- [x] **Phase kb-2: Topic Pillar + Entity Pages + Cross-Link Network** — Completed 2026-05-13. Generates `/topics/{slug}.html` × 5 (Agent / CV / LLM / NLP / RAG) + `/entities/{slug}.html` × ~91 (entities ≥5 articles, 6 in fixture) + JSON-LD CollectionPage / Thing. Article detail page gains related-entities + related-topics sidebar. Homepage adds "Browse by Topic" + "Featured Entities" sections. Inherits kb-1 redesigned UI tokens — no re-design. (12/12 REQs satisfied; full Skill discipline regex passes; 58 integration tests covering 37 UI-SPEC §8 acceptance grep patterns; 12/12 Playwright UAT viewports zero horizontal scroll.)
 - [ ] **Phase kb-3: FastAPI Backend + Bilingual API + Search + Q&A** — `/api/articles` / `/api/article/{hash}` / `/api/search` (FTS5 + KG mode) / `/api/synthesize` (async + lang directive + FTS5 fallback) / `/static/img` mount.
 - [ ] **Phase kb-4: Ubuntu Deploy + Cron + Smoke Verification** — systemd unit + Caddy snippet + `install.sh` + `daily_rebuild.sh` cron + 3 smoke scenarios pass.
 
@@ -200,9 +200,10 @@ directive injection and never-500 fallback to FTS5 top-3.
 **Depends on:** Phase kb-1 (needs `kb.config`, `kb.data.article_query`,
 populated `lang` columns, runtime content_hash resolution, and SSG output that the
 FastAPI app reads `final_content.md` from per D-14).
-**Requirements:** I18N-07, API-01, API-02, API-03, API-04, API-05, API-06, API-07,
-API-08, SEARCH-01, SEARCH-02, SEARCH-03, QA-01, QA-02, QA-03, QA-04, QA-05,
-CONFIG-02 (18 REQs)
+**Requirements:** DATA-07, I18N-07, API-01, API-02, API-03, API-04, API-05, API-06,
+API-07, API-08, SEARCH-01, SEARCH-02, SEARCH-03, QA-01, QA-02, QA-03, QA-04, QA-05,
+CONFIG-02 (19 REQs — DATA-07 added 2026-05-13: content-quality filter, see
+`.planning/phases/kb-3-fastapi-bilingual-api/kb-3-CONTENT-QUALITY-DECISIONS.md`)
 **Success Criteria** (what must be TRUE):
   1. `uvicorn kb.api:app --port 8766` boots and serves all endpoints listed below;
      port is overridable via `KB_PORT` env (API-01). `app.mount("/static/img", ...)`
@@ -239,6 +240,22 @@ CONFIG-02 (18 REQs)
   7. `kb/services/synthesize.py` (the wrapper) imports `kg_synthesize` directly
      and `lib.llm_complete.get_llm_func()` honors `OMNIGRAPH_LLM_PROVIDER` —
      the KB layer adds zero new LLM provider env vars (CONFIG-02).
+  8. **Content-quality filter (DATA-07)** applies to ALL list-style query
+     functions in `kb/data/article_query.py` — `list_articles()`,
+     `topic_articles_query()`, `entity_articles_query()`,
+     `cooccurring_entities_in_topic()`, `related_entities_for_article()`,
+     `related_topics_for_article()`. Filter excludes rows where
+     `body IS NULL OR body = ''` OR `layer1_verdict != 'candidate'` OR
+     `layer2_verdict = 'reject'`. Symmetric across KOL `articles` and RSS
+     `rss_articles` (both have all 3 columns since v3.5 ir-4). Single-article
+     hash lookup `get_article_by_hash()` is NOT filtered (direct URL access
+     remains intact for search hits / KG synthesize sources / bookmarks).
+     Env override `KB_CONTENT_QUALITY_FILTER=off` for debug; default `on`.
+     Expected visibility on Hermes prod: ~6% of scanned rows (~160/2501).
+     Cross-phase impact: kb-1 list page + kb-2 topic/entity pages inherit
+     automatically on next SSG re-render (no template changes needed).
+     See `.planning/phases/kb-3-fastapi-bilingual-api/kb-3-CONTENT-QUALITY-DECISIONS.md`
+     for SQL clauses, fixture coordination, and rollout plan.
 **Plans:** TBD
 **UI hint:** **yes** (revised 2026-05-13 per kb-1-DESIGN-AUDIT.md — ask.html result region is a non-trivial UI surface, even though most of kb-3 is backend)
 **Required Skills (HARD — see kb/docs/10-DESIGN-DISCIPLINE.md):**
@@ -339,7 +356,7 @@ fallback all working; smoke #1 requires kb-1's i18n).
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | kb-1: SSG Export + i18n Foundation | 11/11 + redesign-quick-in-progress | Complete pre-redesign (26/27 REQs; UI-04 partial → kb-4 PNG carry-forward); UI redesign quick task in progress 2026-05-13 to close design-dimension audit | 2026-05-13 |
-| kb-2: Topic Pillar + Entity Pages + Cross-Link Network | 0/? | Not started — added 2026-05-13 from "skipped" status after Hermes prod data verification | — |
+| kb-2: Topic Pillar + Entity Pages + Cross-Link Network | 10/10 | Complete (12/12 REQs; full Skill discipline; 58 integration tests; 12/12 UAT viewports) | 2026-05-13 |
 | kb-3: FastAPI Backend + Bilingual API + Search + Q&A | 0/? | Not started | — |
 | kb-4: Ubuntu Deploy + Cron + Smoke Verification | 0/? | Not started | — |
 

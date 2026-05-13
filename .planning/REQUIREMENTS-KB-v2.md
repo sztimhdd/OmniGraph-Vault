@@ -35,7 +35,7 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ---
 
-## v2.0 Requirements (62 REQs across 12 categories)
+## v2.0 Requirements (63 REQs across 12 categories)
 
 > **Revision 2026-05-13:** kb-2 (Topic Pillar pages + Entity pages + cross-link network) revived from "deferred to v2.1" → in-scope this milestone. Triggered by Hermes prod data verification: `classifications` has 3945 rows (5 topics × 789 articles), `extracted_entities` has 5257 rows / 3319 distinct names with 91 entities at ≥5-article frequency / 26 at ≥10-article frequency. The earlier "13 canonical entities can't support entity surface" judgment was based on local dev DB (which had 0 classifications). Real production data supports 5 topic pillar pages + 26-91 entity pages today without requiring upstream LLM canonicalization. Three new REQ categories added: TOPIC (5) / ENTITY (4) / LINK (3) = 12 new REQs.
 
@@ -50,7 +50,7 @@ Lighthouse LCP < 2.5s on article detail page.
 - [ ] **I18N-07**: Q&A endpoint accepts `lang` parameter (`zh` / `en`); KB layer prepends `"请用中文回答。\n\n"` or `"Please answer in English.\n\n"` directive to the query before calling `kg_synthesize.synthesize_response()`. **Function signature unchanged** (C1 preserved).
 - [x] **I18N-08**: Language switcher control visible in top nav on all pages — text label "中 / EN" or equivalent, click toggles `?lang=` and updates cookie.
 
-### DATA — Data Layer (6)
+### DATA — Data Layer (7)
 
 - [x] **DATA-01**: One-time SQLite migration adds nullable `lang TEXT` column to both `articles` and `rss_articles` tables. Idempotent — re-running is safe (uses `PRAGMA table_info` pre-check). *(kb-1-02, 2026-05-12)*
 - [x] **DATA-02**: `kb/scripts/detect_article_lang.py` populates `lang` column based on Chinese character ratio: `> 30%` → `zh-CN`, otherwise `en`. Produces stdout coverage report (`{zh-CN: N, en: M, unknown: K}`). *(kb-1-02 algorithm only — kb/data/lang_detect.py; driver in kb-1-05)*
@@ -58,6 +58,7 @@ Lighthouse LCP < 2.5s on article detail page.
 - [x] **DATA-04**: `kb/data/article_query.py` exposes `list_articles(lang=None, source=None, limit=20, offset=0)` returning paginated `ArticleRecord` dataclass list sorted by `update_time DESC`.
 - [x] **DATA-05**: `kb/data/article_query.py` exposes `get_article_by_hash(hash: str)` resolving `md5[:10]` hash → `ArticleRecord | None`. Searches both KOL `articles` and RSS `rss_articles` tables.
 - [x] **DATA-06**: `content_hash` URL identifier resolution: KOL articles with `content_hash` set use it directly (4/653); KOL articles with `content_hash IS NULL` get `md5(body)[:10]` computed at runtime; RSS articles use `content_hash[:10]` (truncate full md5). **No DB writes** (K-2).
+- [ ] **DATA-07**: Content-quality filter for article-list query functions. `list_articles()` and all kb-2 list-style query functions (`topic_articles_query`, `entity_articles_query`, `cooccurring_entities_in_topic`) MUST exclude rows that fail any of: (a) `body IS NULL OR body = ''` (no scraped body in DB), (b) `layer1_verdict != 'candidate'` (Layer 1 reject or not yet classified), (c) `layer2_verdict = 'reject'` (Layer 2 reject; NULL is allowed for backwards-compat with rows pre-Layer 2). Applies symmetrically to KOL `articles` and RSS `rss_articles` (both tables have these columns since v3.5 ir-4). Single-article-by-hash lookup (`get_article_by_hash`) is NOT filtered — direct URL access to a known hash still works (search hits, bookmarks, KG synthesize sources). Expected v2.0 visibility on Hermes prod data: ~6% of scanned rows (~160/2501) at filter time; this is a 94% reduction from the current "show every scanned row" behavior and is the intended quality bar. Env override `KB_CONTENT_QUALITY_FILTER=off` allows disabling for debugging — default is `on`. Cross-phase impact: kb-1's article list page (`articles_index.html`) and kb-2's topic/entity article lists inherit this filter automatically once kb-3 ships the data-layer change; next SSG re-render produces filtered output. *(kb-3 — see `.planning/phases/kb-3-fastapi-bilingual-api/kb-3-CONTENT-QUALITY-DECISIONS.md`)*
 
 ### EXPORT — SSG Build (6)
 
@@ -113,24 +114,24 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ### TOPIC — Topic Pillar Pages (5) [kb-2 NEW 2026-05-13]
 
-- [ ] **TOPIC-01**: Generate `kb/output/topics/{slug}.html` for each of 5 hardcoded topics (Agent / CV / LLM / NLP / RAG). Slug = topic.lower(). Topic list derives from `classifications.topic` distinct values; 5 hardcoded for v2.0 since the LLM classifier writes only these 5.
-- [ ] **TOPIC-02**: Topic page lists articles where `classifications.depth_score >= 2 AND (articles.layer1_verdict = 'candidate' OR articles.layer2_verdict = 'ok')`. Same JOIN handles `rss_articles` via UNION. Sorted by `update_time DESC`.
-- [ ] **TOPIC-03**: Topic page header has localized topic name + 1-2 line description (i18n keys `topic.{slug}.name` + `topic.{slug}.desc`) + article count. Sub-source filter (kbol / rss) optional via JS-only chip toggle (mirrors articles_index.html pattern).
-- [ ] **TOPIC-04**: Topic page emits JSON-LD `CollectionPage` schema with `name`, `description`, `numberOfItems`, `inLanguage` per UI chrome lang.
-- [ ] **TOPIC-05**: Topic page sidebar (or footer on mobile) lists top 5 entities co-occurring in this topic's articles (computed from `extracted_entities` ∩ topic article set, ordered by article frequency). Each entity links to `/entities/{slug}.html`.
+- [x] **TOPIC-01**: Generate `kb/output/topics/{slug}.html` for each of 5 hardcoded topics (Agent / CV / LLM / NLP / RAG). Slug = topic.lower(). Topic list derives from `classifications.topic` distinct values; 5 hardcoded for v2.0 since the LLM classifier writes only these 5.
+- [x] **TOPIC-02**: Topic page lists articles where `classifications.depth_score >= 2 AND (articles.layer1_verdict = 'candidate' OR articles.layer2_verdict = 'ok')`. Same JOIN handles `rss_articles` via UNION. Sorted by `update_time DESC`.
+- [x] **TOPIC-03**: Topic page header has localized topic name + 1-2 line description (i18n keys `topic.{slug}.name` + `topic.{slug}.desc`) + article count. Sub-source filter (kbol / rss) optional via JS-only chip toggle (mirrors articles_index.html pattern).
+- [x] **TOPIC-04**: Topic page emits JSON-LD `CollectionPage` schema with `name`, `description`, `numberOfItems`, `inLanguage` per UI chrome lang.
+- [x] **TOPIC-05**: Topic page sidebar (or footer on mobile) lists top 5 entities co-occurring in this topic's articles (computed from `extracted_entities` ∩ topic article set, ordered by article frequency). Each entity links to `/entities/{slug}.html`.
 
 ### ENTITY — Entity Pages (4) [kb-2 NEW 2026-05-13]
 
-- [ ] **ENTITY-01**: Generate `kb/output/entities/{slug}.html` for each entity in `extracted_entities` with `COUNT(DISTINCT article_id) >= 5` (~91 pages on Hermes prod data). Threshold env-overridable via `KB_ENTITY_MIN_FREQ` for tuning.
-- [ ] **ENTITY-02**: Slug derivation: lowercase + URL-safe (replace spaces with `-`, drop `/` and other special chars), preserve Unicode (Chinese names like `叶小钗` URL-encoded). Stable across re-runs (no random hashing).
-- [ ] **ENTITY-03**: Entity page lists all articles mentioning this entity (sorted by article `update_time DESC`). Reuses `.article-card` from kb-1 redesigned templates. Page header shows entity name + total article count + lang distribution chip row.
-- [ ] **ENTITY-04**: Entity page emits JSON-LD `Thing` schema with `name`, `alternateName` (if any inferred dups), generic `@type: Thing` (specific typing — Person / Organization / SoftwareApplication — deferred to v2.1 because `entity_canonical.entity_type` is NULL across the corpus).
+- [x] **ENTITY-01**: Generate `kb/output/entities/{slug}.html` for each entity in `extracted_entities` with `COUNT(DISTINCT article_id) >= 5` (~91 pages on Hermes prod data). Threshold env-overridable via `KB_ENTITY_MIN_FREQ` for tuning.
+- [x] **ENTITY-02**: Slug derivation: lowercase + URL-safe (replace spaces with `-`, drop `/` and other special chars), preserve Unicode (Chinese names like `叶小钗` URL-encoded). Stable across re-runs (no random hashing).
+- [x] **ENTITY-03**: Entity page lists all articles mentioning this entity (sorted by article `update_time DESC`). Reuses `.article-card` from kb-1 redesigned templates. Page header shows entity name + total article count + lang distribution chip row.
+- [x] **ENTITY-04**: Entity page emits JSON-LD `Thing` schema with `name`, `alternateName` (if any inferred dups), generic `@type: Thing` (specific typing — Person / Organization / SoftwareApplication — deferred to v2.1 because `entity_canonical.entity_type` is NULL across the corpus).
 
 ### LINK — Cross-page Internal Linking (3) [kb-2 NEW 2026-05-13]
 
-- [ ] **LINK-01**: `kb/templates/article.html` adds a sidebar (desktop) / footer-section (mobile) listing 3-5 related entities (from `extracted_entities` for that article_id, top by global frequency). Each entity is a chip linking to `/entities/{slug}.html`.
-- [ ] **LINK-02**: `kb/templates/article.html` adds 1-3 topic chips (from `classifications` WHERE `depth_score >= 2 AND article_id = ?`). Each topic chip links to `/topics/{slug}.html`.
-- [ ] **LINK-03**: Homepage (`kb/output/index.html`) gains 2 new sections: "🗂 Browse by Topic" (5 topic chip cards with article count) and "💡 Featured Entities" (top 12 entities by frequency, chip cloud). These sit between the existing "Latest Articles" section and the "Try AI Q&A" CTA.
+- [x] **LINK-01**: `kb/templates/article.html` adds a sidebar (desktop) / footer-section (mobile) listing 3-5 related entities (from `extracted_entities` for that article_id, top by global frequency). Each entity is a chip linking to `/entities/{slug}.html`.
+- [x] **LINK-02**: `kb/templates/article.html` adds 1-3 topic chips (from `classifications` WHERE `depth_score >= 2 AND article_id = ?`). Each topic chip links to `/topics/{slug}.html`.
+- [x] **LINK-03**: Homepage (`kb/output/index.html`) gains 2 new sections: "🗂 Browse by Topic" (5 topic chip cards with article count) and "💡 Featured Entities" (top 12 entities by frequency, chip cloud). These sit between the existing "Latest Articles" section and the "Try AI Q&A" CTA.
 
 ### CONFIG — Env-Driven Configuration (2)
 
@@ -196,6 +197,7 @@ Lighthouse LCP < 2.5s on article detail page.
 | DATA-04 | kb-1 | Not started |
 | DATA-05 | kb-1 | Not started |
 | DATA-06 | kb-1 | Not started |
+| DATA-07 | kb-3 | Not started (added 2026-05-13) |
 | EXPORT-01 | kb-1 | Not started |
 | EXPORT-02 | kb-1 | Not started |
 | EXPORT-03 | kb-1 | Not started |

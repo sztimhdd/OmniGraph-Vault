@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: KB-v2
 milestone_name: — KB-v2 (parallel-track)
-status: kb-1-complete-ready-for-kb-3
-last_updated: "2026-05-13T17:00:00Z"
-last_activity: "2026-05-13 — kb-1 fully verified: kb-1-10 gap-closure (update_time epoch→ISO + lang-column defensive guard) shipped; kb-1-VERIFICATION.md status=gaps_found→complete; HUMAN-UAT.md 3/4 PASS (UAT 1+2+3 verified via Playwright MCP browser session — bilingual UI, 中文/English badges, og:* + JSON-LD inLanguage, FTS5-trigger-free SSG, no horizontal scroll on 375/768/1280); UAT 4 logo PNG deferred to kb-4 per approved-placeholder. 26/27 REQs codebase-satisfied. Phase kb-1 ready to close."
+status: kb-2-complete-ready-for-kb-3
+last_updated: "2026-05-13T18:00:00Z"
+last_activity: "2026-05-13 — kb-2 fully complete: 10 plans across 5 waves with full Skill discipline (ui-ux-pro-max=5, frontend-design=5, python-patterns=2, writing-tests=2); 12/12 REQs (TOPIC-01..05 + ENTITY-01..04 + LINK-01..03); 31 :root vars unchanged (kb-1 token baseline preserved); CSS 1979 LOC (+42 over 1937 budget — UI-SPEC §3.2/3.3/3.4 verbatim retained per design discipline); fixture-driven export produces 5 topic HTMLs + 6 entity HTMLs + sitemap auto-extends to 22 URLs; 58 new integration tests covering all 37 UI-SPEC §8 acceptance grep patterns; 12/12 Playwright UAT viewports (topic-agent / entity-openai / home-extended / article-with-aside × 375/768/1280) zero horizontal scroll. Deferred: cross-test fixture pollution + dev-runtime DB schema mismatch (documented in kb-2/deferred-items.md). Phase kb-2 ready to close."
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 10
-  completed_plans: 10
+  completed_phases: 2
+  total_plans: 21
+  completed_plans: 20
 ---
 
 # Project State — KB-v2 (parallel)
