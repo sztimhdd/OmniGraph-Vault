@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% set page_lang = lang %}
+
+{% block title %}{{ entity.name }} — {{ 'site.brand' | t(lang) }}{% endblock %}
+
+{% block extra_head %}
+<meta name="description" content="{{ entity.name }} — {{ entity.article_count }} {{ 'entity.article_count_label' | t(lang) }}">
+<meta property="og:title" content="{{ entity.name }}">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="{{ lang }}">
+<link rel="canonical" href="{{ page_url }}">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Thing",
+  "name": {{ entity.name | tojson }},
+  "url": {{ page_url | tojson }},
+  "alternateName": []
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="breadcrumb">
+  <a href="/">{{ icon('home', size=14) }} {{ 'breadcrumb.home' | t(lang) }}</a>
+  {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
+  <a href="/entities/">{{ 'breadcrumb.entities' | t(lang) }}</a>
+  {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
+  <span class="breadcrumb__current">{{ entity.name }}</span>
+</nav>
+
+<header class="entity-header">
+  <h1 class="entity-header__title">{{ entity.name }}</h1>
+  <div class="entity-header__meta">
+    <span class="chip chip--count">
+      {{ icon('articles', size=13) }}
+      {{ entity.article_count }} {{ 'entity.article_count_label' | t(lang) }}
+    </span>
+    <div class="entity-lang-distribution" role="group"
+         aria-label="{{ 'entity.lang_distribution_aria' | t(lang) }}">
+      {% if entity.lang_zh > 0 %}
+      <span class="lang-badge" data-lang="zh-CN">
+        {{ entity.lang_zh }} {{ 'article.lang_zh' | t(lang) }}
+      </span>
+      {% endif %}
+      {% if entity.lang_en > 0 %}
+      <span class="lang-badge" data-lang="en">
+        {{ entity.lang_en }} {{ 'article.lang_en' | t(lang) }}
+      </span>
+      {% endif %}
+      {% if entity.lang_unknown > 0 %}
+      <span class="lang-badge" data-lang="unknown">
+        {{ entity.lang_unknown }} {{ 'article.lang_unknown' | t(lang) }}
+      </span>
+      {% endif %}
+    </div>
+  </div>
+</header>
+
+<section class="entity-articles" aria-label="{{ entity.name }}">
+  {% if articles %}
+  <div class="article-list">
+    {% for a in articles %}
+    <a class="article-card" href="/articles/{{ a.url_hash }}.html"
+       data-lang="{{ a.lang or 'unknown' }}" data-source="{{ a.source }}">
+      <div class="article-card-meta">
+        <span class="lang-badge" data-lang="{{ a.lang or 'unknown' }}">
+          {%- if a.lang == 'zh-CN' -%}
+            {{ 'article.lang_zh' | t(lang) }}
+          {%- elif a.lang == 'en' -%}
+            {{ 'article.lang_en' | t(lang) }}
+          {%- else -%}
+            {{ 'article.lang_unknown' | t(lang) }}
+          {%- endif -%}
+        </span>
+        <span class="source-chip">
+          {%- if a.source == 'wechat' -%}
+            {{ icon('wechat', size=13) }} {{ 'source.wechat' | t(lang) }}
+          {%- elif a.source == 'rss' -%}
+            {{ icon('rss', size=13) }} RSS
+          {%- else -%}
+            {{ icon('web', size=13) }} {{ 'source.web' | t(lang) }}
+          {%- endif -%}
+        </span>
+        <span class="meta-dot">·</span>
+        <span>{{ a.update_time_human }}</span>
+      </div>
+      <h3 class="article-card-title">{{ a.title }}</h3>
+      {% if a.snippet %}
+      <p class="article-card-snippet">{{ a.snippet }}</p>
+      {% endif %}
+      <span class="article-card-readmore">
+        {{ 'article.read_more' | t(lang) }}
+        {{ icon('arrow-right', size=14) }}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    {{ icon('inbox', size=48, cls='empty-state__icon') }}
+    <h3 class="empty-state__title">{{ 'entity.empty_title' | t(lang) }}</h3>
+    <p class="empty-state__hint">{{ 'entity.empty_hint' | t(lang) }}</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
