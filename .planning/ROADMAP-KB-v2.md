@@ -60,7 +60,7 @@ specs.
 
 ## Phases
 
-- [ ] **Phase kb-1: SSG Export + i18n Foundation** — Bilingual data layer, content_hash runtime resolution, Jinja2 SSG templates, sitemap/robots/og/JSON-LD baseline. The full read path goes from `kol_scan.db` to static HTML.
+- [x] **Phase kb-1: SSG Export + i18n Foundation** — Completed 2026-05-13. Bilingual data layer, content_hash runtime resolution, Jinja2 SSG templates, sitemap/robots/og/JSON-LD baseline. The full read path goes from `kol_scan.db` to static HTML. (26/27 REQs satisfied; UI-04 placeholder accepted, real PNG carried to kb-4. 4 human-verifiable browser UAT items in kb-1-HUMAN-UAT.md.)
 - [ ] **Phase kb-3: FastAPI Backend + Bilingual API + Search + Q&A** — `/api/articles` / `/api/article/{hash}` / `/api/search` (FTS5 + KG mode) / `/api/synthesize` (async + lang directive + FTS5 fallback) / `/static/img` mount.
 - [ ] **Phase kb-4: Ubuntu Deploy + Cron + Smoke Verification** — systemd unit + Caddy snippet + `install.sh` + `daily_rebuild.sh` cron + 3 smoke scenarios pass.
 
@@ -120,16 +120,17 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
      `KB_DEFAULT_LANG`, `KB_SYNTHESIZE_TIMEOUT` from env with documented defaults;
      no path is hardcoded outside config.py (CONFIG-01).
 **Plans:** 10 plans across 5 waves (kb-1-10 gap-closure added 2026-05-13 by gsd-phase-planner)
-- [ ] kb-1-01-config-skeleton-PLAN.md — kb/ package skeleton + env-driven kb/config.py (Wave 1)
-- [ ] kb-1-02-migration-lang-detect-PLAN.md — DATA-01 migration + lang_detect helper (Wave 1)
-- [ ] kb-1-03-i18n-locale-PLAN.md — zh-CN.json + en.json + Jinja2 t() filter (Wave 1)
-- [ ] kb-1-04-static-css-js-PLAN.md — style.css + lang.js + brand assets (Wave 1, has checkpoint)
-- [ ] kb-1-05-detect-script-driver-PLAN.md — detect_article_lang.py CLI driver (Wave 2)
-- [ ] kb-1-06-article-query-PLAN.md — DATA-04..06 read-only query layer (Wave 2)
-- [ ] kb-1-07-base-template-pages-PLAN.md — base.html + index/articles_index/ask templates (Wave 3)
-- [ ] kb-1-08-article-detail-template-PLAN.md — article.html with content lang + JSON-LD (Wave 3)
-- [ ] kb-1-09-export-driver-PLAN.md — export_knowledge_base.py SSG entry + integration test (Wave 4)
-- [ ] kb-1-10-gap-time-normalization-PLAN.md — gap-closure: KOL update_time epoch INT->ISO normalization + _ensure_lang_column defensive guard (Wave 5, gap-closure from kb-1-VERIFICATION.md)
+- [x] kb-1-01-config-skeleton-PLAN.md — kb/ package skeleton + env-driven kb/config.py (Wave 1)
+- [x] kb-1-02-migration-lang-detect-PLAN.md — DATA-01 migration + lang_detect helper (Wave 1)
+- [x] kb-1-03-i18n-locale-PLAN.md — zh-CN.json + en.json + Jinja2 t() filter (Wave 1)
+- [x] kb-1-04-static-css-js-PLAN.md — style.css + lang.js (Wave 1)
+- [x] kb-1-04b-brand-assets-checkpoint-PLAN.md — favicon.svg placeholder + VitaClaw-Logo-v0.png.MISSING.txt + provenance README (Wave 1, approved-placeholder)
+- [x] kb-1-05-detect-script-driver-PLAN.md — detect_article_lang.py CLI driver (Wave 2)
+- [x] kb-1-06-article-query-PLAN.md — DATA-04..06 read-only query layer (Wave 2)
+- [x] kb-1-07-base-template-pages-PLAN.md — base.html + index/articles_index/ask templates (Wave 3)
+- [x] kb-1-08-article-detail-template-PLAN.md — article.html with content lang + JSON-LD (Wave 4)
+- [x] kb-1-09-export-driver-PLAN.md — export_knowledge_base.py SSG entry + integration test (Wave 5)
+- [x] kb-1-10-gap-time-normalization-PLAN.md — gap-closure: KOL update_time epoch INT->ISO normalization + _ensure_lang_column defensive guard (Wave 1 of gap-closure, shipped 2026-05-13)
 **UI hint:** yes
 **Notes:**
 - I18N-04 lives in kb-1 because the filter capability is grounded in `DATA-04`
@@ -278,7 +279,7 @@ fallback all working; smoke #1 requires kb-1's i18n).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| kb-1: SSG Export + i18n Foundation | 0/9 | Plans created | — |
+| kb-1: SSG Export + i18n Foundation | 11/11 | Complete (26/27 REQs; UI-04 partial → kb-4 PNG carry-forward; 4 human UAT items pending browser test) | 2026-05-13 |
 | kb-3: FastAPI Backend + Bilingual API + Search + Q&A | 0/? | Not started | — |
 | kb-4: Ubuntu Deploy + Cron + Smoke Verification | 0/? | Not started | — |
 

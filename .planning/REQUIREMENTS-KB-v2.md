@@ -42,9 +42,9 @@ Lighthouse LCP < 2.5s on article detail page.
 - [x] **I18N-01**: System detects user's preferred language from the `Accept-Language` HTTP header on first visit. Defaults to `zh-CN` if neither `zh` nor `en` is acceptable.
 - [x] **I18N-02**: User can switch UI language via `?lang=en` or `?lang=zh` query param. Selection persists for 1 year via `kb_lang` cookie.
 - [x] **I18N-03**: All UI chrome strings (nav, labels, buttons, footer, page titles, form placeholders) load from `kb/locale/zh-CN.json` + `kb/locale/en.json` via a `{{ t('key.path') }}` Jinja2 filter. Estimated ~50 string keys. *(Shipped kb-1-03: 45 keys, 8/8 tests pass.)*
-- [ ] **I18N-04**: User can filter article list by content language via `?lang=zh-CN` or `?lang=en`; default shows all languages mixed.
-- [ ] **I18N-05**: Article detail page sets `<html lang="zh-CN">` or `<html lang="en">` matching the article's **content** language (independent of UI chrome language).
-- [ ] **I18N-06**: Article detail page shows a visible badge ("中文" / "English") indicating content language at the top of the article.
+- [x] **I18N-04**: User can filter article list by content language via `?lang=zh-CN` or `?lang=en`; default shows all languages mixed.
+- [x] **I18N-05**: Article detail page sets `<html lang="zh-CN">` or `<html lang="en">` matching the article's **content** language (independent of UI chrome language).
+- [x] **I18N-06**: Article detail page shows a visible badge ("中文" / "English") indicating content language at the top of the article.
 - [ ] **I18N-07**: Q&A endpoint accepts `lang` parameter (`zh` / `en`); KB layer prepends `"请用中文回答。\n\n"` or `"Please answer in English.\n\n"` directive to the query before calling `kg_synthesize.synthesize_response()`. **Function signature unchanged** (C1 preserved).
 - [x] **I18N-08**: Language switcher control visible in top nav on all pages — text label "中 / EN" or equivalent, click toggles `?lang=` and updates cookie.
 
@@ -52,29 +52,29 @@ Lighthouse LCP < 2.5s on article detail page.
 
 - [x] **DATA-01**: One-time SQLite migration adds nullable `lang TEXT` column to both `articles` and `rss_articles` tables. Idempotent — re-running is safe (uses `PRAGMA table_info` pre-check). *(kb-1-02, 2026-05-12)*
 - [x] **DATA-02**: `kb/scripts/detect_article_lang.py` populates `lang` column based on Chinese character ratio: `> 30%` → `zh-CN`, otherwise `en`. Produces stdout coverage report (`{zh-CN: N, en: M, unknown: K}`). *(kb-1-02 algorithm only — kb/data/lang_detect.py; driver in kb-1-05)*
-- [ ] **DATA-03**: `kb/scripts/detect_article_lang.py` runs incrementally — only updates rows where `lang IS NULL`. Safe to re-invoke daily via cron.
-- [ ] **DATA-04**: `kb/data/article_query.py` exposes `list_articles(lang=None, source=None, limit=20, offset=0)` returning paginated `ArticleRecord` dataclass list sorted by `update_time DESC`.
-- [ ] **DATA-05**: `kb/data/article_query.py` exposes `get_article_by_hash(hash: str)` resolving `md5[:10]` hash → `ArticleRecord | None`. Searches both KOL `articles` and RSS `rss_articles` tables.
-- [ ] **DATA-06**: `content_hash` URL identifier resolution: KOL articles with `content_hash` set use it directly (4/653); KOL articles with `content_hash IS NULL` get `md5(body)[:10]` computed at runtime; RSS articles use `content_hash[:10]` (truncate full md5). **No DB writes** (K-2).
+- [x] **DATA-03**: `kb/scripts/detect_article_lang.py` runs incrementally — only updates rows where `lang IS NULL`. Safe to re-invoke daily via cron.
+- [x] **DATA-04**: `kb/data/article_query.py` exposes `list_articles(lang=None, source=None, limit=20, offset=0)` returning paginated `ArticleRecord` dataclass list sorted by `update_time DESC`.
+- [x] **DATA-05**: `kb/data/article_query.py` exposes `get_article_by_hash(hash: str)` resolving `md5[:10]` hash → `ArticleRecord | None`. Searches both KOL `articles` and RSS `rss_articles` tables.
+- [x] **DATA-06**: `content_hash` URL identifier resolution: KOL articles with `content_hash` set use it directly (4/653); KOL articles with `content_hash IS NULL` get `md5(body)[:10]` computed at runtime; RSS articles use `content_hash[:10]` (truncate full md5). **No DB writes** (K-2).
 
 ### EXPORT — SSG Build (6)
 
-- [ ] **EXPORT-01**: `kb/export_knowledge_base.py` is the single entry point generating all static HTML output to `kb/output/`. Re-running produces identical files for unchanged inputs (idempotent).
-- [ ] **EXPORT-02**: Export reads from SQLite + filesystem only; **never writes to either** (read-only consumption of OmniGraph data).
-- [ ] **EXPORT-03**: Export generates the minimum page set: `kb/output/index.html` (homepage with latest articles + Q&A entry CTA), `kb/output/articles/{hash}.html` (per-article detail), `kb/output/ask/index.html` (Q&A entry page). KB-2 entity / topic pages explicitly excluded.
-- [ ] **EXPORT-04**: Article detail page renders markdown body (preferring `final_content.enriched.md` → `final_content.md` → `articles.body` fallback per D-14) with Pygments code-block syntax highlighting.
-- [ ] **EXPORT-05**: Article detail page rewrites `http://localhost:8765/` → `/static/img/` in markdown body before rendering (D-17).
-- [ ] **EXPORT-06**: Export generates `kb/output/sitemap.xml` (all article URLs + homepage with `<lastmod>`) and `kb/output/robots.txt` (`User-agent: *`, `Sitemap: /sitemap.xml`). **Web courtesy baseline, not SEO push.**
+- [x] **EXPORT-01**: `kb/export_knowledge_base.py` is the single entry point generating all static HTML output to `kb/output/`. Re-running produces identical files for unchanged inputs (idempotent).
+- [x] **EXPORT-02**: Export reads from SQLite + filesystem only; **never writes to either** (read-only consumption of OmniGraph data).
+- [x] **EXPORT-03**: Export generates the minimum page set: `kb/output/index.html` (homepage with latest articles + Q&A entry CTA), `kb/output/articles/{hash}.html` (per-article detail), `kb/output/ask/index.html` (Q&A entry page). KB-2 entity / topic pages explicitly excluded.
+- [x] **EXPORT-04**: Article detail page renders markdown body (preferring `final_content.enriched.md` → `final_content.md` → `articles.body` fallback per D-14) with Pygments code-block syntax highlighting.
+- [x] **EXPORT-05**: Article detail page rewrites `http://localhost:8765/` → `/static/img/` in markdown body before rendering (D-17).
+- [x] **EXPORT-06**: Export generates `kb/output/sitemap.xml` (all article URLs + homepage with `<lastmod>`) and `kb/output/robots.txt` (`User-agent: *`, `Sitemap: /sitemap.xml`). **Web courtesy baseline, not SEO push.**
 
 ### UI — Presentation (7)
 
 - [x] **UI-01**: Global design tokens inherited from vitaclaw-site暗色主题: `--bg: #0f172a` / `--bg-card: #1e293b` / `--text: #f0f4f8` / `--accent: #3b82f6` / `--accent-green: #22d3a0`. Defined in single `kb/static/style.css` file.
 - [x] **UI-02**: Font stack: `'Inter', 'Noto Sans SC', system-ui, sans-serif` — covers Latin and Chinese glyphs without external font loading on first paint.
 - [x] **UI-03**: All pages responsive across mobile (320-767px), tablet (768-1023px), desktop (1024px+). No horizontal scroll on mobile viewport.
-- [ ] **UI-04**: Brand assets reused from vitaclaw-site (logo `VitaClaw-Logo-v0.png` in nav, `favicon.svg`). No new asset files in this milestone.
-- [ ] **UI-05**: Every page emits Open Graph meta tags: `og:title`, `og:description`, `og:image`, `og:type`, `og:locale` (matches `<html lang>` for content pages). Web courtesy for IM share previews.
-- [ ] **UI-06**: Article detail pages emit JSON-LD `Article` schema with `inLanguage` field matching article content language. **Web courtesy baseline, not SEO push.**
-- [ ] **UI-07**: Article detail page shows breadcrumb navigation: Home > Articles > [Title]. Breadcrumb labels localized via i18n.
+- [x] **UI-04**: Brand assets reused from vitaclaw-site (logo `VitaClaw-Logo-v0.png` in nav, `favicon.svg`). No new asset files in this milestone. *(kb-1: placeholder favicon + MISSING.txt logo accepted via approved-placeholder; real PNG carry-forward to kb-4 deploy.)*
+- [x] **UI-05**: Every page emits Open Graph meta tags: `og:title`, `og:description`, `og:image`, `og:type`, `og:locale` (matches `<html lang>` for content pages). Web courtesy for IM share previews.
+- [x] **UI-06**: Article detail pages emit JSON-LD `Article` schema with `inLanguage` field matching article content language. **Web courtesy baseline, not SEO push.**
+- [x] **UI-07**: Article detail page shows breadcrumb navigation: Home > Articles > [Title]. Breadcrumb labels localized via i18n.
 
 ### API — FastAPI Backend (8)
 

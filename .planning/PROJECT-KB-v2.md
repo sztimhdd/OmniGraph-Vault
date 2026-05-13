@@ -189,7 +189,25 @@ kb-4 → Ubuntu systemd + Caddy 反代 + 每日 cron + smoke 验证
 - **KB v2.2** — 内容 LLM 自动翻译(实验性)+ 跨语言搜索 + 跨语言 Q&A
 - **KB v2.3** — Agentic-RAG-v1 接入 `/synthesize` 端点(替代 kg_synthesize 直调)+ 流式响应
 
+## Validated Requirements (kb-1 — 2026-05-13)
+
+Phase kb-1 (SSG Export + i18n Foundation) closed 2026-05-13 with **26/27 REQs satisfied + 1 partial** (UI-04 logo placeholder accepted via approved-placeholder; real PNG carry-forward to kb-4 deploy).
+
+**Categories complete (kb-1 scope):**
+
+- **I18N (7/8 in-scope):** I18N-01, I18N-02, I18N-03, I18N-04, I18N-05, I18N-06, I18N-08 ✓ (I18N-07 belongs to kb-3)
+- **DATA (6/6):** DATA-01, DATA-02, DATA-03, DATA-04, DATA-05, DATA-06 ✓
+- **EXPORT (6/6):** EXPORT-01, EXPORT-02, EXPORT-03, EXPORT-04, EXPORT-05, EXPORT-06 ✓
+- **UI (7/7, 1 partial):** UI-01, UI-02, UI-03, UI-05, UI-06, UI-07 ✓ · UI-04 partial (placeholder)
+- **CONFIG (1/2 in-scope):** CONFIG-01 ✓ (CONFIG-02 belongs to kb-3)
+
+**Deferred (out of scope for kb-1, documented):** RSS `published_at` mixed RFC 822 / ISO-8601 format heterogeneity → cosmetic sitemap `<lastmod>` truncation; logged in `.planning/phases/kb-1-ssg-export-i18n-foundation/deferred-items.md`.
+
+**Test coverage:** 73/73 unit + integration tests pass against production-shape fixtures.
+
 ## Last Updated
+
+2026-05-13 — Phase kb-1 complete (11 plans across 5 waves + 1 gap-closure plan). Real-DB SSG export verified end-to-end against `.dev-runtime/data/kol_scan.db`. Next: `/gsd:discuss-phase kb-3` (FastAPI backend + bilingual API + FTS5 search + /synthesize wrapper).
 
 2026-05-12 — Milestone v2.0 initialized via `/gsd:new-milestone kb-v2`. Goal locked
 (bilingual Agent-tech content site, Ubuntu deploy, no SEO framing, no Hermes runtime

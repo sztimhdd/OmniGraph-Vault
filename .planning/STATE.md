@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
-status: executing
-stopped_at: Completed kb-1-09-export-driver-PLAN.md
-last_updated: "2026-05-13T00:29:59.625Z"
+status: ready
+stopped_at: Completed kb-1-ssg-export-i18n-foundation (KB-v2 milestone phase 1 of 3)
+last_updated: "2026-05-13T13:45:00.000Z"
 last_activity: 2026-05-13
 progress:
   total_phases: 14
-  completed_phases: 10
-  total_plans: 38
-  completed_plans: 35
+  completed_phases: 11
+  total_plans: 49
+  completed_plans: 46
 ---
 
 # Project State
@@ -20,15 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Local, graph-based personal knowledge base that gives Hermes/OpenClaw persistent memory — WeChat scan → classify → LightRAG ingest → synthesis.
-**Current focus:** Phase kb-1-ssg-export-i18n — foundation
+**Current focus:** KB-v2 milestone — phase kb-1 ✓ complete; next is /gsd:discuss-phase kb-3 (FastAPI bilingual API + FTS5 search + /synthesize wrapper).
 
 ## Current Position
 
-Milestone: v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 + 20 shipped; Phase 21 STK track shipped via quicks; Phase 21 E2R-01/02 + Phase 22 SUPERSEDED-BY-ir4 — RSS pipeline retired)
-Phase: kb-1-ssg-export-i18n (foundation) — EXECUTING
-Plan: 4 of 10
-Status: Ready to execute
-Last activity: 2026-05-13
+Milestone (parallel): KB-v2 (Bilingual Agent-Tech Content Site) — IN PROGRESS, 1 of 3 phases complete
+Phase kb-1: SSG Export + i18n Foundation — ✅ COMPLETE 2026-05-13 (11 plans incl. 1 gap-closure; 26/27 REQs satisfied + 1 partial-with-kb-4-carry-forward; 73/73 tests pass; 4 human UAT items pending browser test in kb-1-HUMAN-UAT.md)
+Phase kb-3: FastAPI Backend — Not started
+Phase kb-4: Ubuntu Deploy + Cron — Not started
+
+Milestone (main): v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 + 20 shipped; Phase 21 STK track via quicks; Phase 21 E2R-01/02 + Phase 22 SUPERSEDED-BY-ir4 — RSS pipeline retired)
+
+Last activity: 2026-05-13 — completed phase kb-1 via /gsd:execute-phase + gap-closure cycle (kb-1-10)
 
 ### Immediate next step
 
