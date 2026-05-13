@@ -163,7 +163,17 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
   6. Homepage gains 2 new sections between "Latest Articles" and "Try AI Q&A": "🗂 Browse by Topic" (5 topic chip cards) + "💡 Featured Entities" (top 12 entities).
   7. `kb/output/sitemap.xml` includes all topic + entity URLs (recursive `Path.rglob("*")` — auto-handles new pages).
   8. Topic pages emit JSON-LD `CollectionPage` schema; entity pages emit JSON-LD `Thing` schema (generic `@type`, `entity_type` typing deferred to v2.1 CANON-* / TYPED-* per REQUIREMENTS).
-**Plans:** TBD
+**Plans:** 10 plans across 5 waves (planned 2026-05-13)
+- kb-2-01-fixture-extension — test fixture: classifications + extracted_entities tables (Wave 1)
+- kb-2-02-locale-keys — 28 new keys in zh-CN.json + en.json per UI-SPEC §5 (Wave 1)
+- kb-2-03-svg-icons — 2 new icons (folder-tag + users) per UI-SPEC §3.5 (Wave 1)
+- kb-2-04-query-functions — 5 new functions in kb/data/article_query.py + TDD (Wave 2)
+- kb-2-05-topic-template — NEW kb/templates/topic.html per UI-SPEC §3.1 (Wave 3)
+- kb-2-06-entity-template — NEW kb/templates/entity.html per UI-SPEC §3.2 (Wave 3)
+- kb-2-07-homepage-extension — EXTEND kb/templates/index.html with 2 sections per UI-SPEC §3.3 (Wave 3)
+- kb-2-08-article-aside — EXTEND kb/templates/article.html with related-link rows per UI-SPEC §3.4 (Wave 3)
+- kb-2-09-export-driver-extension — EXTEND kb/export_knowledge_base.py with topic + entity loops + render context (Wave 4)
+- kb-2-10-integration-test — Full SSG pipeline integration test + UI-SPEC §8 grep regression (Wave 5)
 **UI hint:** **yes** — kb-2 ships new page types (topic, entity) with new component requirements (chip cards on homepage, sidebar layouts, related-link rows). Even though tokens are inherited from kb-1, the layouts are new.
 **Required Skills (HARD — see kb/docs/10-DESIGN-DISCIPLINE.md):**
 - `Skill(skill="ui-ux-pro-max", ...)` — at plan time, design (a) topic pillar page layout (header + article list + sidebar with co-occurring entities), (b) entity page layout (header with lang distribution + article list), (c) homepage chip-card patterns for topics + entity cloud, (d) related-link sidebar/footer pattern for article detail. Output → `kb-2-UI-SPEC.md`. MUST reference kb-1-UI-SPEC.md and reuse its chip/glow/icon/state tokens.
