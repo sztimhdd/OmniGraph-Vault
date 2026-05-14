@@ -13,6 +13,17 @@
   </p>
 </header>
 
+<div class="hero-search hero-search--list">
+  {{ icon('search', size=18, cls='hero-search__icon') }}
+  <input
+    type="search"
+    placeholder="{{ 'hero.search_placeholder' | t('zh-CN') }} / {{ 'hero.search_placeholder' | t('en') }}"
+    aria-label="{{ 'hero.search_aria' | t('zh-CN') }}">
+</div>
+
+{# kb-3-11 search inline reveal — populated by /static/search.js (UI-SPEC §3.6) #}
+<div class="search-results" hidden role="region" aria-live="polite"></div>
+
 <div class="filter-bar">
   <div class="filter-group">
     <span class="filter-group__label">
@@ -116,6 +127,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/search.js" defer></script>
 <script>
   (function () {
     var totalCount = document.querySelectorAll('#article-list .article-card').length;

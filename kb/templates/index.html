@@ -21,6 +21,9 @@
       onkeydown="if(event.key==='Enter'){var q=this.value.trim();if(q)location.href='/articles/?q='+encodeURIComponent(q);}">
   </div>
 
+  {# kb-3-11 search inline reveal — populated by /static/search.js (UI-SPEC §3.6) #}
+  <div class="search-results" hidden role="region" aria-live="polite"></div>
+
   <div class="hero-chips" role="list">
     {% for chip_key in ['hero.chip_ai_agent', 'hero.chip_rpa', 'hero.chip_llm', 'hero.chip_kg', 'hero.chip_mcp'] %}
     <a class="chip" href="/articles/?q={{ chip_key.split('.')[-1] }}" role="listitem">
@@ -174,4 +177,8 @@
     </a>
   </div>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/search.js" defer></script>
 {% endblock %}

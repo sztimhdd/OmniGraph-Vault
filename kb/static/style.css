@@ -2093,3 +2093,8 @@ html[lang="en"] .lang-flex[data-lang="en"] {
   color: var(--accent);
   border-color: var(--accent);
 }
+
+/* kb-3-11 search inline reveal (UI-SPEC §3.6) — reuses .article-card/.empty-state/.skeleton */
+.search-results { margin-top: 1rem; } .search-results[hidden] { display: none; }
+.search-results__skeleton-row { height: 4.5rem; margin-bottom: 0.5rem; }
+.search-results__footer { padding-top: 1rem; text-align: center; }
