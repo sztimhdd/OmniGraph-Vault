@@ -94,7 +94,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             layer1_verdict TEXT, layer1_reason TEXT, layer1_at TEXT,
             layer1_prompt_version TEXT,
             layer2_verdict TEXT, layer2_reason TEXT, layer2_at TEXT,
-            layer2_prompt_version TEXT
+            layer2_prompt_version TEXT,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE rss_feeds (
             id INTEGER PRIMARY KEY, name TEXT NOT NULL
@@ -106,7 +107,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             layer1_verdict TEXT, layer1_reason TEXT, layer1_at TEXT,
             layer1_prompt_version TEXT,
             layer2_verdict TEXT, layer2_reason TEXT, layer2_at TEXT,
-            layer2_prompt_version TEXT
+            layer2_prompt_version TEXT,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE classifications (
             article_id INTEGER, topic TEXT, depth_score INTEGER, reason TEXT,

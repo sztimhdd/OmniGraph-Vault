@@ -2022,11 +2022,19 @@ async def ingest_from_db(
                 )
                 continue
 
-            # v3.5 ir-4 (LF-4.4): 7-col tuple (id, source, title, url,
-            # source_name, body, summary) carried through the layer2 batch
-            # so source-aware persist + INSERT continues to work.
+            # v3.5 ir-4 (LF-4.4): 8-col tuple (id, source, title, url,
+            # source_name, body, summary, image_count) carried through the
+            # layer2 batch so source-aware persist + INSERT continues to
+            # work + drain code at row[7] reads image_count for D2 budget.
+            #
+            # 2026-05-15 fix: v1.0.z imc executor (4f3a47b) updated SELECT,
+            # outer-loop unpack, and drain `row[7]` access — but missed the
+            # queue append, leaving row[7] as out-of-bounds on a 7-col tuple
+            # at drain time. id=214 (41 imgs) / id=217 (36 imgs) on 2026-05-15
+            # cron silently fell to 900s floor (or IndexError swallowed) as a
+            # result. This append now matches the 8-col contract.
             layer2_queue.append((
-                (art_id, source, title, url, account, body, summary),
+                (art_id, source, title, url, account, body, summary, image_count_row),
                 body,
             ))
 
