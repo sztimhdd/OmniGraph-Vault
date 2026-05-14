@@ -41,3 +41,26 @@ do not refactor unrelated tests).
 
 **When to fix:** when kb-1 or kb-2 next has a planning touch (or as a
 standalone quick task).
+
+## kb-3-06 — same pre-existing failure re-verified
+
+**Discovered:** 2026-05-14 during kb-3-06 final regression check.
+
+**Symptom:** Identical to the kb-3-05 entry above — same 2 failures in
+`test_kb2_queries.py`, same root cause (`test_export.py` reloading
+`kb.data.article_query` and invalidating `EntityCount` class identity).
+
+**Verification this is NOT caused by kb-3-06:**
+
+```bash
+git stash -u && pytest tests/integration/kb/ tests/unit/kb/test_kb2_queries.py 2>&1 | tail -5 && git stash pop
+# → same 2 failures present before kb-3-06 changes
+```
+
+**Why kb-3-06 is unaffected:** the new `tests/integration/kb/test_api_search.py`
+fixture only reloads `kb.config`, `kb.services.search_index`,
+`kb.api_routers.search`, and `kb.api`. It deliberately does NOT reload
+`kb.data.article_query` — same defensive choice kb-3-05 made.
+
+**No additional fix needed for kb-3-06.** Same scope/timing as the kb-3-05
+entry above.
