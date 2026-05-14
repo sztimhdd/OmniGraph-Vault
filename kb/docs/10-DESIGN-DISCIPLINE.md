@@ -1,6 +1,7 @@
 # Design Discipline — Mandatory Skill Invocations for KB-v2 Phases
 
 > **Authored:** 2026-05-13 — post kb-1 design-dimension audit (`kb-1-DESIGN-AUDIT.md` commit `969ed19`)
+> **Updated:** 2026-05-14 — added Rule 3 (mandatory local UAT) post kb-3 local-deploy verification
 > **Audience:** Any agent picking up kb-3 or kb-4 (and any future v2.1 phase that touches UI)
 > **Status:** AUTHORITATIVE for KB-v2 milestone — overrides earlier docs where they conflict
 
@@ -14,7 +15,7 @@ The kb-1 phase satisfied every codebase-checkable acceptance criterion (26/27 RE
 
 ---
 
-## The two non-negotiable rules
+## The three non-negotiable rules
 
 ### Rule 1 — Named Skills are tool calls, not reading material
 
@@ -35,6 +36,69 @@ Orchestrator MUST manually:
 1. Read `ROADMAP-KB-v2.md` to find the phase entry + `**UI hint:**` value
 2. If `**UI hint:** yes` AND no `<phase>-UI-SPEC.md` exists → either run `/gsd:ui-phase <phase>` first OR explicitly accept the design-quality risk and document the choice
 3. Run all subsequent gates manually using the suffix-file paths
+
+### Rule 3 — Local deploy + UAT is mandatory before phase complete
+
+> **Authored 2026-05-14** after kb-3 local deploy revealed: 256 unit/integration tests passed, but the FIRST end-to-end browser session immediately surfaced (a) stale SSG static assets (`/static/qa.js` 404), (b) LightRAG embedding-dim mismatch only visible at runtime, (c) FTS5 schema drift only visible when API + UI talk together. **No green test suite is sufficient evidence that a KB phase actually works end-to-end.**
+
+Any phase that touches `kb/` MUST run a local one-port deploy and exercise the changed surface in a real browser BEFORE the phase is marked complete. This applies to:
+
+- Backend-only phases (kb-3, kb-4) — APIs must be hit via the actual `/api/*` paths through uvicorn, not just TestClient
+- UI phases (kb-1, kb-2) — pages must render in a browser at multiple viewports
+- Cron / deploy phases (kb-4) — smoke scenarios must run against the actual deployed service
+
+**Mandatory steps before declaring any KB phase complete:**
+
+1. **Start the local deploy:**
+
+   ```bash
+   venv/Scripts/python.exe .scratch/local_serve.py
+   # Single-port: http://localhost:8766/ serves SSG (kb/output/) + /api/* + /static/img + /static/*
+   # KB_DB_PATH defaults to .dev-runtime/data/kol_scan.db (or use a fixture DB)
+   # KB_IMAGES_DIR defaults to .dev-runtime/images
+   ```
+
+2. **Smoke every endpoint family the phase touches:**
+
+   ```bash
+   curl -s 'http://localhost:8766/health' | jq
+   curl -s 'http://localhost:8766/api/articles?limit=5' | jq '.items | length'
+   curl -s 'http://localhost:8766/api/article/<known-hash>' | jq '.title'
+   curl -s 'http://localhost:8766/api/search?q=langchain&mode=fts&limit=3' | jq '.items | length'
+   curl -s -X POST 'http://localhost:8766/api/synthesize' \
+     -H 'Content-Type: application/json' \
+     -d '{"question":"<test>","lang":"zh"}' | jq .
+   ```
+
+   Every endpoint the phase added or changed must return the expected shape with the expected status code on the actual deployed app — not just on TestClient.
+
+3. **Browser UAT via Playwright (or manual):**
+
+   - Open the changed pages in a real browser at desktop (1280px), tablet (768px), mobile (375px) viewports
+   - Click through any interactive flows (form submit, search input, language toggle)
+   - Capture screenshots to `.playwright-mcp/<phase>-uat-*.png`
+   - Verify: zero horizontal scroll, no 404s in console, expected state transitions visible
+
+4. **Cite UAT evidence in phase VERIFICATION.md:**
+
+   The `<phase>-VERIFICATION.md` MUST contain a **"Local UAT"** section listing:
+   - Launcher used (`.scratch/local_serve.py` or equivalent)
+   - DB / images dir env values
+   - 3+ curl smoke results (status code + key fields)
+   - Screenshot file paths captured
+   - Any runtime issues discovered (and whether fixed in scope or deferred)
+
+5. **A green test suite is necessary but NOT sufficient.** Phase verification status MUST NOT be marked `complete` until Local UAT has been performed and cited.
+
+**Failure mode this rule closes** (kb-3 case study, 2026-05-14):
+- 256 tests green
+- Discipline regex passed for all 5 Skills
+- 19/19 REQs verifiably present in code
+- → phase declared "complete" before any browser session
+- → first local deploy revealed: missing static assets (kb-1 SSG never re-rendered after kb-3-10 added qa.js), LightRAG embedding-dim mismatch (storage built with different model), FTS5 schema drift (dev DB columns ≠ kb-2-04 query expectations)
+- These were all runtime issues invisible to TestClient + isolated unit tests
+
+Without Rule 3, kb-4 (Ubuntu deploy) inherits a stack that's never been integration-verified end-to-end. **Run the deploy. Open a browser. See it work. Then mark complete.**
 
 ---
 

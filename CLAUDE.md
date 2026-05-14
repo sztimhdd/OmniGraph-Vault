@@ -72,6 +72,31 @@ Hard rule: never write "paste this SSH command and report back" to the user. Eit
 
 If you're tempted to write a `ssh -p 49221 ...` block for the user to copy, stop. Either run it yourself or convert it into a Hermes prompt.
 
+6. KB Local Deploy + UAT is Mandatory Before Any KB Phase Marked Complete
+
+**Authored 2026-05-14 after kb-3 local-deploy revealed runtime issues that 256 green tests + Skill discipline regex + REQ coverage all missed.**
+
+Any change to anything under `kb/` (templates, static, api, services, scripts, data, locale, export driver) MUST be verified end-to-end via local one-port deploy before the phase is marked complete. A green test suite is necessary but NOT sufficient.
+
+**Mandatory steps before any KB phase complete:**
+
+1. **Start local deploy:** `venv/Scripts/python.exe .scratch/local_serve.py` — single port `:8766` serves SSG + `/api/*` + `/static/*`
+2. **Smoke every endpoint family the phase touched:** `curl` `/health`, `/api/articles`, `/api/article/{hash}`, `/api/search?mode=fts`, `/api/synthesize`, etc. — actual deployed app, not TestClient
+3. **Browser UAT:** open the changed pages in a real browser at desktop / tablet / mobile (Playwright MCP works); capture screenshots to `.playwright-mcp/<phase>-uat-*.png`
+4. **Cite UAT evidence in `<phase>-VERIFICATION.md`:** add a "Local UAT" section listing launcher used, env values, curl smoke results (status + key fields), screenshot paths, runtime issues discovered
+
+**Failure mode this rule closes** (kb-3 case study, 2026-05-14):
+- 256 tests green, all 5 Skill discipline floors met, 19/19 REQs verifiable
+- Phase declared "complete" before any browser session
+- First local deploy revealed: missing `/static/qa.js` (SSG never re-rendered after kb-3-10), LightRAG embedding-dim mismatch (3072 vs 768), FTS5 schema drift in dev DB
+- These were all runtime issues invisible to TestClient + isolated unit tests
+
+**Phase verification status MUST NOT be marked `complete` in `*-VERIFICATION.md` / `STATE-KB-v2.md` / `ROADMAP-KB-v2.md` until Local UAT has been performed and cited.**
+
+This rule applies to ALL KB phases — UI, backend, ops, deploy. Run the deploy. Open a browser. See it work. Then mark complete.
+
+Full discipline doc: `kb/docs/10-DESIGN-DISCIPLINE.md` Rule 3 (extended version with concrete curl + Playwright examples).
+
 ## Project Summary
 
 OmniGraph-Vault is a personal knowledge base for **OpenClaw** and **Hermes Agent** AI assistants. It ingests web content (WeChat articles, PDFs) into a **LightRAG** knowledge graph, then exposes that graph as agent skills.
