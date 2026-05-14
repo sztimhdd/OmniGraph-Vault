@@ -27,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 
 from kb import config
 from kb.api_routers.articles import router as articles_router
+from kb.api_routers.search import router as search_router
 
 # Application version surfaced via /health and FastAPI metadata.
 # Kept in lock-step with kb-3 milestone v2.0 (PROJECT-KB-v2.md).
@@ -52,6 +53,11 @@ app.mount(
 # API-02 + API-03 (kb-3-05): /api/articles + /api/article/{hash}.
 # Router is THIN — all DB access lives in kb.data.article_query.
 app.include_router(articles_router)
+
+# API-04 + API-05 (kb-3-06): /api/search (mode=fts sync OR mode=kg async via
+# BackgroundTasks) + /api/search/{job_id} polling. Router is THIN — FTS5
+# helpers live in kb.services.search_index; async-job state in kb.services.job_store.
+app.include_router(search_router)
 
 
 @app.get("/health")
