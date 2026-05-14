@@ -81,14 +81,14 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ### API — FastAPI Backend (8)
 
-- [ ] **API-01**: `kb/api.py` is a single FastAPI application served by `uvicorn` on port 8766 (configurable via `KB_PORT` env).
+- [x] **API-01**: `kb/api.py` is a single FastAPI application served by `uvicorn` on port 8766 (configurable via `KB_PORT` env). *(kb-3-04, 2026-05-14)*
 - [ ] **API-02**: `GET /api/articles?page=1&limit=20&source=&lang=&q=` returns paginated article list as JSON. Filters: `source` (`wechat` / `rss`), `lang` (`zh-CN` / `en`), `q` (LIKE search on title only — full-text via `/api/search`). P50 latency < 100ms.
 - [ ] **API-03**: `GET /api/article/{hash}` returns `{hash, title, body_md, body_html, lang, source, images, metadata, body_source: "vision_enriched"|"raw_markdown"}`. 404 on hash miss.
 - [ ] **API-04**: `GET /api/search?q=&mode=fts&lang=&limit=20` performs SQLite FTS5 trigram search; returns top results in JSON with `snippet` field (200 chars, FTS5 `snippet()` function with match highlighting). P50 latency < 100ms.
 - [ ] **API-05**: `GET /api/search?q=&mode=kg&lang=` triggers async LightRAG hybrid search via `omnigraph_search.query.search()`. Returns 202 + `job_id`; result polled via `GET /api/search/{job_id}`. **C2 preserved.**
 - [ ] **API-06**: `POST /api/synthesize` accepts `{question: str, lang: "zh"|"en"}`; returns 202 + `job_id`. KB layer prepends language directive (per I18N-07) and calls `kg_synthesize.synthesize_response()` in BackgroundTasks. **C1 preserved.**
 - [ ] **API-07**: `GET /api/synthesize/{job_id}` returns `{status: "running"|"done"|"failed", result?: {markdown: str, sources: [...]}, fallback_used: bool, confidence: "kg"|"fts5_fallback"}`. In-memory job store, single-worker MVP.
-- [ ] **API-08**: FastAPI mounts static images: `app.mount("/static/img", StaticFiles(directory=KB_IMAGES_DIR))`. Replaces independent `python -m http.server 8765`.
+- [x] **API-08**: FastAPI mounts static images: `app.mount("/static/img", StaticFiles(directory=KB_IMAGES_DIR))`. Replaces independent `python -m http.server 8765`. *(kb-3-04, 2026-05-14)*
 
 ### SEARCH — FTS5 (3)
 
@@ -136,7 +136,7 @@ Lighthouse LCP < 2.5s on article detail page.
 ### CONFIG — Env-Driven Configuration (2)
 
 - [x] **CONFIG-01**: `kb/config.py` reads all paths and ports from environment variables with sensible defaults. Required keys: `KB_DB_PATH` (default `~/.hermes/data/kol_scan.db`), `KB_IMAGES_DIR` (default `~/.hermes/omonigraph-vault/images`), `KB_OUTPUT_DIR` (default `kb/output`), `KB_PORT` (default `8766`), `KB_DEFAULT_LANG` (default `zh-CN`), `KB_SYNTHESIZE_TIMEOUT` (default `60`).
-- [ ] **CONFIG-02**: KB does not introduce new LLM provider env vars. Q&A delegates to existing `lib.llm_complete.get_llm_func()` which honors `OMNIGRAPH_LLM_PROVIDER={deepseek, vertex_gemini}` (K-1).
+- [x] **CONFIG-02**: KB does not introduce new LLM provider env vars. Q&A delegates to existing `lib.llm_complete.get_llm_func()` which honors `OMNIGRAPH_LLM_PROVIDER={deepseek, vertex_gemini}` (K-1). *(kb-3-04, 2026-05-14)*
 
 ---
 
@@ -211,14 +211,14 @@ Lighthouse LCP < 2.5s on article detail page.
 | UI-05 | kb-1 | Not started |
 | UI-06 | kb-1 | Not started |
 | UI-07 | kb-1 | Not started |
-| API-01 | kb-3 | Not started |
+| API-01 | kb-3 | Complete |
 | API-02 | kb-3 | Not started |
 | API-03 | kb-3 | Not started |
 | API-04 | kb-3 | Not started |
 | API-05 | kb-3 | Not started |
 | API-06 | kb-3 | Not started |
 | API-07 | kb-3 | Not started |
-| API-08 | kb-3 | Not started |
+| API-08 | kb-3 | Complete |
 | SEARCH-01 | kb-3 | Not started |
 | SEARCH-02 | kb-3 | Not started |
 | SEARCH-03 | kb-3 | Not started |
@@ -233,6 +233,6 @@ Lighthouse LCP < 2.5s on article detail page.
 | DEPLOY-04 | kb-4 | Not started |
 | DEPLOY-05 | kb-4 | Not started |
 | CONFIG-01 | kb-1 | Complete |
-| CONFIG-02 | kb-3 | Not started |
+| CONFIG-02 | kb-3 | Complete |
 
 **Phase totals:** kb-1 = 27, kb-3 = 18, kb-4 = 5 → **50 total**.

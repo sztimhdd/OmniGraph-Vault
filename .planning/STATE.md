@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: Awaiting Hermes to close Gate 3 (fixture scrape + E2E batch run)
-stopped_at: Completed kb-2-08-article-aside-PLAN.md (LINK-01 + LINK-02 + consolidated CSS for §3.2/3.3/3.4)
-last_updated: "2026-05-13T21:13:07.021Z"
-last_activity: "2026-05-13 — completed quick task 260513-g0d: lyt: Layer 2 v1 prompt — HARD-KEEP RULE 0 + LF-2.7 English long-form"
+stopped_at: Completed kb-3-04-fastapi-skeleton-PLAN.md
+last_updated: "2026-05-14T11:36:45.116Z"
+last_activity: "2026-05-13 — completed quick task 260513-q15: imc: D2 image_count schema column for fresh-article budget (issue #2 follow-up)"
 progress:
   total_phases: 14
   completed_phases: 10
@@ -173,6 +173,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase kb-1-ssg-export-i18n-foundation Pkb-1-02 | 10min | 2 tasks | 4 files |
 | Phase kb-1-ssg-export-i18n-foundation P09 | 7min | 3 tasks | 4 files |
 | Phase kb-2-topic-pillar-entity-pages P08 | 471 | 2 tasks | 2 files |
+| Phase kb-3 P04 | 3 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -337,8 +338,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-13T21:13:07.010Z
-Stopped at: Completed kb-2-08-article-aside-PLAN.md (LINK-01 + LINK-02 + consolidated CSS for §3.2/3.3/3.4)
+Last session: 2026-05-14T11:36:45.106Z
+Stopped at: Completed kb-3-04-fastapi-skeleton-PLAN.md
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 
