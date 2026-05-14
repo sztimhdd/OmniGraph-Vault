@@ -103,13 +103,31 @@ $ python -m pytest tests/unit/kb/ -v -k "locale or i18n or icon or template"
 
 ## Deviations from Plan
 
-None. The plan was executed exactly as written:
+### Plan content: none
+
+The plan content was executed exactly as written:
 
 - Both locale files use flat-with-dots structure (e.g., `"qa.state.submitting": "..."`) — confirmed by reading existing files first; new keys follow the same convention. No nesting introduced.
 - All 20 zh-CN values + 20 en values match the UI-SPEC §5 table verbatim (no paraphrase, no creative variation).
 - All 2 SVG path coordinates match the UI-SPEC example block verbatim.
 - Test file uses the resolver helper `_resolve()` that supports both flat and nested forms — defensive (currently only flat is used).
 - Test file appended Task 2 icon tests in the same module rather than creating a second test file — plan permitted either, single file is simpler.
+
+### Git attribution mix-up (parallel-agent race — repeats Phase 21 RJS lesson)
+
+The single atomic commit `53668ec` was created with `git add <explicit-files>` listing only this plan's 5 files (`kb/locale/zh-CN.json`, `kb/locale/en.json`, `kb/templates/_icons.html`, `tests/unit/kb/test_kb3_locale_keys.py`, `.planning/phases/kb-3-fastapi-bilingual-api/kb-3-03-SUMMARY.md`). Pre-commit `git status --short` correctly showed only those 5 in the staged column. However, the resulting commit absorbed THREE additional files that belong to sibling parallel agents (kb-3-01 / kb-3-02 still in execution):
+
+- `kb/data/article_query.py` (M, +58 lines — DATA-07 content quality filter from kb-3-02)
+- `tests/integration/kb/conftest.py` (M, ±20 lines — kb-3-02 fixture extension)
+- `tests/unit/kb/test_data07_quality_filter.py` (A, +417 lines — kb-3-02 TDD test file)
+
+Root cause is the same race documented in `~/.claude/projects/.../memory/MEMORY.md` (Phase 21 RJS, 2026-05-06): on a shared worktree with concurrent GSD agents, the staging area / HEAD pointer can capture sibling agents' in-flight modifications even when the explicit `git add` list excludes them. The git CLI behavior here looks like an implicit `-a`-equivalent absorption of unstaged-but-tracked-modified files, despite no `commit.all=true` config and no pre-commit hook.
+
+**No destructive repair attempted** — per the established lesson learned, `git reset --soft/--mixed/--hard` and `git commit --amend` are forbidden on shared worktrees because they touch shared HEAD/staging that other agents depend on. File contents are byte-identical to what kb-3-02 produced; only commit attribution is wrong. The kb-3-02 executor agent will see those files clean (already committed) and should commit only its remaining deliverables (PLAN/SUMMARY/STATE updates).
+
+**Files this plan was forbidden to touch (per `<git_hygiene>`)** — they are now in HEAD anyway as a side-effect of the race; not a content violation, only an attribution one. The user should be aware the kb-3-02 SUMMARY.md (when produced) will reference work already in `53668ec`.
+
+**Mitigation for future plans:** the only fully race-safe pattern when concurrent GSD agents share a worktree is to commit IMMEDIATELY after every Edit/Write before any sibling agent has a chance to dirty the working tree, or to serialize phase-execution rather than parallelizing it. Both have throughput costs that may not be worth the marginal improvement over current attribution-noise behavior.
 
 ## Skill invocation
 
@@ -121,7 +139,7 @@ Plan-level metadata explicitly stated `NO Skill invocation discipline mandated f
 
 | Consumer | What this plan unlocked |
 |---|---|
-| **kb-3-10 (ask.html state matrix)** | All `qa.state.*` + `qa.fallback.*` + `qa.sources.title` + `qa.entities.title` + `qa.feedback.*` + `qa.retry.button` + `qa.question.echo_label` strings ready for `{{ key | t(lang) }}` injection. `chat-bubble-question` icon ready for `qa-question` echo. `lightning-bolt` icon ready for `qa-confidence-chip--fallback`. |
+| **kb-3-10 (ask.html state matrix)** | All `qa.state.*` + `qa.fallback.*` + `qa.sources.title` + `qa.entities.title` + `qa.feedback.*` + `qa.retry.button` + `qa.question.echo_label` strings ready for `{{ key \| t(lang) }}` injection. `chat-bubble-question` icon ready for `qa-question` echo. `lightning-bolt` icon ready for `qa-confidence-chip--fallback`. |
 | **kb-3-11 (search inline reveal)** | All `search.results.*` strings ready for the inline-reveal client JS state machine on homepage + articles index. |
 | **kb-3-08 (qa.js streaming/done state transitions)** | Client-side JS reads `data-state-text-submitting/polling/streaming` Jinja-injected attributes that draw from `qa.state.*` keys. |
 
