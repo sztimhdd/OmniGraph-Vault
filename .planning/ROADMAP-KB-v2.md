@@ -338,7 +338,15 @@ fallback all working; smoke #1 requires kb-1's i18n).
      `CLS < 0.1` (PROJECT-KB-v2.md "Pass conditions" §3); `articles.lang` +
      `rss_articles.lang` are 100% non-NULL post-rebuild (PROJECT-KB-v2.md "Pass
      conditions" §4).
-**Plans:** TBD
+**Plans:** 8 plans across 4 waves (planned 2026-05-14 by gsd-planner)
+- [ ] kb-4-01-systemd-caddy-PLAN.md — kb/deploy/kb-api.service + kb/deploy/Caddyfile.snippet (security-reviewer mandatory) (Wave 1)
+- [ ] kb-4-02-install-bootstrap-PLAN.md — kb/deploy/install.sh idempotent + 6-prereq checks (Wave 1)
+- [ ] kb-4-03-logo-png-source-PLAN.md — UI-04 carry-forward gate (Wave 1, checkpoint:decision)
+- [ ] kb-4-04-daily-rebuild-cron-PLAN.md — kb/scripts/daily_rebuild.sh + VACUUM (database-reviewer mandatory) (Wave 2)
+- [ ] kb-4-05-local-uat-PLAN.md — Rule 3 mandatory Local UAT (Wave 3, conditional ui-ux-pro-max + frontend-design)
+- [ ] kb-4-06-smoke-3-scenarios-PLAN.md — 3 PROJECT-KB-v2 smoke scenarios verbatim (Wave 3)
+- [ ] kb-4-07-hermes-prodshape-smoke-PLAN.md — closes kb-3-12 deferral via option-a/b/c (Wave 3, checkpoint:decision)
+- [ ] kb-4-08-verification-close-PLAN.md — kb-4-VERIFICATION.md + STATE/ROADMAP close (Wave 4)
 **UI hint:** **conditional yes** (revised 2026-05-13 — smoke verification at 3 viewports against production-data-rendered output is the milestone gate; visual regressions surfaced by smoke MUST be closed by re-invoking design Skills, not by ad-hoc CSS patches)
 **Required Skills (HARD — see kb/docs/10-DESIGN-DISCIPLINE.md):**
 - `Skill(skill="ui-ux-pro-max", ...)` — IF smoke discovers visual gaps (overflow, truncation, responsive issues, RTL chars, long-title wrapping, etc.), invoke to design proper component-level fix — do NOT band-aid with one-off CSS overrides.
