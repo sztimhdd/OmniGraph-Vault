@@ -26,10 +26,10 @@ progress:
 ## Current Position
 
 Milestone: KB-v2 (parallel-track to v3.4 / v3.5 / Agentic-RAG-v1)
-Phase: **kb-1 ✅ complete** — 10/10 plans + gap-closure (kb-1-10) + HUMAN-UAT 3/4 PASS
-Plan: 10/10 executed and verified
-Status: Ready for `/gsd:plan-phase kb-3`
-Last activity: 2026-05-13 — kb-1 fully verified end-to-end. 1800 article HTMLs generated against production `.dev-runtime/data/kol_scan.db`; Playwright MCP automated browser UAT confirmed bilingual UI + content-language badges + cookie persistence + responsive viewports.
+Phase: **kb-3 in progress** — 8/12 plans complete (kb-1 ✅ complete; kb-2 ✅ complete; kb-3-01..08 ✅ complete; kb-3-09..12 pending)
+Plan: kb-3 8/12 executed and verified
+Status: Ready for kb-3-09 (FTS5 fallback — replaces basic 'failed' branch in kb_synthesize per QA-05 NEVER-500 invariant)
+Last activity: 2026-05-14 — kb-3-08 shipped POST /api/synthesize (202 + job_id) + GET /api/synthesize/{job_id} (poll) wrapping kg_synthesize.synthesize_response (C1 unchanged) with I18N-07 lang directive prepend. 17 new tests pass; 74 kb-3 baseline tests still green. Requirements completed: I18N-07, QA-01, QA-02, QA-03, API-06, API-07.
 
 ### Phase plan
 

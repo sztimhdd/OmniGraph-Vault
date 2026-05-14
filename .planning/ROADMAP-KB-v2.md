@@ -264,7 +264,7 @@ CONFIG-02 (19 REQs — DATA-07 added 2026-05-13: content-quality filter, see
 - [x] kb-3-05-articles-endpoints-PLAN.md — GET /api/articles + GET /api/article/{hash} (DATA-07 + carve-out) — completed 2026-05-14
 - [ ] kb-3-06-search-endpoint-PLAN.md — GET /api/search (FTS5 sync + KG async via job_store)
 - [ ] kb-3-07-rebuild-fts-script-PLAN.md — kb/scripts/rebuild_fts.py CLI (cron-invoked daily)
-- [ ] kb-3-08-synthesize-wrapper-PLAN.md — kb/services/synthesize.py + POST /api/synthesize + GET /api/synthesize/{job_id} (C1 unchanged)
+- [x] kb-3-08-synthesize-wrapper-PLAN.md — kb/services/synthesize.py + POST /api/synthesize + GET /api/synthesize/{job_id} (C1 unchanged) — completed 2026-05-14
 - [ ] kb-3-09-fts5-fallback-PLAN.md — kb_synthesize timeout + exception → FTS5 top-3 fallback (NEVER 500)
 - [ ] kb-3-10-qa-state-matrix-ui-PLAN.md — _qa_result.html partial + qa.js state machine (8 states; ui-ux-pro-max + frontend-design Skills)
 - [ ] kb-3-11-search-inline-reveal-PLAN.md — additive search.js on homepage + list page (no /search page; ui-ux-pro-max + frontend-design Skills)

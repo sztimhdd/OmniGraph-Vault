@@ -47,7 +47,7 @@ Lighthouse LCP < 2.5s on article detail page.
 - [x] **I18N-04**: User can filter article list by content language via `?lang=zh-CN` or `?lang=en`; default shows all languages mixed.
 - [x] **I18N-05**: Article detail page sets `<html lang="zh-CN">` or `<html lang="en">` matching the article's **content** language (independent of UI chrome language).
 - [x] **I18N-06**: Article detail page shows a visible badge ("中文" / "English") indicating content language at the top of the article.
-- [ ] **I18N-07**: Q&A endpoint accepts `lang` parameter (`zh` / `en`); KB layer prepends `"请用中文回答。\n\n"` or `"Please answer in English.\n\n"` directive to the query before calling `kg_synthesize.synthesize_response()`. **Function signature unchanged** (C1 preserved).
+- [x] **I18N-07**: Q&A endpoint accepts `lang` parameter (`zh` / `en`); KB layer prepends `"请用中文回答。\n\n"` or `"Please answer in English.\n\n"` directive to the query before calling `kg_synthesize.synthesize_response()`. **Function signature unchanged** (C1 preserved). *(kb-3-08, 2026-05-14)*
 - [x] **I18N-08**: Language switcher control visible in top nav on all pages — text label "中 / EN" or equivalent, click toggles `?lang=` and updates cookie.
 
 ### DATA — Data Layer (7)
@@ -86,8 +86,8 @@ Lighthouse LCP < 2.5s on article detail page.
 - [x] **API-03**: `GET /api/article/{hash}` returns `{hash, title, body_md, body_html, lang, source, images, metadata, body_source: "vision_enriched"|"raw_markdown"}`. 404 on hash miss. *(kb-3-05, 2026-05-14 — prod-shape DB p50=58.1ms; DATA-07 carve-out preserved)*
 - [ ] **API-04**: `GET /api/search?q=&mode=fts&lang=&limit=20` performs SQLite FTS5 trigram search; returns top results in JSON with `snippet` field (200 chars, FTS5 `snippet()` function with match highlighting). P50 latency < 100ms.
 - [ ] **API-05**: `GET /api/search?q=&mode=kg&lang=` triggers async LightRAG hybrid search via `omnigraph_search.query.search()`. Returns 202 + `job_id`; result polled via `GET /api/search/{job_id}`. **C2 preserved.**
-- [ ] **API-06**: `POST /api/synthesize` accepts `{question: str, lang: "zh"|"en"}`; returns 202 + `job_id`. KB layer prepends language directive (per I18N-07) and calls `kg_synthesize.synthesize_response()` in BackgroundTasks. **C1 preserved.**
-- [ ] **API-07**: `GET /api/synthesize/{job_id}` returns `{status: "running"|"done"|"failed", result?: {markdown: str, sources: [...]}, fallback_used: bool, confidence: "kg"|"fts5_fallback"}`. In-memory job store, single-worker MVP.
+- [x] **API-06**: `POST /api/synthesize` accepts `{question: str, lang: "zh"|"en"}`; returns 202 + `job_id`. KB layer prepends language directive (per I18N-07) and calls `kg_synthesize.synthesize_response()` in BackgroundTasks. **C1 preserved.** *(kb-3-08, 2026-05-14)*
+- [x] **API-07**: `GET /api/synthesize/{job_id}` returns `{status: "running"|"done"|"failed", result?: {markdown: str, sources: [...]}, fallback_used: bool, confidence: "kg"|"fts5_fallback"}`. In-memory job store, single-worker MVP. *(kb-3-08, 2026-05-14 — basic 'failed' branch; kb-3-09 replaces with FTS5 fallback per QA-05)*
 - [x] **API-08**: FastAPI mounts static images: `app.mount("/static/img", StaticFiles(directory=KB_IMAGES_DIR))`. Replaces independent `python -m http.server 8765`. *(kb-3-04, 2026-05-14)*
 
 ### SEARCH — FTS5 (3)
@@ -98,9 +98,9 @@ Lighthouse LCP < 2.5s on article detail page.
 
 ### QA — Q&A Wrapping (5)
 
-- [ ] **QA-01**: KB layer wraps `kg_synthesize.synthesize_response()` without modifying its signature. Wrapper lives in `kb/services/synthesize.py` (~50 LOC).
-- [ ] **QA-02**: Language directive prepended to query per I18N-07: `lang="zh"` → `"请用中文回答。\n\n"`; `lang="en"` → `"Please answer in English.\n\n"`. **No other prompt manipulation.**
-- [ ] **QA-03**: BackgroundTasks executes synthesize call asynchronously. In-memory job store maps `job_id → {status, result, fallback_used, started_at}`. Single uvicorn worker (`--workers 1`). Multi-worker known limitation deferred to v2.1.
+- [x] **QA-01**: KB layer wraps `kg_synthesize.synthesize_response()` without modifying its signature. Wrapper lives in `kb/services/synthesize.py` (~50 LOC). *(kb-3-08, 2026-05-14 — 115 LOC total file, ~50 LOC active code)*
+- [x] **QA-02**: Language directive prepended to query per I18N-07: `lang="zh"` → `"请用中文回答。\n\n"`; `lang="en"` → `"Please answer in English.\n\n"`. **No other prompt manipulation.** *(kb-3-08, 2026-05-14)*
+- [x] **QA-03**: BackgroundTasks executes synthesize call asynchronously. In-memory job store maps `job_id → {status, result, fallback_used, started_at}`. Single uvicorn worker (`--workers 1`). Multi-worker known limitation deferred to v2.1. *(kb-3-08, 2026-05-14 — reuses kb.services.job_store from kb-3-06)*
 - [ ] **QA-04**: Synthesize timeout default 60 seconds (override via `KB_SYNTHESIZE_TIMEOUT` env). On timeout, fallback path triggers; in-memory job state set to `done` with `fallback_used: true`.
 - [ ] **QA-05**: KB-side fallback path: query FTS5 for top-3 articles matching the question, concatenate `(title + 200-char snippet)` of each into a markdown response. Returns `{status: "done", confidence: "fts5_fallback", fallback_used: true}`. **Never returns 500 on synthesize failure.**
 
@@ -189,7 +189,7 @@ Lighthouse LCP < 2.5s on article detail page.
 | I18N-04 | kb-1 | Not started |
 | I18N-05 | kb-1 | Not started |
 | I18N-06 | kb-1 | Not started |
-| I18N-07 | kb-3 | Not started |
+| I18N-07 | kb-3 | Complete (kb-3-08) |
 | I18N-08 | kb-1 | Complete (kb-1-04) |
 | DATA-01 | kb-1 | Complete (kb-1-02) |
 | DATA-02 | kb-1 | Complete — algorithm (kb-1-02); driver pending kb-1-05 |
@@ -216,15 +216,15 @@ Lighthouse LCP < 2.5s on article detail page.
 | API-03 | kb-3 | Complete |
 | API-04 | kb-3 | Not started |
 | API-05 | kb-3 | Not started |
-| API-06 | kb-3 | Not started |
-| API-07 | kb-3 | Not started |
+| API-06 | kb-3 | Complete (kb-3-08) |
+| API-07 | kb-3 | Complete (kb-3-08) |
 | API-08 | kb-3 | Complete |
 | SEARCH-01 | kb-3 | Not started |
 | SEARCH-02 | kb-3 | Complete (kb-3-07) |
 | SEARCH-03 | kb-3 | Not started |
-| QA-01 | kb-3 | Not started |
-| QA-02 | kb-3 | Not started |
-| QA-03 | kb-3 | Not started |
+| QA-01 | kb-3 | Complete (kb-3-08) |
+| QA-02 | kb-3 | Complete (kb-3-08) |
+| QA-03 | kb-3 | Complete (kb-3-08) |
 | QA-04 | kb-3 | Not started |
 | QA-05 | kb-3 | Not started |
 | DEPLOY-01 | kb-4 | Not started |

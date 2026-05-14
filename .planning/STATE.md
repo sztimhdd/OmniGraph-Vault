@@ -4,7 +4,7 @@ milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: Awaiting Hermes to close Gate 3 (fixture scrape + E2E batch run)
 stopped_at: Completed kb-3-05-articles-endpoints-PLAN.md
-last_updated: "2026-05-14T12:25:21.310Z"
+last_updated: "2026-05-14T12:44:47.890Z"
 last_activity: "2026-05-13 — completed quick task 260513-q15: imc: D2 image_count schema column for fresh-article budget (issue #2 follow-up)"
 progress:
   total_phases: 14
@@ -176,6 +176,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase kb-3 P04 | 3 | 1 tasks | 3 files |
 | Phase kb-3 P05 | 15 | 2 tasks | 4 files |
 | Phase kb-3-fastapi-bilingual-api P07 | 6 | 1 tasks | 2 files |
+| Phase kb-3 P08 | 8min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
