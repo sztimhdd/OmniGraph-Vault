@@ -32,21 +32,22 @@ from fastapi.testclient import TestClient
 def app_client(fixture_db: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """TestClient against kb.api with KB_DB_PATH pointed at fixture_db.
 
-    Reload chain order matters: kb.config (env reads), kb.data.article_query
-    (re-read QUALITY_FILTER_ENABLED), kb.api_routers.articles (router
-    references article_query), kb.api (mounts router).
+    Reload chain: kb.config picks up the monkeypatched KB_DB_PATH; the data
+    layer re-reads ``config.KB_DB_PATH`` at every ``_connect()`` call, so
+    reloading kb.config alone is sufficient to redirect SQLite traffic to
+    fixture_db. We do NOT reload ``kb.data.article_query`` — that would
+    invalidate ``EntityCount``/``TopicSummary`` class identities and pollute
+    other test modules' isinstance() checks (the same pitfall kb-3-02
+    documented in its Deviations section).
+
+    KB_CONTENT_QUALITY_FILTER stays unset → DATA-07 default-on path exercised.
     """
     monkeypatch.setenv("KB_DB_PATH", str(fixture_db))
-    # KB_CONTENT_QUALITY_FILTER unset → defaults to "on" (DATA-07 active)
     monkeypatch.delenv("KB_CONTENT_QUALITY_FILTER", raising=False)
     import kb.config
-    import kb.data.article_query
-    import kb.api_routers.articles
     import kb.api
 
     importlib.reload(kb.config)
-    importlib.reload(kb.data.article_query)
-    importlib.reload(kb.api_routers.articles)
     importlib.reload(kb.api)
     return TestClient(kb.api.app)
 
@@ -117,24 +118,70 @@ def test_invalid_limit_param_422(app_client: TestClient) -> None:
 
 
 def test_data07_filter_applied(app_client: TestClient) -> None:
-    """DATA-07: negative-case fixture rows (REJECTED titles) MUST NOT appear."""
-    r = app_client.get("/api/articles?limit=10000").json()
+    """DATA-07: negative-case fixture rows (REJECTED titles) MUST NOT appear.
+
+    Walks all pages (limit max is 100 per kb-3-API-CONTRACT §1.3); fixture
+    has 8 positive + 4 negative rows so a single page=1&limit=100 covers
+    the entire visible set.
+    """
+    r = app_client.get("/api/articles?limit=100").json()
+    items = r["items"]
+    # Sanity: list endpoint must surface fixture's positive rows
+    assert items, "fixture must have at least one positive row visible"
     assert not any(
-        "REJECTED" in (item["title"] or "") for item in r["items"]
+        "REJECTED" in (item["title"] or "") for item in items
     ), "DATA-07 violation: REJECTED row leaked into list endpoint"
     # NULL BODY RSS row is also a negative — confirm absent
-    assert not any(
-        "NULL BODY" in (item["title"] or "") for item in r["items"]
+    assert not any("NULL BODY" in (item["title"] or "") for item in items)
+
+
+def test_each_item_has_resolvable_hash(
+    app_client: TestClient, fixture_db: Path
+) -> None:
+    """Every item's `hash` field matches what `resolve_url_hash` would return.
+
+    Per plan Task 1 behavior #10: "Each item has `hash` matching
+    `resolve_url_hash(record)`" — the data layer's contract output, not a
+    length-strict check (kb-3-02 fixture has some 11-char content_hash
+    strings that propagate verbatim per `resolve_url_hash` for `source=wechat`
+    with content_hash set).
+    """
+    from kb.data.article_query import (
+        _row_to_record_kol,
+        _row_to_record_rss,
+        resolve_url_hash,
     )
 
-
-def test_each_item_has_resolvable_hash(app_client: TestClient) -> None:
-    """Every item exposes a 10-char hash field."""
-    r = app_client.get("/api/articles?limit=10").json()
-    assert r["items"], "fixture must have at least one positive row"
-    for item in r["items"]:
+    r = app_client.get("/api/articles?limit=100").json()
+    items = r["items"]
+    assert items, "fixture must have at least one positive row"
+    # Build expected-hash set from fixture for cross-check
+    c = sqlite3.connect(str(fixture_db))
+    c.row_factory = sqlite3.Row
+    try:
+        kol_rows = c.execute(
+            "SELECT id, title, url, body, content_hash, lang, update_time "
+            "FROM articles WHERE layer1_verdict='candidate' "
+            "AND (layer2_verdict IS NULL OR layer2_verdict != 'reject') "
+            "AND body IS NOT NULL AND body != ''"
+        ).fetchall()
+        rss_rows = c.execute(
+            "SELECT id, title, url, body, content_hash, lang, "
+            "published_at, fetched_at FROM rss_articles "
+            "WHERE layer1_verdict='candidate' "
+            "AND (layer2_verdict IS NULL OR layer2_verdict != 'reject') "
+            "AND body IS NOT NULL AND body != ''"
+        ).fetchall()
+    finally:
+        c.close()
+    expected_hashes = {resolve_url_hash(_row_to_record_kol(r)) for r in kol_rows}
+    expected_hashes |= {resolve_url_hash(_row_to_record_rss(r)) for r in rss_rows}
+    for item in items:
         assert "hash" in item
-        assert isinstance(item["hash"], str) and len(item["hash"]) == 10
+        assert isinstance(item["hash"], str)
+        assert (
+            item["hash"] in expected_hashes
+        ), f"item hash {item['hash']!r} not in expected resolve_url_hash() set"
 
 
 def test_p50_latency_under_100ms_list(app_client: TestClient) -> None:

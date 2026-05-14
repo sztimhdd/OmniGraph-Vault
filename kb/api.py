@@ -26,6 +26,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from kb import config
+from kb.api_routers.articles import router as articles_router
 
 # Application version surfaced via /health and FastAPI metadata.
 # Kept in lock-step with kb-3 milestone v2.0 (PROJECT-KB-v2.md).
@@ -47,6 +48,10 @@ app.mount(
     StaticFiles(directory=str(config.KB_IMAGES_DIR), check_dir=False),
     name="static_img",
 )
+
+# API-02 + API-03 (kb-3-05): /api/articles + /api/article/{hash}.
+# Router is THIN — all DB access lives in kb.data.article_query.
+app.include_router(articles_router)
 
 
 @app.get("/health")
