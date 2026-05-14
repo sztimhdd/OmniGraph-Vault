@@ -136,5 +136,27 @@
 
   "article.related_aria": "相关链接",
   "article.related_entities": "🏷 相关实体",
-  "article.related_topics": "📂 相关主题"
+  "article.related_topics": "📂 相关主题",
+
+  "qa.state.submitting": "正在提交...",
+  "qa.state.polling": "正在思考...",
+  "qa.state.streaming": "正在生成...",
+  "qa.state.error.network": "网络错误,无法连接到服务器",
+  "qa.state.error.server": "服务器错误,请稍后重试",
+  "qa.state.timeout.message": "超过等待时间,显示快速参考",
+  "qa.fallback.label": "快速参考",
+  "qa.fallback.explainer": "基于关键词检索的快速回答,非完整知识图谱回答。",
+  "qa.sources.title": "参考来源",
+  "qa.entities.title": "相关实体",
+  "qa.feedback.prompt": "这个回答有帮助吗?",
+  "qa.feedback.thanks_up": "感谢反馈!",
+  "qa.feedback.thanks_down": "感谢反馈,我们会改进。",
+  "qa.retry.button": "重试",
+  "qa.question.echo_label": "你的问题",
+
+  "search.results.empty": "未找到相关结果",
+  "search.results.loading": "搜索中...",
+  "search.results.error": "搜索失败,请重试",
+  "search.results.view_all": "查看全部",
+  "search.results.count": "找到 {n} 条结果"
 }

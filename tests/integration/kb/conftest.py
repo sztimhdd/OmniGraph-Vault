@@ -100,7 +100,7 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
             """
         )
 
-        # 5 KOL articles (ids 1-5)
+        # 5 KOL articles (ids 1-5) — DATA-07 positive cases
         # (id, title, url, body, content_hash, lang, update_time, l1, l2)
         kol_rows = [
             (1, "测试文章一", "https://mp.weixin.qq.com/s/test1", _BODY_WITH_LOCALHOST,
@@ -113,13 +113,20 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
              "kol4000004b", "zh-CN", 1778000400, "candidate", "ok"),
             (5, "LLM Reasoning Patterns", "https://mp.weixin.qq.com/s/test5", _BODY_GENERIC_EN,
              "kol5000005c", "en", 1777910400, "candidate", "ok"),
+            # DATA-07 negative-case KOL rows — must be EXCLUDED by filter
+            # id=99: body empty AND layer1='reject' (fails 2/3 conditions)
+            (99, "REJECTED EMPTY BODY", "https://mp.weixin.qq.com/s/neg99", "",
+             "neg9999999", "en", 1777800000, "reject", None),
+            # id=98: real body, layer1 candidate, layer2='reject' (fails 1/3)
+            (98, "LAYER2 REJECTED", "https://mp.weixin.qq.com/s/neg98", "real body content here",
+             "neg9898989", "en", 1777700000, "candidate", "reject"),
         ]
         conn.executemany(
             "INSERT INTO articles (id,title,url,body,content_hash,lang,update_time,layer1_verdict,layer2_verdict) "
             "VALUES (?,?,?,?,?,?,?,?,?)", kol_rows,
         )
 
-        # 3 RSS articles (ids 10, 11, 12)
+        # 3 RSS articles (ids 10, 11, 12) — DATA-07 positive cases
         rss_rows = [
             (10, "English Article Three", "https://example.com/article-three", _BODY_EN_PLAIN,
              "deadbeefcafebabe1234567890abcdef", "en", "2026-05-10 08:00:00", "2026-05-10 08:01:00",
@@ -130,6 +137,15 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
             (12, "CV Multimodal Vision", "https://example.com/cv-mm", _BODY_GENERIC_EN,
              "22222222222222222222222222222222", "en", "2026-05-08 08:00:00", "2026-05-08 08:01:00",
              "candidate", "ok"),
+            # DATA-07 negative-case RSS rows — must be EXCLUDED by filter
+            # id=97: body NULL (fails body-present condition)
+            (97, "NULL BODY RSS", "https://example.com/neg97", None,
+             "97979797979797979797979797979797", "en", "2026-05-07 08:00:00", "2026-05-07 08:01:00",
+             "candidate", "ok"),
+            # id=96: real body, layer1='reject' (fails layer1 condition)
+            (96, "LAYER1 REJECT RSS", "https://example.com/neg96", "real RSS body content",
+             "96969696969696969696969696969696", "en", "2026-05-06 08:00:00", "2026-05-06 08:01:00",
+             "reject", None),
         ]
         conn.executemany(
             "INSERT INTO rss_articles (id,title,url,body,content_hash,lang,published_at,fetched_at,layer1_verdict,layer2_verdict) "

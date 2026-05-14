@@ -13,6 +13,7 @@ All functions are read-only.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -25,6 +26,63 @@ from kb import config
 
 Source = Literal["wechat", "rss"]
 BodySource = Literal["vision_enriched", "raw_markdown"]
+
+
+# ---- DATA-07 content-quality filter ----
+# Per .planning/phases/kb-3-fastapi-bilingual-api/kb-3-CONTENT-QUALITY-DECISIONS.md
+# Excludes rows where: body IS NULL/empty OR layer1_verdict != 'candidate'
+# OR layer2_verdict = 'reject'.
+#
+# Skill(skill="python-patterns", args="Idiomatic module-level env var read pattern: QUALITY_FILTER_ENABLED evaluated once at import. Schema-guard helper using PRAGMA table_info() — fail loud with RuntimeError listing exact missing columns + the env override hint. Schema guard called lazily on first list-query invocation per process (cache via _SCHEMA_VERIFIED dict keyed on id(conn)). No imports beyond stdlib (os, sqlite3).")
+# Skill(skill="writing-tests", args="TDD tests for env override (3 cases: unset/off/OFF) + schema guard (2 cases: missing column raises, healthy passes) + fixture extension (positive verdicts + ≥2 negative rows per source). monkeypatch.setenv + importlib.reload for env tests. sqlite3.connect(':memory:') stripped-down articles table for missing-column test.")
+QUALITY_FILTER_ENABLED = os.environ.get("KB_CONTENT_QUALITY_FILTER", "on").lower() != "off"
+
+# Schema verification cache — runs once per connection on first list-query call.
+# Keyed on id(conn) so test fixtures can pre-build a stripped-down conn and
+# re-verify a fresh fixture conn in the same process.
+_SCHEMA_VERIFIED: dict[int, bool] = {}
+
+
+def _verify_quality_columns(conn: sqlite3.Connection) -> None:
+    """Fail loud if articles or rss_articles is missing any of (body,
+    layer1_verdict, layer2_verdict). Catches schema drift early — without
+    this, a missing column would silently produce zero results when filter
+    is on.
+    """
+    key = id(conn)
+    if _SCHEMA_VERIFIED.get(key):
+        return
+    required = {"body", "layer1_verdict", "layer2_verdict"}
+    for table in ("articles", "rss_articles"):
+        cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        missing = required - cols
+        if missing:
+            raise RuntimeError(
+                f"DATA-07 schema guard: table {table!r} missing columns "
+                f"{sorted(missing)}. Either run migration to add them, or set "
+                f"KB_CONTENT_QUALITY_FILTER=off to bypass."
+            )
+    _SCHEMA_VERIFIED[key] = True
+
+
+# SQL fragment shared across DATA-07-aware queries.
+# Aliased forms for JOIN paths (kb-2 queries use `a.` for KOL, `r.` for RSS).
+# Bare form for unaliased paths (kb-1 list_articles).
+_DATA07_KOL_FRAGMENT = (
+    "a.body IS NOT NULL AND a.body != '' "
+    "AND a.layer1_verdict = 'candidate' "
+    "AND (a.layer2_verdict IS NULL OR a.layer2_verdict != 'reject')"
+)
+_DATA07_RSS_FRAGMENT = (
+    "r.body IS NOT NULL AND r.body != '' "
+    "AND r.layer1_verdict = 'candidate' "
+    "AND (r.layer2_verdict IS NULL OR r.layer2_verdict != 'reject')"
+)
+_DATA07_BARE = (
+    "body IS NOT NULL AND body != '' "
+    "AND layer1_verdict = 'candidate' "
+    "AND (layer2_verdict IS NULL OR layer2_verdict != 'reject')"
+)
 
 
 @dataclass(frozen=True)

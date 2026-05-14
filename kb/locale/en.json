@@ -136,5 +136,27 @@
 
   "article.related_aria": "Related links",
   "article.related_entities": "🏷 Related Entities",
-  "article.related_topics": "📂 Related Topics"
+  "article.related_topics": "📂 Related Topics",
+
+  "qa.state.submitting": "Submitting...",
+  "qa.state.polling": "Thinking...",
+  "qa.state.streaming": "Generating...",
+  "qa.state.error.network": "Network error, cannot reach server",
+  "qa.state.error.server": "Server error, please try again",
+  "qa.state.timeout.message": "Timeout — showing quick reference",
+  "qa.fallback.label": "Quick Reference",
+  "qa.fallback.explainer": "Keyword-based quick reference, not full KG answer.",
+  "qa.sources.title": "Sources",
+  "qa.entities.title": "Related Entities",
+  "qa.feedback.prompt": "Was this helpful?",
+  "qa.feedback.thanks_up": "Thanks for the feedback!",
+  "qa.feedback.thanks_down": "Thanks — we'll improve.",
+  "qa.retry.button": "Retry",
+  "qa.question.echo_label": "Your question",
+
+  "search.results.empty": "No results found",
+  "search.results.loading": "Searching...",
+  "search.results.error": "Search failed, please retry",
+  "search.results.view_all": "View all",
+  "search.results.count": "{n} results found"
 }
