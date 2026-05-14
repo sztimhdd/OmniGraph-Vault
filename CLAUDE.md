@@ -547,6 +547,12 @@ If remote is ahead: push from remote, pull locally, and re-read any changed file
 
 3. **Never put literal secrets in agent prompts — use placeholders.** Quick `260508-dep` 第一版 prompt 直接 paste 了 Apify backup token literal:`echo "APIFY_TOKEN_BACKUP=apify_api_FB3..." >> ~/.hermes/.env`。Agent 顺从地把这行 verbatim 写进 `HERMES-DEPLOY-260508-ev2.md` + PLAN/SUMMARY,7 local commits 后 push 被 GitHub secret scanning 阻断。Recovery 走:rotate token → rebase local 7 → 5 commits → push clean。教训:**任何 agent prompt 中的 token / key / credential 都必须用 placeholder**(`$VAR_NAME` / `<retrieve from password manager>` / `<see Hai's session notes>`),operator side-channel 直接 inject 到 `~/.hermes/.env`,**不留 literal 进任何 commit history**。Memory 也 record:`feedback_no_literal_secrets_in_prompts.md`。
 
+### 2026-05-14 (v1.0 production day-1 — ghost success class)
+
+1. **Reconcile canary 当前 scope 是单向的(`status='ok' → kv_store=processed`),反向 case 是 silent 盲区。** 2026-05-14 09:22 ADT cron 撞首次 ghost success:id=166(EdgeClaw / GitHubDaily)在 h09 retry 150 次 / 241s 后被踢出 ingestions=failed,但 LightRAG async pipeline 9 分钟后独立完成 status='processed'。结果是 ingestions 表 `failed` 但 KB 实际有该 doc。reconcile 当前只查 `WHERE status='ok'` 是否 matched,反向(failed 但 processed)不在 scope。教训:**任何"双源真相"对账只查一个方向 = silent gap**。Hermes 扫历史显示 1/188 = 0.5% 命中率,无累积,但需 v1.0.y 扩 reconcile scope 把这种"假摔" surface 出来。短期 mitigation:`OMNIGRAPH_PROCESSED_RETRY=150→300`(600s budget)足够覆盖类似 9-min 真处理时长,大概率不会再撞同一 race。
+
+2. **`ingestions.status='failed'` 不等于"该 article 永远失败",候选池查询要小心。** id=166 在被错标 `failed` 后,候选池查询 `article_id NOT IN (SELECT article_id FROM ingestions WHERE status='ok')` 会**重新筛入候选**,明天 cron 重跑浪费 vision $0.5 + 5 min(LightRAG ainsert idempotent 不污染图谱,只浪费成本)。修法是手动 `UPDATE ingestions SET status='ok' WHERE article_id=166`。教训:**ghost success class 不只是 reconcile 数据准确性问题,还会循环消耗 paid API budget**。reconcile 扩 scope 时建议 surface `ghost_success_count` 作为"明天 cron 会浪费几次重跑"的预警指标。
+
 ## Vertex AI Migration Path
 
 ### Problem: Quota Coupling
