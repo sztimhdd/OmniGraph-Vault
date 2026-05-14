@@ -82,8 +82,8 @@ Lighthouse LCP < 2.5s on article detail page.
 ### API — FastAPI Backend (8)
 
 - [x] **API-01**: `kb/api.py` is a single FastAPI application served by `uvicorn` on port 8766 (configurable via `KB_PORT` env). *(kb-3-04, 2026-05-14)*
-- [ ] **API-02**: `GET /api/articles?page=1&limit=20&source=&lang=&q=` returns paginated article list as JSON. Filters: `source` (`wechat` / `rss`), `lang` (`zh-CN` / `en`), `q` (LIKE search on title only — full-text via `/api/search`). P50 latency < 100ms.
-- [ ] **API-03**: `GET /api/article/{hash}` returns `{hash, title, body_md, body_html, lang, source, images, metadata, body_source: "vision_enriched"|"raw_markdown"}`. 404 on hash miss.
+- [x] **API-02**: `GET /api/articles?page=1&limit=20&source=&lang=&q=` returns paginated article list as JSON. Filters: `source` (`wechat` / `rss`), `lang` (`zh-CN` / `en`), `q` (LIKE search on title only — full-text via `/api/search`). P50 latency < 100ms. *(kb-3-05, 2026-05-14 — prod-shape DB p50=43.7ms)*
+- [x] **API-03**: `GET /api/article/{hash}` returns `{hash, title, body_md, body_html, lang, source, images, metadata, body_source: "vision_enriched"|"raw_markdown"}`. 404 on hash miss. *(kb-3-05, 2026-05-14 — prod-shape DB p50=58.1ms; DATA-07 carve-out preserved)*
 - [ ] **API-04**: `GET /api/search?q=&mode=fts&lang=&limit=20` performs SQLite FTS5 trigram search; returns top results in JSON with `snippet` field (200 chars, FTS5 `snippet()` function with match highlighting). P50 latency < 100ms.
 - [ ] **API-05**: `GET /api/search?q=&mode=kg&lang=` triggers async LightRAG hybrid search via `omnigraph_search.query.search()`. Returns 202 + `job_id`; result polled via `GET /api/search/{job_id}`. **C2 preserved.**
 - [ ] **API-06**: `POST /api/synthesize` accepts `{question: str, lang: "zh"|"en"}`; returns 202 + `job_id`. KB layer prepends language directive (per I18N-07) and calls `kg_synthesize.synthesize_response()` in BackgroundTasks. **C1 preserved.**
@@ -212,8 +212,8 @@ Lighthouse LCP < 2.5s on article detail page.
 | UI-06 | kb-1 | Not started |
 | UI-07 | kb-1 | Not started |
 | API-01 | kb-3 | Complete |
-| API-02 | kb-3 | Not started |
-| API-03 | kb-3 | Not started |
+| API-02 | kb-3 | Complete |
+| API-03 | kb-3 | Complete |
 | API-04 | kb-3 | Not started |
 | API-05 | kb-3 | Not started |
 | API-06 | kb-3 | Not started |

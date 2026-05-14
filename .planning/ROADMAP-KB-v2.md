@@ -261,7 +261,7 @@ CONFIG-02 (19 REQs — DATA-07 added 2026-05-13: content-quality filter, see
 - [ ] kb-3-02-data07-filter-PLAN.md — DATA-07 content-quality filter on 6 list-style query functions; carve-out for get_article_by_hash
 - [ ] kb-3-03-locale-icons-PLAN.md — 20 new locale keys + chat-bubble-question + lightning-bolt icons (foundation for kb-3-10/11)
 - [ ] kb-3-04-fastapi-skeleton-PLAN.md — kb/api.py FastAPI app + /health + /static/img mount (D-15)
-- [ ] kb-3-05-articles-endpoints-PLAN.md — GET /api/articles + GET /api/article/{hash} (DATA-07 + carve-out)
+- [x] kb-3-05-articles-endpoints-PLAN.md — GET /api/articles + GET /api/article/{hash} (DATA-07 + carve-out) — completed 2026-05-14
 - [ ] kb-3-06-search-endpoint-PLAN.md — GET /api/search (FTS5 sync + KG async via job_store)
 - [ ] kb-3-07-rebuild-fts-script-PLAN.md — kb/scripts/rebuild_fts.py CLI (cron-invoked daily)
 - [ ] kb-3-08-synthesize-wrapper-PLAN.md — kb/services/synthesize.py + POST /api/synthesize + GET /api/synthesize/{job_id} (C1 unchanged)
