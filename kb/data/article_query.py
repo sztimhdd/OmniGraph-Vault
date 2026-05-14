@@ -439,11 +439,18 @@ def topic_articles_query(
     depth_min: int = 2,
     conn: Optional[sqlite3.Connection] = None,
 ) -> list[ArticleRecord]:
-    """TOPIC-02 cohort filter.
+    """TOPIC-02 cohort filter — KOL via classifications, RSS via rss_articles.topics.
 
     Returns ArticleRecords UNION-ed across `articles` + `rss_articles` where:
-        classifications.depth_score >= depth_min
-        AND (a.layer1_verdict = 'candidate' OR a.layer2_verdict = 'ok')
+      KOL: classifications.topic = ? AND classifications.depth_score >= ?
+           AND (a.layer1_verdict = 'candidate' OR a.layer2_verdict = 'ok')
+      RSS: rss_articles.topics LIKE '%<topic>%' AND rss_articles.depth >= ?
+           AND (r.layer1_verdict = 'candidate' OR r.layer2_verdict = 'ok')
+
+    Schema reality (Hermes prod 2026-05-14): `classifications` is KOL-only
+    (no `source` column). RSS topic membership is stored on
+    `rss_articles.topics` (JSON-encoded list) and `rss_articles.depth`.
+
     Sorted by update_time DESC.
 
     Args:
@@ -459,11 +466,12 @@ def topic_articles_query(
         if QUALITY_FILTER_ENABLED:
             _verify_quality_columns(conn)
         results: list[ArticleRecord] = []
-        # KOL articles
+        # KOL articles — JOIN classifications without source predicate
+        # (classifications is KOL-only per prod schema).
         sql_kol = (
             "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time "
             "FROM articles a "
-            "JOIN classifications c ON c.article_id = a.id AND c.source = 'wechat' "
+            "JOIN classifications c ON c.article_id = a.id "
             "WHERE c.topic = ? AND c.depth_score >= ? "
             "AND (a.layer1_verdict = 'candidate' OR a.layer2_verdict = 'ok')"
         )
@@ -471,13 +479,18 @@ def topic_articles_query(
             sql_kol += " AND " + _DATA07_KOL_FRAGMENT
         for row in conn.execute(sql_kol, (topic, depth_min)):
             results.append(_row_to_record_kol(row))
-        # RSS articles
+        # RSS articles — match topic via rss_articles.topics LIKE pattern.
+        # rss_articles.topics is a JSON-stringified list (e.g. '["Agent","NLP"]')
+        # so a LIKE '%<topic>%' check matches when the topic name appears
+        # anywhere in the JSON. Substring false-positives are minimal — topic
+        # values are domain-disjoint short strings (Agent / CV / LLM / NLP / RAG)
+        # that won't collide with body URLs because `topics` is a structured
+        # column populated only by the classify cron.
         sql_rss = (
             "SELECT r.id, r.title, r.url, r.body, r.content_hash, r.lang, "
             "r.published_at, r.fetched_at "
             "FROM rss_articles r "
-            "JOIN classifications c ON c.article_id = r.id AND c.source = 'rss' "
-            "WHERE c.topic = ? AND c.depth_score >= ? "
+            "WHERE r.topics LIKE '%' || ? || '%' AND r.depth >= ? "
             "AND (r.layer1_verdict = 'candidate' OR r.layer2_verdict = 'ok')"
         )
         if QUALITY_FILTER_ENABLED:
@@ -501,10 +514,14 @@ def entity_articles_query(
 ) -> list[ArticleRecord]:
     """ENTITY-01 + ENTITY-03: list articles mentioning entity_name.
 
-    If COUNT(DISTINCT (article_id, source)) for entity_name < min_freq, returns
-    [] — entity below threshold, do not surface a list page.
-    Otherwise UNIONs `articles` + `rss_articles` whose id appears in
-    `extracted_entities` for this name. Sorted by update_time DESC.
+    If COUNT(DISTINCT article_id) for entity_name < min_freq, returns []
+    — entity below threshold, do not surface a list page.
+    Otherwise returns matching `articles` rows. Sorted by update_time DESC.
+
+    Schema reality (Hermes prod 2026-05-14): `extracted_entities` is KOL-only
+    (no `source` column, `entity_name` column not `name`).
+    `rss_extracted_entities` does not exist — RSS articles have no entity
+    extraction in v1.0. The RSS branch is therefore dropped from this query.
     """
     own_conn = conn is None
     if own_conn:
@@ -514,34 +531,24 @@ def entity_articles_query(
         if QUALITY_FILTER_ENABLED:
             _verify_quality_columns(conn)
         (freq,) = conn.execute(
-            "SELECT COUNT(DISTINCT article_id || '-' || source) "
-            "FROM extracted_entities WHERE name = ?",
+            "SELECT COUNT(DISTINCT article_id) "
+            "FROM extracted_entities WHERE entity_name = ?",
             (entity_name,),
         ).fetchone()
         if freq < min_freq:
             return []
         results: list[ArticleRecord] = []
+        # KOL articles only — extracted_entities is KOL-only per prod schema.
         sql_kol = (
             "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time "
             "FROM articles a JOIN extracted_entities e "
-            "ON e.article_id = a.id AND e.source = 'wechat' "
-            "WHERE e.name = ?"
+            "ON e.article_id = a.id "
+            "WHERE e.entity_name = ?"
         )
         if QUALITY_FILTER_ENABLED:
             sql_kol += " AND " + _DATA07_KOL_FRAGMENT
         for row in conn.execute(sql_kol, (entity_name,)):
             results.append(_row_to_record_kol(row))
-        sql_rss = (
-            "SELECT r.id, r.title, r.url, r.body, r.content_hash, r.lang, "
-            "r.published_at, r.fetched_at "
-            "FROM rss_articles r JOIN extracted_entities e "
-            "ON e.article_id = r.id AND e.source = 'rss' "
-            "WHERE e.name = ?"
-        )
-        if QUALITY_FILTER_ENABLED:
-            sql_rss += " AND " + _DATA07_RSS_FRAGMENT
-        for row in conn.execute(sql_rss, (entity_name,)):
-            results.append(_row_to_record_rss(row))
         results.sort(key=lambda r: r.update_time, reverse=True)
         return results
     finally:
@@ -560,7 +567,18 @@ def related_entities_for_article(
 
     Excludes entities whose corpus-wide DISTINCT-article frequency < min_global_freq
     (so we don't link to a /entities/{slug}.html page that won't exist).
+
+    Schema reality (Hermes prod 2026-05-14): `extracted_entities` is KOL-only
+    (no `source` column, `entity_name` column not `name`).
+    `rss_extracted_entities` does not exist — RSS articles have no entity
+    extraction. RSS callers short-circuit at function entry (return []) so
+    KOL/RSS id-range overlap (KOL ids 1-973 vs RSS ids 1-14209) cannot leak
+    KOL entities onto an RSS detail page.
     """
+    # RSS short-circuit — RSS articles have no entity extraction in v1.0.
+    # Done BEFORE acquiring conn / running schema guard so the path is cheap.
+    if source == "rss":
+        return []
     own_conn = conn is None
     if own_conn:
         conn = _connect()
@@ -571,31 +589,30 @@ def related_entities_for_article(
             # DATA-07: source article must itself satisfy the filter; if it
             # doesn't, the article wouldn't appear on a list page anyway —
             # related-link rows on its detail page should be empty.
-            table = "articles" if source == "wechat" else "rss_articles"
             row = conn.execute(
-                f"SELECT 1 FROM {table} WHERE id = ? AND {_DATA07_BARE} LIMIT 1",
+                f"SELECT 1 FROM articles WHERE id = ? AND {_DATA07_BARE} LIMIT 1",
                 (article_id,),
             ).fetchone()
             if row is None:
                 return []
         sql = (
-            "SELECT e.name, "
-            "(SELECT COUNT(DISTINCT article_id || '-' || source) "
-            " FROM extracted_entities WHERE name = e.name) AS global_freq "
+            "SELECT e.entity_name, "
+            "(SELECT COUNT(DISTINCT article_id) "
+            " FROM extracted_entities WHERE entity_name = e.entity_name) AS global_freq "
             "FROM extracted_entities e "
-            "WHERE e.article_id = ? AND e.source = ? "
-            "GROUP BY e.name "
+            "WHERE e.article_id = ? "
+            "GROUP BY e.entity_name "
             "HAVING global_freq >= ? "
-            "ORDER BY global_freq DESC, e.name ASC "
+            "ORDER BY global_freq DESC, e.entity_name ASC "
             "LIMIT ?"
         )
         return [
             EntityCount(
-                name=row["name"],
-                slug=slugify_entity_name(row["name"]),
+                name=row["entity_name"],
+                slug=slugify_entity_name(row["entity_name"]),
                 article_count=row["global_freq"],
             )
-            for row in conn.execute(sql, (article_id, source, min_global_freq, limit))
+            for row in conn.execute(sql, (article_id, min_global_freq, limit))
         ]
     finally:
         if own_conn:
@@ -609,10 +626,14 @@ def related_topics_for_article(
     limit: int = 3,
     conn: Optional[sqlite3.Connection] = None,
 ) -> list[TopicSummary]:
-    """LINK-02: 1-3 topics where classifications.depth_score >= depth_min for this article.
+    """LINK-02: 1-3 topics for this article — KOL via classifications, RSS via rss_articles.topics.
 
     Sorted by depth_score DESC then topic alpha. Returns TopicSummary with the
     slug already lowercased (matching kb/output/topics/{slug}.html convention).
+
+    Schema reality (Hermes prod 2026-05-14): `classifications` is KOL-only.
+    RSS topic membership is on rss_articles.topics (JSON-encoded list) and
+    rss_articles.depth.
     """
     own_conn = conn is None
     if own_conn:
@@ -630,6 +651,37 @@ def related_topics_for_article(
             ).fetchone()
             if row is None:
                 return []
+        if source == "rss":
+            # RSS path: parse rss_articles.topics JSON list (alpha-sorted by
+            # convention) + rss_articles.depth. Match the depth gate at the
+            # row level (rss_articles.depth applies to all topics on the row;
+            # there's no per-topic depth on RSS).
+            row = conn.execute(
+                "SELECT topics, depth FROM rss_articles WHERE id = ? "
+                "AND topics IS NOT NULL AND topics != '' AND topics != '[]' "
+                "AND depth >= ?",
+                (article_id, depth_min),
+            ).fetchone()
+            if row is None:
+                return []
+            # Parse JSON list (or LIKE-extract for malformed). Topics are
+            # always one of the 5 fixed values; tolerate ordering / extra spaces.
+            import json as _json
+            try:
+                topics_list = _json.loads(row["topics"])
+                if not isinstance(topics_list, list):
+                    topics_list = []
+            except (ValueError, TypeError):
+                topics_list = []
+            # Filter to known topics only (defensive — prod data quality varies).
+            valid_topics = [t for t in topics_list if t in _SLUG_TOPIC_MAP]
+            valid_topics.sort()  # alpha-sort matches LIMIT semantics on KOL path
+            return [
+                TopicSummary(slug=_SLUG_TOPIC_MAP[t], raw_topic=t)
+                for t in valid_topics[:limit]
+            ]
+        # KOL path: classifications JOIN without source predicate
+        # (classifications is KOL-only per prod schema).
         return [
             TopicSummary(
                 slug=_SLUG_TOPIC_MAP.get(row["topic"], row["topic"].lower()),
@@ -637,9 +689,9 @@ def related_topics_for_article(
             )
             for row in conn.execute(
                 "SELECT topic, depth_score FROM classifications "
-                "WHERE article_id = ? AND source = ? AND depth_score >= ? "
+                "WHERE article_id = ? AND depth_score >= ? "
                 "ORDER BY depth_score DESC, topic ASC LIMIT ?",
-                (article_id, source, depth_min, limit),
+                (article_id, depth_min, limit),
             )
         ]
     finally:
@@ -654,11 +706,16 @@ def cooccurring_entities_in_topic(
     depth_min: int = 2,
     conn: Optional[sqlite3.Connection] = None,
 ) -> list[EntityCount]:
-    """TOPIC-05: top entities by article-frequency within the topic article cohort.
+    """TOPIC-05: top entities by article-frequency within the KOL topic cohort.
 
-    Cohort gate identical to topic_articles_query: classifications.depth_score >= depth_min
-    AND (layer1_verdict = 'candidate' OR layer2_verdict = 'ok').
+    Cohort gate: classifications.depth_score >= depth_min AND
+    (layer1_verdict = 'candidate' OR layer2_verdict = 'ok').
     Filters out entities whose GLOBAL frequency < min_global_freq.
+
+    Schema reality (Hermes prod 2026-05-14): `classifications` and
+    `extracted_entities` are both KOL-only (no `source` column;
+    rss_extracted_entities does not exist). The cohort is therefore
+    fundamentally KOL-only — the RSS branch is dropped.
     """
     own_conn = conn is None
     if own_conn:
@@ -667,47 +724,38 @@ def cooccurring_entities_in_topic(
     try:
         if QUALITY_FILTER_ENABLED:
             _verify_quality_columns(conn)
-        # DATA-07 cohort gate: append _DATA07_KOL_FRAGMENT to KOL leg of CTE
-        # and _DATA07_RSS_FRAGMENT to RSS leg. Built inline as f-string interp
-        # of constants (no user input — safe).
+        # DATA-07 cohort gate: append _DATA07_KOL_FRAGMENT to the topic-articles
+        # CTE. Built inline as f-string interp of constants (no user input — safe).
         kol_data07 = (" AND " + _DATA07_KOL_FRAGMENT) if QUALITY_FILTER_ENABLED else ""
-        rss_data07 = (" AND " + _DATA07_RSS_FRAGMENT) if QUALITY_FILTER_ENABLED else ""
         sql = f"""
             WITH topic_articles AS (
-                SELECT a.id AS article_id, 'wechat' AS source
+                SELECT a.id AS article_id
                 FROM articles a
-                JOIN classifications c ON c.article_id = a.id AND c.source = 'wechat'
+                JOIN classifications c ON c.article_id = a.id
                 WHERE c.topic = ? AND c.depth_score >= ?
                   AND (a.layer1_verdict = 'candidate' OR a.layer2_verdict = 'ok')
                   {kol_data07}
-                UNION ALL
-                SELECT r.id AS article_id, 'rss' AS source
-                FROM rss_articles r
-                JOIN classifications c ON c.article_id = r.id AND c.source = 'rss'
-                WHERE c.topic = ? AND c.depth_score >= ?
-                  AND (r.layer1_verdict = 'candidate' OR r.layer2_verdict = 'ok')
-                  {rss_data07}
             )
-            SELECT e.name,
-                   COUNT(DISTINCT e.article_id || '-' || e.source) AS topic_freq,
-                   (SELECT COUNT(DISTINCT article_id || '-' || source)
-                      FROM extracted_entities WHERE name = e.name) AS global_freq
+            SELECT e.entity_name,
+                   COUNT(DISTINCT e.article_id) AS topic_freq,
+                   (SELECT COUNT(DISTINCT article_id)
+                      FROM extracted_entities WHERE entity_name = e.entity_name) AS global_freq
             FROM extracted_entities e
             JOIN topic_articles t
-              ON t.article_id = e.article_id AND t.source = e.source
-            GROUP BY e.name
+              ON t.article_id = e.article_id
+            GROUP BY e.entity_name
             HAVING global_freq >= ?
-            ORDER BY topic_freq DESC, e.name ASC
+            ORDER BY topic_freq DESC, e.entity_name ASC
             LIMIT ?
         """
         return [
             EntityCount(
-                name=row["name"],
-                slug=slugify_entity_name(row["name"]),
+                name=row["entity_name"],
+                slug=slugify_entity_name(row["entity_name"]),
                 article_count=row["topic_freq"],
             )
             for row in conn.execute(
-                sql, (topic, depth_min, topic, depth_min, min_global_freq, limit)
+                sql, (topic, depth_min, min_global_freq, limit)
             )
         ]
     finally:

@@ -134,6 +134,16 @@
   "home.section.entities_title": "💡 热门实体",
   "home.topic.browse": "查看主题",
 
+  "topics.index.title": "主题索引",
+  "topics.index.heading": "按主题浏览",
+  "topics.index.lede": "5 个核心主题领域",
+  "topics.index.empty": "暂无分类数据 — 请等待 classify cron 跑完",
+  "entities.index.title": "实体索引",
+  "entities.index.heading": "按实体浏览",
+  "entities.index.lede": "文章中提及频次 ≥ 5 的实体",
+  "entities.index.empty": "暂无符合阈值的实体",
+  "topics.card.articles": "篇文章",
+
   "article.related_aria": "相关链接",
   "article.related_entities": "🏷 相关实体",
   "article.related_topics": "📂 相关主题",

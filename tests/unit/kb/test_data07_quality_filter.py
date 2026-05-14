@@ -243,15 +243,19 @@ def test_list_articles_excludes_negative_rows(fixture_db, monkeypatch):
 
 
 def test_topic_articles_query_excludes_negatives(fixture_db, monkeypatch):
-    """Test 9: topic_articles_query("Agent") excludes negative rows even if classified."""
+    """Test 9: topic_articles_query("Agent") excludes negative rows even if classified.
+
+    Schema reality (Hermes prod 2026-05-14): `classifications` is KOL-only
+    (no `source` column).
+    """
     article_query = _setup_filter_on(monkeypatch)
     # Inject a classification row for negative KOL id=98 (layer2 reject)
     # to prove DATA-07 gate is the discriminator (not classification absence).
     c = _conn(fixture_db)
     try:
         c.execute(
-            "INSERT INTO classifications (article_id, source, topic, depth_score, classified_at) "
-            "VALUES (98, 'wechat', 'Agent', 3, '2026-05-13 10:00:00')"
+            "INSERT INTO classifications (article_id, topic, depth_score, classified_at) "
+            "VALUES (98, 'Agent', 3, '2026-05-13 10:00:00')"
         )
         c.commit()
         results = article_query.topic_articles_query("Agent", conn=c)
@@ -262,15 +266,19 @@ def test_topic_articles_query_excludes_negatives(fixture_db, monkeypatch):
 
 
 def test_entity_articles_query_excludes_negatives(fixture_db, monkeypatch):
-    """Test 10: entity_articles_query excludes negatives even if entity-mentioned."""
+    """Test 10: entity_articles_query excludes negatives even if entity-mentioned.
+
+    Schema reality: `extracted_entities` is KOL-only (`entity_name` not `name`,
+    no `source` column).
+    """
     article_query = _setup_filter_on(monkeypatch)
     c = _conn(fixture_db)
     try:
-        # Inject extracted_entities row pointing to negative KOL id=98 with name 'OpenAI'.
+        # Inject extracted_entities row pointing to negative KOL id=98 with entity_name 'OpenAI'.
         # OpenAI already has freq=5 from positive rows, so threshold gate is already passed.
         c.execute(
-            "INSERT INTO extracted_entities (article_id, source, name, extracted_at) "
-            "VALUES (98, 'wechat', 'OpenAI', '2026-05-13 10:00:00')"
+            "INSERT INTO extracted_entities (article_id, entity_name, extracted_at) "
+            "VALUES (98, 'OpenAI', '2026-05-13 10:00:00')"
         )
         c.commit()
         results = article_query.entity_articles_query("OpenAI", min_freq=5, conn=c)
@@ -288,12 +296,12 @@ def test_cooccurring_entities_in_topic_excludes_negatives(fixture_db, monkeypatc
         # Inject classification + a unique entity 'NegOnly' that ONLY appears on
         # negative KOL id=98 — if cohort excludes negatives, NegOnly will not surface.
         c.execute(
-            "INSERT INTO classifications (article_id, source, topic, depth_score, classified_at) "
-            "VALUES (98, 'wechat', 'Agent', 3, '2026-05-13 10:00:00')"
+            "INSERT INTO classifications (article_id, topic, depth_score, classified_at) "
+            "VALUES (98, 'Agent', 3, '2026-05-13 10:00:00')"
         )
         c.execute(
-            "INSERT INTO extracted_entities (article_id, source, name, extracted_at) "
-            "VALUES (98, 'wechat', 'NegOnly', '2026-05-13 10:00:00')"
+            "INSERT INTO extracted_entities (article_id, entity_name, extracted_at) "
+            "VALUES (98, 'NegOnly', '2026-05-13 10:00:00')"
         )
         c.commit()
         results = article_query.cooccurring_entities_in_topic(
@@ -318,8 +326,8 @@ def test_related_entities_for_article_returns_empty_for_negative_source(
         # Inject extracted_entities for negative KOL id=98 — even though
         # entity rows exist, source article fails DATA-07 → return [].
         c.execute(
-            "INSERT INTO extracted_entities (article_id, source, name, extracted_at) "
-            "VALUES (98, 'wechat', 'OpenAI', '2026-05-13 10:00:00')"
+            "INSERT INTO extracted_entities (article_id, entity_name, extracted_at) "
+            "VALUES (98, 'OpenAI', '2026-05-13 10:00:00')"
         )
         c.commit()
         results = article_query.related_entities_for_article(98, "wechat", conn=c)
@@ -336,8 +344,8 @@ def test_related_topics_for_article_returns_empty_for_negative_source(
     c = _conn(fixture_db)
     try:
         c.execute(
-            "INSERT INTO classifications (article_id, source, topic, depth_score, classified_at) "
-            "VALUES (98, 'wechat', 'Agent', 3, '2026-05-13 10:00:00')"
+            "INSERT INTO classifications (article_id, topic, depth_score, classified_at) "
+            "VALUES (98, 'Agent', 3, '2026-05-13 10:00:00')"
         )
         c.commit()
         results = article_query.related_topics_for_article(98, "wechat", conn=c)

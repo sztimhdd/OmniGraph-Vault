@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ article.title }} — {{ 'site.brand' | t('zh-CN') }} / {{ 'site.brand' | t('en') }}</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+  <link rel="stylesheet" href="{{ base_path }}/static/style.css">
+  {# 260514-d3p: expose KB_BASE_PATH to JS for runtime URL construction. #}
+  <script>window.KB_BASE_PATH = "{{ base_path }}";</script>
 
   {# UI-05 og:* meta — article type, locale matches content lang #}
   <meta property="og:title" content="{{ og.title }}">
@@ -24,20 +26,20 @@
   <header class="nav-wrap">
     <div class="container">
       <nav class="nav" aria-label="primary">
-        <a href="/" class="nav-brand">
-          <img src="/static/VitaClaw-Logo-v0.png" alt="" onerror="this.style.display='none'">
+        <a href="{{ base_path }}/" class="nav-brand">
+          <img src="{{ base_path }}/static/VitaClaw-Logo-v0.png" alt="" onerror="this.style.display='none'">
           <span class="nav-brand__zh" data-lang="zh">{{ 'site.brand' | t('zh-CN') }}</span><span class="nav-brand__en" data-lang="en">{{ 'site.brand' | t('en') }}</span>
         </a>
         <div class="nav-links">
-          <a href="/">
+          <a href="{{ base_path }}/">
             {{ icon('home', size=16) }}
             <span data-lang="zh">{{ 'nav.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.home' | t('en') }}</span>
           </a>
-          <a href="/articles/">
+          <a href="{{ base_path }}/articles/">
             {{ icon('articles', size=16) }}
             <span data-lang="zh">{{ 'nav.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.articles' | t('en') }}</span>
           </a>
-          <a href="/ask/">
+          <a href="{{ base_path }}/ask/">
             {{ icon('ask', size=16) }}
             <span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.ask' | t('en') }}</span>
           </a>
@@ -54,12 +56,12 @@
     <div class="container">
       {# UI-07 breadcrumb with chevron SVG separator + localized labels #}
       <nav class="breadcrumb" aria-label="breadcrumb">
-        <a href="/">
+        <a href="{{ base_path }}/">
           {{ icon('home', size=14) }}
           <span data-lang="zh">{{ 'breadcrumb.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'breadcrumb.home' | t('en') }}</span>
         </a>
         {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
-        <a href="/articles/">
+        <a href="{{ base_path }}/articles/">
           <span data-lang="zh">{{ 'breadcrumb.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'breadcrumb.articles' | t('en') }}</span>
         </a>
         {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
@@ -125,7 +127,7 @@
             <ul class="article-aside__list" role="list">
               {% for e in related_entities %}
               <li>
-                <a class="chip chip--entity" href="/entities/{{ e.slug }}.html">
+                <a class="chip chip--entity" href="{{ base_path }}/entities/{{ e.slug }}.html">
                   {{ icon('tag', size=12) }}
                   <span class="chip-label">{{ e.name }}</span>
                 </a>
@@ -144,7 +146,7 @@
             <ul class="article-aside__list" role="list">
               {% for t in related_topics %}
               <li>
-                <a class="chip chip--topic" href="/topics/{{ t.slug }}.html">
+                <a class="chip chip--topic" href="{{ base_path }}/topics/{{ t.slug }}.html">
                   {{ icon('folder-tag', size=12) }}
                   <span class="chip-label">{{ t.localized_name }}</span>
                 </a>
@@ -161,7 +163,7 @@
         <p>
           <span data-lang="zh">{{ 'article.cta_question_prompt' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.cta_question_prompt' | t('en') }}</span>
         </p>
-        <a href="/ask/" class="btn glow">
+        <a href="{{ base_path }}/ask/" class="btn glow">
           {{ icon('ask', size=16) }}
           <span data-lang="zh">{{ 'article.cta_ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.cta_ask' | t('en') }}</span>
           {{ icon('arrow-right', size=16) }}
@@ -176,14 +178,14 @@
         <span>
           <span data-lang="zh">{{ 'footer.copyright' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.copyright' | t('en') }}</span>
         </span>
-        <a href="/articles/">
+        <a href="{{ base_path }}/articles/">
           <span data-lang="zh">{{ 'footer.back_to_articles' | t('zh-CN') }} →</span><span data-lang="en">{{ 'footer.back_to_articles' | t('en') }} →</span>
         </a>
       </div>
     </div>
   </footer>
 
-  <script src="/static/lang.js"></script>
+  <script src="{{ base_path }}/static/lang.js"></script>
   <script>
     (function () {
       var nav = document.querySelector('.nav-wrap');

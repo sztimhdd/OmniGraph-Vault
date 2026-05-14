@@ -64,7 +64,7 @@
 
 <div id="article-list" class="article-list">
   {% for article in articles %}
-  <a class="article-card" href="/articles/{{ article.url_hash }}.html"
+  <a class="article-card" href="{{ base_path }}/articles/{{ article.url_hash }}.html"
      data-lang="{{ article.lang or 'unknown' }}" data-source="{{ article.source }}">
     <div class="article-card-meta">
       <span class="lang-badge" data-lang="{{ article.lang or 'unknown' }}">
@@ -127,7 +127,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="/static/search.js" defer></script>
+<script src="{{ base_path }}/static/search.js" defer></script>
 <script>
   (function () {
     var totalCount = document.querySelectorAll('#article-list .article-card').length;

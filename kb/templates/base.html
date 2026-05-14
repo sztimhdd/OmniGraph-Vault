@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}{{ 'site.title' | t('zh-CN') }} / {{ 'site.title' | t('en') }}{% endblock %}</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+  <link rel="stylesheet" href="{{ base_path }}/static/style.css">
+  {# 260514-d3p: expose KB_BASE_PATH to JS for runtime URL construction. #}
+  <script>window.KB_BASE_PATH = "{{ base_path }}";</script>
   {% block og %}
   <meta property="og:title" content="{{ 'site.title' | t('zh-CN') }}">
   <meta property="og:description" content="{{ 'site.tagline' | t('zh-CN') }}">
-  <meta property="og:image" content="/static/VitaClaw-Logo-v0.png">
+  <meta property="og:image" content="{{ base_path }}/static/VitaClaw-Logo-v0.png">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="zh_CN">
   <meta property="og:url" content="{{ page_url|default('/') }}">
@@ -20,20 +22,20 @@
   <header class="nav-wrap">
     <div class="container">
       <nav class="nav" aria-label="primary">
-        <a href="/" class="nav-brand">
-          <img src="/static/VitaClaw-Logo-v0.png" alt="" onerror="this.style.display='none'">
+        <a href="{{ base_path }}/" class="nav-brand">
+          <img src="{{ base_path }}/static/VitaClaw-Logo-v0.png" alt="" onerror="this.style.display='none'">
           <span class="nav-brand__zh" data-lang="zh">{{ 'site.brand' | t('zh-CN') }}</span><span class="nav-brand__en" data-lang="en">{{ 'site.brand' | t('en') }}</span>
         </a>
         <div class="nav-links">
-          <a href="/">
+          <a href="{{ base_path }}/">
             {{ icon('home', size=16) }}
             <span data-lang="zh">{{ 'nav.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.home' | t('en') }}</span>
           </a>
-          <a href="/articles/">
+          <a href="{{ base_path }}/articles/">
             {{ icon('articles', size=16) }}
             <span data-lang="zh">{{ 'nav.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.articles' | t('en') }}</span>
           </a>
-          <a href="/ask/">
+          <a href="{{ base_path }}/ask/">
             {{ icon('ask', size=16) }}
             <span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.ask' | t('en') }}</span>
           </a>
@@ -68,9 +70,9 @@
             <span data-lang="zh">{{ 'footer.nav_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'footer.nav_title' | t('en') }}</span>
           </h4>
           <ul>
-            <li><a href="/"><span data-lang="zh">{{ 'nav.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.home' | t('en') }}</span></a></li>
-            <li><a href="/articles/"><span data-lang="zh">{{ 'nav.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.articles' | t('en') }}</span></a></li>
-            <li><a href="/ask/"><span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.ask' | t('en') }}</span></a></li>
+            <li><a href="{{ base_path }}/"><span data-lang="zh">{{ 'nav.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.home' | t('en') }}</span></a></li>
+            <li><a href="{{ base_path }}/articles/"><span data-lang="zh">{{ 'nav.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.articles' | t('en') }}</span></a></li>
+            <li><a href="{{ base_path }}/ask/"><span data-lang="zh">{{ 'nav.ask' | t('zh-CN') }}</span><span data-lang="en">{{ 'nav.ask' | t('en') }}</span></a></li>
           </ul>
         </div>
         <div class="site-footer__col">
@@ -94,7 +96,7 @@
     </div>
   </footer>
 
-  <script src="/static/lang.js"></script>
+  <script src="{{ base_path }}/static/lang.js"></script>
   <script>
     (function () {
       var nav = document.querySelector('.nav-wrap');

@@ -66,7 +66,7 @@
     <p>
       <span data-lang="zh">{{ 'ask.bottom_cta_text' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.bottom_cta_text' | t('en') }}</span>
     </p>
-    <a href="/articles/" class="btn btn-secondary glow-green">
+    <a href="{{ base_path }}/articles/" class="btn btn-secondary glow-green">
       {{ icon('articles', size=16) }}
       <span data-lang="zh">{{ 'ask.bottom_cta_btn' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.bottom_cta_btn' | t('en') }}</span>
       {{ icon('arrow-right', size=16) }}
@@ -113,6 +113,6 @@
   window.KB_QA_POLL_INTERVAL_MS = 1500;
   window.KB_QA_POLL_TIMEOUT_MS = 60000;
 </script>
-<script src="/static/marked.min.js" defer></script>
-<script src="/static/qa.js" defer></script>
+<script src="{{ base_path }}/static/marked.min.js" defer></script>
+<script src="{{ base_path }}/static/qa.js" defer></script>
 {% endblock %}

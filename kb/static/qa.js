@@ -178,7 +178,7 @@
       clearPoll();
       return;
     }
-    fetch('/api/synthesize/' + encodeURIComponent(currentJobId), {
+    fetch((window.KB_BASE_PATH || '') + '/api/synthesize/' + encodeURIComponent(currentJobId), {
       headers: { 'Accept': 'application/json' }
     })
       .then(function (r) {
@@ -228,7 +228,7 @@
     currentJobId = null;
     setQuestionEcho(question);
     setState('submitting');
-    fetch('/api/synthesize', {
+    fetch((window.KB_BASE_PATH || '') + '/api/synthesize', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

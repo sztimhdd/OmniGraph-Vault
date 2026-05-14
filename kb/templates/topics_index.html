@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+
+{% block title %}{{ 'topics.index.title' | t(lang) }} — {{ 'site.brand' | t(lang) }}{% endblock %}
+
+{% block extra_head %}
+<meta name="description" content="{{ 'topics.index.lede' | t(lang) }}">
+<link rel="canonical" href="{{ page_url }}">
+{% endblock %}
+
+{% block content %}
+<section class="topics-index">
+  <header class="section-header">
+    <h1>
+      {{ icon('folder-tag', size=24) }}
+      <span data-lang="zh">{{ 'topics.index.heading' | t('zh-CN') }}</span><span data-lang="en">{{ 'topics.index.heading' | t('en') }}</span>
+    </h1>
+    <p class="hero-subtitle hero-subtitle--inline">
+      <span data-lang="zh">{{ 'topics.index.lede' | t('zh-CN') }}</span><span data-lang="en">{{ 'topics.index.lede' | t('en') }}</span>
+    </p>
+  </header>
+
+  {% if topics %}
+  <div class="article-list article-list--topics">
+    {% for t in topics %}
+    <a class="article-card article-card--topic" href="{{ base_path }}/topics/{{ t.slug }}.html"
+       data-topic-slug="{{ t.slug }}">
+      <div class="article-card-meta">
+        <span class="chip chip--count">
+          {{ icon('articles', size=12) }} {{ t.article_count }}
+        </span>
+      </div>
+      <h2 class="article-card-title">{{ t.localized_name }}</h2>
+      <p class="article-card-snippet">{{ t.localized_desc }}</p>
+      <span class="article-card-readmore">
+        <span data-lang="zh">{{ 'home.topic.browse' | t('zh-CN') }}</span><span data-lang="en">{{ 'home.topic.browse' | t('en') }}</span>
+        {{ icon('arrow-right', size=14) }}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    {{ icon('inbox', size=48, cls='empty-state__icon') }}
+    <h3 class="empty-state__title">
+      <span data-lang="zh">{{ 'topics.index.empty' | t('zh-CN') }}</span><span data-lang="en">{{ 'topics.index.empty' | t('en') }}</span>
+    </h3>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

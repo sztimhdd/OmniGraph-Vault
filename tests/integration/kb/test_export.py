@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import os
 import re
 from pathlib import Path
 
@@ -53,7 +54,17 @@ def export_module(fixture_db: Path, tmp_path: Path, monkeypatch):
 
     importlib.reload(kb.config)
     importlib.reload(kb.i18n)
-    importlib.reload(kb.data.article_query)
+    # kb-3-02 pattern: do NOT importlib.reload(kb.data.article_query) — that
+    # rebinds EntityCount + TopicSummary to NEW class objects, breaking
+    # isinstance() checks in tests/unit/kb/test_kb2_queries.py which imports
+    # those classes at module load. Use monkeypatch.setattr on the only
+    # env-derived module-level constant (QUALITY_FILTER_ENABLED) instead so
+    # class identity is preserved across the integration+unit combined run.
+    monkeypatch.setattr(
+        kb.data.article_query,
+        "QUALITY_FILTER_ENABLED",
+        os.environ.get("KB_CONTENT_QUALITY_FILTER", "on").lower() != "off",
+    )
     importlib.reload(kb.export_knowledge_base)
     return kb.export_knowledge_base
 
@@ -87,9 +98,10 @@ def test_export_produces_expected_output_tree(
     # Sitemap, robots, _url_index
     sitemap = (out / "sitemap.xml").read_text(encoding="utf-8")
     assert sitemap.startswith('<?xml version="1.0"')
-    # 22 <url> elements: 3 index URLs + 8 article URLs + 5 kb-2 topic URLs +
-    # 6 kb-2 entity URLs (fixture qualifies 6 entities at default min_freq=5).
-    assert sitemap.count("<url>") == 22, f"expected 22 <url> blocks, got {sitemap.count('<url>')}"
+    # 24 <url> elements: 3 root index URLs + 8 article URLs + 5 kb-2 topic
+    # URLs + 6 kb-2 entity URLs + 2 directory-index pages (topics/index.html,
+    # entities/index.html added by 260514-d3p quick).
+    assert sitemap.count("<url>") == 24, f"expected 24 <url> blocks, got {sitemap.count('<url>')}"
     # kb-2 sitemap extension (UI-SPEC §8 #32-33): topics + entities listed.
     assert "/topics/agent.html" in sitemap
     assert "/entities/" in sitemap

@@ -155,7 +155,7 @@
       var hash = encodeURIComponent(it.hash || '');
       var title = escapeHtml(it.title || '');
       var snippet = it.snippet || '';
-      html += '<a class="article-card" href="/articles/' + hash + '.html"'
+      html += '<a class="article-card" href="' + (window.KB_BASE_PATH || '') + '/articles/' + hash + '.html"'
         + ' data-lang="' + escapeHtml(it.lang || 'unknown') + '"'
         + ' data-source="' + escapeHtml(it.source || 'web') + '">'
         + '<div class="article-card-meta">'
@@ -170,7 +170,7 @@
 
     if (total > items.length) {
       html += '<div class="search-results__footer">'
-        + '<a href="/articles/?q=' + encodeURIComponent(q) + '" class="article-card-readmore">'
+        + '<a href="' + (window.KB_BASE_PATH || '') + '/articles/?q=' + encodeURIComponent(q) + '" class="article-card-readmore">'
         + '<span data-lang="zh">查看全部 (' + total + ')</span>'
         + '<span data-lang="en">View all (' + total + ')</span>'
         + '</a>'
@@ -185,7 +185,7 @@
     if (inFlight) inFlight.abort();
     inFlight = (typeof AbortController === 'function') ? new AbortController() : null;
     showLoading();
-    var url = '/api/search?q=' + encodeURIComponent(q)
+    var url = (window.KB_BASE_PATH || '') + '/api/search?q=' + encodeURIComponent(q)
       + '&mode=fts'
       + '&lang=' + encodeURIComponent(getLang())
       + '&limit=' + FETCH_LIMIT;

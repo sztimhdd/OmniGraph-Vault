@@ -9,6 +9,19 @@ negative-test coverage.
 Scope: this fixture is consumed by both unit tests (kb-2 query functions in
 plan 04) and integration tests (existing kb-1 + new kb-2 SSG end-to-end in
 plan 09).
+
+Schema source-of-truth (verified 2026-05-14 against Hermes prod via SSH +
+`.dev-runtime/data/kol_scan.db` SCP from Hermes):
+  - `extracted_entities`: (id, article_id, entity_name, entity_type,
+    extracted_at) — NO `source` column, NO `name` column. KOL-ONLY (no rows
+    reference rss_articles.id by design; rss_extracted_entities does not
+    exist).
+  - `classifications`: (id, article_id, topic, depth_score, relevant,
+    excluded, reason, classified_at, depth, topics, rationale) — NO `source`
+    column. KOL-ONLY (no rows reference rss_articles.id by design).
+  - RSS classifications: stored on rss_articles.topics (JSON-encoded list)
+    and rss_articles.depth columns directly. `rss_classifications` table
+    exists in prod schema but is unused (0 rows on Hermes prod 2026-05-14).
 """
 from __future__ import annotations
 
@@ -44,13 +57,19 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
 
     Schema mirrors:
       - kb-1-02 post-migration `articles` + `rss_articles` (with `lang` column)
-      - Hermes prod `classifications` + `extracted_entities` (verified via SSH 2026-05-13)
+      - Hermes prod `classifications` (KOL-only) — verified via SSH 2026-05-14
+      - Hermes prod `extracted_entities` (KOL-only, `entity_name`) — verified
+        via SSH 2026-05-14
       - kb-2 layer1_verdict / layer2_verdict columns on both article tables
+      - RSS classifications via rss_articles.topics (JSON list) + .depth
 
     Data shape:
       - 5 KOL + 3 RSS = 8 articles total
-      - 16 classifications spanning 5 topics (Agent / CV / LLM / NLP / RAG)
-      - 6 entities above ENTITY-01 threshold (>=5 articles each)
+      - 11 classifications spanning 5 topics (Agent / CV / LLM / NLP / RAG) —
+        KOL-only per prod schema
+      - RSS topic membership via rss_articles.topics (JSON list) + .depth
+      - 6 entities above ENTITY-01 threshold (>=5 articles each) — KOL-only
+        article_id refs (extracted_entities is KOL-only per prod schema)
       - 2 entities below threshold (freq 2-3) for negative coverage
       - Every article has layer1='candidate' OR layer2='ok' (TOPIC-02 cohort gate)
     """
@@ -78,29 +97,38 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
                 lang TEXT,
                 published_at TEXT,
                 fetched_at TEXT,
+                topics TEXT,
+                depth INTEGER,
                 layer1_verdict TEXT,
                 layer2_verdict TEXT
             );
             CREATE TABLE classifications (
                 id INTEGER PRIMARY KEY,
                 article_id INTEGER NOT NULL,
-                source TEXT NOT NULL CHECK(source IN ('wechat','rss')),
                 topic TEXT NOT NULL CHECK(topic IN ('Agent','CV','LLM','NLP','RAG')),
                 depth_score INTEGER,
+                relevant INTEGER DEFAULT 0,
+                excluded INTEGER DEFAULT 0,
+                reason TEXT,
                 classified_at TEXT,
-                UNIQUE(article_id, source, topic)
+                depth INTEGER,
+                topics TEXT,
+                rationale TEXT,
+                UNIQUE(article_id, topic)
             );
             CREATE TABLE extracted_entities (
                 id INTEGER PRIMARY KEY,
                 article_id INTEGER NOT NULL,
-                source TEXT NOT NULL CHECK(source IN ('wechat','rss')),
-                name TEXT NOT NULL,
+                entity_name TEXT NOT NULL,
+                entity_type TEXT,
                 extracted_at TEXT
             );
             """
         )
 
         # 5 KOL articles (ids 1-5) — DATA-07 positive cases
+        # KOL ids deliberately disjoint from RSS ids to avoid prod-shape
+        # id-collision risk where the same id exists in both tables.
         # (id, title, url, body, content_hash, lang, update_time, l1, l2)
         kol_rows = [
             (1, "测试文章一", "https://mp.weixin.qq.com/s/test1", _BODY_WITH_LOCALHOST,
@@ -127,78 +155,88 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
         )
 
         # 3 RSS articles (ids 10, 11, 12) — DATA-07 positive cases
+        # RSS topic membership via .topics JSON list + .depth (no
+        # classifications table rows for RSS — KOL-only per prod).
         rss_rows = [
             (10, "English Article Three", "https://example.com/article-three", _BODY_EN_PLAIN,
              "deadbeefcafebabe1234567890abcdef", "en", "2026-05-10 08:00:00", "2026-05-10 08:01:00",
-             "candidate", "ok"),
+             '["Agent","LLM","RAG"]', 2, "candidate", "ok"),
             (11, "NLP Tooling Roundup", "https://example.com/nlp-roundup", _BODY_GENERIC_EN,
              "11111111111111111111111111111111", "en", "2026-05-09 08:00:00", "2026-05-09 08:01:00",
-             "candidate", "ok"),
+             '["Agent","NLP"]', 2, "candidate", "ok"),
             (12, "CV Multimodal Vision", "https://example.com/cv-mm", _BODY_GENERIC_EN,
              "22222222222222222222222222222222", "en", "2026-05-08 08:00:00", "2026-05-08 08:01:00",
-             "candidate", "ok"),
+             '["CV"]', 3, "candidate", "ok"),
             # DATA-07 negative-case RSS rows — must be EXCLUDED by filter
             # id=97: body NULL (fails body-present condition)
             (97, "NULL BODY RSS", "https://example.com/neg97", None,
              "97979797979797979797979797979797", "en", "2026-05-07 08:00:00", "2026-05-07 08:01:00",
-             "candidate", "ok"),
+             None, None, "candidate", "ok"),
             # id=96: real body, layer1='reject' (fails layer1 condition)
             (96, "LAYER1 REJECT RSS", "https://example.com/neg96", "real RSS body content",
              "96969696969696969696969696969696", "en", "2026-05-06 08:00:00", "2026-05-06 08:01:00",
-             "reject", None),
+             None, None, "reject", None),
         ]
         conn.executemany(
-            "INSERT INTO rss_articles (id,title,url,body,content_hash,lang,published_at,fetched_at,layer1_verdict,layer2_verdict) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)", rss_rows,
+            "INSERT INTO rss_articles (id,title,url,body,content_hash,lang,published_at,fetched_at,"
+            "topics,depth,layer1_verdict,layer2_verdict) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", rss_rows,
         )
 
-        # Classifications — 5 topics, depth_score >= 2 (above TOPIC-02 cohort gate)
-        # (article_id, source, topic, depth_score)
+        # KOL classifications — 5 topics, depth_score >= 2 (TOPIC-02 cohort gate).
+        # KOL-ONLY per prod schema (no `source` column; RSS uses rss_articles.topics).
+        # (article_id, topic, depth_score)
         classifications_rows = [
-            # Agent: 5 articles (1, 3, 5 KOL + 10, 11 RSS)
-            (1, "wechat", "Agent", 3), (3, "wechat", "Agent", 2), (5, "wechat", "Agent", 2),
-            (10, "rss", "Agent", 2), (11, "rss", "Agent", 2),
-            # LLM: 3 articles (1, 5 KOL + 10 RSS)
-            (1, "wechat", "LLM", 2), (5, "wechat", "LLM", 3), (10, "rss", "LLM", 2),
-            # RAG: 3 articles (1, 4 KOL + 10 RSS)
-            (1, "wechat", "RAG", 2), (4, "wechat", "RAG", 3), (10, "rss", "RAG", 2),
-            # NLP: 3 articles (2, 5 KOL + 11 RSS)
-            (2, "wechat", "NLP", 2), (5, "wechat", "NLP", 2), (11, "rss", "NLP", 3),
-            # CV: 2 articles (2 KOL + 12 RSS) — intentionally lower-density
-            (2, "wechat", "CV", 2), (12, "rss", "CV", 3),
+            # Agent: 3 KOL articles (1, 3, 5)
+            (1, "Agent", 3), (3, "Agent", 2), (5, "Agent", 2),
+            # LLM: 2 KOL articles (1, 5)
+            (1, "LLM", 2), (5, "LLM", 3),
+            # RAG: 2 KOL articles (1, 4)
+            (1, "RAG", 2), (4, "RAG", 3),
+            # NLP: 2 KOL articles (2, 5)
+            (2, "NLP", 2), (5, "NLP", 2),
+            # CV: 1 KOL article (2) — RSS article 12 supplies the second via rss_articles.topics
+            (2, "CV", 2),
         ]
-        for article_id, source, topic, depth in classifications_rows:
+        for article_id, topic, depth in classifications_rows:
             conn.execute(
-                "INSERT INTO classifications (article_id,source,topic,depth_score,classified_at) "
-                "VALUES (?,?,?,?,?)", (article_id, source, topic, depth, "2026-05-12 10:00:00"),
+                "INSERT INTO classifications (article_id,topic,depth_score,classified_at) "
+                "VALUES (?,?,?,?)", (article_id, topic, depth, "2026-05-12 10:00:00"),
             )
 
-        # Extracted entities — 6 above threshold (>=5 articles each), 2 below
-        above_freq_entities: dict[str, list[tuple[int, str]]] = {
-            "OpenAI":    [(1, "wechat"), (3, "wechat"), (5, "wechat"), (10, "rss"), (11, "rss")],
-            "LangChain": [(1, "wechat"), (3, "wechat"), (4, "wechat"), (10, "rss"), (11, "rss")],
-            "LightRAG":  [(1, "wechat"), (4, "wechat"), (5, "wechat"), (10, "rss"), (11, "rss")],
-            "Anthropic": [(2, "wechat"), (3, "wechat"), (5, "wechat"), (10, "rss"), (12, "rss")],
-            "AutoGen":   [(1, "wechat"), (3, "wechat"), (5, "wechat"), (10, "rss"), (11, "rss")],
-            "MCP":       [(1, "wechat"), (2, "wechat"), (4, "wechat"), (10, "rss"), (12, "rss")],
+        # Extracted entities — 6 above threshold (>=5 articles each), 2 below.
+        # KOL-ONLY per prod schema (no `source` column, no `name` column;
+        # extracted_entities holds entity_name; rss_extracted_entities does
+        # not exist — RSS articles have no entity extraction in v1.0).
+        # Entity refs frequencies tuned so 6 entities cross threshold via 5 KOL
+        # articles repeated; before fix, RSS rows added a 6th data point per
+        # entity. Post-fix: each above-threshold entity must hit ≥5 distinct
+        # KOL article_ids — so we reuse all 5 KOL ids (1, 3, 4, 5, 2 mixed).
+        above_freq_entities: dict[str, list[int]] = {
+            "OpenAI":    [1, 3, 5, 4, 2],   # freq 5 (KOL ids 1, 2, 3, 4, 5)
+            "LangChain": [1, 3, 4, 5, 2],   # freq 5
+            "LightRAG":  [1, 4, 5, 3, 2],   # freq 5
+            "Anthropic": [2, 3, 5, 1, 4],   # freq 5
+            "AutoGen":   [1, 3, 5, 4, 2],   # freq 5
+            "MCP":       [1, 2, 4, 3, 5],   # freq 5
         }
         for name, refs in above_freq_entities.items():
-            for article_id, source in refs:
+            for article_id in refs:
                 conn.execute(
-                    "INSERT INTO extracted_entities (article_id,source,name,extracted_at) "
-                    "VALUES (?,?,?,?)", (article_id, source, name, "2026-05-12 10:00:00"),
+                    "INSERT INTO extracted_entities (article_id,entity_name,extracted_at) "
+                    "VALUES (?,?,?)", (article_id, name, "2026-05-12 10:00:00"),
                 )
 
         # Below-threshold (negative-test coverage — must NOT appear in entity pages)
-        below_freq_entities: dict[str, list[tuple[int, str]]] = {
-            "ObscureLib":    [(1, "wechat"), (2, "wechat")],                          # freq 2
-            "OneOffMention": [(3, "wechat"), (10, "rss"), (11, "rss")],               # freq 3
+        below_freq_entities: dict[str, list[int]] = {
+            "ObscureLib":    [1, 2],          # freq 2
+            "OneOffMention": [3, 4, 5],       # freq 3
         }
         for name, refs in below_freq_entities.items():
-            for article_id, source in refs:
+            for article_id in refs:
                 conn.execute(
-                    "INSERT INTO extracted_entities (article_id,source,name,extracted_at) "
-                    "VALUES (?,?,?,?)", (article_id, source, name, "2026-05-12 10:00:00"),
+                    "INSERT INTO extracted_entities (article_id,entity_name,extracted_at) "
+                    "VALUES (?,?,?)", (article_id, name, "2026-05-12 10:00:00"),
                 )
 
         conn.commit()

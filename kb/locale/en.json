@@ -134,6 +134,16 @@
   "home.section.entities_title": "💡 Featured Entities",
   "home.topic.browse": "Browse topic",
 
+  "topics.index.title": "Topics Index",
+  "topics.index.heading": "Browse by Topic",
+  "topics.index.lede": "5 core topic areas",
+  "topics.index.empty": "Topic data not yet available — pending classify cron",
+  "entities.index.title": "Entities Index",
+  "entities.index.heading": "Browse by Entity",
+  "entities.index.lede": "Entities mentioned in ≥5 articles",
+  "entities.index.empty": "No entities meet the frequency threshold",
+  "topics.card.articles": "articles",
+
   "article.related_aria": "Related links",
   "article.related_entities": "🏷 Related Entities",
   "article.related_topics": "📂 Related Topics",

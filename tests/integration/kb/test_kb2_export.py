@@ -288,9 +288,13 @@ def test_sitemap_contains_topic_and_entity_urls(
     assert "/entities/" in sample, (
         f"sitemap missing /entities/ paths: {sample[:500]}"
     )
-    # Verify count: 3 index + 8 articles + 5 topics + 6 entities = 22
+    # Verify count: 3 root index + 8 articles + 5 topics + 6 entities +
+    # 2 directory-index pages (topics/index.html, entities/index.html
+    # added by 260514-d3p quick) = 24
     url_count = sample.count("<url>")
-    assert url_count == 22, f"Expected 22 <url> entries (3+8+5+6), got {url_count}"
+    assert url_count == 24, (
+        f"Expected 24 <url> entries (3+8+5+6+2), got {url_count}"
+    )
 
 
 # ---- UI-SPEC §8 #1-2: template existence ----

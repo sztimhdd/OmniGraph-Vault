@@ -23,9 +23,9 @@
 
 {% block content %}
 <nav class="breadcrumb" aria-label="breadcrumb">
-  <a href="/">{{ icon('home', size=14) }} {{ 'breadcrumb.home' | t(lang) }}</a>
+  <a href="{{ base_path }}/">{{ icon('home', size=14) }} {{ 'breadcrumb.home' | t(lang) }}</a>
   {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
-  <a href="/entities/">{{ 'breadcrumb.entities' | t(lang) }}</a>
+  <a href="{{ base_path }}/entities/">{{ 'breadcrumb.entities' | t(lang) }}</a>
   {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
   <span class="breadcrumb__current">{{ entity.name }}</span>
 </nav>
@@ -62,7 +62,7 @@
   {% if articles %}
   <div class="article-list">
     {% for a in articles %}
-    <a class="article-card" href="/articles/{{ a.url_hash }}.html"
+    <a class="article-card" href="{{ base_path }}/articles/{{ a.url_hash }}.html"
        data-lang="{{ a.lang or 'unknown' }}" data-source="{{ a.source }}">
       <div class="article-card-meta">
         <span class="lang-badge" data-lang="{{ a.lang or 'unknown' }}">

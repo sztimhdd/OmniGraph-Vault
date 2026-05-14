@@ -197,12 +197,20 @@ _LASTMOD_FALLBACK = "1970-01-01"
 
 
 def _build_env() -> Environment:
-    """Build Jinja2 env with i18n filter registered."""
+    """Build Jinja2 env with i18n filter registered + KB_BASE_PATH global.
+
+    KB_BASE_PATH (260514-d3p): subdirectory deploy prefix. Set via env var at
+    export time (e.g. KB_BASE_PATH=/kb for Aliyun ECS reverse-proxy under /kb/).
+    Empty string = root deploy. Templates concatenate `{{ base_path }}/...` so
+    `KB_BASE_PATH=` (unset) yields `/static/...`, `KB_BASE_PATH=/kb` yields
+    `/kb/static/...`. JS uses `window.KB_BASE_PATH` injected in base.html.
+    """
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
         autoescape=select_autoescape(["html"]),
     )
     register_jinja2_filter(env)
+    env.globals["base_path"] = config.KB_BASE_PATH
     return env
 
 
@@ -262,7 +270,8 @@ def _build_og(article_dict: dict[str, Any], body_html: str) -> dict[str, str]:
     return {
         "title": article_dict["title"],
         "description": description,
-        "image": "/static/VitaClaw-Logo-v0.png",  # TODO v2.1: use first article image if available
+        # TODO v2.1: use first article image if available
+        "image": f"{config.KB_BASE_PATH}/static/VitaClaw-Logo-v0.png",
         "type": "article",
         "locale": "zh_CN" if article_dict["lang"] == "zh-CN" else "en_US",
     }
@@ -277,7 +286,7 @@ def _build_json_ld(article_dict: dict[str, Any]) -> dict[str, Any]:
         "datePublished": article_dict["publish_time"] or article_dict["update_time"],
         "inLanguage": article_dict["lang"],
         "author": {"@type": "Organization", "name": "VitaClaw"},
-        "image": "/static/VitaClaw-Logo-v0.png",
+        "image": f"{config.KB_BASE_PATH}/static/VitaClaw-Logo-v0.png",
     }
 
 
@@ -332,7 +341,7 @@ def render_article_detail(
         "article": article_dict,
         "body_html": body_html,
         "og": _build_og(article_dict, body_html),
-        "page_url": f"/articles/{url_hash}.html",
+        "page_url": f"{config.KB_BASE_PATH}/articles/{url_hash}.html",
         "json_ld": _build_json_ld(article_dict),
         "related_entities": related_entities,
         "related_topics": related_topics,
@@ -408,7 +417,7 @@ def render_index_pages(
         lang="zh-CN",
         articles=home_dicts,
         topic_chip_keys=HERO_TOPIC_CHIP_KEYS,
-        page_url="/",
+        page_url=f"{config.KB_BASE_PATH}/",
         topics=topics_ctx,
         featured_entities=featured_entities_ctx,
     )
@@ -419,7 +428,7 @@ def render_index_pages(
     list_html = env.get_template("articles_index.html").render(
         lang="zh-CN",
         articles=list_dicts,
-        page_url="/articles/",
+        page_url=f"{config.KB_BASE_PATH}/articles/",
     )
     _write_atomic(output_dir / "articles" / "index.html", list_html)
 
@@ -427,7 +436,7 @@ def render_index_pages(
     ask_html = env.get_template("ask.html").render(
         lang="zh-CN",
         hot_question_keys=ASK_HOT_QUESTION_KEYS,
-        page_url="/ask/",
+        page_url=f"{config.KB_BASE_PATH}/ask/",
     )
     _write_atomic(output_dir / "ask" / "index.html", ask_html)
 
@@ -456,20 +465,20 @@ def render_sitemap(articles: list[ArticleRecord], output_dir: Path) -> None:
     NEVER from datetime.now(). Re-running on unchanged DB produces a
     byte-identical sitemap.xml regardless of wall clock.
 
-    - Index URLs (`/`, `/articles/`, `/ask/`): use max(article.update_time[:10])
-    - Article URLs: use article.update_time[:10] if non-empty, else _LASTMOD_FALLBACK
-    - Empty article list (test-only edge case): use _LASTMOD_FALLBACK everywhere
+    260514-d3p: URLs are prefixed with config.KB_BASE_PATH so the sitemap
+    matches the actual deployed path. Empty base_path = root deploy.
     """
+    base = config.KB_BASE_PATH
     index_lastmod = _compute_index_lastmod(articles)
     urls: list[tuple[str, str]] = [
-        ("/", index_lastmod),
-        ("/articles/", index_lastmod),
-        ("/ask/", index_lastmod),
+        (f"{base}/", index_lastmod),
+        (f"{base}/articles/", index_lastmod),
+        (f"{base}/ask/", index_lastmod),
     ]
     for rec in articles:
         url_hash = resolve_url_hash(rec)
         lastmod = (rec.update_time or "")[:10] or _LASTMOD_FALLBACK
-        urls.append((f"/articles/{url_hash}.html", lastmod))
+        urls.append((f"{base}/articles/{url_hash}.html", lastmod))
 
     # kb-2: extend sitemap with topic + entity pages discovered on disk.
     # Scanning the rendered output dir keeps sitemap in lockstep with what
@@ -480,7 +489,7 @@ def render_sitemap(articles: list[ArticleRecord], output_dir: Path) -> None:
         if not sub_dir.exists():
             continue
         for html_path in sorted(sub_dir.glob("*.html")):
-            urls.append((f"/{sub}/{html_path.name}", index_lastmod))
+            urls.append((f"{base}/{sub}/{html_path.name}", index_lastmod))
 
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -496,8 +505,13 @@ def render_sitemap(articles: list[ArticleRecord], output_dir: Path) -> None:
 
 
 def render_robots(output_dir: Path) -> None:
-    """EXPORT-06: robots.txt allow all + sitemap reference."""
-    content = "User-agent: *\nAllow: /\n\nSitemap: /sitemap.xml\n"
+    """EXPORT-06: robots.txt allow all + sitemap reference.
+
+    260514-d3p: sitemap reference uses config.KB_BASE_PATH so subdirectory
+    deploys (e.g. /kb/) get the right URL.
+    """
+    sitemap_url = f"{config.KB_BASE_PATH}/sitemap.xml"
+    content = f"User-agent: *\nAllow: /\n\nSitemap: {sitemap_url}\n"
     _write_atomic(output_dir / "robots.txt", content)
 
 
@@ -548,30 +562,30 @@ def _discover_qualifying_entities(
     Each dict: {name, slug, article_count, lang_zh, lang_en, lang_unknown}.
     Sorted by name ASC for idempotency (EXPORT-01).
 
-    Single SQL aggregation — no Python-side bucketing. Joins extracted_entities
-    against both source tables (articles for source='wechat', rss_articles for
-    source='rss') to derive per-language counts. Articles with NULL lang count
-    as 'unknown'.
+    Schema reality (Hermes prod 2026-05-14): `extracted_entities` is KOL-only
+    (no `source` column, `entity_name` column not `name`).
+    `rss_extracted_entities` does not exist. RSS articles have no entity
+    extraction in v1.0 — the per-language count is therefore derived solely
+    from `articles.lang`. Articles with NULL lang count as 'unknown'.
     """
     sql = """
         SELECT
-          e.name,
-          COUNT(DISTINCT e.article_id || '-' || e.source) AS total_count,
-          SUM(CASE WHEN COALESCE(a.lang, r.lang) = 'zh-CN' THEN 1 ELSE 0 END) AS lang_zh,
-          SUM(CASE WHEN COALESCE(a.lang, r.lang) = 'en'    THEN 1 ELSE 0 END) AS lang_en,
-          SUM(CASE WHEN COALESCE(a.lang, r.lang) NOT IN ('zh-CN','en')
-                       OR COALESCE(a.lang, r.lang) IS NULL THEN 1 ELSE 0 END) AS lang_unknown
+          e.entity_name,
+          COUNT(DISTINCT e.article_id) AS total_count,
+          SUM(CASE WHEN a.lang = 'zh-CN' THEN 1 ELSE 0 END) AS lang_zh,
+          SUM(CASE WHEN a.lang = 'en'    THEN 1 ELSE 0 END) AS lang_en,
+          SUM(CASE WHEN a.lang NOT IN ('zh-CN','en') OR a.lang IS NULL
+                   THEN 1 ELSE 0 END) AS lang_unknown
         FROM extracted_entities e
-        LEFT JOIN articles      a ON e.source = 'wechat' AND a.id = e.article_id
-        LEFT JOIN rss_articles  r ON e.source = 'rss'    AND r.id = e.article_id
-        GROUP BY e.name
+        JOIN articles a ON a.id = e.article_id
+        GROUP BY e.entity_name
         HAVING total_count >= ?
-        ORDER BY e.name ASC
+        ORDER BY e.entity_name ASC
     """
     return [
         {
-            "name": row["name"],
-            "slug": slugify_entity_name(row["name"]),
+            "name": row["entity_name"],
+            "slug": slugify_entity_name(row["entity_name"]),
             "article_count": row["total_count"],
             "lang_zh": row["lang_zh"] or 0,
             "lang_en": row["lang_en"] or 0,
@@ -612,7 +626,7 @@ def _render_topic_pages(
             "localized_desc": i18n_t(f"topic.{slug}.desc", lang),
         }
         prepared = [_record_to_card_dict(rec) for rec in articles]
-        page_url = f"/topics/{slug}.html"
+        page_url = f"{config.KB_BASE_PATH}/topics/{slug}.html"
         html = tpl.render(
             lang=lang,
             topic=topic_ctx,
@@ -647,7 +661,7 @@ def _render_entity_pages(
             ent["name"], min_freq=KB_ENTITY_MIN_FREQ, conn=conn
         )
         prepared = [_record_to_card_dict(rec) for rec in articles]
-        page_url = f"/entities/{ent['slug']}.html"
+        page_url = f"{config.KB_BASE_PATH}/entities/{ent['slug']}.html"
         html = tpl.render(
             lang=lang,
             entity=ent,
@@ -657,6 +671,66 @@ def _render_entity_pages(
         _write_atomic(entities_dir / f"{ent['slug']}.html", html)
         count += 1
     return count
+
+
+def _render_topics_index_page(
+    env: Environment,
+    output_dir: Path,
+    conn: sqlite3.Connection,
+    lang: str = "zh-CN",
+) -> None:
+    """260514-d3p: render kb/output/topics/index.html — 5-card directory listing.
+
+    Reuses the same .article-card / .article-list--topics patterns as the
+    homepage's "Browse by Topic" section. Topic count derived from
+    topic_articles_query (cohort-gated, depth_min=2). Sort: article_count DESC,
+    slug ASC for idempotent EXPORT-01.
+    """
+    topics_ctx: list[dict[str, Any]] = []
+    for raw_topic in KB2_TOPICS:
+        slug = TOPIC_SLUG_MAP[raw_topic]
+        topic_articles = topic_articles_query(raw_topic, depth_min=2, conn=conn)
+        topics_ctx.append({
+            "slug": slug,
+            "raw_topic": raw_topic,
+            "localized_name": i18n_t(f"topic.{slug}.name", lang),
+            "localized_desc": i18n_t(f"topic.{slug}.desc", lang),
+            "article_count": len(topic_articles),
+        })
+    topics_ctx.sort(key=lambda t: (-t["article_count"], t["slug"]))
+
+    page_url = f"{config.KB_BASE_PATH}/topics/"
+    html = env.get_template("topics_index.html").render(
+        lang=lang,
+        topics=topics_ctx,
+        page_url=page_url,
+    )
+    _write_atomic(output_dir / "topics" / "index.html", html)
+
+
+def _render_entities_index_page(
+    env: Environment,
+    output_dir: Path,
+    qualifying: list[dict[str, Any]],
+    lang: str = "zh-CN",
+) -> None:
+    """260514-d3p: render kb/output/entities/index.html — chip-cloud directory listing.
+
+    Reuses the .entity-cloud / .chip--entity-cloud patterns from the homepage's
+    "Featured Entities" section. Sort: article_count DESC, name ASC for
+    idempotent EXPORT-01.
+    """
+    sorted_entities = sorted(
+        qualifying,
+        key=lambda e: (-e["article_count"], e["name"]),
+    )
+    page_url = f"{config.KB_BASE_PATH}/entities/"
+    html = env.get_template("entities_index.html").render(
+        lang=lang,
+        entities=sorted_entities,
+        page_url=page_url,
+    )
+    _write_atomic(output_dir / "entities" / "index.html", html)
 
 
 def _ensure_lang_column(db_path: Path) -> None:
@@ -789,6 +863,12 @@ def main(argv: list[str] | None = None) -> int:
             env, output_dir, conn, qualifying_entities, lang="zh-CN"
         )
         print(f"[kb-2] entity pages rendered: {entity_count}")
+
+        # 260514-d3p: directory-listing index pages so /topics/ and /entities/
+        # don't 404 on Aliyun (Caddy try_files would otherwise serve SPA shell).
+        print("[260514-d3p] Rendering topics + entities index pages...")
+        _render_topics_index_page(env, output_dir, conn, lang="zh-CN")
+        _render_entities_index_page(env, output_dir, qualifying_entities, lang="zh-CN")
 
     print("Rendering sitemap.xml + robots.txt...")
     render_sitemap(articles, output_dir)

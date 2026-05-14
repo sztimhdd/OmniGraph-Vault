@@ -140,12 +140,21 @@ def test_dataclass_shapes_importable():
 
 
 def test_entity_articles_above_threshold(fixture_db):
-    """Test 12: OpenAI freq=5 returns 5 articles (3 KOL + 2 RSS)."""
+    """Test 12: OpenAI freq=5 returns 5 KOL articles.
+
+    Post-260514-d3p schema fix: extracted_entities is KOL-only per Hermes
+    prod schema (verified via SSH 2026-05-14). RSS articles have no entity
+    extraction in v1.0 (rss_extracted_entities table does not exist).
+    Pre-fix this asserted (10, 'rss') in ids — that was based on the
+    imagined `source` column the kb-2 fixture invented.
+    """
     with _conn(fixture_db) as c:
         results = entity_articles_query("OpenAI", min_freq=5, conn=c)
-    assert len(results) == 5  # OpenAI in 1, 3, 5 KOL + 10, 11 RSS
+    assert len(results) == 5  # OpenAI in 5 KOL articles per fixture
     ids = {(r.id, r.source) for r in results}
-    assert (1, "wechat") in ids and (10, "rss") in ids
+    assert (1, "wechat") in ids
+    # All results KOL-only — no RSS leak
+    assert all(r.source == "wechat" for r in results)
 
 
 def test_entity_articles_below_threshold_empty(fixture_db):

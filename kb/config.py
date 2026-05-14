@@ -40,3 +40,12 @@ KB_OUTPUT_DIR: Path = _env_path("KB_OUTPUT_DIR", Path("kb/output"))
 KB_PORT: int = _env_int("KB_PORT", 8766)
 KB_DEFAULT_LANG: str = os.environ.get("KB_DEFAULT_LANG") or "zh-CN"
 KB_SYNTHESIZE_TIMEOUT: int = _env_int("KB_SYNTHESIZE_TIMEOUT", 60)
+
+
+# Subdirectory deploy prefix — empty = served at site root (default).
+# Aliyun ECS deploys under `/kb/` (Caddy reverse-proxy), so set
+# KB_BASE_PATH=/kb at export time + template paths emit `/kb/static/...`,
+# `/kb/articles/...` etc. Trailing slashes stripped for clean
+# `{{ base_path }}/static/...` concatenation in templates.
+_kb_base_raw: str = os.environ.get("KB_BASE_PATH", "")
+KB_BASE_PATH: str = _kb_base_raw.rstrip("/") if _kb_base_raw else ""
