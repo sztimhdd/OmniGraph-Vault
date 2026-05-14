@@ -28,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from kb import config
 from kb.api_routers.articles import router as articles_router
 from kb.api_routers.search import router as search_router
+from kb.api_routers.synthesize import router as synthesize_router
 
 # Application version surfaced via /health and FastAPI metadata.
 # Kept in lock-step with kb-3 milestone v2.0 (PROJECT-KB-v2.md).
@@ -58,6 +59,12 @@ app.include_router(articles_router)
 # BackgroundTasks) + /api/search/{job_id} polling. Router is THIN — FTS5
 # helpers live in kb.services.search_index; async-job state in kb.services.job_store.
 app.include_router(search_router)
+
+# API-06 + API-07 (kb-3-08): POST /api/synthesize (202 + job_id) + GET
+# /api/synthesize/{job_id} polling. Wrapper around C1 (kg_synthesize.synthesize_response)
+# with I18N-07 language directive injection. Reuses kb.services.job_store from kb-3-06.
+# Failure path is BASIC ('failed' status); kb-3-09 will replace with FTS5 fallback per QA-05.
+app.include_router(synthesize_router)
 
 
 @app.get("/health")

@@ -64,3 +64,15 @@ fixture only reloads `kb.config`, `kb.services.search_index`,
 
 **No additional fix needed for kb-3-06.** Same scope/timing as the kb-3-05
 entry above.
+# Deferred items — kb-3 phase
+
+## 2026-05-14 (kb-3-08 executor)
+
+**Pre-existing test-isolation bug** (NOT caused by kb-3-08):
+- `tests/unit/kb/test_kb2_queries.py::test_related_entities_for_article` FAILS in batch with the full kb test suite
+- `tests/unit/kb/test_kb2_queries.py::test_cooccurring_entities_in_topic` FAILS in batch with the full kb test suite
+- Both tests PASS in isolation (`pytest tests/unit/kb/test_kb2_queries.py`)
+- Both tests PASS when run alongside ONLY the kb-3 baseline (no failure when restricted to test_api_*.py + test_synthesize_wrapper.py + test_search_index.py + test_job_store.py + test_rebuild_fts.py)
+- Failure mode: `assert all(isinstance(r, EntityCount) for r in results)` returns False — looks like module-state leak (perhaps EntityCount class identity differs across test files due to importlib.reload)
+- Pre-existing as of kb-3-08 start: confirmed via `git stash` reproduction — same 2 failures with my changes reverted
+- Out of scope for kb-3-08 (the plan only ships /api/synthesize); should be diagnosed by a dedicated kb-2 quick if it blocks downstream work
