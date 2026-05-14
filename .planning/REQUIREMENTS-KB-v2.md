@@ -93,7 +93,7 @@ Lighthouse LCP < 2.5s on article detail page.
 ### SEARCH — FTS5 (3)
 
 - [ ] **SEARCH-01**: SQLite FTS5 virtual table `articles_fts` is created with `tokenize='trigram'` (built-in SQLite ≥ 3.34, no jieba dep). Covers `articles.title + articles.body` AND `rss_articles.title + rss_articles.body` via UNION-fed view.
-- [ ] **SEARCH-02**: `kb/scripts/rebuild_fts.py` performs full FTS5 index rebuild. Invoked by daily cron after each export run. ~2300 rows, completes in < 5 seconds.
+- [x] **SEARCH-02**: `kb/scripts/rebuild_fts.py` performs full FTS5 index rebuild. Invoked by daily cron after each export run. ~2300 rows, completes in < 5 seconds. *(kb-3-07, 2026-05-14)*
 - [ ] **SEARCH-03**: FTS5 search results respect `lang` filter — `?lang=en` excludes rows where `articles.lang != 'en'`. Searches honor matched-snippet highlighting (max 200 chars per row).
 
 ### QA — Q&A Wrapping (5)
@@ -220,7 +220,7 @@ Lighthouse LCP < 2.5s on article detail page.
 | API-07 | kb-3 | Not started |
 | API-08 | kb-3 | Complete |
 | SEARCH-01 | kb-3 | Not started |
-| SEARCH-02 | kb-3 | Not started |
+| SEARCH-02 | kb-3 | Complete (kb-3-07) |
 | SEARCH-03 | kb-3 | Not started |
 | QA-01 | kb-3 | Not started |
 | QA-02 | kb-3 | Not started |
