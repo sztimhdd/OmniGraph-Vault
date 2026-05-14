@@ -256,7 +256,19 @@ CONFIG-02 (19 REQs — DATA-07 added 2026-05-13: content-quality filter, see
      automatically on next SSG re-render (no template changes needed).
      See `.planning/phases/kb-3-fastapi-bilingual-api/kb-3-CONTENT-QUALITY-DECISIONS.md`
      for SQL clauses, fixture coordination, and rollout plan.
-**Plans:** TBD
+**Plans:** 12 plans across 5 waves (planned 2026-05-13 by gsd-planner)
+- [ ] kb-3-01-api-contract-PLAN.md — REST API contract lock (api-design Skill); kb-3-API-CONTRACT.md
+- [ ] kb-3-02-data07-filter-PLAN.md — DATA-07 content-quality filter on 6 list-style query functions; carve-out for get_article_by_hash
+- [ ] kb-3-03-locale-icons-PLAN.md — 20 new locale keys + chat-bubble-question + lightning-bolt icons (foundation for kb-3-10/11)
+- [ ] kb-3-04-fastapi-skeleton-PLAN.md — kb/api.py FastAPI app + /health + /static/img mount (D-15)
+- [ ] kb-3-05-articles-endpoints-PLAN.md — GET /api/articles + GET /api/article/{hash} (DATA-07 + carve-out)
+- [ ] kb-3-06-search-endpoint-PLAN.md — GET /api/search (FTS5 sync + KG async via job_store)
+- [ ] kb-3-07-rebuild-fts-script-PLAN.md — kb/scripts/rebuild_fts.py CLI (cron-invoked daily)
+- [ ] kb-3-08-synthesize-wrapper-PLAN.md — kb/services/synthesize.py + POST /api/synthesize + GET /api/synthesize/{job_id} (C1 unchanged)
+- [ ] kb-3-09-fts5-fallback-PLAN.md — kb_synthesize timeout + exception → FTS5 top-3 fallback (NEVER 500)
+- [ ] kb-3-10-qa-state-matrix-ui-PLAN.md — _qa_result.html partial + qa.js state machine (8 states; ui-ux-pro-max + frontend-design Skills)
+- [ ] kb-3-11-search-inline-reveal-PLAN.md — additive search.js on homepage + list page (no /search page; ui-ux-pro-max + frontend-design Skills)
+- [ ] kb-3-12-full-integration-test-PLAN.md — end-to-end + UI-SPEC §8 + DATA-07 acceptance + Skill discipline + REQ coverage regression
 **UI hint:** **yes** (revised 2026-05-13 per kb-1-DESIGN-AUDIT.md — ask.html result region is a non-trivial UI surface, even though most of kb-3 is backend)
 **Required Skills (HARD — see kb/docs/10-DESIGN-DISCIPLINE.md):**
 - `Skill(skill="ui-ux-pro-max", ...)` — at plan time, design Q&A result component (markdown render container + source-article chip row + entity chip row + feedback +/- buttons + state matrix: loading/streaming/done/error/timeout/fallback). Output → `kb-3-UI-SPEC.md`.
