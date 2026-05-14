@@ -142,7 +142,9 @@ def fixture_conn() -> sqlite3.Connection:
             body TEXT,
             content_hash TEXT,
             lang TEXT,
-            update_time TEXT
+            update_time TEXT,
+            layer1_verdict TEXT,
+            layer2_verdict TEXT
         );
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY,
@@ -152,36 +154,49 @@ def fixture_conn() -> sqlite3.Connection:
             content_hash TEXT,
             lang TEXT,
             published_at TEXT,
-            fetched_at TEXT
+            fetched_at TEXT,
+            layer1_verdict TEXT,
+            layer2_verdict TEXT
         );
         """
     )
-    # Seed KOL articles — varied lang + update_time
+    # Seed KOL articles — varied lang + update_time. All rows tagged
+    # layer1='candidate' so they pass DATA-07 (kb-1 baseline tests
+    # exercise list/hash logic, not the quality filter).
     kol_rows = [
-        # (id, title, url, body, content_hash, lang, update_time)
-        (1, "K_zh_recent", "u/1", "中文 body content one", "abcd012345", "zh-CN", "2026-05-10"),
-        (2, "K_en_mid", "u/2", "english body content two", "kkkk111111", "en", "2026-05-05"),
-        (3, "K_zh_old", "u/3", "中文 body content three", "kkkk222222", "zh-CN", "2026-04-01"),
-        (4, "K_null_hash", "u/4", "kol body for null-hash row", None, "en", "2026-05-08"),
+        # (id, title, url, body, content_hash, lang, update_time, l1, l2)
+        (1, "K_zh_recent", "u/1", "中文 body content one", "abcd012345", "zh-CN",
+         "2026-05-10", "candidate", "ok"),
+        (2, "K_en_mid", "u/2", "english body content two", "kkkk111111", "en",
+         "2026-05-05", "candidate", "ok"),
+        (3, "K_zh_old", "u/3", "中文 body content three", "kkkk222222", "zh-CN",
+         "2026-04-01", "candidate", "ok"),
+        (4, "K_null_hash", "u/4", "kol body for null-hash row", None, "en",
+         "2026-05-08", "candidate", "ok"),
     ]
     conn.executemany(
-        "INSERT INTO articles (id, title, url, body, content_hash, lang, update_time) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO articles (id, title, url, body, content_hash, lang, update_time, "
+        "layer1_verdict, layer2_verdict) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         kol_rows,
     )
     # Seed RSS articles — full md5 (32 chars) — published_at preferred over fetched_at
     rss_rows = [
-        # (id, title, url, body, content_hash[32], lang, published_at, fetched_at)
+        # (id, title, url, body, content_hash[32], lang, published_at, fetched_at, l1, l2)
         (10, "R_en_recent", "r/10", "english rss body ten",
-         "e2a95c834a47f0f64c8e5826b5c3b9ab", "en", "2026-05-12", "2026-05-12"),
+         "e2a95c834a47f0f64c8e5826b5c3b9ab", "en", "2026-05-12", "2026-05-12",
+         "candidate", "ok"),
         (11, "R_zh_mid", "r/11", "中文 rss body eleven",
-         "11111111112222222222333333333344", "zh-CN", "2026-05-07", "2026-05-07"),
+         "11111111112222222222333333333344", "zh-CN", "2026-05-07", "2026-05-07",
+         "candidate", "ok"),
         (12, "R_en_no_pub", "r/12", "english rss body twelve",
-         "abcdef0000111122223333444455556666"[:32], "en", None, "2026-05-09"),
+         "abcdef0000111122223333444455556666"[:32], "en", None, "2026-05-09",
+         "candidate", "ok"),
     ]
     conn.executemany(
         "INSERT INTO rss_articles (id, title, url, body, content_hash, lang, "
-        "published_at, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "published_at, fetched_at, layer1_verdict, layer2_verdict) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         rss_rows,
     )
     conn.commit()
@@ -299,7 +314,11 @@ def test_queries_are_read_only_no_mutation_sql(fixture_conn):
     assert spy.statements, "no SQL captured (test broken)"
     for stmt in spy.statements:
         first_word = stmt.strip().split()[0].upper()
-        assert first_word == "SELECT", f"non-SELECT SQL leaked: {stmt!r}"
+        # DATA-07 schema guard issues PRAGMA table_info — read-only metadata,
+        # not a mutation. Allow alongside SELECT.
+        assert first_word in ("SELECT", "PRAGMA"), (
+            f"non-read SQL leaked: {stmt!r}"
+        )
 
 
 # ---------- Task 3: get_article_body D-14 fallback + EXPORT-05 image rewrite ----------
@@ -445,7 +464,9 @@ def fixture_conn_prod_shape() -> sqlite3.Connection:
             body TEXT,
             content_hash TEXT,
             lang TEXT,
-            update_time INTEGER
+            update_time INTEGER,
+            layer1_verdict TEXT,
+            layer2_verdict TEXT
         );
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY,
@@ -455,20 +476,25 @@ def fixture_conn_prod_shape() -> sqlite3.Connection:
             content_hash TEXT,
             lang TEXT,
             published_at TEXT,
-            fetched_at TEXT
+            fetched_at TEXT,
+            layer1_verdict TEXT,
+            layer2_verdict TEXT
         );
         """
     )
     # 1 KOL row with INTEGER Unix epoch (real prod sample value)
     conn.execute(
-        "INSERT INTO articles (id, title, url, body, content_hash, lang, update_time) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (1, "K_prod", "u/1", "kol body", "abcd012345", "zh-CN", 1777249680),
+        "INSERT INTO articles (id, title, url, body, content_hash, lang, update_time, "
+        "layer1_verdict, layer2_verdict) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (1, "K_prod", "u/1", "kol body", "abcd012345", "zh-CN", 1777249680,
+         "candidate", "ok"),
     )
     # 1 RSS row with TEXT ISO-8601 (real prod sample value)
     conn.execute(
         "INSERT INTO rss_articles (id, title, url, body, content_hash, lang, "
-        "published_at, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "published_at, fetched_at, layer1_verdict, layer2_verdict) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             10,
             "R_prod",
@@ -478,6 +504,8 @@ def fixture_conn_prod_shape() -> sqlite3.Connection:
             "en",
             "2026-05-02T17:26:40+00:00",
             "2026-05-02T17:26:40+00:00",
+            "candidate",
+            "ok",
         ),
     )
     conn.commit()

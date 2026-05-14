@@ -262,6 +262,11 @@ def list_articles(
         conn = _connect()
     conn.row_factory = sqlite3.Row
     try:
+        # DATA-07 schema guard runs lazily on first list-query call per conn.
+        # Skipped when filter disabled — operators can use env override on
+        # pre-DATA-07 schemas without first migrating columns.
+        if QUALITY_FILTER_ENABLED:
+            _verify_quality_columns(conn)
         results: list[ArticleRecord] = []
         if source != "rss":
             sql = "SELECT id, title, url, body, content_hash, lang, update_time FROM articles"
@@ -269,6 +274,9 @@ def list_articles(
             if lang is not None:
                 sql += " WHERE lang = ?"
                 params.append(lang)
+            if QUALITY_FILTER_ENABLED:
+                sql += " AND " if " WHERE " in sql else " WHERE "
+                sql += _DATA07_BARE
             sql += " ORDER BY update_time DESC, id DESC"
             results.extend(_row_to_record_kol(r) for r in conn.execute(sql, params))
         if source != "wechat":
@@ -280,6 +288,9 @@ def list_articles(
             if lang is not None:
                 sql += " WHERE lang = ?"
                 params.append(lang)
+            if QUALITY_FILTER_ENABLED:
+                sql += " AND " if " WHERE " in sql else " WHERE "
+                sql += _DATA07_BARE
             sql += " ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC"
             results.extend(_row_to_record_rss(r) for r in conn.execute(sql, params))
         # Merge sort across both tables.
@@ -303,6 +314,12 @@ def get_article_by_hash(
            md5(body)[:10] and compare. (Slow path — only when 1+2 miss.)
 
     Returns ArticleRecord or None.
+
+    DATA-07 carve-out: this function is INTENTIONALLY UNFILTERED.
+    Direct hash access (search hits, KG sources, bookmarks) must resolve
+    regardless of quality verdicts. See
+    .planning/phases/kb-3-fastapi-bilingual-api/kb-3-CONTENT-QUALITY-DECISIONS.md
+    "NOT affected (carve-out)".
     """
     own_conn = conn is None
     if own_conn:
@@ -439,6 +456,8 @@ def topic_articles_query(
         conn = _connect()
     conn.row_factory = sqlite3.Row
     try:
+        if QUALITY_FILTER_ENABLED:
+            _verify_quality_columns(conn)
         results: list[ArticleRecord] = []
         # KOL articles
         sql_kol = (
@@ -448,6 +467,8 @@ def topic_articles_query(
             "WHERE c.topic = ? AND c.depth_score >= ? "
             "AND (a.layer1_verdict = 'candidate' OR a.layer2_verdict = 'ok')"
         )
+        if QUALITY_FILTER_ENABLED:
+            sql_kol += " AND " + _DATA07_KOL_FRAGMENT
         for row in conn.execute(sql_kol, (topic, depth_min)):
             results.append(_row_to_record_kol(row))
         # RSS articles
@@ -459,6 +480,8 @@ def topic_articles_query(
             "WHERE c.topic = ? AND c.depth_score >= ? "
             "AND (r.layer1_verdict = 'candidate' OR r.layer2_verdict = 'ok')"
         )
+        if QUALITY_FILTER_ENABLED:
+            sql_rss += " AND " + _DATA07_RSS_FRAGMENT
         for row in conn.execute(sql_rss, (topic, depth_min)):
             results.append(_row_to_record_rss(row))
         # Merge sort by update_time DESC (lexicographic — kb-1-10 normalizes
@@ -488,6 +511,8 @@ def entity_articles_query(
         conn = _connect()
     conn.row_factory = sqlite3.Row
     try:
+        if QUALITY_FILTER_ENABLED:
+            _verify_quality_columns(conn)
         (freq,) = conn.execute(
             "SELECT COUNT(DISTINCT article_id || '-' || source) "
             "FROM extracted_entities WHERE name = ?",
@@ -496,22 +521,26 @@ def entity_articles_query(
         if freq < min_freq:
             return []
         results: list[ArticleRecord] = []
-        for row in conn.execute(
+        sql_kol = (
             "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time "
             "FROM articles a JOIN extracted_entities e "
             "ON e.article_id = a.id AND e.source = 'wechat' "
-            "WHERE e.name = ?",
-            (entity_name,),
-        ):
+            "WHERE e.name = ?"
+        )
+        if QUALITY_FILTER_ENABLED:
+            sql_kol += " AND " + _DATA07_KOL_FRAGMENT
+        for row in conn.execute(sql_kol, (entity_name,)):
             results.append(_row_to_record_kol(row))
-        for row in conn.execute(
+        sql_rss = (
             "SELECT r.id, r.title, r.url, r.body, r.content_hash, r.lang, "
             "r.published_at, r.fetched_at "
             "FROM rss_articles r JOIN extracted_entities e "
             "ON e.article_id = r.id AND e.source = 'rss' "
-            "WHERE e.name = ?",
-            (entity_name,),
-        ):
+            "WHERE e.name = ?"
+        )
+        if QUALITY_FILTER_ENABLED:
+            sql_rss += " AND " + _DATA07_RSS_FRAGMENT
+        for row in conn.execute(sql_rss, (entity_name,)):
             results.append(_row_to_record_rss(row))
         results.sort(key=lambda r: r.update_time, reverse=True)
         return results
@@ -537,6 +566,18 @@ def related_entities_for_article(
         conn = _connect()
     conn.row_factory = sqlite3.Row
     try:
+        if QUALITY_FILTER_ENABLED:
+            _verify_quality_columns(conn)
+            # DATA-07: source article must itself satisfy the filter; if it
+            # doesn't, the article wouldn't appear on a list page anyway —
+            # related-link rows on its detail page should be empty.
+            table = "articles" if source == "wechat" else "rss_articles"
+            row = conn.execute(
+                f"SELECT 1 FROM {table} WHERE id = ? AND {_DATA07_BARE} LIMIT 1",
+                (article_id,),
+            ).fetchone()
+            if row is None:
+                return []
         sql = (
             "SELECT e.name, "
             "(SELECT COUNT(DISTINCT article_id || '-' || source) "
@@ -578,6 +619,17 @@ def related_topics_for_article(
         conn = _connect()
     conn.row_factory = sqlite3.Row
     try:
+        if QUALITY_FILTER_ENABLED:
+            _verify_quality_columns(conn)
+            # DATA-07: source article must itself satisfy the filter or we
+            # return [] — same rationale as related_entities_for_article.
+            table = "articles" if source == "wechat" else "rss_articles"
+            row = conn.execute(
+                f"SELECT 1 FROM {table} WHERE id = ? AND {_DATA07_BARE} LIMIT 1",
+                (article_id,),
+            ).fetchone()
+            if row is None:
+                return []
         return [
             TopicSummary(
                 slug=_SLUG_TOPIC_MAP.get(row["topic"], row["topic"].lower()),
@@ -613,19 +665,28 @@ def cooccurring_entities_in_topic(
         conn = _connect()
     conn.row_factory = sqlite3.Row
     try:
-        sql = """
+        if QUALITY_FILTER_ENABLED:
+            _verify_quality_columns(conn)
+        # DATA-07 cohort gate: append _DATA07_KOL_FRAGMENT to KOL leg of CTE
+        # and _DATA07_RSS_FRAGMENT to RSS leg. Built inline as f-string interp
+        # of constants (no user input — safe).
+        kol_data07 = (" AND " + _DATA07_KOL_FRAGMENT) if QUALITY_FILTER_ENABLED else ""
+        rss_data07 = (" AND " + _DATA07_RSS_FRAGMENT) if QUALITY_FILTER_ENABLED else ""
+        sql = f"""
             WITH topic_articles AS (
                 SELECT a.id AS article_id, 'wechat' AS source
                 FROM articles a
                 JOIN classifications c ON c.article_id = a.id AND c.source = 'wechat'
                 WHERE c.topic = ? AND c.depth_score >= ?
                   AND (a.layer1_verdict = 'candidate' OR a.layer2_verdict = 'ok')
+                  {kol_data07}
                 UNION ALL
                 SELECT r.id AS article_id, 'rss' AS source
                 FROM rss_articles r
                 JOIN classifications c ON c.article_id = r.id AND c.source = 'rss'
                 WHERE c.topic = ? AND c.depth_score >= ?
                   AND (r.layer1_verdict = 'candidate' OR r.layer2_verdict = 'ok')
+                  {rss_data07}
             )
             SELECT e.name,
                    COUNT(DISTINCT e.article_id || '-' || e.source) AS topic_freq,

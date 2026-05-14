@@ -114,13 +114,18 @@ class _SpyConn:
 
 
 def test_topic_articles_read_only(fixture_db):
-    """Test 10: every SQL emitted by topic_articles_query starts with SELECT."""
+    """Test 10: every SQL emitted by topic_articles_query is read-only (SELECT or PRAGMA)."""
     with _conn(fixture_db) as c:
         c.row_factory = sqlite3.Row
         spy = _SpyConn(c)
         topic_articles_query("Agent", conn=spy)
     assert spy.statements, "no SQL captured"
-    assert all(s.lstrip().upper().startswith("SELECT") for s in spy.statements)
+    # DATA-07 schema guard adds PRAGMA table_info — read-only metadata.
+    for s in spy.statements:
+        head = s.lstrip().upper()
+        assert head.startswith("SELECT") or head.startswith("PRAGMA"), (
+            f"non-read SQL leaked: {s[:80]!r}"
+        )
 
 
 def test_dataclass_shapes_importable():
@@ -224,7 +229,7 @@ def test_cooccurring_entities_in_topic(fixture_db):
 
 
 def test_kb2_queries_read_only(fixture_db):
-    """Test 20: every SQL emitted by the 4 new queries starts with SELECT or WITH (CTE)."""
+    """Test 20: every SQL emitted by the 4 new queries is read-only (SELECT/WITH/PRAGMA)."""
     with _conn(fixture_db) as c:
         c.row_factory = sqlite3.Row
         spy = _SpyConn(c)
@@ -235,6 +240,9 @@ def test_kb2_queries_read_only(fixture_db):
     assert spy.statements, "no SQL captured"
     for s in spy.statements:
         head = s.lstrip().upper()
-        assert head.startswith("SELECT") or head.startswith("WITH"), (
-            f"non-read SQL leaked: {s[:80]!r}"
-        )
+        # DATA-07 schema guard adds PRAGMA table_info — read-only metadata.
+        assert (
+            head.startswith("SELECT")
+            or head.startswith("WITH")
+            or head.startswith("PRAGMA")
+        ), f"non-read SQL leaked: {s[:80]!r}"
