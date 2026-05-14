@@ -553,6 +553,12 @@ If remote is ahead: push from remote, pull locally, and re-read any changed file
 
 2. **`ingestions.status='failed'` 不等于"该 article 永远失败",候选池查询要小心。** id=166 在被错标 `failed` 后,候选池查询 `article_id NOT IN (SELECT article_id FROM ingestions WHERE status='ok')` 会**重新筛入候选**,明天 cron 重跑浪费 vision $0.5 + 5 min(LightRAG ainsert idempotent 不污染图谱,只浪费成本)。修法是手动 `UPDATE ingestions SET status='ok' WHERE article_id=166`。教训:**ghost success class 不只是 reconcile 数据准确性问题,还会循环消耗 paid API budget**。reconcile 扩 scope 时建议 surface `ghost_success_count` 作为"明天 cron 会浪费几次重跑"的预警指标。
 
+### 2026-05-15 (v1.0 production day-2 — D2 wiring multi-site contract bug)
+
+1. **多 site 协议改动需要全 grep 审计,plan-checker 单 call-site must_haves 抓不到中间漏一处的 bug。** v1.0.z imc(commit `4f3a47b`)给 `_drain_layer2_queue` 引入 8-col contract(加 `image_count` 列)。Executor 改了 5 处中的 4 处:SELECT(line 1492+1513)、outer-loop unpack(line 1885)、drain row[7] 读(line 1826)、call site(line 1827 传 `image_count=image_count_d`)。**漏掉**:queue.append at line 2028 还在 push 7-col tuple(没加 image_count_row)。Plan-checker `--full` mode iter 2 PASS 没抓到,因为 must_haves 锚在 call site 行为(substring 断言 PASS,call site 单行保留)。结果:`row[7]` 在 drain 时 silent IndexError(被上层 exception handler 吞掉,article 标 failed)→ image-heavy fresh article 静默走 900s floor → outer timeout fire → ingest_article 取消但 LightRAG 后台跑完 → ghost success。2026-05-15 09:00 ADT cron 撞 2 个:id=214(41 imgs)和 id=217(36 imgs)。修复 commit `e0b44c6` 把 queue append 改 8-col + 加 image_count_row。**教训**:任何 schema/tuple shape 改动必须 grep 全 read-write 链(SELECT → unpack → push → pop → access → call),plan-checker must_haves 应该加"grep counts of contract-touching sites match expected"。memory: `feedback_contract_shape_change_full_audit.md`。
+
+2. **测试 fixture CREATE TABLE 没跟 migration 同步 = 屏蔽下游 bug。** `test_max_articles_hard_cap.py` 的 CREATE TABLE 早于 v1.0.z imc 写,没加 `image_count INTEGER DEFAULT 0`。imc shipped 后 SELECT(`SELECT ... COALESCE(r.image_count, 0)`)在测试 DB 上 raise `sqlite3.OperationalError: no such column: r.image_count`,**完全屏蔽了 queue-append bug 在 e2e 测试上的暴露**。如果 fixture 同步加列,这 4 个测试在 v1.0.z imc commit 前就该红,bug 无法 ship 到 prod。**教训**:每次 schema migration 加列,必须 `grep -rn "CREATE TABLE <name>" tests/` 找全 fixture,逐个加列同步。这是"contract change full audit"原则的子集 — fixture 也是 contract 的一部分。
+
 ## Vertex AI Migration Path
 
 ### Problem: Quota Coupling
