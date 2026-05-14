@@ -50,47 +50,7 @@
     </ul>
   </section>
 
-  <section id="ask-result" class="ask-result" aria-live="polite" hidden>
-    <div class="ask-result__section">
-      <h3 class="ask-result__heading">
-        {{ icon('sparkle', size=16) }}
-        <span data-lang="zh">{{ 'ask.result_answer_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_answer_title' | t('en') }}</span>
-      </h3>
-      <div id="ask-result-answer" class="ask-result__placeholder">
-        <span data-lang="zh">{{ 'ask.result_kb3_pending' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_kb3_pending' | t('en') }}</span>
-      </div>
-    </div>
-    <div class="ask-result__section">
-      <h3 class="ask-result__heading">
-        {{ icon('sources', size=16) }}
-        <span data-lang="zh">{{ 'ask.result_sources_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_sources_title' | t('en') }}</span>
-      </h3>
-      <div class="ask-result__placeholder">
-        <span data-lang="zh">{{ 'ask.result_sources_placeholder' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_sources_placeholder' | t('en') }}</span>
-      </div>
-    </div>
-    <div class="ask-result__section">
-      <h3 class="ask-result__heading">
-        {{ icon('tag', size=16) }}
-        <span data-lang="zh">{{ 'ask.result_entities_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_entities_title' | t('en') }}</span>
-      </h3>
-      <div class="ask-result__placeholder">
-        <span data-lang="zh">{{ 'ask.result_entities_placeholder' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.result_entities_placeholder' | t('en') }}</span>
-      </div>
-    </div>
-    <div class="ask-result__section">
-      <div class="ask-result__feedback">
-        <button type="button" aria-label="{{ 'ask.feedback_helpful' | t('zh-CN') }}">
-          {{ icon('thumb-up', size=14) }}
-          <span data-lang="zh">{{ 'ask.feedback_helpful' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.feedback_helpful' | t('en') }}</span>
-        </button>
-        <button type="button" aria-label="{{ 'ask.feedback_unhelpful' | t('zh-CN') }}">
-          {{ icon('thumb-down', size=14) }}
-          <span data-lang="zh">{{ 'ask.feedback_unhelpful' | t('zh-CN') }}</span><span data-lang="en">{{ 'ask.feedback_unhelpful' | t('en') }}</span>
-        </button>
-      </div>
-    </div>
-  </section>
+  {% include '_qa_result.html' %}
 
   <p class="disclaimer">
     {{ icon('warning', size=18) }}
@@ -133,17 +93,26 @@
     });
   })();
 
-  // Placeholder: real submission goes to /api/synthesize in kb-3.
-  // For SSG MVP show the result framework with a "kb-3 pending" notice
-  // so layout can be visually verified.
+  // kb-3-10: route submit to live /api/synthesize via window.KbQA.submit().
+  // The 8-state matrix on #qa-result is driven by kb/static/qa.js.
   function submitAsk(e) {
     e.preventDefault();
-    var result = document.getElementById('ask-result');
-    if (result) {
-      result.hidden = false;
-      result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var input = document.getElementById('ask-input');
+    var q = (input && input.value || '').trim();
+    if (!q) return false;
+    var lang = (document.documentElement.lang || 'zh-CN').indexOf('en') === 0 ? 'en' : 'zh';
+    if (window.KbQA && typeof window.KbQA.submit === 'function') {
+      window.KbQA.submit(q, lang);
+      var result = document.getElementById('qa-result');
+      if (result) result.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     return false;
   }
 </script>
+<script>
+  window.KB_QA_POLL_INTERVAL_MS = 1500;
+  window.KB_QA_POLL_TIMEOUT_MS = 60000;
+</script>
+<script src="/static/marked.min.js" defer></script>
+<script src="/static/qa.js" defer></script>
 {% endblock %}

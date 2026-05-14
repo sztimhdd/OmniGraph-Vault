@@ -1,0 +1,109 @@
+{# kb/templates/_qa_result.html — Q&A result component partial.
+
+   Implements the 8-state matrix locked by kb-3-UI-SPEC §3.1:
+     idle → submitting → polling → done | error | timeout → fts5_fallback
+
+   Driven by kb/static/qa.js — JS toggles `data-qa-state` on the section
+   and CSS data-attribute selectors (style.css §kb-3 Q&A) reveal the matching
+   sub-region. JS injects answer markdown, source chips, entity chips,
+   and wires localStorage feedback per UI-SPEC §3.5.
+
+   Skill invocations applied (per kb/docs/10-DESIGN-DISCIPLINE.md Rule 1):
+     Skill(skill="ui-ux-pro-max", args="Implement kb-3-UI-SPEC §3.1 Q&A
+       result component verbatim — zero new tokens, reuse kb-1+kb-2 chip/glow/
+       icon/state classes, 8-state matrix via data-attribute selectors.
+       Restraint: fts5_fallback hides entities (D-9) and feedback (D-10).
+       One signature moment: result-reveal animation on done.")
+     Skill(skill="frontend-design", args="Wire into Jinja2 partial that
+       expects `lang` in scope (provided by ask.html → base.html).
+       Import icon macro at top. Bilingual span pairs use kb-1 .lang-zh /
+       .lang-en pattern, hidden by lang.js based on <html lang>.")
+
+   Expects in scope:
+     - lang  (string — set by ask.html)
+     - icon() macro is imported below.
+#}
+{% from "_icons.html" import icon %}
+
+<section id="qa-result"
+         data-qa-state="idle"
+         class="qa-result"
+         aria-live="polite"
+         aria-atomic="false"
+         hidden>
+
+  {# Question echo — populated by JS on submit, visible after submit. #}
+  <div class="qa-question" data-qa-state-only="submitting polling streaming done error timeout fts5_fallback">
+    <span class="qa-question-icon" aria-hidden="true">{{ icon('chat-bubble-question', size=18) }}</span>
+    <p class="qa-question-text"></p>
+  </div>
+
+  {# State indicator — visible during submitting / polling / streaming. #}
+  <div class="qa-state-indicator" data-qa-state-only="submitting polling streaming">
+    <div class="qa-spinner" aria-hidden="true"></div>
+    <p class="qa-state-text"
+       data-state-text-submitting="{{ 'qa.state.submitting' | t(lang) }}"
+       data-state-text-polling="{{ 'qa.state.polling' | t(lang) }}"
+       data-state-text-streaming="{{ 'qa.state.streaming' | t(lang) }}">{{ 'qa.state.submitting' | t(lang) }}</p>
+  </div>
+
+  {# fts5_fallback banner — visible only in fallback state.
+     Restraint principle (D-9 / D-10): surfaces yellow chip + explainer
+     honestly; sources still render below, but entities + feedback hidden. #}
+  <div class="qa-fallback-banner" data-qa-state-only="fts5_fallback">
+    <span class="qa-confidence-chip qa-confidence-chip--fallback">
+      {{ icon('lightning-bolt', size=14) }}
+      <span class="lang-zh">{{ 'qa.fallback.label' | t('zh-CN') }}</span><span class="lang-en">{{ 'qa.fallback.label' | t('en') }}</span>
+    </span>
+    <p class="qa-fallback-explainer">
+      <span class="lang-zh">{{ 'qa.fallback.explainer' | t('zh-CN') }}</span><span class="lang-en">{{ 'qa.fallback.explainer' | t('en') }}</span>
+    </p>
+  </div>
+
+  {# Error banner — role="alert" interrupts AT, retry button reuses .glow. #}
+  <div class="qa-error-banner" data-qa-state-only="error" role="alert">
+    <span class="qa-error-icon" aria-hidden="true">{{ icon('warning', size=18) }}</span>
+    <p class="qa-error-text"></p>
+    <button type="button" class="qa-retry-btn btn glow">
+      {{ icon('arrow-right', size=14) }}
+      <span class="lang-zh">{{ 'qa.retry.button' | t('zh-CN') }}</span><span class="lang-en">{{ 'qa.retry.button' | t('en') }}</span>
+    </button>
+  </div>
+
+  {# Answer markdown — visible in streaming / done / fts5_fallback.
+     Populated by JS via marked.js. .prose class inherits kb-1 markdown styling. #}
+  <article class="qa-answer prose"
+           data-qa-state-only="streaming done fts5_fallback"></article>
+
+  {# Sources — visible in done / fts5_fallback (per UI-SPEC §3.3 / §3.4 + D-9). #}
+  <aside class="qa-sources" data-qa-state-only="done fts5_fallback">
+    <h4 class="qa-sources-title">
+      {{ icon('sources', size=14) }}
+      <span class="lang-zh">{{ 'qa.sources.title' | t('zh-CN') }}</span><span class="lang-en">{{ 'qa.sources.title' | t('en') }}</span>
+    </h4>
+    <ul class="qa-sources-list" role="list"></ul>
+  </aside>
+
+  {# Related entities — visible in done ONLY (NOT fts5_fallback per D-9). #}
+  <aside class="qa-entities" data-qa-state-only="done">
+    <h4 class="qa-entities-title">
+      {{ icon('tag', size=14) }}
+      <span class="lang-zh">{{ 'qa.entities.title' | t('zh-CN') }}</span><span class="lang-en">{{ 'qa.entities.title' | t('en') }}</span>
+    </h4>
+    <ul class="qa-entities-list chip-cloud" role="list"></ul>
+  </aside>
+
+  {# Feedback — visible in done ONLY (NOT fts5_fallback per D-10).
+     Persisted to localStorage as kb_qa_feedback_{job_id} by qa.js. #}
+  <div class="qa-feedback" data-qa-state-only="done">
+    <p class="qa-feedback-prompt">
+      <span class="lang-zh">{{ 'qa.feedback.prompt' | t('zh-CN') }}</span><span class="lang-en">{{ 'qa.feedback.prompt' | t('en') }}</span>
+    </p>
+    <button type="button" class="qa-feedback-btn qa-feedback-btn--up" aria-label="thumbs-up" aria-pressed="false">
+      {{ icon('thumb-up', size=14) }}
+    </button>
+    <button type="button" class="qa-feedback-btn qa-feedback-btn--down" aria-label="thumbs-down" aria-pressed="false">
+      {{ icon('thumb-down', size=14) }}
+    </button>
+  </div>
+</section>
