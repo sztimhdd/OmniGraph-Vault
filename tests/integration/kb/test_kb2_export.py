@@ -408,22 +408,22 @@ def test_all_five_topic_outputs_exist(kb2_export: tuple[Path, Path]) -> None:
 
 @pytest.mark.integration
 def test_style_css_under_loc_budget() -> None:
-    """UI-SPEC §8 #35: style.css LOC budget (kb-2 post-consolidation rebaseline).
+    """UI-SPEC §8 #35: style.css LOC budget (kb-3-rebased ceiling).
 
     Original UI-SPEC §8 #35 budget: ≤ 1937 LOC (kb-1 1737 + kb-2 budget +200).
     kb-2-08 SUMMARY pre-escalated a 42-LOC overrun (1979 actual) caused by
-    consolidating §3.2 + §3.3 + §3.4 CSS blocks into a single plan instead of
-    spreading them across kb-2-06/07/08. The kb-2-08 executor prompt mandated
-    "verbatim spec — do not trim", with explicit recommendation to amend
-    UI-SPEC §8 #35 to ≤ 2000.
+    consolidating §3.2 + §3.3 + §3.4 CSS blocks into a single plan, rebasing
+    the ceiling to ≤ 2000.
 
-    This test enforces the rebased budget (≤ 2000) so future drift is still
-    caught loudly. The 21-LOC headroom is for unforeseen post-consolidation
-    fixes; any genuine new feature CSS should re-escalate to a new budget.
+    kb-3-UI-SPEC §8 line 440 re-escalates the ceiling to ≤ 2100 to fund the
+    Q&A 8-state matrix component (kb-3-10) + search inline reveal (kb-3-11).
+    This test enforces the kb-3-rebased budget so future drift is still
+    caught loudly. Any genuine new feature CSS beyond kb-3 should re-escalate
+    to a new budget.
     """
     path = REPO_ROOT / "kb" / "static" / "style.css"
     loc = sum(1 for _ in path.read_text(encoding="utf-8").splitlines())
-    assert loc <= 2000, (
-        f"style.css LOC {loc} exceeds rebased UI-SPEC §8 #35 budget of 2000 "
-        f"({loc - 2000} over) — escalate before adding more CSS"
+    assert loc <= 2100, (
+        f"style.css LOC {loc} exceeds kb-3-rebased UI-SPEC §8 #35 budget of 2100 "
+        f"({loc - 2100} over) — escalate before adding more CSS"
     )
