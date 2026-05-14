@@ -17,6 +17,7 @@ import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -104,6 +105,46 @@ def _normalize_update_time(raw) -> str:
     return str(raw)  # TEXT path: pass through unchanged
 
 
+def _normalize_rss_update_time(
+    published_at: Optional[str], fetched_at: Optional[str]
+) -> str:
+    """Normalize RSS published_at to ISO-8601 for cross-table merge sort with KOL articles.
+
+    rss_articles.published_at is heterogeneous in production: some rows are ISO-8601
+    ('2026-05-02T17:26:40+00:00'), others are RFC 822 ('Wed, 02 May 2026 17:26:40 +0000').
+    Lexicographic DESC sort against KOL ISO-8601 puts all RFC 822 rows ahead of ISO rows
+    ('W' > '2' in ASCII) — KOL articles get pushed past list_articles() limit.
+
+    Strategy:
+        - 'YYYY-' prefix (4 digits + dash) → ISO-8601, pass through
+        - Otherwise → parse as RFC 822 (with or without weekday prefix; RFC 822 day-of-week
+          is optional, so '02 May 2026 17:26:40 +0000' is also valid)
+        - Parse failure or empty published_at → fall back to fetched_at
+
+    fetched_at is space-separated ISO from ingest cron ('2026-05-03 00:11:59'); its
+    lex-prefix matches ISO-8601 at the date level so the merge sort stays correct.
+
+    Returns '' when both inputs are empty / unparseable.
+    """
+    if published_at:
+        # ISO-8601 discriminator: 'YYYY-' prefix. Stricter than first-char-digit because
+        # RFC 822 day-of-week is optional and digit-leading strings like '7 Aug 2017'
+        # are valid RFC 822 that would slip through a looser check.
+        if (
+            len(published_at) >= 5
+            and published_at[0:4].isdigit()
+            and published_at[4] == "-"
+        ):
+            return published_at
+        try:
+            dt = parsedate_to_datetime(published_at)
+        except (TypeError, ValueError):
+            dt = None
+        if dt is not None:
+            return dt.isoformat()
+    return fetched_at or ""
+
+
 def _row_to_record_kol(row) -> ArticleRecord:
     return ArticleRecord(
         id=row["id"],
@@ -119,8 +160,9 @@ def _row_to_record_kol(row) -> ArticleRecord:
 
 
 def _row_to_record_rss(row) -> ArticleRecord:
-    # Normalize RSS update_time: prefer published_at, else fetched_at.
-    update_time = row["published_at"] or row["fetched_at"] or ""
+    # Normalize RSS update_time: ISO-8601 pass-through OR RFC 822 → ISO; fallback fetched_at.
+    # Cross-source merge-sort fix (260514-av8 quick task) — see _normalize_rss_update_time.
+    update_time = _normalize_rss_update_time(row["published_at"], row["fetched_at"])
     return ArticleRecord(
         id=row["id"],
         source="rss",
