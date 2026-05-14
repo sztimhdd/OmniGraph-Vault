@@ -420,3 +420,149 @@ def test_reconcile_backward_compat(tmp_db: Path, tmp_storage: Path, capsys) -> N
     assert "1 ok rows / 1 matched / 0 mystery" in captured.out
     # New consumers can optionally parse the (wechat: ..., rss: ...) suffix
     assert "(wechat: 0, rss: 0)" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Ghost success tests (quick 260514-eji — dual-direction reconcile)
+# ---------------------------------------------------------------------------
+
+
+def test_ghost_success_failed_in_db_processed_in_kv(
+    tmp_db: Path, tmp_storage: Path, capsys
+) -> None:
+    """Test 11: status='failed' row whose doc_id is processed in kv_store → ghost."""
+    url = "https://mp.weixin.qq.com/s/ghost_article_166"
+    _add_article(tmp_db, 166, url)
+    _add_ingestion(tmp_db, 166, "wechat", "failed", "2026-05-14")
+
+    doc_id = _compute_doc_id(url, source="wechat")
+    _set_doc_status(tmp_storage, doc_id, "processed")
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_db),
+            "--storage-dir",
+            str(tmp_storage),
+            "--date",
+            "2026-05-14",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert "1 ghost (wechat: 1, rss: 0)" in captured.out
+    # Verify JSON line emitted with kind="ghost"
+    json_lines = [
+        json.loads(ln) for ln in captured.out.splitlines() if ln.startswith("{")
+    ]
+    ghost_lines = [ln for ln in json_lines if ln.get("kind") == "ghost"]
+    assert len(ghost_lines) == 1
+    assert ghost_lines[0]["art_id"] == 166
+    assert ghost_lines[0]["doc_id"] == doc_id
+    assert exit_code == 1
+
+
+def test_ghost_zero_normal_failed_no_match(
+    tmp_db: Path, tmp_storage: Path, capsys
+) -> None:
+    """Test 12: status='failed' row with doc_id NOT in kv_store → real failure, not ghost."""
+    url = "https://mp.weixin.qq.com/s/real_failure_article"
+    _add_article(tmp_db, 200, url)
+    _add_ingestion(tmp_db, 200, "wechat", "failed", "2026-05-14")
+    # kv_store is empty — doc_id not present
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_db),
+            "--storage-dir",
+            str(tmp_storage),
+            "--date",
+            "2026-05-14",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert "0 ghost (wechat: 0, rss: 0)" in captured.out
+    # No ghost JSON lines emitted
+    json_lines = [
+        json.loads(ln) for ln in captured.out.splitlines() if ln.startswith("{")
+    ]
+    ghost_lines = [ln for ln in json_lines if ln.get("kind") == "ghost"]
+    assert len(ghost_lines) == 0
+    assert exit_code == 0  # no mystery, no ghost
+
+
+def test_ghost_mixed_with_mystery(
+    tmp_db: Path, tmp_storage: Path, capsys
+) -> None:
+    """Test 13: 1 ok-row whose doc is missing (mystery) + 1 failed-row that processed (ghost)."""
+    mystery_url = "https://example.com/mystery_article"
+    ghost_url = "https://mp.weixin.qq.com/s/ghost_article"
+
+    # ok-row with doc missing in kv_store → mystery
+    _add_article(tmp_db, 301, mystery_url)
+    _add_ingestion(tmp_db, 301, "wechat", "ok", "2026-05-14")
+
+    # failed-row with doc processed in kv_store → ghost
+    _add_article(tmp_db, 302, ghost_url)
+    _add_ingestion(tmp_db, 302, "wechat", "failed", "2026-05-14")
+    ghost_doc_id = _compute_doc_id(ghost_url, source="wechat")
+    _set_doc_status(tmp_storage, ghost_doc_id, "processed")
+    # mystery_url doc_id intentionally NOT set in kv_store
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_db),
+            "--storage-dir",
+            str(tmp_storage),
+            "--date",
+            "2026-05-14",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert "1 mystery" in captured.out
+    assert "1 ghost" in captured.out
+
+    json_lines = [
+        json.loads(ln) for ln in captured.out.splitlines() if ln.startswith("{")
+    ]
+    assert len(json_lines) == 2
+    mystery_lines = [ln for ln in json_lines if "kind" not in ln]
+    ghost_lines = [ln for ln in json_lines if ln.get("kind") == "ghost"]
+    assert len(mystery_lines) == 1
+    assert mystery_lines[0]["actual_status"] == "missing"
+    assert len(ghost_lines) == 1
+    assert ghost_lines[0]["kind"] == "ghost"
+    assert exit_code == 1
+
+
+def test_ghost_backward_compat_output_format(
+    tmp_db: Path, tmp_storage: Path, capsys
+) -> None:
+    """Test 14: Healthy day (1 ok matched) — old substring preserved, new ghost section appended."""
+    url = "https://example.com/article/healthy"
+    _add_article(tmp_db, 400, url)
+    _add_ingestion(tmp_db, 400, "wechat", "ok", "2026-05-14")
+
+    doc_id = _compute_doc_id(url, source="wechat")
+    _set_doc_status(tmp_storage, doc_id, "processed")
+
+    main(
+        [
+            "--db-path",
+            str(tmp_db),
+            "--storage-dir",
+            str(tmp_storage),
+            "--date",
+            "2026-05-14",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    # Old grep parsers: "X ok rows / Y matched / Z mystery (wechat: ..., rss: ...)" still extractable
+    assert "1 ok rows / 1 matched / 0 mystery (wechat: 0, rss: 0)" in captured.out
+    # New ghost section appended after |
+    assert "| 0 ghost (wechat: 0, rss: 0)" in captured.out

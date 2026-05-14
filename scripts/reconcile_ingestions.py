@@ -7,10 +7,14 @@ each has a corresponding LightRAG ``doc_status='processed'`` entry in
 
 Quick 260510-k5q: WeChat support (initial).
 Quick 260512-rrx: RSS support (scope extension).
+Quick 260514-eji: dual-direction reverse scan (status='failed' but
+kv_store=processed → ghost). Surfaces h09 race condition (DB lost,
+LightRAG completed asynchronously). Exit 1 on ghost > 0 alongside
+existing mystery > 0 alert.
 
 Exit codes:
-    0 — zero mystery rows detected (silent healthy day)
-    1 — one or more mystery rows found (cron logs surface them)
+    0 — zero mystery AND zero ghost (silent healthy day)
+    1 — mystery > 0 OR ghost > 0 (cron logs surface details as JSON lines)
 """
 from __future__ import annotations
 
@@ -75,6 +79,32 @@ def _query_ok_rows(
             "LEFT JOIN articles a ON a.id = i.article_id AND i.source = 'wechat' "
             "LEFT JOIN rss_articles r ON r.id = i.article_id AND i.source = 'rss' "
             "WHERE i.status='ok' "
+            "AND date(i.ingested_at) BETWEEN date(?) AND date(?) "
+            "ORDER BY i.ingested_at",
+            (date_start.isoformat(), date_end.isoformat()),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def _query_failed_rows(
+    db_path: Path, date_start: date, date_end: date
+) -> list[dict[str, Any]]:
+    """Reverse-scan companion to _query_ok_rows.
+
+    Returns ingestions rows with status='failed' (h09 retry budget exhausted)
+    for the date window, with URL recovered via the same LEFT JOIN pattern.
+    Used to detect ghost successes (DB=failed but kv_store=processed).
+    """
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute(
+            "SELECT i.id AS id, i.article_id AS article_id, "
+            "       COALESCE(a.url, r.url) AS url, i.source AS source, "
+            "       i.ingested_at AS ingested_at "
+            "FROM ingestions i "
+            "LEFT JOIN articles a ON a.id = i.article_id AND i.source = 'wechat' "
+            "LEFT JOIN rss_articles r ON r.id = i.article_id AND i.source = 'rss' "
+            "WHERE i.status='failed' "
             "AND date(i.ingested_at) BETWEEN date(?) AND date(?) "
             "ORDER BY i.ingested_at",
             (date_start.isoformat(), date_end.isoformat()),
@@ -159,6 +189,39 @@ def main(argv: list[str] | None = None) -> int:
             + "\n"
         )
 
+    # Reverse scan — ghost successes (DB=failed but kv_store=processed).
+    # Independent SQL + accounting; does NOT touch mystery counters.
+    failed_rows = _query_failed_rows(db_path, start_date, end_date)
+    ghost_count = 0
+    ghost_count_wechat = 0
+    ghost_count_rss = 0
+    for row in failed_rows:
+        doc_id = _compute_doc_id(row["url"], row["source"]) if row["url"] else None
+        if doc_id is None:
+            continue
+        entry = status_map.get(doc_id)
+        actual = entry.get("status") if isinstance(entry, dict) else None
+        if not (isinstance(actual, str) and actual.lower() == "processed"):
+            continue  # real fail (expected); skip without counting
+        ghost_count += 1
+        if row["source"] == "rss":
+            ghost_count_rss += 1
+        else:
+            ghost_count_wechat += 1
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "kind": "ghost",
+                    "ingestion_id": row["id"],
+                    "art_id": row["article_id"],
+                    "source": row["source"],
+                    "doc_id": doc_id,
+                    "ingested_at": row["ingested_at"],
+                }
+            )
+            + "\n"
+        )
+
     date_range = (
         f"{start_date.isoformat()}..{end_date.isoformat()}"
         if start_date != end_date
@@ -167,9 +230,11 @@ def main(argv: list[str] | None = None) -> int:
     sys.stdout.write(
         f"{date_range}: {ok_count} ok rows / "
         f"{processed_count} matched / {mystery_count} mystery "
-        f"(wechat: {mystery_count_wechat}, rss: {mystery_count_rss})\n"
+        f"(wechat: {mystery_count_wechat}, rss: {mystery_count_rss}) "
+        f"| {ghost_count} ghost "
+        f"(wechat: {ghost_count_wechat}, rss: {ghost_count_rss})\n"
     )
-    return 1 if mystery_count > 0 else 0
+    return 1 if (mystery_count > 0 or ghost_count > 0) else 0
 
 
 if __name__ == "__main__":
