@@ -248,7 +248,14 @@ def _compute_article_budget_s(
     Light articles (≤5 images) unaffected because text+image still under floor.
     """
     chunk_count = max(1, len(full_content) // _CHUNK_SIZE_CHARS)
-    if image_count is not None and image_count >= 0:
+    # 2026-05-16 fix (260516-stl): kwarg 0 must fall through to regex/disk fallback.
+    # Originally `>= 0` treated explicit 0 as authoritative — but for FRESH articles
+    # scraped today, articles.image_count is 0 (default) at SELECT time because
+    # batch_ingest scrape pipeline downloads body BEFORE image_count UPDATE
+    # (which only fires inside ingest_wechat.py:1273 → after budget computation).
+    # Result: image-heavy fresh articles got 900s floor (id=418 54-img case).
+    # Backfill-populated old articles unaffected (image_count > 0 hits kwarg path).
+    if image_count is not None and image_count > 0:
         resolved_image_count = image_count
     else:
         resolved_image_count = _count_images_in_body(full_content, url=url)
@@ -1602,21 +1609,6 @@ async def ingest_from_db(
     normalized_topics = tuple(t.strip().lower() for t in topics)
     rows = conn.execute(sql, params).fetchall()
 
-    # TEMP DEBUG (260516): trace row[7] AT FETCH TIME for first 5 rows + known
-    # test ids. If row[7]=0 here for known-positive DB values, SQL execution
-    # itself is dropping image_count (schema cache / UNION type / etc).
-    # If row[7]=correct here but 0 at drain, mutation in middle.
-    logger.info("[D2 FETCH DEBUG] total rows=%d", len(rows))
-    _seen = set()
-    for _i, _r in enumerate(rows):
-        if _i < 5 or _r[0] in (418, 500, 505, 515, 518, 217, 214):
-            if _r[0] not in _seen:
-                _seen.add(_r[0])
-                logger.info(
-                    "[D2 FETCH DEBUG] i=%d id=%s source=%s row_len=%d row[7]=%r",
-                    _i, _r[0], _r[1], len(_r), _r[7] if len(_r) > 7 else "OOB",
-                )
-
     if not rows:
         logger.info("No articles found for topics %s", topics)
         conn.close()
@@ -1686,13 +1678,6 @@ async def ingest_from_db(
                     (row[0], row[1], SKIP_REASON_VERSION_CURRENT),
                 )
             elif result.verdict == "candidate":
-                # TEMP DEBUG (260516): trace row[7] AT APPEND TIME — every candidate
-                logger.info(
-                    "[D2 APPEND DEBUG] id=%s source=%s row_len=%d row[7]=%r row_type=%s row_id=%d",
-                    row[0], row[1], len(row),
-                    row[7] if len(row) > 7 else "OOB",
-                    type(row).__name__, id(row),
-                )
                 candidate_rows.append(row)
         conn.commit()
 
@@ -1843,16 +1828,10 @@ async def ingest_from_db(
                 # image markers stripped). Pre-T1 51-image article hit 900s
                 # floor; post-fix gets proportional headroom.
                 # D2 (issue #2 follow-up): row[7] is COALESCE(image_count, 0) from SELECT.
-                # Pre-mig-011 rows = 0 -> falls through to T1 regex / T1-b1 disk via the
-                # priority ladder inside _compute_article_budget_s.
-                # TEMP DEBUG (260516): static analysis exhausted; runtime values needed
-                # to find why id=418 (54 imgs DB) yielded budget=900s. Remove after diag.
-                logger.info(
-                    "[D2 DEBUG] art_id=%s row_len=%d row[7]=%r body_len=%d url=%s",
-                    art_id_d, len(row),
-                    row[7] if len(row) > 7 else "OUT_OF_BOUNDS",
-                    len(body or ""), (url_d or "")[:80],
-                )
+                # 2026-05-16 fix (260516-stl): _compute_article_budget_s now treats
+                # kwarg=0 as "fall back to regex/disk" rather than authoritative —
+                # fresh articles have stale 0 in DB at SELECT time, but body has
+                # accurate markdown markers from scrape (line 1995-2010 above).
                 image_count_d = row[7]
                 article_budget = _compute_article_budget_s(body or "", url=url_d, image_count=image_count_d)
                 _img_count = _count_images_in_body(body or "", url=url_d)
@@ -1912,17 +1891,6 @@ async def ingest_from_db(
         # (id, source, title, url, source_name, body, summary). The legacy
         # 6-col shape (digest as last col) became the 7-col shape with
         # 'wechat'/'rss' inserted at row[1] and digest aliased to summary.
-        # TEMP DEBUG (260516): trace candidate_rows[i][7] AT START OF OUTER LOOP
-        # — before unpack — to see if tuple changed identity/value between
-        # append and iterate.
-        for _ci, _cr in enumerate(candidate_rows[:5]):
-            logger.info(
-                "[D2 OUTER DEBUG] i=%d id=%s row_len=%d row[7]=%r row_type=%s row_id=%d",
-                _ci, _cr[0], len(_cr),
-                _cr[7] if len(_cr) > 7 else "OOB",
-                type(_cr).__name__, id(_cr),
-            )
-
         for i, (art_id, source, title, url, account, body, summary, image_count_row) in enumerate(candidate_rows, 1):
             # quick-260511-mxc: strict hard cap. Pre-fix this check was
             # processed-only, so queued-but-not-yet-drained rows leaked past

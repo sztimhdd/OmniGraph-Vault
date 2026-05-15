@@ -294,24 +294,50 @@ def test_image_count_kwarg_takes_precedence_over_disk(tmp_path, monkeypatch) -> 
     assert _compute_article_budget_s("", url=url, image_count=50) == 1650
 
 
-def test_image_count_zero_explicit_no_image_budget() -> None:
-    """Explicit image_count=0 must skip image_budget term entirely.
+def test_image_count_zero_falls_back_to_regex_disk() -> None:
+    """2026-05-16 fix (260516-stl): kwarg=0 must fall back to regex/disk.
 
-    Body sized so the image term controls the total (above 900s floor):
-    50 chunks of "x" + 51 markdown image markers in the body.
-      - kwarg=0 honored:    120 + 30·50 + 30·0  = 1620
-      - kwarg ignored:      120 + 30·50 + 30·51 = 3150 (regex would re-derive 51)
+    Original semantic (`>= 0`) treated explicit 0 as authoritative — but for
+    FRESH articles scanned today, articles.image_count=0 in DB at SELECT time
+    even when scrape later downloads images. The 0 is STALE, not authoritative.
 
-    Pair-check pattern: the second assertion (kwarg=None default) proves the
-    regex actually finds 51 images, so the first assertion's 1620 IS
-    discriminating between honored-vs-ignored.
+    By falling back to regex on the post-scrape body (which has accurate
+    markdown markers from html2text), image-heavy fresh articles get correct
+    budget instead of being capped at 900s floor.
+
+    Body: 50 chunks + 51 markers. With kwarg=0 falling back, regex finds 51:
+      120 + 30·50 + 30·51 = 3150.
+    Same as kwarg=None default. Both must equal — proves kwarg=0 is no
+    longer special-cased.
     """
     from batch_ingest_from_spider import _compute_article_budget_s
     body = ("x" * 240_000) + ("\n" + _IMG_TOKEN) * 51
-    # kwarg=0 short-circuits regex -> image term zero
-    assert _compute_article_budget_s(body, image_count=0) == 1620
-    # default uses regex=51 -> cross-check proves discrimination
-    assert _compute_article_budget_s(body) == 3150
+    # kwarg=0 NOW falls back to regex(51) -> 3150 (was 1620 pre-fix)
+    assert _compute_article_budget_s(body, image_count=0) == 3150
+    # And matches kwarg=None (both go through fallback)
+    assert _compute_article_budget_s(body, image_count=0) == _compute_article_budget_s(body)
+
+
+def test_d2_fresh_article_stale_zero_falls_back() -> None:
+    """REGRESSION 260516-stl: id=418 scenario — fresh article scanned today.
+
+    DB articles.image_count=0 (DEFAULT for new row, scrape pipeline doesn't
+    populate it before SELECT runs). Body has 54 markdown image markers
+    after scrape. Pre-fix: budget=900 floor (used stale 0). Post-fix: falls
+    back to regex, finds 54, budget = 120 + 30·4 + 30·54 = 1860.
+
+    This regression test pins the exact id=418 case from 2026-05-15 burst
+    goal failure: 54 images, 17638 char body (~4 chunks).
+    """
+    from batch_ingest_from_spider import _compute_article_budget_s
+    body = ("x" * 17638) + ("\n" + _IMG_TOKEN) * 54
+    actual = _compute_article_budget_s(body, image_count=0)
+    # chunks = max(1, len(body) // 4800) = some value > 1
+    # text_budget = 120 + 30 * chunks
+    # image_budget via fallback regex = 30 * 54 = 1620
+    # total = max(text + 1620, 900)
+    assert actual > 1500, f"Expected fallback to scale (>1500), got {actual}"
+    assert actual > 900, "Must escape 900s floor (the stale-0 bug)"
 
 
 def test_image_count_none_falls_back_to_regex_or_disk() -> None:
