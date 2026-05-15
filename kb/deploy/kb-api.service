@@ -1,0 +1,76 @@
+# OmniGraph KB v2 — FastAPI service, systemd unit reference
+#
+# Authored by phase kb-v2.1-1 (KG mode hardening, 2026-05-15).
+#
+# This file is a REFERENCE template, not an auto-installed unit. Aliyun and
+# any other production operator copies/edits this to the host's
+# /etc/systemd/system/kb-api.service then runs `systemctl daemon-reload`
+# + `systemctl restart kb-api.service`.
+#
+# Memory profile rationale (Aliyun ECS, 3.4Gi total RAM):
+#   - vitaclaw-site Node process holds ~500MB
+#   - kb-api uvicorn + LightRAG + embedding cache + Python runtime: typical
+#     800MB-1.4GB during a KG search; spike up to 1.8GB observed when an
+#     embedding batch hits Vertex AI in parallel with FTS5 query traffic
+#   - MemoryHigh=1.5G triggers cgroup throttling before OOM (graceful slowdown)
+#   - MemoryMax=2G is the hard cap; kernel kills at this; systemd auto-restarts
+#   - StartLimitBurst=5 / IntervalSec=60 prevents OOM-restart-OOM-restart loops
+#     from monopolizing the host (5 restarts in 60s pauses the unit)
+#
+# Adjust ExecStart and Environment paths to match your deploy layout.
+# Recommended: keep KB_KG_GCP_SA_KEY_PATH OFF / unset on hosts where the GCP
+# SA JSON is not present — the kb-api will boot in controlled-degraded mode
+# (FTS5 search + /api/synthesize fts5_fallback continue to work) instead of
+# failing on every KG request.
+
+[Unit]
+Description=OmniGraph KB v2 FastAPI service (port 8766)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kb
+Group=kb
+WorkingDirectory=/home/kb/OmniGraph-Vault
+
+# uvicorn entry — adjust the Python interpreter path to your venv
+ExecStart=/home/kb/OmniGraph-Vault/venv/bin/uvicorn kb.api:app \
+    --host 127.0.0.1 \
+    --port 8766 \
+    --workers 1
+
+# Environment — KB_DB_PATH and KB_IMAGES_DIR are required; the KG-mode
+# credential vars are OPTIONAL (kb-v2.1-1). When unset, kb-api boots in
+# controlled-degraded mode and /api/search?mode=kg returns kg_unavailable=true
+# with HTTP 200 instead of 500/502.
+Environment=KB_DB_PATH=/home/kb/.hermes/data/kol_scan.db
+Environment=KB_IMAGES_DIR=/home/kb/.hermes/omonigraph-vault/images
+Environment=KB_BASE_PATH=/kb
+# KB_KG_GCP_SA_KEY_PATH=/home/kb/.hermes/gcp-paid-sa.json   # uncomment + set on hosts with the SA JSON
+# GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+# GOOGLE_CLOUD_LOCATION=global
+
+# kb-v2.1-1 memory bounds — closes the OOM-kill class observed on Aliyun
+# 2026-05-14. MemoryHigh triggers throttling first (graceful); MemoryMax is
+# the hard kill ceiling (kernel OOM kills, systemd then auto-restarts under
+# Restart=on-failure within the StartLimit window).
+MemoryHigh=1.5G
+MemoryMax=2G
+CPUQuota=200%
+
+# Restart policy — auto-recover within sane limits
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Filesystem hardening — narrow the writable surface to runtime data dirs only
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/log/kb /home/kb/.hermes
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

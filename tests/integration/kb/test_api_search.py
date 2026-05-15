@@ -32,7 +32,9 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def app_client(fixture_db: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def app_client(
+    fixture_db: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> TestClient:
     """TestClient pointed at fixture_db with FTS5 index pre-populated.
 
     Reload chain: kb.config (picks up KB_DB_PATH) -> kb.services.search_index
@@ -42,7 +44,15 @@ def app_client(fixture_db: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     Same KB_DB_PATH-only-reload pattern that kb-3-05 documented (avoid reloading
     kb.data.article_query — would invalidate dataclass identity for downstream
     tests).
+
+    kb-v2.1-1: KB_KG_GCP_SA_KEY_PATH points at a tmp dummy SA file so
+    KG_MODE_AVAILABLE evaluates True, preserving the kb-3-06 dispatch tests
+    that mock omnigraph_search.query.search. The dummy file is just for the
+    flag's existence + readability probe; nothing here actually parses it.
     """
+    sa_dummy = tmp_path / "kg-sa-dummy.json"
+    sa_dummy.write_text('{"type":"service_account"}')
+    monkeypatch.setenv("KB_KG_GCP_SA_KEY_PATH", str(sa_dummy))
     monkeypatch.setenv("KB_DB_PATH", str(fixture_db))
     monkeypatch.setenv("KB_SEARCH_BYPASS_QUALITY", "off")
     monkeypatch.delenv("KB_CONTENT_QUALITY_FILTER", raising=False)
@@ -84,11 +94,16 @@ def app_client(fixture_db: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
         conn.close()
 
     # Reload app stack so router uses the freshly-configured service module.
+    # kb-v2.1-1: kb.services.synthesize MUST be reloaded so KG_MODE_AVAILABLE
+    # is recomputed against the just-set KB_KG_GCP_SA_KEY_PATH; the search
+    # router imports the flag from there.
     import kb.config
+    import kb.services.synthesize
     import kb.api_routers.search
     import kb.api
 
     importlib.reload(kb.config)
+    importlib.reload(kb.services.synthesize)
     importlib.reload(kb.api_routers.search)
     importlib.reload(kb.api)
     return TestClient(kb.api.app)

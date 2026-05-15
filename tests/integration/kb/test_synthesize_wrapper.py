@@ -80,10 +80,23 @@ def _patch_c1(
 
 
 def _patch_base_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Redirect config.BASE_DIR to a temp directory for output capture."""
+    """Redirect config.BASE_DIR to a temp directory for output capture.
+
+    kb-v2.1-1: also enable KG mode by writing a dummy SA file + setting
+    KB_KG_GCP_SA_KEY_PATH so the import-time probe inside kb.services.synthesize
+    flips KG_MODE_AVAILABLE=True. Both an env var (for tests that subsequently
+    reload the module) AND a direct setattr (for tests that don't reload) are
+    applied — the kb-v2.1-1 short-circuit path itself is exercised by
+    tests/integration/kb/test_kg_mode_hardening.py.
+    """
     import config as og_config
 
+    sa_dummy = tmp_path / "kg-sa-dummy.json"
+    sa_dummy.write_text('{"type":"service_account"}')
+    monkeypatch.setenv("KB_KG_GCP_SA_KEY_PATH", str(sa_dummy))
     monkeypatch.setattr(og_config, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(kb_synth_mod, "KG_MODE_AVAILABLE", True)
+    monkeypatch.setattr(kb_synth_mod, "KG_MODE_UNAVAILABLE_REASON", "")
 
 
 # ---- Wrapper integration tests --------------------------------------------
@@ -224,11 +237,18 @@ def _populate_fts(fixture_db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _reload_synthesize_module():
-    """Reload kb.services.synthesize so KB_SYNTHESIZE_TIMEOUT is re-read."""
+    """Reload kb.services.synthesize so KB_SYNTHESIZE_TIMEOUT is re-read.
+
+    kb-v2.1-1: also reload kb.config first so KB_KG_GCP_SA_KEY_PATH is
+    re-resolved from current env BEFORE synthesize.py reads it during the
+    import-time KG_MODE_AVAILABLE probe.
+    """
     import importlib
 
+    import kb.config
     import kb.services.synthesize as sm
 
+    importlib.reload(kb.config)
     importlib.reload(sm)
     return sm
 

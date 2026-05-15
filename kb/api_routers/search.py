@@ -22,7 +22,7 @@ from typing import Annotated, Any, Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-from kb.services import job_store, search_index
+from kb.services import job_store, search_index, synthesize as synthesize_svc
 
 router = APIRouter(prefix="/api", tags=["search"])
 
@@ -79,6 +79,19 @@ async def search_endpoint(
             for (h, t, s, lg, src) in rows
         ]
         return {"items": items, "total": len(items), "mode": "fts"}
+    # kb-v2.1-1 KG-mode hardening: when the import-time credential probe failed,
+    # avoid dispatching the BackgroundTask (which would try to import LightRAG,
+    # init Vertex AI, and risk OOM). Return controlled-degraded shape with
+    # HTTP 200 — never 500/502.
+    if not synthesize_svc.KG_MODE_AVAILABLE:
+        return {
+            "items": [],
+            "total": 0,
+            "mode": "kg",
+            "kg_unavailable": True,
+            "reason": synthesize_svc.KG_MODE_UNAVAILABLE_REASON,
+            "fallback_suggestion": synthesize_svc.KG_FALLBACK_SUGGESTION,
+        }
     # KG async path — register BackgroundTask, return 202 + job_id immediately.
     jid = job_store.new_job(kind="search")
     background.add_task(_kg_worker, jid, q)

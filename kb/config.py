@@ -49,3 +49,18 @@ KB_SYNTHESIZE_TIMEOUT: int = _env_int("KB_SYNTHESIZE_TIMEOUT", 60)
 # `{{ base_path }}/static/...` concatenation in templates.
 _kb_base_raw: str = os.environ.get("KB_BASE_PATH", "")
 KB_BASE_PATH: str = _kb_base_raw.rstrip("/") if _kb_base_raw else ""
+
+
+# kb-v2.1-1 KG-mode hardening: optional KB-namespaced override for the GCP SA
+# JSON path used by LightRAG embedding (Vertex mode). Falls back to the
+# upstream `GOOGLE_APPLICATION_CREDENTIALS` env var so existing deployments
+# keep working without change. Returns None when neither is set — the kb
+# services layer reads this and proactively verifies the file exists at
+# module-import time, gating /api/search?mode=kg on a controlled flag.
+def _resolve_kg_sa_key_path() -> Path | None:
+    val = os.environ.get("KB_KG_GCP_SA_KEY_PATH") or \
+        os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    return Path(val) if val else None
+
+
+KB_KG_GCP_SA_KEY_PATH: Path | None = _resolve_kg_sa_key_path()

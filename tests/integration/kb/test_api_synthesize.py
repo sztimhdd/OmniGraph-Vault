@@ -42,9 +42,17 @@ def app_client(tmp_path, monkeypatch):
     We reload kb.api so the synthesize router (and its wrapper module) re-resolve
     config.BASE_DIR. Same pattern as test_api_search.py — read-once-per-process
     state needs explicit reload after env mutation.
+
+    kb-v2.1-1: KB_KG_GCP_SA_KEY_PATH points at a tmp dummy SA file so the
+    KG_MODE_AVAILABLE flag in kb.services.synthesize evaluates True. These
+    tests exercise the C1 happy/failure paths (with C1 monkeypatched), which
+    the kb-v2.1-1 short-circuit must NOT preempt.
     """
     import config as og_config
 
+    sa_dummy = tmp_path / "kg-sa-dummy.json"
+    sa_dummy.write_text('{"type":"service_account"}')
+    monkeypatch.setenv("KB_KG_GCP_SA_KEY_PATH", str(sa_dummy))
     monkeypatch.setattr(og_config, "BASE_DIR", tmp_path)
     # Reload chain: kb.config → kb.services.synthesize → kb.api_routers.synthesize → kb.api
     import kb.config
@@ -224,6 +232,11 @@ def test_api_synthesize_never_500_on_timeout(tmp_path, monkeypatch):
     with error mentioning 'timeout'. NEVER 500."""
     import config as og_config
 
+    # kb-v2.1-1: enable KG mode so the kb_synthesize wrapper does not
+    # short-circuit before the C1 timeout path is exercised.
+    sa_dummy = tmp_path / "kg-sa-dummy.json"
+    sa_dummy.write_text('{"type":"service_account"}')
+    monkeypatch.setenv("KB_KG_GCP_SA_KEY_PATH", str(sa_dummy))
     monkeypatch.setattr(og_config, "BASE_DIR", tmp_path)
     monkeypatch.setenv("KB_SYNTHESIZE_TIMEOUT", "1")
     # Reload chain so the new env var takes effect: kb.config first (it reads

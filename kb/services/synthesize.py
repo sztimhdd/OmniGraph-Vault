@@ -35,6 +35,7 @@ Skill discipline (kb/docs/10-DESIGN-DISCIPLINE.md Rule 1):
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import re
 from pathlib import Path
@@ -45,7 +46,10 @@ from pathlib import Path
 # call time (not import time) so tests can monkeypatch config.BASE_DIR.
 import config as og_config
 
+from kb import config as kb_config
 from kb.services import job_store
+
+_log = logging.getLogger(__name__)
 
 # Directive strings — VERBATIM per I18N-07 / QA-02 REQ wording.
 DIRECTIVE_ZH = "请用中文回答。\n\n"
@@ -58,6 +62,49 @@ _SOURCE_HASH_PATTERN = re.compile(r"/article/([a-f0-9]{10})")
 # QA-04: wall-time budget for C1 before fts5_fallback fires. Read once at
 # module-import time (per CONFIG-02 pattern); tests reload the module.
 KB_SYNTHESIZE_TIMEOUT: int = int(os.environ.get("KB_SYNTHESIZE_TIMEOUT", "60"))
+
+
+# kb-v2.1-1 KG-mode hardening: proactive credential file existence check at
+# module import time. Production observation 2026-05-14 (Aliyun): KG search
+# triggered LightRAG embedding init which logged a missing local credential
+# path AND caused an OOM kill. The flag below gates /api/search?mode=kg + the
+# synthesize wrapper short-circuit so the api stays in controlled-degraded
+# mode when credentials are absent OR unreadable.
+#
+# Reasons surfaced to clients (HTTP 200, no path leakage):
+#   kg_disabled — neither KB_KG_GCP_SA_KEY_PATH nor GOOGLE_APPLICATION_CREDENTIALS set
+#   kg_credentials_missing — env var set but file does not exist
+#   kg_credentials_unreadable — file exists but cannot be opened (permissions, etc.)
+def _check_kg_mode_available() -> tuple[bool, str]:
+    """Return (available, reason) — reason is empty string when available."""
+    p = kb_config.KB_KG_GCP_SA_KEY_PATH
+    if p is None:
+        return False, "kg_disabled"
+    try:
+        with p.open("rb") as fp:
+            fp.read(1)
+    except FileNotFoundError:
+        return False, "kg_credentials_missing"
+    except OSError:
+        return False, "kg_credentials_unreadable"
+    return True, ""
+
+
+KG_MODE_AVAILABLE: bool
+KG_MODE_UNAVAILABLE_REASON: str
+KG_MODE_AVAILABLE, KG_MODE_UNAVAILABLE_REASON = _check_kg_mode_available()
+if not KG_MODE_AVAILABLE:
+    _log.warning(
+        "KG mode unavailable (reason=%s) — /api/search?mode=kg will return "
+        "controlled-degraded response; /api/synthesize will fall back to FTS5. "
+        "Set KB_KG_GCP_SA_KEY_PATH or GOOGLE_APPLICATION_CREDENTIALS to a "
+        "readable GCP service-account JSON to enable KG mode.",
+        KG_MODE_UNAVAILABLE_REASON,
+    )
+
+KG_FALLBACK_SUGGESTION = (
+    "Use mode=fts for keyword search or /api/synthesize for Q&A."
+)
 
 
 def lang_directive_for(lang: str) -> str:
@@ -266,7 +313,19 @@ async def kb_synthesize(question: str, lang: str, job_id: str) -> None:
     On C1 timeout (KB_SYNTHESIZE_TIMEOUT): _fts5_fallback fires; job status='done'
                    with confidence='fts5_fallback' OR 'no_results' (NEVER-500).
     On C1 exception: same fallback path.
+    On KG mode unavailable (kb-v2.1-1): _fts5_fallback fires WITHOUT attempting
+                   C1 — avoids LightRAG init / potential OOM / credential leak.
     """
+    # kb-v2.1-1 KG-mode hardening: short-circuit before LightRAG init when the
+    # credential probe at import time told us KG mode is unavailable. Same
+    # never-500 contract; same FTS5 fallback path.
+    if not KG_MODE_AVAILABLE:
+        _fts5_fallback(
+            question, lang, job_id,
+            reason=f"KG mode unavailable: {KG_MODE_UNAVAILABLE_REASON}",
+        )
+        return
+
     # C1 import deferred to avoid heavy LightRAG init at module import time.
     from kg_synthesize import synthesize_response
 

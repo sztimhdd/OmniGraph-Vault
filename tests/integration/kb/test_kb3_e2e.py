@@ -75,6 +75,12 @@ def fully_wired_app(fixture_db: Path, tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.delenv("KB_CONTENT_QUALITY_FILTER", raising=False)
     monkeypatch.delenv("KB_SEARCH_BYPASS_QUALITY", raising=False)
 
+    # kb-v2.1-1: enable KG mode for the e2e happy/zh-directive tests, which
+    # exercise the monkeypatched C1 path. The short-circuit must NOT fire here.
+    sa_dummy = tmp_path / "kg-sa-dummy.json"
+    sa_dummy.write_text('{"type":"service_account"}')
+    monkeypatch.setenv("KB_KG_GCP_SA_KEY_PATH", str(sa_dummy))
+
     # Redirect OmniGraph BASE_DIR so synthesize wrapper writes synthesis_output.md
     # into tmp_path rather than ~/.hermes/omonigraph-vault/.
     import config as og_config
