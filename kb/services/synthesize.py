@@ -89,6 +89,94 @@ def _extract_source_hashes(markdown: str) -> list[str]:
     return sorted({m for m in _SOURCE_HASH_PATTERN.findall(markdown)})
 
 
+# v2.0 minimum-viable hardcoded list — covers most-asked entities for UI chip surface.
+# v2.1 backlog: replace with systematic entity source resolution from
+# extracted_entities table joined to KG result articles, OR from LightRAG
+# entity_canonical lookup. C1 contract is read-only; resolution stays in this
+# wrapper.
+_ENTITY_HINTS: tuple[str, ...] = (
+    "AI Agent",
+    "LangGraph",
+    "LangChain",
+    "CrewAI",
+    "RAG",
+    "MCP",
+    "OpenAI",
+    "Claude Code",
+    "Claude",
+    "DeepSeek",
+    "LightRAG",
+    "Agent",
+)
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        key = item.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def _fallback_search_terms(question: str) -> list[str]:
+    """Return broad FTS terms for source chips when the KG markdown has no links."""
+    q = (question or "").strip()
+    lower = q.lower()
+    terms: list[str] = []
+    if q:
+        terms.append(q)
+    if "ai" in lower and "agent" in lower:
+        terms.append("AI Agent")
+    if "agent" in lower:
+        terms.append("Agent")
+    for hint in _ENTITY_HINTS:
+        if hint.lower() in lower:
+            terms.append(hint)
+    return _dedupe(terms)
+
+
+def _source_hashes_from_fts(question: str, limit: int = 3) -> list[str]:
+    """Best-effort source chips for KG answers that omit explicit source links.
+
+    KG synthesis (C1) occasionally produces an answer without /article/{hash}
+    back-references in its markdown — typically when it draws on implicit graph
+    relationships rather than verbatim passages. This function runs a lightweight
+    FTS5 probe to surface the most relevant articles anyway, so the UI source-chip
+    row is never empty on a valid KG answer.
+
+    Strategy: try each term from _fallback_search_terms(question) in order, return
+    the first non-empty FTS5 result set. Falls back gracefully to [] on any DB or
+    import error — NEVER raises.
+
+    Args:
+        question: the user's original question (no lang directive prefix).
+        limit: max chips to return (default 3, matching the FTS5 fallback cap).
+
+    Returns:
+        List of article hash strings (may be empty if no FTS match found or DB error).
+    """
+    try:
+        from kb.services.search_index import fts_query
+
+        for term in _fallback_search_terms(question):
+            rows = fts_query(term, lang=None, limit=limit)
+            if rows:
+                return [h for h, _title, _snippet, _lg, _source in rows]
+    except Exception:
+        return []
+    return []
+
+
+def _entity_candidates(question: str, markdown: str) -> list[str]:
+    """Small visible entity list for the UI chip surface; not a KG canonicalizer."""
+    haystack = ((question or "") + "\n" + (markdown or "")).lower()
+    return [hint for hint in _ENTITY_HINTS if hint.lower() in haystack][:8]
+
+
 def _fts5_fallback(question: str, lang: str, job_id: str, reason: str) -> None:
     """QA-05: FTS5 top-3 fallback when LightRAG synthesis fails or times out.
 
@@ -108,7 +196,11 @@ def _fts5_fallback(question: str, lang: str, job_id: str, reason: str) -> None:
         # Lazy import — keeps module-import cheap and lets tests monkeypatch.
         from kb.services.search_index import fts_query
 
-        rows = fts_query(question, lang=None, limit=3)
+        rows = []
+        for term in _fallback_search_terms(question):
+            rows = fts_query(term, lang=None, limit=3)
+            if rows:
+                break
         if not rows:
             markdown = (
                 "> Note: 暂时无法生成完整回答 / Synthesis temporarily unavailable.\n\n"
@@ -197,6 +289,8 @@ async def kb_synthesize(question: str, lang: str, job_id: str) -> None:
     # Happy path: C1 wrote synthesis_output.md; read it back.
     markdown = _read_synthesis_output()
     sources = _extract_source_hashes(markdown)
+    if not sources:
+        sources = _source_hashes_from_fts(question)
     job_store.update_job(
         job_id,
         status="done",
@@ -204,7 +298,7 @@ async def kb_synthesize(question: str, lang: str, job_id: str) -> None:
             "markdown": markdown,
             "sources": sources,
             # v2.0 minimum-viable; v2.1 may extend via canonicalization.
-            "entities": [],
+            "entities": _entity_candidates(question, markdown),
         },
         fallback_used=False,
         confidence="kg",

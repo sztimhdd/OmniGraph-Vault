@@ -181,18 +181,39 @@
     resultsEl.innerHTML = html;
   }
 
+  function buildSearchUrl(q, lang) {
+    var url = (window.KB_BASE_PATH || '') + '/api/search?q=' + encodeURIComponent(q)
+      + '&mode=fts'
+      + '&limit=' + FETCH_LIMIT;
+    if (lang) url += '&lang=' + encodeURIComponent(lang);
+    return url;
+  }
+
+  function fetchSearch(q, lang) {
+    return fetch(buildSearchUrl(q, lang), {
+      signal: inFlight ? inFlight.signal : undefined,
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+  }
+
   function runSearch(q) {
     if (inFlight) inFlight.abort();
     inFlight = (typeof AbortController === 'function') ? new AbortController() : null;
     showLoading();
-    var url = (window.KB_BASE_PATH || '') + '/api/search?q=' + encodeURIComponent(q)
-      + '&mode=fts'
-      + '&lang=' + encodeURIComponent(getLang())
-      + '&limit=' + FETCH_LIMIT;
-    fetch(url, { signal: inFlight ? inFlight.signal : undefined, headers: { 'Accept': 'application/json' } })
-      .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
+    var lang = getLang();
+    fetchSearch(q, lang)
+      .then(function (data) {
+        // Locale-filtered search is useful for bilingual browsing, but ASCII
+        // tech terms such as "langchain" often only exist in the other language.
+        // Retry once without lang before showing an empty state.
+        if ((!data.items || data.items.length === 0) && lang) {
+          return fetchSearch(q, null);
+        }
+        return data;
       })
       .then(function (data) {
         renderItems(data.items || [], data.total || 0, q);

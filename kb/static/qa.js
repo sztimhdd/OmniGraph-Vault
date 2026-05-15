@@ -90,7 +90,7 @@
       var li = document.createElement('li');
       li.className = 'qa-source-chip';
       var a = document.createElement('a');
-      a.href = '/article/' + encodeURIComponent(hash) + '.html';
+      a.href = (window.KB_BASE_PATH || '') + '/articles/' + encodeURIComponent(hash) + '.html';
       a.target = '_blank';
       a.rel = 'noopener';
       a.className = 'qa-source-link';
@@ -173,7 +173,7 @@
       setState('timeout');
       // Auto-transition to fts5_fallback after 500ms (UI-SPEC §3.2 D-8)
       setTimeout(function () {
-        setState('fallback');
+        setState('fts5_fallback');
       }, 500);
       clearPoll();
       return;
@@ -196,7 +196,7 @@
         if (data.status === 'done') {
           var fallback = data.fallback_used === true;
           if (fallback) {
-            setState('fallback');
+            setState('fts5_fallback');
           } else {
             setState('done');
           }
