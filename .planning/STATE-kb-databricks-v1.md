@@ -14,12 +14,12 @@
 
 ## Milestone-base commit hash (LOCKED — rev 3)
 
-**`<rev-3-commit-hash>`** — `docs(kb-databricks-v1): rev 3 strategic restructure (MosaicAI / Hermes-separation / sonnet-4-6 / qwen3-0.6b / kb-exemption)`
+**`cfe47b4`** — `docs(kb-databricks-v1): rev 3 strategic restructure (MosaicAI / Hermes-separation / sonnet-4-6 / qwen3-0.6b / kb-exemption)`
 
 This is the anchor for **CONFIG-DBX-01** (rev 3 — relaxed). At kdb-3 close, verify with:
 
 ```bash
-git log <rev-3-commit-hash>..HEAD --grep '(kdb-' --name-only -- kb/ lib/ \
+git log cfe47b4..HEAD --grep '(kdb-' --name-only -- kb/ lib/ \
   | grep -v -E '^lib/llm_complete\.py$|^kg_synthesize\.py$' \
   | sort -u
 # Expected: empty output
@@ -61,8 +61,8 @@ Status of upstream artifacts:
 
 - ✅ PROJECT-kb-databricks-v1.md (committed `88ba32a`) — note: PROJECT predates rev 3 strategic shift; some rev 3 changes (LLM provider, sync model) supersede PROJECT content. PROJECT will be re-aligned at kdb-3 close as part of milestone close-out OR as a separate doc commit if user wants alignment now
 - ✅ Research (4 dimensions + SUMMARY, committed `406c2d0`) — research findings still valid; the LightRAG `os.makedirs` / `write_json` non-atomic findings are unchanged by rev 3
-- ✅ REQUIREMENTS-kb-databricks-v1.md rev 3 (committed `<rev-3-commit-hash>`)
-- ✅ ROADMAP-kb-databricks-v1.md rev 3 (committed `<rev-3-commit-hash>`)
+- ✅ REQUIREMENTS-kb-databricks-v1.md rev 3 (committed `cfe47b4`)
+- ✅ ROADMAP-kb-databricks-v1.md rev 3 (committed `cfe47b4`)
 - ⏳ User approval gate
 - ⏳ `/gsd:plan-phase kdb-1` (Wave 1 PREFLIGHT first — Model Serving query smoke + grant capability test)
 
@@ -135,4 +135,4 @@ User-locked 5 constraints supersede rev 2.2's DeepSeek-based architecture:
 
 ## 2-forward-commit pattern (rev 3)
 
-This file is part of the rev 3 forward commit (`<rev-3-commit-hash>`). The hash placeholder above will be backfilled in a second forward commit immediately after the rev 3 main commit lands. **No `git commit --amend`, no `git reset` — both forbidden per concurrent-quick safety lesson (260515-cvh / 0b06395).** Pattern follows kb-v2.1-1 closeout precedent (`a226140` STATE backfill of `eff934f`).
+This file is part of the rev 3 forward commit (`cfe47b4`). The hash placeholder above will be backfilled in a second forward commit immediately after the rev 3 main commit lands. **No `git commit --amend`, no `git reset` — both forbidden per concurrent-quick safety lesson (260515-cvh / 0b06395).** Pattern follows kb-v2.1-1 closeout precedent (`a226140` STATE backfill of `eff934f`).
