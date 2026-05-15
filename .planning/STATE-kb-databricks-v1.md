@@ -7,10 +7,23 @@
 ## Current Position
 
 - **Milestone:** kb-databricks-v1 (parallel track)
-- **Phase:** Not started — REQ + ROADMAP drafted, awaiting user approval
+- **Phase:** Not started — REQ + ROADMAP rev 2 ready, awaiting user approval
 - **Plan:** —
-- **Status:** REQUIREMENTS-kb-databricks-v1.md + ROADMAP-kb-databricks-v1.md authored in main session (express path, no roadmapper agent — research SUMMARY.md had high-confidence data)
-- **Last activity:** 2026-05-15 — REQ + ROADMAP draft committed; awaiting "approve / adjust / show full files" gate
+- **Status:** REQUIREMENTS-kb-databricks-v1.md + ROADMAP-kb-databricks-v1.md rev 2 (incorporates user P0/P1/P2 adjustments)
+- **Last activity:** 2026-05-15 — REQ + ROADMAP rev 2 committed; 36 REQs / 10 categories / 3-4 phases
+
+## Milestone-base commit hash (LOCKED)
+
+**`7df6e5b`** — `docs(kb-databricks-v1): REQ (30 across 9 cats) + ROADMAP (3 phases + conditional kdb-1.5)`
+
+This is the anchor for **CONFIG-DBX-01** ("zero `kb/` source-tree edits across this milestone"). At kdb-3 close, verify with:
+
+```bash
+git log 7df6e5b..HEAD --grep '(kdb-' --name-only -- kb/
+# Expected: empty output
+```
+
+The `--grep '(kdb-'` filter scopes the diff to this milestone's commits only. Unrelated kb-v2.1 / kb-4 / debug commits authored after `7df6e5b` are ignored — those belong to other tracks and don't violate kb-databricks-v1's "zero kb/ edits" invariant.
 
 ## Locked Defaults (snapshot, full table in PROJECT-kb-databricks-v1.md)
 
