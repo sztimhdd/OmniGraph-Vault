@@ -42,6 +42,7 @@ Requirements grouped by category. REQ-ID format: `[CATEGORY]-NN`. Continuation o
 - [ ] **DEPLOY-DBX-06**: App URL returns 200 on `/` after workspace SSO
 - [ ] **DEPLOY-DBX-07**: `databricks-deploy/requirements.txt` exists and pins the `kb/` runtime deps the App needs (FastAPI, uvicorn, jinja2, markdown, pygments, lightrag, deepseek SDK pieces, etc.). Apps runtime auto-installs from this file; missing deps = cold-start fails
 - [ ] **DEPLOY-DBX-08**: `app.yaml` `env:` list explicitly sets `OMNIGRAPH_LLM_PROVIDER=deepseek` (literal `value:`, not `valueFrom:`). Defends against any code path that would otherwise default to `vertex_gemini` and try outbound calls to `*.googleapis.com` — those may be blocked by EDC corp egress rules from the workspace. Locking the provider here makes the LLM egress surface deterministic = `api.deepseek.com` only
+- [ ] **DEPLOY-DBX-09**: `app.yaml` `env:` list **deliberately does NOT set** `KB_KG_GCP_SA_KEY_PATH` or `GOOGLE_APPLICATION_CREDENTIALS` (companion to DEPLOY-DBX-08 LLM-provider lock). Rationale: leaving these unset triggers the kb-v2.1-1 `KG_MODE_AVAILABLE = False` path with reason `kg_credentials_missing`, which makes `/synthesize` gracefully fall through to FTS5 retrieval (per [kb/services/synthesize.py:74-105](../kb/services/synthesize.py#L74-L105) shipped in commit `eff934f`). Setting either of those env vars without a real GCP SA JSON in the App container would attempt KG mode and fail at runtime. Verification: `grep -E "KB_KG_GCP_SA_KEY_PATH|GOOGLE_APPLICATION_CREDENTIALS" databricks-deploy/app.yaml` returns empty
 
 ### CONFIG — zero `kb/` code changes invariant
 
@@ -58,7 +59,12 @@ Requirements grouped by category. REQ-ID format: `[CATEGORY]-NN`. Continuation o
 
 - [ ] **QA-DBX-01**: `POST /synthesize {query}` returns `202 + job_id`, polling endpoint returns markdown answer (KB-v2 D-19 contract preserved across deploy targets)
 - [ ] **QA-DBX-02**: Underlying call to `kg_synthesize.synthesize_response()` succeeds (KB-v2 C1 contract preserved); LLM call routes to `api.deepseek.com` (verified via App log line)
-- [ ] **QA-DBX-03**: Negative-path: simulate LightRAG storage absence → `/synthesize` returns FTS5-fallback markdown with `confidence: "fts5_fallback"`, NOT 500
+- [ ] **QA-DBX-03**: Negative-path: `/synthesize` returns FTS5-fallback markdown (NOT 500) for ALL 3 reason codes shipped in kb-v2.1-1 (`eff934f`, [kb/services/synthesize.py:74-105](../kb/services/synthesize.py#L74-L105)):
+  1. **`kg_disabled`** — explicit feature flag off (env-driven). Verify by setting kg-disable env var and POSTing `/synthesize`
+  2. **`kg_credentials_missing`** — `KB_KG_GCP_SA_KEY_PATH` / `GOOGLE_APPLICATION_CREDENTIALS` not set (the v1 default state per DEPLOY-DBX-09). This is the **expected production-mode** path for kb-databricks-v1, NOT just a negative test. Verify on first deploy that `/synthesize` returns FTS5 fallback by default
+  3. **`kg_credentials_unreadable`** — env var points to a non-existent or non-readable file. Verify by setting the env var to `/tmp/nonexistent.json` and POSTing
+  
+  All three must return `confidence: "fts5_fallback"` markdown response, HTTP 200, and a one-shot WARNING log line with the reason code (no path leak per kb-v2.1-1 hardening).
 
 ### PREFLIGHT — kdb-1 early-warning gates (BEFORE building anything)
 
@@ -147,16 +153,18 @@ Tracked for v2 / v2.x but explicitly NOT in scope for v1:
 | AUTH-DBX-01..05 | kdb-2 |
 | SECRETS-DBX-01..04 | kdb-2 |
 | SECRETS-DBX-05 | kdb-3 (audit) |
-| DEPLOY-DBX-01..08 | kdb-2 (DEPLOY-07 requirements.txt + DEPLOY-08 LLM_PROVIDER lock authored before first deploy) |
+| DEPLOY-DBX-01..09 | kdb-2 (DEPLOY-07 requirements.txt + DEPLOY-08 LLM_PROVIDER lock + DEPLOY-09 KG-creds explicit-unset, all authored before first deploy) |
 | CONFIG-DBX-01..02 | kdb-3 (final audit) |
 | QA-DBX-01..03 | kdb-3 |
 | OPS-DBX-01..02 | kdb-2 (post-RUNNING smoke) |
 | OPS-DBX-03..05 | kdb-3 |
 
-**Total REQ count:** 36 (was 30 in v1 draft; net +6 = +PREFLIGHT-01/02 +SPIKE split adds 4 vs 1 = +4 +DEPLOY-07/08 = +2; STORAGE-04/SECRETS-05/CONFIG-01 in-place expansions)
+**Total REQ count:** 37 (was 30 in v1 draft; net +7 = +PREFLIGHT-01/02 +SPIKE split adds 4 vs 1 = +4 +DEPLOY-07/08/09 = +3; STORAGE-04/SECRETS-05/CONFIG-01/QA-03 in-place expansions)
 
 ## Last Updated
 
-2026-05-15 — Revision 2 incorporating user P0/P1/P2 adjustments: SPIKE-DBX-01 split into 5 sub-items (01a-01e) covering FUSE / makedirs / SQLite WAL / cold-start / DeepSeek egress; new PREFLIGHT category (DBX-01 DeepSeek egress preflight + DBX-02 grant capability test) front-loaded into kdb-1 to surface highest-risk milestone blockers early; DEPLOY-DBX-07 requirements.txt + DEPLOY-DBX-08 OMNIGRAPH_LLM_PROVIDER=deepseek explicit lock; OPS-DBX-01..03 verbatim mirror KB-v2 Smoke 1/2/3; STORAGE-DBX-04 post-sync DB integrity check; SECRETS-DBX-05 audit broadened to `databricks-deploy/`; CONFIG-DBX-01 anchored to milestone-base commit `7df6e5b`; SPIKE 30-min hard timer + INCONCLUSIVE→kdb-1.5 auto-trigger rule. Total: 36 REQs across 10 categories.
+2026-05-15 (rev 2.2) — Absorbed kb-v2.1-1 KG MODE HARDENING (sibling-track commit `eff934f`): added **DEPLOY-DBX-09** (deliberate unset of `KB_KG_GCP_SA_KEY_PATH` / `GOOGLE_APPLICATION_CREDENTIALS` in `app.yaml` → triggers `kg_credentials_missing` → FTS5 fallback per v1 design); **QA-DBX-03** expanded to verify all 3 reason codes (`kg_disabled` / `kg_credentials_missing` / `kg_credentials_unreadable`); PITFALLS B1 severity downgraded in research file (App now ships even if SPIKE-DBX-01b fails — kdb-1.5 trigger threshold raised). Total: 37 REQs across 10 categories.
+
+2026-05-15 (rev 2) — User P0/P1/P2 adjustments: SPIKE-DBX-01 split into 5 sub-items (01a-01e) covering FUSE / makedirs / SQLite WAL / cold-start / DeepSeek egress; new PREFLIGHT category (DBX-01 DeepSeek egress preflight + DBX-02 grant capability test) front-loaded into kdb-1 to surface highest-risk milestone blockers early; DEPLOY-DBX-07 requirements.txt + DEPLOY-DBX-08 OMNIGRAPH_LLM_PROVIDER=deepseek explicit lock; OPS-DBX-01..03 verbatim mirror KB-v2 Smoke 1/2/3; STORAGE-DBX-04 post-sync DB integrity check; SECRETS-DBX-05 audit broadened to `databricks-deploy/`; CONFIG-DBX-01 anchored to milestone-base commit `7df6e5b`; SPIKE 30-min hard timer + INCONCLUSIVE→kdb-1.5 auto-trigger rule. 36 REQs across 10 categories.
 
 2026-05-15 (rev 1) — Initial REQs drafted in main session by orchestrator (no roadmapper agent — express path per user direction). 30 REQs across 9 categories, mapped to 3 phases with conditional kdb-1.5.

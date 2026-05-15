@@ -89,3 +89,21 @@ Research committed in `406c2d0` (raw evidence in `raw/` subdir for audit traceab
 - DBX workspace: `https://adb-2717931942638877.17.azuredatabricks.net`
 - DBX CLI profile: `dev` (in `~/.databrickscfg`), default warehouse `eaa098820703bf5f`
 - User has Windows dev box with Databricks Connect + OAuth login + PAT configured
+
+### kb-v2.1-1 KG MODE HARDENING (closed 2026-05-15, commit `eff934f` + STATE backfill `a226140`)
+
+Sibling-track quick task — NOT kb-databricks-v1 work, but materially relevant downstream. Aliyun root cause was env-file content drift (path baked into a copied `~/.hermes/.env`), not code; remediated with proactive file-existence probe.
+
+**Shipped:**
+- `KG_MODE_AVAILABLE` flag pattern at [kb/services/synthesize.py:74-105](../kb/services/synthesize.py#L74-L105) — EAFP 1-byte read probe + 3 reason codes: `{kg_disabled, kg_credentials_missing, kg_credentials_unreadable}` + one-shot WARNING (no path leak)
+- New env var `KB_KG_GCP_SA_KEY_PATH` in [kb/config.py](../kb/config.py) with `GOOGLE_APPLICATION_CREDENTIALS` fallback
+- Aliyun systemd unit at `kb/deploy/kb-api.service` (irrelevant to Databricks Apps)
+- Operator runbook at `kb/deploy/RUNBOOK-aliyun-systemd-refresh.md` (Aliyun-specific)
+- Tests: `tests/integration/kb/test_kg_mode_hardening.py` 8/8 PASS · 4/4 Local UAT scenarios · 436/436 no regression
+
+**Implications absorbed into kb-databricks-v1 rev 2.2:**
+- **DEPLOY-DBX-09 (new REQ):** `app.yaml` deliberately does NOT set `KB_KG_GCP_SA_KEY_PATH` or `GOOGLE_APPLICATION_CREDENTIALS` in v1 — leaving them unset triggers `kg_credentials_missing` → FTS5 fallback, which is the desired v1 degraded-but-functional state given DEPLOY-DBX-08 DeepSeek-only LLM lock
+- **QA-DBX-03 (expanded):** verifies all 3 reason codes return HTTP 200 + FTS5 fallback markdown (not just storage-absence case)
+- **PITFALLS B1 (severity downgraded):** App still ships even if SPIKE-DBX-01b fails; KG mode just stays disabled. kdb-1.5 trigger threshold raised — only insert if user explicitly wants KG mode in v1
+
+**CONFIG-DBX-01 invariant verification:** kb-v2.1-1 commits added files to `kb/`, but their commit messages contain `(kb-v2.1)`, NOT `(kdb-`. The verification command `git log 7df6e5b..HEAD --grep '(kdb-' --name-only -- kb/` correctly excludes them. ✅ Filter design held up.

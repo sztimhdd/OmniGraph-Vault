@@ -29,8 +29,9 @@
 ### B1. `LightRAG(working_dir="/Volumes/...")` raises at construction
 - **Symptom:** App startup logs show `OSError: [Errno 30] Read-only file system` from `os.makedirs(workspace_dir, exist_ok=True)`
 - **Root cause:** Volume mounted read-only (App SP has only `READ VOLUME`); `os.makedirs` enters write path even with `exist_ok=True`; documented at `lightrag/kg/json_kv_impl.py:39`
-- **Detection:** Cold-start log scan on first deploy
+- **Detection:** Cold-start log scan on first deploy; SPIKE-DBX-01b verifies in kdb-1
 - **Mitigation:** Either grant `WRITE VOLUME` (broader surface, accept) OR copy-to-/tmp pattern at startup (safer; trigger kdb-1.5)
+- **⚠️ Severity DOWNGRADED 2026-05-15** by kb-v2.1-1 KG_MODE_AVAILABLE flag (commit `eff934f`). The graceful-degradation path at [kb/services/synthesize.py:74-105](../../../kb/services/synthesize.py#L74-L105) means: if LightRAG storage init fails or credentials are missing/unreadable, `/synthesize` no longer 500s — it returns HTTP 200 with FTS5 fallback markdown + `confidence: "fts5_fallback"` + reason code `kg_credentials_unreadable` (or similar). App still ships even if SPIKE-DBX-01b fails. KG mode just stays disabled until storage is sorted. **kdb-1.5 trigger threshold raised:** insert kdb-1.5 only if user explicitly wants KG mode in v1; otherwise accept FTS5-only mode and ship.
 
 ### B2. SQLite `kol_scan.db` refuses to open from `/Volumes/...`
 - **Symptom:** `sqlite3.OperationalError: unable to open database file` or `database is locked`

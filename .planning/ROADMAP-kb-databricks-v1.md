@@ -12,7 +12,7 @@ T-shirt **S** — 1–2 days end-to-end if kdb-1 spike comes back clean. 2–3 d
 |---|-------|------|--------------|------------------|---------|
 | **kdb-1** | UC Volume + Snapshot + Preflight + Spike | Volume + initial snapshot in place; PREFLIGHT confirms DeepSeek egress OK + grant capability OK; SPIKE 5/5 confirms (or rejects) `/Volumes/...` Apps-runtime access | STORAGE-DBX-01..05 (verify only), PREFLIGHT-DBX-01..02, SPIKE-DBX-01a..01e, SYNC-DBX-01..02 | 6 | XS-S (½ to 1 day; longer if PREFLIGHT escalation needed) |
 | **kdb-1.5** | LightRAG Storage Adapter (conditional) | Copy-to-/tmp adapter at App startup if any SPIKE sub-check ❌ or INCONCLUSIVE-at-30-min | STORAGE-DBX-05 (alt path) | 2 | XS (≤ half-day) |
-| **kdb-2** | Databricks App Deploy | App created + secret resource bound + grants set + first deploy reaches RUNNING + Smoke 1+2 (KB-v2 verbatim) PASS | AUTH-DBX-01..05, SECRETS-DBX-01..04, DEPLOY-DBX-01..08, OPS-DBX-01, OPS-DBX-02 | 5 | S (1 day) |
+| **kdb-2** | Databricks App Deploy | App created + secret resource bound + grants set + first deploy reaches RUNNING + Smoke 1+2 (KB-v2 verbatim) PASS | AUTH-DBX-01..05, SECRETS-DBX-01..04, DEPLOY-DBX-01..09, OPS-DBX-01, OPS-DBX-02 | 5 | S (1 day) |
 | **kdb-3** | UAT Close | Smoke 3 (KB-v2 verbatim) + sync round-trip + secret-leak audit (databricks-deploy/) + zero-`kb/`-edits audit (vs commit `7df6e5b`) + runbook + sign-off | SECRETS-DBX-05, CONFIG-DBX-01..02, SYNC-DBX-03, QA-DBX-01..03, OPS-DBX-03..05 | 5 | XS (half-day) |
 
 **Default path:** kdb-1 → kdb-2 → kdb-3 (3 phases). Insert kdb-1.5 between kdb-1 and kdb-2 only if SPIKE-DBX-01 surfaces a blocker.
@@ -132,7 +132,7 @@ No cross-phase parallelization. Phase boundaries are fenced by either a deploy g
 
 ## Coverage validation (orchestrator hand-driven, per parallel-track caveat)
 
-36 REQs in REQUIREMENTS → 36 mapped to phases (table below). 100% coverage.
+37 REQs in REQUIREMENTS → 37 mapped to phases (table below). 100% coverage.
 
 | REQ-ID | Phase | Verification mechanism |
 |--------|-------|------------------------|
@@ -161,6 +161,7 @@ No cross-phase parallelization. Phase boundaries are fenced by either a deploy g
 | DEPLOY-DBX-01..06 | kdb-2 | `databricks apps get omnigraph-kb` returns RUNNING + URL + Smoke 1 |
 | DEPLOY-DBX-07 | kdb-2 | `cat databricks-deploy/requirements.txt` lists kb runtime deps |
 | DEPLOY-DBX-08 | kdb-2 | `cat databricks-deploy/app.yaml` shows `OMNIGRAPH_LLM_PROVIDER=deepseek` literal |
+| DEPLOY-DBX-09 | kdb-2 | `grep -E "KB_KG_GCP_SA_KEY_PATH\|GOOGLE_APPLICATION_CREDENTIALS" databricks-deploy/app.yaml` returns empty (deliberate unset → kg_credentials_missing → FTS5 fallback) |
 | CONFIG-DBX-01 | kdb-3 | `git log 7df6e5b..HEAD --grep '(kdb-' --name-only -- kb/` returns empty |
 | CONFIG-DBX-02 | kdb-3 | `ls databricks-deploy/` shows all config files |
 | QA-DBX-01..03 | kdb-3 | Smoke 3 evidence in VERIFICATION |
@@ -182,8 +183,10 @@ No cross-phase parallelization. Phase boundaries are fenced by either a deploy g
 
 ## ROADMAP CREATED
 
-3 phases (4 with conditional kdb-1.5) | 36 REQs mapped | All covered ✓
+3 phases (4 with conditional kdb-1.5) | 37 REQs mapped | All covered ✓
 
 **Revision history:**
+- 2026-05-15 rev 2.2 — kb-v2.1-1 KG MODE HARDENING absorbed (commit `eff934f` upstream): added DEPLOY-DBX-09 (explicit unset of `KB_KG_GCP_SA_KEY_PATH` / `GOOGLE_APPLICATION_CREDENTIALS` → triggers `kg_credentials_missing` → FTS5 fallback per v1 design); QA-DBX-03 expanded to verify all 3 reason codes (`kg_disabled` / `kg_credentials_missing` / `kg_credentials_unreadable`); PITFALLS B1 severity downgraded (App ships even if SPIKE-DBX-01b fails — kdb-1.5 trigger threshold raised). Net REQ delta: +1 (36 → 37)
+- 2026-05-15 rev 2.1 — doc self-consistency cleanup (30→36 REQ count fixes; risks #2 #3 mitigations now reference PREFLIGHT-DBX-01/02 closure path)
 - 2026-05-15 rev 2 — incorporated user P0/P1/P2 adjustments: SPIKE split into 5 sub-items (01a-01e), new PREFLIGHT category front-loaded into kdb-1 Wave 1, DEPLOY-07/08 (requirements.txt + LLM_PROVIDER lock), OPS verbatim KB-v2 Smoke 1/2/3, CONFIG-01 milestone-base anchor `7df6e5b`, SPIKE 30-min hard timer + INCONCLUSIVE→kdb-1.5 rule
 - 2026-05-15 rev 1 — initial draft, 30 REQs / 9 categories
