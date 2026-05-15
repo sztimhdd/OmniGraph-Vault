@@ -7,10 +7,10 @@
 ## Current Position
 
 - **Milestone:** kb-databricks-v1 (parallel track)
-- **Phase:** Not started — defining requirements
+- **Phase:** Not started — REQ + ROADMAP drafted, awaiting user approval
 - **Plan:** —
-- **Status:** Milestone scaffold landed; 4 research agents to spawn next
-- **Last activity:** 2026-05-14 — milestone initialized via `/gsd:new-milestone kb-databricks-v1`
+- **Status:** REQUIREMENTS-kb-databricks-v1.md + ROADMAP-kb-databricks-v1.md authored in main session (express path, no roadmapper agent — research SUMMARY.md had high-confidence data)
+- **Last activity:** 2026-05-15 — REQ + ROADMAP draft committed; awaiting "approve / adjust / show full files" gate
 
 ## Locked Defaults (snapshot, full table in PROJECT-kb-databricks-v1.md)
 
