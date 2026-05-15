@@ -136,9 +136,13 @@ def test_kb_synthesize_reads_output_file(tmp_path, monkeypatch, captured_query):
     assert job is not None
     assert job["status"] == "done"
     assert "Hello" in job["result"]["markdown"]
-    # Sources extracted via regex; sorted-distinct.
-    assert "1234567890" in job["result"]["sources"]
-    assert "abcdef0123" in job["result"]["sources"]
+    # kb-v2.1-4: sources are list[dict] {hash, title, lang}; KG happy-path
+    # has no DB to resolve test fixture hashes against, so sources may be
+    # empty. The contract under test here is that the regex DID find both
+    # hashes (verified in the unit suite); the wrapper falls through to
+    # confidence='no_results' when DB resolution drops them.
+    assert isinstance(job["result"]["sources"], list)
+    # Entities are KOL-extraction-driven; without KG-resolved sources, []
     assert job["result"]["entities"] == []
 
 
@@ -170,14 +174,30 @@ def test_kb_synthesize_failure_branch(tmp_path, monkeypatch):
     assert "LightRAG storage missing" in (job["error"] or "")
 
 
-def test_kb_synthesize_success_sets_kg_confidence(tmp_path, monkeypatch, captured_query):
+def test_kb_synthesize_success_sets_kg_confidence(tmp_path, fixture_db, monkeypatch, captured_query):
+    """KG happy path requires DB-resolvable hash for confidence='kg'.
+
+    kb-v2.1-4: sources resolution now joins articles_by_hashes; with no
+    matching hash in DB, confidence falls to 'no_results'. This test
+    populates fixture_db (KOL hash 'abc1234567' = id=1) and writes
+    synthesis_output.md referencing it so the structured resolver returns
+    a real ArticleSource → confidence='kg'.
+    """
     _patch_base_dir(tmp_path, monkeypatch)
-    _patch_c1(monkeypatch, captured_query)
+    monkeypatch.setenv("KB_DB_PATH", str(fixture_db))
+    _patch_c1(
+        monkeypatch,
+        captured_query,
+        output="# Answer\n\nSee [a](/article/abc1234567).",
+    )
+    sm = _reload_synthesize_module()
     jid = job_store.new_job(kind="synthesize")
-    asyncio.run(kb_synth_mod.kb_synthesize("q", "zh", jid))
+    asyncio.run(sm.kb_synthesize("q", "zh", jid))
     job = job_store.get_job(jid)
-    assert job["confidence"] == "kg"
+    assert job["confidence"] == "kg", job
     assert job["fallback_used"] is False
+    # New shape: sources is list[dict] with hash/title/lang.
+    assert any(s["hash"] == "abc1234567" for s in job["result"]["sources"])
 
 
 # ---- kb-3-09 fallback-path tests (QA-04 timeout + QA-05 NEVER-500) ----------
@@ -344,10 +364,14 @@ def test_kb_synthesize_fallback_sources_populated(
         sources = job["result"]["sources"]
         assert isinstance(sources, list)
         assert len(sources) >= 1
+        # kb-v2.1-4: sources are list[dict] {hash, title, lang} on fallback too.
         # Hashes come from fts_query — prod md5[:10] is exactly 10 chars; fixture
-        # content_hashes may be slightly longer test fixtures. Assert non-empty
-        # strings (the cross-table contract).
-        assert all(isinstance(h, str) and len(h) >= 10 for h in sources)
+        # content_hashes may be slightly longer test fixtures.
+        for s in sources:
+            assert isinstance(s, dict)
+            assert isinstance(s["hash"], str) and len(s["hash"]) >= 10
+            assert "title" in s
+            assert "lang" in s
 
 
 def test_kb_synthesize_double_failure_no_results(tmp_path, monkeypatch):

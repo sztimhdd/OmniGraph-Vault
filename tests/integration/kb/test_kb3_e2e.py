@@ -204,8 +204,10 @@ def test_e2e_synthesize_happy_path(
     async def fake_c1(query_text: str, mode: str = "hybrid") -> None:
         import config as og_config
 
+        # kb-v2.1-4: reference a fixture-known KOL hash so structured source
+        # resolution succeeds and confidence='kg' (not 'no_results').
         (Path(og_config.BASE_DIR) / "synthesis_output.md").write_text(
-            "# Answer\n\nSee [s](/article/abcd012345)", encoding="utf-8"
+            "# Answer\n\nSee [s](/article/abc1234567)", encoding="utf-8"
         )
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake_c1)
@@ -224,7 +226,10 @@ def test_e2e_synthesize_happy_path(
             assert final["confidence"] == "kg"
             assert final["fallback_used"] is False
             assert final["result"] is not None
-            assert "abcd012345" in final["result"]["sources"]
+            # kb-v2.1-4: sources are list[dict] {hash, title, lang}.
+            assert any(
+                s["hash"] == "abc1234567" for s in final["result"]["sources"]
+            ), final["result"]["sources"]
             return
     pytest.fail(f"synthesize never completed within 4s; last={final}")
 

@@ -1,88 +1,171 @@
-"""Unit tests for the 4 helpers added in the 260515-cvh hotfix.
+"""Unit tests for the kb-v2.1-4 structured synthesize helpers.
 
-Covers: _ENTITY_HINTS / _dedupe / _fallback_search_terms / _entity_candidates.
+Replaces the v2.0 heuristic suite (260515-cvh hotfix). The 4 helpers being
+tested in this update are pure functions:
 
-No monkeypatching required — all 4 helpers are pure functions (no DB, no LLM,
-no filesystem). _source_hashes_from_fts is NOT tested here because it requires
-a live FTS DB; it is covered indirectly by the integration suite.
+    _extract_source_hashes(markdown)        — re-based regex parser (no DB)
+    _resolve_sources_from_markdown(markdown) — DB-backed; uses fixture_db
+    SynthesizeResult.asdict()                — schema serialization
+
+DROPPED tests for _ENTITY_HINTS, _dedupe, _fallback_search_terms,
+_entity_candidates — those helpers were removed by kb-v2.1-4 (replaced by
+DB-resolved sources/entities via article_query.articles_by_hashes +
+article_query.entities_for_articles).
 """
 from __future__ import annotations
 
+import importlib
+import os
+from pathlib import Path
+
+import pytest
+
 from kb.services.synthesize import (
-    _ENTITY_HINTS,
-    _dedupe,
-    _entity_candidates,
-    _fallback_search_terms,
+    ArticleSource,
+    EntityMention,
+    SynthesizeResult,
+    _extract_source_hashes,
 )
 
 
 # ---------------------------------------------------------------------------
-# _ENTITY_HINTS (1 test)
+# _extract_source_hashes (pure function on markdown — no DB)
 # ---------------------------------------------------------------------------
 
 
-def test_entity_hints_is_immutable_tuple_with_min_length():
-    """_ENTITY_HINTS must be an immutable tuple with >=8 entries."""
-    assert isinstance(_ENTITY_HINTS, tuple), "_ENTITY_HINTS must be a tuple"
-    assert len(_ENTITY_HINTS) >= 8, (
-        f"_ENTITY_HINTS has only {len(_ENTITY_HINTS)} items; expected >=8"
+def test_extract_source_hashes_finds_distinct_hashes_in_first_occurrence_order() -> None:
+    md = (
+        "First [a](/article/abcd012345) then [b](/article/1111111111) "
+        "and again [a-dup](/article/abcd012345)."
     )
+    assert _extract_source_hashes(md) == ["abcd012345", "1111111111"]
+
+
+def test_extract_source_hashes_empty_markdown_returns_empty_list() -> None:
+    assert _extract_source_hashes("") == []
+    assert _extract_source_hashes("no links here") == []
+
+
+def test_extract_source_hashes_ignores_malformed_hashes() -> None:
+    """The regex requires exactly 10 lowercase-hex chars after /article/."""
+    md = (
+        "[short](/article/abc) "          # too short
+        "[long](/article/abcdef0123456) " # too long (regex stops at 10)
+        "[upper](/article/ABCD012345) "   # uppercase
+        "[ok](/article/0123456789)"       # valid
+    )
+    hashes = _extract_source_hashes(md)
+    # Only the 'ok' link is fully valid. The 'long' one has 10 valid chars at
+    # the start so the regex does match the prefix — that's acceptable for a
+    # backref scraper. Assert the valid one is present and uppercase is gone.
+    assert "0123456789" in hashes
+    assert "ABCD012345" not in hashes
 
 
 # ---------------------------------------------------------------------------
-# _dedupe (2 tests)
+# SynthesizeResult schema serialization
 # ---------------------------------------------------------------------------
 
 
-def test_dedupe_case_insensitive():
-    """_dedupe treats 'Agent' and 'agent' as the same key; keeps first occurrence."""
-    result = _dedupe(["Agent", "agent", "AGENT"])
-    assert result == ["Agent"], f"Expected ['Agent'], got {result}"
+def test_synthesize_result_asdict_shape_matches_qa_js_consumer_contract() -> None:
+    """asdict() must produce keys that kb/static/qa.js reads verbatim:
+    sources[].hash/.title/.lang and entities[].name/.article_count.
+    """
+    r = SynthesizeResult(
+        markdown="# answer",
+        confidence="kg",
+        fallback_used=False,
+        sources=[
+            ArticleSource(hash="abc1234567", title="T", lang="en"),
+        ],
+        entities=[
+            EntityMention(name="LightRAG", article_count=5),
+        ],
+    )
+    d = r.asdict()
+    assert d["markdown"] == "# answer"
+    assert d["confidence"] == "kg"
+    assert d["fallback_used"] is False
+    assert d["error"] is None
+    assert d["sources"] == [
+        {"hash": "abc1234567", "title": "T", "lang": "en"},
+    ]
+    assert d["entities"] == [
+        {"name": "LightRAG", "article_count": 5},
+    ]
 
 
-def test_dedupe_preserves_order_and_handles_empty():
-    """_dedupe preserves insertion order and handles empty list."""
-    assert _dedupe([]) == []
-    assert _dedupe(["RAG", "MCP", "RAG", "Claude"]) == ["RAG", "MCP", "Claude"]
+def test_synthesize_result_default_factories_independent() -> None:
+    """Two SynthesizeResult instances must NOT share the same default lists
+    (mutable-default-arg trap; field(default_factory=list) avoids this)."""
+    a = SynthesizeResult(markdown="a", confidence="no_results", fallback_used=False)
+    b = SynthesizeResult(markdown="b", confidence="no_results", fallback_used=False)
+    assert a.sources is not b.sources
+    assert a.entities is not b.entities
 
 
 # ---------------------------------------------------------------------------
-# _fallback_search_terms (2 tests)
+# _resolve_sources_from_markdown (DB-backed; uses fixture_db)
 # ---------------------------------------------------------------------------
 
 
-def test_fallback_search_terms_includes_question():
-    """First term is always the question itself (for precise FTS match)."""
-    terms = _fallback_search_terms("What is LangChain?")
-    assert terms[0] == "What is LangChain?", f"First term must be the question, got {terms}"
+@pytest.fixture
+def synthesize_module_with_db(fixture_db: Path, monkeypatch: pytest.MonkeyPatch):
+    """Reload kb.services.synthesize with KB_DB_PATH pointing at fixture_db."""
+    monkeypatch.setenv("KB_DB_PATH", str(fixture_db))
+    monkeypatch.delenv("KB_CONTENT_QUALITY_FILTER", raising=False)
+    import kb.config
+    import kb.data.article_query
+    import kb.services.synthesize
+
+    importlib.reload(kb.config)
+    monkeypatch.setattr(
+        kb.data.article_query,
+        "QUALITY_FILTER_ENABLED",
+        os.environ.get("KB_CONTENT_QUALITY_FILTER", "on").lower() != "off",
+    )
+    importlib.reload(kb.services.synthesize)
+    return kb.services.synthesize
 
 
-def test_fallback_search_terms_edge_cases_and_ai_agent():
-    """Empty/None question returns []; 'AI Agent' compound added when both words present."""
-    assert _fallback_search_terms("") == []
-    assert _fallback_search_terms("   ") == []
-    assert _fallback_search_terms(None) == []
-    terms = _fallback_search_terms("Tell me about AI Agent frameworks")
-    assert "AI Agent" in terms, f"Expected 'AI Agent' in terms, got {terms}"
+def test_resolve_sources_from_markdown_returns_articlesource_for_known_hashes(
+    synthesize_module_with_db,
+) -> None:
+    """KOL hash 'abc1234567' (id=1, 'zh-CN', '测试文章一') → resolves with title+lang."""
+    md = "See [more](/article/abc1234567) for details."
+    result = synthesize_module_with_db._resolve_sources_from_markdown(md)
+    assert len(result) == 1
+    assert result[0].hash == "abc1234567"
+    assert result[0].title == "测试文章一"
+    assert result[0].lang == "zh-CN"
 
 
-# ---------------------------------------------------------------------------
-# _entity_candidates (2 tests)
-# ---------------------------------------------------------------------------
+def test_resolve_sources_from_markdown_empty_when_no_refs(
+    synthesize_module_with_db,
+) -> None:
+    """Markdown without any /article/{hash} → empty list (no DB hit)."""
+    assert synthesize_module_with_db._resolve_sources_from_markdown("") == []
+    assert synthesize_module_with_db._resolve_sources_from_markdown(
+        "Plain answer with no source links."
+    ) == []
 
 
-def test_entity_candidates_matches_question_and_markdown():
-    """Entities pulled from both question and markdown haystacks."""
-    result_q = _entity_candidates("What is LightRAG?", "")
-    assert "LightRAG" in result_q
+def test_resolve_sources_from_markdown_drops_unknown_hashes(
+    synthesize_module_with_db,
+) -> None:
+    """Hash that exists in markdown but not in DB → silently dropped."""
+    md = "See [a](/article/abc1234567) and [b](/article/9999999999)."
+    result = synthesize_module_with_db._resolve_sources_from_markdown(md)
+    assert len(result) == 1
+    assert result[0].hash == "abc1234567"
 
-    result_md = _entity_candidates("", "DeepSeek model performance compared to Claude")
-    assert "DeepSeek" in result_md
-    assert "Claude" in result_md
 
-
-def test_entity_candidates_capped_at_8():
-    """Result is capped at 8 items even if many hints match."""
-    long_question = " ".join(_ENTITY_HINTS)
-    result = _entity_candidates(long_question, long_question)
-    assert len(result) <= 8, f"Expected <=8 entities, got {len(result)}"
+def test_resolve_sources_from_markdown_drops_data07_reject(
+    synthesize_module_with_db,
+) -> None:
+    """KOL id=98 (layer2_verdict='reject', hash='neg9898989') → DATA-07 drops it."""
+    md = "[reject](/article/neg9898989) and [ok](/article/abc1234567)."
+    result = synthesize_module_with_db._resolve_sources_from_markdown(md)
+    hashes = [s.hash for s in result]
+    assert "neg9898989" not in hashes, "DATA-07 reject leaked into sources"
+    assert "abc1234567" in hashes

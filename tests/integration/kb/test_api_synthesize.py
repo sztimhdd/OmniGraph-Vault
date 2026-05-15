@@ -36,7 +36,7 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def app_client(tmp_path, monkeypatch):
+def app_client(tmp_path, fixture_db, monkeypatch):
     """Build a fresh TestClient with config.BASE_DIR redirected to tmp_path.
 
     We reload kb.api so the synthesize router (and its wrapper module) re-resolve
@@ -47,12 +47,18 @@ def app_client(tmp_path, monkeypatch):
     KG_MODE_AVAILABLE flag in kb.services.synthesize evaluates True. These
     tests exercise the C1 happy/failure paths (with C1 monkeypatched), which
     the kb-v2.1-1 short-circuit must NOT preempt.
+
+    kb-v2.1-4: KB_DB_PATH points at fixture_db so the new structured-source
+    resolution (articles_by_hashes / entities_for_articles) has a valid DB
+    to query. The fixture's KOL ids 1-5 with content_hash 'abc1234567' /
+    'kol3000003a' / etc. are the resolvable corpus.
     """
     import config as og_config
 
     sa_dummy = tmp_path / "kg-sa-dummy.json"
     sa_dummy.write_text('{"type":"service_account"}')
     monkeypatch.setenv("KB_KG_GCP_SA_KEY_PATH", str(sa_dummy))
+    monkeypatch.setenv("KB_DB_PATH", str(fixture_db))
     monkeypatch.setattr(og_config, "BASE_DIR", tmp_path)
     # Reload chain: kb.config → kb.services.synthesize → kb.api_routers.synthesize → kb.api
     import kb.config
@@ -69,7 +75,7 @@ def app_client(tmp_path, monkeypatch):
 
 def _patch_c1_success(
     monkeypatch: pytest.MonkeyPatch,
-    output: str = "# Answer\n\nSee [a](/article/abcd012345)",
+    output: str = "# Answer\n\nSee [a](/article/abc1234567)",
 ) -> None:
     """Patch C1 with an instantaneously-successful async stub that writes
     synthesis_output.md so the wrapper can read it back."""
@@ -161,7 +167,10 @@ def test_synthesize_full_happy_path(app_client, monkeypatch):
     assert final["result"] is not None
     assert "markdown" in final["result"]
     assert "sources" in final["result"]
-    assert "abcd012345" in final["result"]["sources"]
+    # kb-v2.1-4: sources are list[dict] {hash, title, lang}.
+    assert any(
+        s["hash"] == "abc1234567" for s in final["result"]["sources"]
+    ), final["result"]["sources"]
 
 
 def test_synthesize_failure_path_basic(app_client, monkeypatch):

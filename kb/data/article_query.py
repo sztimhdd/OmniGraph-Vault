@@ -740,6 +740,114 @@ def related_topics_for_article(
             conn.close()
 
 
+def articles_by_hashes(
+    hashes: list[str],
+    conn: Optional[sqlite3.Connection] = None,
+) -> list[dict]:
+    """kb-v2.1-4: Resolve a batch of url-hashes (md5[:10]) to ``[{hash, title, lang}]``.
+
+    Filters through DATA-07 (same contract as list_articles): rows that fail
+    the quality filter are silently dropped. Order of return matches input
+    order; missing hashes are skipped.
+
+    KOL: matches against ``articles.content_hash`` directly (10-char already).
+    RSS: matches against ``substr(rss_articles.content_hash, 1, 10)``
+    (full md5 truncated, mirrors get_article_by_hash semantics).
+    """
+    if not hashes:
+        return []
+    own_conn = conn is None
+    if own_conn:
+        conn = _connect()
+    conn.row_factory = sqlite3.Row
+    try:
+        if QUALITY_FILTER_ENABLED:
+            _verify_quality_columns(conn)
+        placeholders = ",".join("?" for _ in hashes)
+        kol_filter = (
+            (" AND " + _DATA07_KOL_FRAGMENT) if QUALITY_FILTER_ENABLED else ""
+        )
+        rss_filter = (
+            (" AND " + _DATA07_RSS_FRAGMENT) if QUALITY_FILTER_ENABLED else ""
+        )
+        kol_sql = (
+            f"SELECT a.content_hash AS hash, a.title, a.lang "
+            f"FROM articles a "
+            f"WHERE a.content_hash IN ({placeholders})"
+            f"{kol_filter}"
+        )
+        rss_sql = (
+            f"SELECT substr(r.content_hash, 1, 10) AS hash, r.title, r.lang "
+            f"FROM rss_articles r "
+            f"WHERE substr(r.content_hash, 1, 10) IN ({placeholders})"
+            f"{rss_filter}"
+        )
+        found: dict[str, dict] = {}
+        for row in conn.execute(kol_sql, hashes):
+            found[row["hash"]] = {
+                "hash": row["hash"],
+                "title": row["title"] or "",
+                "lang": row["lang"],
+            }
+        for row in conn.execute(rss_sql, hashes):
+            # KOL takes precedence on accidental collision (vanishingly unlikely).
+            found.setdefault(row["hash"], {
+                "hash": row["hash"],
+                "title": row["title"] or "",
+                "lang": row["lang"],
+            })
+        # Preserve input order, skip misses.
+        return [found[h] for h in hashes if h in found]
+    finally:
+        if own_conn:
+            conn.close()
+
+
+def entities_for_articles(
+    article_hashes: list[str],
+    limit: int = 8,
+    conn: Optional[sqlite3.Connection] = None,
+) -> list[dict]:
+    """kb-v2.1-4: Top-N entities mentioned across the given KOL article hashes.
+
+    Returns ``[{name, article_count}]`` sorted by article_count DESC then
+    entity_name ASC. RSS hashes are silently ignored (extracted_entities is
+    KOL-only per Hermes prod schema; see related_entities_for_article docs).
+
+    DATA-07 filter applies to the source articles via _DATA07_KOL_FRAGMENT.
+    """
+    if not article_hashes:
+        return []
+    own_conn = conn is None
+    if own_conn:
+        conn = _connect()
+    conn.row_factory = sqlite3.Row
+    try:
+        if QUALITY_FILTER_ENABLED:
+            _verify_quality_columns(conn)
+        placeholders = ",".join("?" for _ in article_hashes)
+        kol_filter = (
+            (" AND " + _DATA07_KOL_FRAGMENT) if QUALITY_FILTER_ENABLED else ""
+        )
+        sql = f"""
+            SELECT e.entity_name AS name,
+                   COUNT(DISTINCT e.article_id) AS article_count
+            FROM extracted_entities e
+            JOIN articles a ON a.id = e.article_id
+            WHERE a.content_hash IN ({placeholders}){kol_filter}
+            GROUP BY e.entity_name
+            ORDER BY article_count DESC, e.entity_name ASC
+            LIMIT ?
+        """
+        return [
+            {"name": row["name"], "article_count": row["article_count"]}
+            for row in conn.execute(sql, [*article_hashes, limit])
+        ]
+    finally:
+        if own_conn:
+            conn.close()
+
+
 def cooccurring_entities_in_topic(
     topic: str,
     limit: int = 5,
