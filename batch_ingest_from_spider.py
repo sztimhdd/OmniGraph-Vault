@@ -1686,6 +1686,13 @@ async def ingest_from_db(
                     (row[0], row[1], SKIP_REASON_VERSION_CURRENT),
                 )
             elif result.verdict == "candidate":
+                # TEMP DEBUG (260516): trace row[7] AT APPEND TIME — every candidate
+                logger.info(
+                    "[D2 APPEND DEBUG] id=%s source=%s row_len=%d row[7]=%r row_type=%s row_id=%d",
+                    row[0], row[1], len(row),
+                    row[7] if len(row) > 7 else "OOB",
+                    type(row).__name__, id(row),
+                )
                 candidate_rows.append(row)
         conn.commit()
 
@@ -1905,6 +1912,17 @@ async def ingest_from_db(
         # (id, source, title, url, source_name, body, summary). The legacy
         # 6-col shape (digest as last col) became the 7-col shape with
         # 'wechat'/'rss' inserted at row[1] and digest aliased to summary.
+        # TEMP DEBUG (260516): trace candidate_rows[i][7] AT START OF OUTER LOOP
+        # — before unpack — to see if tuple changed identity/value between
+        # append and iterate.
+        for _ci, _cr in enumerate(candidate_rows[:5]):
+            logger.info(
+                "[D2 OUTER DEBUG] i=%d id=%s row_len=%d row[7]=%r row_type=%s row_id=%d",
+                _ci, _cr[0], len(_cr),
+                _cr[7] if len(_cr) > 7 else "OOB",
+                type(_cr).__name__, id(_cr),
+            )
+
         for i, (art_id, source, title, url, account, body, summary, image_count_row) in enumerate(candidate_rows, 1):
             # quick-260511-mxc: strict hard cap. Pre-fix this check was
             # processed-only, so queued-but-not-yet-drained rows leaked past
