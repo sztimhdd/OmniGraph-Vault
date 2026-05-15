@@ -41,23 +41,27 @@ The `--grep '(kdb-'` filter scopes the diff to this milestone's commits only. Un
 
 ## Next Step
 
-`/gsd:plan-phase kdb-1` — but only after:
+REQ + ROADMAP rev 2 await user approval. After approval: `/gsd:plan-phase kdb-1`.
 
-1. Research phase completes (4 parallel agents → SUMMARY.md)
-2. REQUIREMENTS-kb-databricks-v1.md gathered + scoped
-3. ROADMAP-kb-databricks-v1.md created (3 phases default; conditional kdb-1.5
-   if LightRAG `working_dir=/Volumes/...` incompatibility surfaces)
+Status of upstream artifacts:
+- ✅ PROJECT-kb-databricks-v1.md (committed `88ba32a`)
+- ✅ Research (4 dimensions + SUMMARY, committed `406c2d0`)
+- ✅ REQUIREMENTS-kb-databricks-v1.md rev 2 (committed `0b06395`, 36 REQs / 10 categories)
+- ✅ ROADMAP-kb-databricks-v1.md rev 2 (committed `0b06395`, 3 phases + conditional kdb-1.5, kdb-1 waved)
+- ⏳ User approval gate
+- ⏳ `/gsd:plan-phase kdb-1` (Wave 1 PREFLIGHT first)
 
-## Pending Research (about to spawn)
+## Research (COMPLETED)
 
-| Agent | Focus | Output |
-|-------|-------|--------|
-| STACK | Databricks Apps runtime constraints, `app.yml` `secretKeyRef` syntax, secret scope CLI steps, Python deps, Apps-injected env vars | `.planning/research/kb-databricks-v1/STACK.md` |
-| FEATURES | LightRAG `working_dir=/Volumes/...` cloud-storage compatibility (PRIMARY UNCERTAINTY), UC Volume vs Delta for binary blobs, SQLite WAL on Volume, FUSE mount semantics | `.planning/research/kb-databricks-v1/FEATURES.md` |
-| ARCHITECTURE | Hermes → UC Volume sync options (3 alternatives with tradeoffs); App service principal ↔ UC Volume read flow; in-App static file serving from `/Volumes/...` | `.planning/research/kb-databricks-v1/ARCHITECTURE.md` |
-| PITFALLS | Common Apps deploy traps (cold start, port binding, request timeouts, log access); secret-leak failure modes; quota/auth foot-guns | `.planning/research/kb-databricks-v1/PITFALLS.md` |
+| Dimension | Output | Status |
+|-----------|--------|--------|
+| STACK | `.planning/research/kb-databricks-v1/STACK.md` | ✅ Verbatim app.yaml schema (MS Learn) + CLI v0.260.0 sub-help + Apps SP auto-injected env vars |
+| FEATURES | `.planning/research/kb-databricks-v1/FEATURES.md` | ✅ LightRAG source-grep with line refs (`os.makedirs` at every storage init, `write_json` non-atomic) + decision matrix |
+| ARCHITECTURE | `.planning/research/kb-databricks-v1/ARCHITECTURE.md` | ✅ Read-side topology + 3 sync options + 5-step manual sync runbook + App SP flow |
+| PITFALLS | `.planning/research/kb-databricks-v1/PITFALLS.md` | ✅ 22 pitfalls / 7 categories / phase coverage matrix |
+| Synthesis | `.planning/research/kb-databricks-v1/SUMMARY.md` | ✅ Top-5 pitfalls + kdb-1.5 trigger rule + 5 verification questions for spike |
 
-After all 4 complete: synthesizer agent → `SUMMARY.md`.
+Research committed in `406c2d0` (raw evidence in `raw/` subdir for audit traceability). Hand-driven by main session — gsd-project-researcher subagents spawned earlier hit 600s watchdog (web tools blocked / unavailable in subagents on this Databricks-hosted Claude); main-session synthesis was the salvage path. Findings drove all rev 2 P0/P1/P2 adjustments.
 
 ## Constraints in Force
 

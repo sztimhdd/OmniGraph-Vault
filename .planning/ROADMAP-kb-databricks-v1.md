@@ -111,10 +111,10 @@ T-shirt **S** — 1–2 days end-to-end if kdb-1 spike comes back clean. 2–3 d
 3. **Secret-leak audit PASS:** `git log --all -p -- databricks-deploy/app.yaml | grep -iE 'sk-[a-zA-Z0-9]{20,}'` returns empty; `git log --all -p` filtered to whole-repo new content also clean
 4. **Zero-`kb/`-edits audit PASS:** `git diff <kdb-databricks-v1-base>..HEAD -- kb/` returns empty
 5. `databricks-deploy/RUNBOOK.md` complete: first-deploy, manual-sync, App-restart, secret-rotation, troubleshoot sections all written + tested
-6. `VERIFICATION-kb-databricks-v1.md` authored with all 30 REQs ✅ (or noted as deferred with reasoning); milestone marked complete in `STATE-kb-databricks-v1.md` and `MILESTONES-kb-databricks-v1.md` (or appended to main `MILESTONES.md`)
+6. `VERIFICATION-kb-databricks-v1.md` authored with all 36 REQs ✅ (or noted as deferred with reasoning); milestone marked complete in `STATE-kb-databricks-v1.md` and `MILESTONES-kb-databricks-v1.md` (or appended to main `MILESTONES.md`)
 
 **Phase deliverables:**
-- `kdb-3-VERIFICATION.md` — checkbox status of all 30 REQs with evidence
+- `kdb-3-VERIFICATION.md` — checkbox status of all 36 REQs with evidence
 - `databricks-deploy/RUNBOOK.md` complete
 - Final state-update commit + sign-off
 
@@ -175,8 +175,8 @@ No cross-phase parallelization. Phase boundaries are fenced by either a deploy g
 ## Risks (top 3)
 
 1. **kdb-1 spike surfaces multiple blockers** → kdb-1.5 cost expands beyond half-day → milestone slips from S to M. **Mitigation:** spike scoped to 30 min hard timebox; if 30 min in we have no answers, default to copy-to-/tmp adapter without further spiking.
-2. **Apps runtime egress to `api.deepseek.com` is blocked by EDC network policy** → Smoke 3 fails permanently → milestone blocked. **Mitigation:** test outbound HTTPS from Apps in kdb-2 EARLY (before full smoke), get networking exception filed if blocked. Fallback v1.x: route DeepSeek calls through a workspace HTTPS proxy. Worst case: forced FM-DBX swap pulled into v1 scope.
-3. **App SP grants are workspace-admin-only operations** → user (`hhu@edc.ca`) may not have admin → grant request adds days. **Mitigation:** verify grant capabilities in kdb-1 (try a test grant on a throwaway volume); if blocked, escalate to workspace admin BEFORE kdb-2 starts.
+2. **Apps runtime egress to `api.deepseek.com` is blocked by EDC network policy** → Smoke 3 fails permanently → milestone blocked. **Mitigation:** closed by **PREFLIGHT-DBX-01** in kdb-1 Wave 1 (workspace-side egress test surfaces the issue BEFORE kdb-2 starts). Fallback if PREFLIGHT-01 ❌: route DeepSeek calls through a workspace HTTPS proxy, or pull FM-DBX swap into v1 scope. Final in-app verification at SPIKE-DBX-01e.
+3. **App SP grants are workspace-admin-only operations** → user (`hhu@edc.ca`) may not have admin → grant request adds days. **Mitigation:** closed by **PREFLIGHT-DBX-02** in kdb-1 Wave 1 (test grant on throwaway target proves capability BEFORE kdb-2). If PREFLIGHT-02 ❌: escalate to workspace admin in parallel with kdb-1 Wave 2/3, hold kdb-2 until grants land.
 
 ---
 
