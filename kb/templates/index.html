@@ -44,6 +44,18 @@
   </div>
 </section>
 
+{# kb-v2.1-3: hero-image-strip migrated from prod artifact (article 009b932a7d).
+   Inline styles preserved verbatim from prod snippet (kb/static/style.css unchanged). #}
+<div class="hero-image-strip"
+     aria-label="{{ 'home.hero_strip.aria_label' | t('zh-CN') }} / {{ 'home.hero_strip.aria_label' | t('en') }}"
+     style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;max-width:900px;margin:28px auto 0;">
+  {% for img_idx in [1, 10, 11, 12, 13] %}
+  <img src="{{ base_path }}/static/img/009b932a7d/{{ img_idx }}.jpg"
+       alt="" loading="eager" decoding="async"
+       style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);box-shadow:0 14px 40px rgba(15,23,42,.26);">
+  {% endfor %}
+</div>
+
 <section class="section section--latest" aria-labelledby="latest-title">
   <header class="section-header">
     <h2 id="latest-title">

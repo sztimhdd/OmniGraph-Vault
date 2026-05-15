@@ -133,6 +133,7 @@
   "home.section.topics_title": "🗂 Browse by Topic",
   "home.section.entities_title": "💡 Featured Entities",
   "home.topic.browse": "Browse topic",
+  "home.hero_strip.aria_label": "Knowledge base image preview",
 
   "topics.index.title": "Topics Index",
   "topics.index.heading": "Browse by Topic",

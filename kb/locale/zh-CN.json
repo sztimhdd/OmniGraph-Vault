@@ -133,6 +133,7 @@
   "home.section.topics_title": "🗂 主题分类",
   "home.section.entities_title": "💡 热门实体",
   "home.topic.browse": "查看主题",
+  "home.hero_strip.aria_label": "知识库图片预览",
 
   "topics.index.title": "主题索引",
   "topics.index.heading": "按主题浏览",
