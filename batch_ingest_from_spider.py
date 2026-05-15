@@ -1602,6 +1602,21 @@ async def ingest_from_db(
     normalized_topics = tuple(t.strip().lower() for t in topics)
     rows = conn.execute(sql, params).fetchall()
 
+    # TEMP DEBUG (260516): trace row[7] AT FETCH TIME for first 5 rows + known
+    # test ids. If row[7]=0 here for known-positive DB values, SQL execution
+    # itself is dropping image_count (schema cache / UNION type / etc).
+    # If row[7]=correct here but 0 at drain, mutation in middle.
+    logger.info("[D2 FETCH DEBUG] total rows=%d", len(rows))
+    _seen = set()
+    for _i, _r in enumerate(rows):
+        if _i < 5 or _r[0] in (418, 500, 505, 515, 518, 217, 214):
+            if _r[0] not in _seen:
+                _seen.add(_r[0])
+                logger.info(
+                    "[D2 FETCH DEBUG] i=%d id=%s source=%s row_len=%d row[7]=%r",
+                    _i, _r[0], _r[1], len(_r), _r[7] if len(_r) > 7 else "OOB",
+                )
+
     if not rows:
         logger.info("No articles found for topics %s", topics)
         conn.close()
