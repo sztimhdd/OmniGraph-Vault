@@ -86,8 +86,46 @@ The Apps SSO + persistence-path blocker means the original Wave 3 design (deploy
 
 ## Decision
 
-**Wave 3 BLOCKED — awaiting user choice between options A–E above.**
+### Update — Option E (minimal browser UAT for 01b) was attempted and BLOCKED
 
-Recommendation: **Option E (Browser UAT for 01b only)** — fastest path to a definitive answer on the single sub-check that gates kdb-1.5. If 01b passes, kdb-2 OK; if 01b fails, kdb-1.5 fires. Other sub-checks (01a/c/e) can be addressed inline during kdb-2 (e.g., 01e is implicitly tested when kdb-2 production app first calls Model Serving).
+After the initial Wave 3 fail, we tried Option E: deployed a single-purpose `omnigraph-kb-spike-01b` App exposing only `GET /spike/01b` returning the makedirs result as JSON. App reached RUNNING + deploy SUCCEEDED. Then:
 
-Alternative recommendation: **Option D (default to kdb-1.5)** if user wants zero-further-investigation. Storage adapter is defensive; worst case we build it and don't need it (kdb-1.5 deliverable still has value as a kdb-2.5 dry-run per LLM-DBX-03 factory validation).
+- Browser access to App URL → `{"X-Databricks-Reason-Phrase":"Public access is not allowed for workspace: 2717931942638877"}` HTTP 403
+- Workspace UI proxy access → same 403
+- Adding `user_api_scopes=[catalog.catalogs:read, files.files]` + redeploy → same 403
+- Adding `CAN_MANAGE` to user `hhu@edc.ca` (already implicit) → same 403
+
+**Root cause** (per Microsoft Learn Q&A and Databricks Community search results): this workspace `2717931942638877` has Azure Private Link configured with no public network access. App URLs (`*.azure.databricksapps.com`) are CNAME-routed via the workspace's private endpoint, but the user's machine resolves via public DNS → workspace rejects. Documented fix is to set up a Private DNS Zone for `azure.databricksapps.com` → workspace's private IP — which is an Azure infrastructure change outside this milestone's scope.
+
+The user confirmed other Apps in this workspace also can't be hit directly via browser; they're accessed via in-workspace internal proxying that wasn't replicable from external CLI.
+
+Spike app `omnigraph-kb-spike-01b` deleted; SP auto-cleaned; workspace + local dirs removed. **Anti-pattern #4 honored.**
+
+### Decision based on documentation rather than spike
+
+Since live spike was blocked by Private Link policy, defaulting to documentation-grounded answer:
+
+Per [Databricks docs — UC Volume Apps resource](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/uc-volumes):
+> "the app's service principal must have... the `READ VOLUME` **or** `WRITE VOLUME` privilege on the volume."
+
+`READ_VOLUME` only = the FUSE mount is genuinely read-only; any write syscall (including `os.makedirs` on a non-existent target subdir) raises. LightRAG's `__post_init__` calls `os.makedirs(workspace_dir, exist_ok=True)` on every storage backend (verified via source grep at `lightrag/kg/json_kv_impl.py:39`, `networkx_impl.py:50`, `nano_vector_db_impl.py:54`). When `workspace_dir` includes a namespace subdir (LightRAG default), the path doesn't pre-exist on the volume → makedirs raises → App fails at construct time.
+
+**Effective verdict: SPIKE-DBX-01b → ❌ (documented behavior, not empirical).**
+
+Per the prompt's decision rule (file line 339), `01b ❌` triggers **kdb-1.5 (LightRAG-Databricks storage adapter)**. The adapter materializes `lightrag_storage/` to App-local `/tmp/` at startup (or uses Databricks SDK Files API explicitly), bypassing the FUSE-mount-on-read-only-volume failure path.
+
+### Recommendation: PROCEED to kdb-1.5
+
+Build the storage adapter as designed in ROADMAP rev 3 kdb-1.5 phase. The adapter:
+
+- Is defensive against the 01b failure path (documented inevitable)
+- Doubles as the LLM-DBX-03 factory dry-run venue (validate `lightrag_databricks_provider.py` end-to-end before committing to kdb-2.5 full re-index Job)
+- Is small (~30–50 lines for the copy-to-/tmp logic, plus the factory wrapping)
+- Time-boxed at half day per ROADMAP
+
+Other sub-checks left INCONCLUSIVE in this Wave but covered by kdb-2 / kdb-2.5 path:
+
+- **01a (FUSE mount)** — implicitly verified during kdb-2 first deploy (if FUSE missing, App can't even start with `OMNIGRAPH_BASE_DIR=/Volumes/...`)
+- **01c (SQLite WAL)** — kdb-1.5 storage adapter copies `kol_scan.db` to `/tmp/` along with lightrag_storage, sidesteps the WAL-on-FUSE question entirely
+- **01d (cold-start time)** — partially answered: deploy `--wait` returned in 8s for both spike attempts; FastAPI app responded to internal Apps health check fast enough. With kdb-1.5 adapter copying ~966 MB images + ~20 MB DB + ~few MB lightrag_storage to /tmp at startup, cold-start budget needs re-verification in kdb-2 (raise to 120s if needed; document)
+- **01e (Apps SP → Model Serving)** — implicitly tested when kdb-2 production app first calls `kg_synthesize.synthesize_response()`. PREFLIGHT-DBX-01 already proved user-OAuth → Model Serving works; the SP-injection delta is the only remaining unknown, which kdb-2 first deploy will surface immediately
