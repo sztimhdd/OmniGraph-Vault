@@ -20,7 +20,7 @@ The document contained 5 requirements; the orchestrator analyzed each and split:
 - 1 req (long-form illustrated synthesis) defers to a separate decision
   (see `DEFERRED.md`)
 
-## Phases (4 in-scope)
+## Phases (5 in-scope)
 
 | # | Phase | Reqs | Priority | Dependencies | T-shirt |
 |---|---|---|---|---|---|
@@ -28,18 +28,19 @@ The document contained 5 requirements; the orchestrator analyzed each and split:
 | 2 | Image path integration | REQ 1 | P1 — UX visible | — | 0.5-1d |
 | 3 | Hero-strip migration | REQ 4 residual | P2 — cosmetic | needs hero-strip HTML extracted from Aliyun first | 0.5d |
 | 4 | Structured synthesize output | REQ 2 | P1 — UX quality | benefits if Phase 1 ships first (KG mode reliable) | 1d |
+| 5 | Long-form synthesis minimum-viable | REQ 3 minimum | P1 — synthesis completeness | shares `SynthesizeResult` schema with Phase 4; image paths from Phase 2 | 0.5d |
 
-Total estimate: 3-3.5 days.
+Total estimate: 3.5-4 days.
 
 ## Wave / parallelization
 
 - Wave 1: Phase 1 (alone — production stability first)
 - Wave 2: Phase 2 + Phase 3 (parallel — independent surfaces)
-- Wave 3: Phase 4 (after Phase 1 confirms KG mode works at all)
+- Wave 3: Phase 4, then Phase 5 (sequential — Phase 5 reuses Phase 4 schema)
 
 ## Out-of-scope for this stabilization set
 
-- **REQ 3 long-form illustrated synthesis** — explicit defer (see `DEFERRED.md`)
+- **REQ 3 full long-form (preview / save / export UI)** — minimum-viable shipped via Phase 5; full UX deferred to v2.2+ (see `DEFERRED.md`)
 - HTTPS/TLS, ingest cron migration, Hermes retire — not in v2.1 scope
 - Databricks Apps deployment — covered by parallel kb-databricks-v1 milestone
 - Auth, multi-tenancy, admin features — out of v2.1 entirely
