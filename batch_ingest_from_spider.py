@@ -1823,6 +1823,14 @@ async def ingest_from_db(
                 # D2 (issue #2 follow-up): row[7] is COALESCE(image_count, 0) from SELECT.
                 # Pre-mig-011 rows = 0 -> falls through to T1 regex / T1-b1 disk via the
                 # priority ladder inside _compute_article_budget_s.
+                # TEMP DEBUG (260516): static analysis exhausted; runtime values needed
+                # to find why id=418 (54 imgs DB) yielded budget=900s. Remove after diag.
+                logger.info(
+                    "[D2 DEBUG] art_id=%s row_len=%d row[7]=%r body_len=%d url=%s",
+                    art_id_d, len(row),
+                    row[7] if len(row) > 7 else "OUT_OF_BOUNDS",
+                    len(body or ""), (url_d or "")[:80],
+                )
                 image_count_d = row[7]
                 article_budget = _compute_article_budget_s(body or "", url=url_d, image_count=image_count_d)
                 _img_count = _count_images_in_body(body or "", url=url_d)
