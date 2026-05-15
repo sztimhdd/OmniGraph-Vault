@@ -363,6 +363,47 @@ def get_article_by_hash(
 _IMAGE_SERVER_REWRITE = re.compile(r"http://localhost:8765/")
 
 
+def _rewrite_image_paths(body_md: str, base_path: str = "") -> str:
+    """Rewrite image URLs in ``body_md`` so they resolve under the configured
+    deploy root.
+
+    Two passes:
+        1. ``http://localhost:8765/X`` → ``{base_path}/static/img/X``
+           (EXPORT-05 contract — ``final_content.md`` hardcodes the legacy
+           image-server URL; rewrite at read time.)
+        2. (Only when ``base_path`` is non-empty.) Bare ``/static/img/`` that
+           is NOT already preceded by ``base_path`` gets the prefix.
+           Implemented with a negative lookbehind so already-prefixed paths
+           pass through unchanged — function is idempotent.
+
+    Pure function (no I/O, no global mutation) — safe to call from anywhere
+    that has body markdown and the desired base_path. Reused by
+    ``get_article_body`` here and by ``kb.export_knowledge_base`` so SSG and
+    API responses agree on the rewrite contract.
+
+    Args:
+        body_md: markdown body. Empty string and ``None``-ish values pass
+            through unchanged.
+        base_path: deploy root prefix without trailing slash, e.g. ``""`` for
+            root deploy or ``"/kb"`` for subdir-mounted deploy. Mirrors
+            ``kb.config.KB_BASE_PATH``.
+
+    Returns:
+        Rewritten markdown. Identical input produces identical output on
+        repeat calls (idempotency).
+    """
+    if not body_md:
+        return body_md
+    rewritten = _IMAGE_SERVER_REWRITE.sub(f"{base_path}/static/img/", body_md)
+    if base_path:
+        rewritten = re.sub(
+            rf"(?<!{re.escape(base_path)})/static/img/",
+            f"{base_path}/static/img/",
+            rewritten,
+        )
+    return rewritten
+
+
 def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
     """D-14 fallback chain for article body markdown.
 
@@ -371,23 +412,23 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
         2. {KB_IMAGES_DIR}/{hash}/final_content.md            -> 'vision_enriched'
         3. rec.body (from DB row)                              -> 'raw_markdown'
 
-    Applies EXPORT-05 rewrite at read time:
-        'http://localhost:8765/' -> '/static/img/'
+    Applies EXPORT-05 + kb-v2.1-2 image-path rewrite at read time:
+        'http://localhost:8765/' -> '{KB_BASE_PATH}/static/img/'
+        bare '/static/img/'      -> '{KB_BASE_PATH}/static/img/' (when set)
 
     Returns:
         (body_markdown, body_source) tuple.
     """
+    base_path = config.KB_BASE_PATH
     url_hash = resolve_url_hash(rec)
     images_dir = Path(config.KB_IMAGES_DIR)
     for fname in ("final_content.enriched.md", "final_content.md"):
         p = images_dir / url_hash / fname
         if p.exists():
             md = p.read_text(encoding="utf-8")
-            md = _IMAGE_SERVER_REWRITE.sub("/static/img/", md)
-            return md, "vision_enriched"
+            return _rewrite_image_paths(md, base_path), "vision_enriched"
     body = rec.body or ""
-    body = _IMAGE_SERVER_REWRITE.sub("/static/img/", body)
-    return body, "raw_markdown"
+    return _rewrite_image_paths(body, base_path), "raw_markdown"
 
 
 # ---- kb-2 query functions (TOPIC + ENTITY + LINK) ----
