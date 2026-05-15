@@ -169,6 +169,77 @@ If a real GCP SA JSON is later provisioned on Aliyun, operator drops it at
 `/home/kb/.hermes/gcp-paid-sa.json` (mode 0400 owner kb), adds the env var
 to the unit, restarts. Boot warning disappears, KG mode dispatches.
 
+## Aliyun production deploy — APPLIED 2026-05-15
+
+Hand-applied directly from Windows dev box via SSH (`aliyun-vitaclaw` alias).
+Deltas from the RUNBOOK template (operator deploy used `root` user, not `kb`):
+
+| Item | Template (RUNBOOK) | Aliyun reality |
+|---|---|---|
+| User | `kb` | `root` |
+| Repo path | `/home/kb/OmniGraph-Vault` | `/root/OmniGraph-Vault` |
+| Data root | `/home/kb/.hermes/` | `/root/.hermes/` |
+| `KB_KG_GCP_SA_KEY_PATH` | unset (recommended) | unset (controlled-degraded boot) |
+| `KB_BASE_PATH` | `/kb` | empty (Caddy strips `/kb` prefix upstream) |
+
+Deploy was applied as a hand-merged unit preserving Aliyun's existing paths
++ env, ADDING ONLY the kb-v2.1-1 directives (5 new lines):
+
+- `MemoryHigh=1.5G`, `MemoryMax=2G`, `CPUQuota=200%`
+- `StartLimitBurst=5`, `StartLimitIntervalSec=60`
+
+`diff /etc/systemd/system/kb-api.service.bak-pre-kbv21-20260515-223154
+/etc/systemd/system/kb-api.service`:
+
+```
+4a5,6
+> StartLimitBurst=5
+> StartLimitIntervalSec=60
+18a21,23
+> MemoryHigh=1.5G
+> MemoryMax=2G
+> CPUQuota=200%
+```
+
+### Verification (immediate post-restart)
+
+| Check | Result |
+|---|---|
+| `systemctl is-active kb-api.service` | `active` |
+| `MemoryMax` (cgroup) | `2147483648` (2G) ✅ |
+| `MemoryHigh` (cgroup) | `1610612736` (1.5G) ✅ |
+| `CPUQuotaPerSecUSec` | `2s` (200%) ✅ |
+| Internal `curl http://127.0.0.1:8766/api/search?q=test&mode=kg` | HTTP 200 + `{kg_unavailable:true, reason:"kg_credentials_missing", fallback_suggestion:"..."}` ✅ |
+| Internal `curl /api/search?q=langchain&mode=fts` | HTTP 200 + `{mode:"fts", total:1, ...}` (no `kg_unavailable` key) ✅ |
+| Internal `curl /health` | `{status:"ok", kb_db_path:"/root/...", version:"2.0.0"}` ✅ |
+| `journalctl -u kb-api.service` since restart | one-shot WARNING `KG mode unavailable (reason=kg_credentials_missing)` at boot, then 200 OKs on subsequent requests ✅ |
+| **Public via Caddy** `curl http://101.133.154.49/kb/api/search?q=test&mode=kg` | HTTP 200 + same `kg_unavailable=true` shape ✅ |
+
+The reason `kg_credentials_missing` (vs `kg_disabled`) is itself the smoking
+gun: `GOOGLE_APPLICATION_CREDENTIALS` IS set in `/root/.hermes/.env` on
+Aliyun (operator-side env-file drift across hosts), but the path it
+references (`/home/sztimhdd/.hermes/gcp-paid-sa.json`) does not exist there.
+This is exactly the failure mode the phase closed.
+
+### Backup files on Aliyun (rollback paths)
+
+- `/etc/systemd/system/kb-api.service.bak-pre-kbv21-20260515-223154` (original unit)
+- `/root/.kb-backups-pre-kbv21/synthesize.py.20260515-222946.local` (operator's pre-pull hand-patch — already upstreamed via 260515-cvh / 2f695f7)
+- `/root/.kb-backups-pre-kbv21/qa.js.20260515-222946.local` (same — empty diff vs origin/main)
+- `/root/.kb-backups-pre-kbv21/search.js.20260515-222946.local` (same — empty diff vs origin/main)
+- `/root/.kb-backups-pre-kbv21/VitaClaw-Logo-v0.png.20260515-222701` (untracked → tracked transition; md5 verified identical content)
+
+### Pre-deploy git state on Aliyun
+
+Before pull: HEAD at `ea9b9d3` (kb-4 plan).
+After pull: HEAD at `bd67f06` (260516-stl image_count fix), advancing through
+`a226140` + `eff934f` (kb-v2.1-1).
+
+### One transient blocker
+
+First `git pull` attempt failed with `GnuTLS recv error (-110)` (network
+jitter). Retried in same SSH session — succeeded on attempt 2.
+
 ## Return signal
 
 ```
