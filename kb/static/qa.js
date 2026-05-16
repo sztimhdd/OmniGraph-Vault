@@ -37,6 +37,16 @@
   var pollTimer = null;
   var pollStarted = 0;
 
+  // kb-v2.1-5: synthesis mode persisted across page reloads. Default 'qa' so
+  // pre-existing users see the same Quick-answer flow they had before.
+  var currentMode = 'qa';
+  try {
+    currentMode = localStorage.getItem('kb_qa_mode') || 'qa';
+  } catch (e) {
+    // localStorage unavailable (private mode) — keep default
+  }
+  if (currentMode !== 'qa' && currentMode !== 'long_form') currentMode = 'qa';
+
   function $(sel, root) {
     return (root || document).querySelector(sel);
   }
@@ -159,6 +169,34 @@
     });
   }
 
+  // kb-v2.1-5: mode toggle wiring. The toggle lives outside #qa-result, so
+  // queries are document-rooted, not resultEl-rooted.
+  function setActiveModeButton(mode) {
+    $all('.qa-mode-btn').forEach(function (btn) {
+      var on = btn.getAttribute('data-mode') === mode;
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+
+  function setupModeToggle() {
+    var buttons = $all('.qa-mode-btn');
+    if (!buttons.length) return;
+    setActiveModeButton(currentMode);
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var nextMode = btn.getAttribute('data-mode');
+        if (nextMode !== 'qa' && nextMode !== 'long_form') return;
+        currentMode = nextMode;
+        try {
+          localStorage.setItem('kb_qa_mode', currentMode);
+        } catch (e) {
+          // localStorage unavailable — runtime state only
+        }
+        setActiveModeButton(currentMode);
+      });
+    });
+  }
+
   function clearPoll() {
     if (pollTimer) {
       clearTimeout(pollTimer);
@@ -234,7 +272,11 @@
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({ question: question, lang: lang || 'zh' })
+      body: JSON.stringify({
+        question: question,
+        lang: lang || 'zh',
+        mode: currentMode
+      })
     })
       .then(function (r) {
         if (!r.ok) {
@@ -261,12 +303,14 @@
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
       resultEl = document.getElementById('qa-result');
+      setupModeToggle();
       if (!resultEl) return;
       setupFeedbackHandlers();
       setupRetryHandler();
     });
   } else {
     resultEl = document.getElementById('qa-result');
+    setupModeToggle();
     if (resultEl) {
       setupFeedbackHandlers();
       setupRetryHandler();

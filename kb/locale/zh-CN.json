@@ -164,6 +164,11 @@
   "qa.feedback.thanks_down": "感谢反馈,我们会改进。",
   "qa.retry.button": "重试",
   "qa.question.echo_label": "你的问题",
+  "qa.mode.aria_label": "回答模式",
+  "qa.mode.qa.label": "快速回答",
+  "qa.mode.qa.tooltip": "简短直接的回答",
+  "qa.mode.long_form.label": "深度研究",
+  "qa.mode.long_form.tooltip": "长文研究报告(~1500 字)",
 
   "search.results.empty": "未找到相关结果",
   "search.results.loading": "搜索中...",

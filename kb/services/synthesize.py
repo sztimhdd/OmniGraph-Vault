@@ -26,6 +26,8 @@ Skill discipline (kb/docs/10-DESIGN-DISCIPLINE.md Rule 1):
 
     Skill(skill="python-patterns", args="Define SynthesizeResult dataclass with frozen=True. Fields: markdown (str), sources (list[ArticleSource]), entities (list[EntityMention]), confidence (Literal['kg', 'fts5_fallback', 'kg_unavailable', 'no_results']), fallback_used (bool), error (Optional[str]). ArticleSource has hash + title + lang. EntityMention has name + article_count. Idiomatic Python — no breaking changes to existing job_store update contract. Place at module top of kb/services/synthesize.py after imports. Helper to serialize to dict via dataclasses.asdict for job_store payload.")
 
+    Skill(skill="python-patterns", args="kb-v2.1-5 long-form prompt templates: define _LONG_FORM_PROMPT_TEMPLATE_ZH / _EN as module-level multi-line string constants parameterized by user question. Output target 1500-3000 字 / 800-1500 words, ## headings × 3-5 sections, /article/{hash} citations, bold entities, ![alt](URL) images, no-fabrication clause. kb_synthesize accepts mode='qa'|'long_form' default 'qa' for backward compat.")
+
     Skill(skill="writing-tests", args="Testing Trophy: integration > unit. Real DB + real FastAPI TestClient + MOCKED kg_synthesize.synthesize_response (because real LightRAG is slow + non-deterministic). Test: KG success with markdown containing 3 /article/{hash}.html refs returns SynthesizeResult.sources with title+lang from DB. Test: KG success with markdown lacking refs returns sources=[], confidence='no_results'. Test: KG exception falls back to FTS5 path. Test: KG timeout falls back to FTS5 path. Test: FTS5 fallback returns valid SynthesizeResult shape. Test: entities_for_articles populated when sources present. Test: DATA-07 reject articles never surface as sources.")
 """
 from __future__ import annotations
@@ -62,6 +64,73 @@ _SOURCE_HASH_PATTERN = re.compile(r"/article/([a-f0-9]{10})")
 # QA-04: wall-time budget for C1 before fts5_fallback fires. Read once at
 # module-import time (per CONFIG-02 pattern); tests reload the module.
 KB_SYNTHESIZE_TIMEOUT: int = int(os.environ.get("KB_SYNTHESIZE_TIMEOUT", "60"))
+
+
+# ---------------------------------------------------------------------------
+# kb-v2.1-5: long-form research prompt templates
+# ---------------------------------------------------------------------------
+# When mode='long_form', kb_synthesize wraps the user question in one of these
+# templates before passing to C1 (kg_synthesize.synthesize_response). The C1
+# contract is unchanged — same str-arg → str-output signature; we just send a
+# longer, more directive query_text. The resulting markdown reuses the v2.1-4
+# /article/{hash} regex resolution + image-path rewriting + UI 8-state matrix
+# unchanged.
+#
+# Skill(skill="python-patterns", args="Module-level multi-line string constants
+# parameterized by user question via .format(question=...). Note the doubled
+# braces around {{hash}} so str.format leaves the literal `{hash}` for the LLM
+# to fill in when emitting /article/{hash}.html refs.")
+
+_LONG_FORM_PROMPT_TEMPLATE_ZH = """请基于知识图谱中的真实内容,写一篇深度研究文章。
+
+主题:{question}
+
+要求:
+1. 结构化:使用 markdown ## 标题分 3-5 个章节
+2. 字数:1500-3000 字
+3. 引用:每个论点引用具体来源,链接格式 [/article/{{hash}}.html]
+   (hash 是文章在知识库中的 10 字符哈希)
+4. 实体:关键技术 / 产品 / 人物用 **粗体** 标注
+5. 图片:如果源文章中有相关图片,用 ![alt](URL) 引用
+6. 不要编造任何信息 — 严格基于检索到的文章内容
+
+请用中文回答。
+"""
+
+_LONG_FORM_PROMPT_TEMPLATE_EN = """Based on real content from the knowledge graph, write a deep research article.
+
+Topic: {question}
+
+Requirements:
+1. Structure: use markdown ## headings with 3-5 sections
+2. Length: 800-1500 words
+3. Citations: cite specific sources for every claim, format [/article/{{hash}}.html]
+   (hash is the 10-char article hash in the knowledge base)
+4. Entities: bold **key technologies / products / people**
+5. Images: include ![alt](URL) references when source articles have relevant images
+6. Do not fabricate anything — strictly base on retrieved article content
+
+Please answer in English.
+"""
+
+
+def _wrap_question_for_mode(question: str, lang: str, mode: str) -> str:
+    """Return the query text passed to C1 depending on synthesis mode.
+
+    mode='qa' (default) returns the question unchanged (existing v2.1-4 behavior;
+    the lang directive is prepended separately by kb_synthesize).
+
+    mode='long_form' wraps the question in the language-appropriate research
+    template; the template itself ends with the lang directive so kb_synthesize
+    must NOT prepend a second one.
+    """
+    if mode == "long_form":
+        template = (
+            _LONG_FORM_PROMPT_TEMPLATE_ZH if lang == "zh"
+            else _LONG_FORM_PROMPT_TEMPLATE_EN
+        )
+        return template.format(question=question)
+    return question
 
 
 # ---------------------------------------------------------------------------
@@ -320,13 +389,19 @@ def _fts5_fallback(question: str, lang: str, job_id: str, reason: str) -> None:
         )
 
 
-async def kb_synthesize(question: str, lang: str, job_id: str) -> None:
+async def kb_synthesize(
+    question: str, lang: str, job_id: str, mode: str = "qa"
+) -> None:
     """Background-task entry. Prepends lang directive, calls C1, updates job_store.
 
     Args:
         question: the user's question (unprefixed)
         lang: 'zh' | 'en' (other accepted but no directive applied — defensive)
         job_id: pre-allocated job id (caller invoked job_store.new_job(kind='synthesize'))
+        mode: 'qa' (default — short Q&A answer; backward-compat) | 'long_form'
+            (kb-v2.1-5 — wraps question in deep-research template before C1).
+            Both modes return the identical SynthesizeResult schema; the UI
+            8-state matrix renders both with no branching.
 
     On C1 success (kb-v2.1-4):
         Markdown is parsed for /article/{hash} refs; each hash resolves to
@@ -352,8 +427,14 @@ async def kb_synthesize(question: str, lang: str, job_id: str) -> None:
     # C1 import deferred to avoid heavy LightRAG init at module import time.
     from kg_synthesize import synthesize_response
 
-    directive = lang_directive_for(lang)
-    query_text = f"{directive}{question}"
+    # kb-v2.1-5: long_form wraps question in research template (which carries
+    # its own trailing language directive). qa mode keeps the v2.1-4 behavior:
+    # a leading lang directive prepended verbatim to the bare question.
+    if mode == "long_form":
+        query_text = _wrap_question_for_mode(question, lang, mode)
+    else:
+        directive = lang_directive_for(lang)
+        query_text = f"{directive}{question}"
     try:
         # QA-04: bound C1 wall-time. asyncio.wait_for raises TimeoutError on
         # exceedance; the inner coroutine is cancelled.

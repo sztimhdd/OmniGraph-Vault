@@ -14,6 +14,30 @@
     </p>
   </header>
 
+  {# kb-v2.1-5: synthesis mode toggle. Persists via localStorage kb_qa_mode. #}
+  <div
+    id="qa-mode-toggle"
+    class="qa-mode-toggle"
+    role="radiogroup"
+    aria-label="{{ 'qa.mode.aria_label' | t('zh-CN') }} / {{ 'qa.mode.aria_label' | t('en') }}">
+    <button type="button"
+            class="qa-mode-btn qa-mode-btn--qa"
+            role="radio"
+            aria-checked="true"
+            data-mode="qa"
+            title="{{ 'qa.mode.qa.tooltip' | t('zh-CN') }} / {{ 'qa.mode.qa.tooltip' | t('en') }}">
+      <span data-lang="zh">{{ 'qa.mode.qa.label' | t('zh-CN') }}</span><span data-lang="en">{{ 'qa.mode.qa.label' | t('en') }}</span>
+    </button>
+    <button type="button"
+            class="qa-mode-btn qa-mode-btn--long"
+            role="radio"
+            aria-checked="false"
+            data-mode="long_form"
+            title="{{ 'qa.mode.long_form.tooltip' | t('zh-CN') }} / {{ 'qa.mode.long_form.tooltip' | t('en') }}">
+      <span data-lang="zh">{{ 'qa.mode.long_form.label' | t('zh-CN') }}</span><span data-lang="en">{{ 'qa.mode.long_form.label' | t('en') }}</span>
+    </button>
+  </div>
+
   <form id="ask-form" class="ask-form" onsubmit="return submitAsk(event)">
     <textarea
       id="ask-input"

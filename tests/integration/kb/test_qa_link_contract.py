@@ -55,3 +55,40 @@ def test_state_name_is_fts5_fallback():
     assert len(bare_hits) == 0, (
         f"qa.js must NOT contain setState('fallback') — found {len(bare_hits)} instance(s)"
     )
+
+
+# ---------------------------------------------------------------------------
+# kb-v2.1-5: mode toggle regression — the toggle and the source-chip rendering
+# share #qa-result's host page; this test pins that the additions don't break
+# the existing source-chip contract.
+# ---------------------------------------------------------------------------
+
+
+def test_mode_toggle_does_not_break_source_chip_rendering():
+    """qa.js must:
+    - Read kb_qa_mode from localStorage with a 'qa' default
+    - Include `mode: currentMode` in the POST body
+    - Wire .qa-mode-btn[aria-checked=true] toggle without disturbing
+      the source-chip rendering chain (renderSources still uses /articles/
+      with KB_BASE_PATH and renders qa-source-chip entries).
+    """
+    # 1. localStorage read with sane default
+    assert "localStorage.getItem('kb_qa_mode')" in _QA_JS, (
+        "qa.js must read kb_qa_mode from localStorage"
+    )
+    assert "localStorage.setItem('kb_qa_mode'" in _QA_JS, (
+        "qa.js must persist kb_qa_mode to localStorage on toggle"
+    )
+    # 2. Mode round-trips through the POST body
+    assert "mode: currentMode" in _QA_JS, (
+        "qa.js submit body must include `mode: currentMode`"
+    )
+    # 3. Toggle wiring
+    assert "data-mode" in _QA_JS, "qa.js must read data-mode from toggle buttons"
+    assert "qa-mode-btn" in _QA_JS, (
+        "qa.js must select .qa-mode-btn elements for toggle wiring"
+    )
+    # 4. Source-chip contract unchanged (regression — kb-3-12 defect must not
+    #    re-emerge from the kb-v2.1-5 edits).
+    assert "(window.KB_BASE_PATH || '') + '/articles/'" in _QA_JS
+    assert "qa-source-chip" in _QA_JS

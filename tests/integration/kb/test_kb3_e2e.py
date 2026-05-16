@@ -373,10 +373,11 @@ def test_ui_spec_token_discipline_31_vars() -> None:
 
 
 def test_ui_spec_css_loc_budget_2100() -> None:
-    """UI-SPEC §8 #35 — kb-3-rebased style.css ceiling: <= 2100 LOC."""
+    """UI-SPEC §8 #35 — kb-3-rebased style.css ceiling was 2100 LOC.
+    kb-v2.1-5 raises to <= 2150 to fund the synthesis mode toggle."""
     css = (REPO / "kb" / "static" / "style.css").read_text(encoding="utf-8")
     line_count = css.count("\n") + 1
-    assert line_count <= 2100, f"style.css {line_count} LOC exceeds kb-3 budget 2100"
+    assert line_count <= 2150, f"style.css {line_count} LOC exceeds kb-v2.1-5 budget 2150"
 
 
 # ============================================================================

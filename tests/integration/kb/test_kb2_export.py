@@ -421,13 +421,12 @@ def test_style_css_under_loc_budget() -> None:
 
     kb-3-UI-SPEC §8 line 440 re-escalates the ceiling to ≤ 2100 to fund the
     Q&A 8-state matrix component (kb-3-10) + search inline reveal (kb-3-11).
-    This test enforces the kb-3-rebased budget so future drift is still
-    caught loudly. Any genuine new feature CSS beyond kb-3 should re-escalate
-    to a new budget.
+    kb-v2.1-5 PLAN re-escalates again to ≤ 2150 to fund the synthesis mode
+    toggle (PLAN allows up to 2200; we keep 50 LOC slack).
     """
     path = REPO_ROOT / "kb" / "static" / "style.css"
     loc = sum(1 for _ in path.read_text(encoding="utf-8").splitlines())
-    assert loc <= 2100, (
-        f"style.css LOC {loc} exceeds kb-3-rebased UI-SPEC §8 #35 budget of 2100 "
-        f"({loc - 2100} over) — escalate before adding more CSS"
+    assert loc <= 2150, (
+        f"style.css LOC {loc} exceeds kb-v2.1-5-rebased budget of 2150 "
+        f"({loc - 2150} over) — escalate before adding more CSS"
     )

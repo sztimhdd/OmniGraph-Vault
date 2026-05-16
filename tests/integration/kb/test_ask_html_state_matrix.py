@@ -169,9 +169,11 @@ def test_css_no_new_root_vars() -> None:
 
 def test_css_within_budget() -> None:
     css_lines = (STATIC / "style.css").read_text(encoding="utf-8").splitlines()
-    # kb-3-10 + kb-3-11 share a +121 LOC budget over the kb-2 baseline (~1979)
-    # Ceiling per UI-SPEC §8: <= 2100. kb-3-10 alone targets <= 2100.
-    assert len(css_lines) <= 2100, f"style.css over budget: {len(css_lines)} > 2100"
+    # kb-3-10 + kb-3-11 share a +121 LOC budget over the kb-2 baseline (~1979).
+    # Ceiling per UI-SPEC §8: <= 2100. kb-v2.1-5 PLAN raised the ceiling to
+    # <= 2150 to fund the synthesis mode toggle (PLAN acceptance criterion
+    # permits <= 2200; we keep the slack at 50 lines).
+    assert len(css_lines) <= 2150, f"style.css over budget: {len(css_lines)} > 2150"
 
 
 def test_css_qa_state_selectors_present() -> None:

@@ -164,6 +164,11 @@
   "qa.feedback.thanks_down": "Thanks — we'll improve.",
   "qa.retry.button": "Retry",
   "qa.question.echo_label": "Your question",
+  "qa.mode.aria_label": "Synthesis mode",
+  "qa.mode.qa.label": "Quick answer",
+  "qa.mode.qa.tooltip": "Short direct answer",
+  "qa.mode.long_form.label": "Deep research",
+  "qa.mode.long_form.tooltip": "Long-form research article (~1000 words)",
 
   "search.results.empty": "No results found",
   "search.results.loading": "Searching...",

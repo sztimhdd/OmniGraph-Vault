@@ -141,6 +141,7 @@ def test_css_no_new_root_vars_after_kb3_10_and_11() -> None:
 
 
 def test_css_budget_within_2100() -> None:
+    """kb-v2.1-5 raised the budget to <= 2150 to fund synthesis mode toggle."""
     css = (STATIC / "style.css").read_text(encoding="utf-8")
     line_count = css.count("\n") + 1
-    assert line_count <= 2100, f"style.css = {line_count} lines (budget 2100)"
+    assert line_count <= 2150, f"style.css = {line_count} lines (budget 2150)"

@@ -37,10 +37,14 @@ class SynthesizeRequest(BaseModel):
     bounds 1..2000 which is the looser of the two — defensive for CJK queries
     that pack more semantics per char).
     `lang`: zh | en (Literal — Pydantic enforces 422 on anything else).
+    `mode` (kb-v2.1-5): 'qa' (default — short Q&A, backward-compat) | 'long_form'
+        (deep research article). Default 'qa' so old qa.js clients without the
+        field still work. Pydantic enforces 422 on anything else.
     """
 
     question: str = Field(..., min_length=1, max_length=2000)
     lang: Literal["zh", "en"] = "zh"
+    mode: Literal["qa", "long_form"] = "qa"
 
 
 @router.post("/synthesize", status_code=status.HTTP_202_ACCEPTED)
@@ -55,7 +59,7 @@ async def synthesize_endpoint(
     language directive before invoking C1 (kg_synthesize.synthesize_response).
     """
     jid = job_store.new_job(kind="synthesize")
-    background.add_task(kb_synthesize, body.question, body.lang, jid)
+    background.add_task(kb_synthesize, body.question, body.lang, jid, body.mode)
     return {"job_id": jid, "status": "running"}
 
 
