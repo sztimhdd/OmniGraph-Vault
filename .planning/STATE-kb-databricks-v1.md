@@ -7,10 +7,10 @@
 ## Current Position
 
 - **Milestone:** kb-databricks-v1 (parallel track)
-- **Phase:** Not started — REQ + ROADMAP rev 3 ready, awaiting user approval
-- **Plan:** —
-- **Status:** REQUIREMENTS-kb-databricks-v1.md + ROADMAP-kb-databricks-v1.md rev 3 (incorporates user 5 strategic constraints — DeepSeek retired, Hermes runtime-separated, MosaicAI sonnet-4-6 + qwen3-0.6b, `kb/` exemption list relaxed)
-- **Last activity:** 2026-05-15 — REQ + ROADMAP rev 3 committed; 36 unique REQ items / 10 categories / **4 phases (kdb-1 / kdb-2 / kdb-2.5 / kdb-3)** + conditional kdb-1.5; T-shirt **M**
+- **Phase:** kdb-1.5 — LightRAG-Databricks Provider Adapter (in flight)
+- **Plan:** kdb-1.5-01 (storage adapter — STORAGE-DBX-05) + kdb-1.5-02 (factory file + dry-run e2e — LLM-DBX-03), running parallel in Wave 1
+- **Status:** kdb-1.5 plans authored; storage adapter shipped (this commit); factory file + dry-run e2e in flight (plan 02)
+- **Last activity:** 2026-05-15 — kdb-1.5 storage adapter `databricks-deploy/startup_adapter.py` shipped + 5 unit tests green; CONFIG-EXEMPTIONS.md initial-empty ledger created; requirements.txt pinned databricks-sdk
 
 ## Milestone-base commit hash (LOCKED — rev 3)
 
@@ -55,16 +55,7 @@ Any other path edit requires explicit user approval before merge.
 
 ## Next Step
 
-REQ + ROADMAP rev 3 await user approval. After approval: `/gsd:plan-phase kdb-1`.
-
-Status of upstream artifacts:
-
-- ✅ PROJECT-kb-databricks-v1.md (committed `88ba32a`) — note: PROJECT predates rev 3 strategic shift; some rev 3 changes (LLM provider, sync model) supersede PROJECT content. PROJECT will be re-aligned at kdb-3 close as part of milestone close-out OR as a separate doc commit if user wants alignment now
-- ✅ Research (4 dimensions + SUMMARY, committed `406c2d0`) — research findings still valid; the LightRAG `os.makedirs` / `write_json` non-atomic findings are unchanged by rev 3
-- ✅ REQUIREMENTS-kb-databricks-v1.md rev 3 (committed `cfe47b4`)
-- ✅ ROADMAP-kb-databricks-v1.md rev 3 (committed `cfe47b4`)
-- ⏳ User approval gate
-- ⏳ `/gsd:plan-phase kdb-1` (Wave 1 PREFLIGHT first — Model Serving query smoke + grant capability test)
+Execute kdb-1.5 plan 02 (factory file + dry-run e2e against REAL Model Serving). After both plans land + 2-forward STATE backfill: proceed to kdb-2 (Databricks App Deploy).
 
 ## Research (COMPLETED — pre-rev-3, still applicable)
 
