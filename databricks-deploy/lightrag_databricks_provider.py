@@ -78,7 +78,9 @@ def make_llm_func():
                 ChatMessage(role=ChatMessageRole.SYSTEM, content=system_prompt)
             )
         for m in history_messages:
-            role_str = m.get("role", "user").upper()
+            # ChatMessageRole enum: members USER/SYSTEM/ASSISTANT, values "user"/"system"/"assistant".
+            # Constructor takes values (lower-case), not member names.
+            role_str = m.get("role", "user").lower()
             messages.append(
                 ChatMessage(role=ChatMessageRole(role_str), content=m["content"])
             )
