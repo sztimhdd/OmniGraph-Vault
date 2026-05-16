@@ -1,0 +1,1 @@
+CrewAI 是另一个流行的多 Agent 框架,与 LangGraph 不同的是,它采用角色驱动(role-based)的设计:每个 Agent 有明确的角色、目标和工具。Crew 概念将多个 Agent 组合成一个团队,适合需要快速搭建多 Agent 协作系统的场景。CrewAI 的学习曲线较低,适合原型验证和小规模生产部署。

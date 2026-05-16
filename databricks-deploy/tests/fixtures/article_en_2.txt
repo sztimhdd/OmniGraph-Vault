@@ -1,0 +1,1 @@
+CrewAI takes a different approach from LangGraph: it is role-based. Each agent has a defined role, goal, and toolset, and multiple agents are grouped into a Crew. This makes CrewAI quick to set up for collaborative agent systems where the structure matches a team metaphor. Tasks are decomposed and assigned to agents whose roles best fit the work.

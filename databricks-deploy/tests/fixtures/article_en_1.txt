@@ -1,0 +1,1 @@
+LangGraph from LangChain is a stateful multi-agent orchestration framework built around the StateGraph abstraction. Developers explicitly define nodes, edges, and shared state to create deterministic agent workflows. It excels at complex flows requiring fine-grained control over message passing, with first-class support for checkpointing and human-in-the-loop intervention.

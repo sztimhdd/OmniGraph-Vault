@@ -1,0 +1,1 @@
+LangGraph 是 LangChain 团队推出的多 Agent 编排框架,基于状态图(StateGraph)的概念,让开发者可以显式定义多个 Agent 之间的协作流程。核心抽象包括 nodes、edges 和 state,适合需要精细控制 Agent 间消息传递的复杂工作流场景。LangGraph 强调确定性和可观测性,每一步状态转移都可以审计。
