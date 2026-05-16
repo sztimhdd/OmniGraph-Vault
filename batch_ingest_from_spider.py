@@ -2011,6 +2011,20 @@ async def ingest_from_db(
                         )
                         if persisted:
                             body = persisted
+                            # 260516-htm fix: refresh image_count_row from scrape
+                            # result before queue append. Persisted body sometimes
+                            # has markdown ![](...) markers stripped (observed
+                            # 2026-05-15 N=20 burst: 5 articles with 28-112 images
+                            # had body stored markers=0, html_imgs=0). With
+                            # row[7] still stale-0 from initial SELECT and body
+                            # markers absent, _compute_article_budget_s falls
+                            # through regex (0) → disk (0, not yet downloaded)
+                            # → 900s floor → vision pipeline outer-timeout.
+                            # ScrapeResult.images is the pre-strip authoritative
+                            # count; only override DEFAULT 0 to preserve any
+                            # positive backfill value already in DB.
+                            if (image_count_row or 0) == 0 and len(scraped.images) > 0:
+                                image_count_row = len(scraped.images)
                 except Exception as e:  # noqa: BLE001 -- never block main flow
                     logger.warning(
                         "v3.5 pre-layer2 scrape/persist failed for "

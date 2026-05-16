@@ -350,3 +350,38 @@ def test_image_count_none_falls_back_to_regex_or_disk() -> None:
     body = ("x" * 10_000) + ("\n" + _IMG_TOKEN) * 51
     # Same as test_51_image_article_post_fix: regex finds 51 -> >=1500
     assert _compute_article_budget_s(body, image_count=None) >= 1500
+
+
+def test_n20_burst_stripped_markers_kwarg_rescue() -> None:
+    """REGRESSION 260516-htm: 2026-05-15 N=20 burst id=777 / 939 / 943 / 967 / 1007.
+
+    5 articles timed out at 900s despite having 28-112 images each. Hermes
+    DB inspection found:
+      - body persisted in DB as markdown (starts with '#  ...') BUT
+      - markdown image markers count = 0 (stripped during scrape/persist)
+      - HTML <img> tag count = 0 (no raw HTML markers either)
+      - image_count column populated AFTER timeout (vision pipeline writes
+        it post-fact via ingest_wechat.py:1273)
+
+    At budget compute time (drain queue line 1836), `image_count_row` was
+    the stale 0 from the initial SELECT (image_count column written later).
+    Both fallback paths returned 0:
+      - regex on body markers: 0 (stripped)
+      - disk fallback: 0 (images downloaded later inside ingest_article)
+    Formula returned 900 floor. ingest_article then ran for >900s on
+    28-112 image vision pipeline → outer asyncio.wait_for fired.
+
+    The outer-loop fix (260516-htm) refreshes image_count_row from
+    ScrapeResult.images BEFORE queue append. The .images list is the
+    pre-strip authoritative count. This test pins the formula-level
+    behavior: when image_count kwarg is positive (from refreshed scrape
+    data), absence of body markers no longer matters.
+
+    Body shape: 9175 chars markdown WITHOUT ![](...) markers (id=777
+    repro). Expected budget: 120 + 30*chunks + 30*70 = 120 + 60 + 2100.
+    """
+    from batch_ingest_from_spider import _compute_article_budget_s
+    body = "# Heading\n\n" + ("x" * 9000) + "\n\n## Section\n"
+    assert "![" not in body, "test fixture must have no markdown image markers"
+    actual = _compute_article_budget_s(body, image_count=70)
+    assert actual >= 2200, f"Expected ~2280s for 70-image article, got {actual}"
