@@ -7,10 +7,10 @@
 ## Current Position
 
 - **Milestone:** kb-databricks-v1 (parallel track)
-- **Phase:** kdb-1.5 — LightRAG-Databricks Provider Adapter (in flight)
-- **Plan:** kdb-1.5-01 (storage adapter — STORAGE-DBX-05) + kdb-1.5-02 (factory file + dry-run e2e — LLM-DBX-03), running parallel in Wave 1
-- **Status:** kdb-1.5 plans authored; storage adapter shipped (this commit); factory file + dry-run e2e in flight (plan 02)
-- **Last activity:** 2026-05-15 — kdb-1.5 storage adapter `databricks-deploy/startup_adapter.py` shipped + 5 unit tests green; CONFIG-EXEMPTIONS.md initial-empty ledger created; requirements.txt pinned databricks-sdk
+- **Phase:** kdb-1.5 — LightRAG-Databricks Provider Adapter (COMPLETE; both plans landed)
+- **Plan:** kdb-1.5-01 (storage adapter — STORAGE-DBX-05) ✅ + kdb-1.5-02 (factory file + dry-run e2e — LLM-DBX-03) ✅
+- **Status:** kdb-1.5 phase complete. ROADMAP success criteria 1-3 PASS; #4 (`app.yaml` wiring) explicitly deferred to kdb-2 DEPLOY-DBX-04. 9/9 tests green (5 unit + 4 dry-run against REAL MosaicAI). Risk #2 (SDK shape) + Risk #3 (Qwen3 bilingual) both resolved PASS. Ready for kdb-2 (Databricks App Deploy).
+- **Last activity:** 2026-05-16 — kdb-1.5 plan 02 factory + dry-run e2e shipped: `databricks-deploy/lightrag_databricks_provider.py` + `tests/test_provider_dryrun.py` (4 tests against REAL Model Serving) + 5 fixture articles + pytest.ini. 4/4 dry-run PASS in 156s wallclock @ <$0.10 cost. Wave 1+2 commit hashes (forward-only, no `--amend`): `545e726` (Plan 01 RED tests) → `bd96e1b` (Plan 01 GREEN impl) → `dad2e85` (Plan 01 docs+STATE+VERIFICATION) → `7af1164` (Plan 01 SUMMARY) → `bb56562` (Plan 02 factory+fixtures+pytest deps) → `9edc3c0` (Plan 02 dry-run tests + ChatMessageRole .lower() fix + dim-walk improvement).
 
 ## Milestone-base commit hash (LOCKED — rev 3)
 
@@ -55,7 +55,7 @@ Any other path edit requires explicit user approval before merge.
 
 ## Next Step
 
-Execute kdb-1.5 plan 02 (factory file + dry-run e2e against REAL Model Serving). After both plans land + 2-forward STATE backfill: proceed to kdb-2 (Databricks App Deploy).
+Proceed to kdb-2 (Databricks App Deploy). DEPLOY-DBX-04 will add the storage-adapter `command:` invocation + 4 literal env vars (`OMNIGRAPH_BASE_DIR=/tmp/omnigraph_vault` + `OMNIGRAPH_LLM_PROVIDER=databricks_serving` + `KB_LLM_MODEL=databricks-claude-sonnet-4-6` + `KB_EMBEDDING_MODEL=databricks-qwen3-embedding-0-6b`) to `app.yaml`. LLM-DBX-01 + LLM-DBX-02 (lib/llm_complete.py + kg_synthesize.py CONFIG-EXEMPTIONS path) ship in kdb-2 alongside the deploy.
 
 ## Research (COMPLETED — pre-rev-3, still applicable)
 
