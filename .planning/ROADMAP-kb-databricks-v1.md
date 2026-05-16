@@ -13,7 +13,7 @@ T-shirt **M** — 2–4 days end-to-end. Driver: kdb-2.5 NEW phase (re-index Lig
 | # | Phase | Goal | REQs covered | Success criteria | T-shirt |
 |---|-------|------|--------------|------------------|---------|
 | **kdb-1** | UC Volume + Seed + Preflight + Spike | Volume in place; one-shot SQLite + images uploaded; Model Serving + grant capability preflighted; `/Volumes/...` Apps-runtime access spiked | STORAGE-DBX-01..05 (verify), SEED-DBX-01, PREFLIGHT-DBX-01..02, SPIKE-DBX-01a..01e | 6 | XS-S (½ to 1 day; longer if PREFLIGHT escalation) |
-| **kdb-1.5** | LightRAG-Databricks provider adapter (conditional) | Adapter pattern for `/Volumes/...` access if SPIKE blockers found, AND LightRAG factory adapter (LLM-DBX-03) e2e-tested | STORAGE-DBX-05 (alt path), LLM-DBX-03 (factory adapter validation) | 2 | XS (≤ half-day) |
+| **kdb-1.5** ✅ | LightRAG-Databricks provider adapter (conditional) — **COMPLETE 2026-05-16** | Adapter pattern for `/Volumes/...` access if SPIKE blockers found, AND LightRAG factory adapter (LLM-DBX-03) e2e-tested | STORAGE-DBX-05 (alt path), LLM-DBX-03 (factory adapter validation) | 2 | XS (≤ half-day) |
 | **kdb-2** | Databricks App Deploy | App created + grants set + LLM-DBX provider integrated + first deploy reaches RUNNING + Smoke 1+2 PASS (RAG path may be FTS5-only until kdb-2.5 closes) | AUTH-DBX-01..05, LLM-DBX-01/02/04/05, DEPLOY-DBX-01..09, OPS-DBX-01, OPS-DBX-02 | 5 | S (1 day) |
 | **kdb-2.5** ⭐ | Re-index LightRAG storage (Databricks Job) | Full corpus (~2000 articles) re-embedded with Qwen3 + entity-extracted with Claude sonnet-4-6; Volume holds MosaicAI-indexed LightRAG storage | SEED-DBX-02, SEED-DBX-03 | 4 | S-M (½ to 1 day wallclock; $20–100 Model Serving cost) |
 | **kdb-3** | UAT Close | Smoke 3 (KB-v2 verbatim, full bilingual RAG via MosaicAI) + CONFIG audit (incl. exemption list) + RUNBOOK + sign-off | CONFIG-DBX-01..02, QA-DBX-01..03, OPS-DBX-03..05 | 5 | XS (half-day) |
@@ -57,7 +57,9 @@ T-shirt **M** — 2–4 days end-to-end. Driver: kdb-2.5 NEW phase (re-index Lig
 
 ---
 
-## Phase kdb-1.5 — LightRAG-Databricks Provider Adapter (conditional)
+## Phase kdb-1.5 — LightRAG-Databricks Provider Adapter (conditional) — ✅ COMPLETE 2026-05-16
+
+> **Verification: PASSED** (21/21 must-haves green per `kdb-1.5-VERIFICATION.md`). 9/9 tests green (5 unit + 4 dry-run against REAL MosaicAI Model Serving). Cost <$0.10. Risk #2 (SDK shape) + Risk #3 (Qwen3 bilingual) resolved PASS. Success criteria #1-#3 PASS; #4 (`app.yaml` wiring) intentionally deferred to kdb-2 DEPLOY-DBX-04 — see VERIFICATION.md note.
 
 **Goal:** Two purposes (either or both, depending on what kdb-1 surfaced):
 
