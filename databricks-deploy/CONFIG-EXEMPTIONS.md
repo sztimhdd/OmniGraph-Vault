@@ -8,7 +8,7 @@ Per REQUIREMENTS-kb-databricks-v1.md rev 3 constraint #5 ("zero kb/ edits" relax
 
 | File | REQ | Phase | Status |
 |------|-----|-------|--------|
-| `lib/llm_complete.py` | LLM-DBX-01 + LLM-DBX-04 (translation per Decision 1) | kdb-2 | MODIFIED (kdb-2-02 — see commit <FILL_AT_COMMIT>) |
+| `lib/llm_complete.py` | LLM-DBX-01 + LLM-DBX-04 (translation per Decision 1) | kdb-2 | MODIFIED (kdb-2-02 — see commit 50a7386) |
 | `kg_synthesize.py` | LLM-DBX-02 | kdb-2 | NOT YET MODIFIED |
 
 ## Verification command (run at kdb-3 close per CONFIG-DBX-01)
