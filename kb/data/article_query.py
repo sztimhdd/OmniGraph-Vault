@@ -363,6 +363,56 @@ def get_article_by_hash(
 _IMAGE_SERVER_REWRITE = re.compile(r"http://localhost:8765/")
 
 
+# kb-v2.1-6: Phase 5-00 retrieval-binding plain-text image refs
+# (ingest_wechat.py:1303 — DO NOT MODIFY ingestion; this is the export-side bridge).
+# Format emitted by ingestion: "Image {N} from article '{title}': {local_url}"
+# After _rewrite_image_paths runs, {local_url} has been rewritten to the deploy
+# URL (e.g. "/static/img/abc/0.jpg" or "/kb/static/img/abc/0.jpg"); this regex
+# converts the plain-text line into a real <img> tag for browser rendering.
+#
+# Title with a single apostrophe is a known limitation: [^']* stops at the
+# first ' so the regex would not match such a line — input passes through
+# unchanged (graceful degradation). Test 5 covers this.
+_IMG_TEXT_REF_PATTERN = re.compile(
+    r"Image (\d+) from article '([^']*)': (\S+)"
+)
+
+
+def _rewrite_image_text_refs_to_html(body: str) -> str:
+    """Convert Phase 5-00 retrieval-binding plain-text image refs into ``<img>`` tags.
+
+    Phase 5-00 (Hermes 2f576b1, ``ingest_wechat.py:1303``) emits each downloaded
+    image as a plain-text line in the article body so LightRAG ``aquery`` can
+    correlate the parent doc with the sub-doc image descriptions during
+    ``kg_synthesize``. SSG export and ``/api/article/{hash}`` need ``<img>``
+    tags for browser rendering. This function is the export-side bridge.
+
+    Idempotent: ``<img>`` output does not contain the literal
+    "Image N from article" so the regex won't re-match.
+
+    Caller order: invoke AFTER ``_rewrite_image_paths()`` so the URL prefix
+    (``KB_BASE_PATH``) is already correct for the deployment target.
+
+    Pure function — no I/O, no global mutation. Safe to call from anywhere
+    that has body markdown post-``_rewrite_image_paths``.
+
+    Args:
+        body: markdown body. Empty string and ``None``-ish values pass
+            through unchanged.
+
+    Returns:
+        Body with plain-text image refs replaced by ``<img>`` tags.
+        Markdown image syntax (``![alt](url)``) is left untouched — only
+        the Phase 5-00 plain-text format is rewritten.
+    """
+    if not body:
+        return body
+    return _IMG_TEXT_REF_PATTERN.sub(
+        lambda m: f'<img src="{m.group(3)}" alt="image {m.group(1)}" loading="lazy">',
+        body,
+    )
+
+
 def _rewrite_image_paths(body_md: str, base_path: str = "") -> str:
     """Rewrite image URLs in ``body_md`` so they resolve under the configured
     deploy root.
@@ -426,9 +476,13 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
         p = images_dir / url_hash / fname
         if p.exists():
             md = p.read_text(encoding="utf-8")
-            return _rewrite_image_paths(md, base_path), "vision_enriched"
+            md = _rewrite_image_paths(md, base_path)
+            md = _rewrite_image_text_refs_to_html(md)  # kb-v2.1-6
+            return md, "vision_enriched"
     body = rec.body or ""
-    return _rewrite_image_paths(body, base_path), "raw_markdown"
+    body = _rewrite_image_paths(body, base_path)
+    body = _rewrite_image_text_refs_to_html(body)  # kb-v2.1-6
+    return body, "raw_markdown"
 
 
 # ---- kb-2 query functions (TOPIC + ENTITY + LINK) ----
