@@ -5,10 +5,13 @@ via cron (DATA-03).
 
 Auto-runs migration if `lang` column is missing (allows fresh DB usage).
 
-Algorithm: kb.data.lang_detect.detect_lang(body) -> 'zh-CN' | 'en' | 'unknown'
-    - Chinese char ratio > 30% AND len(body) >= 200 -> 'zh-CN'
-    - Chinese char ratio <= 30% AND len(body) >= 200 -> 'en'
-    - len(body) < 200 -> 'unknown' (insufficient sample)
+Algorithm: kb.data.lang_detect.detect_lang(title, body) -> 'zh-CN' | 'en' | 'unknown'
+    Title-first CJK detection (v2, U+4E00-U+9FFF + U+3400-U+4DBF):
+    1. Title has any CJK Unified Ideograph -> 'zh-CN'
+    2. Title has no CJK, body has any CJK -> 'zh-CN'
+    3. Body < 50 chars + no CJK in title -> 'unknown'
+    4. Default -> 'en'
+    Kana (U+3040-U+30FF) and Hangul (U+AC00-U+D7AF) NOT counted as CJK.
 """
 from __future__ import annotations
 
@@ -56,10 +59,10 @@ def detect_for_table(conn: sqlite3.Connection, table: str) -> Counter[str]:
         return result
 
     rows = conn.execute(
-        f"SELECT id, body FROM {table} WHERE lang IS NULL"
+        f"SELECT id, title, body FROM {table} WHERE lang IS NULL"
     ).fetchall()
-    for row_id, body in rows:
-        lang = detect_lang(body or "")
+    for row_id, title, body in rows:
+        lang = detect_lang(title or "", body or "")
         conn.execute(f"UPDATE {table} SET lang = ? WHERE id = ?", (lang, row_id))
         result[lang] += 1
     conn.commit()

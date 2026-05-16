@@ -1,91 +1,150 @@
-"""DATA-02: unit tests for kb.data.lang_detect.
+"""DATA-02 v2: unit tests for kb.data.lang_detect (title-first CJK rule).
 
 Tests the pure-function language detector. No DB, no network.
+
+Skill(skill="python-patterns") — CJK regex + classification rule; pure functions
+Skill(skill="writing-tests") — Testing Trophy unit > integration; parametrize for clarity
+
+9 required cases (spec from kb-v2.1-7 PLAN):
+1. CN title + EN body → zh-CN
+2. EN title + CN body → zh-CN
+3. All-English → en
+4. Short English body → unknown
+5. Japanese kana title → en (NOT zh-CN)
+6. Empty title + empty body → unknown
+7. Korean Hangul title → en (NOT zh-CN)
+8. Mixed title with single CJK char → zh-CN
+9. Extension-A char (U+3400) in title → zh-CN
 """
 from __future__ import annotations
 
 import pytest
 
-from kb.data.lang_detect import (
-    MIN_TEXT_LEN,
-    ZH_THRESHOLD,
-    chinese_char_ratio,
-    detect_lang,
-)
+from kb.data.lang_detect import detect_lang, has_cjk
 
 
-# --- chinese_char_ratio tests ---
+# ---------------------------------------------------------------------------
+# has_cjk unit tests
+# ---------------------------------------------------------------------------
 
 
-def test_ratio_mixed_text_hand_computed():
-    """Mixed Chinese + English text — exact hand-computed ratio.
-
-    Text: '人工智能 Agent 框架对比 LangChain CrewAI'
-    Chinese chars: 人工智能 + 框架对比 = 8 chars
-    Total chars: 32 (including spaces)
-    Ratio: 8 / 32 = 0.25
-    """
-    text = "人工智能 Agent 框架对比 LangChain CrewAI"
-    ratio = chinese_char_ratio(text)
-    assert ratio == pytest.approx(8 / 32)
+def test_has_cjk_with_chinese_char():
+    """String containing a Han ideograph returns True."""
+    assert has_cjk("如何用") is True
 
 
-def test_ratio_pure_english_zero():
-    """Pure English text returns 0.0."""
-    assert chinese_char_ratio("LangGraph and CrewAI compared") == 0.0
+def test_has_cjk_with_kana_returns_false():
+    """Pure katakana/hiragana does NOT trigger has_cjk."""
+    assert has_cjk("カタカナのテスト") is False
 
 
-def test_ratio_empty_string_zero():
-    """Empty string returns 0.0 — no division-by-zero."""
-    assert chinese_char_ratio("") == 0.0
+def test_has_cjk_with_hangul_returns_false():
+    """Pure Hangul does NOT trigger has_cjk."""
+    assert has_cjk("한국어 테스트") is False
 
 
-def test_ratio_pure_chinese_one():
-    """Pure Chinese text returns 1.0."""
-    assert chinese_char_ratio("纯中文文章" * 100) == 1.0
+def test_has_cjk_with_extension_a_char():
+    """Extension A char U+3400 (㐀) triggers has_cjk."""
+    assert has_cjk("㐀") is True
 
 
-# --- detect_lang tests ---
+def test_has_cjk_empty_returns_false():
+    assert has_cjk("") is False
 
 
-def test_detect_long_english():
-    """Long English text → 'en'."""
-    text = "LangGraph framework architecture deep dive ..." * 20
-    assert detect_lang(text) == "en"
+def test_has_cjk_none_returns_false():
+    assert has_cjk(None) is False
 
 
-def test_detect_long_chinese():
-    """Long Chinese text → 'zh-CN'."""
-    text = "人工智能 Agent 框架解析 ..." * 30
-    assert detect_lang(text) == "zh-CN"
+# ---------------------------------------------------------------------------
+# detect_lang: 9 required spec cases
+# ---------------------------------------------------------------------------
 
 
-def test_detect_short_text_unknown():
-    """Text < MIN_TEXT_LEN chars → 'unknown'."""
-    assert detect_lang("short text") == "unknown"
+# Case 1: Chinese title + English-heavy body → zh-CN
+def test_chinese_title_english_body_returns_zh_cn():
+    """Title has CJK → zh-CN even when body is English-heavy."""
+    title = "如何用 LightRAG 构建知识图谱"
+    body = "Use embedding vector store and entity extraction. " * 10  # all English, >50 chars
+    assert detect_lang(title, body) == "zh-CN"
 
 
-def test_detect_empty_unknown():
-    """Empty string → 'unknown'."""
-    assert detect_lang("") == "unknown"
+# Case 2: English title + Chinese body → zh-CN
+def test_english_title_chinese_body_returns_zh_cn():
+    """Title has no CJK but body has CJK → zh-CN."""
+    title = "LightRAG Tutorial"
+    body = "中" * 200  # pure Chinese body
+    assert detect_lang(title, body) == "zh-CN"
 
 
-def test_detect_long_ascii_en():
-    """Long string of 'a' (no Chinese) → 'en'."""
-    assert detect_lang("a" * 250) == "en"
+# Case 3: All-English → en
+def test_all_english_returns_en():
+    """Long all-English title + body → en."""
+    title = "How to build a knowledge base"
+    body = "a " * 200  # long all-English body (>50 chars)
+    assert detect_lang(title, body) == "en"
 
 
-def test_detect_long_chinese_only_zh():
-    """Long string of 中 (100% Chinese) → 'zh-CN'."""
-    assert detect_lang("中" * 250) == "zh-CN"
+# Case 4: Short English body → unknown
+def test_short_english_body_returns_unknown():
+    """Title with no CJK + body shorter than 50 chars → unknown."""
+    title = "Hi"
+    body = "short"  # len("short") == 5 < 50
+    assert detect_lang(title, body) == "unknown"
 
 
-# --- constants sanity (locked thresholds, do not drift) ---
+# Case 5: Japanese kana-only title → en (NOT zh-CN)
+def test_japanese_kana_title_returns_en_not_zh_cn():
+    """Pure katakana title MUST NOT classify as zh-CN."""
+    title = "カタカナのテスト"  # pure katakana
+    body = "a " * 200  # long English body
+    result = detect_lang(title, body)
+    assert result != "zh-CN"
+    assert result == "en"
 
 
-def test_min_text_len_constant():
-    assert MIN_TEXT_LEN == 200
+# Case 6: Empty title and empty body → unknown
+def test_empty_title_and_body_returns_unknown():
+    """Both title and body empty → unknown."""
+    assert detect_lang("", "") == "unknown"
 
 
-def test_zh_threshold_constant():
-    assert ZH_THRESHOLD == 0.30
+# Case 7: Korean Hangul-only title → en (NOT zh-CN)
+def test_korean_hangul_title_returns_en_not_zh_cn():
+    """Pure Hangul title MUST NOT classify as zh-CN."""
+    title = "한국어 테스트"  # pure Hangul
+    body = "a " * 200  # long English body
+    result = detect_lang(title, body)
+    assert result != "zh-CN"
+    assert result == "en"
+
+
+# Case 8: Mixed title with single CJK char → zh-CN
+def test_mixed_title_single_cjk_returns_zh_cn():
+    """Single Han ideograph in otherwise-English title triggers zh-CN."""
+    title = "Build a 知识 graph"
+    body = "a " * 200  # all English body
+    assert detect_lang(title, body) == "zh-CN"
+
+
+# Case 9: CJK Extension A char (U+3400) in title → zh-CN
+def test_extension_a_cjk_in_title_returns_zh_cn():
+    """Extension A character U+3400 (㐀) in title → zh-CN."""
+    title = "Test 㐀 char"  # U+3400 is 㐀, Extension A
+    body = "some text " * 20
+    assert detect_lang(title, body) == "zh-CN"
+
+
+# ---------------------------------------------------------------------------
+# detect_lang: None input handling
+# ---------------------------------------------------------------------------
+
+
+def test_detect_lang_none_title_and_body_returns_unknown():
+    """None title and None body → unknown (no error)."""
+    assert detect_lang(None, None) == "unknown"
+
+
+def test_detect_lang_none_title_chinese_body():
+    """None title, Chinese body → zh-CN (body CJK path)."""
+    assert detect_lang(None, "中" * 200) == "zh-CN"
