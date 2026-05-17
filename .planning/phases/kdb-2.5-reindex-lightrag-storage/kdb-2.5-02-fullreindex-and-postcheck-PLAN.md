@@ -289,8 +289,14 @@ Use the RESEARCH Q8 template. Populate all sections with real measured values:
 - Step 1 small-batch findings (from SMALLBATCH-FINDINGS.md values)
 - Step 2 full re-index (run-id, start/end time, wallclock, ok/failed counts, total cost from billing)
 - Step 3 post-check (embedding_dim, n_zh, n_en, zh/en response excerpts)
+- **NEW: kb-v2.2 F12 sync baseline measurements (nice-to-have, NOT a hard acceptance gate per orchestrator request 2026-05-17):**
+  - **vdb file sizes** — `vdb_entities.json`, `vdb_relationships.json`, `vdb_chunks.json` final byte sizes (use `find /Volumes/.../lightrag_storage/ -name 'vdb_*.json' -exec ls -la {} \;` to capture). Format as a small table with file + bytes + MB.
+  - **Total LLM cost (Step 2 only)** — actual $ from Databricks billing dashboard or DBU/Model-Serving line items. Compare to v1.0.x reconcile_ingestions ghost-reduction cost baseline (Hermes; ~$X/day historical) — note absolute $ + ratio.
+  - **Per-article entity extraction density** — distribution stats: avg / p50 / p90 entities per article (parse `vdb_entities.json` and group by source_id ↔ content_hash). Compare to Hermes current Vertex/DeepSeek pairing if a baseline number is available in CLAUDE.md or a recent quick. Flag if density differs by > 30% (could indicate prompt drift or chunk_token_size config diff).
+  - **Coverage** — articles_processed / DATA-07_candidate_total (e.g., 165/170 = 97%). Cross-reference to FAILURES.csv count. Document any coverage delta from raw-row count (~2598) → DATA-07-filter (~170) → actually-processed.
+  - **F12 sync baseline conclusion** — one-paragraph note: "Databricks-built KG vdb sizes are [comparable / N% larger / N% smaller] than Hermes current KG (~789 articles). F12 sync memory budget can use [baseline figure]. Investigate [factor] if delta > 30%."
 - Files emitted list
-- Skill discipline: Skill(skill="databricks-patterns"), Skill(skill="writing-tests"), Skill(skill="systematic-debugging")
+- Skill discipline: Skill(skill="databricks-patterns"), Skill(skill="writing-tests")
 - Commit ledger (forward-only hashes)
 - Status: PASSED (if all criteria met) or REOPENED (if any failed)
 
