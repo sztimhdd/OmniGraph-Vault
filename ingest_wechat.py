@@ -958,18 +958,52 @@ async def scrape_wechat_cdp(url):
             "method": "cdp"
         }
 
-def process_content(html):
+def process_content(html: str) -> tuple[str, list[str]]:
+    """Convert scraped HTML to markdown + collect image URLs.
+
+    WeChat uses a lazy-load pattern:
+        <img data-src="<real-url>" src="data:image/svg+xml,...placeholder">
+
+    html2text only reads the src attribute, so without preprocessing it sees the
+    placeholder and produces unusable ``![](data:...)`` markdown — losing both the
+    real image URL AND its inline position in the article body. Subsequent
+    localize_markdown() calls become no-ops because the remote URL never appears
+    in the markdown to begin with.
+
+    Fix: before html2text conversion, mutate ``<img>.src = data-src`` for any tag
+    where src is missing or is a data-URI placeholder. This preserves inline
+    ``![](real-url)`` markdown, which downstream localize_markdown() can then
+    rewrite to local paths. Idempotent: a tag whose src is already a valid http(s)
+    URL is left untouched, so re-running on already-fixed HTML produces identical
+    output.
+
+    Phase 5-00 retrieval-binding (line 1303 — ``Image N from article 'X': URL``
+    appended at end-of-doc) STAYS UNCHANGED — it serves a different purpose
+    (LightRAG aquery parent ↔ sub-doc correlation) and is independent of inline
+    rendering.
+
+    Returns:
+        (markdown, image_urls): markdown body with inline ``![](url)`` preserved;
+        image_urls is the list of remote URLs collected for download_images().
+    """
     soup = BeautifulSoup(html, 'html.parser')
-    images = []
+    images: list[str] = []
     for img in soup.find_all('img'):
-        src = img.get('data-src') or img.get('src')
+        data_src = img.get('data-src')
+        current_src = img.get('src') or ''
+        # Promote data-src to src if src is missing or a data-URI placeholder.
+        # Do NOT overwrite a valid http(s) src.
+        if data_src and (not current_src or current_src.startswith('data:')):
+            img['src'] = data_src
+        # Collect for downstream download (use the now-correct src, with data-src fallback).
+        src = img.get('src') or data_src
         if src and src.startswith('http'):
             images.append(src)
-    
+
     h = html2text.HTML2Text()
     h.ignore_links = False
-    markdown = h.handle(html)
-    
+    markdown = h.handle(str(soup))
+
     return markdown, images
 
 
