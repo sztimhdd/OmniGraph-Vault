@@ -232,8 +232,24 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
                 wait = _GLOBAL_COOLDOWN_UNTIL - now
                 await _asyncio.sleep(wait)
             _GLOBAL_COOLDOWN_UNTIL = _time.time() + _COOLDOWN_SECONDS
+            # 260517-msg: differentiate Vertex AI quota 429 from free-tier
+            # key pool exhaustion in the error string. Pre-fix message
+            # ("All 1 Gemini keys exhausted") was misleading on Vertex
+            # mode where pool_size is hardcoded 1 — diagnosis on 5/17
+            # rerun wasted ~30 min hunting for "the missing key" that
+            # didn't exist. Vertex 429 = AI Platform RPM/RPD quota
+            # exceeded; remediation is GCP console quota increase or
+            # batch concurrency tuning, NOT key pool addition.
+            if _is_vertex_mode():
+                raise RuntimeError(
+                    "Vertex AI embedding quota 429 — RPM/RPD exceeded "
+                    "(not key-pool exhaustion; pool_size hardcoded 1 in "
+                    "Vertex mode). Check GCP quota dashboard for "
+                    "aiplatform.googleapis.com or reduce embedding "
+                    "concurrency."
+                ) from last_err
             raise RuntimeError(
-                f"All {pool_size} Gemini keys exhausted (429)"
+                f"All {pool_size} Gemini key(s) exhausted (free-tier 429)"
             ) from last_err
 
         vectors.append(vec)
