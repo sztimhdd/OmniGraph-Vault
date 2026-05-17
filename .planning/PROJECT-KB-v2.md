@@ -190,7 +190,42 @@ kb-4 → Ubuntu systemd + Caddy 反代 + 每日 cron + smoke 验证
 
 - **KB v2.1** — 实体页 + 主题 Pillar 页(canonical 实体增长后)+ Repository 数据层抽象
   + Databricks Apps EDC 内部预览部署 + rate limiting
-- **KB v2.2** — 内容 LLM 自动翻译(实验性)+ 跨语言搜索 + 跨语言 Q&A
+  - **kb-v2.1-stabilization sub-milestone** (closed 2026-05-17) — 7 phases + 2 quicks shipped:
+    v2.1-1 KG mode hardening / v2.1-2 image path integration / v2.1-3 hero-strip migration /
+    v2.1-4 structured synthesize / v2.1-5 long-form MVP / v2.1-6 image rendering fix /
+    v2.1-7 lang detection backfill / v2.1-8 wechat data-src / v2.1-9 baseline triage
+- **KB v2.2 (in progress 2026-05-17+)** — 双向文章翻译 + KG 搜索默认 + Hermes-Aliyun storage sync mechanism + citation URL format + image injection
+  - **F1' 双向文章翻译** — zh ↔ en;article body + title;DATA-07 filter applies;
+    `articles.body_translated` + `title_translated` + `translated_lang` + `translated_at` columns;
+    backend translation via `lib/llm_complete.py` dispatcher;`/api/article/{hash}?lang=en` endpoint;
+    UI lang toggle reuses kb-v2.1-1 i18n button pattern
+  - **F8' KG search 替换 FTS5** — promote `omnigraph_search.query.search` (LightRAG hybrid mode)
+    为 `/api/search?mode=kg` default;article-level dedup;lang/DATA-07 filter integration;
+    score field exposure;`KG_MODE_AVAILABLE=False → 503 + retry_after` (NOT FTS5 fallback);
+    FTS5 retained as `/admin` debug entry only
+  - **F12 Hermes → Aliyun lightrag_storage sync** — 跨境双跳 rsync (Hermes → Windows dev → Aliyun);
+    weekly cadence;stop-rsync-cgroup-verify-start protocol (~2 min downtime);
+    cgroup memory budget monitoring (vdb growth vs MemoryMax ceiling);
+    ~1.3GB initial transfer + delta thereafter
+  - **FU-1 Citation URL format + image injection** — fix kg_synthesize prompt to enforce
+    `/article/{hash}.html` URL citation (currently emits Chinese "(来源:Entity X 描述)" which
+    wrapper regex can't extract);extend wrapper regex with optional Chinese fallback +
+    entity-name lookup;chunk-level retrieval ensures image URLs surface (post-F12 sync:
+    4603 image URLs vs current 1189; 172 articles vs current 44)
+  - **F5/F6 hygiene** — test-isolation autouse fixture (1-2h, batch XPASS 5 xfail items)
+    + SSG data-lang 规范化 (0.5h, zh→zh-CN unification)
+  - **F10 hash collision id=731 cleanup** _(optional, ~0.5d alongside F1' migration)_
+  - **F9 Aliyun KG mode enable** — ✅ DONE 2026-05-17 night (systemd override + GCP creds +
+    /etc/hosts oauth pin, see memory `aliyun_oauth_pin.md`)
+  - **Cut**: F2/F3/F4 (跨语言 search/Q&A);F11 (Path B DeepSeek-only long_form, violates
+    `feedback_lightrag_is_core_asset_no_bypass` — replaced by F12 same-root-cause cure);
+    7 long-form UX items (Preview/Save/Export/Versioning/research-page/image-curation/
+    citation-rich) — see `.planning/phases/kb-v2.1-stabilization/DEFERRED.md`
+  - **Critical empirical finding 2026-05-17 night**: Aliyun's `lightrag_storage` is a
+    2026-05-08 stale snapshot (graphml mtime). Hermes current data is ~3.9× larger
+    (4603 vs 1189 image URLs;172 vs 44 articles with images;1789 vs 460 sub-doc descs).
+    F12 promoted from optional → P0 prereq for F8'/FU-1. Without F12 sync, KG search +
+    image-rich answers bounded by ~25% Hermes content.
 - **KB v2.3** — Agentic-RAG-v1 接入 `/synthesize` 端点(替代 kg_synthesize 直调)+ 流式响应
 
 ## Validated Requirements (kb-1 — 2026-05-13)

@@ -2,14 +2,18 @@
 gsd_state_version: 1.0
 milestone: KB-v2
 milestone_name: — KB-v2 (parallel-track)
-status: kb-3-complete-ready-for-kb-4
-last_updated: "2026-05-14T13:30:00Z"
-last_activity: "2026-05-14 — kb-3 fully complete: 12 plans across 5 waves with full Skill discipline (api-design=1, python-patterns=7, writing-tests=9, ui-ux-pro-max=2, frontend-design=2 — all 5 floors met); 19/19 REQs (DATA-07 + I18N-07 + API-01..08 + SEARCH-01..03 + QA-01..05 + CONFIG-02); 31 :root vars unchanged (kb-1 baseline preserved); CSS 2099/2100 ceiling (UI-SPEC §8 #35); 256 new tests across kb-3 surface; FastAPI on :8766 with 4 endpoint families + /static/img mount + FTS5 trigram + async Q&A wrapper + KB-side lang directive injection + FTS5 fallback NEVER-500 invariant; DATA-07 visibility 160/2501 articles = 6.4% matches Hermes prod prediction. C1 (kg_synthesize) + C2 (omnigraph_search) contracts untouched. Deferred: 2 pre-existing kb-2 unit-test pollution failures (kb-3-02 reload pattern + dataclass identity drift; pass in isolation; recommended kb-2 quick task post-kb-4). Phase kb-3 ready to close."
+status: kb-v2.1-stabilization-closed-kb-v2.2-open
+last_updated: "2026-05-18T00:00:00Z"
+last_activity: "2026-05-17 — kb-v2.1 stabilization closed (7 phases + 2 quicks shipped, all live on Aliyun: v2.1-1 KG hardening / v2.1-2 image paths / v2.1-3 hero strip / v2.1-4 structured synthesize / v2.1-5 long-form MVP / v2.1-6 image rendering / v2.1-7 lang detection / v2.1-8 wechat data-src / v2.1-9 baseline triage). kb-v2.2 milestone opened with 7-phase scope locked (F12 sync + F1' bidirectional translation + F8' KG search default + FU-1 citation/image + F5/F6 hygiene + F10 optional cleanup); F9 KG mode already enabled prod-side 2026-05-17 night via systemd override + GCP creds + /etc/hosts oauth pin (memory aliyun_oauth_pin.md). Tonight's stale-storage finding (Aliyun 2026-05-08 snapshot, 25% of Hermes data; 4603 vs 1189 image URLs; 172 vs 44 articles with images) reshaped F12 from optional → P0 prereq for Wave 2. CUT-FINAL 2026-05-17: F2 (merged into F1'), F3/F4 cross-language search/Q&A, F11 Path B (violates feedback_lightrag_is_core_asset_no_bypass), 7 long-form UX items (Preview/Save/Export/Versioning/research-page/image-curation/citation-rich). F7 11 prod-drift xfail items unbundled to v2.2.x quick set."
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 33
-  completed_plans: 32
+  completed_plans: 33
+  v2_1_stabilization_phases_shipped: 7
+  v2_1_stabilization_quicks_shipped: 2
+  v2_2_phases_planned: 7
+  v2_2_phases_complete: 1
 ---
 
 # Project State — KB-v2 (parallel)
@@ -26,10 +30,10 @@ progress:
 ## Current Position
 
 Milestone: KB-v2 (parallel-track to v3.4 / v3.5 / Agentic-RAG-v1)
-Phase: **kb-3 in progress** — 8/12 plans complete (kb-1 ✅ complete; kb-2 ✅ complete; kb-3-01..08 ✅ complete; kb-3-09..12 pending)
-Plan: kb-3 8/12 executed and verified
-Status: Ready for kb-3-09 (FTS5 fallback — replaces basic 'failed' branch in kb_synthesize per QA-05 NEVER-500 invariant)
-Last activity: 2026-05-14 — kb-3-08 shipped POST /api/synthesize (202 + job_id) + GET /api/synthesize/{job_id} (poll) wrapping kg_synthesize.synthesize_response (C1 unchanged) with I18N-07 lang directive prepend. 17 new tests pass; 74 kb-3 baseline tests still green. Requirements completed: I18N-07, QA-01, QA-02, QA-03, API-06, API-07.
+Sub-milestone: **kb-v2.1-stabilization closed 2026-05-17** (7 phases + 2 quicks shipped, all live on Aliyun production)
+Active sub-milestone: **kb-v2.2-translation-and-kg-search opened 2026-05-17** (7 phases queued, 1 already shipped)
+Status: Ready for `/gsd:plan-phase kb-v2.2-1` (F12 storage sync — Wave 1 starts here, P0 prereq for Wave 2)
+Last activity: 2026-05-17 — kb-v2.2 milestone-open completed via hand-driven setup (parallel-track suffix files; gsd-tools.cjs init does not parse PROJECT-KB-v2.md so /gsd:new-milestone bypassed per memory `feedback_parallel_track_gates_manual_run.md`). INPUT.md created at `.planning/phases/kb-v2.2-translation-and-kg-search/INPUT.md`; DEFERRED.md updated with 11 CUT-FINAL items; PROJECT-KB-v2.md v2.2 section expanded; STATE-KB-v2.md last_activity refreshed. F9 (Aliyun KG mode) already shipped prod-side via systemd override + GCP creds + /etc/hosts oauth pin (2026-05-17 night). Wave 1 (F12 + F5 + F6) parallelizable on milestone-open.
 
 ### Phase plan
 
@@ -57,11 +61,20 @@ Total: **62/62 v2.0 REQs** mapped (was 50; +12 from kb-2 revival). kb-1: 26/27 s
 
 ### Immediate next step
 
-`/gsd:plan-phase kb-3` — plan FastAPI :8766 backend (18 REQs across API/SEARCH/QA/CONFIG categories).
+`/gsd:plan-phase kb-v2.2-1` — plan F12 Hermes → Aliyun lightrag_storage sync mechanism.
 
-Use `/clear` first for fresh context window. The data layer functions (`list_articles`, `get_article_by_hash`, `resolve_url_hash`, `get_article_body`) shipped in kb-1-06 are ready for HTTP wrapping.
+This is the **Wave 1 P0 prereq**: F8' (kb-v2.2-3) and FU-1 (kb-v2.2-4) both depend
+on F12 because Aliyun's storage is currently a 2026-05-08 stale snapshot (only
+~25% of Hermes content; 1189 vs 4603 image URLs). Without F12 sync, KG search
+quality + image-rich answers are bounded by stale data.
 
-After kb-3 ships: plan kb-4 (Ubuntu deploy + Caddy + cron + 3 smoke scenarios + UI-04 logo PNG sourcing).
+Wave 1 (parallel, no deps): F12 + F5 (test-isolation autouse) + F6 (data-lang
+regularization). Use `/clear` first for fresh context window before each phase
+plan.
+
+After Wave 1 (F12) ships: plan kb-v2.2-2 (F1' bidirectional translation) +
+kb-v2.2-3 (F8' KG search default) in parallel; kb-v2.2-4 (FU-1 citation+image)
+after kb-v2.2-3 settles.
 
 ## Parallel-Track Boundary
 
@@ -187,7 +200,7 @@ invocation.
 
 ## Session Continuity
 
-Last session: 2026-05-12T18:00:00Z
-Stopped at: Roadmap committed; 50/50 REQs mapped; phase plan locked at kb-1, kb-3, kb-4 (kb-2 explicitly skipped)
-Resume file: None
-Next command: `/gsd:discuss-phase kb-1` (preferred) or `/gsd:plan-phase kb-1`
+Last session: 2026-05-17 (kb-v2.2 milestone-open + tonight's Aliyun storage stale-snapshot debug)
+Stopped at: kb-v2.2 INPUT.md committed; 7 phases queued across 3 waves; F9 already shipped prod-side; F12 elevated to P0 prereq based on stale-snapshot empirical finding
+Resume file: `.planning/phases/kb-v2.2-translation-and-kg-search/INPUT.md`
+Next command: `/gsd:plan-phase kb-v2.2-1` (F12 sync mechanism — Wave 1 P0 prereq)
