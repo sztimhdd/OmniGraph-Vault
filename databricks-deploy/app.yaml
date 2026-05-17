@@ -1,0 +1,35 @@
+# databricks-deploy/app.yaml — kdb-2-04 production deploy artifact.
+#
+# Wires the kdb-1.5 storage adapter into the App startup sequence,
+# then exec's uvicorn against the kb FastAPI entry point.
+#
+# Module path note: production FastAPI instance lives at kb/api.py
+# (single file, top-level FastAPI() instance). See SUMMARY for the
+# Decision-5 module path correction rationale.
+#
+# Locked decisions: Decision 5 (single bash dash-c step), Decision 1
+# (graceful-degrade translation lives in lib dispatcher).
+
+command:
+  - bash
+  - -c
+  - "cd /app/databricks-deploy && PYTHONPATH=/app:/app/databricks-deploy python -c 'from startup_adapter import hydrate_lightrag_storage_from_volume; print(hydrate_lightrag_storage_from_volume())' && exec uvicorn kb.api:app --host 0.0.0.0 --port $DATABRICKS_APP_PORT"
+
+env:
+  - name: OMNIGRAPH_BASE_DIR
+    value: "/tmp/omnigraph_vault"
+
+  - name: OMNIGRAPH_LLM_PROVIDER
+    value: "databricks_serving"
+
+  - name: KB_LLM_MODEL
+    value: "databricks-claude-sonnet-4-6"
+
+  - name: KB_EMBEDDING_MODEL
+    value: "databricks-qwen3-embedding-0-6b"
+
+  - name: KB_DB_PATH
+    value: "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/data/kol_scan.db"
+
+  - name: DEEPSEEK_API_KEY
+    value: "dummy"
