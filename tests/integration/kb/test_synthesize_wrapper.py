@@ -75,6 +75,11 @@ def _patch_c1(
         (Path(og_config.BASE_DIR) / "synthesis_output.md").write_text(
             output, encoding="utf-8"
         )
+        # 260517-fyb: return the output so the wrapper captures it from the
+        # await return value instead of reading the stale file. Mirrors the
+        # same fix already landed in test_long_form_synthesis._patch_c1_capture
+        # and test_kb3_e2e.test_e2e_synthesize_happy_path stubs.
+        return output
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake_synthesize)
 
