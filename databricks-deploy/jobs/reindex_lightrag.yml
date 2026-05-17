@@ -1,0 +1,118 @@
+# kdb-2.5 — Re-index LightRAG storage as a Databricks Job
+# Phase: kdb-2.5 (kb-databricks-v1 milestone, parallel-track)
+# Requirements: SEED-DBX-02, SEED-DBX-03
+#
+# Deploy:
+#   databricks bundle deploy -t dev
+#
+# Run Step 1 (smallbatch — ALWAYS run first):
+#   databricks bundle run kdb_2_5_reindex_smallbatch -t dev
+#
+# Review kdb-2.5-SMALLBATCH-FINDINGS.md before proceeding to Step 2.
+# GATE: cost_extrap < $200 AND wallclock_extrap < 30h AND failure_rate < 5%
+#
+# Run Step 2 (fullreindex — ONLY after Step 1 gate PASS):
+#   databricks bundle run kdb_2_5_reindex_fullrun -t dev
+#
+# Run Step 2 with resume (safe to re-run — progress CSV handles resume per D-06):
+#   databricks bundle run kdb_2_5_reindex_fullrun -t dev
+#
+# Run Step 2 with force-overwrite (explicit operator intent to overwrite existing state):
+#   databricks bundle run kdb_2_5_reindex_fullrun -t dev \
+#     --params '["--mode","fullreindex","--filter-mode","strict","--force-overwrite"]'
+#
+# Run Step 3 (postcheck):
+#   databricks bundle run kdb_2_5_reindex_postcheck -t dev
+#
+# This file must be referenced via include: in the parent databricks.yml bundle config.
+#
+# Auth: Jobs run as user hhu@edc.ca (Bundle deploy with dev profile — D-03).
+#       User must have WRITE_VOLUME on mdlg_ai_shared.kb_v2.omnigraph_vault.
+#       App SP retains READ_VOLUME only (AUTH-DBX-03 invariant preserved).
+#
+# Design notes:
+#   - max_concurrent_runs: 1 on all jobs (LightRAG is single-writer; concurrent
+#     writes to the same lightrag_storage/ corrupt the graph).
+#   - NO --force-overwrite in default parameters (D-07: fail loudly on non-empty).
+#   - Three separate Jobs for independent invocation and distinct timeouts.
+#   - environment_version: "2" = current Databricks serverless compute generation.
+
+resources:
+  jobs:
+    kdb_2_5_reindex_smallbatch:
+      name: "[kdb-2.5] Re-index LightRAG — Step 1 smallbatch (50 articles)"
+      queue:
+        enabled: true
+      max_concurrent_runs: 1
+      timeout_seconds: 7200    # 2h hard ceiling (well above ~30min target)
+      tasks:
+        - task_key: smallbatch
+          spark_python_task:
+            python_file: ./reindex_lightrag.py
+            parameters:
+              - "--mode"
+              - "smallbatch"
+              - "--max-articles"
+              - "50"
+              - "--filter-mode"
+              - "strict"
+              # NO --force-overwrite — Step 1 must fail loudly if Volume is non-empty (D-07)
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies:
+              - "lightrag-hku==1.4.15"
+              - "databricks-sdk>=0.30.0"
+              - "numpy>=1.26.0"
+
+    kdb_2_5_reindex_fullrun:
+      name: "[kdb-2.5] Re-index LightRAG — Step 2 fullreindex (all candidates)"
+      queue:
+        enabled: true
+      max_concurrent_runs: 1
+      timeout_seconds: 108000    # 30h hard ceiling (matches ROADMAP cost gate)
+      tasks:
+        - task_key: fullreindex
+          spark_python_task:
+            python_file: ./reindex_lightrag.py
+            parameters:
+              - "--mode"
+              - "fullreindex"
+              - "--filter-mode"
+              - "strict"
+              # NO --force-overwrite in defaults.
+              # Operator passes at runtime for explicit override (see comments above).
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies:
+              - "lightrag-hku==1.4.15"
+              - "databricks-sdk>=0.30.0"
+              - "numpy>=1.26.0"
+
+    kdb_2_5_reindex_postcheck:
+      name: "[kdb-2.5] Re-index LightRAG — Step 3 postcheck"
+      queue:
+        enabled: true
+      max_concurrent_runs: 1
+      timeout_seconds: 1800    # 30min ceiling — postcheck is read-only, fast
+      tasks:
+        - task_key: postcheck
+          spark_python_task:
+            python_file: ./reindex_lightrag.py
+            parameters:
+              - "--mode"
+              - "postcheck"
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies:
+              - "lightrag-hku==1.4.15"
+              - "databricks-sdk>=0.30.0"
+              - "numpy>=1.26.0"

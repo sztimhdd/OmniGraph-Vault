@@ -1,0 +1,23 @@
+# Databricks Asset Bundle root for OmniGraph-Vault kb-databricks-v1 milestone.
+# Milestone: kb-databricks-v1 (parallel-track)
+#
+# Includes:
+#   - jobs/reindex_lightrag.yml   — kdb-2.5 re-index Job resources
+#
+# Deploy:
+#   cd databricks-deploy && databricks bundle deploy -t dev
+#
+# Auth: uses ~/.databrickscfg [dev] profile (hhu@edc.ca user identity).
+
+bundle:
+  name: omnigraph-kb-bundle
+
+include:
+  - jobs/reindex_lightrag.yml
+
+targets:
+  dev:
+    mode: development
+    workspace:
+      host: https://adb-2717931942638877.17.azuredatabricks.net
+      profile: dev
