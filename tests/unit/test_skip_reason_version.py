@@ -132,14 +132,16 @@ def _seed_post_009_db():
             id INTEGER PRIMARY KEY,
             account_id INTEGER NOT NULL,
             title TEXT, url TEXT, body TEXT, digest TEXT,
-            layer1_verdict TEXT, layer1_prompt_version TEXT
+            layer1_verdict TEXT, layer1_prompt_version TEXT,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE rss_feeds (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY,
             feed_id INTEGER NOT NULL,
             title TEXT, url TEXT, body TEXT, summary TEXT,
-            layer1_verdict TEXT, layer1_prompt_version TEXT
+            layer1_verdict TEXT, layer1_prompt_version TEXT,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE ingestions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

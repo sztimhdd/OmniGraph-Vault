@@ -262,13 +262,15 @@ def test_layer1_prompt_version_bump_invalidates_prior() -> None:
             account_id INTEGER REFERENCES accounts(id),
             title TEXT, url TEXT, body TEXT, digest TEXT,
             layer1_verdict TEXT NULL, layer1_reason TEXT NULL,
-            layer1_at TEXT NULL, layer1_prompt_version TEXT NULL
+            layer1_at TEXT NULL, layer1_prompt_version TEXT NULL,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE rss_feeds (id INTEGER PRIMARY KEY, name TEXT);
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY, feed_id INTEGER NOT NULL,
             title TEXT, url TEXT, body TEXT, summary TEXT,
-            layer1_verdict TEXT NULL, layer1_prompt_version TEXT NULL
+            layer1_verdict TEXT NULL, layer1_prompt_version TEXT NULL,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE ingestions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -306,14 +306,16 @@ def _seed_dual_source_db():
             id INTEGER PRIMARY KEY,
             account_id INTEGER NOT NULL,
             title TEXT, url TEXT, body TEXT, digest TEXT,
-            layer1_verdict TEXT, layer1_prompt_version TEXT
+            layer1_verdict TEXT, layer1_prompt_version TEXT,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE rss_feeds (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY,
             feed_id INTEGER NOT NULL,
             title TEXT, url TEXT, body TEXT, summary TEXT,
-            layer1_verdict TEXT, layer1_prompt_version TEXT
+            layer1_verdict TEXT, layer1_prompt_version TEXT,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE ingestions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -394,15 +396,16 @@ def test_dual_source_sql_anti_join_isolates_by_source():
 
 
 def test_dual_source_sql_seven_columns_runtime():
-    """Runtime introspection: cursor.description should report 7 named
-    columns matching the contract."""
+    """Runtime introspection: cursor.description should report 8 named
+    columns matching the contract (post v1.0.z imc — image_count added
+    as 8th col for fresh-article budget; CLAUDE.md 2026-05-15 lesson #1)."""
     conn = _seed_dual_source_db()
     sql, params = _build_topic_filter_query([])
     cur = conn.execute(sql, params)
     cols = [d[0] for d in cur.description]
-    assert cols == ["id", "source", "title", "url", "source_name", "body", "summary"], (
-        f"Column shape changed; got {cols}"
-    )
+    assert cols == [
+        "id", "source", "title", "url", "source_name", "body", "summary", "image_count",
+    ], f"Column shape changed; got {cols}"
 
 
 def test_dual_source_sql_kol_aliases_digest_to_summary():
