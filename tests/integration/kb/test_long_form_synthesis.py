@@ -63,7 +63,11 @@ def app_client(tmp_path, fixture_db, monkeypatch):
 
 
 def _patch_c1_capture(monkeypatch: pytest.MonkeyPatch, captured: dict) -> None:
-    """Patch C1 with a stub that records query_text + writes synthesis_output."""
+    """Patch C1 with a stub that records query_text, writes synthesis_output
+    (back-compat side effect), and returns the same string (260517-fyb: wrapper
+    now consumes the return value)."""
+
+    _output = "# Answer\n\nSee [a](/article/abc1234567)."
 
     async def fake(query_text: str, mode: str = "hybrid"):
         captured["text"] = query_text
@@ -71,9 +75,12 @@ def _patch_c1_capture(monkeypatch: pytest.MonkeyPatch, captured: dict) -> None:
         import config as og_config
 
         (Path(og_config.BASE_DIR) / "synthesis_output.md").write_text(
-            "# Answer\n\nSee [a](/article/abc1234567).",
+            _output,
             encoding="utf-8",
         )
+        # 260517-fyb: return the output so the wrapper captures it from the
+        # await return value instead of reading the file.
+        return _output
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake)
 
@@ -314,6 +321,7 @@ def test_kb_synthesize_accepts_mode_kwarg(tmp_path, fixture_db, monkeypatch):
         (Path(og_config.BASE_DIR) / "synthesis_output.md").write_text(
             "# x", encoding="utf-8"
         )
+        return "# x"  # 260517-fyb: wrapper now consumes return value
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake)
 

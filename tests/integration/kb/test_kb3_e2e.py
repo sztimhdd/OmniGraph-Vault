@@ -201,14 +201,18 @@ def test_e2e_synthesize_happy_path(
     writing-tests SKILL Mocking Guidelines (LightRAG is external).
     """
 
-    async def fake_c1(query_text: str, mode: str = "hybrid") -> None:
+    async def fake_c1(query_text: str, mode: str = "hybrid") -> str:
         import config as og_config
 
         # kb-v2.1-4: reference a fixture-known KOL hash so structured source
         # resolution succeeds and confidence='kg' (not 'no_results').
+        _output = "# Answer\n\nSee [s](/article/abc1234567)"
         (Path(og_config.BASE_DIR) / "synthesis_output.md").write_text(
-            "# Answer\n\nSee [s](/article/abc1234567)", encoding="utf-8"
+            _output, encoding="utf-8"
         )
+        # 260517-fyb: return the output so the wrapper captures it from
+        # the await return value instead of reading the stale file.
+        return _output
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake_c1)
     post = fully_wired_app.post(

@@ -38,14 +38,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Literal, Optional
-
-# OmniGraph BASE_DIR — synthesis_output.md is written here by kg_synthesize
-# (see kg_synthesize.py main() — output path is config.SYNTHESIS_OUTPUT
-# which equals BASE_DIR / "synthesis_output.md"). We re-resolve the path at
-# call time (not import time) so tests can monkeypatch config.BASE_DIR.
-import config as og_config
 
 from kb import config as kb_config
 from kb.data import article_query
@@ -227,19 +220,6 @@ def lang_directive_for(lang: str) -> str:
         other -> ''  (defensive — empty so query passes through unchanged)
     """
     return _DIRECTIVES.get(lang, "")
-
-
-def _read_synthesis_output() -> str:
-    """Read kg_synthesize's canonical output file (config.BASE_DIR/synthesis_output.md).
-
-    Returns empty string if the file doesn't exist (treat as 'C1 produced no output').
-    EAFP per python-patterns SKILL: try to read, return '' on OSError.
-    """
-    p = Path(og_config.BASE_DIR) / "synthesis_output.md"
-    try:
-        return p.read_text(encoding="utf-8")
-    except (FileNotFoundError, OSError):
-        return ""
 
 
 def _extract_source_hashes(markdown: str) -> list[str]:
@@ -438,7 +418,12 @@ async def kb_synthesize(
     try:
         # QA-04: bound C1 wall-time. asyncio.wait_for raises TimeoutError on
         # exceedance; the inner coroutine is cancelled.
-        await asyncio.wait_for(
+        # 260517-fyb: capture the LLM markdown from the await return value.
+        # Pre-fix this discarded the return and read a stale BASE_DIR file
+        # written only by the kg_synthesize CLI main(), causing 3 different
+        # POST /api/synthesize requests on Aliyun (2026-05-17) to return the
+        # same byte-identical markdown from a 2026-05-08 rsync'd file.
+        response = await asyncio.wait_for(
             synthesize_response(query_text, mode="hybrid"),
             timeout=KB_SYNTHESIZE_TIMEOUT,
         )
@@ -450,7 +435,10 @@ async def kb_synthesize(
         return
 
     # kb-v2.1-4 happy path: structured resolution from real DB joins.
-    markdown = _read_synthesis_output()
+    # 260517-fyb: markdown comes from the synthesize_response return value
+    # (LLM response str). Defensive isinstance() handles the rare case
+    # where the 3-attempt retry exhausted without raising — return None.
+    markdown = response if isinstance(response, str) else ""
     sources = _resolve_sources_from_markdown(markdown)
     entities = _resolve_entities_for_sources([s.hash for s in sources])
     confidence: ConfidenceLevel = "kg" if sources else "no_results"

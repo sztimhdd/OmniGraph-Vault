@@ -98,13 +98,17 @@ def _patch_c1_writes(
     monkeypatch: pytest.MonkeyPatch, output_md: str
 ) -> None:
     """Patch C1 with an instantaneously-successful stub that writes
-    synthesis_output.md (the wrapper reads it back)."""
+    synthesis_output.md (back-compat side effect) AND returns the markdown
+    string (260517-fyb: wrapper now consumes the return value)."""
     import config as og_config
 
-    async def fake(query_text: str, mode: str = "hybrid") -> None:
+    async def fake(query_text: str, mode: str = "hybrid") -> str:
         (Path(og_config.BASE_DIR) / "synthesis_output.md").write_text(
             output_md, encoding="utf-8"
         )
+        # 260517-fyb: return the markdown so the wrapper captures it from
+        # the await return value instead of reading the stale file.
+        return output_md
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake)
 
