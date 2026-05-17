@@ -462,6 +462,91 @@ def test_ghost_success_failed_in_db_processed_in_kv(
     assert exit_code == 1
 
 
+def test_auto_patch_flips_ghost_to_ok_and_exits_zero(
+    tmp_db: Path, tmp_storage: Path, capsys
+) -> None:
+    """260517-acp: --auto-patch flips ghost ingestions row to 'ok' and exit code 0.
+
+    Without --auto-patch the row stays 'failed' (operator action required).
+    With --auto-patch the row is updated in-place and exit returns 0.
+    """
+    url = "https://mp.weixin.qq.com/s/ghost_auto_patch_777"
+    _add_article(tmp_db, 777, url)
+    _add_ingestion(tmp_db, 777, "wechat", "failed", "2026-05-14")
+    doc_id = _compute_doc_id(url, source="wechat")
+    _set_doc_status(tmp_storage, doc_id, "processed")
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_db),
+            "--storage-dir",
+            str(tmp_storage),
+            "--date",
+            "2026-05-14",
+            "--auto-patch",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert "1 ghost" in captured.out
+    assert "patched 1" in captured.out
+    # Verify auto_patch JSON line emitted
+    json_lines = [
+        json.loads(ln) for ln in captured.out.splitlines() if ln.startswith("{")
+    ]
+    patch_lines = [ln for ln in json_lines if ln.get("kind") == "auto_patch"]
+    assert len(patch_lines) == 1
+    assert patch_lines[0]["patched_count"] == 1
+
+    # DB row was actually flipped
+    with sqlite3.connect(str(tmp_db)) as conn:
+        status = conn.execute(
+            "SELECT status FROM ingestions WHERE article_id=777"
+        ).fetchone()[0]
+    assert status == "ok"
+
+    # All ghosts patched + 0 mystery → exit 0
+    assert exit_code == 0
+
+
+def test_auto_patch_off_by_default_preserves_status(
+    tmp_db: Path, tmp_storage: Path, capsys
+) -> None:
+    """260517-acp: without --auto-patch, ghost rows stay 'failed' (no DB change)."""
+    url = "https://mp.weixin.qq.com/s/ghost_no_patch_888"
+    _add_article(tmp_db, 888, url)
+    _add_ingestion(tmp_db, 888, "wechat", "failed", "2026-05-14")
+    doc_id = _compute_doc_id(url, source="wechat")
+    _set_doc_status(tmp_storage, doc_id, "processed")
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_db),
+            "--storage-dir",
+            str(tmp_storage),
+            "--date",
+            "2026-05-14",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert "1 ghost" in captured.out
+    # No "patched" mention without --auto-patch flag
+    assert "patched" not in captured.out
+
+    # DB row UNCHANGED
+    with sqlite3.connect(str(tmp_db)) as conn:
+        status = conn.execute(
+            "SELECT status FROM ingestions WHERE article_id=888"
+        ).fetchone()[0]
+    assert status == "failed"
+
+    # Unresolved ghost → exit 1 (back-compat)
+    assert exit_code == 1
+
+
 def test_ghost_zero_normal_failed_no_match(
     tmp_db: Path, tmp_storage: Path, capsys
 ) -> None:

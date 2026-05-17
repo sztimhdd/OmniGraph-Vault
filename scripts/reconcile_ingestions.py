@@ -146,6 +146,16 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="LightRAG storage dir; defaults to config.RAG_WORKING_DIR.",
     )
+    parser.add_argument(
+        "--auto-patch",
+        action="store_true",
+        help=(
+            "260517-acp: when a ghost is detected (ingestions=failed but "
+            "kv_store=processed), UPDATE ingestions SET status='ok'. Safe "
+            "because graph IS processed; the failed row is just stale. "
+            "Default off — explicit opt-in for cron / one-off cleanup."
+        ),
+    )
     args = parser.parse_args(argv)
 
     end_date = date.fromisoformat(args.date) if args.date else date.today()
@@ -195,6 +205,7 @@ def main(argv: list[str] | None = None) -> int:
     ghost_count = 0
     ghost_count_wechat = 0
     ghost_count_rss = 0
+    ghost_ingestion_ids: list[int] = []
     for row in failed_rows:
         doc_id = _compute_doc_id(row["url"], row["source"]) if row["url"] else None
         if doc_id is None:
@@ -204,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         if not (isinstance(actual, str) and actual.lower() == "processed"):
             continue  # real fail (expected); skip without counting
         ghost_count += 1
+        ghost_ingestion_ids.append(row["id"])
         if row["source"] == "rss":
             ghost_count_rss += 1
         else:
@@ -222,19 +234,46 @@ def main(argv: list[str] | None = None) -> int:
             + "\n"
         )
 
+    # 260517-acp: opt-in auto-patch — flip ghost rows to status='ok' so
+    # subsequent candidate-pool queries don't try to re-ingest them.
+    patched_count = 0
+    if args.auto_patch and ghost_ingestion_ids:
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.executemany(
+                "UPDATE ingestions SET status='ok' WHERE id=?",
+                [(gid,) for gid in ghost_ingestion_ids],
+            )
+            conn.commit()
+            patched_count = len(ghost_ingestion_ids)
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "kind": "auto_patch",
+                    "patched_count": patched_count,
+                    "ingestion_ids": ghost_ingestion_ids,
+                }
+            )
+            + "\n"
+        )
+
     date_range = (
         f"{start_date.isoformat()}..{end_date.isoformat()}"
         if start_date != end_date
         else end_date.isoformat()
     )
+    patched_suffix = f" | patched {patched_count}" if args.auto_patch else ""
     sys.stdout.write(
         f"{date_range}: {ok_count} ok rows / "
         f"{processed_count} matched / {mystery_count} mystery "
         f"(wechat: {mystery_count_wechat}, rss: {mystery_count_rss}) "
         f"| {ghost_count} ghost "
-        f"(wechat: {ghost_count_wechat}, rss: {ghost_count_rss})\n"
+        f"(wechat: {ghost_count_wechat}, rss: {ghost_count_rss})"
+        f"{patched_suffix}\n"
     )
-    return 1 if (mystery_count > 0 or ghost_count > 0) else 0
+    # 260517-acp: when --auto-patch is on, ghost rows are no longer "needs
+    # operator attention". Exit 0 if all ghosts patched and 0 mystery.
+    unresolved_ghost = ghost_count - patched_count
+    return 1 if (mystery_count > 0 or unresolved_ghost > 0) else 0
 
 
 if __name__ == "__main__":
