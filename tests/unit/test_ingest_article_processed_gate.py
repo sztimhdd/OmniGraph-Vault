@@ -6,7 +6,7 @@ retries with backoff and RAISES ``RuntimeError`` on terminal failure so the
 outer ``batch_ingest_from_spider.ingest_article`` except path catches and
 marks ``ingestions.status='failed'`` (mig 009 retry pool re-queues next cron).
 
-All tests pass ``backoff_s=0.0`` to skip real ``asyncio.sleep`` waits — keeps
+All tests pass ``backoff_s=0.001`` to skip real ``asyncio.sleep`` waits — keeps
 the suite fast (well under 1s) and lets us assert exact call counts deterministically.
 
 Mock-only: no live LightRAG, no live network. Mocks ``rag.aget_docs_by_ids``
@@ -72,7 +72,7 @@ async def test_processed_verification_passes_first_try(helper_and_const):
     ])
 
     # No raise expected.
-    await helper(rag, doc_id, backoff_s=0.0, stable_delay_s=0.0)
+    await helper(rag, doc_id, backoff_s=0.001, stable_delay_s=0.0)
 
     # 2 calls: initial poll + stable re-poll
     assert rag.aget_docs_by_ids.await_count == 2
@@ -95,7 +95,7 @@ async def test_processed_promotes_after_retry(helper_and_const):
         {doc_id: {"status": "processed"}},   # attempt 2 — stable re-poll confirms
     ])
 
-    await helper(rag, doc_id, max_retries=3, backoff_s=0.0, stable_delay_s=0.0)
+    await helper(rag, doc_id, max_retries=3, backoff_s=0.001, stable_delay_s=0.0)
 
     # 4 calls: 2 processing + 1 processed (initial) + 1 processed (stable re-poll)
     assert rag.aget_docs_by_ids.await_count == 4
@@ -116,7 +116,7 @@ async def test_never_promotes_raises_runtime_error(helper_and_const):
     ])
 
     with pytest.raises(RuntimeError, match="PROCESSED verification failed") as exc_info:
-        await helper(rag, doc_id, max_retries=3, backoff_s=0.0)
+        await helper(rag, doc_id, max_retries=3, backoff_s=0.001)
 
     msg = str(exc_info.value)
     # Sanity-check the error message carries actionable diagnostics.
@@ -138,7 +138,7 @@ async def test_doc_missing_from_status_raises(helper_and_const):
     rag = _mk_rag([{}, {}, {}])
 
     with pytest.raises(RuntimeError, match="PROCESSED verification failed"):
-        await helper(rag, doc_id, max_retries=3, backoff_s=0.0)
+        await helper(rag, doc_id, max_retries=3, backoff_s=0.001)
 
     assert rag.aget_docs_by_ids.await_count == 3
 
@@ -161,7 +161,7 @@ async def test_aget_docs_raises_then_recovers(helper_and_const):
     ])
 
     # Expected: attempt 0 raises (caught), attempt 1 returns processed + stable re-poll confirms → no raise.
-    await helper(rag, doc_id, max_retries=3, backoff_s=0.0, stable_delay_s=0.0)
+    await helper(rag, doc_id, max_retries=3, backoff_s=0.001, stable_delay_s=0.0)
 
     # 3 calls: 1 exception + 1 processed (initial) + 1 processed (stable re-poll)
     assert rag.aget_docs_by_ids.await_count == 3
@@ -228,7 +228,7 @@ async def test_outer_catches_inner_runtime_error_returns_failed(monkeypatch):
 #   (A) stable re-poll: if 'processed' AND error_msg empty → sleep STABLE_VERIFY_DELAY_S,
 #       re-fetch, confirm still 'processed' + no error_msg, then return
 #
-# All tests pass both backoff_s=0.0 and stable_delay_s=0.0 to avoid real sleeps.
+# All tests pass both backoff_s=0.001 and stable_delay_s=0.0 to avoid real sleeps.
 # For stable re-poll tests, the mock side_effect encodes BOTH the initial poll
 # result AND the stable re-poll result as consecutive calls to aget_docs_by_ids.
 # ---------------------------------------------------------------------------
@@ -265,7 +265,7 @@ async def test_processed_with_error_msg_continues_retry(helper_toctou):
     ])
 
     with pytest.raises(RuntimeError, match="PROCESSED verification failed") as exc_info:
-        await helper(rag, doc_id, max_retries=3, backoff_s=0.0, stable_delay_s=0.0)
+        await helper(rag, doc_id, max_retries=3, backoff_s=0.001, stable_delay_s=0.0)
 
     msg = str(exc_info.value)
     assert "processed-with-error" in msg
@@ -289,7 +289,7 @@ async def test_processed_stable_recheck_confirms_ok(helper_toctou):
     ])
 
     # Must NOT raise — stable check confirms genuine success
-    await helper(rag, doc_id, max_retries=3, backoff_s=0.0, stable_delay_s=0.0)
+    await helper(rag, doc_id, max_retries=3, backoff_s=0.001, stable_delay_s=0.0)
 
     # Exactly 2 calls: initial poll + stable re-poll
     assert rag.aget_docs_by_ids.await_count == 2
@@ -315,7 +315,7 @@ async def test_processed_stable_recheck_sees_failed(helper_toctou):
     ])
 
     with pytest.raises(RuntimeError, match="PROCESSED verification failed"):
-        await helper(rag, doc_id, max_retries=3, backoff_s=0.0, stable_delay_s=0.0)
+        await helper(rag, doc_id, max_retries=3, backoff_s=0.001, stable_delay_s=0.0)
 
     # Must have consumed all 6 calls (3 initial + 3 stable re-polls)
     assert rag.aget_docs_by_ids.await_count == 6
@@ -340,7 +340,7 @@ async def test_processed_stable_recheck_sees_error_msg(helper_toctou):
     ])
 
     with pytest.raises(RuntimeError, match="PROCESSED verification failed"):
-        await helper(rag, doc_id, max_retries=3, backoff_s=0.0, stable_delay_s=0.0)
+        await helper(rag, doc_id, max_retries=3, backoff_s=0.001, stable_delay_s=0.0)
 
     assert rag.aget_docs_by_ids.await_count == 6
 
@@ -367,7 +367,7 @@ async def test_processed_enum_member_with_error_msg(helper_toctou):
     ])
 
     with pytest.raises(RuntimeError, match="PROCESSED verification failed") as exc_info:
-        await helper(rag, doc_id, max_retries=3, backoff_s=0.0, stable_delay_s=0.0)
+        await helper(rag, doc_id, max_retries=3, backoff_s=0.001, stable_delay_s=0.0)
 
     msg = str(exc_info.value)
     assert "processed-with-error" in msg
