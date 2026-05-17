@@ -17,19 +17,19 @@ def _budget(content: str) -> int:
 
 
 def test_floor_for_empty_content() -> None:
-    """Empty content -> chunk_count=1 -> max(120+30, 900) == 900."""
-    assert _budget("") == 900
+    """Empty content -> chunk_count=1 -> max(120+30, 1200) == 1200 (260517-flo)."""
+    assert _budget("") == 1200
 
 
 def test_floor_for_small_article() -> None:
-    """Small article (<1 chunk_size) -> chunk_count=1 -> floor."""
-    assert _budget("x" * 1000) == 900
+    """Small article (<1 chunk_size) -> chunk_count=1 -> floor (260517-flo: 1200)."""
+    assert _budget("x" * 1000) == 1200
 
 
 def test_floor_for_mid_size() -> None:
-    """20 chunks -> 120 + 600 = 720; below floor -> 900."""
+    """20 chunks -> 120 + 600 = 720; below floor -> 1200 (260517-flo)."""
     # 20 * 4800 = 96,000 chars
-    assert _budget("x" * 96_000) == 900
+    assert _budget("x" * 96_000) == 1200
 
 
 def test_scales_above_floor() -> None:
@@ -46,8 +46,8 @@ def test_large_article() -> None:
 
 def test_chunk_count_is_floored_at_1() -> None:
     """Content shorter than chunk_size still counts as 1 chunk."""
-    # 1 char -> chunk_count = max(1, 0) = 1 -> 150 budget -> floor 900.
-    assert _budget("x") == 900
+    # 1 char -> chunk_count = max(1, 0) = 1 -> 150 budget -> floor 1200 (260517-flo).
+    assert _budget("x") == 1200
 
 
 # T1 (2026-05-13): image-aware budget tests.
@@ -69,9 +69,9 @@ def test_zero_images_no_change() -> None:
 
 
 def test_few_images_under_floor() -> None:
-    """5 images + small text → still hits 900s floor (no scale up)."""
-    # 5 images × 30s = 150s. text=150 (1 chunk). total=300. max(300, 900) = 900.
-    assert _budget(_body_with_images(1000, 5)) == 900
+    """5 images + small text → still hits 1200s floor (no scale up; 260517-flo)."""
+    # 5 images × 30s = 150s. text=150 (1 chunk). total=300. max(300, 1200) = 1200.
+    assert _budget(_body_with_images(1000, 5)) == 1200
 
 
 def test_34_image_article_covers_hermes_failure() -> None:
@@ -98,10 +98,10 @@ def test_no_upper_cap_text_heavy() -> None:
 
 
 def test_image_only_no_text_scaling() -> None:
-    """0-chunk text + 30 images → max(120+30+900, 900) = 1050, no underflow."""
+    """0-chunk text + 30 images → text 150 + img 900 = 1050; floor 1200 (260517-flo)."""
     body = _body_with_images(0, 30)
-    # text term: 1 chunk → 150. image: 30*30 = 900. total: 1050. max(1050, 900) = 1050.
-    assert _budget(body) == 1050
+    # text term: 1 chunk → 150. image: 30*30 = 900. total: 1050. max(1050, 1200) = 1200.
+    assert _budget(body) == 1200
 
 
 # T1-b1 (issue #2): disk fallback when body has no markdown image markers.
@@ -187,7 +187,7 @@ def test_regex_takes_precedence_over_disk(tmp_path, monkeypatch) -> None:
 
 
 def test_compute_article_budget_with_url_kwarg(tmp_path, monkeypatch) -> None:
-    """End-to-end: body has no markers, disk has 34 files → budget = max(120+30+34*30, 900) = 1200."""
+    """End-to-end: body has no markers, disk has 34 files → budget = max(1170, 1200) = 1200 (260517-flo)."""
     import hashlib
     from batch_ingest_from_spider import _compute_article_budget_s
 
@@ -200,8 +200,8 @@ def test_compute_article_budget_with_url_kwarg(tmp_path, monkeypatch) -> None:
         (img_dir / f"{i}.jpg").write_bytes(b"")
     # Body: 1k chars (1 chunk), no image markers — same shape as Hermes id=65 case.
     body = "x" * 1000
-    # text=120+30*1=150, image=34*30=1020, total=1170, max(1170, 900)=1170.
-    assert _compute_article_budget_s(body, url=url) == 1170
+    # text=120+30*1=150, image=34*30=1020, total=1170, max(1170, 1200)=1200 (260517-flo).
+    assert _compute_article_budget_s(body, url=url) == 1200
 
 
 def test_compute_article_budget_url_optional_back_compat(tmp_path) -> None:
@@ -265,12 +265,17 @@ def test_drain_layer2_queue_call_site_uses_dynamic_budget() -> None:
 # budget call reads it directly to avoid the body-stripped fresh-cron gap.
 
 def test_image_count_kwarg_takes_precedence_over_regex() -> None:
-    """Kwarg image_count=34 wins even when body has 5 markdown image markers."""
+    """Kwarg image_count=50 wins even when body has 5 markdown image markers.
+
+    260517-flo: kwarg bumped 34→50 to keep formula above 1200 floor (was 900,
+    34-img formula=1170 distinguished from regex-fallback=300; new 1200 floor
+    eats both, so 50 imgs=1650 needed to escape floor and still discriminate).
+    """
     from batch_ingest_from_spider import _compute_article_budget_s
     body = ("x" * 1000) + ("\n" + _IMG_TOKEN) * 5
-    # If kwarg ignored: 1 chunk + 5 images = 120+30+150 = 300 -> floor 900
-    # If kwarg honored: 1 chunk + 34 images = 120+30+1020 = 1170
-    assert _compute_article_budget_s(body, image_count=34) == 1170
+    # If kwarg ignored: 1 chunk + 5 images = 120+30+150 = 300 -> floor 1200
+    # If kwarg honored: 1 chunk + 50 images = 120+30+1500 = 1650 -> escapes floor
+    assert _compute_article_budget_s(body, image_count=50) == 1650
 
 
 def test_image_count_kwarg_takes_precedence_over_disk(tmp_path, monkeypatch) -> None:
