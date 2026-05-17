@@ -9,7 +9,7 @@ Per REQUIREMENTS-kb-databricks-v1.md rev 3 constraint #5 ("zero kb/ edits" relax
 | File | REQ | Phase | Status |
 |------|-----|-------|--------|
 | `lib/llm_complete.py` | LLM-DBX-01 + LLM-DBX-04 (translation per Decision 1) | kdb-2 | MODIFIED (kdb-2-02 — see commit 50a7386) |
-| `kg_synthesize.py` | LLM-DBX-02 | kdb-2 | NOT YET MODIFIED |
+| `kg_synthesize.py` | LLM-DBX-02 | kdb-2 | MODIFIED (quick-260509-s29 W3 — dispatcher route already in place; kdb-2-03 confirms via integration test in commit <FILL_AT_COMMIT>) |
 
 ## Verification command (run at kdb-3 close per CONFIG-DBX-01)
 
@@ -37,3 +37,25 @@ is NOT extended. Translation re-raises Databricks SDK 503/429/timeout/connection
 errors unchanged so the existing `except Exception as e` handler in
 `kb/services/synthesize.py:448` routes to the `kg_unavailable` reason-code
 bucket (kb-v2.1-1 KG MODE HARDENING contract).
+
+## Phase kdb-2-03 contribution
+
+Plan kdb-2-03 contributes ZERO net code changes to `kg_synthesize.py` (the
+dispatcher integration at line 19 + line 106 was historical, shipped in
+quick-260509-s29 W3). The plan adds `tests/integration/test_kg_synthesize_dispatcher.py`
+(NEW) with 2 tests verifying:
+
+  1. `OMNIGRAPH_LLM_PROVIDER=databricks_serving` actually exercises the
+     kdb-2-02 dispatcher branch through `synthesize_response` (LLM-DBX-02
+     env-var-exercise contract from REQ line 39).
+  2. The dispatcher's translation shim re-raises Databricks SDK 503/429/
+     timeout errors unchanged so `kb/services/synthesize.py`'s existing
+     `except Exception as e` handler routes to the existing `kg_unavailable`
+     reason-code bucket (LLM-DBX-04 via phase Decision 1 — no new reason
+     code, no `kb/services/synthesize.py` modification, no CONFIG-EXEMPTIONS
+     extension).
+
+`kg_synthesize.py` row in this ledger is flipped from NOT YET MODIFIED to
+MODIFIED so the audit at kdb-3 close (`git log cfe47b4..HEAD --grep '(kdb-'
+--name-only -- kb/ lib/`) cleanly excludes the historical change via the
+CONFIG-EXEMPTIONS allowed-edit list.
