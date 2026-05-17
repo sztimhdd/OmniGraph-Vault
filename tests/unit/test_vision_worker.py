@@ -359,9 +359,10 @@ async def test_run_drains_pending_vision_tasks(monkeypatch, _fake_rag):
 
     # Patch ingest_article so it spawns a Vision task and returns ok.
     # Phase 17: ingest_article now returns (success, wall_clock_seconds).
-    async def _fake_ingest_article(url, dry_run, rag, effective_timeout=None):
+    # 260510-uai: outer ingest_article signature is (source, url, dry_run, rag, ...).
+    async def _fake_ingest_article(source, url, dry_run, rag, effective_timeout=None):
         track_vision_task(asyncio.create_task(_fake_vision_work()))
-        return True, 0.0
+        return True, 0.0, True
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
 
@@ -430,16 +431,22 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
             content_hash TEXT,
             digest TEXT,
             layer1_verdict TEXT NULL,
+            layer1_reason TEXT NULL,
+            layer1_at TEXT NULL,
             layer1_prompt_version TEXT NULL,
             layer2_verdict TEXT NULL,
-            layer2_prompt_version TEXT NULL
+            layer2_reason TEXT NULL,
+            layer2_at TEXT NULL,
+            layer2_prompt_version TEXT NULL,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE rss_feeds (id INTEGER PRIMARY KEY, name TEXT);
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY, feed_id INTEGER NOT NULL,
             title TEXT, url TEXT, body TEXT, summary TEXT,
             layer1_verdict TEXT NULL, layer1_prompt_version TEXT NULL,
-            layer2_verdict TEXT NULL, layer2_prompt_version TEXT NULL
+            layer2_verdict TEXT NULL, layer2_prompt_version TEXT NULL,
+            image_count INTEGER DEFAULT 0
         );
         CREATE TABLE classifications (
             article_id INTEGER,
@@ -478,9 +485,10 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
     from lib.vision_tracking import track_vision_task
 
     # Phase 17: ingest_article now returns (success, wall_clock_seconds).
-    async def _fake_ingest_article(url, dry_run, rag, effective_timeout=None):
+    # 260510-uai: outer ingest_article signature is (source, url, dry_run, rag, ...).
+    async def _fake_ingest_article(source, url, dry_run, rag, effective_timeout=None):
         track_vision_task(asyncio.create_task(_fake_vision_work()))
-        return True, 0.0
+        return True, 0.0, True
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
 
@@ -499,6 +507,21 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
     monkeypatch.setattr(
         batch_ingest_from_spider, "get_deepseek_api_key", lambda: "dummy"
     )
+    # 260507-lai v3.5 refactor: ingest_from_db now calls layer1_pre_filter +
+    # layer2_full_body_score. Without a mock the real Vertex Gemini call fires
+    # and fails with GOOGLE_CLOUD_PROJECT not set in this unit-test environment.
+    from lib.article_filter import FilterResult, PROMPT_VERSION_LAYER1, PROMPT_VERSION_LAYER2
+
+    async def _fake_layer1(arts):
+        return [FilterResult(verdict="candidate", reason="ok", prompt_version=PROMPT_VERSION_LAYER1) for _ in arts]
+
+    async def _fake_layer2(articles):
+        return [FilterResult(verdict="ok", reason="ok", prompt_version=PROMPT_VERSION_LAYER2) for _ in articles]
+
+    monkeypatch.setattr("lib.article_filter.layer1_pre_filter", _fake_layer1)
+    monkeypatch.setattr("lib.article_filter.layer2_full_body_score", _fake_layer2)
+    monkeypatch.setattr("batch_ingest_from_spider.layer1_pre_filter", _fake_layer1, raising=False)
+    monkeypatch.setattr("batch_ingest_from_spider.layer2_full_body_score", _fake_layer2, raising=False)
 
     await batch_ingest_from_spider.ingest_from_db(
         topic=["AI agents"], min_depth=1, dry_run=False
@@ -528,10 +551,11 @@ async def test_drain_timeout_cancels_stragglers(monkeypatch, _fake_rag):
     # 260509-p1n: register straggler via track_vision_task to match the real spawn site.
     from lib.vision_tracking import track_vision_task
 
-    # Phase 17: ingest_article now returns (success, wall_clock_seconds).
-    async def _fake_ingest_article(url, dry_run, rag, effective_timeout=None):
+    # 260510-uai/oxq: outer ingest_article signature is
+    # (source, url, dry_run, rag, ...) returning 3-tuple (success, wall, doc_confirmed).
+    async def _fake_ingest_article(source, url, dry_run, rag, effective_timeout=None):
         straggler_ref["task"] = track_vision_task(asyncio.create_task(_straggler()))
-        return True, 0.0
+        return True, 0.0, True
 
     monkeypatch.setattr(batch_ingest_from_spider, "ingest_article", _fake_ingest_article)
 
