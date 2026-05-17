@@ -34,12 +34,23 @@ def sample_url():
 
 @pytest.fixture
 def fake_article_data():
+    # Body must be >=500 chars after process_content() to satisfy
+    # MIN_INGEST_BODY_LEN=500 (post-260510-uai short-body fail-fast guard).
+    long_paragraph = (
+        "This is a Gate1 end-to-end checkpoint resume test fixture body. "
+        "It must be long enough to pass the MIN_INGEST_BODY_LEN=500 guard "
+        "introduced in quick 260510-uai (source-aware ingest dispatch + "
+        "body-length fail-fast for RSS short-body ainsert failures). "
+        "Repeated content here pads the body to comfortably exceed the "
+        "500-char floor while remaining synthetic test data. "
+    ) * 3
     return {
         "method": "ua",
         "title": "Gate1 E2E Article",
         "publish_time": "2026-04-30",
         "content_html": (
-            "<html><body><h1>Gate1 E2E</h1><p>Body</p>"
+            "<html><body><h1>Gate1 E2E</h1>"
+            f"<p>{long_paragraph}</p>"
             "<img src='https://cdn.test/a.jpg'/></body></html>"
         ),
         "img_urls": ["https://cdn.test/a.jpg"],
@@ -98,6 +109,17 @@ def mock_ingest_deps(monkeypatch, tmp_path, fake_article_data):
 
     rag = MagicMock()
     rag.ainsert = AsyncMock()
+
+    # Post-260510-h09 + 260511-lmc: ingest_article calls
+    # _verify_doc_processed_or_raise(rag, doc_id) which polls
+    # rag.aget_docs_by_ids([doc_id]). Mock returns processed+no-error so the
+    # helper returns immediately. Stable-state re-poll (Option A) sleeps for
+    # OMNIGRAPH_STABLE_VERIFY_DELAY_S — knock it down to ~0 for fast tests.
+    rag.aget_docs_by_ids = AsyncMock(
+        side_effect=lambda ids: {i: {"status": "processed", "error_msg": None} for i in ids}
+    )
+    monkeypatch.setattr(iw, "STABLE_VERIFY_DELAY_S", 0.0)
+    monkeypatch.setattr(iw, "PROCESSED_VERIFY_BACKOFF_S", 0.0)
 
     async def fake_get_rag(flush=True):
         return rag
