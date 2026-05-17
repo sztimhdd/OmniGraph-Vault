@@ -61,7 +61,13 @@ Total: **62/62 v2.0 REQs** mapped (was 50; +12 from kb-2 revival). kb-1: 26/27 s
 
 ### Immediate next step
 
-`/gsd:plan-phase kb-v2.2-1` — plan F12 Hermes → Aliyun lightrag_storage sync mechanism.
+**kb-v2.2-1 PLAN ready** at `.planning/phases/kb-v2.2-translation-and-kg-search/kb-v2.2-1-lightrag-storage-sync-PLAN.md`
+(authored 2026-05-18). 3 tasks (sync script + tests + runbook/probe), 11 test
+cases (9 unit + 2 integration), 7 SYNC-* requirements, 7 pre-locked decisions
+baked in (D1-D7 from 2026-05-17 evening session), 3 Skills declared
+(python-patterns + writing-tests + search-first).
+
+`/gsd:execute-phase kb-v2.2-1` — execute F12 Hermes → Aliyun lightrag_storage sync mechanism.
 
 This is the **Wave 1 P0 prereq**: F8' (kb-v2.2-3) and FU-1 (kb-v2.2-4) both depend
 on F12 because Aliyun's storage is currently a 2026-05-08 stale snapshot (only
@@ -69,12 +75,9 @@ on F12 because Aliyun's storage is currently a 2026-05-08 stale snapshot (only
 quality + image-rich answers are bounded by stale data.
 
 Wave 1 (parallel, no deps): F12 + F5 (test-isolation autouse) + F6 (data-lang
-regularization). Use `/clear` first for fresh context window before each phase
-plan.
-
-After Wave 1 (F12) ships: plan kb-v2.2-2 (F1' bidirectional translation) +
-kb-v2.2-3 (F8' KG search default) in parallel; kb-v2.2-4 (FU-1 citation+image)
-after kb-v2.2-3 settles.
+regularization). After Wave 1 (F12) ships: plan kb-v2.2-2 (F1' bidirectional
+translation) + kb-v2.2-3 (F8' KG search default) in parallel; kb-v2.2-4 (FU-1
+citation+image) after kb-v2.2-3 settles.
 
 ## Parallel-Track Boundary
 
