@@ -150,9 +150,12 @@ def main(argv: list[str] | None = None) -> int:
         "--auto-patch",
         action="store_true",
         help=(
-            "260517-acp: when a ghost is detected (ingestions=failed but "
-            "kv_store=processed), UPDATE ingestions SET status='ok'. Safe "
-            "because graph IS processed; the failed row is just stale. "
+            "260517-rgd-1: bidirectional auto-patch. "
+            "Ghost-success (ingestions=failed but kv_store=processed): "
+            "flip status='ok' (graph IS processed; failed row is stale). "
+            "Ghost-failure (ingestions=ok but kv_store=pending/failed/missing): "
+            "flip status='failed' and increment skip_reason_version so the "
+            "candidate pool retries the article on the next cron. "
             "Default off — explicit opt-in for cron / one-off cleanup."
         ),
     )
@@ -172,6 +175,11 @@ def main(argv: list[str] | None = None) -> int:
     mystery_count_wechat = 0
     mystery_count_rss = 0
     processed_count = 0
+    # 260517-rgd-1: collect mystery-row ingestion ids for bidirectional auto-patch.
+    # These are the rows where ingestions.status='ok' but kv_store status is NOT
+    # 'processed' (pending / failed / missing). --auto-patch flips them to
+    # status='failed' and increments skip_reason_version so candidate pool retries.
+    mystery_ingestion_ids: list[int] = []
 
     for row in rows:
         # Extended scope: support both wechat and rss sources
@@ -182,6 +190,7 @@ def main(argv: list[str] | None = None) -> int:
             processed_count += 1
             continue
         mystery_count += 1
+        mystery_ingestion_ids.append(row["id"])
         if row["source"] == "rss":
             mystery_count_rss += 1
         else:
@@ -234,9 +243,12 @@ def main(argv: list[str] | None = None) -> int:
             + "\n"
         )
 
-    # 260517-acp: opt-in auto-patch — flip ghost rows to status='ok' so
-    # subsequent candidate-pool queries don't try to re-ingest them.
-    patched_count = 0
+    # 260517-acp / 260517-rgd-1: opt-in bidirectional auto-patch.
+    # Ghost-success (failed in DB but processed in kv_store) → flip to 'ok'.
+    # Ghost-failure (ok in DB but pending/failed/missing in kv_store) →
+    # flip to 'failed' + skip_reason_version+=1 so candidate pool retries.
+    ghost_patched_count = 0
+    mystery_patched_count = 0
     if args.auto_patch and ghost_ingestion_ids:
         with sqlite3.connect(str(db_path)) as conn:
             conn.executemany(
@@ -244,17 +256,39 @@ def main(argv: list[str] | None = None) -> int:
                 [(gid,) for gid in ghost_ingestion_ids],
             )
             conn.commit()
-            patched_count = len(ghost_ingestion_ids)
+            ghost_patched_count = len(ghost_ingestion_ids)
         sys.stdout.write(
             json.dumps(
                 {
                     "kind": "auto_patch",
-                    "patched_count": patched_count,
+                    "patched_count": ghost_patched_count,
                     "ingestion_ids": ghost_ingestion_ids,
                 }
             )
             + "\n"
         )
+    if args.auto_patch and mystery_ingestion_ids:
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.executemany(
+                "UPDATE ingestions SET status='failed', "
+                "skip_reason_version=COALESCE(skip_reason_version, 0) + 1 "
+                "WHERE id=?",
+                [(mid,) for mid in mystery_ingestion_ids],
+            )
+            conn.commit()
+            mystery_patched_count = len(mystery_ingestion_ids)
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "kind": "auto_patch_mystery",
+                    "patched_count": mystery_patched_count,
+                    "ingestion_ids": mystery_ingestion_ids,
+                }
+            )
+            + "\n"
+        )
+
+    patched_count = ghost_patched_count + mystery_patched_count
 
     date_range = (
         f"{start_date.isoformat()}..{end_date.isoformat()}"
@@ -270,10 +304,12 @@ def main(argv: list[str] | None = None) -> int:
         f"(wechat: {ghost_count_wechat}, rss: {ghost_count_rss})"
         f"{patched_suffix}\n"
     )
-    # 260517-acp: when --auto-patch is on, ghost rows are no longer "needs
-    # operator attention". Exit 0 if all ghosts patched and 0 mystery.
-    unresolved_ghost = ghost_count - patched_count
-    return 1 if (mystery_count > 0 or unresolved_ghost > 0) else 0
+    # 260517-acp / 260517-rgd-1: when --auto-patch is on, anomalies in either
+    # direction are no longer "needs operator attention". Exit 0 if both
+    # ghost and mystery directions are fully patched.
+    unresolved_ghost = ghost_count - ghost_patched_count
+    unresolved_mystery = mystery_count - mystery_patched_count
+    return 1 if (unresolved_mystery > 0 or unresolved_ghost > 0) else 0
 
 
 if __name__ == "__main__":

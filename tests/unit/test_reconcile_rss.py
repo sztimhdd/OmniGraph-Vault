@@ -62,6 +62,9 @@ def tmp_db() -> Path:
         )
 
         # Create ingestions table
+        # quick 260517-rgd-1: skip_reason_version column added so Patch 1's
+        # ghost-failure auto-patch can increment it. DEFAULT 0 keeps existing
+        # 14 reconcile tests behavior identical (they don't reference this column).
         conn.execute(
             """
             CREATE TABLE ingestions (
@@ -69,7 +72,8 @@ def tmp_db() -> Path:
                 article_id INTEGER NOT NULL,
                 source TEXT NOT NULL,
                 status TEXT NOT NULL,
-                ingested_at TEXT NOT NULL
+                ingested_at TEXT NOT NULL,
+                skip_reason_version INTEGER DEFAULT 0
             )
             """
         )
@@ -651,3 +655,178 @@ def test_ghost_backward_compat_output_format(
     assert "1 ok rows / 1 matched / 0 mystery (wechat: 0, rss: 0)" in captured.out
     # New ghost section appended after |
     assert "| 0 ghost (wechat: 0, rss: 0)" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Bidirectional reconcile tests (quick 260517-rgd-1 — Patch 1)
+# Closes audit ARCHITECTURE-AUDIT-Ingest-Pipeline-v1.md §3 Patch 1.
+# Adds the reverse direction: ingestions.status='ok' but kv_store=pending/
+# failed/missing → flip to 'failed' + skip_reason_version++ so candidate
+# pool retries on next cron.
+# ---------------------------------------------------------------------------
+
+
+def test_ghost_failure_ok_in_db_pending_in_kv_auto_patches(
+    tmp_db: Path, tmp_storage: Path, capsys
+) -> None:
+    """260517-rgd-1: ingestions=ok but kv_store=pending → --auto-patch flips ok→failed.
+
+    The new reverse direction. Setup mirrors a real production scenario where
+    the ingestions row was written 'ok' (worker reported success) but the
+    LightRAG async pipeline never promoted the doc to 'processed' (stuck in
+    'pending'). Without this patch the article stays out of the next-day
+    candidate pool because 'ok' rows are excluded — silent data loss.
+
+    Assertions:
+      - DB status flipped 'ok' → 'failed'
+      - skip_reason_version incremented (0 → 1) so candidate pool re-selects
+        the article (mig 009 retry-cohort gate)
+      - stdout contains "patched 1" (single auto_patch counter covers both
+        ghost-success and ghost-failure)
+      - exit code 0 (all anomalies patched)
+    """
+    url = "https://mp.weixin.qq.com/s/ghost_failure_999"
+    _add_article(tmp_db, 999, url)
+    _add_ingestion(tmp_db, 999, "wechat", "ok", "2026-05-14")
+    doc_id = _compute_doc_id(url, source="wechat")
+    _set_doc_status(tmp_storage, doc_id, "pending")
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_db),
+            "--storage-dir",
+            str(tmp_storage),
+            "--date",
+            "2026-05-14",
+            "--auto-patch",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert "1 mystery" in captured.out
+    assert "patched 1" in captured.out
+
+    # DB row: status flipped + skip_reason_version incremented
+    with sqlite3.connect(str(tmp_db)) as conn:
+        row = conn.execute(
+            "SELECT status, skip_reason_version FROM ingestions "
+            "WHERE article_id=999"
+        ).fetchone()
+    assert row[0] == "failed"
+    assert row[1] == 1  # 0 → 1
+
+    # All anomalies resolved → exit 0
+    assert exit_code == 0
+
+
+def test_ghost_failure_off_by_default_preserves_status(
+    tmp_db: Path, tmp_storage: Path, capsys
+) -> None:
+    """260517-rgd-1: without --auto-patch, ghost-failure rows stay 'ok' (no DB change).
+
+    Back-compat: the existing reconcile output flow already reported these
+    rows under "mystery" without touching the DB. Patch 1 must NOT change
+    that default — operators may have grep-parsers depending on the
+    untouched-by-default behavior.
+    """
+    url = "https://mp.weixin.qq.com/s/ghost_failure_no_patch_555"
+    _add_article(tmp_db, 555, url)
+    _add_ingestion(tmp_db, 555, "wechat", "ok", "2026-05-14")
+    doc_id = _compute_doc_id(url, source="wechat")
+    _set_doc_status(tmp_storage, doc_id, "pending")
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_db),
+            "--storage-dir",
+            str(tmp_storage),
+            "--date",
+            "2026-05-14",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert "1 mystery" in captured.out
+    # No "patched" mention without --auto-patch flag
+    assert "patched" not in captured.out
+
+    # DB row UNCHANGED: status='ok', skip_reason_version still 0
+    with sqlite3.connect(str(tmp_db)) as conn:
+        row = conn.execute(
+            "SELECT status, skip_reason_version FROM ingestions "
+            "WHERE article_id=555"
+        ).fetchone()
+    assert row[0] == "ok"
+    assert row[1] == 0
+
+    # Unresolved mystery → exit 1 (back-compat with pre-rgd-1 behavior)
+    assert exit_code == 1
+
+
+def test_bidirectional_both_directions_patched_same_run(
+    tmp_db: Path, tmp_storage: Path, capsys
+) -> None:
+    """260517-rgd-1: same --auto-patch run handles both ghost-success AND ghost-failure.
+
+    Real production cron will see both kinds in the same window. Verify:
+      - ghost-success row (status='failed', kv='processed') flipped 'failed'→'ok'
+        (existing 260517-acp logic, must remain intact)
+      - ghost-failure row (status='ok', kv='pending') flipped 'ok'→'failed' with
+        skip_reason_version+=1 (new rgd-1 logic)
+      - patched count covers BOTH directions (combined into total of 2)
+      - exit code 0 (all anomalies resolved)
+    """
+    ghost_success_url = "https://mp.weixin.qq.com/s/ghost_success_111"
+    ghost_failure_url = "https://mp.weixin.qq.com/s/ghost_failure_222"
+
+    # Ghost-success: failed in DB but processed in kv_store
+    _add_article(tmp_db, 111, ghost_success_url)
+    _add_ingestion(tmp_db, 111, "wechat", "failed", "2026-05-14")
+    gs_doc_id = _compute_doc_id(ghost_success_url, source="wechat")
+    _set_doc_status(tmp_storage, gs_doc_id, "processed")
+
+    # Ghost-failure: ok in DB but pending in kv_store
+    _add_article(tmp_db, 222, ghost_failure_url)
+    _add_ingestion(tmp_db, 222, "wechat", "ok", "2026-05-14")
+    gf_doc_id = _compute_doc_id(ghost_failure_url, source="wechat")
+    _set_doc_status(tmp_storage, gf_doc_id, "pending")
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_db),
+            "--storage-dir",
+            str(tmp_storage),
+            "--date",
+            "2026-05-14",
+            "--auto-patch",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    # Both kinds detected
+    assert "1 mystery" in captured.out
+    assert "1 ghost" in captured.out
+    # Combined patched count = 2 (1 ghost-success + 1 ghost-failure)
+    assert "patched 2" in captured.out
+
+    # DB verification: ghost-success row now 'ok'
+    with sqlite3.connect(str(tmp_db)) as conn:
+        gs_status = conn.execute(
+            "SELECT status FROM ingestions WHERE article_id=111"
+        ).fetchone()[0]
+    assert gs_status == "ok"
+
+    # DB verification: ghost-failure row now 'failed' + skip_reason_version=1
+    with sqlite3.connect(str(tmp_db)) as conn:
+        gf_row = conn.execute(
+            "SELECT status, skip_reason_version FROM ingestions "
+            "WHERE article_id=222"
+        ).fetchone()
+    assert gf_row[0] == "failed"
+    assert gf_row[1] == 1
+
+    # Both directions patched → exit 0
+    assert exit_code == 0
