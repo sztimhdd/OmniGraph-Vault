@@ -692,6 +692,22 @@ watch -n 5 'python scripts/checkpoint_status.py | tail -20'
 
 **Never run both simultaneously** — checkpoint writes are atomic per article but not across concurrent processes. One batch at a time per host.
 
+### MAX_ARTICLES is a tri-governor
+
+`MAX_ARTICLES` (default 5 in cron via `cron_daily_ingest.sh 5`) is NOT
+just a throughput cap. It governs THREE concerns simultaneously:
+
+1. **Throughput cap** — how many articles per cron invocation
+2. **SiliconFlow ¥-budget governor** — at ~¥0.04/article (30 imgs avg ×
+   ¥0.0013/img), 5 articles ≈ ¥0.20/cron. Bumping to 50 ≈ ¥2.00/cron.
+3. **Vertex AI embedding RPM governor** — entity-rich articles trigger
+   100-300 embedding calls each. 5 articles burst ≈ 500-1500 RPM hits;
+   raising the cap risks 429 quota exceed (see v1.0.z scope).
+
+Bumping `MAX_ARTICLES` without checking all three regresses cost and/or
+quota. Cross-reference: "SiliconFlow Balance Management" + "Vertex AI
+Migration Path" sections above.
+
 ## Known Limitations
 
 - **Gemini 500 RPD ceiling** (free tier) — the Gemini fallback at the end of the Vision Cascade is capped at 500 requests per day across the shared GCP project. A single large batch falling through to Gemini can exhaust this quota and cause Vision to fail for the remainder of the day.

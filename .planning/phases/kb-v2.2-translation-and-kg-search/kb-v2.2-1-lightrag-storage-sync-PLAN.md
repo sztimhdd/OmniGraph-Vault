@@ -188,6 +188,66 @@ class MemoryReport:
 14. exit 0
 ```
 
+#### Addendum (2026-05-18 OOM evidence): proactive post-restart memory probe
+
+**Empirical basis** — 2026-05-18 凌晨 Hermes manual sync ~10 min completed
+1.5GB transfer, atomic swap success, kb-api start → **OOM-kill on graph load**
+(22412 nodes / 31566 edges / 1.3GB vdb on 2.5G `MemoryMax` cap + Python overhead
+exceeded ceiling). Reactive rollback wasted ~30s downtime + 1 systemd
+restart-loop attempt before kernel OOM-killer fired. Rolled back to 5524-node /
+348MB previous storage, stable. Evidence: `journalctl -u kb-api.service` showed
+`oom-kill` exit code seconds after `Loaded graph` log line.
+
+This addendum inserts a **proactive 5-min × 30s sampling step** between
+`start_target_kb_api()` and `smoke_test()` to catch OOM trajectory and rollback
+BEFORE the kernel kills the process — saves the downtime + restart-loop noise.
+
+**New function (extends Required functions table above):**
+
+| Function | Signature | Behavior |
+|---|---|---|
+| `monitor_post_restart_memory(target_host, max_pct=0.85, sample_interval_s=30, sample_count=10)` | `(str, float, int, int) -> MemoryProbeResult` | Sample `MemoryCurrent / MemoryMax` every 30s × 5 min post-restart. If pct > `max_pct` sustained for 2+ consecutive samples, return `MemoryProbeResult(status='exceeded', samples=[...])` so the caller can rollback proactively rather than waiting for kernel OOM-kill. Default thresholds: `max_pct=0.85`, `sample_interval_s=30`, `sample_count=10` (5 minutes total). |
+
+**New frozen dataclass (extends frozen dataclasses block above):**
+
+```python
+@dataclass(frozen=True)
+class MemoryProbeResult:
+    status: str                       # 'ok' | 'exceeded' | 'inconclusive'
+    samples: tuple[MemoryReport, ...] # all samples taken, oldest first
+    consecutive_breach_count: int     # max run of samples > max_pct
+    triggered_threshold: float        # max_pct used at probe time
+```
+
+**New exception class:**
+
+```python
+class SyncFailedMemoryCeiling(SystemExit):
+    """Raised when monitor_post_restart_memory() returns status='exceeded'
+    so that orchestrator triggers proactive rollback before kernel OOM."""
+```
+
+**Revised orchestration sequence** (steps 8a + 8b inserted between existing
+steps 8 and 11; existing steps 9, 10, 11, 12, 13, 14 remain unchanged):
+
+```
+8.  start_target_kb_api(target)
+8a. probe_result = monitor_post_restart_memory(target, max_pct=0.85)   # NEW
+8b. If probe_result.status == 'exceeded':                               # NEW
+        log JSON event=memory_ceiling_exceeded with samples
+        rollback(target, live_path, backup_path)
+        update_state_file with last_failure metadata + probe samples
+        raise SyncFailedMemoryCeiling(1)
+9.  memory_report = check_memory_budget(target)   # one final post-stable reading
+10. If memory_report.pct > config.memory_warn_threshold: log WARN
+11. If smoke_test(target, public_url) is False: ...
+```
+
+**Skill invocation extension** (existing `Skill(skill="python-patterns"` call
+at top of Task 1 stays as-is; this addendum's args appended on execute):
+
+`Skill(skill="python-patterns", args="...also implement monitor_post_restart_memory() with frozen MemoryProbeResult dataclass + SyncFailedMemoryCeiling exception. Sampling loop uses time.sleep(sample_interval_s) between ssh_run() calls; consecutive_breach_count tracking via running counter that resets on any sample <= max_pct. Sustained 2+ consecutive breaches triggers status='exceeded'. If sample_count completes with no sustained breach, status='ok'. If <2 samples obtained (e.g. ssh failures), status='inconclusive' — caller treats as ok-but-warn (not auto-rollback, since no evidence either way).")`
+
 #### Logging
 
 - Log file: `/var/log/lightrag-sync.log` (append-only) — writes via `ssh_run(target, "tee -a /var/log/lightrag-sync.log")` since log lives on Aliyun
@@ -264,6 +324,118 @@ Exit code: 0 if pct < 0.9; 1 if ≥ 0.9 (so the user can `cron`-wrap independent
 | **§4 When to raise MemoryMax** | If trend is steady growth: edit `/etc/systemd/system/kb-api.service` `MemoryMax=` directive (current 2.5G → next step 3.5G), `systemctl daemon-reload`, `systemctl restart kb-api.service`, verify with check_aliyun_kg_memory.py. Aliyun ECS has 3.4Gi total RAM (per `aliyun_vitaclaw_ssh.md`) — ceiling on raises is ~3G to leave headroom for vitaclaw-site Node and OS |
 | **§5 Cross-references** | (a) `aliyun_oauth_pin.md` memory entry: `/etc/hosts` pin for `oauth2.googleapis.com` + `us-central1-aiplatform.googleapis.com` is REQUIRED for kb-api KG mode post-sync; if missing, KG queries silently return empty markdown — never delete hosts entries during sync. (b) `aliyun_vitaclaw_ssh.md` for SSH alias setup. (c) `feedback_lightrag_is_core_asset_no_bypass.md` for why F12 sync (not F11 bypass). (d) Phase plan kb-v2.2-3 (F8') for downstream KG search consumer of synced data |
 
+#### Addendum (2026-05-18 OOM evidence): RUNBOOK §6 — OOM Recovery Playbook
+
+Append a new `## §6 OOM Recovery Playbook` section to the RUNBOOK after §5
+Cross-references. Anchored to 2026-05-18 现场 evidence.
+
+````markdown
+## §6 OOM Recovery Playbook
+
+**Empirical anchor:** 2026-05-18 manual sync 1.5GB Hermes → 2.5G Aliyun cap →
+kb-api OOM-kill on graph load (22412 nodes / 31566 edges / 1.3GB vdb +
+Python overhead exceeded `MemoryMax=2.5G`). Rollback path verified live:
+`lightrag_storage.OLD-20260518-065245` restored cleanly,kb-api stable on
+prior 5524-node / 348MB storage.
+
+**Manual rollback (when script auto-rollback didn't fire / crashed mid-swap):**
+
+```bash
+ssh aliyun-vitaclaw 'systemctl stop kb-api.service'         # force; may already be in restart-loop
+ssh aliyun-vitaclaw 'cd /root/.hermes/omonigraph-vault \
+  && mv lightrag_storage lightrag_storage.FAILED-$(date -u +%Y%m%dT%H%M%SZ) \
+  && mv lightrag_storage.OLD-<TS> lightrag_storage'         # use latest .OLD-<TS> from `ls`
+ssh aliyun-vitaclaw 'systemctl start kb-api.service && systemctl status kb-api.service --no-pager'
+ssh aliyun-vitaclaw 'journalctl -u kb-api.service --since "30 seconds ago" --no-pager | grep -E "Loaded graph|oom-kill"'
+```
+
+Preserve the `.FAILED-<TS>` directory for postmortem analysis (do NOT
+auto-prune). Tag in state file `last_failure.failed_storage_path`.
+
+**Escalation triggers:**
+
+| Signal | Severity | Action |
+|---|---|---|
+| 1 OOM within `StartLimitBurst=5/IntervalSec=60` window self-healed by systemd | INFO | Log only; alert Hai async |
+| Sync auto-rollback fired (proactive probe caught it pre-OOM) | WARN | Hai inspects probe samples + memory trend; decide whether to defer next sync |
+| ≥3 OOM-kills in 1 hour | **CRITICAL** | **STOP sync cadence** + escalate Aliyun ECS upgrade (4GB → 8GB ¥100/mo) — track as v2.3 candidate |
+| Manual rollback required (script crashed mid-swap) | **CRITICAL** | File postmortem; investigate before next sync attempt |
+
+**ECS upgrade trigger** (v2.3 candidate, NOT in F12 scope):
+
+- 4GB → 8GB ¥100/mo incremental
+- F12 ships ONLY the documented trigger condition + RUNBOOK note;
+  actual upgrade is operator decision based on sustained ≥3 OOM/hr or
+  growth-prediction §7 90-day warning
+
+**Hard don'ts:**
+
+- ❌ Do **NOT** retry sync immediately after OOM — same data → same OOM, wastes cross-border bandwidth
+- ❌ Do **NOT** raise `MemoryMax` above `(total_RAM - 0.7GB)` — kernel system-OOM-killer will pick random processes (potentially `vitaclaw-site` Node, ssh, systemd-journald)
+- ❌ Do **NOT** delete `.OLD-<TS>` or `.FAILED-<TS>` backups during recovery — they're the only verified-stable snapshot until the next sync succeeds
+````
+
+#### Addendum (2026-05-18 OOM evidence): RUNBOOK §7 — vdb Size Growth Prediction
+
+Append a new `## §7 vdb Size Growth Prediction` section to the RUNBOOK after
+§6. Converts "passive ceiling-hit" into "90-day advance warning".
+
+````markdown
+## §7 vdb Size Growth Prediction
+
+State file records `(sync_ts, vdb_total_bytes, memory_current_post_load,
+memory_max_at_time)` per sync. After 4+ syncs, linear extrapolation projects
+when vdb growth will hit current `MemoryMax`:
+
+```python
+def predict_ceiling_hit(state_history: list[SyncState],
+                        current_max_bytes: int) -> Optional[date]:
+    """Extrapolate linear vdb growth, return projected date hitting current cap.
+
+    Returns None if <4 history points (insufficient data) or growth rate <= 0
+    (storage shrinking / steady — no concern). Returns date if projected hit
+    within next 365 days.
+
+    Linear fit: bytes(t) = m * t + b, where t = days since first sample.
+    Solve bytes(t_hit) = current_max_bytes for t_hit, return calendar date.
+    """
+```
+
+**Warn threshold:** projected ceiling-hit within 90 days → log WARN line +
+set `state.growth_prediction.ceiling_hit_warn = True`. Hai's weekly log scan
+sees the flag → triggers Aliyun ECS upgrade decision **before** the wall is hit.
+
+**State file extension** (additive non-breaking — existing fields unchanged):
+
+```json
+{
+  "growth_prediction": {
+    "samples_used": 6,
+    "linear_growth_bytes_per_day": 18345670,
+    "projected_ceiling_hit_date": "2026-08-12",
+    "days_until_ceiling": 87,
+    "ceiling_hit_warn": true
+  }
+}
+```
+
+**Behavior matrix:**
+
+| State | Action |
+|---|---|
+| `<4 syncs in history` | No prediction emitted; log INFO `insufficient_data` |
+| Growth rate ≤ 0 (shrinking / flat) | No warning; log INFO `no_growth_concern` |
+| Projected hit > 90 days out | Log INFO with date + days remaining |
+| Projected hit ≤ 90 days out | Log **WARN** with date + days remaining + `ceiling_hit_warn=true` flag |
+| Projected hit ≤ 30 days out | Log **CRITICAL** + recommend immediate ECS upgrade or sync pause |
+
+**Why linear (not exponential):** vdb grows with ingested article count;
+Hermes ingest cadence is roughly daily-cron with stable article rate, so
+linear is empirically the right model. If growth becomes super-linear
+(which would indicate a bug — duplicated entities / runaway re-embedding),
+the 90-day warning still fires conservatively and Hai investigates before cap.
+````
+
 #### Update `.planning/STATE-KB-v2.md`
 
 Append a new line under "Current Position" `Last activity:` describing kb-v2.2-1 completion.
@@ -322,6 +494,17 @@ If UAT fails (smoke regression, memory ceiling exceeded, etc.):
 - [ ] Skill regex (per `feedback_skill_invocation_not_reference.md`): SUMMARY.md MUST contain literal substrings `Skill(skill="python-patterns"`, `Skill(skill="writing-tests"`, `Skill(skill="search-first"` — verify with `grep -c 'Skill(skill="' kb-v2.2-1-lightrag-storage-sync-SUMMARY.md` → ≥3
 - [ ] User UAT performed against real cross-border path; transcript + state file content + memory report captured in SUMMARY § "User UAT"
 - [ ] All 7 SYNC-* requirements traced in SUMMARY.md § "Requirement coverage"
+
+## Acceptance criteria addenda (2026-05-18 OOM evidence)
+
+Extends SYNC-04 (memory budget monitoring) with proactive probe + growth
+prediction. ADD-only — does not replace any existing acceptance criterion.
+
+- [ ] **SYNC-04 addendum (proactive probe):** `monitor_post_restart_memory()` rolls back proactively when sustained > 85% `MemoryMax` for 2+ consecutive samples within 5 min post-restart — validated by new unit test `test_monitor_post_restart_memory_triggers_rollback_on_sustained_breach`
+- [ ] **SYNC-04 addendum (probe inconclusive path):** when fewer than 2 samples obtainable (e.g. ssh failures during probe window), `MemoryProbeResult.status == 'inconclusive'` and orchestrator does NOT rollback (warns + proceeds to smoke test) — validated by new unit test `test_monitor_post_restart_memory_inconclusive_does_not_rollback`
+- [ ] **SYNC-04 addendum (growth prediction):** state-file `growth_prediction` field populated from sync 4+ onwards; `predict_ceiling_hit()` logs WARN if projected ceiling within 90 days; logs CRITICAL if within 30 days — validated by new unit test `test_predict_ceiling_hit_warn_at_90_days` + `test_predict_ceiling_hit_returns_none_below_4_samples`
+- [ ] **RUNBOOK addendum:** `## §6 OOM Recovery Playbook` + `## §7 vdb Size Growth Prediction` sections appended to RUNBOOK — verify with `grep -E "^## §[6-7]" kb/docs/RUNBOOK-lightrag-storage-sync.md` → 2 matches
+- [ ] **RUNBOOK §6 anchored to 2026-05-18 evidence:** contains literal references to "22412 nodes", "1.3GB vdb", "MemoryMax=2.5G", "lightrag_storage.OLD-20260518-065245" — verifies the playbook is empirically grounded, not speculative
 
 ## must_haves (goal-backward verification anchors)
 
