@@ -44,6 +44,23 @@ IMAGE_URL_DIRECTIVE = (
 QUERY_HISTORY_FILE = Path.home() / ".hermes" / "omonigraph-vault" / "query_history.jsonl"
 
 
+def _embedding_timeout_default() -> int:
+    """Return embedding timeout in seconds (env override or 90s default).
+
+    Cross-border Aliyun→GCP-Singapore embedding via WireGuard takes 15-25s
+    per Vertex call; LightRAG hybrid query batches 3 sequential Vertex calls
+    inside one worker (lib/lightrag_embedding.py:207 ``for text in texts``).
+    90s Func → 180s Worker (LightRAG utils.py:680-685 auto-derives
+    Worker = Func × 2) accommodates 3 × 25s + jitter. Default 30/60/75 was
+    sized for same-region deploys and is too tight cross-border.
+    """
+    raw = os.environ.get("LIGHTRAG_EMBEDDING_TIMEOUT", "90")
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 90
+
+
 def _archive_filename(query_text: str, ts: datetime | None = None) -> str:
     """Build a unique archive filename for a synthesis answer.
 
@@ -103,7 +120,12 @@ def _append_query_history(query: str, mode: str, response_len: int) -> None:
 
 
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
-    rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=get_llm_func(), embedding_func=embedding_func)
+    rag = LightRAG(
+        working_dir=RAG_WORKING_DIR,
+        llm_model_func=get_llm_func(),
+        embedding_func=embedding_func,
+        default_embedding_timeout=_embedding_timeout_default(),
+    )
     if hasattr(rag, "initialize_storages"): await rag.initialize_storages()
         
     await asyncio.sleep(2)
