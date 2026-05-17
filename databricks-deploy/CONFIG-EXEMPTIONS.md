@@ -9,7 +9,7 @@ Per REQUIREMENTS-kb-databricks-v1.md rev 3 constraint #5 ("zero kb/ edits" relax
 | File | REQ | Phase | Status |
 |------|-----|-------|--------|
 | `lib/llm_complete.py` | LLM-DBX-01 + LLM-DBX-04 (translation per Decision 1) | kdb-2 | MODIFIED (kdb-2-02 — see commit 50a7386) |
-| `kg_synthesize.py` | LLM-DBX-02 | kdb-2 | MODIFIED (quick-260509-s29 W3 — dispatcher route already in place; kdb-2-03 confirms via integration test in commit <FILL_AT_COMMIT>) |
+| `kg_synthesize.py` | LLM-DBX-02 | kdb-2 | MODIFIED (quick-260509-s29 W3 — dispatcher route already in place; kdb-2-03 confirms via integration test in commit f3670b0) |
 
 ## Verification command (run at kdb-3 close per CONFIG-DBX-01)
 
