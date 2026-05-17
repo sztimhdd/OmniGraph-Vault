@@ -399,3 +399,60 @@ def test_kb_synthesize_double_failure_no_results(tmp_path, monkeypatch):
     err = job["error"] or ""
     assert "c1 down" in err
     assert "DB unreachable" in err
+
+
+def test_kg_happy_path_uses_synthesize_response_return_value(
+    tmp_path, fixture_db, monkeypatch
+):
+    """Regression for 260517-fyb: P0 production bug where the KG happy path
+    discarded synthesize_response's return value and read a stale
+    synthesis_output.md file from BASE_DIR. The wrapper MUST consume the
+    await return value directly — no file IO side effect.
+
+    Aliyun prod 2026-05-17: 3 different /api/synthesize POSTs returned a
+    2026-05-08 file's contents byte-identical because the file was rsync'd
+    in from Hermes CLI usage and the wrapper happily read it. After this
+    fix, deleting that file does not change behavior; the wrapper uses the
+    function return value, period.
+    """
+    # Reuse the existing _patch_base_dir wiring (KG_MODE_AVAILABLE=True etc.)
+    _patch_base_dir(tmp_path, monkeypatch)
+    monkeypatch.setenv("KB_DB_PATH", str(fixture_db))
+
+    sentinel = "# Sentinel Answer\n\nThe truth is at [a](/article/abc1234567)."
+
+    # Stub C1 to RETURN the sentinel (and explicitly NOT write any file).
+    async def fake_return_only(query_text: str, mode: str = "hybrid"):
+        return sentinel
+
+    monkeypatch.setattr("kg_synthesize.synthesize_response", fake_return_only)
+
+    # Pre-condition: stale file MUST NOT exist (clean tmp_path BASE_DIR).
+    import config as og_config
+    stale_path = Path(og_config.BASE_DIR) / "synthesis_output.md"
+    assert not stale_path.exists(), "tmp_path BASE_DIR was not clean"
+
+    sm = _reload_synthesize_module()
+    jid = job_store.new_job(kind="synthesize")
+    asyncio.run(sm.kb_synthesize("q", "zh", jid))
+
+    # Post-condition: stub did not write the file; wrapper does not depend on it.
+    assert not stale_path.exists(), (
+        "Wrapper or stub created synthesis_output.md — the fix should make "
+        "the wrapper independent of this file."
+    )
+
+    job = job_store.get_job(jid)
+    assert job is not None
+    assert job["status"] == "done"
+    # The bug: pre-fix returns "" (stale file absent); post-fix returns sentinel.
+    assert job["result"]["markdown"] == sentinel, (
+        f"markdown should be the synthesize_response return value, "
+        f"got: {job['result']['markdown']!r}"
+    )
+    # Sentinel contains /article/abc1234567 → fixture_db resolves it → confidence='kg'
+    assert job["confidence"] == "kg", job
+    assert job["fallback_used"] is False
+    assert any(
+        s["hash"] == "abc1234567" for s in job["result"]["sources"]
+    ), job["result"]["sources"]
