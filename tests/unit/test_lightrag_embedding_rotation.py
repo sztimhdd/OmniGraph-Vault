@@ -100,7 +100,7 @@ async def test_single_key_fallback(monkeypatch):
 
     captured_keys: list[str] = []
 
-    def _mock_client_cls(api_key):
+    def _mock_client_cls(api_key, **kwargs):  # accept future client kwargs (e.g., vertexai=False)
         captured_keys.append(api_key)
         mc = MagicMock()
         mc.aio.models.embed_content = AsyncMock(return_value=_make_embed_response())
@@ -128,7 +128,7 @@ async def test_round_robin_two_keys():
 
     captured_keys: list[str] = []
 
-    def _mock_client_cls(api_key):
+    def _mock_client_cls(api_key, **kwargs):  # accept future client kwargs (e.g., vertexai=False)
         captured_keys.append(api_key)
         mc = MagicMock()
         mc.aio.models.embed_content = AsyncMock(return_value=_make_embed_response())
@@ -165,7 +165,7 @@ async def test_429_failover_within_single_call():
 
     call_seq: list[str] = []
 
-    def _mock_client_cls(api_key):
+    def _mock_client_cls(api_key, **kwargs):  # accept future client kwargs (e.g., vertexai=False)
         call_seq.append(api_key)
         mc = MagicMock()
         if api_key == "key-A":
@@ -193,7 +193,7 @@ async def test_both_keys_429_raises():
     """If every key in the pool returns 429, embed_func raises RuntimeError."""
     import lib.lightrag_embedding as lem
 
-    def _mock_client_cls(api_key):
+    def _mock_client_cls(api_key, **kwargs):  # accept future client kwargs (e.g., vertexai=False)
         mc = MagicMock()
         mc.aio.models.embed_content = AsyncMock(side_effect=_make_429_client_error())
         return mc
@@ -218,7 +218,7 @@ async def test_non_429_error_does_not_rotate():
 
     attempts: list[str] = []
 
-    def _mock_client_cls(api_key):
+    def _mock_client_cls(api_key, **kwargs):  # accept future client kwargs (e.g., vertexai=False)
         attempts.append(api_key)
         mc = MagicMock()
         mc.aio.models.embed_content = AsyncMock(side_effect=_make_500_client_error())
@@ -256,7 +256,7 @@ async def test_empty_backup_env_var_treated_as_no_backup(monkeypatch):
 
     captured_keys: list[str] = []
 
-    def _mock_client_cls(api_key):
+    def _mock_client_cls(api_key, **kwargs):  # accept future client kwargs (e.g., vertexai=False)
         captured_keys.append(api_key)
         mc = MagicMock()
         mc.aio.models.embed_content = AsyncMock(return_value=_make_embed_response())

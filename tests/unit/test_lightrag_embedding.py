@@ -57,7 +57,7 @@ async def test_embedding_func_reads_current_key():
 
     captured_api_keys: list[str] = []
 
-    def _mock_client_cls(api_key):
+    def _mock_client_cls(api_key, **kwargs):  # accept future client kwargs (e.g., vertexai=False)
         captured_api_keys.append(api_key)
         mock_c = MagicMock()
         mock_c.aio.models.embed_content = AsyncMock(return_value=_make_embed_response())
