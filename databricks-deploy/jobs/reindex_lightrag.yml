@@ -56,7 +56,15 @@ resources:
               - "50"
               - "--filter-mode"
               - "strict"
-              # NO --force-overwrite — Step 1 must fail loudly if Volume is non-empty (D-07)
+              # D-07: Step 1 uses a SEPARATE working_dir so it never touches
+              # the main lightrag_storage/ which may contain kdb-1.5 dry-run state.
+              # Plan 02 (fullreindex) owns lightrag_storage/ via --init-empty pre-flight.
+              - "--lightrag-dir"
+              - "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/output/kdb-2.5-smallbatch-storage"
+              # force-overwrite: Step 1 is idempotent on the separate smallbatch dir.
+              # Retrying Step 1 is safe since smallbatch-storage is a measurement dir,
+              # not the production lightrag_storage/.
+              - "--force-overwrite"
           environment_key: default
       environments:
         - environment_key: default
@@ -66,6 +74,7 @@ resources:
               - "lightrag-hku==1.4.15"
               - "databricks-sdk>=0.30.0"
               - "numpy>=1.26.0"
+              - "nest-asyncio>=1.6.0"
 
     kdb_2_5_reindex_fullrun:
       name: "[kdb-2.5] Re-index LightRAG — Step 2 fullreindex (all candidates)"
@@ -93,6 +102,7 @@ resources:
               - "lightrag-hku==1.4.15"
               - "databricks-sdk>=0.30.0"
               - "numpy>=1.26.0"
+              - "nest-asyncio>=1.6.0"
 
     kdb_2_5_reindex_postcheck:
       name: "[kdb-2.5] Re-index LightRAG — Step 3 postcheck"
@@ -116,3 +126,4 @@ resources:
               - "lightrag-hku==1.4.15"
               - "databricks-sdk>=0.30.0"
               - "numpy>=1.26.0"
+              - "nest-asyncio>=1.6.0"

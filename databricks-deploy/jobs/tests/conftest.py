@@ -118,22 +118,32 @@ def tmp_working_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def mock_rag() -> Any:
-    """Mock LightRAG instance with async ainsert + doc_status.
+    """Mock LightRAG instance with async ainsert + aget_docs_by_ids.
 
-    Default behaviour: ainsert returns 'track-123'; doc_status returns PROCESSED.
-    Tests can override individual async return values as needed.
+    Default behaviour: ainsert returns 'track-123'; aget_docs_by_ids returns
+    {"doc-<hash>": PROCESSED-record}.  Tests override individual return values.
+
+    API note: D-05 post-check uses LightRAG.aget_docs_by_ids() (main class,
+    returns dict[doc_id, DocProcessingStatus]) — NOT doc_status storage method.
+    See lightrag/lightrag.py:3159.
     """
     rag = MagicMock()
 
     # ainsert returns a track_id string
     rag.ainsert = AsyncMock(return_value="track-123")
 
-    # doc_status.get_docs_by_ids returns a list with one PROCESSED record
+    # aget_docs_by_ids returns dict[doc_id, DocProcessingStatus].
+    # Default echoes whatever doc_id the call passes in -> PROCESSED, so any
+    # test row hash works without per-test override. Tests asserting FAILED
+    # / unknown / etc. replace this AsyncMock with a fixed-dict return_value.
     processed_record = MagicMock()
     processed_record.status = MagicMock()
     processed_record.status.value = "PROCESSED"
-    rag.doc_status = MagicMock()
-    rag.doc_status.get_docs_by_ids = AsyncMock(return_value=[processed_record])
+
+    async def _aget_default(ids: list[str]) -> dict[str, Any]:
+        return {ids[0]: processed_record}
+
+    rag.aget_docs_by_ids = AsyncMock(side_effect=_aget_default)
 
     return rag
 
