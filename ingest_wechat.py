@@ -253,6 +253,7 @@ from lib.checkpoint import (
     write_vision_description,
     write_metadata,
     list_vision_markers,
+    get_checkpoint_dir,
 )
 from lib.vision_tracking import track_vision_task
 
@@ -435,6 +436,80 @@ def _clear_pending_doc_id(article_hash: str) -> None:
 def get_pending_doc_id(article_hash: str) -> str | None:
     """Public accessor — used by batch_ingest_from_spider on TimeoutError (D-09.05)."""
     return _PENDING_DOC_IDS.get(article_hash)
+
+
+# Quick 260517-rgd-2 — DeepSeek 402 graceful-degrade.
+# Audit: ARCHITECTURE-AUDIT-Ingest-Pipeline-v1.md §3 Patch 2 (per-article
+# 402 coupling fragment of Defect 1).
+
+
+def _write_degraded_marker(
+    ckpt_hash: str, doc_id: str, *, reason: str
+) -> None:
+    """Write checkpoints/{ckpt_hash}/degraded.json — sidecar for reconcile.
+
+    The marker is the distinguishing artifact between:
+      - normal-ok article (no marker, ingestions=ok, doc_status=processed)
+      - ghost-success    (no marker, ingestions=failed, doc_status=processed)
+      - ghost-failure    (no marker, ingestions=ok, doc_status=pending|missing)
+      - DEGRADED article (THIS marker, body in kv_store_full_docs, no entities)
+    """
+    marker_path = get_checkpoint_dir(ckpt_hash) / "degraded.json"
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text(
+        json.dumps(
+            {
+                "doc_id": doc_id,
+                "reason": reason,
+                "timestamp": time.time(),
+            }
+        )
+    )
+
+
+async def _ainsert_with_402_fallback(
+    rag: "LightRAG",
+    doc_id: str,
+    content: str,
+    ckpt_hash: str,
+) -> bool:
+    """Wrap rag.ainsert with selective DeepSeek-402 graceful degrade.
+
+    On normal completion: returns True.
+    On 402 (DeepSeek insufficient balance): writes a sidecar marker so
+    reconcile can distinguish degraded articles, logs a WARNING, returns
+    False. Caller should still mark the stage complete to prevent re-run.
+    On any non-402 RuntimeError: propagates (outer batch try/except marks
+    article failed; operator gets visibility on the real failure).
+
+    Detection is defensive — string-pattern match on '402' or 'insufficient'
+    (case-insensitive) — because the openai SDK 402 surfaces as either
+    openai.APIStatusError or a wrapped RuntimeError depending on which
+    LightRAG layer re-raises it. A future tightening can switch to
+    isinstance(e, openai.APIStatusError) and e.status_code == 402.
+
+    Audit: ARCHITECTURE-AUDIT-Ingest-Pipeline-v1.md §3 Patch 2.
+    Quick: 260517-rgd-2.
+    """
+    try:
+        await rag.ainsert(content, ids=[doc_id])
+        return True
+    except RuntimeError as e:
+        msg = str(e)
+        if "402" in msg or "insufficient" in msg.lower():
+            _write_degraded_marker(
+                ckpt_hash, doc_id, reason="402_insufficient_balance"
+            )
+            logger.warning(
+                "DeepSeek 402 — degraded text-only ingest for doc_id=%s "
+                "(entity extraction skipped; body still in kv_store_full_docs "
+                "via prior LightRAG buffer); marker at "
+                "checkpoints/%s/degraded.json",
+                doc_id,
+                ckpt_hash,
+            )
+            return False
+        raise
 
 
 # D-10.06 (ARCH-02): async Vision worker — implemented by plan 10-02.
@@ -1115,7 +1190,14 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
             # (default 'wechat'); RSS dispatch produces `rss_<hash>`.
             doc_id = f"{source or 'wechat'}_{article_hash}"
             _register_pending_doc_id(ckpt_hash, doc_id)
-            await rag.ainsert(full_content, ids=[doc_id])
+            # Quick 260517-rgd-2: route via _ainsert_with_402_fallback so a
+            # DeepSeek 402 mid-extraction degrades to text-only (sidecar marker
+            # written) rather than failing the cache-hit path. Non-402 errors
+            # still raise and get caught by the outer except below (preserving
+            # existing swallow behavior for unexpected failures).
+            await _ainsert_with_402_fallback(
+                rag, doc_id, full_content, ckpt_hash
+            )
             # Clear only on successful completion — on CancelledError / TimeoutError
             # the orchestrator reads the tracker via get_pending_doc_id() to roll back,
             # then calls _clear_pending_doc_id() itself.
@@ -1377,7 +1459,15 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
             )
         _register_pending_doc_id(ckpt_hash, doc_id)
         try:
-            await rag.ainsert(full_content, ids=[doc_id])
+            # Quick 260517-rgd-2: 402 graceful-degrade. On DeepSeek
+            # insufficient-balance the helper returns False (sidecar marker
+            # written, body still searchable via kv_store_full_docs); on any
+            # other RuntimeError it re-raises to the outer batch try/except.
+            # Either way write_stage runs below so resume logic skips this
+            # article on the next pass.
+            await _ainsert_with_402_fallback(
+                rag, doc_id, full_content, ckpt_hash
+            )
         finally:
             # Always clear tracker — on success it's done, on failure the
             # orchestrator's except-branch already did rollback (or will skip).
