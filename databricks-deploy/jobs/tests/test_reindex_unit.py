@@ -169,20 +169,23 @@ async def test_ingest_one_isolates_failures(mock_rag: MagicMock) -> None:
 async def test_ingest_one_checks_doc_status(mock_rag: MagicMock) -> None:
     """ainsert succeeds but doc_status=FAILED -> _ingest_one returns status='failed'.
 
-    D-05: try/except alone is insufficient — we must consult get_docs_by_ids.
+    D-05: try/except alone is insufficient — we must consult aget_docs_by_ids.
     """
     # ainsert completes without raising
     mock_rag.ainsert = AsyncMock(return_value="track-999")
 
-    # But doc_status returns FAILED
+    # But aget_docs_by_ids returns FAILED for this doc (dict, not list)
+    content_hash = "b" * 32
     failed_record = MagicMock()
     failed_record.status = MagicMock()
     failed_record.status.value = "FAILED"
-    mock_rag.doc_status.get_docs_by_ids = AsyncMock(return_value=[failed_record])
+    mock_rag.aget_docs_by_ids = AsyncMock(
+        return_value={f"doc-{content_hash}": failed_record}
+    )
 
     row = CandidateRow(
         source_table="articles",
-        content_hash="b" * 32,
+        content_hash=content_hash,
         title="Test B",
         body="test body content for doc status check",
         lang="zh",
@@ -229,8 +232,10 @@ def test_resume_skips_already_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         w.writerow(["hash_fail" + "0" * 23, "articles", "failed",
                     "0.8", "RuntimeError: boom", "", "1716000002"])
 
-    # Monkeypatch PROGRESS_CSV constant to point to our test file
+    # Monkeypatch both CSV path constants so _load_progress_hashes uses the test file
+    # regardless of which path it checks first (_TMP_PROGRESS_CSV or PROGRESS_CSV).
     monkeypatch.setattr(_mod, "PROGRESS_CSV", str(progress_csv))
+    monkeypatch.setattr(_mod, "_TMP_PROGRESS_CSV", str(progress_csv))
 
     done = _load_progress_hashes(status_filter={"ok"})
     assert len(done) == 2, f"Expected 2 ok hashes, got {len(done)}: {done}"
@@ -251,7 +256,9 @@ def test_failures_csv_schema_no_path_leak(
     The truncated error must NOT contain '/' or '\\' characters (path leak check).
     """
     failures_csv = tmp_path / "FAILURES.csv"
+    # Patch both constants: _append_failures_csv writes to _TMP_FAILURES_CSV.
     monkeypatch.setattr(_mod, "FAILURES_CSV", str(failures_csv))
+    monkeypatch.setattr(_mod, "_TMP_FAILURES_CSV", str(failures_csv))
 
     # Simulate a failure whose repr includes a file path
     long_path_error = (

@@ -23,7 +23,7 @@ Design:
   - Doc-status post-check mandatory (D-05): ainsert can silently fail
     (per-chunk LLM errors caught inside apipeline_process_enqueue_documents,
     mark doc FAILED in doc_status but never raise). try/except alone is
-    INSUFFICIENT — must consult get_docs_by_ids post-ainsert.
+    INSUFFICIENT — must consult aget_docs_by_ids post-ainsert.
   - Idempotency via ids=[content_hash] (D-06): LightRAG filter_keys at
     :1453 auto-skips already-PROCESSED docs on retry.
 
@@ -45,10 +45,31 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+# Databricks spark_python_task runs inside an IPython/Spark kernel that already
+# has a running event loop. asyncio.run() raises "cannot be called from a running
+# event loop" in that context. nest_asyncio patches the event loop to allow nested
+# asyncio.run() / loop.run_until_complete() calls — same pattern used by
+# kdb-1.5's config.py and the existing codebase for Databricks-hosted execution.
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass  # Not in Databricks kernel context; asyncio.run() will work fine
+
 # databricks-deploy/ is hyphenated — not importable as a package.
 # Add it to sys.path so we can import lightrag_databricks_provider directly.
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))  # databricks-deploy/
+#
+# Pitfall: spark_python_task runs the script via exec(), which does NOT set
+# __file__ in the global namespace. Use sys.argv[0] as the script path fallback.
+# In the Bundle workspace layout, the file lands at:
+#   .bundle/<bundle>/dev/files/jobs/reindex_lightrag.py
+# so HERE.parent == files/ == bundle root (where lightrag_databricks_provider.py is).
+try:
+    HERE = Path(__file__).resolve().parent
+except NameError:
+    # spark_python_task exec() context: __file__ is not set
+    HERE = Path(sys.argv[0]).resolve().parent
+sys.path.insert(0, str(HERE.parent))  # databricks-deploy/ (local) or files/ (workspace)
 
 from lightrag_databricks_provider import (  # noqa: E402
     EMBEDDING_DIM,
@@ -74,8 +95,20 @@ logging.basicConfig(
 VOLUME_ROOT = "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault"
 DB_PATH = f"{VOLUME_ROOT}/data/kol_scan.db"
 LIGHTRAG_DIR = f"{VOLUME_ROOT}/lightrag_storage"
+
+# UC Volume FUSE does not support seek-based I/O (open("a") triggers EILSEQ / Errno 29).
+# Strategy: write progress/failures CSVs to /tmp/ (local ephemeral disk, no FUSE seek
+# restrictions), then copy full file to Volume output/ after each N articles.
+# At run START, we read from Volume output/ to restore resume state, then write to /tmp/.
+_TMP_PROGRESS_CSV = "/tmp/kdb-2.5-progress.csv"
+_TMP_FAILURES_CSV = "/tmp/kdb-2.5-FAILURES.csv"
+
+# Volume paths for persistence (read at start, written at end / periodically)
 PROGRESS_CSV = f"{VOLUME_ROOT}/output/kdb-2.5-progress.csv"
 FAILURES_CSV = f"{VOLUME_ROOT}/output/kdb-2.5-FAILURES.csv"
+
+# How often to sync local /tmp/ CSV to Volume (in articles written)
+_VOLUME_SYNC_EVERY_N = 10
 
 # Step-1 extrapolation baseline (populated after first smallbatch run,
 # read by _compute_burn_rate_ratio during Step 2).
@@ -160,11 +193,22 @@ def _load_candidates(
         raise ValueError(f"Unknown filter_mode={filter_mode!r}")
 
     # UNION ALL of articles + rss_articles with the same WHERE shape.
-    # Both tables have: content_hash, title, body, lang, layer1_verdict,
-    # layer2_verdict (kdb-1 schema).
+    # Both tables have: content_hash, title, body, layer1_verdict, layer2_verdict.
+    # 'lang' may be absent in older prod DB snapshots — we introspect PRAGMA
+    # table_info() and fall back to NULL AS lang if the column is missing.
+    uri = f"file:{db_path}?mode=ro"
+    with sqlite3.connect(uri, uri=True) as _probe:
+        def _has_col(table: str, col: str) -> bool:
+            cols = {r[1] for r in _probe.execute(
+                f"PRAGMA table_info({table})"
+            ).fetchall()}
+            return col in cols
+        articles_lang = "lang" if _has_col("articles", "lang") else "NULL"
+        rss_lang = "lang" if _has_col("rss_articles", "lang") else "NULL"
+
     sql = f"""
         SELECT 'articles' AS source_table,
-               content_hash, title, body, lang
+               content_hash, title, body, {articles_lang} AS lang
         FROM articles
         WHERE body IS NOT NULL
           AND body != ''
@@ -172,7 +216,7 @@ def _load_candidates(
           {layer_clause}
         UNION ALL
         SELECT 'rss_articles' AS source_table,
-               content_hash, title, body, lang
+               content_hash, title, body, {rss_lang} AS lang
         FROM rss_articles
         WHERE body IS NOT NULL
           AND body != ''
@@ -180,7 +224,6 @@ def _load_candidates(
           {layer_clause}
         ORDER BY content_hash
     """
-    uri = f"file:{db_path}?mode=ro"
     with sqlite3.connect(uri, uri=True) as conn:
         rows: list[CandidateRow] = [
             CandidateRow(
@@ -274,7 +317,7 @@ async def _ingest_one(rag, row: CandidateRow) -> IngestResult:
     D-05: Mandatory doc_status post-check.  ainsert can silently fail —
     per-chunk LLM errors are caught inside apipeline_process_enqueue_documents,
     mark doc FAILED in doc_status, and do NOT re-raise.  try/except alone
-    is INSUFFICIENT; we must consult get_docs_by_ids post-ainsert.
+    is INSUFFICIENT; we must consult aget_docs_by_ids post-ainsert.
 
     D-06: ids=[row.content_hash] — explicit ID for LightRAG idempotency.
     Re-runs auto-skip PROCESSED docs (filter_keys at lightrag.py:1453).
@@ -288,14 +331,17 @@ async def _ingest_one(rag, row: CandidateRow) -> IngestResult:
         )
         # D-05: Post-ainsert doc_status check.
         # LightRAG doc_status uses "doc-{content_hash}" as the key.
-        status_records = await rag.doc_status.get_docs_by_ids(
-            [f"doc-{row.content_hash}"]
-        )
-        if not status_records:
+        # API path: LightRAG.aget_docs_by_ids() (main class, async, returns
+        # dict[doc_id, DocProcessingStatus]) — NOT rag.doc_status.get_docs_by_ids
+        # (the storage class doesn't expose that method).
+        # See lightrag/lightrag.py:3159 for the canonical signature.
+        doc_id = f"doc-{row.content_hash}"
+        status_records = await rag.aget_docs_by_ids([doc_id])
+        if doc_id not in status_records:
             # No record in doc_status — treat as unexpected failure
             doc_status_val = "unknown"
         else:
-            doc_status_val = status_records[0].status.value
+            doc_status_val = status_records[doc_id].status.value
 
         if doc_status_val == "PROCESSED":
             return IngestResult(
@@ -382,48 +428,110 @@ async def _instantiate_lightrag(working_dir: str):
 # Progress / failures CSV helpers
 # ---------------------------------------------------------------------------
 
+def _csv_line(*fields: str) -> str:
+    """Format one CSV row without using csv.writer (avoids UC FUSE seek issues)."""
+    parts = []
+    for f in fields:
+        s = str(f)
+        if any(c in s for c in (',', '"', '\n', '\r')):
+            s = '"' + s.replace('"', '""') + '"'
+        parts.append(s)
+    return ",".join(parts) + "\n"
+
+
+def _init_tmp_csv(volume_path: str, tmp_path: str) -> None:
+    """Copy Volume CSV to /tmp/ at startup to seed cross-run resume state.
+
+    If the Volume path exists, copy it to tmp_path so _load_progress_hashes
+    can read from /tmp/ and we avoid UC FUSE seek throughout the run.
+    If Volume path is absent, create an empty /tmp/ file so subsequent appends
+    start with a fresh header.
+    """
+    v = Path(volume_path)
+    t = Path(tmp_path)
+    if v.exists():
+        import shutil
+        shutil.copy2(str(v), str(t))
+        logger.info("_init_tmp_csv: copied %s → %s (%d bytes)", v, t, t.stat().st_size)
+    else:
+        # No prior run — start fresh (header written by first _append_progress call)
+        if t.exists():
+            t.unlink()
+        logger.info("_init_tmp_csv: no Volume CSV at %s, starting fresh", v)
+
+
+def _sync_csv_to_volume(tmp_path: str, volume_path: str) -> None:
+    """Copy /tmp/ CSV to Volume for persistence (full-file overwrite, no seek).
+
+    UC Volume FUSE supports full-file write (open "w" + write_text / copyfile)
+    but NOT seek-based append ("a" mode).  We write the complete /tmp/ file
+    over the Volume path every _VOLUME_SYNC_EVERY_N articles.
+    """
+    t = Path(tmp_path)
+    if not t.exists():
+        return
+    v = Path(volume_path)
+    v.parent.mkdir(parents=True, exist_ok=True)
+    import shutil
+    shutil.copy2(str(t), str(v))
+    logger.info("_sync_csv_to_volume: synced %d bytes → %s", t.stat().st_size, v)
+
+
 def _append_progress(r: IngestResult) -> None:
-    """Append one row to the progress CSV (resilience checkpoint)."""
-    p = Path(PROGRESS_CSV)
-    p.parent.mkdir(parents=True, exist_ok=True)
+    """Append one row to the progress CSV in /tmp/ (seek-safe local disk).
+
+    UC Volume FUSE does not support seek-based I/O (open("a") triggers
+    OSError EILSEQ / Errno 29 on the first text-mode append).  We write
+    exclusively to _TMP_PROGRESS_CSV (/tmp/) and sync to Volume periodically
+    via _sync_csv_to_volume.
+    """
+    p = Path(_TMP_PROGRESS_CSV)
     new_file = not p.exists()
-    with p.open("a", encoding="utf-8", newline="") as f:
-        w = csv.writer(f)
+    with p.open("a", encoding="utf-8") as f:
         if new_file:
-            w.writerow([
+            f.write(_csv_line(
                 "content_hash", "source_table", "status",
                 "elapsed_s", "error_truncated", "track_id", "ts",
-            ])
-        w.writerow([
+            ))
+        f.write(_csv_line(
             r.content_hash,
             r.source_table,
             r.status,
             f"{r.elapsed_s:.2f}",
             r.error_truncated or "",
             r.track_id or "",
-            time.time(),
-        ])
+            str(time.time()),
+        ))
 
 
 def _append_failures_csv(r: IngestResult) -> None:
-    """Append a failed article to the FAILURES CSV (kdb-2.5 deliverable)."""
-    p = Path(FAILURES_CSV)
-    p.parent.mkdir(parents=True, exist_ok=True)
+    """Append a failed article to the FAILURES CSV in /tmp/.
+
+    Same /tmp/ strategy as _append_progress — UC FUSE seek-safe.
+    """
+    p = Path(_TMP_FAILURES_CSV)
     new_file = not p.exists()
-    with p.open("a", encoding="utf-8", newline="") as f:
-        w = csv.writer(f)
+    with p.open("a", encoding="utf-8") as f:
         if new_file:
-            w.writerow(["content_hash", "source_table", "error_truncated"])
-        w.writerow([
+            f.write(_csv_line("content_hash", "source_table", "error_truncated"))
+        f.write(_csv_line(
             r.content_hash,
             r.source_table,
             r.error_truncated or "",
-        ])
+        ))
 
 
 def _load_progress_hashes(*, status_filter: set[str]) -> set[str]:
-    """Return content_hashes from the progress CSV matching status_filter."""
-    p = Path(PROGRESS_CSV)
+    """Return content_hashes from the /tmp/ progress CSV matching status_filter.
+
+    Reads from _TMP_PROGRESS_CSV (/tmp/), which is seeded from Volume at
+    run start by _init_tmp_csv.  Falls back to PROGRESS_CSV (Volume) if
+    /tmp/ file is absent (safety net for callers that skip _init_tmp_csv).
+    """
+    # Prefer /tmp/ (seeded at startup); fall back to Volume path.
+    p = Path(_TMP_PROGRESS_CSV)
+    if not p.exists():
+        p = Path(PROGRESS_CSV)
     if not p.exists():
         return set()
     out: set[str] = set()
@@ -565,6 +673,10 @@ async def _run_smallbatch(args) -> int:
         )
         return 1
 
+    # Seed /tmp/ CSV from Volume (cross-run resume; no-op on first run).
+    _init_tmp_csv(PROGRESS_CSV, _TMP_PROGRESS_CSV)
+    _init_tmp_csv(FAILURES_CSV, _TMP_FAILURES_CSV)
+
     # D-07: Empty-target check before touching lightrag_storage.
     _verify_target_empty(
         lightrag_dir=args.lightrag_dir,
@@ -588,6 +700,10 @@ async def _run_smallbatch(args) -> int:
         r = await _ingest_one(rag, row)
         results.append(r)
         _append_progress(r)
+        # Periodic sync to Volume every N articles so we don't lose all progress
+        # on a mid-run failure.
+        if (i + 1) % _VOLUME_SYNC_EVERY_N == 0:
+            _sync_csv_to_volume(_TMP_PROGRESS_CSV, PROGRESS_CSV)
 
     elapsed_total = time.time() - t_total0
 
@@ -612,6 +728,9 @@ async def _run_smallbatch(args) -> int:
     full_corpus_size = len(
         _load_candidates(args.db_path, filter_mode=args.filter_mode)
     )
+
+    # Final sync of /tmp/ CSVs to Volume before writing stats JSON.
+    _sync_csv_to_volume(_TMP_PROGRESS_CSV, PROGRESS_CSV)
 
     _write_smallbatch_findings(
         results=results,
@@ -655,6 +774,10 @@ async def _run_fullreindex(args) -> int:
         force_overwrite=args.force_overwrite,
     )
 
+    # Seed /tmp/ CSV from Volume (cross-run resume; no-op on first run).
+    _init_tmp_csv(PROGRESS_CSV, _TMP_PROGRESS_CSV)
+    _init_tmp_csv(FAILURES_CSV, _TMP_FAILURES_CSV)
+
     # Resume support: skip already-OK articles (D-06 + progress CSV).
     done_hashes = _load_progress_hashes(status_filter={"ok"})
     if done_hashes:
@@ -694,6 +817,11 @@ async def _run_fullreindex(args) -> int:
                 r.error_truncated,
             )
 
+        # Periodic sync of /tmp/ CSVs to Volume.
+        if (i + 1) % _VOLUME_SYNC_EVERY_N == 0:
+            _sync_csv_to_volume(_TMP_PROGRESS_CSV, PROGRESS_CSV)
+            _sync_csv_to_volume(_TMP_FAILURES_CSV, FAILURES_CSV)
+
         # Burn-rate alert every 25 articles.
         if (i + 1) % 25 == 0:
             ratio = _compute_burn_rate_ratio(t_total0, i + 1)
@@ -720,6 +848,10 @@ async def _run_fullreindex(args) -> int:
         n_skipped,
         failure_rate * 100,
     )
+
+    # Final sync of /tmp/ CSVs to Volume.
+    _sync_csv_to_volume(_TMP_PROGRESS_CSV, PROGRESS_CSV)
+    _sync_csv_to_volume(_TMP_FAILURES_CSV, FAILURES_CSV)
 
     if args.shutdown_lightrag and hasattr(rag, "finalize_storages"):
         await rag.finalize_storages()
