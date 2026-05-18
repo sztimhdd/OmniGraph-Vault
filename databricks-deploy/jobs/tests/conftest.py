@@ -132,13 +132,11 @@ def mock_rag() -> Any:
     # ainsert returns a track_id string
     rag.ainsert = AsyncMock(return_value="track-123")
 
-    # aget_docs_by_ids returns dict[doc_id, DocProcessingStatus].
-    # Default echoes whatever doc_id the call passes in -> PROCESSED, so any
-    # test row hash works without per-test override. Tests asserting FAILED
-    # / unknown / etc. replace this AsyncMock with a fixed-dict return_value.
-    processed_record = MagicMock()
-    processed_record.status = MagicMock()
-    processed_record.status.value = "PROCESSED"
+    # aget_docs_by_ids returns dict[doc_id, dict] in production (LightRAG 1.4.15
+    # on Databricks serverless — see Bug 8 2026-05-18). Default echoes whatever
+    # doc_id the call passes in -> {"status": "PROCESSED"}. Tests asserting
+    # FAILED / unknown / etc. replace this AsyncMock with a fixed-dict return.
+    processed_record = {"status": "PROCESSED"}
 
     async def _aget_default(ids: list[str]) -> dict[str, Any]:
         return {ids[0]: processed_record}

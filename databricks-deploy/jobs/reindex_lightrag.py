@@ -339,13 +339,20 @@ async def _ingest_one(rag, row: CandidateRow) -> IngestResult:
         # dict[doc_id, DocProcessingStatus]) — NOT rag.doc_status.get_docs_by_ids
         # (the storage class doesn't expose that method).
         # See lightrag/lightrag.py:3159 for the canonical signature.
+        # Bug 8 (2026-05-18): LightRAG 1.4.15 in Databricks serverless returns
+        # dict[doc_id, dict] rather than dict[doc_id, DocProcessingStatus] —
+        # accept both shapes so we don't AttributeError on a serialized record.
         doc_id = row.content_hash
         status_records = await rag.aget_docs_by_ids([doc_id])
         if doc_id not in status_records:
             # No record in doc_status — treat as unexpected failure
             doc_status_val = "unknown"
         else:
-            doc_status_val = status_records[doc_id].status.value
+            record = status_records[doc_id]
+            if isinstance(record, dict):
+                doc_status_val = record.get("status", "unknown")
+            else:
+                doc_status_val = record.status.value
 
         if doc_status_val == "PROCESSED":
             return IngestResult(
