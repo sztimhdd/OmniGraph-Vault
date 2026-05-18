@@ -330,12 +330,16 @@ async def _ingest_one(rag, row: CandidateRow) -> IngestResult:
             file_paths=[f"{row.source_table}/{row.content_hash}"],
         )
         # D-05: Post-ainsert doc_status check.
-        # LightRAG doc_status uses "doc-{content_hash}" as the key.
+        # When ainsert(ids=[hash]) explicitly passes ids, LightRAG uses the raw
+        # hash as the doc_status key (lightrag.py:1395-1415 — `contents = {id_:
+        # {...}}`, id_ used verbatim). When ids=None, LightRAG auto-prefixes
+        # with `doc-` (line 1426). We always pass ids=[content_hash] (D-06),
+        # so the post-check key is the raw content_hash WITHOUT prefix.
         # API path: LightRAG.aget_docs_by_ids() (main class, async, returns
         # dict[doc_id, DocProcessingStatus]) — NOT rag.doc_status.get_docs_by_ids
         # (the storage class doesn't expose that method).
         # See lightrag/lightrag.py:3159 for the canonical signature.
-        doc_id = f"doc-{row.content_hash}"
+        doc_id = row.content_hash
         status_records = await rag.aget_docs_by_ids([doc_id])
         if doc_id not in status_records:
             # No record in doc_status — treat as unexpected failure

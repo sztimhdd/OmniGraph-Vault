@@ -180,7 +180,7 @@ async def test_ingest_one_checks_doc_status(mock_rag: MagicMock) -> None:
     failed_record.status = MagicMock()
     failed_record.status.value = "FAILED"
     mock_rag.aget_docs_by_ids = AsyncMock(
-        return_value={f"doc-{content_hash}": failed_record}
+        return_value={content_hash: failed_record}
     )
 
     row = CandidateRow(
