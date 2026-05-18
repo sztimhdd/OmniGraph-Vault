@@ -22,6 +22,9 @@ docs/queries/hermes_session_*/
 # Scratch / experimental work — never commit
 .scratch/
 
+# Playwright MCP runtime cache (per-call screenshots / traces, not source)
+.playwright-mcp/
+
 # Data (Crucial to ignore these!)
 # Use data/* (not data/) so specific files can be un-ignored with ! below.
 data/*
