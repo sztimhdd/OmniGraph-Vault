@@ -1547,7 +1547,6 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
 
 async def ingest_from_db(
     topic: str | list[str],
-    min_depth: int,
     dry_run: bool,
     batch_timeout: int | None = None,
     max_articles: int | None = None,
@@ -1559,12 +1558,18 @@ async def ingest_from_db(
     so Ctrl+C during a long batch still flushes vdb + graphml cleanly.
 
     Phase 17: accepts ``batch_timeout`` (seconds) for the batch-level budget
-    interlock; defaults resolved via ``_resolve_batch_timeout`` so the env var
-    ``OMNIGRAPH_BATCH_TIMEOUT_SEC`` still wins if set.
+    interlock; defaults resolved via ``_resolve_batch_timeout`` so
+    ``OMNIGRAPH_BATCH_TIMEOUT_SEC`` env var still wins when set (env >
+    CLI > 28800s default).
 
     quick-260503-jn6 (JN6-02): ``max_articles`` caps the number of
-    SUCCESSFULLY-processed rows (skips for no-URL / checkpoint / classify /
-    depth do NOT count toward the cap). Default None = unlimited.
+    SUCCESSFULLY-processed rows (skips for no-URL / checkpoint / classify
+    do NOT count toward the cap). Default None = unlimited.
+
+    quick-260518: removed dead ``min_depth`` parameter. Phase 10 plan 10-00
+    moved depth-gating into per-article scrape-first classification at the
+    chunk boundary; the parameter was unused in the function body since
+    that change. ``run()`` (KOL scan path) still uses ``args.min_depth``.
     """
     topics = [topic] if isinstance(topic, str) else topic
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -2157,7 +2162,7 @@ def main() -> None:
         # is coalesced to [] so ingest_from_db's internal `for t in topics`
         # loop receives an iterable in the no-filter case.
         coro = ingest_from_db(
-            topic_keywords or [], args.min_depth, args.dry_run,
+            topic_keywords or [], args.dry_run,
             batch_timeout=args.batch_timeout,
             max_articles=args.max_articles,
         )

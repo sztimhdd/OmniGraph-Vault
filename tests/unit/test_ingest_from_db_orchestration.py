@@ -125,7 +125,7 @@ async def test_layer1_reject_writes_skipped_with_correct_source(
     patch_layer_funcs(monkeypatch, layer1_results=layer1_results, layer2_results=[])
 
     await bi.ingest_from_db(
-        topic="ai", min_depth=2, dry_run=False,
+        topic="ai", dry_run=False,
         batch_timeout=None, max_articles=None,
     )
 
@@ -198,7 +198,7 @@ async def test_drain_unpacks_8_col_tuple_with_image_count(
     )
 
     await bi.ingest_from_db(
-        topic="ai", min_depth=2, dry_run=False,
+        topic="ai", dry_run=False,
         batch_timeout=None, max_articles=None,
     )
 
@@ -264,7 +264,7 @@ async def test_max_articles_cap_includes_queued_count(
                         AsyncMock(side_effect=fake_layer2))
 
     await bi.ingest_from_db(
-        topic="ai", min_depth=2, dry_run=False,
+        topic="ai", dry_run=False,
         batch_timeout=None, max_articles=3,
     )
 
@@ -332,7 +332,7 @@ async def test_budget_exhausted_finally_drains_vision_and_finalizes(
     )
 
     await bi.ingest_from_db(
-        topic="ai", min_depth=2, dry_run=False,
+        topic="ai", dry_run=False,
         batch_timeout=None, max_articles=None,
     )
 
@@ -407,7 +407,7 @@ async def test_image_count_refresh_after_persist(
     )
 
     await bi.ingest_from_db(
-        topic="ai", min_depth=2, dry_run=False,
+        topic="ai", dry_run=False,
         batch_timeout=None, max_articles=None,
     )
 
