@@ -108,24 +108,30 @@ def _patch_base_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_kb_synthesize_prepends_en_directive(tmp_path, monkeypatch, captured_query):
+    # kb-v2.2-4: qa mode now wraps in _QA_PROMPT_TEMPLATE_EN (directive inside
+    # template body, not at the start). Assert directive presence + question presence.
     _patch_base_dir(tmp_path, monkeypatch)
     _patch_c1(monkeypatch, captured_query)
     jid = job_store.new_job(kind="synthesize")
     asyncio.run(kb_synth_mod.kb_synthesize("What is LangChain?", "en", jid))
     assert captured_query["text"] is not None
-    assert captured_query["text"].startswith("Please answer in English.\n\n"), captured_query["text"]
+    assert "Please answer in English." in captured_query["text"], captured_query["text"]
     assert "What is LangChain?" in captured_query["text"]
+    assert "/article/" in captured_query["text"], "QA template must instruct citation format"
     # C1 mode contract preserved: always 'hybrid'
     assert captured_query["mode"] == "hybrid"
 
 
 def test_kb_synthesize_prepends_zh_directive(tmp_path, monkeypatch, captured_query):
+    # kb-v2.2-4: qa mode now wraps in _QA_PROMPT_TEMPLATE_ZH (directive inside
+    # template body). Assert directive presence + question presence.
     _patch_base_dir(tmp_path, monkeypatch)
     _patch_c1(monkeypatch, captured_query)
     jid = job_store.new_job(kind="synthesize")
     asyncio.run(kb_synth_mod.kb_synthesize("LangGraph 是什么?", "zh", jid))
-    assert captured_query["text"].startswith("请用中文回答。\n\n")
+    assert "请用中文回答" in captured_query["text"]
     assert "LangGraph 是什么?" in captured_query["text"]
+    assert "/article/" in captured_query["text"], "QA template must instruct citation format"
 
 
 def test_kb_synthesize_reads_output_file(tmp_path, monkeypatch, captured_query):

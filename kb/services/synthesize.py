@@ -107,20 +107,68 @@ Please answer in English.
 """
 
 
+# ---------------------------------------------------------------------------
+# kb-v2.2-4: QA prompt templates (FU-1 citation enforcement)
+# ---------------------------------------------------------------------------
+# Root cause: QA mode was sending the bare question (+ directive) to C1,
+# which returned Chinese "(来源:Entity X)" citations that _SOURCE_HASH_PATTERN
+# cannot extract → sources=[] → confidence='no_results' even with real content.
+#
+# Fix: wrap QA queries in a template that explicitly instructs C1 to emit
+# /article/{hash}.html URL citations. Same doubled-brace {{hash}} trick as
+# long_form: str.format() leaves the literal {hash} for the LLM to fill.
+
+_QA_PROMPT_TEMPLATE_ZH = """请基于知识库中检索到的内容,简洁回答以下问题。
+
+问题:{question}
+
+要求:
+1. 回答简洁,200-400 字
+2. 每个关键结论引用具体来源,链接格式 [/article/{{hash}}.html]
+   (hash 是文章在知识库中的 10 字符哈希)
+3. 如果源文章中有相关图片,用 ![alt](URL) 引用
+4. 不要编造任何信息 — 严格基于检索到的文章内容
+
+请用中文回答。
+"""
+
+_QA_PROMPT_TEMPLATE_EN = """Based on content retrieved from the knowledge base, concisely answer the following question.
+
+Question: {question}
+
+Requirements:
+1. Keep the answer concise, 200-400 words
+2. Cite specific sources for key claims, format [/article/{{hash}}.html]
+   (hash is the 10-char article hash in the knowledge base)
+3. Include ![alt](URL) references if source articles have relevant images
+4. Do not fabricate anything — strictly base on retrieved article content
+
+Please answer in English.
+"""
+
+
 def _wrap_question_for_mode(question: str, lang: str, mode: str) -> str:
     """Return the query text passed to C1 depending on synthesis mode.
 
-    mode='qa' (default) returns the question unchanged (existing v2.1-4 behavior;
-    the lang directive is prepended separately by kb_synthesize).
+    mode='qa' (default, kb-v2.2-4): wraps question in QA prompt template that
+    instructs C1 to emit /article/{hash}.html citations. Template carries the
+    lang directive so kb_synthesize must NOT prepend a second one.
 
-    mode='long_form' wraps the question in the language-appropriate research
-    template; the template itself ends with the lang directive so kb_synthesize
-    must NOT prepend a second one.
+    mode='long_form': wraps question in deep-research template (unchanged from
+    kb-v2.1-5). Template carries its own trailing lang directive.
+
+    Other modes: returns question unchanged (caller prepends directive).
     """
     if mode == "long_form":
         template = (
             _LONG_FORM_PROMPT_TEMPLATE_ZH if lang == "zh"
             else _LONG_FORM_PROMPT_TEMPLATE_EN
+        )
+        return template.format(question=question)
+    if mode == "qa":
+        template = (
+            _QA_PROMPT_TEMPLATE_ZH if lang == "zh"
+            else _QA_PROMPT_TEMPLATE_EN
         )
         return template.format(question=question)
     return question
@@ -407,10 +455,10 @@ async def kb_synthesize(
     # C1 import deferred to avoid heavy LightRAG init at module import time.
     from kg_synthesize import synthesize_response
 
-    # kb-v2.1-5: long_form wraps question in research template (which carries
-    # its own trailing language directive). qa mode keeps the v2.1-4 behavior:
-    # a leading lang directive prepended verbatim to the bare question.
-    if mode == "long_form":
+    # kb-v2.2-4 + kb-v2.1-5: both qa and long_form use prompt templates that
+    # carry their own lang directive (enforces /article/{hash}.html citations).
+    # Unrecognized modes fall back to the bare directive+question pattern.
+    if mode in ("long_form", "qa"):
         query_text = _wrap_question_for_mode(question, lang, mode)
     else:
         directive = lang_directive_for(lang)

@@ -13,7 +13,7 @@ progress:
   v2_1_stabilization_phases_shipped: 7
   v2_1_stabilization_quicks_shipped: 2
   v2_2_phases_planned: 7
-  v2_2_phases_complete: 4
+  v2_2_phases_complete: 5
 ---
 
 # Project State — KB-v2 (parallel)
@@ -32,8 +32,10 @@ progress:
 Milestone: KB-v2 (parallel-track to v3.4 / v3.5 / Agentic-RAG-v1)
 Sub-milestone: **kb-v2.1-stabilization closed 2026-05-17** (7 phases + 2 quicks shipped, all live on Aliyun production)
 Active sub-milestone: **kb-v2.2-translation-and-kg-search opened 2026-05-17** (7 phases queued, 1 already shipped)
-Status: kb-v2.2-3 (F8') shipped 2026-05-18 — KG search default + 503 contract live; Wave 2 ongoing
-Last activity: 2026-05-18 — kb-v2.2-3 (F8') KG search default shipped: `kb/api_routers/search.py` default changed fts→kg; KG-unavailable response changed from HTTP 200 degraded to HTTP 503 + `Retry-After: 60`; FTS5 preserved as explicit mode=fts. 2 new tests in `test_api_search.py` (default mode is kg, 503 contract); 2 updated tests in `test_kg_mode_hardening.py` (200→503). Local UAT: curl smoke confirmed HTTP 503 on default/explicit kg, HTTP 200 on mode=fts, retry-after:60 header present. Homepage screenshot `.playwright-mcp/c-Users-huxxha-Desktop-OmniGraph-Vault-playwright-mcp-f8-prime-uat-01.png`. Full pytest exit 0.
+Status: kb-v2.2-4 (FU-1) shipped 2026-05-18 — QA prompt citation format fix live; Wave 2 ongoing
+Last activity: 2026-05-18 — kb-v2.2-4 (FU-1) QA citation format fix shipped: `_QA_PROMPT_TEMPLATE_ZH/EN` added to `kb/services/synthesize.py`, `_wrap_question_for_mode` handles `mode='qa'`, dispatch updated. Root cause: bare question → Chinese `(来源:X)` citations → `_SOURCE_HASH_PATTERN` missed → `confidence='no_results'`. Fix: template instructs `[/article/{hash}.html]` citation format + image `![alt](URL)` instruction. 8 new tests (5 unit `test_synthesize_qa_prompt.py` + 3 integration `test_synthesize_citation_format.py`); 2 existing wrapper tests updated (startswith→in assertions). 22/22 pass, 0 regressions. Local UAT: `/ask/` zh+en pages render, API `POST /api/synthesize` → `status=done` (NEVER-500 preserved). Screenshots `.playwright-mcp/-playwright-mcp-fu1-uat-01.png` (zh) + `-fu1-uat-02.png` (en).
+
+Prior activity: 2026-05-18 — kb-v2.2-3 (F8') KG search default shipped: `kb/api_routers/search.py` default changed fts→kg; KG-unavailable response changed from HTTP 200 degraded to HTTP 503 + `Retry-After: 60`; FTS5 preserved as explicit mode=fts. 2 new tests in `test_api_search.py` (default mode is kg, 503 contract); 2 updated tests in `test_kg_mode_hardening.py` (200→503). Local UAT: curl smoke confirmed HTTP 503 on default/explicit kg, HTTP 200 on mode=fts, retry-after:60 header present. Homepage screenshot `.playwright-mcp/c-Users-huxxha-Desktop-OmniGraph-Vault-playwright-mcp-f8-prime-uat-01.png`. Full pytest exit 0.
 
 Prior activity: 2026-05-18 — kb-v2.2-1 (F12) lightrag_storage sync orchestrator shipped: `kb/scripts/sync_lightrag_storage.py` (540 lines, frozen dataclasses, two-hop rsync, atomic swap, proactive OOM probe `monitor_post_restart_memory`, automatic rollback, growth prediction via linear regression, idempotency guard, JSON state file with rolling 20-entry history). `kb/scripts/check_aliyun_kg_memory.py` standalone probe. 15 tests (13 unit + 2 integration, all fully mocked — no real network in CI). `kb/docs/RUNBOOK-lightrag-storage-sync.md` §1-§7 (weekly checklist, recovery, escalation, MemoryMax guidance, OOM playbook with 2026-05-18 empirical anchors, growth prediction). Trailing-slash bug in `atomic_swap`/`rollback` found and fixed during integration test run. Full pytest: all tests pass, 0 regressions. Wave 1 (F12+F5+F6+F9) complete; Wave 2 now unblocked.
 
