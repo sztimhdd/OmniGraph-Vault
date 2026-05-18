@@ -36,6 +36,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 __all__ = [
     "in_memory_db",
+    "init_schema",
     "mock_rag",
     "patch_layer_funcs",
     "sample_kol_row",
@@ -132,6 +133,18 @@ INSERT INTO rss_feeds(id, name) VALUES (1, 'rss-feed-A');
 """
 
 
+def init_schema(conn: sqlite3.Connection) -> None:
+    """Apply the verbatim production schema (ingestions L1585-L1600 + the
+    six other tables ingest_from_db touches) to an arbitrary connection.
+
+    Idempotent — uses CREATE TABLE IF NOT EXISTS — but the seed INSERTs
+    for accounts(id=1) and rss_feeds(id=1) are NOT idempotent. Only call
+    once per connection / file.
+    """
+    conn.executescript(_INGESTIONS_DDL + ";\n" + _OTHER_TABLES_DDL)
+    conn.commit()
+
+
 def in_memory_db() -> sqlite3.Connection:
     """Open an in-memory SQLite connection seeded with the production schema.
 
@@ -141,8 +154,7 @@ def in_memory_db() -> sqlite3.Connection:
     account + one RSS feed so the candidate SELECT's INNER JOINs resolve.
     """
     conn = sqlite3.connect(":memory:")
-    conn.executescript(_INGESTIONS_DDL + ";\n" + _OTHER_TABLES_DDL)
-    conn.commit()
+    init_schema(conn)
     return conn
 
 

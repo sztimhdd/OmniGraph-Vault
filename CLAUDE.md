@@ -97,6 +97,20 @@ This rule applies to ALL KB phases — UI, backend, ops, deploy. Run the deploy.
 
 Full discipline doc: `kb/docs/10-DESIGN-DISCIPLINE.md` Rule 3 (extended version with concrete curl + Playwright examples).
 
+7. Behavior-Anchor Harness for Hot Orchestration Code
+
+**Long-running orchestrators that batch I/O and silently swallow exceptions need pytest harnesses anchored on observable behavior, not internal call shape.**
+
+`batch_ingest_from_spider.py:ingest_from_db()` is the canonical example: 600+ lines, 4 levels of late-imports, 3 layer batches (Layer 1 / scrape / Layer 2), broad `except Exception` handlers around every external call. Five distinct prod-only failure modes have shipped through 256-test green CI in the past 90 days (2026-05-08 dual-source skip, 2026-05-15 missed queue.append, 2026-05-11 max-articles leak, v1.0.x finally-block bypass, 2026-05-16 image_count_row stale-0). Substring-matching plan checkers, mocked unit tests on the modified function, and Hermes natural cron all missed each one — the bug only surfaced as ghost successes / silent budget-floor / wrong source attribution.
+
+**Rule:** any contract-shape change to ingest_from_db (column added to candidate_rows tuple, new SKIP_REASON_VERSION, new layer2 verdict alphabet member, new persistence column, new mid-loop early-exit branch) MUST be accompanied by:
+
+1. A new test in `tests/unit/test_ingest_from_db_orchestration.py` that pins the new behavior on observable post-conditions (rows in seeded in-memory DB; arguments passed to mocked downstream callables; files written under tmp_path).
+2. The schema in `tests/unit/_ingest_fixtures.py:in_memory_db()` updated to include any new columns the production SELECT/INSERT touches — fixture drift is itself a contract-change failure mode (mirrors the 2026-05-15 lesson #2 "test fixture CREATE TABLE not synced with migration silently masks the downstream bug").
+3. Verification command run locally: `venv/Scripts/python.exe -m pytest tests/unit/test_ingest_from_db_orchestration.py -v` shows all tests pass.
+
+This rule applies ONLY to `ingest_from_db` and any future orchestrator that meets these three signals: (a) >300 LOC of nested batches, (b) silent broad except handlers around external calls, (c) cost-or-correctness consequences from missed call sites (paid API spend / DB writes that affect tomorrow's candidate pool / ghost successes). Smaller helpers covered by their own focused tests do not need this discipline. The list of in-scope orchestrators is currently {`ingest_from_db`} and grows ONLY by adding a name to this rule, never implicitly.
+
 ## Project Summary
 
 OmniGraph-Vault is a personal knowledge base for **OpenClaw** and **Hermes Agent** AI assistants. It ingests web content (WeChat articles, PDFs) into a **LightRAG** knowledge graph, then exposes that graph as agent skills.
