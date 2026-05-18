@@ -220,6 +220,36 @@ def _render_body_html(body_md: str) -> str:
     return md.convert(body_md)
 
 
+def _canonical_lang(lang: str | None) -> str:
+    """kb-v2.2-6 (F6): map article-record lang to canonical SSG form.
+
+    Pre-fix: prod DB articles.lang has mixed 'zh' (legacy short) and 'zh-CN'
+    (canonical long) values. SSG rendered both verbatim, so [data-lang='zh-CN']
+    JS filter silently missed all 'zh'-tagged Chinese cards.
+
+    Post-fix: this helper normalizes at the data-layer-to-template boundary.
+    Applied wherever ArticleRecord.lang flows into a dict consumed by Jinja
+    (cards, detail pages, url-index sidecar).
+
+    Mapping (canonical-zh-CN form):
+    - 'zh'        -> 'zh-CN'   (legacy short -> canonical)
+    - 'zh-CN'     -> 'zh-CN'   (idempotent)
+    - 'en'        -> 'en'
+    - 'unknown'   -> 'unknown'
+    - None / ''   -> 'unknown'
+    - other       -> pass through (defensive: don't silently rewrite future codes)
+
+    NOT a multi-form aliasing scheme; SSG output is always single canonical
+    long form. API request schema (Literal['zh','en']) is unaffected — that
+    layer never passes through this helper.
+    """
+    if lang is None or lang == "":
+        return "unknown"
+    if lang == "zh":
+        return "zh-CN"
+    return lang
+
+
 def _record_to_dict(
     rec: ArticleRecord,
     url_hash: str,
@@ -237,7 +267,7 @@ def _record_to_dict(
         "title": rec.title,
         "url_hash": url_hash,
         "url": rec.url,
-        "lang": rec.lang or "unknown",
+        "lang": _canonical_lang(rec.lang),
         "source": rec.source,
         "update_time": rec.update_time,
         "publish_time": rec.publish_time,
@@ -337,7 +367,7 @@ def render_article_detail(
         ]
 
     ctx = {
-        "lang": rec.lang or "zh-CN",
+        "lang": _canonical_lang(rec.lang) if rec.lang else "zh-CN",
         "article": article_dict,
         "body_html": body_html,
         "og": _build_og(article_dict, body_html),
@@ -348,7 +378,7 @@ def render_article_detail(
     }
     html = env.get_template("article.html").render(**ctx)
     _write_atomic(output_dir / "articles" / f"{url_hash}.html", html)
-    return {"hash": url_hash, "id": rec.id, "source": rec.source, "lang": rec.lang}
+    return {"hash": url_hash, "id": rec.id, "source": rec.source, "lang": _canonical_lang(rec.lang)}
 
 
 def render_index_pages(
