@@ -13,7 +13,7 @@ progress:
   v2_1_stabilization_phases_shipped: 7
   v2_1_stabilization_quicks_shipped: 2
   v2_2_phases_planned: 7
-  v2_2_phases_complete: 1
+  v2_2_phases_complete: 2
 ---
 
 # Project State — KB-v2 (parallel)
@@ -32,8 +32,10 @@ progress:
 Milestone: KB-v2 (parallel-track to v3.4 / v3.5 / Agentic-RAG-v1)
 Sub-milestone: **kb-v2.1-stabilization closed 2026-05-17** (7 phases + 2 quicks shipped, all live on Aliyun production)
 Active sub-milestone: **kb-v2.2-translation-and-kg-search opened 2026-05-17** (7 phases queued, 1 already shipped)
-Status: Ready for `/gsd:plan-phase kb-v2.2-1` (F12 storage sync — Wave 1 starts here, P0 prereq for Wave 2)
-Last activity: 2026-05-18 — kb-v2.2-6 (F6) SSG data-lang regularization shipped: `_canonical_lang()` helper in `kb/export_knowledge_base.py` maps legacy short `zh` → canonical `zh-CN` at the data-layer-to-template boundary; applied at 3 SSG emission sites (`_record_to_dict` article cards + article-detail page lang + url-index sidecar). 8 new tests (6 unit + 2 integration with synthetic fixture DB exercising legacy-zh data). Full pytest: 1284 passed, 0 failed (+8 from F6, no regression vs F5 baseline). Wave 1 (F5+F6+F9) complete; Wave 2 (F1'+F8'+FU-1) still blocked on F12 P0 prereq.
+Status: kb-v2.2-1 (F12) shipped 2026-05-18 — Wave 1 complete, Wave 2 (F1'+F8'+FU-1) unblocked
+Last activity: 2026-05-18 — kb-v2.2-1 (F12) lightrag_storage sync orchestrator shipped: `kb/scripts/sync_lightrag_storage.py` (540 lines, frozen dataclasses, two-hop rsync, atomic swap, proactive OOM probe `monitor_post_restart_memory`, automatic rollback, growth prediction via linear regression, idempotency guard, JSON state file with rolling 20-entry history). `kb/scripts/check_aliyun_kg_memory.py` standalone probe. 15 tests (13 unit + 2 integration, all fully mocked — no real network in CI). `kb/docs/RUNBOOK-lightrag-storage-sync.md` §1-§7 (weekly checklist, recovery, escalation, MemoryMax guidance, OOM playbook with 2026-05-18 empirical anchors, growth prediction). Trailing-slash bug in `atomic_swap`/`rollback` found and fixed during integration test run. Full pytest: all tests pass, 0 regressions. Wave 1 (F12+F5+F6+F9) complete; Wave 2 now unblocked.
+
+Prior activity: 2026-05-18 — kb-v2.2-6 (F6) SSG data-lang regularization shipped: `_canonical_lang()` helper in `kb/export_knowledge_base.py` maps legacy short `zh` → canonical `zh-CN` at the data-layer-to-template boundary; applied at 3 SSG emission sites (`_record_to_dict` article cards + article-detail page lang + url-index sidecar). 8 new tests (6 unit + 2 integration with synthetic fixture DB exercising legacy-zh data). Full pytest: 1284 passed, 0 failed (+8 from F6, no regression vs F5 baseline). Wave 1 (F5+F6+F9) complete; Wave 2 (F1'+F8'+FU-1) still blocked on F12 P0 prereq.
 
 Prior activity: 2026-05-18 — kb-v2.2-5 (F5) test-isolation autouse fixture shipped: `lib.api_keys._reset_cycle_for_tests()` helper + autouse fixture in `tests/conftest.py` resets both LLM cycle (`_cycle`/`_current`) AND embedding cycle (`_embedding_cycle`/`_current_embedding`) before/after each test. Root cause was embedding cycle never being reset (only LLM cycle was). Plus secondary `lib.article_filter` parent-attribute force-set in `test_vision_worker.py` for Python import-cache quirk. 5/5 target xfails converted to PASS (4 rotation + 1 vision_worker). Baseline triage: 5/16 closed.
 
