@@ -267,3 +267,22 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
     norms = np.linalg.norm(out, axis=1, keepdims=True)
     norms = np.where(norms == 0, 1.0, norms)
     return out / norms
+
+
+# LightRAG >= 1.4.15 stores embedding_func as an EmbeddingFunc dataclass and
+# accesses .func in __post_init__ (lightrag.py:636).  wrap_embedding_func_with_attrs
+# already returns EmbeddingFunc in 1.4.15, but older/newer installs may return a
+# plain async function instead.  Guard here so the import never crashes regardless
+# of which lightrag-hku version is installed on the deploy host.
+if not hasattr(embedding_func, "func"):
+    try:
+        from lightrag.utils import EmbeddingFunc as _EmbeddingFunc
+        embedding_func = _EmbeddingFunc(  # type: ignore[assignment]
+            embedding_dim=_OUTPUT_DIM,
+            func=embedding_func,
+            max_token_size=EMBEDDING_MAX_TOKENS,
+            send_dimensions=True,
+            model_name=EMBEDDING_MODEL,
+        )
+    except Exception:
+        embedding_func.func = embedding_func  # type: ignore[attr-defined]
