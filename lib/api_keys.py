@@ -141,3 +141,33 @@ def rotate_embedding_key() -> str:
     _init_embedding_cycle()
     _current_embedding = next(_embedding_cycle)  # type: ignore[arg-type]
     return _current_embedding
+
+
+# ── Test-isolation helper (kb-v2.2-5 / F5) ─────────────────────────────
+# Module-level cycle state leaks between pytest tests: tests that initialize
+# the cycle with one env-var setting (e.g. only one key) cache that cycle, so
+# subsequent tests with different env vars read the stale cycle. The autouse
+# fixture in `tests/conftest.py` calls this helper before and after each test
+# to restore isolation.
+#
+# Underscore-prefix marks this as test-only — not part of any production
+# rotation API. Production code never calls _reset_cycle_for_tests().
+
+
+def _reset_cycle_for_tests() -> None:
+    """Reset all module-level cycle state. Test-isolation helper only.
+
+    Resets both the LLM key pool (_cycle / _current) and the embedding key
+    pool (_embedding_cycle / _current_embedding), plus the rotation-listener
+    registry. The next call to current_key() / current_embedding_key() will
+    re-initialize from the (possibly env-modified) load_keys() / load_embedding_keys()
+    output.
+
+    Idempotent: safe to call multiple times. No-ops if state already reset.
+    """
+    global _cycle, _current, _embedding_cycle, _current_embedding
+    _cycle = None
+    _current = None
+    _embedding_cycle = None
+    _current_embedding = None
+    _rotation_listeners.clear()

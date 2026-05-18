@@ -18,6 +18,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+# kb-v2.2-5 (F5): explicitly import lib.article_filter so its attribute is set
+# on the lib package (some sibling tests `sys.modules.pop` other lib submodules,
+# which can leave `lib.article_filter` accessible via sys.modules but missing
+# from lib.__dict__ — pytest's monkeypatch.setattr("lib.article_filter.x", ...)
+# walks parent-package attributes and fails with AttributeError).
+import lib.article_filter  # noqa: F401 — side-effect import for monkeypatch path lookup
+
 
 # ---------------------------------------------------------------------------
 # Autouse fixtures
@@ -399,12 +406,6 @@ async def test_run_drains_pending_vision_tasks(monkeypatch, _fake_rag):
     _fake_rag.finalize_storages.assert_awaited_once()
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="kb-v2.1-9 audit: passes individually after B2b fix but fails in full pytest suite. "
-    "Likely module-state leak from a prior test (similar to lightrag_embedding_rotation "
-    "isolation drift). Surface for test-isolation refactor in a follow-up quick.",
-)
 @pytest.mark.asyncio
 async def test_ingest_from_db_drains_pending_vision_tasks(
     monkeypatch, tmp_path, _fake_rag
@@ -516,6 +517,16 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
     # 260507-lai v3.5 refactor: ingest_from_db now calls layer1_pre_filter +
     # layer2_full_body_score. Without a mock the real Vertex Gemini call fires
     # and fails with GOOGLE_CLOUD_PROJECT not set in this unit-test environment.
+    # kb-v2.2-5 (F5): a sibling test in the full pytest run leaves lib.article_filter
+    # absent from lib.__dict__ even though sys.modules["lib.article_filter"] is cached.
+    # `import lib.article_filter` and even `from lib.article_filter import X` do NOT
+    # restore the parent attribute when the submodule is cached. Force-set the attribute
+    # so pytest's string-form monkeypatch.setattr below can resolve "lib.article_filter.x".
+    import sys
+    import lib
+    import lib.article_filter  # noqa: F401 — ensure module loaded into sys.modules
+    if not hasattr(lib, "article_filter"):
+        lib.article_filter = sys.modules["lib.article_filter"]  # type: ignore[attr-defined]
     from lib.article_filter import FilterResult, PROMPT_VERSION_LAYER1, PROMPT_VERSION_LAYER2
 
     async def _fake_layer1(arts):

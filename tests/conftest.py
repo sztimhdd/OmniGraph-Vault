@@ -119,12 +119,83 @@ def reset_lib_state(monkeypatch):
     """Reset lib/ module-level state between tests (rotation cycle, limiter registry)."""
     import lib.api_keys as k
     import lib.rate_limit as r
-    k._cycle = None
-    k._current = None
-    k._rotation_listeners.clear()
+    k._reset_cycle_for_tests()  # F5: also resets embedding cycle (was: 4 explicit assignments)
     r._limiters.clear()
     # Also reset llm_client cached client
     import lib.llm_client as lc
     lc._client = None
     lc._client_key = None
     yield
+
+
+# ---------------------------------------------------------------------------
+# kb-v2.2-5 (F5): autouse cycle-state reset for test isolation
+# ---------------------------------------------------------------------------
+# kb-v2.1-9 audit identified 5 tests xfailing because module-level cycle state
+# in lib.api_keys leaks between tests. Solo-run passes; batch-run fails:
+# - test_lightrag_embedding_rotation::test_single_key_fallback (4 sibling tests)
+# - test_vision_worker::test_ingest_from_db_drains_pending_vision_tasks
+#
+# Root cause: lib.lightrag_embedding.embedding_func() uses the EMBEDDING cycle
+# (lib.api_keys._embedding_cycle / _current_embedding), but the local fixture
+# in test_lightrag_embedding_rotation.py only reset the LLM cycle. The first
+# test that initialized _embedding_cycle (e.g. with single-key env) cached it;
+# subsequent tests read the stale cycle regardless of their own env setup.
+#
+# Fix: reset BOTH cycles via lib.api_keys._reset_cycle_for_tests() before AND
+# after every test. Local fixture in test_lightrag_embedding_rotation.py still
+# does the env-setup; this autouse handles the cycle-state plumbing globally.
+
+
+def _reset_api_keys_cycle_state_safe() -> None:
+    """Defensively reset lib.api_keys cycle state. Skips if module not loaded.
+
+    Some tests do `sys.modules.pop("lib.<sibling>", None)` which can leave
+    the `lib` package's attribute table inconsistent with what a plain
+    `import lib.api_keys` followed by `lib.api_keys.<func>` lookup expects.
+    To avoid `AttributeError: module 'lib' has no attribute 'api_keys'`
+    cascading into 300+ ERRORs, we:
+
+    1. Look up the function directly via sys.modules["lib.api_keys"] —
+       bypasses the parent-package attribute lookup
+    2. Skip silently if the module isn't loaded (test never touched api_keys)
+    3. Defensive try/except so a fixture exception never blocks tests
+    """
+    import sys
+    mod = sys.modules.get("lib.api_keys")
+    if mod is None:
+        return  # module not loaded yet, no state to reset
+    reset_fn = getattr(mod, "_reset_cycle_for_tests", None)
+    if reset_fn is None:
+        return  # older / patched module without the helper
+    try:
+        reset_fn()
+    except Exception:
+        pass  # never block a test on cycle-reset failure
+
+
+@pytest.fixture(autouse=True)
+def _reset_api_keys_cycle_state():
+    """Reset lib.api_keys cycle state (LLM + embedding) before AND after each test.
+
+    kb-v2.1-9 audit identified 5 tests xfailing because module-level cycle state
+    in lib.api_keys leaks between tests. Solo-run passes; batch-run fails:
+    test_lightrag_embedding_rotation × 4 + test_vision_worker × 1.
+
+    Root cause: lib.lightrag_embedding.embedding_func() uses the EMBEDDING cycle
+    (lib.api_keys._embedding_cycle / _current_embedding), but the local fixture
+    in test_lightrag_embedding_rotation.py only reset the LLM cycle. The first
+    test that initialized _embedding_cycle (e.g. with single-key env) cached it;
+    subsequent tests read the stale cycle regardless of their own env setup.
+
+    Reset BEFORE and AFTER:
+    - BEFORE: clear pollution from prior tests in case they didn't clean up
+    - AFTER: don't leak this test's cycle state into subsequent tests
+
+    Idempotent. Composes cleanly with test-specific fixtures — pytest runs
+    closer-scope fixtures last, so per-test monkeypatch.setenv overrides
+    this reset for the test's window.
+    """
+    _reset_api_keys_cycle_state_safe()
+    yield
+    _reset_api_keys_cycle_state_safe()
