@@ -177,7 +177,7 @@ async def test_ingest_one_checks_doc_status(mock_rag: MagicMock) -> None:
     # But aget_docs_by_ids returns FAILED for this doc.
     # Bug 8 (2026-05-18): production returns dict[str, dict] not dict[str, obj].
     content_hash = "b" * 32
-    failed_record = {"status": "FAILED"}
+    failed_record = {"status": "failed"}
     mock_rag.aget_docs_by_ids = AsyncMock(
         return_value={content_hash: failed_record}
     )

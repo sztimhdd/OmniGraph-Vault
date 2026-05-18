@@ -136,7 +136,7 @@ def mock_rag() -> Any:
     # on Databricks serverless — see Bug 8 2026-05-18). Default echoes whatever
     # doc_id the call passes in -> {"status": "PROCESSED"}. Tests asserting
     # FAILED / unknown / etc. replace this AsyncMock with a fixed-dict return.
-    processed_record = {"status": "PROCESSED"}
+    processed_record = {"status": "processed"}
 
     async def _aget_default(ids: list[str]) -> dict[str, Any]:
         return {ids[0]: processed_record}

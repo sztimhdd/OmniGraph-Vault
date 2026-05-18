@@ -353,6 +353,7 @@ async def _ingest_one(rag, row: CandidateRow) -> IngestResult:
                 doc_status_val = record.get("status", "unknown")
             else:
                 doc_status_val = record.status.value
+        doc_status_val = doc_status_val.upper()
 
         if doc_status_val == "PROCESSED":
             return IngestResult(
