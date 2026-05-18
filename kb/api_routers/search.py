@@ -1,11 +1,12 @@
 """API-04 + API-05: GET /api/search + GET /api/search/{job_id}.
 
 Mode-discriminated endpoint per kb-3-API-CONTRACT.md §5:
-    - mode='fts' (default) → synchronous SQLite FTS5 trigram query (P50 < 100ms,
-      DATA-07 active unless KB_SEARCH_BYPASS_QUALITY=on)
-    - mode='kg' → async via BackgroundTasks; wraps `omnigraph_search.query.search`
+    - mode='kg' (default) → async via BackgroundTasks; wraps `omnigraph_search.query.search`
       (C2 contract — signature unchanged); returns 202 + job_id; client polls
-      ``GET /api/search/{job_id}``.
+      ``GET /api/search/{job_id}``.  When KG is unavailable returns 503 + Retry-After.
+    - mode='fts' → synchronous SQLite FTS5 trigram query (P50 < 100ms,
+      DATA-07 active unless KB_SEARCH_BYPASS_QUALITY=on) — explicit mode only,
+      not exposed as a user-facing toggle (kb-v2.2-3 F8').
 
 Job state is held in ``kb.services.job_store`` (in-memory dict, single-worker
 uvicorn — QA-03). The same store is reused by /api/synthesize in kb-3-08.
@@ -55,22 +56,23 @@ async def _kg_worker(job_id: str, q: str) -> None:
 async def search_endpoint(
     background: BackgroundTasks,
     q: Annotated[str, Query(min_length=1, max_length=500)],
-    mode: Annotated[Literal["fts", "kg"], Query()] = "fts",
+    mode: Annotated[Literal["fts", "kg"], Query()] = "kg",
     lang: Annotated[Optional[Literal["zh-CN", "en", "unknown"]], Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> dict[str, Any]:
-    """API-04 (mode=fts) + API-05 (mode=kg async).
+    """API-04 (mode=fts) + API-05 (mode=kg async, default).
 
     Query params:
         q: required, 1..500 chars
-        mode: 'fts' (default) | 'kg'
+        mode: 'kg' (default) | 'fts'
         lang: 'zh-CN' | 'en' | 'unknown' | omitted (FTS path only — KG path
             ignores lang since LightRAG handles its own selection)
         limit: 1..100 (FTS path only)
 
     Returns:
+        KG path (default): ``{job_id, status='running', mode}`` per §5.4;
+            503 + Retry-After: 60 when KG is unavailable (kb-v2.2-3 F8')
         FTS path: ``{items, total, mode}`` per kb-3-API-CONTRACT §5.3
-        KG path: ``{job_id, status='running', mode}`` per §5.4
     """
     if mode == "fts":
         rows = search_index.fts_query(q, lang=lang, limit=limit)
@@ -79,19 +81,19 @@ async def search_endpoint(
             for (h, t, s, lg, src) in rows
         ]
         return {"items": items, "total": len(items), "mode": "fts"}
-    # kb-v2.1-1 KG-mode hardening: when the import-time credential probe failed,
-    # avoid dispatching the BackgroundTask (which would try to import LightRAG,
-    # init Vertex AI, and risk OOM). Return controlled-degraded shape with
-    # HTTP 200 — never 500/502.
+    # kb-v2.2-3 F8': when KG is unavailable, return 503 + Retry-After instead of
+    # a degraded 200.  No FTS5 fallback — per INPUT.md architectural choice:
+    # "KG_MODE_AVAILABLE=False → 503 + retry_after, NOT FTS5 fallback."
     if not synthesize_svc.KG_MODE_AVAILABLE:
-        return {
-            "items": [],
-            "total": 0,
-            "mode": "kg",
-            "kg_unavailable": True,
-            "reason": synthesize_svc.KG_MODE_UNAVAILABLE_REASON,
-            "fallback_suggestion": synthesize_svc.KG_FALLBACK_SUGGESTION,
-        }
+        raise HTTPException(
+            status_code=503,
+            headers={"Retry-After": "60"},
+            detail={
+                "mode": "kg",
+                "kg_unavailable": True,
+                "reason": synthesize_svc.KG_MODE_UNAVAILABLE_REASON,
+            },
+        )
     # KG async path — register BackgroundTask, return 202 + job_id immediately.
     jid = job_store.new_job(kind="search")
     background.add_task(_kg_worker, jid, q)

@@ -144,10 +144,32 @@ def test_search_empty_q_is_422(app_client: TestClient) -> None:
     assert r.status_code == 422
 
 
-def test_search_default_mode_is_fts(app_client: TestClient) -> None:
+def test_search_default_mode_is_kg(app_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default mode is now 'kg' (kb-v2.2-3 F8'). No mode= param → KG path."""
+
+    async def fake_search(q, mode="hybrid"):
+        return f"KG:{q}"
+
+    monkeypatch.setattr("omnigraph_search.query.search", fake_search)
     r = app_client.get("/api/search?q=agent")
-    assert r.status_code == 200
-    assert r.json()["mode"] == "fts"
+    assert r.status_code in (200, 202)
+    body = r.json()
+    assert body["mode"] == "kg"
+    assert "job_id" in body
+
+
+def test_search_kg_unavailable_returns_503(app_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """KG_MODE_AVAILABLE=False → 503 + Retry-After header (kb-v2.2-3 F8')."""
+    import kb.services.synthesize as svc
+
+    monkeypatch.setattr(svc, "KG_MODE_AVAILABLE", False)
+    monkeypatch.setattr(svc, "KG_MODE_UNAVAILABLE_REASON", "test: credentials missing")
+    r = app_client.get("/api/search?q=test")  # default mode=kg
+    assert r.status_code == 503
+    assert r.headers.get("retry-after") == "60"
+    detail = r.json()["detail"]
+    assert detail["kg_unavailable"] is True
+    assert detail["mode"] == "kg"
 
 
 def test_search_data07_filter_active_by_default(app_client: TestClient) -> None:

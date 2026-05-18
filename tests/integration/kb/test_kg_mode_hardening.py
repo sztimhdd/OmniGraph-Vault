@@ -1,11 +1,11 @@
 """Integration tests for kb-v2.1-1 KG-mode production hardening.
 
 Covers the credential-driven `KG_MODE_AVAILABLE` flag in
-`kb.services.synthesize` plus the controlled-degraded API response shape on
-`GET /api/search?mode=kg` when the flag is False. Production observation
-2026-05-14 (Aliyun): KG search triggered LightRAG embedding init against a
-missing credential path AND caused an OOM kill. This phase closes both
-classes of failure with HTTP-200 controlled-degraded behaviour.
+`kb.services.synthesize` plus the HTTP-503 + Retry-After response on
+`GET /api/search?mode=kg` when the flag is False (kb-v2.2-3 F8' updated
+this from HTTP-200 controlled-degraded to 503 per INPUT.md arch choice).
+Production observation 2026-05-14 (Aliyun): KG search triggered LightRAG
+embedding init against a missing credential path AND caused an OOM kill.
 
 Skill(skill="writing-tests", args="Testing Trophy: integration > unit. Real
 DB + real FastAPI TestClient. monkeypatch.setenv + importlib.reload chain
@@ -159,39 +159,35 @@ def test_kg_mode_available_when_credential_file_exists(
 # ---- HTTP-level tests ------------------------------------------------------
 
 
-def test_kg_search_returns_kg_unavailable_field_when_disabled(
+def test_kg_search_returns_503_when_disabled(
     fixture_db: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """GET /api/search?mode=kg with KG disabled returns the controlled shape."""
+    """GET /api/search?mode=kg with KG disabled returns 503 + Retry-After (kb-v2.2-3 F8')."""
     client = _make_client_kg_disabled(fixture_db, monkeypatch)
     r = client.get("/api/search?q=langchain&mode=kg")
-    assert r.status_code == 200, (
-        f"KG mode unavailable MUST return HTTP 200 (controlled-degraded), got "
-        f"{r.status_code}"
+    assert r.status_code == 503, (
+        f"KG mode unavailable MUST return HTTP 503, got {r.status_code}"
     )
-    body = r.json()
-    assert body["mode"] == "kg"
-    assert body["kg_unavailable"] is True
-    assert body["reason"] in (
+    assert r.headers.get("retry-after") == "60"
+    detail = r.json()["detail"]
+    assert detail["mode"] == "kg"
+    assert detail["kg_unavailable"] is True
+    assert detail["reason"] in (
         "kg_disabled", "kg_credentials_missing", "kg_credentials_unreadable",
     )
-    assert isinstance(body.get("fallback_suggestion"), str)
-    assert body["fallback_suggestion"], "fallback_suggestion must be non-empty"
-    assert body["items"] == []
-    assert body["total"] == 0
-    # No job_id surfaced — the BackgroundTask was NOT dispatched.
-    assert "job_id" not in body
+    # No job_id — the BackgroundTask was NOT dispatched.
+    assert "job_id" not in detail
 
 
-def test_kg_search_status_200_not_500_when_unavailable(
+def test_kg_search_status_503_not_500_when_unavailable(
     fixture_db: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Hit /api/search?mode=kg 5x in a row — every response is HTTP 200."""
+    """Hit /api/search?mode=kg 5x in a row — every response is HTTP 503, never 500."""
     client = _make_client_kg_disabled(fixture_db, monkeypatch)
     for _ in range(5):
         r = client.get("/api/search?q=agent&mode=kg")
-        assert r.status_code == 200
-        assert r.json()["kg_unavailable"] is True
+        assert r.status_code == 503
+        assert r.json()["detail"]["kg_unavailable"] is True
 
 
 def test_search_mode_fts_unaffected_by_kg_mode_disable(
