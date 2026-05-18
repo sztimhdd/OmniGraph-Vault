@@ -13,7 +13,7 @@ progress:
   v2_1_stabilization_phases_shipped: 7
   v2_1_stabilization_quicks_shipped: 2
   v2_2_phases_planned: 7
-  v2_2_phases_complete: 3
+  v2_2_phases_complete: 4
 ---
 
 # Project State — KB-v2 (parallel)

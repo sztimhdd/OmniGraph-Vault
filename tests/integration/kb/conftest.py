@@ -86,7 +86,11 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
                 lang TEXT,
                 update_time INTEGER,
                 layer1_verdict TEXT,
-                layer2_verdict TEXT
+                layer2_verdict TEXT,
+                body_translated TEXT,
+                title_translated TEXT,
+                translated_lang VARCHAR(5),
+                translated_at DATETIME
             );
             CREATE TABLE rss_articles (
                 id INTEGER PRIMARY KEY,
