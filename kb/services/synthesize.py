@@ -54,6 +54,14 @@ _DIRECTIVES: dict[str, str] = {"zh": DIRECTIVE_ZH, "en": DIRECTIVE_EN}
 # Match `/article/{10-hex}` references the synthesize markdown emits as source links.
 _SOURCE_HASH_PATTERN = re.compile(r"/article/([a-f0-9]{10})")
 
+# 260519-s65 belt-and-suspenders: rewrite legacy `http(s)://host:8765/` image
+# URLs (kg_synthesize.py:33 IMAGE_URL_DIRECTIVE injects this prefix) to the
+# kb-served `/static/img/` mount. Applied to long_form / qa LLM output before
+# storing markdown so even if the prompt template instruction is overridden,
+# the browser still sees servable paths. Matches `http://localhost:8765/`,
+# `https://1.2.3.4:8765/`, etc.
+_LEGACY_IMAGE_URL_PATTERN = re.compile(r"https?://[^/\s)]+:8765/")
+
 # QA-04: wall-time budget for C1 before fts5_fallback fires. Read once at
 # module-import time (per CONFIG-02 pattern); tests reload the module.
 KB_SYNTHESIZE_TIMEOUT: int = int(os.environ.get("KB_SYNTHESIZE_TIMEOUT", "60"))
@@ -84,7 +92,9 @@ _LONG_FORM_PROMPT_TEMPLATE_ZH = """请基于知识图谱中的真实内容,写�
 3. 引用:每个论点引用具体来源,链接格式 [/article/{{hash}}.html]
    (hash 是文章在知识库中的 10 字符哈希)
 4. 实体:关键技术 / 产品 / 人物用 **粗体** 标注
-5. 图片:如果源文章中有相关图片,用 ![alt](URL) 引用
+5. 图片:如果源文章中有相关图片,使用相对路径格式 ![alt](/static/img/{{hash}}/{{n}}.jpg)
+   (hash 是 10 字符文章哈希,n 是图片序号)
+   严禁使用 http://localhost:8765/ 或任何绝对 URL — 浏览器无法访问该端口,会全部 404。
 6. 不要编造任何信息 — 严格基于检索到的文章内容
 
 请用中文回答。
@@ -100,7 +110,10 @@ Requirements:
 3. Citations: cite specific sources for every claim, format [/article/{{hash}}.html]
    (hash is the 10-char article hash in the knowledge base)
 4. Entities: bold **key technologies / products / people**
-5. Images: include ![alt](URL) references when source articles have relevant images
+5. Images: when source articles have relevant images, use the relative path format
+   ![alt](/static/img/{{hash}}/{{n}}.jpg) (hash is the 10-char article hash, n is the image index).
+   Do NOT use http://localhost:8765/ or any absolute URL — that port is not exposed to the
+   browser and every such URL will 404.
 6. Do not fabricate anything — strictly base on retrieved article content
 
 Please answer in English.
@@ -268,6 +281,22 @@ def lang_directive_for(lang: str) -> str:
         other -> ''  (defensive — empty so query passes through unchanged)
     """
     return _DIRECTIVES.get(lang, "")
+
+
+def _rewrite_image_urls(markdown: str) -> str:
+    """260519-s65 belt-and-suspenders: rewrite legacy `:8765` image URLs.
+
+    `kg_synthesize.py` IMAGE_URL_DIRECTIVE (legacy Hermes path, off-limits)
+    instructs the LLM to emit `http://localhost:8765/{hash}/{n}.jpg`. The KB
+    serves images at `/static/img/{hash}/{n}.jpg`. Even with the long_form /
+    qa prompt template explicitly forbidding `localhost:8765`, the LLM may
+    still echo URLs verbatim from retrieved context. This pure-function
+    rewrite is the safety net so the browser never 404s.
+
+    Idempotent — applying twice yields the same string. Only the host:port
+    prefix is rewritten; path components are preserved verbatim.
+    """
+    return _LEGACY_IMAGE_URL_PATTERN.sub("/static/img/", markdown)
 
 
 def _extract_source_hashes(markdown: str) -> list[str]:
@@ -487,6 +516,10 @@ async def kb_synthesize(
     # (LLM response str). Defensive isinstance() handles the rare case
     # where the 3-attempt retry exhausted without raising — return None.
     markdown = response if isinstance(response, str) else ""
+    # 260519-s65: rewrite legacy `:8765` image URLs to kb-served `/static/img/`
+    # before any downstream consumer (source resolution, job_store, qa.js)
+    # sees the markdown. See _rewrite_image_urls docstring.
+    markdown = _rewrite_image_urls(markdown)
     sources = _resolve_sources_from_markdown(markdown)
     entities = _resolve_entities_for_sources([s.hash for s in sources])
     confidence: ConfidenceLevel = "kg" if sources else "no_results"
