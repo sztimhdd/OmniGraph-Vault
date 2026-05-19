@@ -1,15 +1,18 @@
 /* I18N-01/02/08: Bilingual chrome switcher.
  *
  * Resolution order:
- *   1. ?lang=zh|en|zh-CN query param (hard switch — sets cookie)
- *   2. kb_lang cookie (persisted choice)
- *   3. navigator.languages (Accept-Language equivalent)
- *   4. fallback: 'zh-CN'
+ *   1. ?lang=zh|en|zh-CN query param (hard switch — sets cookie).
+ *   2. kb_lang cookie (persisted choice — user preference always wins
+ *      once set; window.KB_DEFAULT_LANG is ignored).
+ *   3. navigator.languages (Accept-Language equivalent) — persisted to
+ *      cookie on first visit so the choice is sticky from then on
+ *      (kb-v2.2-7 first-visit cookie persistence).
+ *   4. fallback: window.KB_DEFAULT_LANG (deployment env var injected by
+ *      base.html, validated against SUPPORTED), then 'zh-CN'.
  *
- * Sets <html lang> on chrome pages (home, articles list, ask).
- * On article detail pages, server-side sets <html lang> = content language;
- * this script does NOT override that — only toggles UI chrome spans.
- * Detection: <html data-fixed-lang="true"> means content-fixed page.
+ * Always sets <html lang> on apply — kb-v2.2-7 (locked decision A1) deletes
+ * the article-detail content-fixed special case. Site language IS reading
+ * language; the toggle button preserves user override.
  *
  * Toggle button (.lang-toggle): cycles zh ↔ en, sets cookie, reloads.
  *
@@ -22,7 +25,15 @@
   var SUPPORTED = ['zh-CN', 'en'];
   var COOKIE_NAME = 'kb_lang';
   var COOKIE_MAX_AGE = 31536000; // 1 year
-  var DEFAULT_LANG = 'zh-CN';
+
+  // kb-v2.2-7 (A9): per-deployment default lang from window.KB_DEFAULT_LANG
+  // (set by base.html from KB_DEFAULT_LANG env var). Validated against
+  // SUPPORTED — invalid / missing values fall back to 'zh-CN' so an operator
+  // typo (e.g. KB_DEFAULT_LANG=fr) does not silently break rendering.
+  var DEFAULT_LANG = (typeof window !== 'undefined'
+    && typeof window.KB_DEFAULT_LANG === 'string'
+    && SUPPORTED.indexOf(window.KB_DEFAULT_LANG) !== -1)
+    ? window.KB_DEFAULT_LANG : 'zh-CN';
 
   function readCookie(name) {
     var pairs = document.cookie.split(';');
@@ -66,14 +77,18 @@
     }
     var c = readCookie(COOKIE_NAME);
     if (c && SUPPORTED.indexOf(c) !== -1) return c;
-    return detectFromBrowser();
+    // First-visit persistence (kb-v2.2-7): persist the browser-detect /
+    // deployment-default choice to cookie so subsequent visits stick.
+    var detected = detectFromBrowser();
+    writeCookie(COOKIE_NAME, detected);
+    return detected;
   }
 
   function applyLang(lang) {
-    var html = document.documentElement;
-    if (html.getAttribute('data-fixed-lang') !== 'true') {
-      html.setAttribute('lang', lang);
-    }
+    // kb-v2.2-7 (A1): always set <html lang>. The previous data-fixed-lang
+    // guard for article-detail pages is deleted — site language drives
+    // reading language uniformly.
+    document.documentElement.setAttribute('lang', lang);
     var toggle = document.querySelector('.lang-toggle');
     if (toggle) toggle.setAttribute('data-current', lang);
   }
