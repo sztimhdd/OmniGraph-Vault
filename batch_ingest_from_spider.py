@@ -20,6 +20,7 @@ Deepseek. Full pipeline now uses Deepseek for LLM, Gemini only for embeds.
 """
 import argparse
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -1570,6 +1571,12 @@ async def ingest_from_db(
     moved depth-gating into per-article scrape-first classification at the
     chunk boundary; the parameter was unused in the function body since
     that change. ``run()`` (KOL scan path) still uses ``args.min_depth``.
+
+    quick-260519 (H3): wrapped function body in contextlib.closing() so
+    any exception during init/Layer1/get_rag (the L1578-L1728 window prior
+    to the inner try:) closes conn cleanly. Behavior unchanged on the
+    happy path — context manager close is idempotent with the existing
+    try/finally close call sites.
     """
     topics = [topic] if isinstance(topic, str) else topic
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1580,553 +1587,550 @@ async def ingest_from_db(
 
     _load_hermes_env()
 
-    conn = sqlite3.connect(str(DB_PATH))
-    # v3.5 ir-4 (LF-4.4): dual-source schema — see migration 008. CREATE TABLE
-    # IF NOT EXISTS for fresh-DB bootstrap; existing tables migrate via the
-    # migrations/008_ingestions_dual_source.py runner. The FK to articles(id)
-    # is intentionally absent because dual-source rows can reference either
-    # articles.id (source='wechat') or rss_articles.id (source='rss');
-    # integrity is enforced at the application layer.
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS ingestions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            article_id INTEGER NOT NULL,
-            source TEXT NOT NULL DEFAULT 'wechat'
-                CHECK (source IN ('wechat', 'rss')),
-            status TEXT NOT NULL CHECK (status IN (
-                'ok', 'failed', 'skipped', 'skipped_ingested',
-                'dry_run', 'skipped_graded'
-            )),
-            ingested_at TEXT DEFAULT (datetime('now', 'localtime')),
-            enrichment_id TEXT,
-            skip_reason_version INTEGER NOT NULL DEFAULT 0,
-            UNIQUE (article_id, source)
-        )
-    """)
-    conn.commit()
-
-    # D-10.01 / D-10.04: schema-additive migration for scrape-first flow.
-    _ensure_fullbody_columns(conn)
-
-    # Phase 10 plan 10-00: scrape-first SELECT — classification happens per-article
-    # inside the loop, so we no longer pre-filter by `c.depth_score >= min_depth`.
-    # Unclassified articles have NULL depth_score; they are classified on the fly.
-    # quick-260503-sd7: case-insensitive topic filter via _build_topic_filter_query.
-    sql, params = _build_topic_filter_query(topics)
-    # quick-260504-vm9: save normalized topics for per-article re-validation after
-    # scrape-first re-classify (prevents stale classification rows from serving as
-    # entry tickets when the re-classified topic doesn't match the filter).
-    normalized_topics = tuple(t.strip().lower() for t in topics)
-    rows = conn.execute(sql, params).fetchall()
-
-    if not rows:
-        logger.info("No articles found for topics %s", topics)
-        conn.close()
-        return
-
-    logger.info("%d articles to process (scrape-first) for topics %s", len(rows), topics)
-
-    # v3.5 ir-1 (LF-3.1): batch Layer 1 BEFORE scrape. Chunk candidate rows
-    # into LAYER1_BATCH_SIZE batches; each chunk: build ArticleMeta, call
-    # real Layer 1 LLM, persist verdicts atomically, write skipped
-    # ingestions for rejects, and accumulate candidates for the per-article
-    # loop below. Whole-batch failure (verdict=None for every result) leaves
-    # rows NULL — they will be re-evaluated on the next ingest tick.
-    chunks = [
-        rows[i:i + LAYER1_BATCH_SIZE]
-        for i in range(0, len(rows), LAYER1_BATCH_SIZE)
-    ]
-    candidate_rows: list = []
-    for chunk_idx, chunk in enumerate(chunks):
-        # v3.5 ir-4 (LF-4.4): row tuple is now 7 cols
-        # (id, source, title, url, source_name, body, summary).
-        # ArticleMeta.source comes from row[1] so persist_layer1_verdicts
-        # dispatches to articles vs rss_articles correctly.
-        articles_meta = [
-            ArticleMeta(
-                id=row[0],
-                source=row[1],          # 'wechat' or 'rss' from SQL literal
-                title=row[2] or "",
-                summary=row[6] or None, # KOL: a.digest aliased; RSS: r.summary
-                content_length=None,    # neither source provides length pre-scrape
+    with contextlib.closing(sqlite3.connect(str(DB_PATH))) as conn:
+        # v3.5 ir-4 (LF-4.4): dual-source schema — see migration 008. CREATE TABLE
+        # IF NOT EXISTS for fresh-DB bootstrap; existing tables migrate via the
+        # migrations/008_ingestions_dual_source.py runner. The FK to articles(id)
+        # is intentionally absent because dual-source rows can reference either
+        # articles.id (source='wechat') or rss_articles.id (source='rss');
+        # integrity is enforced at the application layer.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ingestions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id INTEGER NOT NULL,
+                source TEXT NOT NULL DEFAULT 'wechat'
+                    CHECK (source IN ('wechat', 'rss')),
+                status TEXT NOT NULL CHECK (status IN (
+                    'ok', 'failed', 'skipped', 'skipped_ingested',
+                    'dry_run', 'skipped_graded'
+                )),
+                ingested_at TEXT DEFAULT (datetime('now', 'localtime')),
+                enrichment_id TEXT,
+                skip_reason_version INTEGER NOT NULL DEFAULT 0,
+                UNIQUE (article_id, source)
             )
-            for row in chunk
-        ]
-
-        t0 = time.monotonic()
-        layer1_results = await layer1_pre_filter(articles_meta)
-        wall_ms = int((time.monotonic() - t0) * 1000)
-
-        cand_count = sum(1 for r in layer1_results if r.verdict == "candidate")
-        rej_count = sum(1 for r in layer1_results if r.verdict == "reject")
-        null_count = sum(1 for r in layer1_results if r.verdict is None)
-
-        if null_count == len(layer1_results):
-            err_class = layer1_results[0].reason if layer1_results else "empty_batch"
-            logger.warning(
-                "[layer1] batch %d NULL reason=%s n=%d wall_ms=%d — rows stay NULL",
-                chunk_idx, err_class, len(chunk), wall_ms,
-            )
-            continue
-
-        logger.info(
-            "[layer1] batch %d n=%d candidate=%d reject=%d null=%d wall_ms=%d",
-            chunk_idx, len(chunk), cand_count, rej_count, null_count, wall_ms,
-        )
-
-        persist_layer1_verdicts(conn, articles_meta, layer1_results)
-
-        for row, result in zip(chunk, layer1_results):
-            if result.verdict == "reject":
-                logger.info(
-                    "[layer1] reject id=%s source=%s reason=%s",
-                    row[0], row[1], result.reason,
-                )
-                conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
-                    "VALUES (?, ?, 'skipped', ?)",
-                    (row[0], row[1], SKIP_REASON_VERSION_CURRENT),
-                )
-            elif result.verdict == "candidate":
-                candidate_rows.append(row)
+        """)
         conn.commit()
 
-    if not candidate_rows:
-        logger.info(
-            "[layer1] no candidates after batch filtering "
-            "(total inputs=%d); nothing to ingest", len(rows),
-        )
-        conn.close()
-        return
+        # D-10.01 / D-10.04: schema-additive migration for scrape-first flow.
+        _ensure_fullbody_columns(conn)
 
-    logger.info(
-        "[layer1] total inputs=%d candidates=%d (per-article loop starts)",
-        len(rows), len(candidate_rows),
-    )
+        # Phase 10 plan 10-00: scrape-first SELECT — classification happens per-article
+        # inside the loop, so we no longer pre-filter by `c.depth_score >= min_depth`.
+        # Unclassified articles have NULL depth_score; they are classified on the fly.
+        # quick-260503-sd7: case-insensitive topic filter via _build_topic_filter_query.
+        sql, params = _build_topic_filter_query(topics)
+        # quick-260504-vm9: save normalized topics for per-article re-validation after
+        # scrape-first re-classify (prevents stale classification rows from serving as
+        # entry tickets when the re-classified topic doesn't match the filter).
+        normalized_topics = tuple(t.strip().lower() for t in topics)
+        rows = conn.execute(sql, params).fetchall()
 
-    # Phase 5-00b: initialize LightRAG ONCE; skip for dry-run.
-    rag = None
-    if not dry_run:
-        from ingest_wechat import get_rag
-        # D-09.04 (STATE-01): flush=True discards any in-memory pending buffer
-        # from a prior crashed run → no replay → no wasted embed quota.
-        logger.info("Initializing fresh LightRAG instance (flush=True; STATE-01)...")
-        rag = await get_rag(flush=True)
-        # v3.5 ir-2 hotfix: LightRAG get_rag() reconfigures root logger;
-        # restore our format so [layer2] batch lines are visible.
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s %(levelname)s %(name)s %(message)s',
-            datefmt='%H:%M:%S',
-            force=True,
-        )
+        if not rows:
+            logger.info("No articles found for topics %s", topics)
+            return
 
-    # Phase 17 BTIMEOUT-01: batch-budget state
-    total_batch_budget = _resolve_batch_timeout(batch_timeout)
-    batch_start = time.time()
-    completed_times: list[float] = []
-    timeout_histogram: dict[str, int] = {label: 0 for label, _ in _HISTOGRAM_BUCKETS}
-    timeout_histogram["900s+"] = 0
-    timed_out_count = 0
-    clamped_count = 0
-    safety_margin_triggered = False
+        logger.info("%d articles to process (scrape-first) for topics %s", len(rows), topics)
 
-    try:
-        processed = 0
-        api_key = get_deepseek_api_key()
-
-        # v3.5 ir-2 (LF-3.2): Layer 2 batch accumulator.
-        # Successfully-scraped candidates queue here; drain at LAYER2_BATCH_SIZE
-        # boundaries (and once at end-of-loop for the final partial batch) to
-        # call the batched DeepSeek Layer 2.
-        layer2_queue: list[tuple[tuple, str]] = []  # (row_tuple, scraped_body)
-        layer2_chunk_idx = 0
-
-        async def _drain_layer2_queue() -> None:
-            """Drain pending layer2 batch: call layer2_full_body_score, persist
-            verdicts, ainsert non-rejected articles. Called when the queue
-            reaches LAYER2_BATCH_SIZE and once at end-of-loop."""
-            nonlocal layer2_chunk_idx, processed, timed_out_count, clamped_count, safety_margin_triggered
-            if not layer2_queue:
-                return
-
-            queue_snapshot = list(layer2_queue)
-            layer2_queue.clear()
-
-            # v3.5 ir-4 (LF-4.4): row is the 7-col candidate tuple
+        # v3.5 ir-1 (LF-3.1): batch Layer 1 BEFORE scrape. Chunk candidate rows
+        # into LAYER1_BATCH_SIZE batches; each chunk: build ArticleMeta, call
+        # real Layer 1 LLM, persist verdicts atomically, write skipped
+        # ingestions for rejects, and accumulate candidates for the per-article
+        # loop below. Whole-batch failure (verdict=None for every result) leaves
+        # rows NULL — they will be re-evaluated on the next ingest tick.
+        chunks = [
+            rows[i:i + LAYER1_BATCH_SIZE]
+            for i in range(0, len(rows), LAYER1_BATCH_SIZE)
+        ]
+        candidate_rows: list = []
+        for chunk_idx, chunk in enumerate(chunks):
+            # v3.5 ir-4 (LF-4.4): row tuple is now 7 cols
             # (id, source, title, url, source_name, body, summary).
-            # ArticleWithBody.source from row[1] so persist_layer2_verdicts
-            # dispatches verdict UPDATE to articles vs rss_articles correctly.
-            articles_with_body = [
-                ArticleWithBody(
+            # ArticleMeta.source comes from row[1] so persist_layer1_verdicts
+            # dispatches to articles vs rss_articles correctly.
+            articles_meta = [
+                ArticleMeta(
                     id=row[0],
-                    source=row[1],
+                    source=row[1],          # 'wechat' or 'rss' from SQL literal
                     title=row[2] or "",
-                    body=body or "",
+                    summary=row[6] or None, # KOL: a.digest aliased; RSS: r.summary
+                    content_length=None,    # neither source provides length pre-scrape
                 )
-                for row, body in queue_snapshot
+                for row in chunk
             ]
 
             t0 = time.monotonic()
-            layer2_results = await layer2_full_body_score(articles_with_body)
+            layer1_results = await layer1_pre_filter(articles_meta)
             wall_ms = int((time.monotonic() - t0) * 1000)
 
-            ok_count = sum(1 for r in layer2_results if r.verdict == "ok")
-            rej_count = sum(1 for r in layer2_results if r.verdict == "reject")
-            null_count = sum(1 for r in layer2_results if r.verdict is None)
+            cand_count = sum(1 for r in layer1_results if r.verdict == "candidate")
+            rej_count = sum(1 for r in layer1_results if r.verdict == "reject")
+            null_count = sum(1 for r in layer1_results if r.verdict is None)
 
-            chunk_idx = layer2_chunk_idx
-            layer2_chunk_idx += 1
-
-            if null_count == len(layer2_results):
-                err_class = layer2_results[0].reason if layer2_results else "empty_batch"
+            if null_count == len(layer1_results):
+                err_class = layer1_results[0].reason if layer1_results else "empty_batch"
                 logger.warning(
-                    "[layer2] batch %d NULL reason=%s n=%d wall_ms=%d — "
-                    "rows stay layer2_verdict=NULL, retry next tick",
-                    chunk_idx, err_class, len(queue_snapshot), wall_ms,
+                    "[layer1] batch %d NULL reason=%s n=%d wall_ms=%d — rows stay NULL",
+                    chunk_idx, err_class, len(chunk), wall_ms,
                 )
-                return
+                continue
 
             logger.info(
-                "[layer2] batch %d n=%d ok=%d reject=%d null=%d wall_ms=%d",
-                chunk_idx, len(queue_snapshot), ok_count, rej_count, null_count, wall_ms,
+                "[layer1] batch %d n=%d candidate=%d reject=%d null=%d wall_ms=%d",
+                chunk_idx, len(chunk), cand_count, rej_count, null_count, wall_ms,
             )
 
-            persist_layer2_verdicts(conn, articles_with_body, layer2_results)
+            persist_layer1_verdicts(conn, articles_meta, layer1_results)
 
-            # Per-row processing: reject → skipped, ok → ainsert, None → skip
-            # ainsert (mixed-batch failure; row stays NULL via persist above).
-            for (row, body), result in zip(queue_snapshot, layer2_results):
-                # v3.5 ir-4: 7-col tuple — url is at row[3] now (was [2]).
-                art_id_d = row[0]
-                source_d = row[1]
-                url_d = row[3]
-
-                if result.verdict in ("reject", "scrape_fail"):
+            for row, result in zip(chunk, layer1_results):
+                if result.verdict == "reject":
                     logger.info(
-                        "  [layer2] %s id=%s source=%s reason=%s",
-                        result.verdict, art_id_d, source_d, result.reason,
+                        "[layer1] reject id=%s source=%s reason=%s",
+                        row[0], row[1], result.reason,
                     )
                     conn.execute(
                         "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
                         "VALUES (?, ?, 'skipped', ?)",
-                        (art_id_d, source_d, SKIP_REASON_VERSION_CURRENT),
+                        (row[0], row[1], SKIP_REASON_VERSION_CURRENT),
                     )
-                    conn.commit()
-                    continue
+                elif result.verdict == "candidate":
+                    candidate_rows.append(row)
+            conn.commit()
 
-                if result.verdict is None:
-                    # Mixed-batch failure on this slot. Row was just persisted
-                    # with verdict=NULL via persist_layer2_verdicts; next tick
-                    # will re-evaluate. Do NOT write ingestions row.
-                    continue
+        if not candidate_rows:
+            logger.info(
+                "[layer1] no candidates after batch filtering "
+                "(total inputs=%d); nothing to ingest", len(rows),
+            )
+            return
 
-                # Verdict must be 'ok' to reach ainsert. Future non-'ok' verdicts
-                # (post 'scrape_fail' precedent) MUST add an explicit branch above —
-                # do not fall through to ainsert on unknown verdict values.
-                if result.verdict != "ok":
+        logger.info(
+            "[layer1] total inputs=%d candidates=%d (per-article loop starts)",
+            len(rows), len(candidate_rows),
+        )
+
+        # Phase 5-00b: initialize LightRAG ONCE; skip for dry-run.
+        rag = None
+        if not dry_run:
+            from ingest_wechat import get_rag
+            # D-09.04 (STATE-01): flush=True discards any in-memory pending buffer
+            # from a prior crashed run → no replay → no wasted embed quota.
+            logger.info("Initializing fresh LightRAG instance (flush=True; STATE-01)...")
+            rag = await get_rag(flush=True)
+            # v3.5 ir-2 hotfix: LightRAG get_rag() reconfigures root logger;
+            # restore our format so [layer2] batch lines are visible.
+            logging.basicConfig(
+                level=logging.INFO,
+                format='%(asctime)s %(levelname)s %(name)s %(message)s',
+                datefmt='%H:%M:%S',
+                force=True,
+            )
+
+        # Phase 17 BTIMEOUT-01: batch-budget state
+        total_batch_budget = _resolve_batch_timeout(batch_timeout)
+        batch_start = time.time()
+        completed_times: list[float] = []
+        timeout_histogram: dict[str, int] = {label: 0 for label, _ in _HISTOGRAM_BUCKETS}
+        timeout_histogram["900s+"] = 0
+        timed_out_count = 0
+        clamped_count = 0
+        safety_margin_triggered = False
+
+        try:
+            processed = 0
+            api_key = get_deepseek_api_key()
+
+            # v3.5 ir-2 (LF-3.2): Layer 2 batch accumulator.
+            # Successfully-scraped candidates queue here; drain at LAYER2_BATCH_SIZE
+            # boundaries (and once at end-of-loop for the final partial batch) to
+            # call the batched DeepSeek Layer 2.
+            layer2_queue: list[tuple[tuple, str]] = []  # (row_tuple, scraped_body)
+            layer2_chunk_idx = 0
+
+            async def _drain_layer2_queue() -> None:
+                """Drain pending layer2 batch: call layer2_full_body_score, persist
+                verdicts, ainsert non-rejected articles. Called when the queue
+                reaches LAYER2_BATCH_SIZE and once at end-of-loop."""
+                nonlocal layer2_chunk_idx, processed, timed_out_count, clamped_count, safety_margin_triggered
+                if not layer2_queue:
+                    return
+
+                queue_snapshot = list(layer2_queue)
+                layer2_queue.clear()
+
+                # v3.5 ir-4 (LF-4.4): row is the 7-col candidate tuple
+                # (id, source, title, url, source_name, body, summary).
+                # ArticleWithBody.source from row[1] so persist_layer2_verdicts
+                # dispatches verdict UPDATE to articles vs rss_articles correctly.
+                articles_with_body = [
+                    ArticleWithBody(
+                        id=row[0],
+                        source=row[1],
+                        title=row[2] or "",
+                        body=body or "",
+                    )
+                    for row, body in queue_snapshot
+                ]
+
+                t0 = time.monotonic()
+                layer2_results = await layer2_full_body_score(articles_with_body)
+                wall_ms = int((time.monotonic() - t0) * 1000)
+
+                ok_count = sum(1 for r in layer2_results if r.verdict == "ok")
+                rej_count = sum(1 for r in layer2_results if r.verdict == "reject")
+                null_count = sum(1 for r in layer2_results if r.verdict is None)
+
+                chunk_idx = layer2_chunk_idx
+                layer2_chunk_idx += 1
+
+                if null_count == len(layer2_results):
+                    err_class = layer2_results[0].reason if layer2_results else "empty_batch"
                     logger.warning(
-                        "  [layer2] unexpected verdict=%r id=%s — skipping (future verdicts need explicit handling)",
-                        result.verdict, art_id_d,
+                        "[layer2] batch %d NULL reason=%s n=%d wall_ms=%d — "
+                        "rows stay layer2_verdict=NULL, retry next tick",
+                        chunk_idx, err_class, len(queue_snapshot), wall_ms,
                     )
-                    continue
-                # Phase 17 BTIMEOUT-02 (2026-05-08) + T1 (2026-05-13) + T1-b1 (issue #2):
-                # per-article timeout scales with text length AND image count.
-                # Image count uses regex on body first (cheap), falls back to
-                # disk count under $BASE/images/{md5(url)[:10]}/ when regex=0
-                # (catches WeChat post-vision-description bodies that have
-                # image markers stripped). Pre-T1 51-image article hit 900s
-                # floor; post-fix gets proportional headroom.
-                # D2 (issue #2 follow-up): row[7] is COALESCE(image_count, 0) from SELECT.
-                # 2026-05-16 fix (260516-stl): _compute_article_budget_s now treats
-                # kwarg=0 as "fall back to regex/disk" rather than authoritative —
-                # fresh articles have stale 0 in DB at SELECT time, but body has
-                # accurate markdown markers from scrape (line 1995-2010 above).
-                image_count_d = row[7]
-                article_budget = _compute_article_budget_s(body or "", url=url_d, image_count=image_count_d)
-                _img_count = _count_images_in_body(body or "", url=url_d)
-                if _img_count >= 10 or article_budget > _SINGLE_CHUNK_FLOOR_S:
-                    logger.info(
-                        "  article budget=%ds (chunks=%d images=%d)",
-                        article_budget,
-                        max(1, len(body or "") // _CHUNK_SIZE_CHARS),
-                        _img_count,
-                    )
-                remaining = get_remaining_budget(batch_start, total_batch_budget)
-                effective_timeout = clamp_article_timeout(
-                    article_budget, remaining, BATCH_SAFETY_MARGIN_S
-                )
-                if effective_timeout < article_budget:
-                    clamped_count += 1
-                    logger.info(
-                        "  Clamped article timeout: %ds (article_budget=%ds remaining=%.0fs margin=%ds)",
-                        effective_timeout, article_budget, remaining, BATCH_SAFETY_MARGIN_S,
-                    )
-                if remaining - BATCH_SAFETY_MARGIN_S <= 0:
-                    safety_margin_triggered = True
+                    return
 
-                success, wall, doc_confirmed = await ingest_article(
-                    source_d, url_d, dry_run, rag, effective_timeout=effective_timeout
-                )
-                if dry_run:
-                    status = "dry_run"
-                elif success and doc_confirmed:
-                    status = "ok"
-                    completed_times.append(wall)
-                    timeout_histogram[_bucket_article_time(wall)] += 1
-                else:
-                    status = "failed"
-                    if wall >= effective_timeout:
-                        timed_out_count += 1
-                        timeout_histogram["900s+"] += 1
-
-                conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
-                    "VALUES (?, ?, ?, ?)",
-                    (art_id_d, source_d, status, SKIP_REASON_VERSION_CURRENT),
-                )
-                conn.commit()
-
-                processed += 1
-                if not dry_run:
-                    logger.info(
-                        "  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...",
-                        SLEEP_BETWEEN_ARTICLES,
-                    )
-                    await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
-
-        # v3.5 ir-1 (LF-3.1) + ir-4 (LF-4.4): iterate over candidate_rows
-        # (Layer 1 candidates only). Rejects already wrote skipped ingestions
-        # rows above. Row tuple is now 7 cols
-        # (id, source, title, url, source_name, body, summary). The legacy
-        # 6-col shape (digest as last col) became the 7-col shape with
-        # 'wechat'/'rss' inserted at row[1] and digest aliased to summary.
-        for i, (art_id, source, title, url, account, body, summary, image_count_row) in enumerate(candidate_rows, 1):
-            # quick-260511-mxc: strict hard cap. Pre-fix this check was
-            # processed-only, so queued-but-not-yet-drained rows leaked past
-            # the cap (up to LAYER2_BATCH_SIZE-1 = 4 extra). Charging the
-            # in-flight queue against the budget at enqueue time makes
-            # --max-articles a true per-article hard cap on ok+failed
-            # (skipped statuses are excluded by their `continue` branches
-            # below). See quick 260511-lmx investigation_findings.
-            if max_articles is not None and (processed + len(layer2_queue)) >= max_articles:
                 logger.info(
-                    "max-articles cap reached (processed=%d + queued=%d >= %d); stopping --from-db loop.",
-                    processed, len(layer2_queue), max_articles,
+                    "[layer2] batch %d n=%d ok=%d reject=%d null=%d wall_ms=%d",
+                    chunk_idx, len(queue_snapshot), ok_count, rej_count, null_count, wall_ms,
                 )
-                break
 
-            logger.info("[%d/%d] [%s] %s", i, len(candidate_rows), account, title)
+                persist_layer2_verdicts(conn, articles_with_body, layer2_results)
 
-            # v3.5 ir-1 (LF-3.6): dry-run short-circuits per-article work.
-            # Layer 1 already ran (cost intentional for filter-pipeline validation);
-            # scrape, Layer 2, ainsert, ingestions writes all skipped here.
-            if dry_run:
-                logger.info(
-                    "[dry-run] would-process candidate id=%d url=%s",
-                    art_id, url[:60] if url else "<no-url>",
-                )
-                continue
+                # Per-row processing: reject → skipped, ok → ainsert, None → skip
+                # ainsert (mixed-batch failure; row stays NULL via persist above).
+                for (row, body), result in zip(queue_snapshot, layer2_results):
+                    # v3.5 ir-4: 7-col tuple — url is at row[3] now (was [2]).
+                    art_id_d = row[0]
+                    source_d = row[1]
+                    url_d = row[3]
 
-            if not url:
-                logger.warning("  Skipping — no URL")
-                conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
-                    "VALUES (?, ?, 'skipped', ?)",
-                    (art_id, source, SKIP_REASON_VERSION_CURRENT),
-                )
-                conn.commit()
-                continue
+                    if result.verdict in ("reject", "scrape_fail"):
+                        logger.info(
+                            "  [layer2] %s id=%s source=%s reason=%s",
+                            result.verdict, art_id_d, source_d, result.reason,
+                        )
+                        conn.execute(
+                            "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                            "VALUES (?, ?, 'skipped', ?)",
+                            (art_id_d, source_d, SKIP_REASON_VERSION_CURRENT),
+                        )
+                        conn.commit()
+                        continue
 
-            # Phase 12 CKPT-03: batch-level checkpoint skip (DB-driven loop).
-            ckpt_hash = get_article_hash(url)
-            if has_stage(ckpt_hash, "text_ingest"):
-                logger.info("checkpoint-skip: already-ingested hash=%s url=%s", ckpt_hash, url)
-                conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
-                    "VALUES (?, ?, 'skipped_ingested', ?)",
-                    (art_id, source, SKIP_REASON_VERSION_CURRENT),
-                )
-                conn.commit()
-                continue
+                    if result.verdict is None:
+                        # Mixed-batch failure on this slot. Row was just persisted
+                        # with verdict=NULL via persist_layer2_verdicts; next tick
+                        # will re-evaluate. Do NOT write ingestions row.
+                        continue
 
-            # Pre-scrape guard: if article was previously scraped (has scrape
-            # checkpoint stage) but body is absent from DB (anomalous partial
-            # state), skip instead of re-scraping. Avoids wasted Apify/CDP calls
-            # (~150s/article) when the article was classified and filtered before.
-            # Normal case: scrape checkpoint + body in DB → classify reuses DB
-            # body without re-scrape (handled inside _classify_full_body).
-            if has_stage(ckpt_hash, "scrape") and not body:
-                logger.warning(
-                    "pre-scrape skip: checkpoint scrape exists but body=NULL — "
-                    "partial state, url=%s", url[:80])
-                conn.execute(
-                    "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
-                    "VALUES (?, ?, 'skipped', ?)",
-                    (art_id, source, SKIP_REASON_VERSION_CURRENT),
-                )
-                conn.commit()
-                continue
+                    # Verdict must be 'ok' to reach ainsert. Future non-'ok' verdicts
+                    # (post 'scrape_fail' precedent) MUST add an explicit branch above —
+                    # do not fall through to ainsert on unknown verdict values.
+                    if result.verdict != "ok":
+                        logger.warning(
+                            "  [layer2] unexpected verdict=%r id=%s — skipping (future verdicts need explicit handling)",
+                            result.verdict, art_id_d,
+                        )
+                        continue
+                    # Phase 17 BTIMEOUT-02 (2026-05-08) + T1 (2026-05-13) + T1-b1 (issue #2):
+                    # per-article timeout scales with text length AND image count.
+                    # Image count uses regex on body first (cheap), falls back to
+                    # disk count under $BASE/images/{md5(url)[:10]}/ when regex=0
+                    # (catches WeChat post-vision-description bodies that have
+                    # image markers stripped). Pre-T1 51-image article hit 900s
+                    # floor; post-fix gets proportional headroom.
+                    # D2 (issue #2 follow-up): row[7] is COALESCE(image_count, 0) from SELECT.
+                    # 2026-05-16 fix (260516-stl): _compute_article_budget_s now treats
+                    # kwarg=0 as "fall back to regex/disk" rather than authoritative —
+                    # fresh articles have stale 0 in DB at SELECT time, but body has
+                    # accurate markdown markers from scrape (line 1995-2010 above).
+                    image_count_d = row[7]
+                    article_budget = _compute_article_budget_s(body or "", url=url_d, image_count=image_count_d)
+                    _img_count = _count_images_in_body(body or "", url=url_d)
+                    if _img_count >= 10 or article_budget > _SINGLE_CHUNK_FLOOR_S:
+                        logger.info(
+                            "  article budget=%ds (chunks=%d images=%d)",
+                            article_budget,
+                            max(1, len(body or "") // _CHUNK_SIZE_CHARS),
+                            _img_count,
+                        )
+                    remaining = get_remaining_budget(batch_start, total_batch_budget)
+                    effective_timeout = clamp_article_timeout(
+                        article_budget, remaining, BATCH_SAFETY_MARGIN_S
+                    )
+                    if effective_timeout < article_budget:
+                        clamped_count += 1
+                        logger.info(
+                            "  Clamped article timeout: %ds (article_budget=%ds remaining=%.0fs margin=%ds)",
+                            effective_timeout, article_budget, remaining, BATCH_SAFETY_MARGIN_S,
+                        )
+                    if remaining - BATCH_SAFETY_MARGIN_S <= 0:
+                        safety_margin_triggered = True
 
-            # Graded classification probe (v3.5 MVP). Feature flag:
-            # OMNIGRAPH_GRADED_CLASSIFY=1 (default OFF). Uses articles.digest
-            # (99.6% coverage, ~50 chars) to detect OBVIOUSLY unrelated
-            # articles BEFORE expensive scrape+classify. Threshold:
-            # unrelated=True + confidence≥0.9. Fail-open on any error.
-            GRADED_ENABLED = os.environ.get("OMNIGRAPH_GRADED_CLASSIFY", "0") == "1"
-            if GRADED_ENABLED and normalized_topics and summary:
-                probe = await _graded_probe(
-                    title, account, summary, normalized_topics, api_key)
-                if probe and probe.get("unrelated") and probe.get("confidence", 0) >= 0.9:
-                    logger.info(
-                        "graded-skip: art_id=%d source=%s conf=%.2f reason=%r",
-                        art_id, source, probe["confidence"], probe.get("reason", ""))
-                    logger.debug(
-                        "graded-skip-detail: title=%r summary=%r",
-                        title, summary.strip()[:200])
+                    success, wall, doc_confirmed = await ingest_article(
+                        source_d, url_d, dry_run, rag, effective_timeout=effective_timeout
+                    )
+                    if dry_run:
+                        status = "dry_run"
+                    elif success and doc_confirmed:
+                        status = "ok"
+                        completed_times.append(wall)
+                        timeout_histogram[_bucket_article_time(wall)] += 1
+                    else:
+                        status = "failed"
+                        if wall >= effective_timeout:
+                            timed_out_count += 1
+                            timeout_histogram["900s+"] += 1
+
                     conn.execute(
                         "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
-                        "VALUES (?, ?, 'skipped_graded', ?)",
-                        (art_id, source, SKIP_REASON_VERSION_CURRENT))
-                    conn.commit()
-                    continue
-
-            # v3.5 ir-1 (LF-3.2) + ir-4 (LF-4.4): Layer 1 already ran at the
-            # chunk boundary above; this row is a candidate. Pre-scrape +
-            # persist body so the next batch run skips re-scraping
-            # (~75-90s/article saved) when downstream ingest fails.
-            #
-            # ir-4 dispatch:
-            #   * KOL (source='wechat'): scrape only when body missing.
-            #     scrape_url auto-routes to _scrape_wechat for mp.weixin
-            #     URLs. _persist_scraped_body writes to articles.body.
-            #   * RSS (source='rss'): scrape when body missing OR shorter
-            #     than RSS_SCRAPE_THRESHOLD (rss_fetch sometimes only
-            #     captured the <description> excerpt; too short for
-            #     ainsert). scrape_url auto-routes to _scrape_generic for
-            #     non-WeChat URLs. _persist_scraped_body writes to
-            #     rss_articles.body.
-            #
-            # site_hint is intentionally NOT passed: ir-4's auto-route by
-            # URL is correct for both sources. The W1 hardcoded
-            # site_hint='wechat' would have forced WeChat cascade on
-            # non-WeChat RSS URLs.
-            if _needs_scrape(source, body):
-                try:
-                    from lib.scraper import scrape_url
-                    scraped = await scrape_url(url)
-                    if scraped and not scraped.summary_only:
-                        persisted = _persist_scraped_body(
-                            conn, art_id, source, scraped
-                        )
-                        if persisted:
-                            body = persisted
-                            # 260516-htm fix: refresh image_count_row from scrape
-                            # result before queue append. Persisted body sometimes
-                            # has markdown ![](...) markers stripped (observed
-                            # 2026-05-15 N=20 burst: 5 articles with 28-112 images
-                            # had body stored markers=0, html_imgs=0). With
-                            # row[7] still stale-0 from initial SELECT and body
-                            # markers absent, _compute_article_budget_s falls
-                            # through regex (0) → disk (0, not yet downloaded)
-                            # → 900s floor → vision pipeline outer-timeout.
-                            # ScrapeResult.images is the pre-strip authoritative
-                            # count; only override DEFAULT 0 to preserve any
-                            # positive backfill value already in DB.
-                            if (image_count_row or 0) == 0 and len(scraped.images) > 0:
-                                image_count_row = len(scraped.images)
-                except Exception as e:  # noqa: BLE001 -- never block main flow
-                    logger.warning(
-                        "v3.5 pre-layer2 scrape/persist failed for "
-                        "source=%s art_id=%s url=%s: %s",
-                        source, art_id, url[:80], e,
+                        "VALUES (?, ?, ?, ?)",
+                        (art_id_d, source_d, status, SKIP_REASON_VERSION_CURRENT),
                     )
+                    conn.commit()
 
-            # v3.5 ir-2 (LF-3.2): defer Layer 2 + ainsert to batched drain.
-            # Each successfully-scraped candidate is queued; the queue drains
-            # at LAYER2_BATCH_SIZE boundaries and once after the loop ends.
-            if not body:
-                # Scrape failed earlier in this iteration; do NOT enqueue. The
-                # article has no body to score; skip silently (next ingest
-                # tick will see body=NULL and re-attempt scrape).
-                logger.warning(
-                    "  layer2 enqueue skipped — no body for art_id=%s; will retry next tick",
-                    art_id,
-                )
-                continue
+                    processed += 1
+                    if not dry_run:
+                        logger.info(
+                            "  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...",
+                            SLEEP_BETWEEN_ARTICLES,
+                        )
+                        await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
 
-            # v3.5 ir-4 (LF-4.4): 8-col tuple (id, source, title, url,
-            # source_name, body, summary, image_count) carried through the
-            # layer2 batch so source-aware persist + INSERT continues to
-            # work + drain code at row[7] reads image_count for D2 budget.
-            #
-            # 2026-05-15 fix: v1.0.z imc executor (4f3a47b) updated SELECT,
-            # outer-loop unpack, and drain `row[7]` access — but missed the
-            # queue append, leaving row[7] as out-of-bounds on a 7-col tuple
-            # at drain time. id=214 (41 imgs) / id=217 (36 imgs) on 2026-05-15
-            # cron silently fell to 900s floor (or IndexError swallowed) as a
-            # result. This append now matches the 8-col contract.
-            layer2_queue.append((
-                (art_id, source, title, url, account, body, summary, image_count_row),
-                body,
-            ))
-
-            if len(layer2_queue) >= LAYER2_BATCH_SIZE:
-                await _drain_layer2_queue()
-                # Phase 17 BTIMEOUT-01: early-exit if budget fully exhausted.
-                if get_remaining_budget(batch_start, total_batch_budget) <= 0:
-                    logger.warning(
-                        "Batch budget exhausted (%ds elapsed >= %ds) — stopping loop; "
-                        "remaining %d candidate(s) will show as not_started in metrics.",
-                        int(time.time() - batch_start), total_batch_budget,
-                        len(candidate_rows) - i,
+            # v3.5 ir-1 (LF-3.1) + ir-4 (LF-4.4): iterate over candidate_rows
+            # (Layer 1 candidates only). Rejects already wrote skipped ingestions
+            # rows above. Row tuple is now 7 cols
+            # (id, source, title, url, source_name, body, summary). The legacy
+            # 6-col shape (digest as last col) became the 7-col shape with
+            # 'wechat'/'rss' inserted at row[1] and digest aliased to summary.
+            for i, (art_id, source, title, url, account, body, summary, image_count_row) in enumerate(candidate_rows, 1):
+                # quick-260511-mxc: strict hard cap. Pre-fix this check was
+                # processed-only, so queued-but-not-yet-drained rows leaked past
+                # the cap (up to LAYER2_BATCH_SIZE-1 = 4 extra). Charging the
+                # in-flight queue against the budget at enqueue time makes
+                # --max-articles a true per-article hard cap on ok+failed
+                # (skipped statuses are excluded by their `continue` branches
+                # below). See quick 260511-lmx investigation_findings.
+                if max_articles is not None and (processed + len(layer2_queue)) >= max_articles:
+                    logger.info(
+                        "max-articles cap reached (processed=%d + queued=%d >= %d); stopping --from-db loop.",
+                        processed, len(layer2_queue), max_articles,
                     )
                     break
 
-            # Cap check post-drain: if max_articles cap reached, drain final
-            # partial queue and break.
-            if max_articles is not None and processed >= max_articles:
-                logger.info(
-                    "max-articles cap reached (%d) — draining final layer2 queue and stopping.",
-                    max_articles,
-                )
-                await _drain_layer2_queue()
-                break
+                logger.info("[%d/%d] [%s] %s", i, len(candidate_rows), account, title)
 
-        # Drain any remaining partial batch (size < LAYER2_BATCH_SIZE).
-        await _drain_layer2_queue()
+                # v3.5 ir-1 (LF-3.6): dry-run short-circuits per-article work.
+                # Layer 1 already ran (cost intentional for filter-pipeline validation);
+                # scrape, Layer 2, ainsert, ingestions writes all skipped here.
+                if dry_run:
+                    logger.info(
+                        "[dry-run] would-process candidate id=%d url=%s",
+                        art_id, url[:60] if url else "<no-url>",
+                    )
+                    continue
 
-        logger.info(
-            "Done — %d candidates processed (of %d total inputs)",
-            processed, len(rows),
-        )
-    finally:
-        if rag is not None:
-            # D-10.09: drain pending Vision worker tasks before flushing storages.
-            await _drain_pending_vision_tasks()
-            logger.info("Finalizing LightRAG storages (flushing vdb + graphml)...")
-            await rag.finalize_storages()
+                if not url:
+                    logger.warning("  Skipping — no URL")
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                        "VALUES (?, ?, 'skipped', ?)",
+                        (art_id, source, SKIP_REASON_VERSION_CURRENT),
+                    )
+                    conn.commit()
+                    continue
 
-        # Phase 17 BTIMEOUT-04: emit metrics (always, even on early exit).
-        metrics = _build_batch_timeout_metrics(
-            total_budget=total_batch_budget,
-            batch_start=batch_start,
-            completed_times=completed_times,
-            total_articles=len(rows),
-            timed_out=timed_out_count,
-            clamped_count=clamped_count,
-            safety_margin_triggered=safety_margin_triggered,
-            histogram=timeout_histogram,
-        )
-        logger.info("batch_timeout_metrics: %s", json.dumps(metrics))
-        metrics_path = PROJECT_ROOT / "data" / f"batch_timeout_metrics_{timestamp}.json"
-        metrics_path.parent.mkdir(exist_ok=True)
-        metrics_path.write_text(
-            json.dumps({"batch_timeout_metrics": metrics}, indent=2),
-            encoding="utf-8",
-        )
-        logger.info("Metrics written to %s", metrics_path)
-        conn.close()
+                # Phase 12 CKPT-03: batch-level checkpoint skip (DB-driven loop).
+                ckpt_hash = get_article_hash(url)
+                if has_stage(ckpt_hash, "text_ingest"):
+                    logger.info("checkpoint-skip: already-ingested hash=%s url=%s", ckpt_hash, url)
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                        "VALUES (?, ?, 'skipped_ingested', ?)",
+                        (art_id, source, SKIP_REASON_VERSION_CURRENT),
+                    )
+                    conn.commit()
+                    continue
+
+                # Pre-scrape guard: if article was previously scraped (has scrape
+                # checkpoint stage) but body is absent from DB (anomalous partial
+                # state), skip instead of re-scraping. Avoids wasted Apify/CDP calls
+                # (~150s/article) when the article was classified and filtered before.
+                # Normal case: scrape checkpoint + body in DB → classify reuses DB
+                # body without re-scrape (handled inside _classify_full_body).
+                if has_stage(ckpt_hash, "scrape") and not body:
+                    logger.warning(
+                        "pre-scrape skip: checkpoint scrape exists but body=NULL — "
+                        "partial state, url=%s", url[:80])
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                        "VALUES (?, ?, 'skipped', ?)",
+                        (art_id, source, SKIP_REASON_VERSION_CURRENT),
+                    )
+                    conn.commit()
+                    continue
+
+                # Graded classification probe (v3.5 MVP). Feature flag:
+                # OMNIGRAPH_GRADED_CLASSIFY=1 (default OFF). Uses articles.digest
+                # (99.6% coverage, ~50 chars) to detect OBVIOUSLY unrelated
+                # articles BEFORE expensive scrape+classify. Threshold:
+                # unrelated=True + confidence≥0.9. Fail-open on any error.
+                GRADED_ENABLED = os.environ.get("OMNIGRAPH_GRADED_CLASSIFY", "0") == "1"
+                if GRADED_ENABLED and normalized_topics and summary:
+                    probe = await _graded_probe(
+                        title, account, summary, normalized_topics, api_key)
+                    if probe and probe.get("unrelated") and probe.get("confidence", 0) >= 0.9:
+                        logger.info(
+                            "graded-skip: art_id=%d source=%s conf=%.2f reason=%r",
+                            art_id, source, probe["confidence"], probe.get("reason", ""))
+                        logger.debug(
+                            "graded-skip-detail: title=%r summary=%r",
+                            title, summary.strip()[:200])
+                        conn.execute(
+                            "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "
+                            "VALUES (?, ?, 'skipped_graded', ?)",
+                            (art_id, source, SKIP_REASON_VERSION_CURRENT))
+                        conn.commit()
+                        continue
+
+                # v3.5 ir-1 (LF-3.2) + ir-4 (LF-4.4): Layer 1 already ran at the
+                # chunk boundary above; this row is a candidate. Pre-scrape +
+                # persist body so the next batch run skips re-scraping
+                # (~75-90s/article saved) when downstream ingest fails.
+                #
+                # ir-4 dispatch:
+                #   * KOL (source='wechat'): scrape only when body missing.
+                #     scrape_url auto-routes to _scrape_wechat for mp.weixin
+                #     URLs. _persist_scraped_body writes to articles.body.
+                #   * RSS (source='rss'): scrape when body missing OR shorter
+                #     than RSS_SCRAPE_THRESHOLD (rss_fetch sometimes only
+                #     captured the <description> excerpt; too short for
+                #     ainsert). scrape_url auto-routes to _scrape_generic for
+                #     non-WeChat URLs. _persist_scraped_body writes to
+                #     rss_articles.body.
+                #
+                # site_hint is intentionally NOT passed: ir-4's auto-route by
+                # URL is correct for both sources. The W1 hardcoded
+                # site_hint='wechat' would have forced WeChat cascade on
+                # non-WeChat RSS URLs.
+                if _needs_scrape(source, body):
+                    try:
+                        from lib.scraper import scrape_url
+                        scraped = await scrape_url(url)
+                        if scraped and not scraped.summary_only:
+                            persisted = _persist_scraped_body(
+                                conn, art_id, source, scraped
+                            )
+                            if persisted:
+                                body = persisted
+                                # 260516-htm fix: refresh image_count_row from scrape
+                                # result before queue append. Persisted body sometimes
+                                # has markdown ![](...) markers stripped (observed
+                                # 2026-05-15 N=20 burst: 5 articles with 28-112 images
+                                # had body stored markers=0, html_imgs=0). With
+                                # row[7] still stale-0 from initial SELECT and body
+                                # markers absent, _compute_article_budget_s falls
+                                # through regex (0) → disk (0, not yet downloaded)
+                                # → 900s floor → vision pipeline outer-timeout.
+                                # ScrapeResult.images is the pre-strip authoritative
+                                # count; only override DEFAULT 0 to preserve any
+                                # positive backfill value already in DB.
+                                if (image_count_row or 0) == 0 and len(scraped.images) > 0:
+                                    image_count_row = len(scraped.images)
+                    except Exception as e:  # noqa: BLE001 -- never block main flow
+                        logger.warning(
+                            "v3.5 pre-layer2 scrape/persist failed for "
+                            "source=%s art_id=%s url=%s: %s",
+                            source, art_id, url[:80], e,
+                        )
+
+                # v3.5 ir-2 (LF-3.2): defer Layer 2 + ainsert to batched drain.
+                # Each successfully-scraped candidate is queued; the queue drains
+                # at LAYER2_BATCH_SIZE boundaries and once after the loop ends.
+                if not body:
+                    # Scrape failed earlier in this iteration; do NOT enqueue. The
+                    # article has no body to score; skip silently (next ingest
+                    # tick will see body=NULL and re-attempt scrape).
+                    logger.warning(
+                        "  layer2 enqueue skipped — no body for art_id=%s; will retry next tick",
+                        art_id,
+                    )
+                    continue
+
+                # v3.5 ir-4 (LF-4.4): 8-col tuple (id, source, title, url,
+                # source_name, body, summary, image_count) carried through the
+                # layer2 batch so source-aware persist + INSERT continues to
+                # work + drain code at row[7] reads image_count for D2 budget.
+                #
+                # 2026-05-15 fix: v1.0.z imc executor (4f3a47b) updated SELECT,
+                # outer-loop unpack, and drain `row[7]` access — but missed the
+                # queue append, leaving row[7] as out-of-bounds on a 7-col tuple
+                # at drain time. id=214 (41 imgs) / id=217 (36 imgs) on 2026-05-15
+                # cron silently fell to 900s floor (or IndexError swallowed) as a
+                # result. This append now matches the 8-col contract.
+                layer2_queue.append((
+                    (art_id, source, title, url, account, body, summary, image_count_row),
+                    body,
+                ))
+
+                if len(layer2_queue) >= LAYER2_BATCH_SIZE:
+                    await _drain_layer2_queue()
+                    # Phase 17 BTIMEOUT-01: early-exit if budget fully exhausted.
+                    if get_remaining_budget(batch_start, total_batch_budget) <= 0:
+                        logger.warning(
+                            "Batch budget exhausted (%ds elapsed >= %ds) — stopping loop; "
+                            "remaining %d candidate(s) will show as not_started in metrics.",
+                            int(time.time() - batch_start), total_batch_budget,
+                            len(candidate_rows) - i,
+                        )
+                        break
+
+                # Cap check post-drain: if max_articles cap reached, drain final
+                # partial queue and break.
+                if max_articles is not None and processed >= max_articles:
+                    logger.info(
+                        "max-articles cap reached (%d) — draining final layer2 queue and stopping.",
+                        max_articles,
+                    )
+                    await _drain_layer2_queue()
+                    break
+
+            # Drain any remaining partial batch (size < LAYER2_BATCH_SIZE).
+            await _drain_layer2_queue()
+
+            logger.info(
+                "Done — %d candidates processed (of %d total inputs)",
+                processed, len(rows),
+            )
+        finally:
+            if rag is not None:
+                # D-10.09: drain pending Vision worker tasks before flushing storages.
+                await _drain_pending_vision_tasks()
+                logger.info("Finalizing LightRAG storages (flushing vdb + graphml)...")
+                await rag.finalize_storages()
+
+            # Phase 17 BTIMEOUT-04: emit metrics (always, even on early exit).
+            metrics = _build_batch_timeout_metrics(
+                total_budget=total_batch_budget,
+                batch_start=batch_start,
+                completed_times=completed_times,
+                total_articles=len(rows),
+                timed_out=timed_out_count,
+                clamped_count=clamped_count,
+                safety_margin_triggered=safety_margin_triggered,
+                histogram=timeout_histogram,
+            )
+            logger.info("batch_timeout_metrics: %s", json.dumps(metrics))
+            metrics_path = PROJECT_ROOT / "data" / f"batch_timeout_metrics_{timestamp}.json"
+            metrics_path.parent.mkdir(exist_ok=True)
+            metrics_path.write_text(
+                json.dumps({"batch_timeout_metrics": metrics}, indent=2),
+                encoding="utf-8",
+            )
+            logger.info("Metrics written to %s", metrics_path)
 
 
 def main() -> None:
