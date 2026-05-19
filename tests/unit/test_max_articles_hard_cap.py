@@ -309,7 +309,7 @@ async def test_cap_excludes_skipped_layer1_rejects(
     caplog.set_level(logging.INFO, logger=bi.logger.name)
 
     await bi.ingest_from_db(
-        topic="ai", min_depth=2, dry_run=False,
+        topic="ai", dry_run=False,
         batch_timeout=None, max_articles=3,
     )
 
@@ -347,7 +347,7 @@ async def test_cap_break_on_third_ok(mocker, caplog, seeded_db: Path):
     caplog.set_level(logging.INFO, logger=bi.logger.name)
 
     await bi.ingest_from_db(
-        topic="ai", min_depth=2, dry_run=False,
+        topic="ai", dry_run=False,
         batch_timeout=None, max_articles=3,
     )
 
@@ -398,7 +398,7 @@ async def test_cap_with_mid_loop_failure_counts(
     caplog.set_level(logging.INFO, logger=bi.logger.name)
 
     await bi.ingest_from_db(
-        topic="ai", min_depth=2, dry_run=False,
+        topic="ai", dry_run=False,
         batch_timeout=None, max_articles=3,
     )
 
@@ -444,7 +444,7 @@ async def test_cap_pool_exhausted_before_reached(
     caplog.set_level(logging.INFO, logger=bi.logger.name)
 
     await bi.ingest_from_db(
-        topic="ai", min_depth=2, dry_run=False,
+        topic="ai", dry_run=False,
         batch_timeout=None, max_articles=3,
     )
 

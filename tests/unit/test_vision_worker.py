@@ -541,7 +541,7 @@ async def test_ingest_from_db_drains_pending_vision_tasks(
     monkeypatch.setattr("batch_ingest_from_spider.layer2_full_body_score", _fake_layer2, raising=False)
 
     await batch_ingest_from_spider.ingest_from_db(
-        topic=["AI agents"], min_depth=1, dry_run=False
+        topic=["AI agents"], dry_run=False
     )
 
     assert drained == ["done"]
