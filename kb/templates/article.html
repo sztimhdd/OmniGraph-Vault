@@ -107,15 +107,6 @@
           </span>
           {% endif %}
         </div>
-        {# F1' kb-v2.2-2: translation toggle — wechat source, eligible langs only #}
-        {% if article.source == 'wechat' and article.lang in ('zh-CN', 'en') %}
-        <div class="translate-row">
-          <button id="translate-toggle" class="btn" type="button"
-                  data-target-lang="{{ 'en' if article.lang == 'zh-CN' else 'zh-CN' }}">
-            {%- if article.lang == 'zh-CN' -%}Read in English{%- else -%}阅读中文{%- endif -%}
-          </button>
-        </div>
-        {% endif %}
       </header>
 
       {# EXPORT-04 body — pre-rendered HTML with Pygments highlighting baked in #}
@@ -195,76 +186,6 @@
   </footer>
 
   <script src="{{ base_path }}/static/lang.js"></script>
-  {# F1' kb-v2.2-2: translation toggle JS — no new deps #}
-  {% if article.source == 'wechat' and article.lang in ('zh-CN', 'en') %}
-  <script>
-  (function () {
-    var btn = document.getElementById('translate-toggle');
-    if (!btn) return;
-    var bodyEl = document.querySelector('.article-body');
-    var h1El = document.querySelector('.article-header h1');
-    if (!bodyEl || !h1El) return;
-    var m = window.location.pathname.match(/\/([a-f0-9]{10})\.html/);
-    var hash = m ? m[1] : null;
-    if (!hash) return;
-    var targetLang = btn.getAttribute('data-target-lang');
-    var origLabel = btn.textContent.trim();
-    var backLabel = targetLang === 'en' ? '阅读中文' : 'Read in English';
-    var originalHtml = bodyEl.innerHTML;
-    var originalTitle = h1El.textContent;
-    var isTranslated = false;
-    var cache = null;
-
-    function applyTranslation(d) {
-      h1El.textContent = d.translated_title || originalTitle;
-      bodyEl.innerHTML = d.translated_body_html || originalHtml;
-      btn.textContent = backLabel;
-      isTranslated = true;
-    }
-
-    function revertToOriginal() {
-      h1El.textContent = originalTitle;
-      bodyEl.innerHTML = originalHtml;
-      btn.textContent = origLabel;
-      isTranslated = false;
-    }
-
-    async function pollArticle(maxMs) {
-      var deadline = Date.now() + maxMs;
-      while (Date.now() < deadline) {
-        var r = await fetch(window.KB_BASE_PATH + '/api/article/' + hash + '?lang=' + targetLang);
-        if (r.ok) {
-          var d = await r.json();
-          if (d.translated_lang && d.translated_body_html) return d;
-        }
-        await new Promise(function (res) { setTimeout(res, 1500); });
-      }
-      return null;
-    }
-
-    btn.addEventListener('click', async function () {
-      if (isTranslated) { revertToOriginal(); return; }
-      if (cache) { applyTranslation(cache); return; }
-      btn.disabled = true;
-      btn.textContent = '…';
-      try {
-        var pr = await fetch(
-          window.KB_BASE_PATH + '/api/translate/' + hash + '?target_lang=' + targetLang,
-          { method: 'POST' }
-        );
-        if (!pr.ok) { btn.textContent = origLabel; return; }
-        var d = await pollArticle(30000);
-        if (d) { cache = d; applyTranslation(d); }
-        else btn.textContent = origLabel;
-      } catch (_) {
-        btn.textContent = origLabel;
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  })();
-  </script>
-  {% endif %}
   <script>
     (function () {
       var nav = document.querySelector('.nav-wrap');
