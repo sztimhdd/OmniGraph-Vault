@@ -568,6 +568,18 @@
         "Agent",
         "产品评测"
       ]
+    },
+    {
+      "name": "森哥笔记本",
+      "wechat_id": "(待补充)",
+      "fakeid": "MzY5NDE5NTc0NQ==",
+      "source": "searchbiz_API",
+      "tags": [
+        "Hermes",
+        "Agent",
+        "AI工具实操",
+        "个人博客"
+      ]
     }
   ]
 }

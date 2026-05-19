@@ -25,7 +25,7 @@ find "$PROJECT_ROOT" -path "*__pycache__*lightrag*" -delete 2>/dev/null
 find "$PROJECT_ROOT" -path "*__pycache__*embedding*" -delete 2>/dev/null
 
 MAX_ARTICLES="${1:-10}"
-SESSION_NAME="daily-ingest-$(date +%Y%m%d)"
+SESSION_NAME="daily-ingest-$(date +%Y%m%d-%H%M)"
 LOG_FILE="/tmp/daily-ingest-$(date +%Y%m%d-%H%M).log"
 
 # Step A — refuse to clobber a same-day session that is still alive; reap

@@ -18,7 +18,7 @@ metadata:
 
 # omnigraph_scan_kol
 
-Daily incremental scan of 54 WeChat KOL accounts. Stores article metadata
+Daily incremental scan of all registered WeChat KOL accounts (currently 56). Stores article metadata
 (title, URL, digest) into `data/kol_scan.db`. No classification, no LLM calls,
 no full-text scraping.
 
@@ -54,8 +54,16 @@ always ensure you're in the repo root first.
    **Quick shortcut — check existing tabs first:** Run `browser_cdp(method="Target.getTargets")` 
    before navigating. If an existing tab already shows a dashboard URL 
    (`/cgi-bin/home?t=home/index&lang=zh_CN&token=...`) with a logged-in username, you can 
-   navigate directly to that URL instead of going through the root. This avoids triggering a 
-   new redirect that might land on the landing page instead of the dashboard.
+   **use `Runtime.evaluate` on that tab in-place** instead of navigating anywhere:
+   ```json
+   browser_cdp(method="Runtime.evaluate",
+     params={"expression":"document.body.innerText.substring(0,500)","returnByValue":true},
+     target_id="<existing-tab-id>")
+   ```
+   Look for "AI老兵日记", "原创", "新的创作" in the returned text. This avoids page reload
+   entirely — no redirect risk, no token refresh, instant check. If the tab's content shows
+   a logged-in dashboard, proceed directly to credential extraction (Step 3). Only navigate
+   to the tab's URL if `Runtime.evaluate` returns an unexpected result (blank page, error).
 3. **If dashboard visible** (user stats, recent articles) → session active, run the scan:
    ```bash
    bash ./skills/omnigraph_scan_kol/scripts/scan_kol.sh
@@ -73,11 +81,36 @@ always ensure you're in the repo root first.
 When the root page shows the login landing (no QR code on login page, just "使用账号登录" link):
 
 1. **Click "使用账号登录"** (the account login link, ref=e12)
-2. **Check for saved credentials** — `browser_snapshot()` should show a pre-filled email/username (huhai.orion@gmail.com) and password field (••••••••••••••). If filled, proceed.
-3. **Click the "登录" button** (ref=e18) on the account form
+2. **Check for saved credentials** — The SPA login form may NOT render in the accessibility tree, so `browser_snapshot()` may be empty. Use `Runtime.evaluate` to inspect the DOM:
+   ```json
+   browser_cdp(method="Runtime.evaluate",
+     params={"expression": "(function(){var c=document.querySelector('.login__type__container__account'); if(!c) return 'no form'; var r=c.querySelectorAll('input'); return Array.from(r).map(function(i){return i.name+': '+i.value.substring(0,15)}).join('\\\\n');})()",
+             "returnByValue": true},
+     target_id="<tab-id>")
+   ```
+   Expected pre-filled values: `"account: huhai.orion@g"` and `"password: Hardun.575"`. If fields show empty, the browser's saved credentials may have been cleared.
+3. **Click the "登录" button** — The `.btn_login` element is SPA-rendered and may not have a stable ref in the accessibility tree. Use CDP click:
+   ```json
+   browser_cdp(method="Runtime.evaluate",
+     params={"expression": "document.querySelector('.btn_login').click(); 'clicked'",
+             "returnByValue": true},
+     target_id="<tab-id>")
+   ```
+   Fallback: `browser_click(ref=e18)` if the accessibility tree captures it.
 4. **Wait 5s for the redirect chain**: The login POST goes to a security verification page (`/cgi-bin/bizlogin?action=validate`). Even if a "安全保护" (Security Protection) page shows with a QR code, the session may have already been established server-side. The browser may auto-redirect to the dashboard within seconds.
-5. **Check session state** via `browser_console` with `document.body.innerText.substring(0, 500)` — look for "AI老兵日记", "原创", "新的创作", or dashboard stats. If found → session recovered, proceed to Step 3 (credential extraction).
-6. **If still on security page after 15s** → the session may or may not be established server-side. Try navigating to `https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=` directly — if it redirects to dashboard with a token, the login succeeded despite the security page. If it shows "请重新登录", proceed to QR Code Login Flow.
+5. **Check session state** via `Runtime.evaluate` with `document.body.innerText.substring(0, 500)` — look for "AI老兵日记", "原创", "新的创作", or dashboard stats. If found → session recovered, proceed to Step 3 (credential extraction).
+6. **If still on security page after 15s** → the session may or may not be established server-side. Try navigating directly to the dashboard:
+   ```json
+   browser_navigate("https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=")
+   ```
+If it redirects to dashboard with a token, the login succeeded despite the security page. If it shows "登录超时, 请重新登录" or "请重新登录", the account login truly failed — proceed to QR Code Login Flow.
+
+   **⚠️ Linked-account security pitfall:** The "安全保护" page may identify a DIFFERENT
+   account name (e.g., "大家来打球") than the primary KOL account ("AI老兵日记"). This
+   indicates the saved browser credentials authenticate a linked/secondary account that
+   has its own QR security verification enabled. In this case, the account login **will
+   definitively fail** — do NOT retry. Proceed directly to QR Code Login Flow. The
+   linked account's security page cannot be bypassed with password-only login.
 
 **When this fallback works:** The account login bypasses QR code scanning entirely. The saved browser credentials perform a password-based login that may work even when cookie-based sessions expire. This is particularly useful for cron jobs where QR code polling is impractical.
 
@@ -148,9 +181,18 @@ Expected: automatic redirect to
 
 ### Step 2: Check session status
 
+**Preferred: use `Runtime.evaluate` (fast, no Vision API dependency):**
+
+```json
+browser_cdp(method="Runtime.evaluate",
+  params={"expression":"document.body.innerText.substring(0,500)","returnByValue":true},
+  target_id="<mp.weixin.qq.com tab ID>")
 ```
-browser_snapshot()
-```
+
+Check for "AI老兵日记", "原创", "新的创作" in the returned text. If found → session active.
+
+**Fallback: `browser_snapshot()`** if `Runtime.evaluate` returns an unexpected result
+(blank page, "请重新登录", or the tab was navigated away).
 
 - **Dashboard visible** (username "AI老兵日记", user stats with 原创/总用户数/近期发表,
   "新的创作" buttons) → session active, proceed to Step 3.
@@ -351,44 +393,74 @@ screenshot method returns enormous base64 data (2MB+) that will freeze
 Hermes for 2+ minutes. The QR code expires in ~2 minutes, so any delay
 is fatal.
 
-**Correct approach — crop from the auto-saved browser_vision screenshot:**
+**Primary approach — canvas `toDataURL()` (fastest, no screenshot dependency):**
+
+Extract the QR code directly from the DOM via canvas, avoiding screenshots entirely.
+Returns a compact ~8-14KB base64 PNG with no CDP screenshot, PIL, or Vision API dependency.
+Verified in live test 2026-05-19.
 
 ```
-# Step 1: Get QR code position from DOM (fast, no base64)
+# Step 1: Check QR code exists via DOM
+browser_cdp(method="Runtime.evaluate",
+  params={"expression": "document.querySelector('img.login__type__container__scan__qrcode') ? 'found' : 'not found'",
+          "returnByValue": true},
+  target_id="<tab-id>"
+)
+
+# Step 2: Extract QR code as base64 PNG via canvas (returns ~10KB data URL)
+browser_cdp(method="Runtime.evaluate",
+  params={"awaitPromise": true,
+          "expression": "(async function(){var q=document.querySelector('img.login__type__container__scan__qrcode'); if(!q) return 'no_element'; var c=document.createElement('canvas'); c.width=q.naturalWidth; c.height=q.naturalHeight; var ctx=c.getContext('2d'); ctx.drawImage(q,0,0); return c.toDataURL('image/png');})()",
+          "returnByValue": true},
+  target_id="<tab-id>"
+)
+
+# Step 3: Save the base64 data URL to a file
+```
+
+The returned string is `"data:image/png;base64,iVBOR..."`. Save to file:
+
+```python
+import base64
+b64 = response.split(",")[1]  # strip "data:image/png;base64," prefix
+img_data = base64.b64decode(b64)
+with open("/tmp/wx_qr_code.png", "wb") as f:
+    f.write(img_data)
+```
+
+**Advantage:** No CDP screenshot, no Vision API, no PIL needed. The canvas `drawImage`
+renders the already-loaded `<img>` element client-side. The QR code is typically
+472x472 pixels. Output ~10KB. Total wall time for steps 1-3: under 30 seconds.
+
+**Fallback — crop from browser_vision screenshot (use when canvas toDataURL returns `no_element`):**
+
+```
+# Step 1: Get QR code position from DOM
 browser_cdp(method="Runtime.evaluate",
     params={"expression": "(function(){var q=document.querySelector('img.login__type__container__scan__qrcode'); if(!q) return 'not found'; var r=q.getBoundingClientRect(); return JSON.stringify({x:r.left, y:r.top, w:r.width, h:r.height});})()",
     target_id="<tab-id>")
 
-# Step 2: Take a full-page screenshot via browser_vision (saves to disk automatically)
+# Step 2: Take a full-page screenshot via browser_vision
 browser_vision(question="Describe this page briefly")
 
-# Step 3: Crop the QR code from the screenshot using Python
-# Use execute_code or terminal python to:
+# Step 3: Crop the QR code from the screenshot using PIL
 #   from PIL import Image
 #   img = Image.open("<screenshot_path from browser_vision>")
 #   scale = 1.875  # devicePixelRatio from Runtime.evaluate
 #   qr = img.crop((int(x*scale)-20, int(y*scale)-20, int((x+w)*scale)+20, int((y+h)*scale)+20))
-#   qr.save("/tmp/wx_qr.png")
-
-# Step 4: Send cropped QR code to Telegram
-send_message(target="telegram:Hai Hu (dm)",
-    message="📱 WeChat MP 登录已过期，请用微信扫描下方二维码登录（5分钟内有效）\nMEDIA:/tmp/wx_qr.png")
+#   qr.save("/tmp/wx_qr_code.png")
 ```
 
-**If `browser_vision` 503s (model overload):** The screenshot is still saved to disk
-even when vision analysis fails — the `screenshot_path` is returned in the error.
-Use that path directly. Always save the screenshot_path for fallback.
+**If `browser_vision` 503s or times out (30s):** The screenshot may still be saved
+to disk (check for `screenshot_path` in the error/response). If saved, proceed with
+PIL crop. If not saved, the canvas approach was already tried in step 1 and failed
+(the QR element was not in the DOM), which means the login page is in an unexpected
+state — go to Step Q1's error handling instead.
 
-**If both `browser_vision` AND `Page.captureScreenshot` fail:** Go straight to
-**canvas `toDataURL()`** (see Pitfall 5). This avoids screenshots entirely and works
-when CDP reports "no visible display" or connection issues. The canvas approach
-renders the QR `<img>` element into a canvas client-side and returns a ~8-14KB
-base64 PNG.
-
-**Why `Page.captureScreenshot` is dangerous:** A full-viewport screenshot in base64
-at scale=2 on a 2560px display = ~3MB of base64 text. Hermes freezes trying to
-process this in the tool response. The QR code expires while Hermes is frozen.
-Always use the file-based approach above.
+**Why `Page.captureScreenshot` must never be used:** A full-viewport screenshot in
+base64 at scale=2 on a 2560px display = ~3MB of base64 text. Hermes freezes trying
+to process this in the tool response. The QR code expires while Hermes is frozen.
+Always use canvas `toDataURL()` or browser_vision's file-based screenshot instead.
 
 ### Step Q3: Poll for successful login
 
@@ -418,12 +490,13 @@ repeat up to 30 times (5 minutes total, every 10 seconds):
 These pitfalls were discovered during end-to-end testing of the QR flow and apply
 to any skill that captures login QR codes via CDP and sends them via Telegram.
 
-**Pitfall 1: `browser_vision` returns 503 (model overload).**
+**Pitfall 1: `browser_vision` 503s or times out (30s).**
 
-`browser_vision` relies on Gemini Vision API which can return 503 under load.
-The screenshot is still saved to disk (the `screenshot_path` field is populated),
-but the AI analysis fails. **Fix:** Fall back to CDP `Runtime.evaluate` for DOM
-inspection to find the QR code element:
+`browser_vision` relies on Gemini Vision API which can return 503 under load or time
+out after 30s. The screenshot is still saved to disk (check for `screenshot_path` in
+the error/response), but the AI analysis fails. **Fix:** Use the fallback PIL crop
+workflow with the saved screenshot file, or better — switch to the canvas `toDataURL()`
+primary approach (Step Q2) which has no Vision API dependency.
 
 ```
 browser_cdp(method="Runtime.evaluate",
@@ -436,11 +509,11 @@ browser_cdp(method="Runtime.evaluate",
 If the QR code exists, use the already-captured screenshot file from the failed
 `browser_vision` call (the `screenshot_path` field) — proceed to Pitfall 2.
 
-**Pitfall 2: Telegram rejects screenshots with "Photo_invalid_dimensions".**
+**Pitfall 2: Screenshot crop workflow — "Photo_invalid_dimensions".**
 
-Full-page screenshots (2040px+ wide at 1.875x devicePixelRatio) produce images
-that Telegram's photo API rejects. **Fix:** Use PIL to crop the screenshot to
-only the QR code area before sending:
+When using the fallback `browser_vision`→PIL crop workflow, full-page screenshots
+(2040px+ wide at 1.875x devicePixelRatio) produce images that Telegram's photo API
+rejects. **Fix:** Crop to only the QR code area before sending:
 
 ```python
 from PIL import Image
@@ -451,7 +524,9 @@ cropped = img.crop((x, y, x+w+40, y+h+40))  # 40px padding
 cropped.save("/tmp/wx_qr_code.png", "PNG")
 ```
 
-Target output: ~20–30KB. Then send via `send_message(target="telegram", message="📱 ... MEDIA:/tmp/wx_qr_code.png")`.
+Target output: ~20–30KB. Note: this pitfall does NOT apply when using the canvas
+`toDataURL()` primary approach — that produces a clean 472×472 PNG (~10KB) with
+no Telegram dimension issues.
 
 **Pitfall 3: `Page.captureScreenshot` returns enormous base64 that freezes the agent.**
 
@@ -470,40 +545,15 @@ Other sites (Zhihu, etc.) use different selectors. Always verify via
 `Runtime.evaluate` before attempting to get coordinates. Fallback: search
 for any `img` with `qrcode` or `scanlogin` in the `src` attribute.
 
-**Pitfall 5: Both `browser_vision` and `Page.captureScreenshot` freeze/timeout.**
+**Pitfall 5: Canvas `toDataURL()` is primary, not fallback — don't waste time on screenshots.**
 
-When CDP screenshots fail (browser reports "no visible display", `browser_vision` times out at 30s, and `Page.captureScreenshot` also times out), use **canvas `toDataURL()`** to extract the QR code directly from the DOM:
-
-```
-# Step 1: Check QR code exists via DOM
-browser_cdp(method="Runtime.evaluate",
-  params={"expression": "document.querySelector('img.login__type__container__scan__qrcode') ? 'found' : 'not found'",
-          "returnByValue": true},
-  target_id="<tab-id>"
-)
-
-# Step 2: Extract QR code as base64 PNG via canvas
-browser_cdp(method="Runtime.evaluate",
-  params={"awaitPromise": true,
-          "expression": "(async function(){var q=document.querySelector('img.login__type__container__scan__qrcode'); if(!q) return 'no_element'; var c=document.createElement('canvas'); c.width=q.naturalWidth; c.height=q.naturalHeight; var ctx=c.getContext('2d'); ctx.drawImage(q,0,0); return c.toDataURL('image/png');})()",
-          "returnByValue": true},
-  target_id="<tab-id>"
-)
-```
-
-The returned string is a `data:image/png;base64,...` URL (~8-14KB for QR codes). Save to file:
-
-```python
-import base64
-b64 = response.split(",")[1]  # strip "data:image/png;base64," prefix
-img_data = base64.b64decode(b64)
-with open("/tmp/wx_qr_code.png", "wb") as f:
-    f.write(img_data)
-```
-
-**Advantage:** No CDP screenshot required at all. The canvas `drawImage` renders the already-loaded `<img>` element into a canvas client-side and encodes it. Works regardless of screenshot limitations. The QR code is typically 472x472 pixels at full resolution from the natural dimensions.
-
-**When to use this fallback:** If `browser_vision` 503s or times out AND `Page.captureScreenshot` also fails, go straight to canvas `toDataURL()`. Do not retry the screenshot approaches — the QR code expires in ~2 minutes.
+The canvas `toDataURL()` approach (Step Q2 Primary) is the recommended first attempt,
+not a last resort. It returns a ~10KB PNG in a single CDP call (~5s round-trip), with
+no browser_vision or PIL dependency. The screenshot-based fallback is slower (~30s+)
+and introduces fragility (503 timeouts, `Photo_invalid_dimensions` Telegram rejections).
+When credentials are expired, invoke canvas toDataURL() directly — skip the screenshot
+workflow entirely unless canvas returns `no_element` (meaning the QR <img> is not in
+the DOM, which indicates an unexpected login page state).
 
 ### Step Q4: Post-login credential extraction
 
@@ -529,7 +579,6 @@ Then proceed to run `bash ./skills/omnigraph_scan_kol/scripts/scan_kol.sh`.
 - **Account order is RANDOMIZED** (`random.shuffle` before iteration). This ensures
   that if SESSION_LIMIT truncation happens, different accounts get skipped each day.
 - **Inter-account delay = 5.0s** (`RATE_LIMIT_SLEEP_ACCOUNTS` in `spiders/wechat_spider.py:22`).
-  54 accounts × 5s = 4.5 min total.
 - **Health check cron** (07:55 daily): runs the [Health Check Procedure](#health-check-procedure-pre-scan-5min-before-daily-scan)
   above — validates CDP, auto-refreshes credentials into `kol_config.py`, verifies
   with single-account test scan. Sends Telegram on failure; silent on success.
@@ -587,6 +636,13 @@ When the unattended cron fails, diagnose in this order:
      Fix: remove/comment those lines from bashrc, verify with `echo $GOOGLE_CLOUD_PROJECT` (should be empty).
    - `kol_config.py` TOKEN stale → ret=200003 (fix: run health check to auto-refresh)
    - `kol_config.py` COOKIE stale → ret=200003 (same fix)
+   - **`KeyError: 'name'` at `init_accounts`** → `docs/wechat_kol_registry.json` has an entry
+     using the wrong field key (e.g. `"account_name"` instead of `"name"`). Run a quick audit:
+     ```bash
+     python3 -c "import json; d=json.load(open('docs/wechat_kol_registry.json')); [print(f'LINT: {a.get(\"name\",\"MISSING-name\")}') for a in d['accounts']]"
+     ```
+     Fix by patching the misnamed key to `"name"`. Can happen when new entries are manually
+     added with non-standard field names.
    - SESSION_LIMIT too low → accounts silently truncated
    - CDP browser not running → browser_navigate fails (health check catches this)
 4. **Verify DB coverage**: Use Python (sqlite3 CLI may not be installed):

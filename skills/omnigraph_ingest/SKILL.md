@@ -27,6 +27,11 @@ metadata:
 
 # omnigraph_ingest
 
+## Pre-flight Checks (always run FIRST)
+1. **Check if already ingested**: grep doc_status.json for `wechat_<hash>` — if `status: "processed"`, skip.
+2. **Verify DeepSeek balance**: try a trivial LLM call or check last ingest log for `402 Insufficient Balance`.
+3. **If 402**: revert affected ingestions rows to `failed`, recharge, then re-fire.
+
 ## Quick Reference
 
 | Task | Input | Command |
@@ -300,17 +305,153 @@ toolsets received terminal output but summarized/omitted it in the Telegram mess
 - `max-articles cap reached (50)` in log tail → batch cap hit
 - `376 articles processed` → pool exhausted before cap
 - DB counts stable across 2 queries 30s apart → no more in-flight writes
+- **batch_timeout_metrics is misleading:** The JSON block at script exit may show
+  `completed_articles: 1, not_started_articles: 155` even when **4 articles were
+  successfully ingested**. This metric apparently counts only layer2-completed
+  threads, not total ingestion rows written. **Do not use it to judge success.**
+  Use DB counts (`SELECT source, status, COUNT(*) FROM ingestions WHERE ...`)
+  or grep `Successfully Ingested` in the log instead.
 
 ### Zombie Cleanup
 
-The tmux session won't auto-exit (vision async-drain hang). After confirming completion:
+The tmux session may auto-exit on small batches (max-articles ≤5, ~54 min runtime)
+but will **hang as a zombie** on large batches (max-articles 50+, especially with
+vision async-drain). After confirming completion:
 
 ```bash
 tmux kill-session -t daily-ingest-$(date +%Y%m%d)
 ```
 
-### Pitfalls
+## LightRAG Version Upgrades
 
+### lightrag-hku 1.4.15 (2026-05-18): EmbeddingFunc Wrapper Required
+
+`lightrag-hku==1.4.15` changed `LightRAG.__post_init__` (line 636) to access
+`self.embedding_func.func` — expecting an `EmbeddingFunc` dataclass instance,
+NOT a bare async function.
+
+**Symptom:**
+```
+File "lightrag/lightrag.py", line 636, in __post_init__
+    )(self.embedding_func.func)
+AttributeError: 'function' object has no attribute 'func'
+```
+
+**Fix in `lib/lightrag_embedding.py`:**
+1. Rename the plain `embedding_func` function to `_embed` (internal helper)
+2. At module bottom, wrap it in `EmbeddingFunc`:
+```python
+from lightrag.utils import EmbeddingFunc
+
+embedding_func = EmbeddingFunc(
+    embedding_dim=EMBEDDING_DIM,
+    func=_embed,
+    max_token_size=EMBEDDING_MAX_TOKENS,
+    model_name=EMBEDDING_MODEL,
+)
+embedding_func.send_dimensions = True
+```
+
+**Verification:**
+```python
+from lightrag.utils import EmbeddingFunc
+from lib import embedding_func
+assert isinstance(embedding_func, EmbeddingFunc)
+assert hasattr(embedding_func, 'func')
+```
+
+### Current Version (post-1.4.15, ~2026-05-19): dataclass.replace() + __call__ Required
+
+A subsequent LightRAG upgrade added:
+1. `dataclasses.replace(self.embedding_func, func=wrapped_func)` in `__post_init__`
+   — requires `EmbeddingFunc` to be a `@dataclass`
+2. `self.embedding_func(batch)` in `nano_vector_db_impl.py` upsert
+   — requires `EmbeddingFunc` to have `async def __call__`
+
+**Symptom:** First attempt fails with `replace() should be called on dataclass instances`;
+second attempt (if code was retried unchanged) fails with
+`'EmbeddingFunc' object is not callable`.
+
+**Fix in `lib/lightrag_embedding.py`:**
+
+Convert the project's own `EmbeddingFunc` from a plain class to a `@dataclass`
+with an `async __call__`:
+
+```python
+from dataclasses import dataclass
+from typing import Any
+
+@dataclass
+class EmbeddingFunc:
+    embedding_dim: int
+    func: Any  # callable
+    max_token_size: int | None = None
+    model_name: str | None = None
+    send_dimensions: bool = False
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> np.ndarray:
+        return await self.func(*args, **kwargs)
+```
+
+Do NOT use `lightrag.utils.EmbeddingFunc` here — the project's own class
+shields against breakage when upstream LightRAG changes its EmbeddingFunc
+interface again. Keep the project-local copy and maintain the dataclass
+contract manually.
+
+**Verification:**
+```python
+from lib.lightrag_embedding import embedding_func
+assert hasattr(embedding_func, '__dataclass_fields__'), 'must be @dataclass'
+assert callable(embedding_func), 'must have __call__'
+import asyncio
+assert asyncio.iscoroutinefunction(embedding_func.__call__)
+```
+
+Upgrades to future lightrag-hku versions should verify this interface hasn't
+changed again before deploying.
+
+## Pitfalls
+
+### LightRAG EmbeddingFunc dataclass incompatibility
+
+**Symptom:** `ingest_wechat.py` or `batch_ingest_from_spider.py` crashes during
+`LightRAG.__post_init__` or extract phase:
+```
+TypeError: replace() should be called on dataclass instances   # init-phase
+TypeError: 'EmbeddingFunc' object is not callable              # extract-phase
+```
+
+**Root cause:** LightRAG was upgraded to a version where `__post_init__` calls
+`dataclasses.replace(self.embedding_func, func=wrapped_func)` (line 638 of
+`lightrag.py`), which requires `self.embedding_func` to be a `@dataclass`
+instance. The project's custom `EmbeddingFunc` in `lib/lightrag_embedding.py`
+was a plain class — not a dataclass, and had no `__call__` method, which the
+newer vector DB implementation also requires.
+
+**Fix (applied 2026-05-19 to `lib/lightrag_embedding.py`):**
+
+1. Add `@dataclass` decorator to the project's `EmbeddingFunc` class
+2. Convert fields from `__init__` parameters to dataclass field declarations
+3. Add `async def __call__` that delegates to `self.func`
+4. Add `from dataclasses import dataclass` import
+
+**Verification:**
+```python
+from lib.lightrag_embedding import embedding_func
+print('is dataclass:', hasattr(embedding_func, '__dataclass_fields__'))
+print('is callable:', callable(embedding_func))
+# Both must be True
+```
+
+**Fallback:** If standalone `ingest_wechat.py` consistently fails, add the
+article to `kol_scan.db` and let the next cron cycle ingest it via the batch
+path. Full details: `references/lightrag-1.4.15-extract-compat.md`
+
+### Other Pitfalls
+- **Duplicate ingest**: Always grep `kv_store_doc_status.json` for `wechat_<hash>` before ingesting. If already `processed`, skip. The ingest cycle is 8-15 min per article — duplicates waste API credits.
+- **402 Insufficient Balance**: DeepSeek returns 402 mid-extraction. Check `doc_status` error_msg for 402. Recovery: recharge DeepSeek → revert affected ingestions rows to `failed` → delete checkpoint files → re-fire.
+- **Foreground terminal ingest**: NEVER run `ingest_wechat.py` directly in foreground. Hermes terminal tool has a 900s ceiling; single ingest takes 8-15 min. Always use `bash scripts/ingest.sh "<url>"` (auto-launches detached tmux).
+- **scripts/ingest.sh missing**: If the script doesn't exist, create it from the template in this skill's `templates/` directory before any ingest. The Quick Reference command depends on it.
 | Pitfall | Symptom | Fix |
 |---------|---------|-----|
 | Old session alive — dead pane | Script exits 1 "session already exists", pane PID gone | Kill old session first (see Pre-Flight): `tmux kill-session -t daily-ingest-$(date +%Y%m%d)` |
@@ -325,6 +466,7 @@ tmux kill-session -t daily-ingest-$(date +%Y%m%d)
 | **Checkpoint-skip dominates loop time** | The per-article loop pauses on ~28 `checkpoint-skip: already-ingested hash=...` lines. This is the main time sink in the scraping phase. | Expected — the script checks `content_hash` against the DB. These are quick hash lookups and only consume ~1-2s each. No action needed. |
 | **Enrichment NOT automatic** | WeChat articles go through bare ingest only (Layer1→Layer2→scrape→ainsert). Zhihu 好问 enrichment is NOT part of `cron_daily_ingest.sh`. CDP browser will have no Zhihu visit records. | By design. Enrichment is a separate manual pipeline via the `enrich_article` skill (extract_questions → zhihu-haowen-enrich → fetch_zhihu → merge_and_ingest). To add enrichment to cron, either schedule `enrich_article` as a second cron pass or add it to the batch_ingest loop. |
 | Status reports: user wants raw data, not narration | User asks for status reports with explicit "不要 narrate / 不要 summarize / 不要解读" instructions. | When asked for a status report, dump raw command output verbatim. Use `echo "=== section ==="` dividers. Do NOT add interpretation, analysis, or summary paragraphs. Let the user read the raw data and draw their own conclusions. This applies to: cron status checks, DB queries, log analysis, contract reconciliation, pipeline progress monitoring. |
+| Non-interference monitoring | User asks to check cron/tmux progress with "不打断不干扰" or "不要打断". | Use `tmux capture-pane` (NOT `tmux attach`), `tail` log files, and `grep` for stage indicators. NEVER kill, SIGTERM, attach to, or interact with the running session. Use `ps -p <pane_pid>` if needed to verify liveness. If session is a zombie (dead pane), kill ONLY after confirming completion via log/DB counts. |
 | LightRAG entity extraction returns 0 entities | Articles stored in full_docs (status=processed) but entity/relation counts don't increase. Can query via full-text but not entity graph. | LightRAG entity extraction (DeepSeek LLM) may return empty entity list. Articles ARE searchable via full-text. Check with entity count before/after ingest. Note: DeepSeek 402 "Insufficient Balance" causes doc_status='failed' + 0 entities (different — see mystery-row-cleanup). |
 
 ### h09 Smoke Test (Contract Reconciliation)
@@ -427,6 +569,7 @@ cd ~/OmniGraph-Vault && git pull --ff-only && git log --oneline origin/main -3
 
 ## References
 
+- `references/lightrag-1.4.15-extract-compat.md` — extract-phase EmbeddingFunc object-not-callable error (2026-05-19)
 - `references/rss-pipeline-investigation.md` — why 0 RSS articles reached ok status (empirical investigation)
 - `references/scraper-coverage-matrix.md` — 45/45 stuck RSS URLs scrapable with simple UA probe (proves bug internal)
 - `references/reconcile-canary.md` — daily automated contract check: retrieval, interpretation, false-negative pattern
