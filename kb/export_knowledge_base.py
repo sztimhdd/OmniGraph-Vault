@@ -54,6 +54,7 @@ from kb.data.article_query import (  # noqa: E402
     get_article_body,
     list_articles,
     resolve_url_hash,
+    rewrite_translated_body,  # kb-v2.2-7
     # kb-2 additions:
     cooccurring_entities_in_topic,
     entity_articles_query,
@@ -196,6 +197,21 @@ KB_ENTITY_MIN_FREQ: int = int(os.environ.get("KB_ENTITY_MIN_FREQ", "5"))
 _LASTMOD_FALLBACK = "1970-01-01"
 
 
+_VALID_DEFAULT_LANGS = {"zh-CN", "en"}
+
+
+def _resolve_kb_default_lang() -> str:
+    """kb-v2.2-7 (A9): resolve per-deployment default lang from KB_DEFAULT_LANG env var.
+
+    Aliyun deploy → 'zh-CN' (or unset → defaults to 'zh-CN'). Databricks deploy
+    → 'en'. Validates against {'zh-CN', 'en'}; falls back to 'zh-CN' on invalid
+    so an operator typo (e.g. KB_DEFAULT_LANG=fr) does not silently break
+    rendering — Aliyun-audience zh-CN is the safe fallback.
+    """
+    raw = os.environ.get("KB_DEFAULT_LANG", "zh-CN")
+    return raw if raw in _VALID_DEFAULT_LANGS else "zh-CN"
+
+
 def _build_env() -> Environment:
     """Build Jinja2 env with i18n filter registered + KB_BASE_PATH global.
 
@@ -204,6 +220,11 @@ def _build_env() -> Environment:
     Empty string = root deploy. Templates concatenate `{{ base_path }}/...` so
     `KB_BASE_PATH=` (unset) yields `/static/...`, `KB_BASE_PATH=/kb` yields
     `/kb/static/...`. JS uses `window.KB_BASE_PATH` injected in base.html.
+
+    kb-v2.2-7 (A9): kb_default_lang is exposed as a Jinja global so base.html
+    can inject `window.KB_DEFAULT_LANG` for lang.js to consume as fallback when
+    cookie + browser detect both fail. Read once at env-build time so all
+    templates see the same value within a single SSG run.
     """
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
@@ -211,6 +232,7 @@ def _build_env() -> Environment:
     )
     register_jinja2_filter(env)
     env.globals["base_path"] = config.KB_BASE_PATH
+    env.globals["kb_default_lang"] = _resolve_kb_default_lang()
     return env
 
 
@@ -265,6 +287,9 @@ def _record_to_dict(
     out: dict[str, Any] = {
         "id": rec.id,
         "title": rec.title,
+        # kb-v2.2-7: surface translated title for dual-span card rendering;
+        # template falls back to `article.title` when this is None.
+        "title_translated": rec.title_translated,
         "url_hash": url_hash,
         "url": rec.url,
         "lang": _canonical_lang(rec.lang),
@@ -338,6 +363,18 @@ def render_article_detail(
     body_md, body_source = get_article_body(rec)
     body_html = _annotate_code_block_lang_label(_render_body_html(body_md))
 
+    # kb-v2.2-7: render translated body through the same markdown pipeline so
+    # zh and en versions reach the template as parallel HTML blobs. Image-URL
+    # rewrites happen at the data layer (rewrite_translated_body) so EXPORT-05
+    # parity is preserved. None when body_translated IS NULL — template's
+    # `or body_html` fallback (locked decision A4) covers untranslated rows.
+    translated_body_md = rewrite_translated_body(rec.body_translated)
+    translated_body_html = (
+        _annotate_code_block_lang_label(_render_body_html(translated_body_md))
+        if translated_body_md
+        else None
+    )
+
     article_dict = _record_to_dict(rec, url_hash, body_md=body_md)
     article_dict["body_source"] = body_source
 
@@ -370,6 +407,10 @@ def render_article_detail(
         "lang": _canonical_lang(rec.lang) if rec.lang else "zh-CN",
         "article": article_dict,
         "body_html": body_html,
+        # kb-v2.2-7: dual-`<article class="article-body lang-block" data-lang>`
+        # pattern in template consumes this; None lets the `or body_html`
+        # Jinja fallback render zh content into the en sibling.
+        "translated_body_html": translated_body_html,
         "og": _build_og(article_dict, body_html),
         "page_url": f"{config.KB_BASE_PATH}/articles/{url_hash}.html",
         "json_ld": _build_json_ld(article_dict),

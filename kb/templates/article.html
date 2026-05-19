@@ -1,5 +1,5 @@
 {% from "_icons.html" import icon %}<!DOCTYPE html>
-<html lang="{{ article.lang }}" data-fixed-lang="true">
+<html lang="{{ article.lang }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -69,7 +69,10 @@
       </nav>
 
       <header class="article-header">
-        <h1>{{ article.title }}</h1>
+        {# kb-v2.2-7: dual-span h1 — site language drives visibility via [data-lang] CSS rules #}
+        <h1>
+          <span data-lang="zh">{{ article.title }}</span><span data-lang="en">{{ article.title_translated or article.title }}</span>
+        </h1>
         {# I18N-06 visible content lang badge — emits as the FIXED content lang #}
         <div class="article-meta">
           <span class="lang-badge" data-lang="{{ article.lang or 'unknown' }}">
@@ -111,9 +114,16 @@
 
       {# EXPORT-04 body — pre-rendered HTML with Pygments highlighting baked in #}
       {# kb-2 LINK-01 + LINK-02: wrap body + sibling .article-aside in .article-detail-layout #}
+      {# kb-v2.2-7: dual <article class="article-body lang-block" data-lang> siblings.
+         Visibility driven by .lang-block[data-lang="zh"] / [data-lang="en"] CSS rules
+         (style.css:343+). When article.body_translated IS NULL, the en sibling falls
+         back to body_html — mixed-language display is acceptable per locked decision A4. #}
       <div class="article-detail-layout">
-        <article class="article-body">
+        <article class="article-body lang-block" data-lang="zh">
           {{ body_html | safe }}
+        </article>
+        <article class="article-body lang-block" data-lang="en">
+          {{ translated_body_html or body_html | safe }}
         </article>
 
         {% if related_entities or related_topics %}

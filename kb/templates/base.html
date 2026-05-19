@@ -96,6 +96,10 @@
     </div>
   </footer>
 
+  {# kb-v2.2-7 (A9): per-deployment default lang. Injected as window global so
+     lang.js IIFE picks it up as fallback when cookie + browser detect both fail.
+     Aliyun deploy → KB_DEFAULT_LANG=zh-CN (or unset). Databricks deploy → KB_DEFAULT_LANG=en. #}
+  <script>window.KB_DEFAULT_LANG = "{{ kb_default_lang | default('zh-CN') }}";</script>
   <script src="{{ base_path }}/static/lang.js"></script>
   <script>
     (function () {

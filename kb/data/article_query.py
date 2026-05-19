@@ -528,6 +528,26 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
     return body, "raw_markdown"
 
 
+def rewrite_translated_body(body_translated: str | None) -> str | None:
+    """kb-v2.2-7: apply EXPORT-05 + kb-v2.1-6 image rewrites to translated body markdown.
+
+    Translated bodies live ONLY in articles.body_translated / rss_articles.body_translated
+    columns — they never go through the D-14 fallback chain (no
+    {hash}/final_content.md companion). The Databricks Wave 2 translator preserves
+    image references verbatim (R7 mitigation), so the same image URL prefixes
+    that need rewriting on the source body apply here unchanged.
+
+    Returns None when body_translated is NULL/empty so the SSG template's
+    `or body_html` fallback (locked decision A4) kicks in cleanly.
+    """
+    if not body_translated:
+        return None
+    base_path = config.KB_BASE_PATH
+    body = _rewrite_image_paths(body_translated, base_path)
+    body = _rewrite_image_text_refs_to_html(body)
+    return body
+
+
 # ---- kb-2 query functions (TOPIC + ENTITY + LINK) ----
 
 
