@@ -133,20 +133,24 @@ def test_schema_guard_passes_on_healthy_fixture(fixture_db):
 
 
 def test_fixture_has_positive_verdict_rows(fixture_db):
-    """Test 6: fixture has ≥3 positive KOL rows passing all 3 filter conditions."""
+    """Test 6: fixture has ≥3 positive KOL rows passing tightened DATA-07 (kb-v2.2-7 A6).
+
+    Tightened rule: body present AND layer1='candidate' AND layer2='ok'.
+    L2=NULL no longer counts as positive.
+    """
     c = _conn(fixture_db)
     try:
         kol_pos = c.execute(
             "SELECT COUNT(*) FROM articles "
             "WHERE body IS NOT NULL AND body != '' "
             "AND layer1_verdict = 'candidate' "
-            "AND (layer2_verdict IS NULL OR layer2_verdict != 'reject')"
+            "AND layer2_verdict = 'ok'"
         ).fetchone()[0]
         rss_pos = c.execute(
             "SELECT COUNT(*) FROM rss_articles "
             "WHERE body IS NOT NULL AND body != '' "
             "AND layer1_verdict = 'candidate' "
-            "AND (layer2_verdict IS NULL OR layer2_verdict != 'reject')"
+            "AND layer2_verdict = 'ok'"
         ).fetchone()[0]
         assert kol_pos >= 3, f"need ≥3 positive KOL rows, got {kol_pos}"
         assert rss_pos >= 3, f"need ≥3 positive RSS rows, got {rss_pos}"
@@ -155,21 +159,51 @@ def test_fixture_has_positive_verdict_rows(fixture_db):
 
 
 def test_fixture_has_negative_verdict_rows(fixture_db):
-    """Test 7: fixture has ≥2 negative rows per source (rows DATA-07 must exclude)."""
+    """Test 7: fixture has ≥3 negative rows per source under tightened DATA-07.
+
+    kb-v2.2-7 A6: any row failing tightened rule (body missing OR L1!=candidate
+    OR L2!='ok' incl. L2 IS NULL) is negative. Counts include the new L2=NULL
+    row (id=95) added to validate the tightening.
+    """
+    # SQL three-valued logic: NOT (... AND L2='ok') is NULL when L2 IS NULL.
+    # Use explicit COALESCE to ensure L2=NULL rows count as negative.
     c = _conn(fixture_db)
     try:
+        neg_clause = (
+            "body IS NULL OR body = '' "
+            "OR COALESCE(layer1_verdict, '') != 'candidate' "
+            "OR COALESCE(layer2_verdict, '') != 'ok'"
+        )
         kol_neg = c.execute(
-            "SELECT COUNT(*) FROM articles "
-            "WHERE body IS NULL OR body = '' "
-            "OR layer1_verdict = 'reject' OR layer2_verdict = 'reject'"
+            f"SELECT COUNT(*) FROM articles WHERE {neg_clause}"
         ).fetchone()[0]
         rss_neg = c.execute(
-            "SELECT COUNT(*) FROM rss_articles "
-            "WHERE body IS NULL OR body = '' "
-            "OR layer1_verdict = 'reject' OR layer2_verdict = 'reject'"
+            f"SELECT COUNT(*) FROM rss_articles WHERE {neg_clause}"
         ).fetchone()[0]
-        assert kol_neg >= 2, f"need ≥2 negative KOL rows, got {kol_neg}"
-        assert rss_neg >= 2, f"need ≥2 negative RSS rows, got {rss_neg}"
+        assert kol_neg >= 3, f"need ≥3 negative KOL rows, got {kol_neg}"
+        assert rss_neg >= 3, f"need ≥3 negative RSS rows, got {rss_neg}"
+    finally:
+        c.close()
+
+
+def test_fixture_has_l2_null_negative_row(fixture_db):
+    """kb-v2.2-7: fixture must include at least one L1='candidate' L2 IS NULL row
+    in EACH source — these are the rows specifically validating the tightening.
+    """
+    c = _conn(fixture_db)
+    try:
+        kol_l2null = c.execute(
+            "SELECT COUNT(*) FROM articles "
+            "WHERE body IS NOT NULL AND body != '' "
+            "AND layer1_verdict = 'candidate' AND layer2_verdict IS NULL"
+        ).fetchone()[0]
+        rss_l2null = c.execute(
+            "SELECT COUNT(*) FROM rss_articles "
+            "WHERE body IS NOT NULL AND body != '' "
+            "AND layer1_verdict = 'candidate' AND layer2_verdict IS NULL"
+        ).fetchone()[0]
+        assert kol_l2null >= 1, "fixture must have ≥1 KOL L1=candidate L2 IS NULL row"
+        assert rss_l2null >= 1, "fixture must have ≥1 RSS L1=candidate L2 IS NULL row"
     finally:
         c.close()
 
@@ -402,11 +436,13 @@ def test_filter_disabled_does_not_run_schema_guard(monkeypatch):
             """
             CREATE TABLE articles (
                 id INTEGER PRIMARY KEY, title TEXT, url TEXT, body TEXT,
-                content_hash TEXT, lang TEXT, update_time TEXT
+                content_hash TEXT, lang TEXT, update_time TEXT,
+                title_translated TEXT, body_translated TEXT, translated_lang TEXT
             );
             CREATE TABLE rss_articles (
                 id INTEGER PRIMARY KEY, title TEXT, url TEXT, body TEXT,
-                content_hash TEXT, lang TEXT, published_at TEXT, fetched_at TEXT
+                content_hash TEXT, lang TEXT, published_at TEXT, fetched_at TEXT,
+                title_translated TEXT, body_translated TEXT, translated_lang TEXT
             );
             INSERT INTO articles (id, title, url, body, content_hash, lang, update_time)
             VALUES (1, 't', 'u', 'b', 'h1', 'en', '2026-01-01');

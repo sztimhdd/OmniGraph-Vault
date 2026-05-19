@@ -30,8 +30,12 @@ BodySource = Literal["vision_enriched", "raw_markdown"]
 
 # ---- DATA-07 content-quality filter ----
 # Per .planning/phases/kb-3-fastapi-bilingual-api/kb-3-CONTENT-QUALITY-DECISIONS.md
-# Excludes rows where: body IS NULL/empty OR layer1_verdict != 'candidate'
-# OR layer2_verdict = 'reject'.
+# (tightened in kb-v2.2-7: bilingual-by-site-language, decision A6).
+#
+# Includes ONLY rows where: body IS NOT NULL/empty AND layer1_verdict='candidate'
+# AND layer2_verdict='ok'. Rows with layer2_verdict IS NULL (L2 not yet run)
+# OR layer2_verdict='reject' are excluded. This makes the display set equal to
+# the translation-eligible set: no article can be visible without a verdict.
 #
 # Skill(skill="python-patterns", args="Idiomatic module-level env var read pattern: QUALITY_FILTER_ENABLED evaluated once at import. Schema-guard helper using PRAGMA table_info() — fail loud with RuntimeError listing exact missing columns + the env override hint. Schema guard called lazily on first list-query invocation per process (cache via _SCHEMA_VERIFIED dict keyed on id(conn)). No imports beyond stdlib (os, sqlite3).")
 # Skill(skill="writing-tests", args="TDD tests for env override (3 cases: unset/off/OFF) + schema guard (2 cases: missing column raises, healthy passes) + fixture extension (positive verdicts + ≥2 negative rows per source). monkeypatch.setenv + importlib.reload for env tests. sqlite3.connect(':memory:') stripped-down articles table for missing-column test.")
@@ -68,20 +72,25 @@ def _verify_quality_columns(conn: sqlite3.Connection) -> None:
 # SQL fragment shared across DATA-07-aware queries.
 # Aliased forms for JOIN paths (kb-2 queries use `a.` for KOL, `r.` for RSS).
 # Bare form for unaliased paths (kb-1 list_articles).
+#
+# kb-v2.2-7 tightening (decision A6): require layer2_verdict='ok' explicitly
+# (was: layer2_verdict IS NULL OR != 'reject' — lenient). Pre-deploy 6a GATE on
+# 2026-05-19 measured 712 articles with NULL L2 that will become invisible;
+# orchestrator accepted (drained automatically by next L2 cron runs).
 _DATA07_KOL_FRAGMENT = (
     "a.body IS NOT NULL AND a.body != '' "
     "AND a.layer1_verdict = 'candidate' "
-    "AND (a.layer2_verdict IS NULL OR a.layer2_verdict != 'reject')"
+    "AND a.layer2_verdict = 'ok'"
 )
 _DATA07_RSS_FRAGMENT = (
     "r.body IS NOT NULL AND r.body != '' "
     "AND r.layer1_verdict = 'candidate' "
-    "AND (r.layer2_verdict IS NULL OR r.layer2_verdict != 'reject')"
+    "AND r.layer2_verdict = 'ok'"
 )
 _DATA07_BARE = (
     "body IS NOT NULL AND body != '' "
     "AND layer1_verdict = 'candidate' "
-    "AND (layer2_verdict IS NULL OR layer2_verdict != 'reject')"
+    "AND layer2_verdict = 'ok'"
 )
 
 
@@ -99,6 +108,9 @@ class ArticleRecord:
         lang: 'zh-CN' | 'en' | 'unknown' | None (None until DATA-02 detect runs)
         update_time: ISO-8601-ish timestamp; for rss this is published_at or fetched_at
         publish_time: optional original publish time (RSS only typically)
+        title_translated: translated title (kb-v2.2-7 A9); None when not yet translated
+        body_translated: translated body markdown (kb-v2.2-7 A9); None when not yet translated
+        translated_lang: target lang of translation ('en' or 'zh-CN'); None when not translated
     """
 
     id: int
@@ -110,6 +122,9 @@ class ArticleRecord:
     lang: Optional[str]
     update_time: str
     publish_time: Optional[str] = None
+    title_translated: Optional[str] = None
+    body_translated: Optional[str] = None
+    translated_lang: Optional[str] = None
 
 
 def resolve_url_hash(rec: ArticleRecord) -> str:
@@ -203,6 +218,18 @@ def _normalize_rss_update_time(
     return fetched_at or ""
 
 
+def _row_get(row, key):
+    """Safe column access on sqlite3.Row — returns None if column not in SELECT.
+
+    Lets _row_to_record_* helpers tolerate older SELECT lists (or test fixtures)
+    that haven't yet been extended with the kb-v2.2-7 translation columns.
+    """
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return None
+
+
 def _row_to_record_kol(row) -> ArticleRecord:
     return ArticleRecord(
         id=row["id"],
@@ -214,6 +241,9 @@ def _row_to_record_kol(row) -> ArticleRecord:
         lang=row["lang"],
         update_time=_normalize_update_time(row["update_time"]),
         publish_time=None,
+        title_translated=_row_get(row, "title_translated"),
+        body_translated=_row_get(row, "body_translated"),
+        translated_lang=_row_get(row, "translated_lang"),
     )
 
 
@@ -231,6 +261,9 @@ def _row_to_record_rss(row) -> ArticleRecord:
         lang=row["lang"],
         update_time=update_time,
         publish_time=row["published_at"],
+        title_translated=_row_get(row, "title_translated"),
+        body_translated=_row_get(row, "body_translated"),
+        translated_lang=_row_get(row, "translated_lang"),
     )
 
 
@@ -269,7 +302,11 @@ def list_articles(
             _verify_quality_columns(conn)
         results: list[ArticleRecord] = []
         if source != "rss":
-            sql = "SELECT id, title, url, body, content_hash, lang, update_time FROM articles"
+            sql = (
+                "SELECT id, title, url, body, content_hash, lang, update_time, "
+                "title_translated, body_translated, translated_lang "
+                "FROM articles"
+            )
             params: list = []
             if lang is not None:
                 sql += " WHERE lang = ?"
@@ -282,7 +319,9 @@ def list_articles(
         if source != "wechat":
             sql = (
                 "SELECT id, title, url, body, content_hash, lang, "
-                "published_at, fetched_at FROM rss_articles"
+                "published_at, fetched_at, "
+                "title_translated, body_translated, translated_lang "
+                "FROM rss_articles"
             )
             params = []
             if lang is not None:
@@ -328,7 +367,8 @@ def get_article_by_hash(
     try:
         # 1. Direct KOL match
         row = conn.execute(
-            "SELECT id, title, url, body, content_hash, lang, update_time "
+            "SELECT id, title, url, body, content_hash, lang, update_time, "
+            "title_translated, body_translated, translated_lang "
             "FROM articles WHERE content_hash = ?",
             (hash,),
         ).fetchone()
@@ -337,7 +377,9 @@ def get_article_by_hash(
         # 2. Direct RSS match (truncate full md5 to 10 in SQL)
         row = conn.execute(
             "SELECT id, title, url, body, content_hash, lang, "
-            "published_at, fetched_at FROM rss_articles "
+            "published_at, fetched_at, "
+            "title_translated, body_translated, translated_lang "
+            "FROM rss_articles "
             "WHERE substr(content_hash, 1, 10) = ?",
             (hash,),
         ).fetchone()
@@ -345,7 +387,8 @@ def get_article_by_hash(
             return _row_to_record_rss(row)
         # 3. Fallback: KOL rows with NULL content_hash (slow path)
         for row in conn.execute(
-            "SELECT id, title, url, body, content_hash, lang, update_time "
+            "SELECT id, title, url, body, content_hash, lang, update_time, "
+            "title_translated, body_translated, translated_lang "
             "FROM articles WHERE content_hash IS NULL"
         ):
             rec = _row_to_record_kol(row)
@@ -564,7 +607,8 @@ def topic_articles_query(
         # KOL articles — JOIN classifications without source predicate
         # (classifications is KOL-only per prod schema).
         sql_kol = (
-            "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time "
+            "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time, "
+            "a.title_translated, a.body_translated, a.translated_lang "
             "FROM articles a "
             "JOIN classifications c ON c.article_id = a.id "
             "WHERE c.topic = ? AND c.depth_score >= ? "
@@ -583,7 +627,8 @@ def topic_articles_query(
         # column populated only by the classify cron.
         sql_rss = (
             "SELECT r.id, r.title, r.url, r.body, r.content_hash, r.lang, "
-            "r.published_at, r.fetched_at "
+            "r.published_at, r.fetched_at, "
+            "r.title_translated, r.body_translated, r.translated_lang "
             "FROM rss_articles r "
             "WHERE r.topics LIKE '%' || ? || '%' AND r.depth >= ? "
             "AND (r.layer1_verdict = 'candidate' OR r.layer2_verdict = 'ok')"
@@ -635,7 +680,8 @@ def entity_articles_query(
         results: list[ArticleRecord] = []
         # KOL articles only — extracted_entities is KOL-only per prod schema.
         sql_kol = (
-            "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time "
+            "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time, "
+            "a.title_translated, a.body_translated, a.translated_lang "
             "FROM articles a JOIN extracted_entities e "
             "ON e.article_id = a.id "
             "WHERE e.entity_name = ?"

@@ -44,7 +44,11 @@ router = APIRouter(prefix="/api", tags=["articles"])
 
 
 def _record_to_list_item(rec: article_query.ArticleRecord) -> dict[str, Any]:
-    """Map ArticleRecord -> /api/articles list item shape (kb-3-API-CONTRACT §3.3)."""
+    """Map ArticleRecord -> /api/articles list item shape (kb-3-API-CONTRACT §3.3).
+
+    kb-v2.2-7: surfaces title_translated + translated_lang for site-language-driven
+    rendering. Both nullable — null when translation has not been produced yet.
+    """
     return {
         "hash": article_query.resolve_url_hash(rec),
         "title": rec.title,
@@ -52,6 +56,8 @@ def _record_to_list_item(rec: article_query.ArticleRecord) -> dict[str, Any]:
         "lang": rec.lang,
         "source": rec.source,
         "update_time": rec.update_time,
+        "title_translated": rec.title_translated,
+        "translated_lang": rec.translated_lang,
         # `snippet` populated by /api/search; null on the plain list per contract §3.3.
         "snippet": None,
     }

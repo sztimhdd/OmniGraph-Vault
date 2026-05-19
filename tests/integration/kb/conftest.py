@@ -104,7 +104,11 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
                 topics TEXT,
                 depth INTEGER,
                 layer1_verdict TEXT,
-                layer2_verdict TEXT
+                layer2_verdict TEXT,
+                body_translated TEXT,
+                title_translated TEXT,
+                translated_lang VARCHAR(5),
+                translated_at DATETIME
             );
             CREATE TABLE classifications (
                 id INTEGER PRIMARY KEY,
@@ -137,8 +141,9 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
         kol_rows = [
             (1, "测试文章一", "https://mp.weixin.qq.com/s/test1", _BODY_WITH_LOCALHOST,
              "abc1234567", "zh-CN", 1778270400, "candidate", "ok"),
+            # kb-v2.2-7: tightened DATA-07 requires L2='ok'; was None (lenient-positive)
             (2, "Image Only Post Title For Fallback", "https://mp.weixin.qq.com/s/test2",
-             _BODY_SHORT_FOR_OG_FALLBACK, None, "en", 1778180400, "candidate", None),
+             _BODY_SHORT_FOR_OG_FALLBACK, None, "en", 1778180400, "candidate", "ok"),
             (3, "Agent 框架对比", "https://mp.weixin.qq.com/s/test3", _BODY_GENERIC_ZH,
              "kol3000003a", "zh-CN", 1778090400, "candidate", "ok"),
             (4, "RAG 检索增强生成实践", "https://mp.weixin.qq.com/s/test4", _BODY_GENERIC_ZH,
@@ -152,6 +157,10 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
             # id=98: real body, layer1 candidate, layer2='reject' (fails 1/3)
             (98, "LAYER2 REJECTED", "https://mp.weixin.qq.com/s/neg98", "real body content here",
              "neg9898989", "en", 1777700000, "candidate", "reject"),
+            # kb-v2.2-7: id=95 L2 IS NULL — was lenient-positive, now tightened-negative.
+            # Validates the A6 tightening: layer2_verdict must be explicitly 'ok'.
+            (95, "L2 PENDING (NULL)", "https://mp.weixin.qq.com/s/neg95", "real body, awaiting L2",
+             "neg9595959", "zh-CN", 1777600000, "candidate", None),
         ]
         conn.executemany(
             "INSERT INTO articles (id,title,url,body,content_hash,lang,update_time,layer1_verdict,layer2_verdict) "
@@ -180,6 +189,10 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
             (96, "LAYER1 REJECT RSS", "https://example.com/neg96", "real RSS body content",
              "96969696969696969696969696969696", "en", "2026-05-06 08:00:00", "2026-05-06 08:01:00",
              None, None, "reject", None),
+            # kb-v2.2-7: id=95 L2 IS NULL — was lenient-positive, now tightened-negative.
+            (95, "L2 PENDING RSS (NULL)", "https://example.com/neg95", "real RSS body awaiting L2",
+             "95959595959595959595959595959595", "en", "2026-05-05 08:00:00", "2026-05-05 08:01:00",
+             None, None, "candidate", None),
         ]
         conn.executemany(
             "INSERT INTO rss_articles (id,title,url,body,content_hash,lang,published_at,fetched_at,"
