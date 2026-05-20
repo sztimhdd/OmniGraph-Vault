@@ -107,7 +107,10 @@ def hydrate_images_dir(src_dir: str, dst_dir: str) -> int:
         if not getattr(hash_entry, "is_directory", False):
             continue
         hash_path = hash_entry.path
-        hash_name = hash_path.rsplit("/", 1)[-1]
+        # SDK DirectoryEntry.path appends trailing slash for directories;
+        # rstrip first so rsplit doesn't return empty string (which would
+        # collapse hash_dst back to dst and write all files flat).
+        hash_name = hash_path.rstrip("/").rsplit("/", 1)[-1]
         hash_dst = dst / hash_name
         hash_dst.mkdir(parents=True, exist_ok=True)
         try:
@@ -119,7 +122,7 @@ def hydrate_images_dir(src_dir: str, dst_dir: str) -> int:
             if getattr(file_entry, "is_directory", False):
                 continue
             src_file = file_entry.path
-            file_name = src_file.rsplit("/", 1)[-1]
+            file_name = src_file.rstrip("/").rsplit("/", 1)[-1]
             file_jobs.append((src_file, hash_dst / file_name))
 
     if not file_jobs:

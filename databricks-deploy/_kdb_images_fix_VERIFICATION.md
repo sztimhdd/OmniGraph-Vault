@@ -2,9 +2,13 @@
 quick_id: 260520-rou
 title: KDB Agent — Databricks Apps /static/img 404 fix verification
 date: 2026-05-20
-commit: 01a34a2c64785b67ac2cee5f32f661637545be2f
-deployment_id: 01f154a03185105ba90b9dda5e78792f
-status: deployed-pending-uat
+commits:
+  - 01a34a2c64785b67ac2cee5f32f661637545be2f  # initial fix (incomplete — see Postmortem)
+  - <followup-fix-pending>                     # rsplit empty-string bug fix
+deployments:
+  - 01f154a03185105ba90b9dda5e78792f  # initial — UAT FAILED (images still broken)
+  - 01f154a606f11f0a89cbc60927d9e7e4  # followup — bug fix re-deployed
+status: deployed-followup-pending-reuat
 ---
 
 # 验证报告 — Databricks Apps 图片 404 修复
@@ -131,3 +135,97 @@ LightRAG hydration 也在同一启动周期完成(无回归):
 - 修改 `.planning/STATE.md`(Quick Tasks Completed 表追加 1 行)
 
 无其他 working tree 中其他 agent 的 M 文件被触动。
+
+---
+
+## Postmortem: 第一次 deploy 失败 + Followup Fix(2026-05-20 evening)
+
+### 用户 UAT 反馈
+
+第一次 deploy(commit `01a34a2c`,deployment `01f154a03185105ba90b9dda5e78792f`)
+完成后 operator 在浏览器侧 UAT,反馈 `[image]还是没图啊` —— 图片仍 404。
+
+### 根因 #2(原修复方案有 silent bug)
+
+`_db_bootstrap.py:hydrate_images_dir` 用 SDK
+`w.files.list_directory_contents(src_dir)` 列 hash 子目录,然后用
+`hash_path.rsplit("/", 1)[-1]` 取目录名作为本地 dst 子路径。
+
+`databricks.sdk.DirectoryEntry.path` 对 **directory** 返回的路径**带尾随
+`/`**(对 file 不带)。所以:
+
+```python
+hash_path = "/Volumes/.../images/9cbd555c68/"  # 注意尾随 /
+hash_name = hash_path.rsplit("/", 1)[-1]       # 返回 ""(empty string!)
+hash_dst  = dst / ""                            # = dst,平铺,不嵌套
+```
+
+结果:**4127 个文件全部 flat 写到 `/tmp/omnigraph_vault/images/<filename>`**,
+而不是嵌套的 `/tmp/omnigraph_vault/images/<hash>/<filename>`。同名 .jpg
+互相覆盖,留在磁盘的实际唯一文件远少于 4127。Hydration log 报 `4127 files,
+1.0 GB` 是因为函数在写入后用 `dst_path.stat().st_size` 累加 —— 即使后续
+覆盖,前面已写的字节数仍在累加值里,所以 log 数字不能证明唯一性。
+
+URL `/static/img/9cbd555c68/14.jpg` 查找 `/tmp/omnigraph_vault/images/9cbd555c68/14.jpg`
+—— 该路径不存在(目录从未被创建)—— 返回 404。
+
+### Followup Fix
+
+参照已存在的 `databricks-deploy/startup_adapter.py:132` 的正确模式
+(`entry.path.rstrip("/").split("/")[-1]`),修改 `_db_bootstrap.py` line
+110 + 122:
+
+```python
+# Before
+hash_name = hash_path.rsplit("/", 1)[-1]              # "" for trailing /
+file_name = src_file.rsplit("/", 1)[-1]
+
+# After
+hash_name = hash_path.rstrip("/").rsplit("/", 1)[-1]  # correct for any path
+file_name = src_file.rstrip("/").rsplit("/", 1)[-1]
+```
+
+### Followup Deploy
+
+| | |
+|---|---|
+| Deployment ID | `01f154a606f11f0a89cbc60927d9e7e4` |
+| Status | SUCCEEDED |
+| Started | 2026-05-20 23:45:48Z |
+| Completed | 2026-05-20 23:48:12Z |
+| Hydration log | `Image hydration complete: 4127 files, 1012941402 bytes` (23:49:52Z) |
+| Uvicorn ready | 23:49:52Z `Uvicorn running on http://0.0.0.0:8000` |
+
+修复后的 boot log(节选):
+
+```
+23:48:14  kb.db_bootstrap  INFO  Hydrating images: /Volumes/.../images -> /tmp/omnigraph_vault/images
+23:49:52  kb.db_bootstrap  INFO  Image hydration complete: 4127 files, 1012941402 bytes
+23:49:52  INFO:     Started server process [826]
+23:49:52  INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+### 教训
+
+1. **SDK directory path trailing slash 是 silent semantic difference**:
+   `DirectoryEntry.path` 对 directory 末尾带 `/`,对 file 不带。
+   `rsplit("/", 1)[-1]` 在尾随 `/` 上返回空字符串而**不报错**,导致
+   `Path(dst) / ""` silent 退化成 `Path(dst)`,所有 file 平铺。
+2. **Code reuse signals**:repo 里已经有过这个 pattern 的正确写法
+   (`startup_adapter.py:132` 的 `rstrip("/").split("/")[-1]`),写第二个
+   类似 hydrator 时应该 grep `list_directory_contents` 找参考实现。
+3. **Hydration log file count 不证明 unique files on disk**:写入计数 +
+   `stat().st_size` 累加在覆盖场景下都会膨胀,看到漂亮数字不要松懈。
+4. **Operator UAT 是终极裁判**:技术验证(deploy SUCCEEDED + log 完整)
+   是必要条件而非充分条件 —— 这次第一次 deploy 所有 deploy-side 信号都
+   绿灯,但实际 URL 仍坏。Operator 浏览器侧 visual 才是真理。
+
+### 待 operator UAT
+
+> 在浏览器再打开
+> `https://omnigraph-kb-2717931942638877.17.azure.databricksapps.com/articles/9cbd555c68.html`
+> ,看图片是否真的显示。截图发我即可。
+
+预期:`/static/img/9cbd555c68/14.jpg`、`/static/img/9cbd555c68/16.jpg`
+等都返回 200,文章里图片正常显示。
+
