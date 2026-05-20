@@ -39,7 +39,7 @@ Last activity: 2026-05-20 — Hermes deploy complete + 24h audit queued.
 | ----- | ---- | ---- | ------- | ------ |
 | ir-1 | Real Layer 1 + KOL ingest wiring | 14 | L | DONE (commit `f1a963b`) |
 | ir-2 | Real Layer 2 + full-body scoring | 11 | L | DONE (commit `f8e90ef`) |
-| ir-3 | Production cutover + 1-week observation | 1 | S (3 days + 7-day wall-clock) | in progress (calendar wait) |
+| ir-3 | Production cutover + 1-week observation | 1 | S (3 days + 7-day wall-clock) | **AUDIT-PENDING** — 12-day wall-clock window passed (started 2026-05-08, now 2026-05-20). 6 Success Criteria require operator-audit data: (1) 7-day zero-failed cron runs, (2) Layer 1 reject 50-70% band, (3) 30-article 误杀 audit, (4) monthly cost < ¥10, (5) end-to-end pass rate ≥ 90%, (6) `OBSERVATION.md` daily log. **Audit consolidated into ir-4 Step 10 24h audit (operator returns 2026-05-21)** — see `.scratch/ir-3-and-ir-4-audit-sop-260520.md`. ir-3 phase dir was never created; will be retroactively populated post-audit if criteria pass, or marked DEFERRED if criteria are unverifiable. |
 | ir-4 | RSS integration + dead-code cleanup | 4 | M | **DEPLOYED to Hermes 2026-05-20** — 5 atomic commits pushed 2026-05-09 (`5d943f8`/`df495c8`/`4cc3757`/`9ff330d`/`2b21c9c` W5 close-out); Hermes deploy complete via HERMES-DEPLOY-ir-4.md Steps 1-8. Step 7 smoke: 1 KOL ok (id=1133) + 3 RSS skipped (Layer 1 reject expected). Step 10 24h audit pending (operator returns 2026-05-21). **Scope deviation** (ack'd): user prompt redirected LF-5.1/5.2 from REQ-text targets to retiring `enrichment/rss_classify.py` + `rss_ingest.py` instead. Original LF-5.1/5.2/5.3 deletions remain pending in a follow-up. **Note**: migration 008 was pre-applied on Hermes (Step 4 SKIP); no pre-mig008 backup taken at deploy time — schema risk acceptable since dual-source already stable. |
 
 Total: 30/30 v1 REQs mapped, 0 orphans.
@@ -96,7 +96,7 @@ post-deploy by operator after Foundation Quick 260507-lai HERMES-DEPLOY.md
 execution. Rollback artifact: `~/.hermes/cron/jobs.json.pre-v3.5-foundation.20260507-161555` (13 KB).
 
 | Cron job (`job_id`) | State (post-deploy) |
-|---|---|
+| --- | --- |
 | `daily-classify-kol` (`b50ec39b889f`) | **Permanently removed from jobs.json registry** by HERMES-DEPLOY.md execution 2026-05-07 ~16:35 ADT. Rollback artifact: `~/.hermes/cron/jobs.json.pre-v3.5-foundation.20260507-161555`. Retired per D-LF-1. |
 | `daily-enrich` (`fc768319e0c1`) | **Permanently removed from jobs.json registry** (same deploy event). Off-scope dependency cleaned up alongside `daily-classify-kol`. |
 | `rss-classify` (`c7ded378de8f`) | **Permanently removed from jobs.json registry** (same deploy event). RSS will get inline Layer 1/2 wiring in ir-4. |
