@@ -23,6 +23,7 @@ problem in deployment logs instead of silently starting with a broken DB.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import os
 import sys
@@ -73,6 +74,84 @@ def hydrate_lightrag_storage(src_dir: str, dst_dir: str) -> int:
             return 2
 
     logger.info("LightRAG storage hydration complete: %d files, %d bytes", len(entries), total_bytes)
+    return 0
+
+
+def hydrate_images_dir(src_dir: str, dst_dir: str) -> int:
+    """Mirror UC volume images dir → local /tmp dir (2-level: <hash>/<N>.jpg).
+
+    kb/api.py mounts /static/img to KB_IMAGES_DIR via StaticFiles(check_dir=False);
+    on Databricks Apps the default ~/.hermes/... path does not exist, so every
+    image request 404s. Walk the volume two levels deep and download all .jpg
+    files in parallel via ThreadPoolExecutor (max_workers=16). Volume layout:
+    <root>/<article_hash>/<N>.jpg, ~254 dirs / ~2500 files / ~47MB.
+
+    Degrades gracefully: per-file failures log a warning and continue; the
+    function returns non-zero on partial/total failure but caller should NOT
+    abort boot — broken images are tolerable, broken /api/articles is not.
+    """
+    dst = Path(dst_dir)
+    dst.mkdir(parents=True, exist_ok=True)
+    logger.info("Hydrating images: %s -> %s", src_dir, dst)
+
+    try:
+        from databricks.sdk import WorkspaceClient
+        w = WorkspaceClient()
+        hash_entries = list(w.files.list_directory_contents(src_dir))
+    except Exception as e:
+        logger.exception("Image dir listing failed: %s", e)
+        return 1
+
+    file_jobs: list[tuple[str, Path]] = []
+    for hash_entry in hash_entries:
+        if not getattr(hash_entry, "is_directory", False):
+            continue
+        hash_path = hash_entry.path
+        hash_name = hash_path.rsplit("/", 1)[-1]
+        hash_dst = dst / hash_name
+        hash_dst.mkdir(parents=True, exist_ok=True)
+        try:
+            file_entries = list(w.files.list_directory_contents(hash_path))
+        except Exception as e:
+            logger.warning("Failed listing %s: %s", hash_path, e)
+            continue
+        for file_entry in file_entries:
+            if getattr(file_entry, "is_directory", False):
+                continue
+            src_file = file_entry.path
+            file_name = src_file.rsplit("/", 1)[-1]
+            file_jobs.append((src_file, hash_dst / file_name))
+
+    if not file_jobs:
+        logger.warning("No image files found under %s", src_dir)
+        return 2
+
+    def _download_one(job: tuple[str, Path]) -> int:
+        src_file, dst_path = job
+        try:
+            resp = w.files.download(src_file)
+            with dst_path.open("wb") as fh:
+                for chunk in iter(lambda: resp.contents.read(1024 * 1024), b""):
+                    fh.write(chunk)
+            return dst_path.stat().st_size
+        except Exception as e:
+            logger.warning("Failed downloading %s: %s", src_file, e)
+            return -1
+
+    total_bytes = 0
+    failures = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
+        for size in pool.map(_download_one, file_jobs):
+            if size < 0:
+                failures += 1
+            else:
+                total_bytes += size
+
+    ok_count = len(file_jobs) - failures
+    logger.info("Image hydration complete: %d files, %d bytes", ok_count, total_bytes)
+    if failures:
+        logger.warning("Image hydration had %d failures (out of %d)", failures, len(file_jobs))
+        return 3
     return 0
 
 
@@ -156,6 +235,22 @@ def main() -> int:
     else:
         logger.info(
             "KB_VOLUME_LIGHTRAG_DIR or RAG_WORKING_DIR unset; skipping LightRAG hydration"
+        )
+
+    # kdb-images-fix: hydrate UC volume images → /tmp at boot.
+    # Image-only failure must NOT block boot (degrade to broken images, not
+    # broken /api/articles or /api/search).
+    img_src = os.environ.get("KB_VOLUME_IMAGES_DIR")
+    img_dst = os.environ.get("KB_IMAGES_DIR")
+    if img_src and img_dst:
+        rc = hydrate_images_dir(img_src, img_dst)
+        if rc != 0:
+            logger.warning(
+                "Image hydration failed rc=%d; /static/img/* will return 404", rc
+            )
+    else:
+        logger.info(
+            "KB_VOLUME_IMAGES_DIR or KB_IMAGES_DIR unset; skipping image hydration"
         )
 
     return 0

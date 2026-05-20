@@ -59,3 +59,13 @@ env:
 
   - name: RAG_WORKING_DIR
     value: "/tmp/omnigraph_vault/lightrag_storage"
+
+  # kdb-images-fix: hydrate UC volume images → /tmp at boot.
+  # /static/img mount in kb/api.py reads from KB_IMAGES_DIR; without this
+  # the path does not exist in the Databricks Apps container and every
+  # image request 404s. Volume layout: <root>/<article_hash>/<N>.jpg.
+  - name: KB_VOLUME_IMAGES_DIR
+    value: "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/images"
+
+  - name: KB_IMAGES_DIR
+    value: "/tmp/omnigraph_vault/images"
