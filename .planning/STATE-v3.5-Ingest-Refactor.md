@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v3.5-Ingest-Refactor
 milestone_name: — Ingest 筛选重构(双层 LLM filter,替换 classify 架构)
-status: ready-for-execute
-stopped_at: "Charter 完工 2026-05-07,等 user 起 /gsd:autonomous v3.5-Ingest-Refactor"
-last_updated: "2026-05-07T19:42:32Z"
-last_activity: "2026-05-07 — Foundation Quick 260507-lai deploy ✅ on Hermes; first v3.5 path execution scheduled 2026-05-08 09:00 ADT."
+status: code-shipped-deploy-pending
+stopped_at: "ir-4 code-shipped to origin/main 2026-05-09; Hermes deploy queued for operator execution via HERMES-DEPLOY-ir-4.md SOP"
+last_updated: "2026-05-20T19:00:00Z"
+last_activity: "2026-05-20 — STATE refresh: ir-4 5 commits verified on origin/main (5d943f8/df495c8/4cc3757/9ff330d/2b21c9c). Hermes deploy queued. Hermes role change: stopping F12 sync feed to Aliyun soon; Hermes continues local-only ingest on user PC."
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 2
   total_plans: 0
   completed_plans: 0
 ---
@@ -28,10 +28,10 @@ Requirements: `.planning/REQUIREMENTS-v3.5-Ingest-Refactor.md`
 ## Current Position
 
 Milestone: v3.5-Ingest-Refactor (parallel-track to v3.4 Phases 20-22 + Agentic-RAG-v1)
-Phase: Not started — charter committed, ready for first phase planning
-Plan: —
-Status: Ready for `/gsd:autonomous v3.5-Ingest-Refactor`
-Last activity: 2026-05-07 — 4 sibling planning docs written + PROJECT.md pointer added
+Phase: ir-4 (RSS integration + dead-code cleanup) — code-shipped on origin/main, Hermes deploy queued
+Plan: HERMES-DEPLOY-ir-4.md (operator execution)
+Status: ir-4 code-shipped 2026-05-09; awaiting Hermes operator execution of HERMES-DEPLOY-ir-4.md Steps 1-8.
+Last activity: 2026-05-20 — STATE refresh; ir-4 5 commits verified on origin/main; Hermes role change noted.
 
 ### Phase plan
 
@@ -40,7 +40,7 @@ Last activity: 2026-05-07 — 4 sibling planning docs written + PROJECT.md point
 | ir-1 | Real Layer 1 + KOL ingest wiring | 14 | L | DONE (commit `f1a963b`) |
 | ir-2 | Real Layer 2 + full-body scoring | 11 | L | DONE (commit `f8e90ef`) |
 | ir-3 | Production cutover + 1-week observation | 1 | S (3 days + 7-day wall-clock) | in progress (calendar wait) |
-| ir-4 | RSS integration + dead-code cleanup | 4 | M | **CODE-COMPLETE 2026-05-09** — 5 atomic commits on local main (`5d943f8`/`df495c8`/`4cc3757`/`9ff330d`/W5), awaiting user `继续` to push + Hermes deploy via `.planning/phases/ir-4-rss-integration-and-cleanup/HERMES-DEPLOY-ir-4.md`. **Scope deviation** (ack'd): user prompt redirected LF-5.1/5.2 from REQ-text targets to retiring `enrichment/rss_classify.py` + `rss_ingest.py` instead. Original LF-5.1/5.2/5.3 deletions remain pending in a follow-up. |
+| ir-4 | RSS integration + dead-code cleanup | 4 | M | **PUSHED to origin/main 2026-05-09** — 5 atomic commits (`5d943f8`/`df495c8`/`4cc3757`/`9ff330d`/`2b21c9c` W5 close-out). **Hermes deploy queued** — operator action via `.planning/phases/ir-4-rss-integration-and-cleanup/HERMES-DEPLOY-ir-4.md` Steps 1-8. STATE was wrong about push state for 11 days; corrected 2026-05-20 verifying via `git branch -r --contains`. **Scope deviation** (ack'd): user prompt redirected LF-5.1/5.2 from REQ-text targets to retiring `enrichment/rss_classify.py` + `rss_ingest.py` instead. Original LF-5.1/5.2/5.3 deletions remain pending in a follow-up. |
 
 Total: 30/30 v1 REQs mapped, 0 orphans.
 
@@ -59,7 +59,7 @@ The Foundation Quick scopes 4 placeholder requirements (V35-FOUND-01..04):
 
 ### Immediate next step
 
-`/gsd:autonomous v3.5-Ingest-Refactor` (user-driven, manual; agent does NOT auto-launch).
+Operator executes `.planning/phases/ir-4-rss-integration-and-cleanup/HERMES-DEPLOY-ir-4.md` Steps 1-8 on Hermes prod (`~/OmniGraph-Vault`). Step 9 (1-week backlog drain) and Step 10 (24h audit) deferred — Hermes role-change (stopping F12 sync feed to Aliyun) means default daily-ingest cadence is sufficient, no aggressive backlog drain needed. Post-deploy: refresh this STATE file with deploy-result hash + first 24h ingestion source/status counts.
 
 ## Parallel-Track Boundary
 
