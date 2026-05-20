@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 VOLUME_ROOT = "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault"
 TMP_ROOT = "/tmp/omnigraph_vault"
 LIGHTRAG_SUBDIR = "lightrag_storage"
+DB_SUBDIR = "data"
+DB_FILENAME = "kol_scan.db"
 
 
 @dataclass(frozen=True)
@@ -87,6 +89,12 @@ def hydrate_lightrag_storage_from_volume(
 
     dst.mkdir(parents=True, exist_ok=True)
 
+    # Probe volume_root to trigger lazy FUSE initialization in Apps containers.
+    try:
+        Path(volume_root).stat()
+    except Exception:
+        pass
+
     # FUSE primary path — taken when the Volume is mounted OR src exists locally
     if os.path.ismount(volume_root) or src.exists():
         if not src.exists() or not any(src.iterdir()):
@@ -111,12 +119,19 @@ def hydrate_lightrag_storage_from_volume(
             bytes_copied=n_bytes,
         )
 
-    # SDK fallback path — lazy import keeps tests independent of databricks-sdk
+    # SDK fallback path — lazy import keeps tests independent of databricks-sdk.
+    # Uses list_directory_contents + per-file download (download_directory doesn't exist).
     from databricks.sdk import WorkspaceClient
 
     w = WorkspaceClient()
     t0 = time.time()
-    w.files.download_directory(str(src), str(dst), overwrite=True)
+    dst.mkdir(parents=True, exist_ok=True)
+    for entry in w.files.list_directory_contents(str(src)):
+        if entry.is_directory:
+            continue
+        fname = entry.path.rstrip("/").split("/")[-1]
+        resp = w.files.download(entry.path)
+        (dst / fname).write_bytes(resp.contents.read())
     elapsed = time.time() - t0
     n_bytes = _bytes_in_dir(dst)
     logger.info(
@@ -130,3 +145,112 @@ def hydrate_lightrag_storage_from_volume(
         elapsed_s=elapsed,
         bytes_copied=n_bytes,
     )
+
+
+def hydrate_db_from_volume(
+    volume_root: str = VOLUME_ROOT,
+    tmp_root: str = TMP_ROOT,
+) -> CopyResult:
+    """Download ``volume_root/data/kol_scan.db`` to ``tmp_root/data/kol_scan.db`` via SDK.
+
+    Idempotent: returns ``CopyResult(status="skipped", reason="already_hydrated")``
+    when the destination file already exists. SQLite on a FUSE-mounted UC Volume
+    has locking incompatibilities; direct SDK download bypasses FUSE entirely.
+
+    Returns:
+        CopyResult describing the outcome.
+
+    Raises:
+        RuntimeError: when ``/tmp`` is not writable.
+    """
+    if not os.access("/tmp", os.W_OK):
+        raise RuntimeError("/tmp is not writable; storage adapter cannot proceed")
+
+    src_path = f"{volume_root}/{DB_SUBDIR}/{DB_FILENAME}"
+    dst_dir = Path(tmp_root) / DB_SUBDIR
+    dst = dst_dir / DB_FILENAME
+
+    copy_result = None
+    if dst.exists():
+        logger.info("startup_adapter: skip already_hydrated dst=%s", dst)
+        copy_result = CopyResult(status="skipped", reason="already_hydrated")
+    else:
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            from databricks.sdk import WorkspaceClient
+            w = WorkspaceClient()
+            t0 = time.time()
+            resp = w.files.download(src_path)
+            dst.write_bytes(resp.contents.read())
+            elapsed = time.time() - t0
+            n_bytes = dst.stat().st_size
+            logger.info(
+                "startup_adapter: db copied via sdk elapsed_s=%.3f bytes=%d",
+                elapsed,
+                n_bytes,
+            )
+            copy_result = CopyResult(
+                status="copied",
+                method="sdk",
+                elapsed_s=elapsed,
+                bytes_copied=n_bytes,
+            )
+        except Exception as e:
+            logger.info("startup_adapter: skip source_empty_pre_seed src=%s err=%s", src_path, e)
+            return CopyResult(status="skipped", reason="source_empty_pre_seed")
+
+    import sqlite3
+    try:
+        conn = sqlite3.connect(str(dst), timeout=10)
+        from kb.services.search_index import ensure_fts_table
+        ensure_fts_table(conn)
+
+        # Rebuild FTS index from source tables
+        cursor = conn.cursor()
+
+        # Clear and repopulate articles_fts (in case it existed but was stale)
+        try:
+            cursor.execute("DELETE FROM articles_fts")
+        except Exception:
+            pass  # table may not exist yet in very first run
+
+        # Insert from articles table
+        cursor.execute("""
+            INSERT INTO articles_fts (hash, title, body, lang, source)
+            SELECT
+                SUBSTR(content_hash, 1, 10),
+                title,
+                body,
+                COALESCE(language, 'unknown'),
+                'wechat'
+            FROM articles
+            WHERE body IS NOT NULL AND body != ''
+        """)
+
+        # Insert from rss_articles table
+        cursor.execute("""
+            INSERT INTO articles_fts (hash, title, body, lang, source)
+            SELECT
+                SUBSTR(content_hash, 1, 10),
+                title,
+                body,
+                COALESCE(language, 'unknown'),
+                'rss'
+            FROM rss_articles
+            WHERE body IS NOT NULL AND body != ''
+        """)
+
+        conn.commit()
+
+        # Log database statistics
+        articles_count = cursor.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
+        rss_count = cursor.execute("SELECT COUNT(*) FROM rss_articles").fetchone()[0]
+        fts_count = cursor.execute("SELECT COUNT(*) FROM articles_fts").fetchone()[0]
+        print(f"[DB STATS] articles={articles_count}, rss={rss_count}, fts_indexed={fts_count}", flush=True)
+
+        conn.close()
+        print("startup_adapter: fts table ensured and indexed", flush=True)
+    except Exception as e:
+        print(f"startup_adapter: fts table creation failed: {e}", flush=True)
+
+    return copy_result
