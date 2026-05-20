@@ -1,11 +1,41 @@
 ---
 artifact: VERIFICATION
 phase: kdb-2
-iteration: 1
+iteration: 2
 total_iterations: 3
-verifier: gsd-plan-checker
-date: 2026-05-16
-verdict: PASS_WITH_WARNINGS
+verifier: gsd-executor + manual debug
+date: 2026-05-20
+verdict: BLOCKED_DEPLOYMENT_CRASH
+---
+
+## Current Status (2026-05-20 10:15 ADT)
+
+**Blocker: App container crashes on every deployment, even with minimal FastAPI code.**
+
+Multiple deployment attempts have failed:
+- Full kb.api with routers → app crashed
+- Simplified kb.api without startup_adapter import → app crashed
+- Bare uvicorn command without startup script → app crashed  
+- Minimal app_minimal.py (3-line FastAPI) → app crashed
+- Command format: `bash -c "..."` → crash
+- Command format: `python -m uvicorn` → crash
+
+**Error message**: `Error: app crashed unexpectedly. Please check /logz for more details`
+
+The crash is happening before the app even loads, suggesting environmental/container configuration issue rather than code issue.
+
+**Investigation completed**:
+- ✓ PYTHONPATH fixed (added databricks-deploy/ to path)
+- ✓ app.yaml command syntax simplified  
+- ✓ Code tested locally (kb.api imports work fine)
+- ✓ Workspace sync confirmed complete
+- ✗ Root cause of container crash not accessible via CLI
+
+**Next steps**:
+1. Access Databricks workspace UI logs directly (requires browser)
+2. Or revert to manual database hydration approach (skip startup_adapter)
+3. Or investigate if container environment is misconfigured (Python version, dependencies, etc.)
+
 ---
 
 # Phase kdb-2 -- Plan-phase Verification Report (iter 1 of 3)
