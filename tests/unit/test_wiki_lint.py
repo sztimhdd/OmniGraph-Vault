@@ -18,6 +18,7 @@ from kb.wiki_lint import (
 
 
 def test_unresolved_citation(tmp_path: Path) -> None:
+    """Legacy ^[article:<hex>] form: hash MUST resolve in corpus."""
     page = tmp_path / "p.md"
     page.write_text(
         "OpenClaw shipped ^[article:1234567890].\n"
@@ -26,6 +27,56 @@ def test_unresolved_citation(tmp_path: Path) -> None:
     )
     failures = lint_citation_integrity(page, known_article_hashes={"1234567890"})
     assert failures == ["^[article:deadbeef00]"]
+
+
+def test_footnote_citation_resolves_via_frontmatter(tmp_path: Path) -> None:
+    """New [^N] form: every N must match a frontmatter sources[].id; type=article ref must be in corpus."""
+    page = tmp_path / "p.md"
+    page.write_text(
+        "---\n"
+        "title: Test\n"
+        "sources:\n"
+        "  - id: 1\n"
+        "    type: article\n"
+        "    ref: 1234567890\n"
+        "    title: Real corpus article\n"
+        "  - id: 2\n"
+        "    type: web\n"
+        "    ref: https://example.com\n"
+        "    title: External page\n"
+        "  - id: 3\n"
+        "    type: builtin\n"
+        "    title: Opus training\n"
+        "---\n\n"
+        "Citation to corpus article [^1].\n"
+        "Citation to web page [^2].\n"
+        "Citation to builtin [^3].\n"
+        "Citation to nowhere [^99].\n",
+        encoding="utf-8",
+    )
+    failures = lint_citation_integrity(page, known_article_hashes={"1234567890"})
+    # [^1], [^2], [^3] all resolve. [^99] fails as id-not-in-frontmatter.
+    assert len(failures) == 1
+    assert "[^99]" in failures[0]
+
+
+def test_footnote_article_ref_must_be_in_corpus(tmp_path: Path) -> None:
+    """type=article frontmatter entry whose ref isn't in corpus → flagged."""
+    page = tmp_path / "p.md"
+    page.write_text(
+        "---\n"
+        "title: Test\n"
+        "sources:\n"
+        "  - id: 1\n"
+        "    type: article\n"
+        "    ref: deadbeef00\n"
+        "    title: Hallucinated corpus article\n"
+        "---\n\n"
+        "Body cites the made-up article [^1].\n",
+        encoding="utf-8",
+    )
+    failures = lint_citation_integrity(page, known_article_hashes={"1234567890"})
+    assert any("not in corpus" in f for f in failures)
 
 
 def test_contradicts_existing(tmp_path: Path) -> None:

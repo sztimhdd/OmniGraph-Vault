@@ -3,13 +3,20 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
+
+UTC = timezone.utc
 from pathlib import Path
 from typing import Iterable
 
 import frontmatter
 
-CITATION_RE = re.compile(r"\^\[article:([a-f0-9]{10})\]")
+# Legacy single-type citation: ^[article:<hex>]
+LEGACY_CITATION_RE = re.compile(r"\^\[article:([a-f0-9]{10})\]")
+# New GFM-footnote citation: [^N] (numbered, references frontmatter sources[].id)
+FOOTNOTE_CITATION_RE = re.compile(r"\[\^(\d+)\]")
+# Combined alias for back-compat with callers that imported CITATION_RE
+CITATION_RE = LEGACY_CITATION_RE
 BACKLINK_RE = re.compile(r"\[\[([a-z0-9-]+)\]\]")
 YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
 CAP_WORD_RE = re.compile(r"\b[A-Z][A-Za-z0-9]+\b")
@@ -21,12 +28,50 @@ JSONL_LOG_PATH = Path(
 
 
 def lint_citation_integrity(page_path: Path, known_article_hashes: Iterable[str]) -> list[str]:
-    text = Path(page_path).read_text(encoding="utf-8")
+    """Validate citations against SCHEMA §6 §1.
+
+    Two formats accepted:
+    - Legacy `^[article:<10-char-hex>]` — hash MUST be in known_article_hashes
+    - New `[^N]` — N MUST be the `id` of a frontmatter sources[] entry; for
+      type=article entries, ref MUST be in known_article_hashes; type=web/builtin
+      ref is not validated against the corpus.
+
+    Returns a list of failure strings (empty list = pass).
+    """
+    post = frontmatter.load(str(page_path))
+    text = post.content
     known = set(known_article_hashes)
     failures: list[str] = []
-    for m in CITATION_RE.finditer(text):
+
+    # Legacy form: every hash must resolve in corpus
+    for m in LEGACY_CITATION_RE.finditer(text):
         if m.group(1) not in known:
             failures.append(m.group(0))
+
+    # New form: build sources[] index from frontmatter, validate each [^N]
+    sources_list = post.metadata.get("sources") or []
+    source_by_id: dict[str, dict] = {}
+    for s in sources_list:
+        if isinstance(s, dict) and "id" in s:
+            source_by_id[str(s["id"])] = s
+
+    for m in FOOTNOTE_CITATION_RE.finditer(text):
+        sid = m.group(1)
+        src = source_by_id.get(sid)
+        if src is None:
+            failures.append(f"[^{sid}]: id not in frontmatter sources[]")
+            continue
+        stype = (src.get("type") or "").lower()
+        if stype == "article":
+            ref = str(src.get("ref") or "")
+            if ref and known and ref not in known:
+                failures.append(f"[^{sid}]: type=article ref={ref!r} not in corpus")
+        elif stype in ("web", "builtin"):
+            # web ref is a URL (not validated against corpus); builtin has no ref.
+            continue
+        else:
+            failures.append(f"[^{sid}]: unknown source type {stype!r}")
+
     return failures
 
 

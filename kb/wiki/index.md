@@ -1,19 +1,20 @@
-# OmniGraph Wiki Index
+# Wiki Index
 
-Last updated by W1 wiki-update process; manual edits welcome.
+Auto-generated. Re-run `scripts/wiki_generate_pages.py` to refresh.
 
-## entities/
+## Entities
 
-- [OpenClaw](entities/openclaw.md) — AI desktop assistant (placeholder; refresh in W1)
-
-## concepts/
-
-_(none yet — W1 will populate)_
-
-## comparisons/
-
-_(none yet — W1 will populate)_
-
-## queries/
-
-_(none yet — W1 will populate)_
+- [Agent](entities/agent.md)
+- [Anthropic](entities/anthropic.md)
+- [Claude Code](entities/claude-code.md)
+- [Context Engineering](entities/context-engineering.md)
+- [Gateway](entities/gateway.md)
+- [Harness](entities/harness.md)
+- [Hermes](entities/hermes.md)
+- [LangChain](entities/langchain.md)
+- [Memory System](entities/memory-system.md)
+- [MemoryProvider](entities/memoryprovider.md)
+- [OpenClaw](entities/openclaw.md)
+- [Skills](entities/skills.md)
+- [SOUL.md](entities/soul-md.md)
+- [Superpowers](entities/superpowers.md)
