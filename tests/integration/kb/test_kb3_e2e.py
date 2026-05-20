@@ -241,7 +241,11 @@ def test_e2e_synthesize_happy_path(
 def test_e2e_synthesize_zh_directive_prepended(
     fully_wired_app: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """PROJECT-KB-v2.md Smoke 3 scenario 1 (zh): I18N-07 directive prepended."""
+    """PROJECT-KB-v2.md Smoke 3 scenario 1 (zh): post FU-1 / kb-v2.2-4
+    the ZH directive lives at the END of _QA_PROMPT_TEMPLATE_ZH; the
+    template itself wraps the user's question. Verify the template
+    shape rather than a leading-directive prefix.
+    """
     captured: dict[str, str | None] = {"text": None}
 
     async def fake_c1(query_text: str, mode: str = "hybrid") -> None:
@@ -260,8 +264,11 @@ def test_e2e_synthesize_zh_directive_prepended(
         time.sleep(0.05)
         if fully_wired_app.get(f"/api/synthesize/{jid}").json()["status"] == "done":
             break
-    assert captured["text"] is not None
-    assert captured["text"].startswith("请用中文回答。\n\n")
+    text = captured["text"]
+    assert text is not None
+    assert text.startswith("请基于知识库中检索到的内容,简洁回答以下问题。"), text
+    assert "什么是 Agent?" in text
+    assert "请用中文回答。" in text
 
 
 # ============================================================================

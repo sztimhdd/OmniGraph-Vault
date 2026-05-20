@@ -193,7 +193,14 @@ def test_synthesize_failure_path_basic(app_client, monkeypatch):
 
 
 def test_synthesize_zh_lang_directive_used(app_client, monkeypatch):
-    """I18N-07 + QA-02: ZH directive prepended verbatim in the query_text passed to C1."""
+    """I18N-07 + QA-02 (post FU-1 / kb-v2.2-4): ZH directive lives inside
+    the _QA_PROMPT_TEMPLATE_ZH wrapper — at the END, not the start.
+
+    The query_text passed to C1 must:
+      - start with the QA template's distinctive Chinese opening
+      - interpolate the user question
+      - contain the trailing 'please answer in Chinese' directive
+    """
     captured = {"text": None}
 
     async def fake(query_text: str, mode: str = "hybrid"):
@@ -208,9 +215,11 @@ def test_synthesize_zh_lang_directive_used(app_client, monkeypatch):
     r = app_client.post("/api/synthesize", json={"question": "问题", "lang": "zh"})
     jid = r.json()["job_id"]
     _poll_until_terminal(app_client, jid)
-    assert captured["text"] is not None
-    assert captured["text"].startswith("请用中文回答。\n\n"), captured["text"]
-    assert "问题" in captured["text"]
+    text = captured["text"]
+    assert text is not None
+    assert text.startswith("请基于知识库中检索到的内容,简洁回答以下问题。"), text
+    assert "问题:问题" in text  # QA template line: 问题:{question}
+    assert "请用中文回答。" in text
 
 
 # ---- kb-3-09 API-level NEVER-500 tests (QA-04 + QA-05) ----------------------

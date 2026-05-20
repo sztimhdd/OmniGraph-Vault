@@ -1545,11 +1545,14 @@ html[lang="en"] .lang-flex[data-lang="en"] {
   }
 }
 
-@media (min-width: 640px) {
-  .nav-links a span {
-    display: inline;
-  }
-}
+/* kb-v2.2-7 Wave 6 Bug-B fix: removed `@media (min-width: 640px) { .nav-links
+ * a span { display: inline; } }` — that rule had specificity (0,1,2) and
+ * overrode the i18n flip rule `[data-lang] { display: none }` (0,1,0),
+ * causing nav-links to show BOTH `<span data-lang="zh">` AND `<span data-lang="en">`
+ * simultaneously at desktop viewport regardless of <html lang>. nav-links
+ * now contains ONLY data-lang spans (post Wave 4), so the rule is dead code
+ * — span elements default to `display: inline` natively, and the i18n cascade
+ * at style.css:330+ takes over correctly. */
 
 @media (min-width: 768px) {
   .container {

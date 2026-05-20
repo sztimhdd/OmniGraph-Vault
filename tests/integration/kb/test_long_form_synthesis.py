@@ -104,7 +104,9 @@ def _poll_until_terminal(client: TestClient, jid: str, timeout_s: float = 2.0) -
 def test_default_mode_is_qa_when_unspecified(app_client, monkeypatch):
     """Pre-v2.1-5 qa.js clients send {question, lang} without mode — must still work.
 
-    Server fills mode='qa' default; wrapper takes the v2.1-4 happy path verbatim.
+    Server fills mode='qa' default; post FU-1 / kb-v2.2-4 the wrapper now
+    threads the question through _QA_PROMPT_TEMPLATE_EN (citation enforcement
+    fix), so the query text is the EN QA template — NOT the long_form template.
     """
     captured: dict = {}
     _patch_c1_capture(monkeypatch, captured)
@@ -116,11 +118,17 @@ def test_default_mode_is_qa_when_unspecified(app_client, monkeypatch):
     jid = r.json()["job_id"]
     final = _poll_until_terminal(app_client, jid)
     assert final["status"] == "done"
-    # qa mode = lang directive + raw question (NOT wrapped in template)
-    assert captured["text"].startswith("Please answer in English.\n\n"), captured["text"]
-    assert "What is X?" in captured["text"]
-    assert "Based on real content" not in captured["text"]
-    assert "深度研究" not in captured["text"]
+    text = captured["text"]
+    # QA-EN template shape (post FU-1 / kb-v2.2-4):
+    assert text.startswith(
+        "Based on content retrieved from the knowledge base, "
+        "concisely answer the following question."
+    ), text
+    assert "Question: What is X?" in text       # QA template line: Question: {question}
+    assert "Please answer in English." in text   # trailing lang directive
+    # Defensive: must NOT be the long_form template (distinctive markers absent)
+    assert "Based on real content from the knowledge graph" not in text
+    assert "深度研究" not in text
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +137,10 @@ def test_default_mode_is_qa_when_unspecified(app_client, monkeypatch):
 
 
 def test_qa_mode_uses_existing_prompt(app_client, monkeypatch):
+    """Explicit mode='qa' produces the same shape as default (post FU-1):
+    _QA_PROMPT_TEMPLATE_EN wraps the question with citation-enforcement
+    instructions; the lang directive lives at the END of the template.
+    """
     captured: dict = {}
     _patch_c1_capture(monkeypatch, captured)
 
@@ -139,10 +151,13 @@ def test_qa_mode_uses_existing_prompt(app_client, monkeypatch):
     assert r.status_code == 202
     jid = r.json()["job_id"]
     _poll_until_terminal(app_client, jid)
-    # Same shape as default: lang directive + raw question
-    assert captured["text"].startswith("Please answer in English.\n\nHello"), (
-        captured["text"]
-    )
+    text = captured["text"]
+    assert text.startswith(
+        "Based on content retrieved from the knowledge base, "
+        "concisely answer the following question."
+    ), text
+    assert "Question: Hello" in text
+    assert "Please answer in English." in text
 
 
 # ---------------------------------------------------------------------------
@@ -327,13 +342,24 @@ def test_kb_synthesize_accepts_mode_kwarg(tmp_path, fixture_db, monkeypatch):
 
     from kb.services import job_store
 
-    # Default mode (no kwarg) → qa behavior
+    # Default mode (no kwarg) → qa behavior. Post FU-1 / kb-v2.2-4 the
+    # default qa path wraps the question in _QA_PROMPT_TEMPLATE_EN.
     jid_default = job_store.new_job(kind="synthesize")
     asyncio.run(sm.kb_synthesize("hello", "en", jid_default))
-    assert captured["text"].startswith("Please answer in English.\n\nhello")
+    qa_text = captured["text"]
+    assert qa_text.startswith(
+        "Based on content retrieved from the knowledge base, "
+        "concisely answer the following question."
+    ), qa_text
+    assert "Question: hello" in qa_text
+    assert "Please answer in English." in qa_text
 
-    # Explicit long_form
+    # Explicit long_form — distinctive long_form template markers should
+    # appear (and qa-template markers should NOT).
     jid_long = job_store.new_job(kind="synthesize")
     asyncio.run(sm.kb_synthesize("hello", "en", jid_long, mode="long_form"))
-    assert "deep research article" in captured["text"]
-    assert "hello" in captured["text"]
+    long_text = captured["text"]
+    assert "deep research article" in long_text
+    assert "hello" in long_text
+    # Sanity: long_form template begins differently from QA template
+    assert "Based on real content from the knowledge graph" in long_text

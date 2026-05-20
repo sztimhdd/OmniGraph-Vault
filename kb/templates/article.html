@@ -195,6 +195,13 @@
     </div>
   </footer>
 
+  {# kb-v2.2-7 Wave 6 Bug-A fix: article.html is standalone (does NOT extend
+     base.html), so the A9 KB_DEFAULT_LANG injection from base.html does not
+     reach this page. Inject it directly before lang.js so the IIFE picks up
+     window.KB_DEFAULT_LANG as fallback when cookie + browser detect both fail.
+     kb_default_lang is in env.globals from kb/export_knowledge_base.py
+     _resolve_kb_default_lang() — Jinja resolves it on every render. #}
+  <script>window.KB_DEFAULT_LANG = "{{ kb_default_lang | default('zh-CN') }}";</script>
   <script src="{{ base_path }}/static/lang.js"></script>
   <script>
     (function () {
