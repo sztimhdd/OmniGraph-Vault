@@ -1,28 +1,47 @@
-# databricks-deploy/app.yaml — kdb-2-04 production deploy artifact.
+# databricks-deploy/app.yaml — kdb-2-04 + kb-v2.2-7 production deploy artifact.
 #
-# Wave 0 confirmed layout (2026-05-20): /app/python/source_code/ = source root.
-# kb/ + startup_adapter.py deployed in workspace databricks-deploy/ subdirectory.
-# PYTHONPATH must include both source root AND databricks-deploy/ subdirectory.
+# Layout (Wave 0 confirmed 2026-05-20 + 2-pass-sync update 2026-05-20):
+#   /app/python/source_code/         = source_code_path contents = databricks-deploy/
+#   /app/python/source_code/kb/      = synced from project-root kb/ (2-pass sync)
+#   /app/python/source_code/requirements.txt = pip-install target
+#
+# So `import kb.api` resolves natively at /app/python/source_code/ (default sys.path).
+# No PYTHONPATH gymnastics, no app_runner.py shim, no app_minimal.py stub —
+# directly invoke uvicorn against the real kb.api:app.
 
 command:
-  - python
-  - app_runner.py
+  - bash
+  - -c
+  - "python _db_bootstrap.py && exec uvicorn kb.api:app --host 0.0.0.0 --port $DATABRICKS_APP_PORT"
 
 env:
-  # Databricks Apps system environment variables
-  - name: PYTHONPATH
-    value: "/app/python/source_code:/app/python/source_code/databricks-deploy"
-
-  - name: UVICORN_HOST
-    value: "0.0.0.0"
-
-  - name: UVICORN_PORT
-    value: "8080"
-
-  # OmniGraph application variables
+  # OmniGraph runtime data root (writable scratch on Databricks Apps container)
   - name: OMNIGRAPH_BASE_DIR
     value: "/tmp/omnigraph_vault"
 
+  # UC Volume source for the read-only KB DB. NOT auto-FUSE-mounted in
+  # Databricks Apps runtime — _db_bootstrap.py downloads via Files API
+  # to KB_DB_PATH at boot using the app SP's READ VOLUME grant.
+  - name: KB_VOLUME_DB_PATH
+    value: "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/data/kol_scan.db"
+
+  # Local /tmp target where _db_bootstrap.py writes the hydrated DB.
+  # kb.config and all sqlite3 connections read this path at runtime.
+  - name: KB_DB_PATH
+    value: "/tmp/kol_scan.db"
+
+  # kb-v2.2-7: EDC internal users prefer English; Aliyun stays default zh-CN
+  - name: KB_DEFAULT_LANG
+    value: "en"
+
+  # Phase-5 transitive-import guard (lib/__init__.py imports deepseek_model_complete
+  # eagerly; a non-empty value prevents ImportError at boot. Real DeepSeek calls
+  # never fire in this deploy — synthesize is gated to Databricks serving).
+  - name: DEEPSEEK_API_KEY
+    value: "dummy"
+
+  # Synthesize/KG path config (deferred-imported inside /api/synthesize handler;
+  # /health, /api/articles, /api/search?mode=fts work without these reaching out)
   - name: OMNIGRAPH_LLM_PROVIDER
     value: "databricks_serving"
 
@@ -31,9 +50,3 @@ env:
 
   - name: KB_EMBEDDING_MODEL
     value: "databricks-qwen3-embedding-0-6b"
-
-  - name: KB_DB_PATH
-    value: "/tmp/omnigraph_vault/data/kol_scan.db"
-
-  - name: DEEPSEEK_API_KEY
-    value: "dummy"
