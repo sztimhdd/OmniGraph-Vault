@@ -97,7 +97,28 @@ This rule applies to ALL KB phases — UI, backend, ops, deploy. Run the deploy.
 
 Full discipline doc: `kb/docs/10-DESIGN-DISCIPLINE.md` Rule 3 (extended version with concrete curl + Playwright examples).
 
-7. Behavior-Anchor Harness for Hot Orchestration Code
+7. Claude Code Owns All Databricks App Deployments Autonomously
+
+**Principle:** Never ask the user to manually run `databricks sync`, `databricks apps deploy`, or `databricks apps get-logs` commands. These are mechanical operations that Claude Code should handle autonomously via PowerShell + Databricks CLI.
+
+**Why:** The CLI is already installed and authenticated (oauth). Asking the user to run commands wastes their time, causes context switches, and loses visibility into whether the deployment actually succeeded. The user should only care about the result ("search works" / "logs show FTS populated"), not the mechanical steps.
+
+**How to apply:**
+
+1. **After making code changes:** Run `databricks sync --watch . <workspace_path>` yourself (PowerShell, never Git Bash)
+2. **Deploy the app:** Run `databricks apps deploy <app_name> --source-code-path <workspace_path>` yourself
+3. **Check logs:** Fetch deployment logs via `databricks apps get-logs` to verify success or identify errors
+4. **Report to user:** "Deployment successful. FTS table populated with 2598 articles. Search should work."
+
+**Tool choice:** Use PowerShell for all `databricks` CLI calls — Git Bash path conversion breaks workspace paths (`/Workspace/...` → `C:/Users/.../Workspace/...` → `"Path doesn't start with '/'" error`).
+
+**Related:** Principle #5 (Don't Outsource Mechanical Work) covers SSH and Hermes prompts; this principle extends it to Databricks CLI.
+
+---
+
+## Project-Specific Disciplines
+
+### Behavior-Anchor Harness for Hot Orchestration Code
 
 **Long-running orchestrators that batch I/O and silently swallow exceptions need pytest harnesses anchored on observable behavior, not internal call shape.**
 
