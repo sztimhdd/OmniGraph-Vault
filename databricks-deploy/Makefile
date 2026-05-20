@@ -59,6 +59,45 @@ deploy:
 	cp ./kg_synthesize.py ./databricks-deploy/kg_synthesize.py
 	cp ./config.py ./databricks-deploy/config.py
 	cp -R ./lib ./databricks-deploy/lib
+	@echo ">>> Pass 0d: rebrand _ssg for Databricks audience (Aliyun untouched)"
+	@# Three Databricks-only mods, all confined to ./databricks-deploy/_ssg/:
+	@#  1. Logo: overwrite VitaClaw-Logo-v0.png with kb/kb-logo.png. Filename
+	@#     preserved so HTML <img src> references need no rewrite.
+	@#  2. Brand strings: replace VitaClaw / 企小勤 (and combined forms) with
+	@#     'EDC Agentic AI Knowledge Base'. Longer combined forms must be
+	@#     replaced first to avoid double-substitution. The logo path
+	@#     'VitaClaw-Logo-v0.png' contains 'VitaClaw' — shielded with a
+	@#     placeholder swap so the bare 'VitaClaw' replacement does not
+	@#     mangle the asset path.
+	@#  3. lang.js detectFromBrowser: short-circuit to return DEFAULT_LANG.
+	@#     KB_DEFAULT_LANG=en (app.yaml) alone is insufficient — for users
+	@#     with navigator.languages=['zh-CN', ...], detectFromBrowser persists
+	@#     'zh-CN' to cookie on first visit BEFORE the DEFAULT_LANG fallback
+	@#     fires. Neutralizing the function makes English the true first-visit
+	@#     default; the manual lang-toggle still works.
+	@# kb/ source unchanged: Aliyun deploy reads kb/output/ directly and
+	@# keeps its zh-CN-default + 企小勤/VitaClaw branding.
+	cp ./kb/kb-logo.png ./databricks-deploy/_ssg/static/VitaClaw-Logo-v0.png
+	find ./databricks-deploy/_ssg -name '*.html' -print0 | \
+	  xargs -0 sed -i \
+	    -e 's|VitaClaw-Logo-v0\.png|__KB_LOGO_FILE__|g' \
+	    -e 's|企小勤 / VitaClaw — AI Agent 技术圈双语知识库|EDC Agentic AI Knowledge Base|g' \
+	    -e 's|企小勤知识库 — AI Agent 技术内容站|EDC Agentic AI Knowledge Base|g' \
+	    -e 's|企小勤 / VitaClaw|EDC Agentic AI Knowledge Base|g' \
+	    -e 's|企小勤 VitaClaw|EDC Agentic AI Knowledge Base|g' \
+	    -e 's|VitaClaw 企小勤|EDC Agentic AI Knowledge Base|g' \
+	    -e 's|VitaClaw|EDC Agentic AI Knowledge Base|g' \
+	    -e 's|企小勤|EDC Agentic AI Knowledge Base|g' \
+	    -e 's|__KB_LOGO_FILE__|VitaClaw-Logo-v0.png|g'
+	@# Force English-default by neutralizing detectFromBrowser's per-language
+	@# returns. Replacing the two interior 'return zh-CN' / 'return en' lines
+	@# with 'return DEFAULT_LANG' is safer than rewriting the whole function
+	@# body via sed (sed cannot match balanced braces — the inner for-loop }
+	@# would short-circuit and orphan the trailing return + closing brace).
+	sed -i \
+	  -e "s|if (l.indexOf('zh') === 0) return 'zh-CN';|if (l.indexOf('zh') === 0) return DEFAULT_LANG;|" \
+	  -e "s|if (l.indexOf('en') === 0) return 'en';|if (l.indexOf('en') === 0) return DEFAULT_LANG;|" \
+	  ./databricks-deploy/_ssg/static/lang.js
 	@echo ">>> Pass 1: sync databricks-deploy/* → workspace/databricks-deploy/"
 	MSYS_NO_PATHCONV=1 databricks --profile $(PROFILE) sync --full \
 	  ./databricks-deploy $(WORKSPACE_ROOT)/databricks-deploy
