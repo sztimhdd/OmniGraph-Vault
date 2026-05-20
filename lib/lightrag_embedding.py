@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 import requests
 from google import genai
 from google.genai import types
-from lightrag.utils import wrap_embedding_func_with_attrs
+
 
 from google.genai.errors import ClientError
 
@@ -177,13 +178,8 @@ async def _embed_once(contents: list, model: str) -> np.ndarray:
     return vec
 
 
-@wrap_embedding_func_with_attrs(
-    embedding_dim=EMBEDDING_DIM,
-    send_dimensions=True,
-    max_token_size=EMBEDDING_MAX_TOKENS,
-    model_name=EMBEDDING_MODEL,
-)
-async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
+
+async def _embed(texts: list[str], **kwargs: Any) -> np.ndarray:
     """Embed ``texts`` via ``gemini-embedding-2`` and return a (N, 3072) float32 ndarray.
 
     LightRAG uses this function for BOTH upsert and query paths. The only
@@ -269,20 +265,23 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
     return out / norms
 
 
-# LightRAG >= 1.4.15 stores embedding_func as an EmbeddingFunc dataclass and
-# accesses .func in __post_init__ (lightrag.py:636).  wrap_embedding_func_with_attrs
-# already returns EmbeddingFunc in 1.4.15, but older/newer installs may return a
-# plain async function instead.  Guard here so the import never crashes regardless
-# of which lightrag-hku version is installed on the deploy host.
-if not hasattr(embedding_func, "func"):
-    try:
-        from lightrag.utils import EmbeddingFunc as _EmbeddingFunc
-        embedding_func = _EmbeddingFunc(  # type: ignore[assignment]
-            embedding_dim=_OUTPUT_DIM,
-            func=embedding_func,
-            max_token_size=EMBEDDING_MAX_TOKENS,
-            send_dimensions=True,
-            model_name=EMBEDDING_MODEL,
-        )
-    except Exception:
-        embedding_func.func = embedding_func  # type: ignore[attr-defined]
+
+@dataclass
+class EmbeddingFunc:
+    embedding_dim: int
+    func: callable
+    max_token_size: int | None = None
+    model_name: str | None = None
+    send_dimensions: bool = False
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> np.ndarray:
+        return await self.func(*args, **kwargs)
+
+embedding_func = EmbeddingFunc(
+    embedding_dim=EMBEDDING_DIM,
+    func=_embed,
+    max_token_size=EMBEDDING_MAX_TOKENS,
+    model_name=EMBEDDING_MODEL,
+)
+embedding_func.send_dimensions = True # Restore the original setting
+
