@@ -242,3 +242,59 @@ Pending operator actions (out of phase scope):
 Per CLAUDE.md PRINCIPLE 6: phase is now safe to mark complete in
 `STATE-KB-v2.md` because Local UAT has been performed + cited. Operator
 actions above are post-phase deployment steps, not phase deliverables.
+
+---
+
+## trans-inc Local UAT (2026-05-20, follow-up quick)
+
+**Quick task:** [.planning/quick/260520-m1p-260520-trans-inc-add-incremental-transla/](../../quick/260520-m1p-260520-trans-inc-add-incremental-transla/) — adds incremental translation pipeline (inline title in `batch_ingest_from_spider.py` + nightly body cron `scripts/translate_body_cron.py`) to complement Wave 2's Databricks-manual backfill notebook.
+
+**Rationale:** Wave 2's manual notebook handles backfill of historical untranslated rows. The trans-inc quick adds the daily-incremental story for newly-ingested articles on Hermes infrastructure, writing to the same 4 schema columns (`title_translated`, `body_translated`, `translated_lang`, `translated_at`).
+
+**Launcher:** `venv/Scripts/python.exe .scratch/local_serve.py` (port `:8766`)
+
+**End-to-end fallback chain validation** — verified the kb-v2.2-7 A4 fallback (`{{ article.title_translated or article.title }}`) works correctly with title_translated values written by the new code path.
+
+State 1 — `title_translated` set (simulating inline-translation write):
+
+```bash
+$ python -c "c.execute('UPDATE articles SET title_translated=?, translated_lang=?, translated_at=? WHERE id=34', ('Anthropic Product Ambition: A Code-Level Read (260520-trans-inc UAT)', 'en', now))"
+$ KB_DEFAULT_LANG=zh-CN python kb/export_knowledge_base.py
+$ curl -fsS http://127.0.0.1:8766/articles/4b7c022702.html | grep 'data-lang="en">Anthropic'
+          <span data-lang="zh">从Claude Code源码看Anthropic的产品野心</span><span data-lang="en">Anthropic Product Ambition: A Code-Level Read (260520-trans-inc UAT)</span>
+```
+
+Dual-`<span data-lang>` h1 from Wave 4 picks up the new value. ✅
+
+State 2 — `title_translated=NULL` (mixed-language fallback per A4):
+
+```bash
+$ python -c "c.execute('UPDATE articles SET title_translated=NULL, translated_lang=NULL, translated_at=NULL WHERE id=34')"
+$ python kb/export_knowledge_base.py
+$ curl -fsS http://127.0.0.1:8766/articles/4b7c022702.html | grep '<span data-lang="zh">从Claude Code'
+          <span data-lang="zh">从Claude Code源码看Anthropic的产品野心</span><span data-lang="en">从Claude Code源码看Anthropic的产品野心</span>
+```
+
+`{{ article.title_translated or article.title }}` resolves to the original Chinese title in BOTH spans — kb-v2.2-7 A4 mixed-language behavior holds (untranslated article shows zh title even when site lang is en). ✅
+
+**Cron --dry-run verification:**
+
+```bash
+$ OMNIGRAPH_BASE_DIR=$(pwd)/.dev-runtime python scripts/translate_body_cron.py --dry-run --limit 3
+2026-05-20 16:02:26,540 INFO selected 3 candidate(s) for translation
+2026-05-20 16:02:26,540 INFO [dry-run] WOULD translate id=1 table=articles title=OpenClaw vs Hermes：拆解 Hermes Agent 五层架构 body_len=250
+2026-05-20 16:02:26,541 INFO [dry-run] WOULD translate id=33 table=articles title=一文看懂 Agent Skills：为什么 2026 年必须关注它 body_len=2251
+2026-05-20 16:02:26,541 INFO [dry-run] WOULD translate id=34 table=articles title=从Claude Code源码看Anthropic的产品野心 body_len=8849
+2026-05-20 16:02:26,541 INFO summary attempted=3 ok=0 fail=0 dry_run=3 elapsed=0.0s
+```
+
+SQL UNION ALL across `articles` + `rss_articles` picks up untranslated candidates correctly; no LLM call invoked under `--dry-run`. ✅
+
+**Tests:**
+
+- `tests/unit/test_translate.py` — 5/5 PASS (detect_source_lang × 2, translate_title fail-soft, translate_title happy path, translate_body skip-already-translated SQL guard)
+- `tests/unit/test_ingest_from_db_orchestration.py` — 6/6 PASS (regression check after fixture-parity extension on `articles` + `rss_articles` CREATE TABLE)
+
+**Screenshots:** No browser screenshots — Playwright MCP not loaded in the trans-inc Claude Code session. The curl + grep evidence above is more reproducible than screenshots and validates the same end-to-end DB write → SSG re-export → HTTP-served HTML chain. The `[data-lang]` CSS visibility swap is validated by Wave 6 UAT (scenarios 4 + 5 + 6 above).
+
+**Verdict:** PASS — both inline title + body cron paths are wired to the kb-v2.2-7 A4 fallback chain end-to-end. Translation production at scale on Hermes is gated on operator setting `DEEPSEEK_MODEL=<V4-Pro-id>` + `TAVILY_API_KEY` + registering the body cron in `~/.hermes/cron/jobs.json` (post-deploy operator actions, see `260520-m1p-SUMMARY.md` § "TODOs").

@@ -1832,6 +1832,7 @@ async def ingest_from_db(
                     # v3.5 ir-4: 7-col tuple — url is at row[3] now (was [2]).
                     art_id_d = row[0]
                     source_d = row[1]
+                    title_d = row[2]
                     url_d = row[3]
 
                     if result.verdict in ("reject", "scrape_fail"):
@@ -1911,6 +1912,47 @@ async def ingest_from_db(
                         if wall >= effective_timeout:
                             timed_out_count += 1
                             timeout_histogram["900s+"] += 1
+
+                    # 260520-trans-inc: inline title translation. Runs after
+                    # successful ingest_article (status='ok'), BEFORE the
+                    # ingestions row is written. Failure is non-fatal —
+                    # title_translated stays NULL; nightly translate_body_cron
+                    # will pick it up alongside the body. Imports are inline
+                    # to keep the change localized.
+                    if status == "ok":
+                        try:
+                            from datetime import datetime, timezone
+
+                            from lib.translate import (
+                                detect_source_lang,
+                                translate_title_with_deepseek_tavily,
+                            )
+
+                            translation = await translate_title_with_deepseek_tavily(
+                                title_d or "",
+                                source_lang=detect_source_lang(title_d or ""),
+                            )
+                            if translation:
+                                _t_table = (
+                                    "articles" if source_d == "wechat" else "rss_articles"
+                                )
+                                conn.execute(
+                                    f"UPDATE {_t_table} SET title_translated = ?, "
+                                    "translated_lang = ?, translated_at = ? "
+                                    "WHERE id = ?",
+                                    (
+                                        translation["title_translated"],
+                                        translation["lang"],
+                                        datetime.now(timezone.utc).isoformat(),
+                                        art_id_d,
+                                    ),
+                                )
+                                conn.commit()
+                        except Exception as _e:
+                            logger.warning(
+                                "title-translate failed (id=%s, source=%s): %s — leaving NULL",
+                                art_id_d, source_d, _e,
+                            )
 
                     conn.execute(
                         "INSERT OR REPLACE INTO ingestions(article_id, source, status, skip_reason_version) "

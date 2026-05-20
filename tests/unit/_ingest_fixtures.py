@@ -97,7 +97,14 @@ CREATE TABLE IF NOT EXISTS articles (
     layer2_verdict TEXT,
     layer2_reason TEXT,
     layer2_at TEXT,
-    layer2_prompt_version TEXT
+    layer2_prompt_version TEXT,
+    -- Translation columns: migrations 006 (articles) + 007 (rss_articles).
+    -- Fixture parity is mandatory per CLAUDE.md PRINCIPLE #7 +
+    -- feedback_contract_shape_change_full_audit.md (260520-trans-inc).
+    body_translated TEXT,
+    title_translated TEXT,
+    translated_lang VARCHAR(5),
+    translated_at DATETIME
 );
 CREATE TABLE IF NOT EXISTS rss_feeds (
     id INTEGER PRIMARY KEY,
@@ -118,7 +125,12 @@ CREATE TABLE IF NOT EXISTS rss_articles (
     layer2_verdict TEXT,
     layer2_reason TEXT,
     layer2_at TEXT,
-    layer2_prompt_version TEXT
+    layer2_prompt_version TEXT,
+    -- Translation columns: migration 007 (260520-trans-inc fixture parity).
+    body_translated TEXT,
+    title_translated TEXT,
+    translated_lang VARCHAR(5),
+    translated_at DATETIME
 );
 CREATE TABLE IF NOT EXISTS classifications (
     article_id INTEGER,
