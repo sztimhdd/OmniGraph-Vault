@@ -199,6 +199,7 @@ def hydrate_db_from_volume(
             logger.info("startup_adapter: skip source_empty_pre_seed src=%s err=%s", src_path, e)
             return CopyResult(status="skipped", reason="source_empty_pre_seed")
 
+    # FTS population always runs, regardless of whether db file already existed
     import sqlite3
     try:
         conn = sqlite3.connect(str(dst), timeout=10)
