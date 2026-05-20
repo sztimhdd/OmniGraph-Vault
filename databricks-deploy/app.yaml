@@ -5,9 +5,14 @@
 # PYTHONPATH must include both source root AND databricks-deploy/ subdirectory.
 
 command:
-  - bash
-  - -c
-  - "export PYTHONPATH=/app/python/source_code:/app/python/source_code/databricks-deploy; exec uvicorn app_minimal:app --host 0.0.0.0 --port $DATABRICKS_APP_PORT"
+  - python
+  - -m
+  - uvicorn
+  - app_minimal:app
+  - --host
+  - "0.0.0.0"
+  - --port
+  - "8080"
 
 env:
   - name: OMNIGRAPH_BASE_DIR
