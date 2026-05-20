@@ -6,15 +6,20 @@
 
 command:
   - python
-  - -m
-  - uvicorn
-  - app_minimal:app
-  - --host
-  - "0.0.0.0"
-  - --port
-  - "8080"
+  - app_runner.py
 
 env:
+  # Databricks Apps system environment variables
+  - name: PYTHONPATH
+    value: "/app/python/source_code:/app/python/source_code/databricks-deploy"
+
+  - name: UVICORN_HOST
+    value: "0.0.0.0"
+
+  - name: UVICORN_PORT
+    value: "8080"
+
+  # OmniGraph application variables
   - name: OMNIGRAPH_BASE_DIR
     value: "/tmp/omnigraph_vault"
 
