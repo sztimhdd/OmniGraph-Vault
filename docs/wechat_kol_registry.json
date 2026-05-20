@@ -580,6 +580,18 @@
         "AI工具实操",
         "个人博客"
       ]
+    },
+    {
+      "name": "AI作弊码",
+      "wechat_id": "gh_5a42569876af",
+      "fakeid": "1775546270",
+      "source": "article_page_extract",
+      "tags": [
+        "LLM",
+        "AI工具",
+        "Agent",
+        "技术科普"
+      ]
     }
   ]
 }
