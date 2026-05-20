@@ -295,3 +295,37 @@ Orchestrator applied surgical inline patches for the 2 MAJOR warnings (avoided d
 - **M-3, M-4, M-5 accepted as MINOR** per verifier recommendation — cosmetic / paranoid hardening; not load-bearing for plan execution
 
 **Final verdict after orchestrator action:** PASS — all 4 plans + CONTEXT + RESEARCH ready for `/gsd:execute-phase kdb-2`.
+
+---
+
+## Execution Status (2026-05-19 21:45 ADT)
+
+### Task 4.4 Status: **IN PROGRESS**
+
+**Deployment successful:** 2026-05-19 21:43:58 ADT
+Deployment ID: `01f153e4c09711a5963b339cacd2cbfd`
+Uvicorn status: `running on http://0.0.0.0:8000`
+
+**Issue discovered:** Search endpoint returns empty results despite app running.
+
+Root cause identified: FTS table was being created (schema ok) but not populated with data from source tables.
+
+**Fix applied:** Modified `startup_adapter.py::hydrate_db_from_volume()` to:
+
+1. Call `ensure_fts_table()` to create virtual table schema
+2. Explicitly `INSERT ... SELECT` from `articles` and `rss_articles` tables to populate FTS index
+3. Log diagnostic statistics: `[DB STATS] articles=<count>, rss=<count>, fts_indexed=<count>`
+
+**Commits:**
+
+- `cc13d2a`: Add FTS population logic to startup_adapter
+- `cc16872`: Add `flush=True` to print statements for log visibility
+
+**Next Steps (Task 4.5 Smoke 1+2 UAT):**
+
+1. Redeploy app with flush fix (commit cc16872)
+2. Verify `[DB STATS]` output appears in deployment logs
+3. Test `/api/health` → confirm 200 OK
+4. Test `/api/search?q=test&lang=zh-CN&mode=fts` → confirm results populated
+
+**Blocker status:** NONE — issue identified, fix applied, pending redeployment + smoke UAT
