@@ -1546,6 +1546,33 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     )
 
 
+async def _wiki_update_check(
+    article_hashes: list[str],
+    db_conn,
+    wiki_root: Path = Path("kb/wiki"),
+) -> dict:
+    """W3 hook: post-batch wiki entity suggestion + atomic apply.
+
+    Fire-and-forget. Catches every exception; never raises. Caller wraps
+    this in asyncio.wait_for(timeout=120) so a stuck buffer / DB cannot
+    block ingest_from_db's finally clause.
+    """
+    result = {"suggestions_generated": 0, "applied": 0, "dropped": 0}
+    try:
+        from kb.wiki_update import apply_suggestion_atomic, generate_wiki_suggestions
+
+        suggestions = generate_wiki_suggestions(article_hashes, wiki_root, db_conn)
+        result["suggestions_generated"] = len(suggestions)
+        for s in suggestions:
+            if apply_suggestion_atomic(s, db_conn, wiki_root=wiki_root):
+                result["applied"] += 1
+            else:
+                result["dropped"] += 1
+    except Exception as e:  # noqa: BLE001 -- hook must never crash main flow
+        logger.warning("W3 _wiki_update_check failed: %s", e)
+    return result
+
+
 async def ingest_from_db(
     topic: str | list[str],
     dry_run: bool,
@@ -2100,6 +2127,21 @@ async def ingest_from_db(
 
             # Drain any remaining partial batch (size < LAYER2_BATCH_SIZE).
             await _drain_layer2_queue()
+
+            # llm-wiki-W3 T3 (2026-05-19): post-drain wiki entity update hook.
+            # Fire-and-forget with 120s timeout; never blocks the main flow.
+            try:
+                batch_hashes = [
+                    get_article_hash(r[3]) for r in candidate_rows if r[3]
+                ]
+                wiki_stats = await asyncio.wait_for(
+                    _wiki_update_check(batch_hashes, conn), timeout=120
+                )
+                logger.info("W3 wiki hook: %s", wiki_stats)
+            except asyncio.TimeoutError:
+                logger.warning("W3 _wiki_update_check timed out after 120s")
+            except Exception as e:  # noqa: BLE001 -- never block main flow
+                logger.warning("W3 _wiki_update_check unexpected error: %s", e)
 
             logger.info(
                 "Done — %d candidates processed (of %d total inputs)",

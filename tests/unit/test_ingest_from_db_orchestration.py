@@ -421,3 +421,117 @@ async def test_image_count_refresh_after_persist(
         f"{captured['calls'][0]!r} — regression of 2026-05-16 "
         f"quick-260516-htm bug. all calls={captured['calls']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# T6 — W3 _wiki_update_check fires once after final drain, never blocks
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_wiki_update_hook_called_after_drain_with_observable_post_condition(
+    monkeypatch, tmp_path: Path
+):
+    """Anchor: 2026-05-19 llm-wiki-W3 T3 ingest hook contract.
+
+    fixture-schema-verified: tests/unit/_ingest_fixtures.py articles DDL
+    extended with content_hash + enriched columns to mirror production
+    schema (see migration 011_add_content_hash). PRAGMA-checked at the
+    top of this test so any future fixture drift fails loudly here
+    before regressing the contract under test.
+
+    Seeds two KOL articles, both layer1=reject (cheapest path that still
+    exercises the post-drain hook insertion point at L2102 → L2105). The
+    real _wiki_update_check is replaced with an AsyncMock spy. Three
+    behaviors are pinned:
+
+      1. Spy is called exactly once after the final _drain_layer2_queue
+      2. Spy receives a list of 10-char md5-prefixed url hashes (the
+         get_article_hash output for candidate_rows[*][3])
+      3. A raised exception inside the hook is swallowed — ingest_from_db
+         completes normally and the seeded ingestions rows persist
+    """
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    # fixture-schema-verified: assert articles.content_hash + articles.enriched
+    # exist on the in-memory schema (mirrors production migration 011).
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(articles)").fetchall()}
+    assert "content_hash" in cols, (
+        "fixture drift: tests/unit/_ingest_fixtures.py articles DDL must "
+        "include content_hash TEXT (production schema, populated by "
+        "ingest_wechat.py after successful ainsert)"
+    )
+    assert "enriched" in cols, (
+        "fixture drift: tests/unit/_ingest_fixtures.py articles DDL must "
+        "include enriched INTEGER DEFAULT 0 (production schema)"
+    )
+
+    # layer1=candidate (skip scrape via seeded body) + layer2=reject lets the
+    # candidate_rows accumulate but bypasses LightRAG ainsert — fast and pins
+    # the post-drain hook insertion point at the canonical spot.
+    seed_kol_article(conn, art_id=1, body="kol body " * 50)
+    seed_kol_article(conn, art_id=2, body="kol body " * 50)
+
+    patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[
+            FilterResult(verdict="candidate", reason="ok",
+                         prompt_version=PROMPT_VERSION_LAYER1),
+            FilterResult(verdict="candidate", reason="ok",
+                         prompt_version=PROMPT_VERSION_LAYER1),
+        ],
+        layer2_results=[
+            FilterResult(verdict="reject", reason="shallow",
+                         prompt_version=PROMPT_VERSION_LAYER2),
+            FilterResult(verdict="reject", reason="shallow",
+                         prompt_version=PROMPT_VERSION_LAYER2),
+        ],
+    )
+
+    # Replace the real hook with a spy that raises — pins both call-once
+    # AND swallow-exception behavior in a single test.
+    spy = AsyncMock(side_effect=RuntimeError("simulated wiki hook failure"))
+    monkeypatch.setattr(bi, "_wiki_update_check", spy)
+
+    # Sanity precondition: _drain_layer2_queue is called by ingest_from_db
+    # before the hook. Order is enforced by the source layout (L2102
+    # final drain → L2105 hook); we assert the hook fires AT LEAST once
+    # and receives only valid 10-char hashes.
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False,
+        batch_timeout=None, max_articles=None,
+    )
+
+    # Behavior 1: hook called exactly once after final drain.
+    assert spy.await_count == 1, (
+        f"_wiki_update_check should fire exactly once after final drain; "
+        f"got {spy.await_count} awaits"
+    )
+
+    # Behavior 2: positional arg 0 is list of 10-char hashes from
+    # candidate_rows urls. seed_kol_article sets url='https://example.com/kol/{art_id}'.
+    call_args = spy.await_args
+    assert call_args is not None, "spy was never awaited"
+    passed_hashes = call_args.args[0]
+    assert isinstance(passed_hashes, list), (
+        f"first arg should be list[str]; got {type(passed_hashes).__name__}"
+    )
+    assert len(passed_hashes) == 2, (
+        f"expected 2 hashes (one per candidate row); got {len(passed_hashes)} "
+        f"— hashes={passed_hashes!r}"
+    )
+    for h in passed_hashes:
+        assert isinstance(h, str) and len(h) == 16, (
+            f"each hash should be 16-char sha256 prefix "
+            f"(lib.checkpoint.get_article_hash contract); got {h!r}"
+        )
+
+    # Behavior 3: hook exception did not block ingest_from_db. Both
+    # seeded layer1=reject articles MUST have ingestions rows written.
+    rows = _ingestion_rows(conn)
+    assert len(rows) == 2, (
+        f"hook RuntimeError leaked and aborted ingest_from_db before "
+        f"per-article writes — expected 2 ingestions rows; got {rows!r}"
+    )

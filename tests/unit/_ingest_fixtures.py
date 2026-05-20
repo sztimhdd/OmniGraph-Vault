@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS articles (
     digest TEXT,
     body TEXT,
     image_count INTEGER DEFAULT 0,
+    content_hash TEXT,
+    enriched INTEGER DEFAULT 0,
     layer1_verdict TEXT,
     layer1_reason TEXT,
     layer1_at TEXT,
