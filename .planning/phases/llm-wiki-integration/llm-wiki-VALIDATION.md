@@ -94,8 +94,8 @@ Wave 0 plan task should create the empty test stubs above with `@pytest.mark.ski
 - [ ] Wave 0 covers all MISSING test references
 - [ ] No watch-mode flags
 - [ ] Feedback latency < 60s for unit, < 300s for integration
-- [ ] Manual UAT performed and cited in `llm-wiki-VERIFICATION.md` per CLAUDE.md Rule 6
+- [x] Manual UAT performed and cited in `llm-wiki-VERIFICATION.md` per CLAUDE.md Rule 6 (2026-05-20: 9/9 W4 pytest + 3 contract paths + 6 browser screenshots + Decision 4 mtime invariant pass)
 - [ ] `nyquist_compliant: true` set in frontmatter (NTH-1: flipped by plan-05 Task 3 Step 10 after all 5 plans complete and the items above are checked)
 
-**Approval:** pending
+**Approval:** pending — awaiting user sign-off review of `llm-wiki-VERIFICATION.md` before NTH-1 flag flip.
 </content>
