@@ -64,7 +64,7 @@ the Aliyun host clean for aim-1's production install.
 
 ```bash
 ssh -p <hermes-port> <hermes-user>@<hermes-host> \
-  "sqlite3 ~/.hermes/omonigraph-vault/data/kol_scan.db \
+  "sqlite3 ~/OmniGraph-Vault/data/kol_scan.db \
     \"SELECT article_id, url, image_count, char_length(body) AS body_len \
       FROM articles \
       WHERE layer1_verdict='candidate' AND layer2_verdict='ok' \
@@ -76,6 +76,8 @@ ssh -p <hermes-port> <hermes-user>@<hermes-host> \
 Note: Hermes SSH details in `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/hermes_ssh.md`. Do NOT embed in this plan.
 
 **Agent action:** Pick the top 1-2 rows (highest image_count with body_len ≥ 5000). Record selected `article_id` and `url` values. If zero rows returned (no body-populated candidates), fall back to `layer1_verdict='candidate'` without `body IS NOT NULL` constraint and pick URLs anyway — the smoke ingest will re-scrape.
+
+**Fallback if Hermes SSH unreachable**: use the verified KOL article URL `https://mp.weixin.qq.com/s/Y_uRMYBmdLWUPnz_ac7jWA` (hardcoded as `ingest_wechat.py:1647` default — known-good candidate, medium image count). Skip Step 1 query, jump to Step 2 with this URL as ARTICLE_URL_1.
 
 **Evidence lands:** Record chosen URLs in `READINESS.md § Smoke ingest E2E (READY-04)` under "Selected articles for READY-04 smoke:".
 
@@ -103,6 +105,14 @@ cd /tmp/aliyun-readiness/repo
 git clone https://github.com/sztimhdd/OmniGraph-Vault.git . --depth=1
 python3 -m venv /tmp/aliyun-readiness/venv
 /tmp/aliyun-readiness/venv/bin/pip install --quiet -r requirements.txt
+```
+
+Pre-flight: confirm keys present in production env (same check as READY-03 prerequisites).
+If any required key (GEMINI_API_KEY / GOOGLE_APPLICATION_CREDENTIALS / SILICONFLOW_API_KEY)
+is missing here, STOP — fix Aliyun secrets before continuing:
+
+```bash
+grep -oE '^[A-Z_][A-Z_0-9]*=' /etc/omnigraph/.env | sort -u
 ```
 
 Set environment (same keys as READY-03):
@@ -134,13 +144,6 @@ cd /tmp/aliyun-readiness/repo
 echo "Exit code: $?"
 ```
 
-After Article 1 completes, verify `status='ok'` in the scratch ingestions table:
-
-```bash
-sqlite3 /tmp/aliyun-readiness/data/kol_scan.db \
-  "SELECT article_id, status, ingested_at FROM ingestions ORDER BY ingested_at DESC LIMIT 5;"
-```
-
 If Article 1 is `status='ok'` and image_count ≥ 5 → single article is sufficient for READY-04.
 Optionally run Article 2 for higher confidence:
 
@@ -151,11 +154,12 @@ ARTICLE_URL_2="<URL from Step 1 selection, second row>"
   2>&1 | tee /tmp/aliyun-readiness/ready04-article2-$(date +%Y%m%d-%H%M%S).log
 ```
 
-Verify both reach `status='ok'`:
+Verify entity extraction wrote buffer files (per-article entity JSON — `ingest_wechat.py`
+does NOT write the `ingestions` table; that's `batch_ingest_from_spider.py`. Use
+entity_buffer + lightrag_storage as evidence instead):
 
 ```bash
-sqlite3 /tmp/aliyun-readiness/data/kol_scan.db \
-  "SELECT article_id, status, ingested_at FROM ingestions ORDER BY ingested_at DESC LIMIT 5;"
+ls -la /tmp/aliyun-readiness/repo/entity_buffer/*.json 2>/dev/null | head -5
 ```
 
 Check that scratch LightRAG storage has actual data (not empty):
@@ -166,10 +170,11 @@ ls /tmp/aliyun-readiness/lightrag_storage/
 ```
 
 **What to report back:** Paste:
-1. The final sqlite3 SELECT output showing `status='ok'` rows
-2. The `du -sh /tmp/aliyun-readiness/lightrag_storage/` output (confirms entities/relations written)
-3. Any errors from the log (especially provider failures or timeout lines)
-4. Wall-clock time for each article ingest (visible as timestamps in the log)
+1. ingest exit code (echo'd after each article — must be 0 for PASS)
+2. The `du -sh /tmp/aliyun-readiness/lightrag_storage/` output (confirms graph + embeddings written)
+3. The `ls entity_buffer/*.json` output (confirms entity extraction ran)
+4. Any errors from the log (especially provider failures or timeout lines)
+5. Wall-clock time for each article ingest (visible as timestamps in the log)
 
 ---
 
@@ -180,7 +185,7 @@ ls /tmp/aliyun-readiness/lightrag_storage/
 - Wall-clock time per article
 - Any provider cascade fallbacks observed
 
-**Pass predicate:** ≥ 1 article reaches `status='ok'` in the scratch ingestions table AND `/tmp/aliyun-readiness/lightrag_storage/` is non-empty (entities + relations written).
+**Pass predicate:** ≥ 1 article completes with `Exit code: 0` AND `/tmp/aliyun-readiness/lightrag_storage/` non-empty (graph + embeddings written) AND `/tmp/aliyun-readiness/repo/entity_buffer/*.json` exists for the ingested article(s).
 
 **Fail action:** If `status='failed'` for all attempted articles, record the error pattern:
 - Provider UNREACHABLE (network block) → note which provider; assess if cascade fallback is sufficient
@@ -254,7 +259,7 @@ Note: If aim-0 verdict is FAIL (any REQ hard-fails), **do NOT clean up the scrat
 
 | REQ | Pass Criterion | Evidence Location |
 |-----|----------------|-------------------|
-| READY-04 | ≥ 1 article `status='ok'` in scratch `ingestions` table AND `/tmp/aliyun-readiness/lightrag_storage/` non-empty | `READINESS.md § Smoke ingest E2E (READY-04)` — sqlite3 output + `du -sh` |
+| READY-04 | ≥ 1 article exit_code=0 AND `lightrag_storage/` non-empty AND `entity_buffer/*.json` exists | `READINESS.md § Smoke ingest E2E (READY-04)` — exit codes + `du -sh` + `ls` |
 
 Overall aim-0 is PASS when READY-01 + READY-02 (PASS or documented WARN) + READY-03 + READY-04 are all satisfied.
 

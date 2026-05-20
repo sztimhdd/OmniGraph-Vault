@@ -166,6 +166,11 @@ cd /tmp/aliyun-readiness/repo
 python3 -m venv /tmp/aliyun-readiness/venv
 /tmp/aliyun-readiness/venv/bin/pip install --quiet -r requirements.txt
 
+# 3.5. Pre-flight: list keys actually present in production env file BEFORE setting env.
+#      Confirm GEMINI_API_KEY / GOOGLE_APPLICATION_CREDENTIALS / SILICONFLOW_API_KEY all present.
+#      If any required key is missing here, STOP — fix Aliyun secrets before continuing.
+grep -oE '^[A-Z_][A-Z_0-9]*=' /etc/omnigraph/.env | sort -u
+
 # 4. Set minimal env for ainsert dry-run
 export OMNIGRAPH_BASE_DIR=/tmp/aliyun-readiness
 export DEEPSEEK_API_KEY=dummy
@@ -174,15 +179,21 @@ export DEEPSEEK_API_KEY=dummy
 #   export GOOGLE_APPLICATION_CREDENTIALS=<path to Vertex SA JSON on Aliyun>
 #   export GOOGLE_CLOUD_LOCATION=global
 #   export GOOGLE_CLOUD_PROJECT=<project id>
-# SiliconFlow is optional for the memory test; Vision falls to Vertex if absent:
-#   export SILICONFLOW_API_KEY=<if available>
+# Vision cascade order is SiliconFlow (primary, paid) → OpenRouter (secondary, free)
+# → Gemini Vision (last resort, Vertex 500 RPD ceiling). For READY-03 memory test,
+# all three are optional — without any vision keys, ingest_wechat.py either skips
+# image description or fails through the cascade and continues without vision.
+#   export SILICONFLOW_API_KEY=<if available — improves throughput, prevents Vertex 500 RPD ceiling>
 
 # 5. Pick a representative "heavy" article URL
 #    Choose one from the Hermes candidate pool: layer1_verdict='candidate' AND
 #    layer2_verdict='ok', preferably a KOL article with >= 10 images.
-#    You can get one via: ssh hermes "sqlite3 ~/.hermes/omonigraph-vault/data/kol_scan.db \
+#    You can get one via: ssh hermes "sqlite3 ~/OmniGraph-Vault/data/kol_scan.db \
 #      \"SELECT url FROM articles WHERE layer1_verdict='candidate' AND layer2_verdict='ok' \
 #        AND image_count >= 10 ORDER BY image_count DESC LIMIT 1;\""
+# Fallback if Hermes SSH unreachable: use the verified KOL article URL hardcoded
+# as ingest_wechat.py:1647 default — known good (medium-image, candidate verdict).
+# ARTICLE_URL="https://mp.weixin.qq.com/s/Y_uRMYBmdLWUPnz_ac7jWA"
 ARTICLE_URL="<paste chosen URL here>"
 
 # 6. Run ingest under /usr/bin/time -v to capture peak RSS
