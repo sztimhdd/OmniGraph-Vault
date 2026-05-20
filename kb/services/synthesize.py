@@ -43,6 +43,7 @@ from typing import Literal, Optional
 from kb import config as kb_config
 from kb.data import article_query
 from kb.services import job_store
+from kb.services.wiki_inject import resolve_wiki_context
 
 _log = logging.getLogger(__name__)
 
@@ -492,6 +493,11 @@ async def kb_synthesize(
     else:
         directive = lang_directive_for(lang)
         query_text = f"{directive}{question}"
+
+    # W4 wiki context injection (llm-wiki-integration phase).
+    # Per Decision 4: read-only — synthesize NEVER writes back to kb/wiki/.
+    wiki_context = await resolve_wiki_context(question)
+    query_text = wiki_context + query_text
     try:
         # QA-04: bound C1 wall-time. asyncio.wait_for raises TimeoutError on
         # exceedance; the inner coroutine is cancelled.
