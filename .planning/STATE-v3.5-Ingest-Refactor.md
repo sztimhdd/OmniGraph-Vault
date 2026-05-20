@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.5-Ingest-Refactor
 milestone_name: — Ingest 筛选重构(双层 LLM filter,替换 classify 架构)
-status: code-shipped-deploy-pending
-stopped_at: "ir-4 code-shipped to origin/main 2026-05-09; Hermes deploy queued for operator execution via HERMES-DEPLOY-ir-4.md SOP"
-last_updated: "2026-05-20T19:00:00Z"
-last_activity: "2026-05-20 — STATE refresh: ir-4 5 commits verified on origin/main (5d943f8/df495c8/4cc3757/9ff330d/2b21c9c). Hermes deploy queued. Hermes role change: stopping F12 sync feed to Aliyun soon; Hermes continues local-only ingest on user PC."
+status: deployed-in-observation
+stopped_at: "ir-4 deployed to Hermes 2026-05-20 (Steps 1-8 of HERMES-DEPLOY-ir-4.md complete); Step 10 24h audit pending."
+last_updated: "2026-05-20T20:00:00Z"
+last_activity: "2026-05-20 — ir-4 Hermes deploy COMPLETE. Step 7 smoke: 1 KOL ok (id=1133), 3 RSS skipped (Layer 1 reject expected). 3 active ingest crons confirmed (daily-ingest @09:00, afternoon @14:00, evening @21:00). Migration 008 was pre-applied (schema source column already present); no pre-mig008 backup taken — risk acceptable since dual-source schema already stable on Hermes."
 progress:
   total_phases: 4
   completed_phases: 2
@@ -28,10 +28,10 @@ Requirements: `.planning/REQUIREMENTS-v3.5-Ingest-Refactor.md`
 ## Current Position
 
 Milestone: v3.5-Ingest-Refactor (parallel-track to v3.4 Phases 20-22 + Agentic-RAG-v1)
-Phase: ir-4 (RSS integration + dead-code cleanup) — code-shipped on origin/main, Hermes deploy queued
-Plan: HERMES-DEPLOY-ir-4.md (operator execution)
-Status: ir-4 code-shipped 2026-05-09; awaiting Hermes operator execution of HERMES-DEPLOY-ir-4.md Steps 1-8.
-Last activity: 2026-05-20 — STATE refresh; ir-4 5 commits verified on origin/main; Hermes role change noted.
+Phase: ir-4 (RSS integration + dead-code cleanup) — DEPLOYED to Hermes 2026-05-20, in 24h-observation window
+Plan: HERMES-DEPLOY-ir-4.md (Steps 1-8 complete; Step 10 24h audit pending)
+Status: ir-4 deployed; Hermes prod running dual-source pipeline. Step 7 smoke verified (1 KOL ok / 3 RSS skipped via Layer 1 reject).
+Last activity: 2026-05-20 — Hermes deploy complete + 24h audit queued.
 
 ### Phase plan
 
@@ -40,7 +40,7 @@ Last activity: 2026-05-20 — STATE refresh; ir-4 5 commits verified on origin/m
 | ir-1 | Real Layer 1 + KOL ingest wiring | 14 | L | DONE (commit `f1a963b`) |
 | ir-2 | Real Layer 2 + full-body scoring | 11 | L | DONE (commit `f8e90ef`) |
 | ir-3 | Production cutover + 1-week observation | 1 | S (3 days + 7-day wall-clock) | in progress (calendar wait) |
-| ir-4 | RSS integration + dead-code cleanup | 4 | M | **PUSHED to origin/main 2026-05-09** — 5 atomic commits (`5d943f8`/`df495c8`/`4cc3757`/`9ff330d`/`2b21c9c` W5 close-out). **Hermes deploy queued** — operator action via `.planning/phases/ir-4-rss-integration-and-cleanup/HERMES-DEPLOY-ir-4.md` Steps 1-8. STATE was wrong about push state for 11 days; corrected 2026-05-20 verifying via `git branch -r --contains`. **Scope deviation** (ack'd): user prompt redirected LF-5.1/5.2 from REQ-text targets to retiring `enrichment/rss_classify.py` + `rss_ingest.py` instead. Original LF-5.1/5.2/5.3 deletions remain pending in a follow-up. |
+| ir-4 | RSS integration + dead-code cleanup | 4 | M | **DEPLOYED to Hermes 2026-05-20** — 5 atomic commits pushed 2026-05-09 (`5d943f8`/`df495c8`/`4cc3757`/`9ff330d`/`2b21c9c` W5 close-out); Hermes deploy complete via HERMES-DEPLOY-ir-4.md Steps 1-8. Step 7 smoke: 1 KOL ok (id=1133) + 3 RSS skipped (Layer 1 reject expected). Step 10 24h audit pending (operator returns 2026-05-21). **Scope deviation** (ack'd): user prompt redirected LF-5.1/5.2 from REQ-text targets to retiring `enrichment/rss_classify.py` + `rss_ingest.py` instead. Original LF-5.1/5.2/5.3 deletions remain pending in a follow-up. **Note**: migration 008 was pre-applied on Hermes (Step 4 SKIP); no pre-mig008 backup taken at deploy time — schema risk acceptable since dual-source already stable. |
 
 Total: 30/30 v1 REQs mapped, 0 orphans.
 
@@ -59,7 +59,19 @@ The Foundation Quick scopes 4 placeholder requirements (V35-FOUND-01..04):
 
 ### Immediate next step
 
-Operator executes `.planning/phases/ir-4-rss-integration-and-cleanup/HERMES-DEPLOY-ir-4.md` Steps 1-8 on Hermes prod (`~/OmniGraph-Vault`). Step 9 (1-week backlog drain) and Step 10 (24h audit) deferred — Hermes role-change (stopping F12 sync feed to Aliyun) means default daily-ingest cadence is sufficient, no aggressive backlog drain needed. Post-deploy: refresh this STATE file with deploy-result hash + first 24h ingestion source/status counts.
+ir-4 Hermes deploy COMPLETE 2026-05-20. **24h audit (HERMES-DEPLOY-ir-4.md Step 10) queued — operator returns 2026-05-21** to run the source × status × count SQL and report. Refresh this STATE file with audit numbers when received. Step 9 (1-week backlog drain) deferred — Hermes role-change (stopping F12 sync feed to Aliyun) means default 3-cron cadence (09:00 / 14:00 / 21:00) is sufficient.
+
+**Hermes deploy result snapshot 2026-05-20 (3 active ingest crons):**
+
+| Cron | Schedule | Notes |
+| --- | --- | --- |
+| daily-ingest | 09:00 (ADT?) | confirmed via Step 8 resume |
+| afternoon-ingest | 14:00 | confirmed via Step 8 resume |
+| evening-ingest | 21:00 | confirmed via Step 8 resume |
+
+Step 6 baseline: KOL=247, RSS=109, total=356 candidates (well below local-snapshot 1749 — Hermes pool already drained by prior ir-1/ir-2 batches).
+
+**ir-3 status note**: Phase ir-3 ("Production cutover + 1-week observation") shows "in progress (calendar wait)" since 2026-05-08 — wall-clock observation window has long passed; phase likely closeable once ir-4 24h audit confirms dual-source pipeline stable. Defer ir-3 closure until 24h post-ir-4 audit.
 
 ## Parallel-Track Boundary
 
