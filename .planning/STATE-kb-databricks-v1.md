@@ -6,11 +6,13 @@
 
 ## Current Position
 
-- **Milestone:** kb-databricks-v1 (parallel track)
-- **Phase:** kdb-2.5 — Re-index LightRAG Storage Job (**COMPLETE** 2026-05-18)
-- **Status:** kdb-2.5 COMPLETE (2026-05-18) — 75/75 DATA-07 candidates in LightRAG KG; postcheck PASS; Bugs 7/8/9 fixed (cf67f0a/7ab580b/2659b41). kdb-2 Wave-3 deploy + Smoke 1+2 UAT still BLOCKED on workspace-admin DNS.
-- **Last activity:** 2026-05-18 — kdb-2.5 execute: Run 4 ok=75 failed=0; postcheck PASS; Bugs 7/8/9 found and fixed during execution; VERIFICATION.md authored.
-- **kdb-2 Wave 3 status (DNS BLOCKER, unrelated to kdb-2.5):** App `omnigraph-kb` created (kdb-2-01 commit `7d94b53`); LLM dispatcher shipped (kdb-2-02 `50a7386`/`5255a9a`/`8fa7636`); routing tests green (kdb-2-03 `f3670b0`/`ffb8d9d`/`d5b1de4`); deploy artifacts authored (kdb-2-04 `8bdd362`). Wave-0 layout probe deployed but App URL unreachable from EDC VPN — workspace-admin must add `omnigraph-kb` to DNS zone before Smoke 1+2 UAT can proceed. 14/20 kdb-2 REQs verified; 6/20 pending DNS unblock.
+- **Milestone:** kb-databricks-v1 (parallel track) — **COMPLETE** 2026-05-20
+- **Phase:** kdb-3 — UAT Close (**COMPLETE** 2026-05-20)
+- **Status:** Milestone closed. kdb-3 PASS_WITH_APPROVED_SCOPE_DEVIATION (CONFIG-EXEMPTIONS row 3 `kb/services/synthesize.py` documented + approved). All 5 deploy-time gaps closed; bilingual KB-v2 + KG-mode RAG path live; Smoke 3 ZH PASS (`confidence=kg`); Smoke 3 EN PASS (200 OK, `confidence=no_results` is content-coverage finding, not stack failure). RUNBOOK.md authored. Secret audit clean (zero key-signature matches in `databricks-deploy/` git history; only documented `DEEPSEEK_API_KEY=dummy` Phase-5 import guard remains).
+- **Last activity:** 2026-05-20 — kdb-3 close: autonomous deploy (deployment_id `01f15484c06118b4b07a9664d40c52d9`, SUCCEEDED 19:50:07 UTC); VERIFICATION.md authored at `.planning/phases/kdb-3-uat-close/kdb-3-VERIFICATION.md`; RUNBOOK.md at `databricks-deploy/RUNBOOK.md`; STATE backfill via this commit.
+- **App URL (live):** https://omnigraph-kb-2717931942638877.17.azure.databricksapps.com (workspace-SSO behind Private Link; DNS unblock that previously held kdb-2 Wave-3 was resolved by user — "B 已经搞定 我们可以访问app了")
+- **kdb-2 Wave 3 status:** unblocked + closed via kdb-3. App `omnigraph-kb` ACTIVE/RUNNING with full Pass 0/0b/0c/1/2 deploy architecture (Makefile). 14/20 kdb-2 REQs verified at kdb-2 close; remaining 6 verified via kdb-3 deploy.
+- **kdb-2.5 status (sibling to kdb-2 Wave-3, COMPLETE 2026-05-18):** 75/75 DATA-07 candidates in LightRAG KG; postcheck PASS; Bugs 7/8/9 fixed (cf67f0a/7ab580b/2659b41).
 - **kdb-1.5 phase complete (commits 7af1164..0dd0019, summarized for context):** 9/9 tests green; Risks #2 + #3 resolved PASS.
 
 ## Milestone-base commit hash (LOCKED — rev 3)

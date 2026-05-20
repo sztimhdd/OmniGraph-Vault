@@ -12,7 +12,7 @@
 command:
   - bash
   - -c
-  - "python _db_bootstrap.py && exec uvicorn kb.api:app --host 0.0.0.0 --port $DATABRICKS_APP_PORT"
+  - "python _db_bootstrap.py && exec uvicorn app_entry:app --host 0.0.0.0 --port $DATABRICKS_APP_PORT"
 
 env:
   # OmniGraph runtime data root (writable scratch on Databricks Apps container)
@@ -50,3 +50,12 @@ env:
 
   - name: KB_EMBEDDING_MODEL
     value: "databricks-qwen3-embedding-0-6b"
+
+  # kdb-3 LightRAG storage hydration (UC volume → /tmp at boot).
+  # _db_bootstrap.py mirrors the dir via SDK Files API; RAG_WORKING_DIR is
+  # the local target consumed by config.py + kg_synthesize.py LightRAG init.
+  - name: KB_VOLUME_LIGHTRAG_DIR
+    value: "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/lightrag_storage"
+
+  - name: RAG_WORKING_DIR
+    value: "/tmp/omnigraph_vault/lightrag_storage"

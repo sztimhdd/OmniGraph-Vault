@@ -17,7 +17,21 @@ import time
 
 from lightrag.lightrag import LightRAG, QueryParam
 from lib.llm_complete import get_llm_func  # quick-260509-s29 W3: dispatcher
-from lib.lightrag_embedding import embedding_func
+
+
+def _get_embedding_func():
+    """Embedding dispatcher — branches on OMNIGRAPH_LLM_PROVIDER.
+
+    kdb-3 (Databricks deploy): Qwen3-0.6B serving endpoint emits 1024-dim
+    vectors; Vertex Gemini path stays 768-dim (legacy default). Lazy import
+    so Databricks containers don't pull google-genai/numpy at module load.
+    """
+    provider = os.environ.get("OMNIGRAPH_LLM_PROVIDER", "deepseek").lower()
+    if provider == "databricks_serving":
+        from lightrag_databricks_provider import make_embedding_func
+        return make_embedding_func()
+    from lib.lightrag_embedding import embedding_func
+    return embedding_func
 
 # Phase 5 Wave 0 fix (2026-05-03): SYNTHESIS_LLM was gemini-2.5-flash-lite but
 # the routing rule is "ALL LLM → DeepSeek, Gemini ONLY for Vision+Embedding".
@@ -123,7 +137,7 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
         llm_model_func=get_llm_func(),
-        embedding_func=embedding_func,
+        embedding_func=_get_embedding_func(),
         default_embedding_timeout=_embedding_timeout_default(),
     )
     if hasattr(rag, "initialize_storages"): await rag.initialize_storages()

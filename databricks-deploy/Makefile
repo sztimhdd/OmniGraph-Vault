@@ -3,10 +3,14 @@
 # Uses --profile dev throughout. Windows Git Bash safe (MSYS_NO_PATHCONV=1
 # only on path-bearing calls).
 #
-# CLI subcommand surface verified empirically (kdb-2-04 Task 4.2):
+# CLI subcommand surface verified empirically (kdb-2-04 Task 4.2,
+# re-checked on CLI v0.260.0 2026-05-20):
 #   apps create / delete / deploy / get / get-deployment / list /
 #   list-deployments / run-local / start / stop / update — all exist
-#   apps logs — DOES NOT EXIST (must use Workspace UI Apps tab)
+#   apps logs — DOES NOT EXIST as a CLI subcommand. The Workspace UI's
+#   Apps "Logs" panel uses a token-authed WebSocket at /logz/stream;
+#   `make logs` now reproduces that protocol via scripts/tail_app_logs.py
+#   so logs can be fetched without copy-pasting from the browser.
 #
 # Sync architecture (kb-v2.2-7 update 2026-05-20):
 #   Pass 1: project-root databricks-deploy/* → workspace databricks-deploy/
@@ -21,7 +25,7 @@
 # from project root flooded the workspace with lib/, batch_*.py, .planning/,
 # etc. — see .databricksignore for the exclude list now enforced.
 
-.PHONY: deploy deploy-clean logs stop smoke sp-grants
+.PHONY: deploy deploy-clean logs logs-tail stop smoke sp-grants
 
 WORKSPACE_ROOT := /Workspace/Users/hhu@edc.ca/omnigraph-kb
 APP_NAME       := omnigraph-kb
@@ -29,6 +33,32 @@ PROFILE        := dev
 
 # Standard deploy: incremental sync + apps deploy. Safe to re-run.
 deploy:
+	@echo ">>> Pass 0: refresh databricks-deploy/_ssg/ from kb/output/ (deploy-time SSG)"
+	rm -rf ./databricks-deploy/_ssg
+	cp -R ./kb/output ./databricks-deploy/_ssg
+	@# Drop the inner .gitignore (`*` rule) that databricks sync would
+	@# otherwise honor, excluding every file inside _ssg/ from upload.
+	rm -f ./databricks-deploy/_ssg/.gitignore
+	@echo ">>> Pass 0b: flip KB_DEFAULT_LANG zh-CN -> en for Databricks audience"
+	@# kb/output/ is the shared SSG snapshot built with the Aliyun-default
+	@# (zh-CN) Jinja env. The HTML carries BOTH languages inline as
+	@# <span data-lang="zh">/<span data-lang="en"> pairs; lang.js shows one
+	@# based on <html lang> + window.KB_DEFAULT_LANG. We only need to flip
+	@# those two markers in-place — no full SSG rebuild required.
+	find ./databricks-deploy/_ssg -name '*.html' -print0 | \
+	  xargs -0 sed -i 's|<html lang="zh-CN">|<html lang="en">|g; s|window\.KB_DEFAULT_LANG = "zh-CN"|window.KB_DEFAULT_LANG = "en"|g'
+	@echo ">>> Pass 0c: stage project-root synthesize deps (kdb-3)"
+	@# kb/services/synthesize.py imports kg_synthesize → which imports
+	@# config + lib.* . Those live at the project root, OUTSIDE the
+	@# Pass-1 sync source (databricks-deploy/) and the Pass-2 sync source
+	@# (kb/). Mirror the _ssg/ pattern: copy them into databricks-deploy/
+	@# as deploy-time artifacts. They are NOT gitignored (Pass-1 sync
+	@# would skip them); they are regenerated each deploy so any stale
+	@# copy is overwritten.
+	rm -rf ./databricks-deploy/kg_synthesize.py ./databricks-deploy/config.py ./databricks-deploy/lib
+	cp ./kg_synthesize.py ./databricks-deploy/kg_synthesize.py
+	cp ./config.py ./databricks-deploy/config.py
+	cp -R ./lib ./databricks-deploy/lib
 	@echo ">>> Pass 1: sync databricks-deploy/* → workspace/databricks-deploy/"
 	MSYS_NO_PATHCONV=1 databricks --profile $(PROFILE) sync --full \
 	  ./databricks-deploy $(WORKSPACE_ROOT)/databricks-deploy
@@ -36,7 +66,7 @@ deploy:
 	MSYS_NO_PATHCONV=1 databricks --profile $(PROFILE) sync --full \
 	  ./kb $(WORKSPACE_ROOT)/databricks-deploy/kb
 	@echo ">>> Deploy app from $(WORKSPACE_ROOT)/databricks-deploy"
-	databricks --profile $(PROFILE) apps deploy $(APP_NAME) \
+	MSYS_NO_PATHCONV=1 databricks --profile $(PROFILE) apps deploy $(APP_NAME) \
 	  --source-code-path $(WORKSPACE_ROOT)/databricks-deploy
 	databricks --profile $(PROFILE) apps get $(APP_NAME) -o json
 
@@ -48,12 +78,16 @@ deploy-clean:
 	  --recursive $(WORKSPACE_ROOT)
 	$(MAKE) deploy
 
-# Apps logs not exposed via CLI. Recipe echoes Workspace UI URL + queries
-# deploy state via 'apps get'.
+# Snapshot recent logs (BUILD + APP frames) and exit. No copy-paste from
+# the Workspace UI Apps tab. The /logz/stream WebSocket is the only logs
+# channel the platform exposes; tail_app_logs.py speaks that protocol.
 logs:
-	@echo "Apps logs only via Workspace UI Apps tab (no CLI subcommand)."
-	@echo "URL: https://adb-2717931942638877.17.azuredatabricks.net/apps/$(APP_NAME)"
-	databricks --profile $(PROFILE) apps get $(APP_NAME) -o json
+	../venv/Scripts/python.exe scripts/tail_app_logs.py --once --max-seconds 15
+
+# Live tail until Ctrl-C. Optional FILTER=<term> for server-side substring
+# filter (matches the Workspace UI search box).
+logs-tail:
+	../venv/Scripts/python.exe scripts/tail_app_logs.py $(if $(FILTER),--filter "$(FILTER)",)
 
 stop:
 	databricks --profile $(PROFILE) apps stop $(APP_NAME)

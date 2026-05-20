@@ -29,6 +29,11 @@ docs/queries/hermes_session_*/
 # Use data/* (not data/) so specific files can be un-ignored with ! below.
 data/*
 !data/karpathy_hn_2025.opml
+# kb/data/ is a real Python module (article_query.py, lang_detect.py, migrations/)
+# tracked by git — exempt it from the broad data/* rule above so `databricks sync`
+# (which honors .gitignore at any depth inside the sync source) ships it.
+!kb/data/
+!kb/data/**
 images/
 lightrag_storage/
 *.log
@@ -69,3 +74,9 @@ kb/output/*
 # excludes files inside the dir but allows the negation to keep the template tracked.
 credentials/*
 !credentials/vertex_ai_service_account_example.json
+
+# NOTE: databricks-deploy/_ssg/ is a deploy-time copy of kb/output/ written
+# by Makefile pass-0. It is NOT in .gitignore — `databricks sync` honors
+# .gitignore patterns at any depth, and excluding _ssg/ here would prevent
+# the static frontend from reaching the workspace. Don't `git add -A` from
+# project root; use targeted `git add` for source files only.

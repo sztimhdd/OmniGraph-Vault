@@ -1,8 +1,7 @@
-# databricks-deploy/requirements.txt — read-only KB search/article API only.
-# kb/api.py at import time uses ONLY fastapi + pydantic + markdown + stdlib.
-# kg_synthesize / lightrag are deferred-imported inside synthesize handler;
-# the synthesize endpoint will return 500 on first hit unless those are added
-# back later. /health, /api/articles, /api/search (fts mode) all work without them.
+# databricks-deploy/requirements.txt — read-only KB search/article API +
+# kdb-3 KG synthesize path (MosaicAI-backed LightRAG, Qwen3 1024-dim embedding).
+#
+# Tier 1 (always loaded by kb.api at import):
 fastapi>=0.115.0
 uvicorn>=0.30.0
 pydantic>=2.0.0
@@ -13,3 +12,16 @@ pygments>=2.18.0
 # volume at boot (volumes are not auto-FUSE-mounted in Databricks Apps).
 # SDK is pre-installed in the Apps runtime; pinned here defensively.
 databricks-sdk>=0.30.0
+#
+# Tier 2 (kdb-3 — needed by kb/services/synthesize.py → kg_synthesize.py path).
+# lib/__init__.py eagerly imports lightrag_embedding + llm_client at module
+# load, which transitively pull google-genai, tenacity, aiolimiter, numpy,
+# requests. They MUST be installed even though the Databricks runtime
+# routes embeddings/LLM through the MosaicAI provider — the imports happen
+# before the provider dispatch.
+lightrag-hku==1.4.15
+google-genai
+tenacity
+aiolimiter
+numpy
+requests

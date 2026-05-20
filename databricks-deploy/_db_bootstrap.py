@@ -32,6 +32,50 @@ logger = logging.getLogger("kb.db_bootstrap")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 
+def hydrate_lightrag_storage(src_dir: str, dst_dir: str) -> int:
+    """Mirror UC volume LightRAG storage dir → local /tmp dir.
+
+    Same rationale as the kol_scan.db hydrator: UC volumes are not
+    auto-FUSE-mounted in Databricks Apps, so RAG_WORKING_DIR must
+    point to a real local path. Lists the volume directory via SDK
+    Files API and downloads each file (12 JSON/GraphML files,
+    <100MB total).
+
+    Returns 0 on success, non-zero on failure (caller decides whether
+    to abort boot or degrade to KG-disabled mode).
+    """
+    dst = Path(dst_dir)
+    dst.mkdir(parents=True, exist_ok=True)
+    logger.info("Hydrating LightRAG storage: %s -> %s", src_dir, dst)
+    try:
+        from databricks.sdk import WorkspaceClient
+        w = WorkspaceClient()
+        entries = list(w.files.list_directory_contents(src_dir))
+    except Exception as e:
+        logger.exception("LightRAG dir listing failed: %s", e)
+        return 1
+
+    total_bytes = 0
+    for entry in entries:
+        if getattr(entry, "is_directory", False):
+            continue
+        src_path = entry.path
+        name = src_path.rsplit("/", 1)[-1]
+        dst_path = dst / name
+        try:
+            resp = w.files.download(src_path)
+            with dst_path.open("wb") as fh:
+                for chunk in iter(lambda: resp.contents.read(1024 * 1024), b""):
+                    fh.write(chunk)
+            total_bytes += dst_path.stat().st_size
+        except Exception as e:
+            logger.exception("Failed downloading %s: %s", src_path, e)
+            return 2
+
+    logger.info("LightRAG storage hydration complete: %d files, %d bytes", len(entries), total_bytes)
+    return 0
+
+
 def main() -> int:
     src = os.environ.get("KB_VOLUME_DB_PATH")
     dst = os.environ.get("KB_DB_PATH")
@@ -97,6 +141,22 @@ def main() -> int:
     except Exception as e:
         logger.exception("FTS5 rebuild failed: %s", e)
         return 7
+
+    # kdb-3 LightRAG storage hydration (post-FTS, optional — degrade to
+    # KG-disabled if it fails so /api/articles + /api/search?mode=fts stay up).
+    lr_src = os.environ.get("KB_VOLUME_LIGHTRAG_DIR")
+    lr_dst = os.environ.get("RAG_WORKING_DIR")
+    if lr_src and lr_dst:
+        rc = hydrate_lightrag_storage(lr_src, lr_dst)
+        if rc != 0:
+            logger.warning(
+                "LightRAG hydration failed rc=%d; /api/synthesize will return [no-context]",
+                rc,
+            )
+    else:
+        logger.info(
+            "KB_VOLUME_LIGHTRAG_DIR or RAG_WORKING_DIR unset; skipping LightRAG hydration"
+        )
 
     return 0
 
