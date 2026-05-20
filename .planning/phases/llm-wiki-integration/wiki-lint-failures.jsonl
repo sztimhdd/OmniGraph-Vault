@@ -1,0 +1,2 @@
+{"ts": "2026-05-20T01:45:58.169646+00:00", "lint_name": "citation_integrity", "page": "C:\\Users\\huxxha\\AppData\\Local\\Temp\\tmp0nots_mt\\bad.md", "failures": ["^[article:ffffffffff]"], "context": "uat-negative-path"}
+{"ts": "2026-05-20T01:45:58.171500+00:00", "lint_name": "backlink_validity", "page": "C:\\Users\\huxxha\\AppData\\Local\\Temp\\tmp0nots_mt\\bad.md", "failures": ["nonexistent-slug"], "context": "uat-negative-path"}
