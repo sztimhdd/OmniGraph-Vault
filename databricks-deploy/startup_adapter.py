@@ -221,7 +221,7 @@ def hydrate_db_from_volume(
                 SUBSTR(content_hash, 1, 10),
                 title,
                 body,
-                COALESCE(language, 'unknown'),
+                'unknown',
                 'wechat'
             FROM articles
             WHERE body IS NOT NULL AND body != ''
@@ -231,10 +231,10 @@ def hydrate_db_from_volume(
         cursor.execute("""
             INSERT INTO articles_fts (hash, title, body, lang, source)
             SELECT
-                SUBSTR(content_hash, 1, 10),
+                SUBSTR(CAST(id AS TEXT), 1, 10),
                 title,
                 body,
-                COALESCE(language, 'unknown'),
+                'unknown',
                 'rss'
             FROM rss_articles
             WHERE body IS NOT NULL AND body != ''
