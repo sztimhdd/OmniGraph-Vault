@@ -66,6 +66,25 @@ metadata:
 - User wants raw entity-attributed retrieval without long-form synthesis → use `omnigraph_search` instead
 - User wants general web search (not personal KB) → leave to agent default
 
+## Pre-flight: Wiki-first Lookup (added 2026-05-19, llm-wiki-integration W2)
+
+Before invoking `kg_synthesize.py`, check whether a curated wiki page exists for the query's primary entity. The wiki ships ~20 high-centrality entity pages with multi-hop graph synthesis and `^[article:<hash>]` citations.
+
+```bash
+# Extract primary entity slug from $query (lowercase, hyphenated noun phrase)
+entity_slug=$(echo "$query" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g' | sed -E 's/^-|-$//g')
+wiki="$HOME/wiki-omnigraph/entities/${entity_slug}.md"
+if [ -f "$wiki" ]; then
+  cat "$wiki"
+  echo ""
+  echo "---"
+  echo "(Wiki page; reply 'go deeper' for graph-level detail.)"
+  exit 0
+fi
+```
+
+If no wiki page exists, fall through to the standard graph synthesis path below.
+
 ## Image Server Note
 
 If the user expects inline images in the synthesis output, the image server must be

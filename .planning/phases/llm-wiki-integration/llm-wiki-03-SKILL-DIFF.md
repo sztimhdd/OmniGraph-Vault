@@ -156,11 +156,81 @@ appended under `## Applied (audit trail)` below:
 
 ## Applied (audit trail)
 
-_To be appended after Task 3 (Hermes operator runs the prompt and pastes outputs back). Will contain:_
+**Applied:** 2026-05-20 by Claude (local Claude Code session on Windows dev box)
+**Channel:** Local repo Edit + git commit — **NOT** the HERMES-PROMPT-W2.md operator-channel path
+**Reason for channel pivot:** `skills/omnigraph_query/SKILL.md` is git-tracked in this repo at `c:\Users\huxxha\Desktop\OmniGraph-Vault\skills\omnigraph_query\SKILL.md`, so editing locally + committing is cleaner than the editor-paste-via-SSH workflow assumed by the original DIFF artifact. Hermes picks up the change via `git pull --ff-only` after main is pushed (push deferred per Hard Constraint #6 — awaiting user go-ahead).
 
-1. _Verbatim before-state from Step 0 `cat`_
-2. _Step 2 grep output showing the new subsection in place_
-3. _Step 3 smoke-test output_
-4. _Date / by whom / Hermes git or backup ref_
+### Insertion-point design decision
 
-(Empty until Task 3 completes.)
+**Original DIFF assumption:** insert under `## Behavior` header.
+**Actual repo state:** `skills/omnigraph_query/SKILL.md` has NO `## Behavior` header — it uses `## Quick Reference / When to Use / When NOT to Use / Image Server Note / Decision Tree (### Case 1..5) / Query Modes / Output Format / Error Handling / Related Skills`.
+**Resolution (researched precedent in repo):**
+- Surveyed sibling skills via `grep -nE '^(##|###)' skills/*/SKILL.md`.
+- `skills/omnigraph_ingest/SKILL.md:30` has `## Pre-flight Checks (always run FIRST)` BEFORE `## Decision Tree` at line 72 — exact semantic match for wiki-first lookup ("check X — if processed, skip").
+- Inserted as top-level `## Pre-flight: Wiki-first Lookup` (not `### Case 0` inside Decision Tree, not unnumbered preamble) — preserves existing Cases 1–5 line numbers, matches established repo convention, gives H2 TOC visibility.
+- Heading promoted from `###` (per original DIFF text under `## Behavior`) to `##` (top-level peer of `## Decision Tree`).
+
+### Verification
+
+````text
+$ wc -l skills/omnigraph_query/SKILL.md
+# before edit: 167 lines
+# after edit:  186 lines (+19 — within ≤20 budget per CONTEXT.md Wave 2)
+
+$ grep -nE '^## ' skills/omnigraph_query/SKILL.md
+3:## Quick Reference
+9:## When to Use
+16:## When NOT to Use
+25:## Pre-flight: Wiki-first Lookup    ← NEW
+44:## Image Server Note
+64:## Decision Tree
+106:## Query Modes
+116:## Output Format
+124:## Error Handling
+132:## Related Skills
+
+$ grep -A 25 'Wiki-first Lookup' skills/omnigraph_query/SKILL.md
+## Pre-flight: Wiki-first Lookup (added 2026-05-19, llm-wiki-integration W2)
+
+Before invoking `kg_synthesize.py`, check whether a curated wiki page exists for the query's primary entity. The wiki ships ~20 high-centrality entity pages with multi-hop graph synthesis and `^[article:<hash>]` citations.
+
+```bash
+# Extract primary entity slug from $query (lowercase, hyphenated noun phrase)
+entity_slug=$(echo "$query" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g' | sed -E 's/^-|-$//g')
+wiki="$HOME/wiki-omnigraph/entities/${entity_slug}.md"
+if [ -f "$wiki" ]; then
+  cat "$wiki"
+  echo ""
+  echo "---"
+  echo "(Wiki page; reply 'go deeper' for graph-level detail.)"
+  exit 0
+fi
+```
+
+If no wiki page exists, fall through to the standard graph synthesis path below.
+````
+
+### Smoke (slug derivation, naive extractor as documented in Acceptance section)
+
+| `$query` input | Computed slug | Wiki path resolves? |
+|----------------|---------------|---------------------|
+| `"What is OpenClaw?"` | `what-is-openclaw` | MISSING (known limitation — Hermes NLU layer narrows to bare entity before invoking skill) |
+| `"openclaw"` | `openclaw` | FOUND (post-W3/W4 — page exists at `kb/wiki/entities/openclaw.md`) |
+
+The first-row MISSING is **expected** and documented as a known limitation of the naive slug extractor — not a defect. Hermes's upstream NLU layer is responsible for narrowing `$query` before invocation.
+
+### Rollback
+
+`git revert <commit-hash>` on the W2 commit cleanly removes the inserted `## Pre-flight: Wiki-first Lookup` section. No timestamped backup file path needed (vs HERMES-PROMPT-W2.md's `.bak-260519` workflow) since the change is git-tracked.
+
+### Hermes-side propagation
+
+After main is pushed (deferred per Hard Constraint #6), Hermes operator runs:
+
+```bash
+cd ~/OmniGraph-Vault && git pull --ff-only
+grep -A 25 'Wiki-first Lookup' skills/omnigraph_query/SKILL.md
+wc -l skills/omnigraph_query/SKILL.md   # expect 186
+```
+
+This replaces Steps 2–4 of HERMES-PROMPT-W2.md. The Step 0 pre-flight diagnostic (symlink target, entities visibility) and Step 3 smoke (slug-shape testing) remain useful as standalone audit checks but are no longer prerequisites for the SKILL.md mutation.
