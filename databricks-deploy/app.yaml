@@ -7,7 +7,7 @@
 command:
   - bash
   - -c
-  - "export PYTHONPATH=/app/python/source_code; exec uvicorn kb.api:app --host 0.0.0.0 --port $DATABRICKS_APP_PORT"
+  - "export PYTHONPATH=/app/python/source_code:/app/python/source_code/databricks-deploy; exec uvicorn app_minimal:app --host 0.0.0.0 --port $DATABRICKS_APP_PORT"
 
 env:
   - name: OMNIGRAPH_BASE_DIR
