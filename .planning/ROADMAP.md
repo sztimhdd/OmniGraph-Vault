@@ -37,6 +37,19 @@
     - [x] 06-04-PLAN.md — Weekly cron `scripts/graphify-refresh.sh` + crontab install on remote
     - [x] 06-05-PLAN.md — Demo 1 + Demo 2 transcripts + consolidated acceptance sign-off across REQ-01..REQ-08
 - **Infra track (parallel):** resolve Gemini free-tier embedding quota — Phase 4's criteria 11/12 are blocked on this. Options: paid Tier 1, local `sentence-transformers`, or per-entity semaphore. Not reopening Phase 4; this is standalone infra work.
+- **Phase llm-wiki-integration: LLM Wiki Integration (planned 2026-05-19)** — Integrate Karpathy's LLM Wiki pattern (compounding markdown artifact) into OmniGraph. Wiki is a synthesis layer ON TOP of LightRAG (not a replacement). Scope: P0 Hermes skill + P2 ingest hook + P3 synthesize injection + 20-page initial wiki content. P1 KB UI deferred to a later phase. P4 standalone lint folded into P2/P3 as pre-application guard.
+  - **Goal:** 20 high-centrality entity wiki pages live in `kb/wiki/`, Hermes `omnigraph_query` skill checks wiki first, ingest cron generates wiki update suggestions with lint guard before applying, synthesize endpoint injects wiki context into LLM prompts.
+  - **Locked decisions** (from research session 2026-05-19): Karpathy markdown pattern (no Mem0/Letta/Zep alternatives) · wiki at `kb/wiki/` (committed, version-controlled) · ingest hook auto-applies suggestions after lint passes · synthesize does NOT cache answers back (low usage, complexity not worth it) · lint integrated into P2/P3 (NOT standalone P4)
+  - **Waves (5):**
+    - [ ] W0 — `.wiki/` scaffold: SCHEMA.md / index.md / log.md / port `openclaw.md` from Hermes `~/wiki-omnigraph/`
+    - [ ] W1 — Entity selection + content: rank 50 candidates by LightRAG centrality → user picks 20 → generate 20 wiki pages with complete LightRAG multi-hop context
+    - [ ] W2 — Hermes omnigraph_query skill update: wiki-first lookup before graph query (~20 LOC)
+    - [ ] W3 — Ingest hook + lint integration: `batch_ingest_from_spider.py` end-of-cron `_wiki_update_check()` with pre-application lint guard (~150 LOC)
+    - [ ] W4 — Synthesize wiki context injection: `kb/services/synthesize.py` reads wiki pages, injects into LLM prompt (~60 LOC)
+  - **Canonical refs:**
+    - `.planning/wiki-integration-design.md` (commit 7eda4ff) — original design doc with three integration angles + P0–P4 roadmap
+    - `.scratch/wiki-integration-research-260519.md` — research summary (Karpathy pattern, alternatives, OmniGraph localization)
+    - `~/wiki-omnigraph/entities/openclaw.md` (Hermes side) — first-page reference (5763 chars, 6-article synthesis)
 
 **Phase 4 canonical refs** (historical):
 
