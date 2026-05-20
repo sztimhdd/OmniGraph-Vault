@@ -10,6 +10,7 @@ Per REQUIREMENTS-kb-databricks-v1.md rev 3 constraint #5 ("zero kb/ edits" relax
 |------|-----|-------|--------|
 | `lib/llm_complete.py` | LLM-DBX-01 + LLM-DBX-04 (translation per Decision 1) | kdb-2 | MODIFIED (kdb-2-02 — see commit 50a7386) |
 | `kg_synthesize.py` | LLM-DBX-02 | kdb-2 | MODIFIED (quick-260509-s29 W3 — dispatcher route already in place; kdb-2-03 confirms via integration test in commit f3670b0) |
+| `kb/services/synthesize.py` | LLM-DBX-02 (probe alignment) | kdb-3 | MODIFIED (kdb-3 — extend `_check_kg_mode_available()` to recognize `OMNIGRAPH_LLM_PROVIDER=databricks_serving` so the dispatcher actually gets called instead of being short-circuited at synthesize.py:478-483; kdb-2 design assumed dispatcher would route, but the GCP-SA-only probe was inherited from pre-kdb-2 KG-MODE-HARDENING and never extended for the Databricks provider — gap surfaced by Smoke 3 deployment) |
 
 ## Verification command (run at kdb-3 close per CONFIG-DBX-01)
 

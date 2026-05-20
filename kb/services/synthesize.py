@@ -243,6 +243,13 @@ class SynthesizeResult:
 #   kg_credentials_unreadable — file exists but cannot be opened (permissions, etc.)
 def _check_kg_mode_available() -> tuple[bool, str]:
     """Return (available, reason) — reason is empty string when available."""
+    # kdb-3: MosaicAI Model Serving path — when OMNIGRAPH_LLM_PROVIDER=databricks_serving
+    # the LLM + embedding both flow through Databricks Workspace OAuth (app SP token
+    # injected by the Databricks Apps runtime), so no GCP SA file is required. The
+    # legacy GCP SA check below is reserved for the Hermes / Aliyun deployments that
+    # still use the Vertex AI provider path.
+    if os.environ.get("OMNIGRAPH_LLM_PROVIDER") == "databricks_serving":
+        return True, ""
     p = kb_config.KB_KG_GCP_SA_KEY_PATH
     if p is None:
         return False, "kg_disabled"
