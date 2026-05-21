@@ -99,7 +99,15 @@ deploy:
 	  -e "s|if (l.indexOf('en') === 0) return 'en';|if (l.indexOf('en') === 0) return DEFAULT_LANG;|" \
 	  ./databricks-deploy/_ssg/static/lang.js
 	@echo ">>> Pass 1: sync databricks-deploy/* → workspace/databricks-deploy/"
+	@# --include "_ssg/**" overrides the project-root .gitignore rule
+	@# `databricks-deploy/_ssg/`. Without it, `databricks sync` silently
+	@# skips the entire pre-rendered SSG output (200+ files) and the app
+	@# serves stale HTML from the previous deploy. Verified 2026-05-21
+	@# during Issue #3 (homepage card snippet pollution) deploy: sync
+	@# reported "Initial Sync Complete" with zero errors but workspace
+	@# `_ssg/` was empty; only `--include "_ssg/**"` produced the upload.
 	MSYS_NO_PATHCONV=1 databricks --profile $(PROFILE) sync --full \
+	  --include "_ssg/**" \
 	  ./databricks-deploy $(WORKSPACE_ROOT)/databricks-deploy
 	@echo ">>> Pass 2: sync kb/* → workspace/databricks-deploy/kb/"
 	MSYS_NO_PATHCONV=1 databricks --profile $(PROFILE) sync --full \
