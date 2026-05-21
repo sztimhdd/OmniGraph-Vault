@@ -81,7 +81,7 @@ def fts_query(
     if conn is None:
         from kb import config
 
-        conn = sqlite3.connect(f"file:{config.KB_DB_PATH}?mode=ro", uri=True)
+        conn = sqlite3.connect(config.KB_DB_PATH, timeout=10)
         own = True
     try:
         # snippet(table, col_idx, prefix, suffix, ellipsis, max_tokens)
