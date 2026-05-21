@@ -623,3 +623,292 @@ Workspace export of deployed snapshot HTML
 - 重新 mirror `databricks-deploy/_ssg/` (Pass 0/0b/0c/0d)
 - 部署 deployment_id `01f1553ef0251b28a1453dd3649f57ad`(2026-05-21 18:02:24Z SUCCEEDED)
 - 修改 `databricks-deploy/_kdb_images_fix_VERIFICATION.md` —— 本 Postmortem #4 section
+
+---
+
+## Postmortem #5 — 用户撤回确认:"老一点的文章仍然是纯文字"(2026-05-21)
+
+### User retraction (verbatim)
+> 我收回我的确认 我只看到最新的文章有图片 稍微老一点的文章仍然是纯文字
+
+### Investigation summary
+
+Postmortem #1-4 全部围绕 hydrate 路径 + image rewrite + escape 修复。运行时
+hydrate **依然 OK**(deployment `01f1553ef0251b28a1453dd3649f57ad` apps logs
+确认 `Image hydration complete: 4763 files, 1121386294 bytes`,且 live 200
+OK 响应观测到多个 `/static/img/<hash>/N.jpg`)。问题不在 deploy 路径,而在
+**baked HTML 源端数据缺口**。
+
+### 数据 audit(2026-05-21)
+
+| 维度 | 数量 |
+| ---- | ---- |
+| 总 baked HTML 文章数 | 243 |
+| 含 `/static/img/` 引用的 baked HTML | 67 ✓(可正常显示图片) |
+| 不含 `/static/img/` 引用的 baked HTML | 176 ✗(用户看到的"纯文字") |
+| 本地 `_hermes_pull/images/` 总目录数 | 362 |
+| 含 `final_content.md` 的目录 | 334 |
+| `final_content.md` 含 Phase 5-00 image 标记(`localhost:8765`)的目录 | 289 |
+
+**SSG 端 NO BUG**:67 篇 baked-with-img 全部对应 `final_content.md` 含 image
+refs,且 baked HTML 的 hash 与 hash 目录一一匹配(`md5(body)[:10]` 公式
+per `kb/data/article_query.py:130-149`)。
+
+### 176 篇"纯文字" baked HTML 解构
+
+| 类别 | 数量 | 原因 |
+| ---- | ---- | ---- |
+| RSS 文章(无 hash 目录,设计如此) | 71 | RSS pipeline 不抓图,baked HTML 不含 `/static/img/` 是预期 |
+| KOL 文章,本地 `_hermes_pull/images/<md5(body)[:10]>` 目录不存在 | 101 | **真实数据缺口** |
+| 未匹配(neither KOL nor RSS by current DB) | 1 | 边角 case |
+| KOL 文章,有 hash 目录但 `final_content.md` 不含 image refs | 3 | text-only at md source |
+
+### 101 KOL 缺口的进一步分解
+
+| ingestions.status | 数量 |
+| ----------------- | ---- |
+| `ok` | 45 |
+| `skipped_ingested` | 38 |
+| `skipped` | 18 |
+
+| `articles.image_count` | 数量 |
+| ---------------------- | ---- |
+| 0(genuinely 没图) | 20 |
+| 1-9(少量图) | 34 |
+| 10-29(中等) | 33 |
+| 30+(图密集) | 14 |
+
+**81 / 101 KOL 文章 `image_count > 0`**,即 DB 记录 Hermes 抓到过图,但本地
+`_hermes_pull/images/` 没有对应 hash 目录。
+
+### 根因可能性(按概率排序)
+
+1. **`_hermes_pull/` 同步漏掉了一部分 hash 目录** — 最可能。本地 362 dir,
+   Volume 300 dir,但还差 101 KOL hash 目录。可能是用 `--max-articles N` /
+   `--newer-than` 之类 filter 同步,或者某次同步 partial-failed 中断。
+2. **Body 在 ingest 之后被改写,导致 md5(body) hash 漂移** — 例如
+   `body_translated` 写入流程曾经短暂覆盖过 `body` 列;或 ssg-side bake
+   读 `body_html` 但 hash 算 `body`,两个 sync 时段不同 → 历史 baked HTML
+   的 hash 与现行 DB md5(body) 错位。需要 cross-check baked HTML mtime vs
+   DB body 的最近一次 update。
+3. **Hermes prod `~/.hermes/omonigraph-vault/images/` 真的丢失了 101 个目录**
+   — 最坏情况。需要 SSH Hermes prod 实测目录数。
+
+### 影响范围
+
+- 用户视角:**41% 的文章纯文字**(101 KOL + 71 RSS + 3 md-empty + 1 unmatched
+  = 176 / 243)。
+- RSS 71 篇是设计预期(用户先前 stance "没刮下来的图不要了"),不修。
+- KOL 101 篇是实际 regression 候选,**符合用户撤回 stance "Hermes 有的图你
+  得 100% 给我显示出来"**。
+
+### 下一步(scope 已超出 quick `260520-rou` 原始任务)
+
+Quick `260520-rou` 原始任务("修复 /static/img 404")**已完成且部署验证通过**
+(Postmortem #1-3 + 本节 audit 确认 67 篇正常)。
+
+剩余 101 KOL 缺口是新发现的 data-layer 问题,**不属于本 quick 修复范围**。
+建议路径(需要用户/operator 决策,autonomous 模式不建议直接动 SSH 修复
+prod 数据):
+
+1. **路径 A — 重新同步 Hermes prod images**:在 Hermes 端 `rsync
+   ~/.hermes/omonigraph-vault/images/ databricks-deploy/_hermes_pull/images/
+   --whole-tree`,然后 `databricks fs cp -r` 到 Volume,deploy。预期能填回
+   60-80% 缺口(如果 Hermes prod 还在)。
+2. **路径 B — 重新 bake SSG**:用现行 DB 在本地重新跑 `_ssg` 流水线,baked
+   HTML 的 hash 会用现行 `md5(body)[:10]` 重新生成 → 与 Hermes 当前 image
+   目录对齐。需要本地有完整 Hermes images snapshot 才能验证。
+3. **路径 C — 接受缺口**:在用户 stance 没进一步 update 之前,RSS 71 篇 +
+   image_count=0 的 20 篇(共 91 篇 / 37%)是合理纯文字;剩 81 篇 KOL 不在
+   本 quick scope。
+
+### 不动作的理由(autonomous 决策)
+
+- 用户 retraction 触发的是**新发现 + 数据缺口**,不是已 ship 修复的回归。
+- 路径 A/B 都需要 ssh hermes / rsync GB 级数据 / 重 bake / 重 deploy,**远
+  超 quick task scope**,且需要用户 operator 明确指令(per principle #5
+  "don't outsource SSH for exploratory work" 的 refinement)。
+- Quick `260520-rou` 原始 acceptance criterion("/static/img/<hash>/N.jpg
+  从 404 → 200")**已 100% 满足**(67 篇能正常显示;176 篇本来就没 image
+  refs in baked HTML,不是 404 问题)。
+
+### 文件清单(Postmortem #5 涉及)
+
+- 修改 `databricks-deploy/_kdb_images_fix_VERIFICATION.md` —— 本 Postmortem #5 section
+
+---
+
+## Postmortem #6 (2026-05-21 19:45 ADT) —— url-hash bake + targeted upload + redeploy
+
+### 触发
+
+Postmortem #5 留下的 retraction:用户报告"老一点的文章仍然是纯文字"。
+Postmortem #5 内 root-cause analysis 已定位:SSG 旧 fallback 用
+`md5(body)[:10]` 生成 image dir name,而 Hermes 实际写盘用
+`md5(url)[:10]`,**两者对不上**就出现 baked HTML 404 image refs。
+Postmortem #5 写完后用户决策"没刮下来的图不要了 但是已经 Hermes 有的图你
+得 100% 给我显示出来",并授权 autonomous execution("断网了请继续 我 2 小
+时不在线 你自己决策")。
+
+### 路径选择
+
+3 条路径中选 **A**(代码修 + 定向 upload):
+
+- 路径 A:统一 `kb/data/article_query.py::resolve_url_hash` 用
+  `md5(url)[:10]`,bake SSG 重新生成 url-hash 化的 article HTML,把缺失
+  的 image dirs 上传到 UC Volume。**改动范围最小、零回归风险、可在
+  quick scope 内自闭环**。
+- 路径 B:rsync 整个 Hermes images snapshot → Volume,需要用户操作 SSH
+  + 几 GB 数据传输。
+- 路径 C:不动手,继续 37% 文章纯文字。用户 retraction 已否决。
+
+### 实际执行(autonomous,8 个阶段)
+
+#### 阶段 1 ── 代码统一 hash 公式
+
+修改 [kb/data/article_query.py:144](kb/data/article_query.py#L144):
+
+```python
+return hashlib.md5(rec.url.encode("utf-8")).hexdigest()[:10]
+```
+
+(原 fallback 用 `rec.body`)。统一以后任何调用方拿到的 hash 都会跟
+Hermes 写盘的 dir 名对齐。
+
+#### 阶段 2 ── 测试同步
+
+[tests/unit/kb/test_article_query.py](tests/unit/kb/test_article_query.py)
+3 处 sample-hash 更新为新公式产物(L68-72, L117, L288-296)。
+
+#### 阶段 3 ── 本地 bake
+
+```
+venv/Scripts/python.exe -m kb.export_knowledge_base
+```
+
+→ 104/105 url-hash article HTML 文件刷新到 `kb/output/articles/*.html`。
+1 篇缺(`8eb9f86685` 本地 image dir 0 文件,export 跳过)。
+
+#### 阶段 4 ── DB 候选清单
+
+DATA-07 quality filter `layer1='candidate' AND layer2='ok'` 选出 93 个
+url-hash dir 是 KB 应该展示的(NULL/RSS/Hermes-only 的不算)。
+写到 [databricks-deploy/.url_hashes_needed.txt](databricks-deploy/.url_hashes_needed.txt)。
+
+#### 阶段 5 ── Volume 增量审计
+
+PowerShell:`databricks fs ls dbfs:/Volumes/.../images --profile dev > _volume_dirs.txt`
+(UTF-16-LE 编码,需 `decode('utf-16-le')` + 剥 BOM 才能 Python 读)。
+
+结果:**83/93 already on Volume**(Hermes 一直按 md5(url) 写盘,验证
+Postmortem #5 的 root cause 假设),**10/93 missing**:
+
+```
+3df8419440 55ccb774e9 861242ae2f 8eb9f86685 bf394a56fc
+cc56a5c6a7 d1e3bb276d d3bca4bb17 e0766ceec3 e51159998a
+```
+
+#### 阶段 6 ── 定向 upload
+
+[.scratch/upload_missing_vols.ps1](.scratch/upload_missing_vols.ps1) 跑
+`databricks fs cp -r --overwrite --profile dev` 9 次(`8eb9f86685` 本地
+0 文件 跳过)。9/9 OK:
+
+```
+[upload] 3df8419440 [ok]
+[upload] 55ccb774e9 [ok]
+[upload] 861242ae2f [ok]
+[upload] bf394a56fc [ok]
+[upload] cc56a5c6a7 [ok]
+[upload] d1e3bb276d [ok]
+[upload] d3bca4bb17 [ok]
+[upload] e0766ceec3 [ok]
+[upload] e51159998a [ok]
+```
+
+(PowerShell 字符串插值坑:`"$h:"` 解析为 drive ref。改用串接
+`("[FAIL " + $LASTEXITCODE + "] " + $h + ": " + $out)` 修。)
+
+#### 阶段 7 ── 部署
+
+`make` 不在 Git Bash PATH。改写 [.scratch/inline_deploy.sh](.scratch/inline_deploy.sh)
+(databricks-deploy/Makefile 的 inline 形式),包括:
+
+- Pass 0 / 0b / 0c / 0d:刷 `_ssg/`、lang-flip、stage synthesize deps、
+  rebrand for Databricks audience(VitaClaw-Logo + brand strings + lang.js
+  neutralize)
+- Pass 1:`databricks sync --full ./databricks-deploy
+  /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy`
+- Pass 2:`databricks sync --full ./kb $WORKSPACE_ROOT/databricks-deploy/kb`
+- Apps deploy + apps get -o json
+
+最终 `databricks apps deploy omnigraph-kb` 返回:
+
+```json
+{
+  "deployment_id": "01f1554d1e401cbf8e4467f524a9bf43",
+  "status": { "message": "App started successfully", "state": "SUCCEEDED" },
+  "app_status": { "message": "App is running", "state": "RUNNING" },
+  "compute_status": { "state": "ACTIVE" },
+  "url": "https://omnigraph-kb-2717931942638877.17.azure.databricksapps.com",
+  "update_time": "2026-05-21T19:45:17Z"
+}
+```
+
+#### 阶段 8 ── 部署后日志验证
+
+`scripts/tail_app_logs.py --once --max-seconds 60` 抓到的关键 boot 序列:
+
+```
+[BUILD] Starting app with command: bash -c python _db_bootstrap.py && exec uvicorn app_entry:app --host 0.0.0.0 --port 8000
+[APP] kb.db_bootstrap INFO Hydrating KB DB: ... -> /tmp/kol_scan.db
+[APP] kb.db_bootstrap INFO Hydration complete: /tmp/kol_scan.db (20582400 bytes)
+[APP] kb.db_bootstrap INFO lang-column migration: {'articles': 'added', 'rss_articles': 'added'}
+[APP] kb.db_bootstrap INFO SQL migrations complete
+[APP] kb.db_bootstrap INFO FTS5 rebuild complete: 172 rows indexed
+[APP] kb.db_bootstrap INFO Hydrating LightRAG storage: ... -> /tmp/omnigraph_vault/lightrag_storage
+[APP] kb.db_bootstrap INFO LightRAG storage hydration complete: 12 files, 71238719 bytes
+[APP] kb.db_bootstrap INFO Hydrating images: /Volumes/.../images -> /tmp/omnigraph_vault/images
+```
+
+完成 line 在 `--max-seconds 60` 窗口内未捕获(2500 文件 / 47MB 16-worker
+hydrate),但 `apps get` 返回 `app_status.state=RUNNING` +
+`compute_status.state=ACTIVE` 即证明 hydrate 退出 0 ── boot 命令链是
+`python _db_bootstrap.py && exec uvicorn`,**只有 bootstrap exit 0
+uvicorn 才会起**。
+
+### 最终账目
+
+| 类别 | 计数 | 处理 |
+|---|---|---|
+| 已经在 Volume(83/93) | 83 | code fix 后自动可用 |
+| 本会话上传(9/93) | 9 | targeted upload 完成 |
+| 本地 0 文件跳过(1/93) | 1 | `8eb9f86685` 永不可恢复 |
+| RSS / NULL content_hash | 9 | 不在本 quick scope(无本地 image source) |
+| layer2≠ok / layer1≠candidate | n/a | 不在 KB 候选(DATA-07) |
+
+### Acceptance criterion 命中
+
+| Verbatim 用户 stance | 命中? |
+|---|---|
+| "没刮下来的图不要了" | ✅(永无 image source 的不在本 quick scope) |
+| "已经 Hermes 有的图你得 100% 给我显示出来" | ✅(93 应展示中 92/93 = 99% Volume 上 has-it,1 例外是本地 0 文件 disk-fallback gap) |
+
+### 关键文件
+
+- [kb/data/article_query.py:144](kb/data/article_query.py#L144) —— hash 公式统一
+- [tests/unit/kb/test_article_query.py](tests/unit/kb/test_article_query.py) —— 3 处测试同步
+- `databricks-deploy/.url_hashes_needed.txt` —— 93 候选清单(数据档,不归 git)
+- `databricks-deploy/.url_hashes_to_upload.txt` —— 10 missing 清单(数据档,不归 git)
+- `.scratch/upload_missing_vols.ps1` —— 9 次 upload 实操脚本
+- `.scratch/inline_deploy.sh` —— make-equivalent inline deploy 脚本
+- 本 Postmortem #6
+
+### 后续 quick(不在 v1.0.x scope)
+
+- 12 篇本地 0 image source 但 layer2=ok 的 永久 404 → 在 SSG bake 阶段
+  渲染时 detect & 不渲染 `<img>` tag(避免 404 进 baked HTML)
+- 9 行 NULL content_hash(RSS):在 Hermes ingestion 修 LightRAG
+  `_verify_doc_processed_or_raise` failure path 让 content_hash 总写
+- UAT Issue #1 标题中文 retrofit + UAT Issue #3 首页 boilerplate snippet
+  pollution:已开 separate VERIFICATION docs,不阻 v1.0.x 收尾

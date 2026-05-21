@@ -65,10 +65,10 @@ def test_resolve_url_hash_kol_with_content_hash_uses_it_directly():
     assert resolve_url_hash(rec) == "abcdef0123"
 
 
-def test_resolve_url_hash_kol_null_falls_back_to_md5_of_body():
-    """Test 3: KOL article with NULL content_hash returns md5(body)[:10]."""
-    rec = _make_rec(source="wechat", content_hash=None, body="hello world")
-    expected = hashlib.md5(b"hello world").hexdigest()[:10]
+def test_resolve_url_hash_kol_null_falls_back_to_md5_of_url():
+    """Test 3: KOL article with NULL content_hash returns md5(url)[:10]."""
+    rec = _make_rec(source="wechat", content_hash=None, body="ignored", url="https://example.com/x")
+    expected = hashlib.md5(b"https://example.com/x").hexdigest()[:10]
     assert resolve_url_hash(rec) == expected
 
 
@@ -113,8 +113,8 @@ def test_resolve_url_hash_is_pure_no_db_no_filesystem():
         config.KB_IMAGES_DIR = "/nonexistent/images"  # type: ignore[assignment]
         rec = _make_rec(source="wechat", content_hash="0123456789", body="x")
         assert resolve_url_hash(rec) == "0123456789"
-        rec2 = _make_rec(source="wechat", content_hash=None, body="abc")
-        assert resolve_url_hash(rec2) == hashlib.md5(b"abc").hexdigest()[:10]
+        rec2 = _make_rec(source="wechat", content_hash=None, body="abc", url="u2")
+        assert resolve_url_hash(rec2) == hashlib.md5(b"u2").hexdigest()[:10]
     finally:
         config.KB_DB_PATH = saved_db  # type: ignore[assignment]
         config.KB_IMAGES_DIR = saved_img  # type: ignore[assignment]
@@ -285,10 +285,10 @@ def test_get_article_by_hash_missing_returns_none(fixture_conn):
     assert rec is None
 
 
-def test_get_article_by_hash_kol_null_hash_falls_back_to_md5_body(fixture_conn):
-    """Test 9: KOL row with content_hash=NULL is found by computing md5(body)[:10]."""
-    body = "kol body for null-hash row"
-    expected_hash = hashlib.md5(body.encode("utf-8")).hexdigest()[:10]
+def test_get_article_by_hash_kol_null_hash_falls_back_to_md5_url(fixture_conn):
+    """Test 9: KOL row with content_hash=NULL is found by computing md5(url)[:10]."""
+    url = "u/4"
+    expected_hash = hashlib.md5(url.encode("utf-8")).hexdigest()[:10]
     rec = get_article_by_hash(expected_hash, conn=fixture_conn)
     assert rec is not None
     assert rec.source == "wechat"

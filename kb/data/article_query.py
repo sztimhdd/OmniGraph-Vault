@@ -133,7 +133,7 @@ def resolve_url_hash(rec: ArticleRecord) -> str:
     Pure function: NO DB, NO filesystem.
 
     - source='wechat' + content_hash present -> use it directly (already 10 chars)
-    - source='wechat' + content_hash is None -> md5(body)[:10] runtime fallback
+    - source='wechat' + content_hash is None -> md5(url)[:10] runtime fallback
     - source='rss' + content_hash present -> truncate full md5 to 10 chars
     - source='rss' + content_hash is None -> ValueError (RSS rows always have hash)
     - other source -> ValueError
@@ -141,7 +141,7 @@ def resolve_url_hash(rec: ArticleRecord) -> str:
     if rec.source == "wechat":
         if rec.content_hash:
             return rec.content_hash
-        return hashlib.md5(rec.body.encode("utf-8")).hexdigest()[:10]
+        return hashlib.md5(rec.url.encode("utf-8")).hexdigest()[:10]
     if rec.source == "rss":
         if rec.content_hash:
             return rec.content_hash[:10]
@@ -350,7 +350,7 @@ def get_article_by_hash(
         1. articles.content_hash = ? (KOL with hash set, ~0.6% of corpus)
         2. substr(rss_articles.content_hash, 1, 10) = ? (truncated full md5)
         3. Fallback: walk articles WHERE content_hash IS NULL, compute
-           md5(body)[:10] and compare. (Slow path — only when 1+2 miss.)
+           md5(url)[:10] and compare. (Slow path — only when 1+2 miss.)
 
     Returns ArticleRecord or None.
 
