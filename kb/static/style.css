@@ -2004,7 +2004,7 @@ html[lang="en"] .lang-flex[data-lang="en"] {
 .qa-result[data-qa-state="done"] [data-qa-state-only*="done"],
 .qa-result[data-qa-state="error"] [data-qa-state-only*="error"],
 .qa-result[data-qa-state="timeout"] [data-qa-state-only*="polling"],
-.qa-result[data-qa-state="fallback"] [data-qa-state-only*="fts5_fallback"] { display: block; }
+.qa-result[data-qa-state="fts5_fallback"] [data-qa-state-only*="fts5_fallback"] { display: block; }
 
 .qa-question { padding: 1rem 0; color: var(--text-secondary); font-style: italic; }
 .qa-question-icon { display: inline-flex; vertical-align: middle; margin-right: 0.5rem; color: var(--text-tertiary); }
@@ -2019,7 +2019,7 @@ html[lang="en"] .lang-flex[data-lang="en"] {
 @keyframes kb-qa-spin { to { transform: rotate(360deg); } }
 /* Result-reveal — the one signature moment per UI-SPEC §1. */
 .qa-result[data-qa-state="done"] .qa-answer,
-.qa-result[data-qa-state="fallback"] .qa-answer {
+.qa-result[data-qa-state="fts5_fallback"] .qa-answer {
   animation: kb-qa-reveal 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 @keyframes kb-qa-reveal {
@@ -2029,7 +2029,7 @@ html[lang="en"] .lang-flex[data-lang="en"] {
 @media (prefers-reduced-motion: reduce) {
   .qa-spinner { animation: none; }
   .qa-result[data-qa-state="done"] .qa-answer,
-  .qa-result[data-qa-state="fallback"] .qa-answer { animation: none; }
+  .qa-result[data-qa-state="fts5_fallback"] .qa-answer { animation: none; }
 }
 
 .qa-confidence-chip {
