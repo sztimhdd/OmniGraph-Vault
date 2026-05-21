@@ -215,6 +215,10 @@ invocation.
   with `~/.hermes/omonigraph-vault/`. None of these block kb-1 or kb-3
   development.
 
+### v2.2-future / 已识别但未排期
+
+- **translate_kb.py 增量 flush + resume guard** (kb-v2.2-7 Phase 5 backfill 后识别 2026-05-21) — 当前 `databricks-deploy/translate_kb.py` 单 batch 全跑无 checkpoint(5h 22min wallclock 跑 234 行译文,中断即丢全部 in-memory 结果),无增量 `apply.sql` flush,无 resume guard。下次大批量(>200 行)backfill 前需补:每 N 行 flush 一次 apply.sql + 每行写 progress marker + 启动时检查 marker 跳已译。来源 `.scratch/translate-backfill-260520.md`。Forward-only register,不立 phase,等下次实需触发。
+
 ## Performance Metrics
 
 (populated as plans complete)
