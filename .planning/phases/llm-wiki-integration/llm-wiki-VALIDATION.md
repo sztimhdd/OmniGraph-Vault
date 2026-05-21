@@ -1,10 +1,11 @@
 ---
 phase: llm-wiki-integration
 slug: llm-wiki-integration
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-05-19
+approved: 2026-05-21
 ---
 
 # Phase llm-wiki-integration — Validation Strategy
@@ -89,13 +90,13 @@ Wave 0 plan task should create the empty test stubs above with `@pytest.mark.ski
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING test references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s for unit, < 300s for integration
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING test references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s for unit, < 300s for integration
 - [x] Manual UAT performed and cited in `llm-wiki-VERIFICATION.md` per CLAUDE.md Rule 6 (2026-05-20: 9/9 W4 pytest + 3 contract paths + 6 browser screenshots + Decision 4 mtime invariant pass)
-- [ ] `nyquist_compliant: true` set in frontmatter (NTH-1: flipped by plan-05 Task 3 Step 10 after all 5 plans complete and the items above are checked)
+- [x] `nyquist_compliant: true` set in frontmatter (NTH-1: flipped 2026-05-21 after user sign-off review of `llm-wiki-VERIFICATION.md`)
 
-**Approval:** pending — awaiting user sign-off review of `llm-wiki-VERIFICATION.md` before NTH-1 flag flip.
+**Approval:** approved 2026-05-21 — user reviewed `llm-wiki-VERIFICATION.md` and authorized Nyquist flag flip + phase closure. Hermes production sync confirmed (W4 wiki_inject + synthesize.py:504-507 read-only injection live).
 </content>
