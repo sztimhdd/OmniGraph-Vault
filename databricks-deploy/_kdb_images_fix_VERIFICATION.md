@@ -5,7 +5,7 @@ date: 2026-05-20
 commits:
   - 01a34a2c64785b67ac2cee5f32f661637545be2f  # fix #1 initial (incomplete — see Postmortem)
   - <fix2-followup>                            # fix #2 rsplit empty-string bug
-  - <fix3-pending-commit>                      # fix #3 shutil.rmtree before rebuild + sdk-probe
+  - aafdaf4                                    # fix #3 shutil.rmtree before rebuild
 deployments:
   - 01f154a03185105ba90b9dda5e78792f  # fix #1 — UAT FAILED (flat layout)
   - 01f154a606f11f0a89cbc60927d9e7e4  # fix #2 — UAT FAILED (mixed flat/nested)
