@@ -133,12 +133,65 @@ def _annotate_code_block_lang_label(html: str) -> str:
 
 
 def _make_snippet(body_md: str, max_chars: int = 200) -> str:
-    """Strip markdown markup crudely + return ~max_chars char snippet for cards."""
+    """Strip markdown markup + WeChat scraper boilerplate; return ~max_chars char card snippet.
+
+    Order matters: boilerplate strips run BEFORE markdown markup strips so URL:/Time:
+    line patterns and reader-bait separators remain anchored to line starts.
+    """
     if not body_md:
         return ""
-    # Strip code fences first (don't want code in card snippets)
-    text = re.sub(r"```[\s\S]*?```", "", body_md)
-    # Strip inline code, links, images, headings, html tags, emphasis, list bullets
+
+    text = body_md
+
+    # F3.1 strip ingest_wechat.py:1303 preamble (URL: + Time: lines)
+    text = re.sub(r"^URL:\s*https?://\S+\s*$", "", text, flags=re.MULTILINE)
+    text = re.sub(
+        r"^Time:\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s*$",
+        "",
+        text,
+        flags=re.MULTILINE,
+    )
+
+    # F3.2 strip WeChat reader-bait boilerplate (";) ______" + 3 redirect lines)
+    text = re.sub(
+        r"(;\)\s+)?_{3,}\s*\n+\s*在小说阅读器读本章\s*\n+\s*去阅读\s*\n+\s*在小说阅读器中沉浸阅读",
+        "",
+        text,
+    )
+    # standalone marker lines that often survive scrape merge
+    text = re.sub(r"^在小说阅读器(读本章|中沉浸阅读)\s*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^去阅读\s*$", "", text, flags=re.MULTILINE)
+
+    # F3.3 strip "click-to-follow public account" CTA banner
+    text = re.sub(
+        r"\*\*点击上方[\"“”‘’「」]?[^\"“”‘’「」]+?[\"“”‘’「」]?,?关注公众号[^*]*\*\*",
+        "",
+        text,
+    )
+
+    # F3.4 collapse author-name duplicates (WeChat 原创 X X pattern)
+    # "原创 詹老师 詹老师 詹生Talk" -> "原创 詹老师 詹生Talk"
+    text = re.sub(r"(原创\s+)([一-鿿\w]{2,5})\s+\2\b", r"\1\2", text)
+
+    # F3.5 collapse consecutive duplicate H1 headings (preamble + body title dup)
+    lines = text.split("\n")
+    out: list[str] = []
+    last_h1: str | None = None
+    for line in lines:
+        m = re.match(r"^#\s+(.+?)\s*$", line)
+        if m:
+            this_h1 = m.group(1).strip()
+            if this_h1 == last_h1:
+                continue
+            last_h1 = this_h1
+        else:
+            if line.strip():
+                last_h1 = None
+        out.append(line)
+    text = "\n".join(out)
+
+    # ORIGINAL markdown markup stripping (unchanged)
+    text = re.sub(r"```[\s\S]*?```", "", text)
     text = re.sub(r"`[^`]*`", "", text)
     text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
     text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
