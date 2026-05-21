@@ -26,6 +26,7 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -91,6 +92,14 @@ def hydrate_images_dir(src_dir: str, dst_dir: str) -> int:
     abort boot — broken images are tolerable, broken /api/articles is not.
     """
     dst = Path(dst_dir)
+    # /tmp is preserved across container restarts within a single deployment.
+    # Earlier buggy hydrations (pre-rstrip-fix) wrote files flat at the dst
+    # root because rsplit on a trailing-slash directory path returned "",
+    # collapsing hash_dst back to dst. Those stale flat files survive next
+    # to subsequent correct nested layouts. Volume is the canonical source —
+    # wipe dst before rebuilding so the layout matches the volume exactly.
+    if dst.exists():
+        shutil.rmtree(dst, ignore_errors=True)
     dst.mkdir(parents=True, exist_ok=True)
     logger.info("Hydrating images: %s -> %s", src_dir, dst)
 
