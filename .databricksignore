@@ -1,0 +1,135 @@
+# Project-root .databricksignore for OmniGraph-Vault Databricks Apps deploy.
+# Used by `databricks sync --exclude-from .databricksignore`.
+#
+# Deploy contract: ONLY databricks-deploy/* + kb/* (synced separately into
+# databricks-deploy/kb/ via 2-pass sync) + minimal config files reach the
+# workspace. Everything else is dev-only OR runtime-side noise.
+
+# === Re-include kb subtrees that .gitignore would otherwise eat ===
+# .gitignore line `data/*` (project-root rule for runtime metric JSON files)
+# also matches `kb/data/*` because `databricks sync` honors .gitignore
+# patterns AT ANY DEPTH inside the sync source. Without these negations,
+# kb/data/article_query.py never reaches the workspace and `import kb.data`
+# fails at app boot with ModuleNotFoundError.
+!data/
+!data/**
+
+# kb/output/ is the SSG build output — gitignored (`kb/output/*` at root +
+# `*` inside `kb/output/.gitignore`) but Databricks Apps deploy is the only
+# tier that serves the static frontend (Aliyun uses Caddy; Databricks has
+# no Caddy, so FastAPI-via-app_entry.py mounts kb/output/ at /).
+!output/
+!output/**
+
+# databricks-deploy/_ssg/ is a deploy-time copy of kb/output/ (Makefile pass-0
+# rsyncs before pass-1 sync). It IS in .gitignore (regenerated artifact) but
+# MUST land in workspace for app_entry.py to serve the SSG frontend.
+!_ssg/
+!_ssg/**
+!databricks-deploy/_ssg/
+!databricks-deploy/_ssg/**
+
+# === Heavy / runtime-only top-level directories ===
+/lib/
+/enrichment/
+/spiders/
+/omnigraph_search/
+/specs/
+/test/
+/tests/
+/skills/
+/images/
+/entity_buffer/
+/synthesis_archive/
+/checkpoints/
+/.dev-runtime/
+/.scratch/
+/.scratch_archive/
+/.planning/
+/.cursor/
+/.augment/
+
+# === IDE / editor / VCS / cache ===
+.git/
+.github/
+.vscode/
+.idea/
+.claude/
+.pytest_cache/
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+mlruns/
+.coverage
+.coverage.*
+htmlcov/
+
+# === venv / build artifacts ===
+.venv/
+venv/
+node_modules/
+dist/
+build/
+*.egg-info/
+
+# === Top-level project Python (NOT used by kb/ FastAPI app) ===
+ingest_wechat.py
+ingest_github.py
+batch_ingest_from_spider.py
+batch_ingest_github.py
+batch_classify_kol.py
+batch_scan_kol.py
+batchkol_topic.py
+multimodal_ingest.py
+kg_synthesize.py
+query_lightrag.py
+list_entities.py
+process_entity_buffer.py
+config.py
+skill_runner.py
+canonical_map.json
+image_pipeline.py
+kol_registry.py
+lightrag_*.py
+run_uat_ingest.py
+test_mcp_approaches.py
+
+# === Top-level config files (kb-only deploy doesn't need these) ===
+pyproject.toml
+requirements-kb.txt
+entity_registry.json
+rules_engine.json
+deploy.sh
+
+# Spurious pip-output filenames that landed in workspace previously
+=*.0
+=*.1
+=*.2
+
+# === Docs / planning / dev-only files ===
+CLAUDE.md
+README.md
+PRD.md
+*.md
+!databricks-deploy/*.md
+!kb/**/*.md
+Deploy.md
+ROADMAP.md
+STATE.md
+PROJECT.md
+REQUIREMENTS.md
+
+# === Logs / temp ===
+*.log
+*.tmp
+*.bak
+.DS_Store
+
+# === Optional heavy assets ===
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.pdf
+*.zip
+*.tar.gz
