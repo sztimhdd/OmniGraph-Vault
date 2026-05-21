@@ -95,7 +95,10 @@
       <span data-lang="zh">{{ article.title }}</span><span data-lang="en">{{ article.title_translated or article.title }}</span>
     </h3>
     {% if article.snippet %}
-    <p class="article-card-snippet">{{ article.snippet }}</p>
+    {# kb-v2.2-x: dual-span snippet — falls back to original when snippet_translated IS NULL #}
+    <p class="article-card-snippet">
+      <span data-lang="zh">{{ article.snippet }}</span><span data-lang="en">{{ article.snippet_translated or article.snippet }}</span>
+    </p>
     {% endif %}
     <span class="article-card-readmore">
       <span data-lang="zh">{{ 'article.read_more' | t('zh-CN') }}</span><span data-lang="en">{{ 'article.read_more' | t('en') }}</span>

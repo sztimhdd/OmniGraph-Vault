@@ -360,6 +360,10 @@ def _record_to_dict(
     if body_md is not None:
         out["snippet"] = _make_snippet(body_md)
         out["reading_time"] = _estimate_reading_time(body_md)
+        translated_body_md = rewrite_translated_body(rec.body_translated)
+        out["snippet_translated"] = (
+            _make_snippet(translated_body_md) if translated_body_md else None
+        )
     return out
 
 

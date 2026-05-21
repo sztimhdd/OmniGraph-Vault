@@ -130,10 +130,42 @@ Per PROJECT-Aliyun-Ingest-Migration-v1.md §3 (Decisions 1-5) + §4 (Q1-Q6 all c
 - **Q4c** — Manual wiki commit during migration; auto-hook deferred to LLM-Wiki-Integration-P2
 - **Q5c** — kb-api scope unchanged; Agentic-RAG-v1 owns query API
 - **Q6** — Aliyun ECS upgrade to 8 vCPU / 16 GB RAM 24h after charter
+- **2026-05-21 — Gate 1 CLOSED (path correction)** — SSH-probed Aliyun ECS post aim-0 PASS (data captured in `.scratch/` session log). kb-api already running on `/root/OmniGraph-Vault/` + `/root/.hermes/.env`; HEAD=`4eaef45` (2026-05-16 v1.0.x; working tree dirty from manual SCP); no `daily_rebuild.sh`. **Verdict: NOT supersede** (kb-4 owns DEPLOY-04 + DEPLOY-05 work aim-N doesn't cover). Execution order = **kb-4-lite first → aim-N second** (Option A). **aim-1 ROADMAP path revised at plan-phase time**: target deploy = `/root/OmniGraph-Vault/` (in-place, NOT `/opt/omnigraph-vault/`); env file = extend `/root/.hermes/.env` (NOT replace with `/etc/omnigraph/.env mode 600`). The original `/opt/omnigraph-vault` + `/etc/omnigraph/.env` plan would create dual repo trees / dual SQLite DBs / dual env files conflicting with the running kb-api. RUNBOOK to be updated alongside aim-N plan-phase. **Gate 1 deferred-action block (lines 140-153) superseded by this closure.**
 
 ### Pending Todos
 
 None tracked. Awaiting Aliyun ECS upgrade verification, then `/gsd:plan-phase aim-0`.
+
+**On aim-0 PASS — deferred actions (registered 2026-05-21; do NOT act before aim-0 verdict = PASS):**
+
+1. **Gate 1 — kb-4 vs aim-1 overlap audit (HARD-STOP, P3)**
+
+   Before invoking `/gsd:plan-phase aim-1`, STOP and resolve:
+   - Q1: Is kb-4 (KB-v2 ROADMAP last unstarted phase — Ubuntu ingest cron deploy) naturally superseded by aim-1 (same Aliyun ECS host, same OmniGraph-Vault deploy, same cron)?
+   - Q2: If yes → mark `kb-4 SUPERSEDED-BY aim-1` in `.planning/ROADMAP-KB-v2.md`; do not execute kb-4 standalone.
+   - Q3: If no (kb-4 has scope aim-1 doesn't cover — e.g., Hermes-side cron handoff or grayscale rollback) → enumerate diffset → decide order (aim-1 first / kb-4 first / parallel).
+
+   Procedure (executed by orchestrator at PASS time):
+   1. Read `.planning/ROADMAP-KB-v2.md` kb-4 segment (Goal + Success Criteria)
+   2. Read `.planning/ROADMAP-Aliyun-Ingest-Migration-v1.md` aim-1 segment (same fields)
+   3. `AskUserQuestion` with 3 options (supersede / parallel / serial) + the diffset
+   4. Only after user decision: invoke the chosen `/gsd:plan-phase` command
+
+   Red line: do NOT silently advance to `/gsd:plan-phase aim-1`. This is a milestone-topology decision, not a plan-phase decision.
+
+2. **Memo 2 — v2.2-future improvement registration (P4, register-only)**
+
+   Append 1 line to `.planning/STATE-KB-v2.md` under "v2.2-future / 已识别但未排期" section (create the section if missing):
+
+   - `translate_kb.py` incremental `apply.sql` flush + resume guard (source: kb-v2.2-7 Phase 5 backfill single-batch risk, recorded in `.scratch/translate-backfill-260520.md`)
+   - Trigger to upgrade to phase: next translation backfill > 500 rows **OR** retry budget < current 4-call (either condition).
+
+   Forward-only edit; no PLAN, no ROADMAP-KB-v2 phase-table entry, no phase scaffolding. This memo only ensures the design risk doesn't rot in `.scratch/`.
+
+Red lines for both:
+- Gate 1 is a hard-stop. aim-0 PASS does NOT auto-flow into aim-1 — Q1/Q2/Q3 must be answered first.
+- Memo 2 modifies only the future-improvements section of STATE-KB-v2.md; forward-only, no overwrite of existing content.
+- Strictly do not opportunistically expand scope to draft kb-4 / aim-1 plans together while resolving Gate 1.
 
 ### Blockers/Concerns
 

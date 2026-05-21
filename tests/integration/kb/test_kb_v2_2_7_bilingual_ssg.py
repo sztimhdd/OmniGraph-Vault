@@ -229,6 +229,60 @@ def test_homepage_card_titles_dual_span(export_module_for_w4, tmp_path: Path, fi
 
 
 @pytest.mark.integration
+def test_homepage_card_snippets_dual_span(export_module_for_w4, tmp_path: Path, fixture_db: Path):
+    """kb-v2.2-x: homepage card snippets emit dual `<span data-lang>` + `snippet_translated` falls back.
+
+    NOTE: scoped to article cards only — topic cards on the homepage use
+    `<p class="article-card-snippet">{{ t.localized_desc }}</p>` (single-language
+    i18n string from `topics_ctx`), which is intentional and not in scope here.
+    Article cards are distinguished by `data-source` attribute on the wrapping `<a>`;
+    topic cards use `data-topic-slug` instead.
+    """
+    _seed_one_translated_row(fixture_db)
+    out = tmp_path / "out"
+    rc = export_module_for_w4.main(["--output-dir", str(out)])
+    assert rc == 0
+    home_html = (out / "index.html").read_text(encoding="utf-8")
+    # Scope to non-topic article cards (have data-source; topic cards have data-topic-slug instead)
+    article_card_pattern = re.compile(
+        r'<a class="article-card"\s+href[^>]*data-source[^>]*>(.*?)</a>',
+        re.DOTALL,
+    )
+    cards = article_card_pattern.findall(home_html)
+    assert cards, "no non-topic article-card nodes found on homepage"
+    snippet_pattern = re.compile(
+        r'<p class="article-card-snippet">\s*(.*?)\s*</p>',
+        re.DOTALL,
+    )
+    snippets = []
+    for card in cards:
+        snippets.extend(snippet_pattern.findall(card))
+    assert snippets, "no article-card-snippet nodes found inside article cards"
+    for inner in snippets:
+        assert 'data-lang="zh"' in inner, f"snippet missing zh span: {inner[:120]}"
+        assert 'data-lang="en"' in inner, f"snippet missing en span: {inner[:120]}"
+
+
+@pytest.mark.integration
+def test_articles_index_card_snippets_dual_span(export_module_for_w4, tmp_path: Path, fixture_db: Path):
+    """`/articles/` list page card snippets also emit dual `<span data-lang>`."""
+    _seed_one_translated_row(fixture_db)
+    out = tmp_path / "out"
+    rc = export_module_for_w4.main(["--output-dir", str(out)])
+    assert rc == 0
+    list_html = (out / "articles" / "index.html").read_text(encoding="utf-8")
+    snippet_pattern = re.compile(
+        r'<p class="article-card-snippet">\s*(.*?)\s*</p>',
+        re.DOTALL,
+    )
+    snippets = snippet_pattern.findall(list_html)
+    if snippets:
+        for inner in snippets:
+            assert 'data-lang="zh"' in inner
+            assert 'data-lang="en"' in inner
+
+
+@pytest.mark.integration
 def test_untranslated_card_falls_back_to_original_title(
     export_module_for_w4, tmp_path: Path, fixture_db: Path
 ):

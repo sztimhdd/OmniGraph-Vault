@@ -86,9 +86,14 @@
         <span class="meta-dot">·</span>
         <span>{{ a.update_time_human }}</span>
       </div>
-      <h3 class="article-card-title">{{ a.title }}</h3>
+      {# kb-v2.2-x: dual-span title + snippet — falls back to original when *_translated IS NULL #}
+      <h3 class="article-card-title">
+        <span data-lang="zh">{{ a.title }}</span><span data-lang="en">{{ a.title_translated or a.title }}</span>
+      </h3>
       {% if a.snippet %}
-      <p class="article-card-snippet">{{ a.snippet }}</p>
+      <p class="article-card-snippet">
+        <span data-lang="zh">{{ a.snippet }}</span><span data-lang="en">{{ a.snippet_translated or a.snippet }}</span>
+      </p>
       {% endif %}
       <span class="article-card-readmore">
         {{ 'article.read_more' | t(lang) }}
