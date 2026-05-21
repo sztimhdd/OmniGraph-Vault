@@ -18,12 +18,16 @@ autonomous: false
 
 ## Objective
 
-Verify that the Aliyun ECS host (post-upgrade to 8 vCPU / 16 GB RAM) meets the three
-pre-conditions required before any code is deployed: (1) the upgraded spec is actually
-in place, (2) the three LLM providers have acceptable latency from the Aliyun datacenter,
-and (3) a LightRAG ainsert on a heavy representative article stays within the 8 GB peak
-RSS budget. All measurements are written to a shared READINESS.md in this phase directory.
-Plan 02 (smoke ingest) appends to the same file.
+Verify that the Aliyun ECS host meets the runtime pre-conditions required before any
+code is deployed. The vCPU/RAM upgrade originally planned in Q6 was cancelled — the
+host stays at the current ~2 vCPU / ~14 GiB shape — so READY-01 (host spec) is recorded
+as **informational only** in this plan: actual values are captured for the record but
+do not gate downstream work. The real go/no-go for "can this host carry the ingest
+workload" shifts entirely onto READY-03, which measures actual LightRAG ainsert peak
+RSS on a heavy representative article and gates on `peak_rss_gb < 8.0`. READY-02
+(provider RTT) and READY-03 (peak RSS) remain hard gates. All measurements are written
+to a shared READINESS.md in this phase directory. Plan 02 (smoke ingest) appends to
+the same file.
 
 ## Read-First
 
@@ -48,14 +52,14 @@ Plan 02 (smoke ingest) appends to the same file.
 
 ## Pre-Conditions
 
-- Aliyun ECS upgrade to 8 vCPU / 16 GB RAM must be complete before executing this plan
 - Agent SSH alias `aliyun-vitaclaw` must be reachable (read-only probe in Step 1)
+- Note: the vCPU upgrade gate from Q6 has been retired — current ~2 vCPU / ~14 GiB shape is the working assumption for READY-03's memory budget
 
 ---
 
 ## Steps
 
-### Step 1 — READY-01: Host spec check (agent-run, read-only SSH)
+### Step 1 — READY-01: Host spec snapshot (agent-run, read-only SSH — INFORMATIONAL)
 
 **Who runs:** Agent via Bash tool (`ssh aliyun-vitaclaw`).
 **What runs:**
@@ -64,14 +68,15 @@ Plan 02 (smoke ingest) appends to the same file.
 ssh aliyun-vitaclaw "echo '=== nproc ===' && nproc && echo '=== free ===' && free -h && echo '=== df ===' && df -h /"
 ```
 
-**Evidence lands:** Copy stdout verbatim into `READINESS.md` under `## Host spec (READY-01)`.
+**Evidence lands:** Copy stdout verbatim into `READINESS.md` under `## Host spec (READY-01)`. Also capture the three values inline for quick reference: `vCPU=N, MemTotal=NG, RootAvail=NG`.
 
-**Pass predicate:**
-- `nproc` output ≥ 8
-- `free -h` `Mem:` row, first numeric field (total) ≥ 15 (GiB units — value may show as `15G` or `15.6G`)
-- `df -h /` Avail column ≥ 5G
+**Status:** **INFORMATIONAL — no hard gate.** Q6's 8 vCPU / 16 GB upgrade was cancelled; spec numbers in this step are recorded for the audit trail and to inform aim-1 sizing decisions, but do NOT block downstream READY-02 / READY-03 execution. The actual "can this host carry ingest" judgment is made by READY-03's peak-RSS measurement against an 8 GB budget.
 
-**Fail action:** Do NOT continue. Record actual values. Note in READINESS.md: "READY-01 FAIL — upgrade not yet complete; re-run after upgrade verified." Escalate to user.
+**Soft observations to record in READINESS.md:**
+
+- If `df -h /` Avail < 5 G → flag as a separate operational concern (READY-03's scratch venv install needs ~1-2 GB; production deploy in aim-1 needs more) but still continue.
+- If `free -h` Mem total is meaningfully below ~14 GiB (e.g., < 10 GiB) → note explicitly, since it tightens the headroom against READY-03's 8 GB peak RSS budget.
+- Otherwise: record values, mark `READY-01: INFORMATIONAL — recorded`, proceed to Step 2.
 
 ---
 
@@ -226,11 +231,11 @@ cd /tmp/aliyun-readiness/repo
 
 | REQ | Pass Criterion | Evidence Location |
 |-----|----------------|-------------------|
-| READY-01 | `nproc` ≥ 8 AND `free -h` Mem total ≥ 15 GiB AND `df -h /` Avail ≥ 5 G | `READINESS.md § Host spec (READY-01)` |
+| READY-01 | **Informational only** — record actual `nproc`, `free -h` Mem total, `df -h /` Avail. No threshold gate. | `READINESS.md § Host spec (READY-01)` |
 | READY-02 | Each provider Aliyun median RTT ≤ 2× Hermes median (same-day) | `READINESS.md § Provider RTT (READY-02)` — table with Ratio + PASS column |
 | READY-03 | peak RSS < 8 GB (= < 8,388,608 kbytes) | `READINESS.md § LightRAG ainsert peak RSS (READY-03)` — `/usr/bin/time -v` line + computed GB value |
 
-All three must be PASS before this plan is considered complete. A WARN on READY-02 (Vertex AI only) is acceptable — document reason and continue. Any hard FAIL blocks aim-1.
+READY-02 and READY-03 are the hard gates. READY-01 is recorded for the audit trail and to inform aim-1 sizing. A WARN on READY-02 (Vertex AI only) is acceptable — document reason and continue. Any hard FAIL on READY-02 (DeepSeek/SiliconFlow) or READY-03 blocks aim-1.
 
 ---
 
@@ -242,7 +247,7 @@ At the start of Step 1, create `.planning/phases/aim-0-readiness-aliyun-ecs/READ
 # Aliyun ECS Readiness Report — aim-0
 
 Date: YYYY-MM-DD
-Aliyun ECS spec at test time: X vCPU / Y GB RAM (post-upgrade)
+Aliyun ECS spec at test time: X vCPU / Y GB RAM (Q6 upgrade cancelled — recorded informationally)
 Executor: aim-0-01-PLAN.md
 
 ---
@@ -300,7 +305,7 @@ aim-0 is read-only on Aliyun for Steps 1-2. For Step 3 (operator-run READY-03):
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Aliyun ECS spec upgrade not yet complete when plan is executed | READY-01 FAIL; blocks all downstream | Step 1 is the gate — if `nproc` < 8 or `free -h` < 15G, stop and escalate. Do not force-continue. |
+| Host shape (~2 vCPU / ~14 GiB) tighter than originally chartered (Q6 upgrade cancelled) | Headroom against READY-03's 8 GB peak-RSS budget is reduced; OOM risk if LightRAG concurrency too high | READY-03 is the sole runtime gate — measure actual peak RSS on a heavy article. If `peak_rss_gb >= 8.0`, investigate LightRAG `embedding_batch_num` + `graph_max_async`; do not force-continue to aim-1. |
 | LLM provider blocked on Aliyun (READY-02 UNREACHABLE result) | ingest pipeline cannot use that provider at aim-1 | Record as UNREACHABLE; evaluate impact — SiliconFlow reachability from cn-east-mainland is expected to be BETTER than from Hermes corp network; DeepSeek UNREACHABLE would be a serious blocker for aim-1 |
 | `/usr/bin/time -v` not available on Aliyun (some minimal distros have only `time` builtin) | READY-03 cannot measure peak RSS | Fallback: use `command /usr/bin/time -v` to confirm it's the GNU time binary; if absent, install via `apt-get install -y time` or use `psrecord` (available after pip install in scratch venv) |
 | Peak RSS ≥ 8 GB (READY-03 FAIL) | Cannot safely run ingest on 16 GB host without OOM risk | Investigate: LightRAG `embedding_batch_num` + `graph_max_async` settings; reduce concurrency; re-measure |

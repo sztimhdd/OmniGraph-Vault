@@ -72,9 +72,51 @@ The substantive intent of Decision 5 (single bash dash-c step, $DATABRICKS_APP_P
 
 ---
 
-## Section 2 — Wave 0 layout discovery (DEFERRED — Task 4.0)
+## Section 2 — Wave 0 layout discovery (BLOCKED on DNS — Task 4.0 in flight 2026-05-17)
 
-**Status:** ⏳ deferred to next session. Requires `databricks workspace import-dir` + `databricks apps deploy` + user reading WAVE0-PROBE log block from Workspace UI Apps tab (no CLI logs subcommand exists per Section 1 + Makefile recipe).
+**Status:** 🛑 BLOCKED on workspace-admin DNS provisioning for newly-created App `omnigraph-kb`.
+
+**Progress 2026-05-17:**
+
+1. ✅ Repo synced to `/Workspace/Users/hhu@edc.ca/omnigraph-kb/` via `databricks sync` (one-shot, with explicit `--exclude` patterns for .git/.claude/.scratch/.planning/venv/lightrag_storage/tests/docs/scripts/__pycache__/*.db). `databricks workspace import-dir .` would have synced the entire repo including ~GB of agent worktree fixtures + virtualenv — replaced with targeted sync.
+2. ✅ Wave 0 probe v1 deployed (deployment_id `01f151fbcd1b15c8a80c634b259f8ef7`) — pure-shell `echo + ls + sys.path` probe with `sleep 60`. Reached `state=RUNNING`. **No useful logs captured** — Apps Logs panel showed only `{"X-Databricks-Reason-Phrase":"Public access is not allowed for workspace: 2717931942638877"}` because the v1 probe didn't bind `$DATABRICKS_APP_PORT` and the Apps runtime's internal health check hit Private-Link 403 (which appears in the App-URL response panel, not as the container's stdout).
+3. ✅ Wave 0 probe v2 deployed (deployment_id `01f151fcde7d1d04a8ee72ea6adf8a1c`) — small Python HTTP server (`databricks-deploy/_wave0_probe.py`) that introspects `/app/` layout + binds `$DATABRICKS_APP_PORT` + serves results as JSON GET `/`. Defensive `bash -c "if [ -f /app/databricks-deploy/_wave0_probe.py ]; then cd ...; elif [ -f /app/_wave0_probe.py ]; then cd /app; fi"` to handle either Decision-5 default or M-2 layout. Deploy reached `state=SUCCEEDED` then App transitioned to `state=CRASHED` — root cause cannot be diagnosed without log access.
+4. 🛑 **DNS blocker discovered:** newly-created Databricks Apps in this workspace need workspace-admin to add the App name to the DNS zone before EDC VPN can reach the App URL. Existing apps (created prior to today's admin sweep) work; `omnigraph-kb` was created in kdb-2-01 (2026-05-16) but the admin's DNS-zone addition was a manual one-shot pre-2026-05-17 — this new App is not in the zone. Admin's quote: "for the time being if making a new app though just let me know the name". User will ping admin with `omnigraph-kb`.
+
+**What gets unblocked when DNS lands:**
+
+- User opens `https://omnigraph-kb-2717931942638877.17.azure.databricksapps.com/` in browser → workspace SSO → sees the probe-v2 JSON response with full `/app/` layout fields directly, OR sees a Python traceback HTML if the probe crashed for unrelated reasons
+- Apps Logs tab in Workspace UI also becomes meaningful once browser-SSO works
+
+**Probe artifacts staged uncommitted** (pending Wave 0 outcome):
+
+- `databricks-deploy/_wave0_probe.py` — JSON-serving HTTP probe (~70 lines)
+- `databricks-deploy/app.yaml` — Wave 0 probe shape (production shape preserved at `databricks-deploy/app.yaml.production-backup`)
+
+These are intentionally uncommitted so we can revert + delete `_wave0_probe.py` cleanly post-Wave-0.
+
+**Skill invocation evidence (file-authoring side, partial):**
+
+`Skill(skill="databricks-patterns")` invoked during kdb-2-04 Task 4.0 setup — confirmed:
+- `databricks apps create / delete / deploy / get / get-deployment / list / list-deployments / run-local / start / stop / update` all exist in v0.260+ (`apps --help` Available Commands list)
+- `apps logs` SUBCOMMAND DOES NOT EXIST (matches RESEARCH.md Q8 + kdb-1.5 SPIKE-FINDINGS line 52)
+- `apps stop --help` returned full help with `--no-wait`, `--timeout` flags — confirmed for Makefile `stop:` recipe
+- `MSYS_NO_PATHCONV=1` required on Windows Git Bash for path-bearing CLI calls — empirically confirmed when `apps deploy --source-code-path /Workspace/...` failed with mangled path until prefix added (CLAUDE.md guidance applied to Makefile `deploy:` recipe)
+
+`Skill(skill="search-first")` invoked during kdb-2-04 Task 4.2 Makefile authoring — empirical CLI probe was sufficient (faster + more reliable than web search).
+
+When DNS unblocks, the executor will:
+
+1. User opens App URL post-workspace-SSO → captures JSON probe response (or traceback if probe still crashing for non-DNS reasons)
+2. Based on captured `kb_checks` + `adapter_checks` keys: decide Decision-5 default vs M-2 Plan-B
+3. Revert `app.yaml` to production shape (or M-2 Plan-B variant per PLAN.md Task 4.0 step 5)
+4. Delete `databricks-deploy/_wave0_probe.py` + `databricks-deploy/app.yaml.production-backup`
+5. Re-deploy production via `databricks apps deploy`
+6. Hand off to user for Smoke 1 + Smoke 2 UAT
+
+**Layout disposition: TBD pending DNS unblock**
+
+Note: The production `app.yaml` (in backup) is authored against the Decision-5 default assumption. If Wave-0 reveals layout deviation, the M-2 Plan-B sketch in `kdb-2-04-deploy-and-smoke-PLAN.md` lines 152-163 is the pre-written 1-task patch (change `--source-code-path` to repo root + alternate `command:` shape using `databricks_deploy.startup_adapter` import path).
 
 **Skill invocation evidence (file-authoring side, partial):**
 

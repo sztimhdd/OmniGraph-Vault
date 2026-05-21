@@ -152,6 +152,35 @@ runtime-decision two-layer LLM filter.
 **Cross-milestone contract**: KG-side ingest path changes only;
 Agentic-RAG-v1 (query side, `omnigraph_search.query.search()`) unchanged.
 
+## Active Parallel Milestone: Aliyun-Ingest-Migration-v1
+
+Initialized 2026-05-20 after Hermes v1.0 stable (commit `de96738` baseline).
+Migrates ingest pipeline from Hermes (家用 PC, WSL2) to Aliyun ECS
+(101.133.154.49, upgrading to 8 vCPU / 16 GB RAM 2026-05-21+) as the new
+authoritative ingest node. Hermes retires to read-only / dev sandbox.
+
+**Sibling planning files**:
+
+- `.planning/PROJECT-Aliyun-Ingest-Migration-v1.md` — Q1-Q6 decided 2026-05-20 evening
+- `.planning/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` — REQ-IDs (READY / DEPLOY / STORAGE / CUTOVER / SYNC / STAB)
+- `.planning/ROADMAP-Aliyun-Ingest-Migration-v1.md` — `aim-N` phase decomposition (P0-P5)
+- `.planning/STATE-Aliyun-Ingest-Migration-v1.md` — milestone state (separate from v3.4 / v3.5 / Agentic-RAG-v1)
+- `.planning/phases/aim-N-*/` — phase work directories
+
+**Cross-milestone contract**: ingest substrate moves; KG-side query API
+(`omnigraph_search.query.search()` — Agentic-RAG-v1 contract) unchanged.
+kb-api on Aliyun stays read-only SSG + DB (no `/api/synthesize` — that
+endpoint is owned by Agentic-RAG-v1 milestone, not this one).
+
+**Decision summary** (full rationale in PROJECT-Aliyun-Ingest-Migration-v1.md §3-§4):
+
+- Cutover strategy: simple cutover, accept 1-day data loss (Q1a)
+- LightRAG migration: full tar.gz + sha256 + entity/relation count ±0% verify (Q2a + 3 hard constraints)
+- Hermes "retire" = stop 11 ingest crons + read-only + add 1 daily-pull cron (Q3 + Decision 5)
+- Wiki write-back: manual commit during migration; auto-hook deferred to LLM-Wiki-Integration-P2 (Q4c)
+- kb-api: no behavioral change; query API owned by Agentic-RAG-v1 (Q5c, Decision 4)
+- Daily sync Aliyun → Hermes + Databricks subsumes the standalone cold-backup milestone (Decision 5)
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
