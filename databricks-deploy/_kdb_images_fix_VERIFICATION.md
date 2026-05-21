@@ -912,3 +912,101 @@ uvicorn 才会起**。
   `_verify_doc_processed_or_raise` failure path 让 content_hash 总写
 - UAT Issue #1 标题中文 retrofit + UAT Issue #3 首页 boilerplate snippet
   pollution:已开 separate VERIFICATION docs,不阻 v1.0.x 收尾
+
+---
+
+## Postmortem #7 (2026-05-21 evening) —— Hermes metadata 7-line prefix strip + UAT triage
+
+### 用户 5 issue UAT 报告(2026-05-21,7 截图)
+
+| # | 症状 | 根因(已查证) | 修复层 | 本 quick? |
+|---|------|-------------|--------|----------|
+| 1 | 卡片 EN title + ZH 摘要 + 重复 byline | `body_translated`=空 + Hermes scraper byline 复读 | Hermes 翻译流水线 | ❌ DEFER v1.0.y |
+| 2 | 主文之前有 URL/Time/重复 title metadata 块 | Hermes `localize_markdown.py` 写 7 行 prefix 进 `final_content.md`(NOT in DB) | KB SSG (本 quick) | ✅ FIXED |
+| 3 | 英文 title + 中文 body | DB 查证 articles.id=1150/1151:`title_translated` 有,`body_translated` length=0 | Hermes 翻译流水线 | ❌ DEFER v1.0.y |
+| 4 | antirez 文章一坨无段落 | source body 已 pre-flattened 到单行(无 `\n\n` boundary) | Hermes RSS scraper | ❌ DEFER v1.0.y(见下) |
+| 5 | "Warelay → OpenClaw" 太短 | Layer 1/2 是意图+质量分类器,不是长度门 | Hermes Layer 1 | ❌ DEFER v1.0.y |
+
+### 本 quick 修了什么(#2)
+
+**根因证据:** `databricks-deploy/_hermes_pull/images/1633058d58/final_content.md` 头 7 行就是这个 prefix(real Hermes output,NOT 推测)。SSG 走 `kb/data/article_query.py:get_article_body()` 优先读 `final_content.enriched.md` / `final_content.md`(vision_enriched path),把这块原样灌进 baked HTML。
+
+**修复:** 在 [kb/data/article_query.py](kb/data/article_query.py) 加 `_HERMES_METADATA_PREFIX` regex(`\A` 锚定头部)+ `_strip_hermes_metadata_prefix()` 纯函数,只在 `final_content.*md` 文件读路径调用 strip,**不动** `rec.body`(DB-canonical)和 `rewrite_translated_body()`(translated body 不走 final_content 路径)。Idempotent — body 不以此模式开头则原样返回。
+
+**测试:** `tests/unit/kb/test_hermes_metadata_prefix.py` 11 case 全过(8 helper-direct + 3 integration via `get_article_body`),fixture 是从 `_hermes_pull/images/1633058d58/final_content.md` 1-8 行 verbatim 拷贝(独立可验证,符合 [[feedback_test_mirrors_impl]])。完整 kb suite 255/255 green。
+
+**Local UAT(Rule 6 mandatory):**
+
+| hash | source | grep `URL: http` | body opens with | 命中 |
+|---|---|---|---|---|
+| `1633058d58` (WeChat 北大 RepoZero) | vision_enriched | 0 (was 3) | "北京大学、百度..." | ✅ |
+| `b1551a15bf` (WeChat OpenHuman) | vision_enriched | 0 (was 3) | "原创 关注AI开源项目..." | ✅ |
+| `c002fcd74f` (antirez EDIT) | raw_markdown DB | 0 | DB body intact | ✅(不 false-positive strip) |
+| `4c42ec64bd` (antirez Warelay→OpenClaw) | raw_markdown DB | 0 | DB body intact | ✅(不 false-positive strip) |
+
+执行命令:
+```bash
+# Re-bake against _hermes_pull/
+KB_DB_PATH=databricks-deploy/_hermes_pull/data/kol_scan.db \
+KB_IMAGES_DIR=databricks-deploy/_hermes_pull/images \
+venv/Scripts/python.exe kb/export_knowledge_base.py --output-dir kb/output
+# → 245 articles rendered, 5 topics, 135 entities, 14 wiki
+
+# Local serve + curl smoke
+curl -sf http://localhost:8766/articles/{1633058d58,b1551a15bf,c002fcd74f,4c42ec64bd}.html
+# → 0/0/0/0 hits of "URL: http://mp.weixin"
+```
+
+### #4 RE-DEFERRED(原 plan 在 scope 内,经分析改判)
+
+原 GSD spec 要求 `_paragraphify(\n\n → <p>)` 修 antirez 段落断裂。**source body 查证后改判**:
+
+- antirez RSS body 在 Hermes ingest 前就已 pre-flattened 到单行(无 `\n\n` boundary),不存在"`\n\n` 没被 SSG 转 `<p>`"的状态
+- KB-side 启发式断行(按句号 / 句长 split)风险:破坏 JSON / code block / quote 结构,且 markdown 已经过 `["fenced_code", "tables"]` 扩展处理 — 真有 `\n\n` 它就生效了
+- 真修法属于 Hermes RSS scraper 阶段的 `<p>` 边界保留,不在本 quick 边界
+
+队列到 v1.0.y backlog with rationale 落档。
+
+### v1.0.y backlog 增补(本 quick 派生)
+
+1. **#1 + #3:Hermes 翻译流水线补 body 翻译 pass** — 候选 articles 的 `body_translated` 当前 length=0 是 Hermes `daily_translate_cron.sh` 缺这一步。跨进程改动,需 Hermes 端开发 + 历史 backfill cron。
+2. **#4:Hermes RSS scraper 段落保留** — antirez / RSS 类源在 scrape 阶段保留 `\n\n` 段落 boundary,不要 pre-flatten。
+3. **#5:Hermes Layer 1 加 `MIN_BODY_LENGTH_CHARS`(候选 ≥200/ZH 或 ≥500/EN char)** — 策略决定 + Hermes 部署。
+4. **(reconcile #2 检测)** — 加 SSG bake-time grep `^# .+\nURL: http` per article 头,如果未来 Hermes prefix 变种又出现,bake 阶段就 fail-loud 而不是 baked-into-HTML。
+
+### 关键文件
+
+- [kb/data/article_query.py](kb/data/article_query.py) — `_HERMES_METADATA_PREFIX` regex + `_strip_hermes_metadata_prefix()` + 1 line wire-in `get_article_body()`
+- [tests/unit/kb/test_hermes_metadata_prefix.py](tests/unit/kb/test_hermes_metadata_prefix.py) — 11 case
+- [.planning/quick/260521-uat/](.planning/quick/260521-uat/) — quick PLAN/SUMMARY
+- 本 Postmortem #7
+
+### Databricks deploy 落地(2026-05-21 23:45 UTC)
+
+**第一次尝试失败** — workspace snapshot 拒绝:
+
+- `databricks-deploy/_volume_staging/delta_images.tgz`(75 MB)超过 workspace
+  per-file 上限 52428800 bytes(50 MB)
+- 失败 deployment_id: `01f1556a96c0120fb22a1167eac19456`
+- 修复:`databricks workspace delete /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy/_volume_staging/delta_images.tgz`(本 quick scope 不需要这个 tgz,是 Postmortem #6 staging 残留)
+
+**第二次尝试成功:**
+
+```text
+deployment_id  : 01f1556e74b81a9fa9f4ec1bf2a716af  (active)
+state          : SUCCEEDED
+message        : App started successfully
+create_time    : 2026-05-21T23:40:31Z
+update_time    : 2026-05-21T23:45:47Z
+app_status     : RUNNING (App is running)
+compute_status : ACTIVE (App compute is running)
+```
+
+替换了 stale active deployment `01f15568daeb1a68af34fcef7be9cbf9`(2026-05-21 23:00:26Z,pre-Postmortem-#7)。生产现已运行带 strip 修复的 baked HTML。
+
+### Followup(non-blocking,不开新 quick)
+
+- 在 `.scratch/inline_deploy.sh` 加 `--exclude "_volume_staging/**"` 防 75 MB tgz 进
+  下次 sync(本次手动 workspace delete 已绕过,但根因是 deploy 脚本无 exclude 规则)。
+- 队列到 v1.0.y backlog 第 5 项。
+

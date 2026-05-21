@@ -493,6 +493,44 @@ def _strip_external_wechat_images(body_md: str) -> str:
     return body_md
 
 
+_HERMES_METADATA_PREFIX = re.compile(
+    r"\A"
+    r"#[ ]+[^\n]+\n"
+    r"\n"
+    r"URL:[ ]+\S+\n"
+    r"Time:[ ]+\d{4}-\d{2}-\d{2}[ ]+\d{2}:\d{2}:\d{2}\n"
+    r"\n"
+    r"#[ ]+[^\n]+\n"
+    r"\n"
+)
+
+
+def _strip_hermes_metadata_prefix(body_md: str) -> str:
+    """Strip Hermes ``localize_markdown.py`` 7-line metadata header.
+
+    Hermes prepends a fixed-shape header to ``final_content.md`` before
+    KB pulls it::
+
+        # <title>
+        <blank>
+        URL: <url>
+        Time: <YYYY-MM-DD HH:MM:SS>
+        <blank>
+        # <title duplicate>
+        <blank>
+
+    The prefix is irrelevant to KB rendering (article cards already show
+    title + meta) and surfaces as a garbled out-of-order block above the
+    real body (UAT 2026-05-21 finding #2, Postmortem #7).
+
+    Idempotent — bodies that don't start with the exact pattern pass
+    through unchanged. Pure function (no I/O).
+    """
+    if not body_md:
+        return body_md
+    return _HERMES_METADATA_PREFIX.sub("", body_md, count=1)
+
+
 def _rewrite_image_paths(body_md: str, base_path: str = "") -> str:
     """Rewrite image URLs in ``body_md`` so they resolve under the configured
     deploy root.
@@ -556,6 +594,7 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
         p = images_dir / url_hash / fname
         if p.exists():
             md = p.read_text(encoding="utf-8")
+            md = _strip_hermes_metadata_prefix(md)  # Postmortem #7
             md = _strip_external_wechat_images(md)  # kb-v2.2-9
             md = _rewrite_image_paths(md, base_path)
             md = _rewrite_image_text_refs_to_html(md)  # kb-v2.1-6
