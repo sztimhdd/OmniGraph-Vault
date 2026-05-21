@@ -34,6 +34,9 @@ data/*
 # (which honors .gitignore at any depth inside the sync source) ships it.
 !kb/data/
 !kb/data/**
+# But the `**` re-include above also rescues __pycache__/ from the global
+# rule on line 5; re-exclude bytecode under kb/data/ so it stays out.
+kb/data/**/__pycache__/
 images/
 lightrag_storage/
 *.log
