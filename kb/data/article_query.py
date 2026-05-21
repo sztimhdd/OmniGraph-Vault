@@ -456,6 +456,43 @@ def _rewrite_image_text_refs_to_html(body: str) -> str:
     )
 
 
+# kb-v2.2-9 (260521): WeChat external CDN image hosts that have NEVER been
+# downloaded locally. When body markdown is the rec.body raw fallback (no
+# {hash}/final_content.md exists on disk), these references resolve only via
+# the WeChat origin — which the browser cannot reach due to WeChat's hotlink
+# protection (HTTP 403/anti-leech). Stripping them avoids broken-image
+# placeholders user authorized 2026-05-21 ("没刮下来的图不要了").
+_EXTERNAL_WECHAT_IMG_HOSTS = r"(?:mmbiz\.qpic\.cn|mmbiz\.qlogo\.cn|mp\.weixin\.qq\.com)"
+
+_MARKDOWN_IMG_EXTERNAL = re.compile(
+    rf"!\[[^\]]*\]\([^)]*{_EXTERNAL_WECHAT_IMG_HOSTS}[^)]*\)"
+)
+_HTML_IMG_EXTERNAL = re.compile(
+    rf"<img[^>]*{_EXTERNAL_WECHAT_IMG_HOSTS}[^>]*>",
+    re.IGNORECASE,
+)
+
+
+def _strip_external_wechat_images(body_md: str) -> str:
+    """Strip WeChat-CDN image refs that have no local download companion.
+
+    Applied on every body resolution path (vision_enriched, raw_markdown,
+    translated). EXPORT-05 contract claims ``final_content.md`` is fully
+    canonicalized to ``localhost:8765``, but 2026-05-21 audit found 11
+    Hermes-pulled ``final_content.md`` files still containing raw mmbiz
+    HTML img tags (Hermes ``localize_markdown`` left some images behind
+    when their download failed). Strip is the safety net.
+
+    Pure function (no I/O). Idempotent — second pass finds nothing to
+    remove. Empty / None-ish inputs pass through unchanged.
+    """
+    if not body_md:
+        return body_md
+    body_md = _MARKDOWN_IMG_EXTERNAL.sub("", body_md)
+    body_md = _HTML_IMG_EXTERNAL.sub("", body_md)
+    return body_md
+
+
 def _rewrite_image_paths(body_md: str, base_path: str = "") -> str:
     """Rewrite image URLs in ``body_md`` so they resolve under the configured
     deploy root.
@@ -519,10 +556,12 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
         p = images_dir / url_hash / fname
         if p.exists():
             md = p.read_text(encoding="utf-8")
+            md = _strip_external_wechat_images(md)  # kb-v2.2-9
             md = _rewrite_image_paths(md, base_path)
             md = _rewrite_image_text_refs_to_html(md)  # kb-v2.1-6
             return md, "vision_enriched"
     body = rec.body or ""
+    body = _strip_external_wechat_images(body)  # kb-v2.2-9
     body = _rewrite_image_paths(body, base_path)
     body = _rewrite_image_text_refs_to_html(body)  # kb-v2.1-6
     return body, "raw_markdown"
@@ -543,7 +582,8 @@ def rewrite_translated_body(body_translated: str | None) -> str | None:
     if not body_translated:
         return None
     base_path = config.KB_BASE_PATH
-    body = _rewrite_image_paths(body_translated, base_path)
+    body = _strip_external_wechat_images(body_translated)  # kb-v2.2-9
+    body = _rewrite_image_paths(body, base_path)
     body = _rewrite_image_text_refs_to_html(body)
     return body
 

@@ -367,3 +367,122 @@ quick task scope 无关。
   section
 
 
+
+---
+
+## Postmortem #3 — Surviving WeChat external img refs (deploy 2026-05-21)
+
+### 现象 (User-reported, 2026-05-21)
+
+> "我现在回答你 没刮下来的图不要了 但是已经Hermes有的图你得100%给我显示出来,
+> 现状是我一张图都看不到,全是微信的外链图片placeholder报错,体验极差"
+
+UAT 反馈:整页 article 的 image 全部坏链。Browser 网络面板显示请求 `https://mmbiz.qpic.cn/mmbiz_png/...` 触发 WeChat hotlink 防护(403),
+渲染成 `[broken image]` placeholder。Hermes 已经下载到磁盘的本地图片(localhost:8765 → `/static/img/`)反而没问题。
+
+### 根因
+
+Hermes 端 `localize_markdown` 在原始 WeChat HTML 转 Markdown 时,**部分图片 download 失败时把 `<img src="https://mmbiz.qpic.cn/...">` 整个原样保留下来**。这种 raw HTML img tag 从此固化在 `final_content.md` / `final_content.enriched.md` 中,跟着 Hermes pull 一起到了 Databricks app。
+
+`kb/data/article_query.py` 的 v2.2-9 strip 函数 `_strip_external_wechat_images` 当时 ONLY 应用在两条路径:
+
+1. `get_article_body` 的 rec.body raw_markdown fallback
+2. `rewrite_translated_body` 的 body_translated 路径
+
+**漏掉**了 `get_article_body` 的 vision_enriched 路径(读 `final_content.md` / `final_content.enriched.md`)。文档里写着"vision_enriched 已被 EXPORT-05 contract 规范化为 `localhost:8765/`,不会有 mmbiz origins" — 这个假设在 Hermes localize_markdown 部分失败时**不成立**。
+
+bake 后 audit:
+- `grep -l "mmbiz.qpic.cn" kb/output/articles/*.html` → 11 articles 仍有 raw mmbiz HTML img refs
+- 抽样 `0f9607f3f2.html` line 237 看到 `<p><img alt="" src="https://mmbiz.qpic.cn/mmbiz_png/...wx_fmt=png&amp;from=appmsg" /></p>`
+- 抽样 4 篇受影响文章的 `final_content.md`,3 篇有 1 个 mmbiz ref,1 篇有 5 个 — 来源就是 final_content.md
+
+### 修法
+
+`kb/data/article_query.py:get_article_body` vision_enriched 分支加一行 strip:
+
+```python
+for fname in ("final_content.enriched.md", "final_content.md"):
+    p = images_dir / url_hash / fname
+    if p.exists():
+        md = p.read_text(encoding="utf-8")
+        md = _strip_external_wechat_images(md)  # kb-v2.2-9 (extended path)
+        md = _rewrite_image_paths(md, base_path)
+        md = _rewrite_image_text_refs_to_html(md)
+        return md, "vision_enriched"
+```
+
+同时更新 docstring,记录"EXPORT-05 contract 假设不可靠,strip 是安全网"。
+此函数本身已是 idempotent + pure,扩展应用面零风险。
+
+### 验证证据
+
+**bake 后:**
+- `grep -l "mmbiz.qpic.cn" kb/output/articles/*.html` → **0** (was 11)
+- `grep -c "/static/img/" kb/output/articles/*.html | awk -F: '$2>0' | wc -l` → **67 articles**
+
+**Pass 1+2 sync + apps deploy:**
+- Deployment ID: `01f15534111b161babec39c5f66d457e`
+- create_time: `2026-05-21T16:42:33Z`
+- update_time: `2026-05-21T16:44:32Z`
+- status.state: `SUCCEEDED`
+- status.message: "App started successfully"
+
+**Boot log (hydrate 链路完整):**
+
+```
+1779381921 [APP] Hydrating KB DB: /Volumes/.../kol_scan.db -> /tmp/kol_scan.db
+1779381923 [APP] Hydration complete: /tmp/kol_scan.db (20582400 bytes)
+1779381923 [APP] FTS5 rebuild complete: 172 rows indexed
+1779381923 [APP] Hydrating LightRAG storage: /Volumes/.../lightrag_storage -> /tmp/omnigraph_vault/lightrag_storage
+1779381927 [APP] LightRAG storage hydration complete: 12 files, 71238719 bytes
+1779381928 [APP] Hydrating images: /Volumes/.../images -> /tmp/omnigraph_vault/images
+1779382045 [APP] Image hydration complete: 4763 files, 1121386294 bytes
+1779382046 [APP] Uvicorn running on http://0.0.0.0:8000
+```
+
+**Image hydrate stats:** 4763 files / 1.12 GB / 117 sec — Volume 中已经积累了多次 deploy 的镜像内容,本次 SNAPSHOT 从 hydrated 全量直接 mirror。
+
+**Deployed article audit (immutable SNAPSHOT export):**
+
+```bash
+databricks workspace export \
+  /Workspace/Users/<sp>/src/01f15534111b161babec39c5f66d457e/_ssg/articles/0f9607f3f2.html
+```
+
+- mmbiz ref count: **0**
+- `/static/img/` ref count: **51**
+- 该文章在前 11 个泄漏样本里 — 已确认 fix 在 prod SNAPSHOT 里生效
+
+### Image coverage 数字解释
+
+- **245 篇 article** SSG 渲染(包括 KOL + RSS,DATA-07 不通过的也仍然 render — 由 SSG 决定可见性)
+- **67 篇 article** 内容里有 `/static/img/` refs(图片本地化路径)
+- 其余 ~178 篇要么是 RSS(没有 image pipeline),要么 KOL 但 image dir 不存在或 final_content.md 里只有文本
+
+UC Volume 里有 254 个 hash 目录;hydrate 后 container 实际只有 70 个目录(staged subset)+ 之前 deploy 残留 ~106 个目录。User 接受的"Hermes 已有的图 100% 显示" 等价于:`SSG 写出 /static/img/<h>/N.jpg` 路径的图,在 Volume + container 都能找到对应文件。本次 deploy 满足这条不变量。
+
+### 此次 fix 不解决的问题(scope-limited)
+
+- **没刮下来的图**:Hermes 端 `localize_markdown` 失败的图,即使 strip 掉 mmbiz HTML tag,文章里那个位置就空了。User 已明确接受("没刮下来的图不要了")。
+- **首页排版 boilerplate snippet pollution(UAT 第 3 个 issue)**: 不在本次 fix scope。
+- **首页全中文(UAT 第 2 个 issue)**: 已经在 v2.2-7 bilingual SSG (Pass 0b lang flip) 改成默认 en — 本次 deploy 包含 Pass 0b,但 user 之前看到的"满屏中文"现象需 user 在新 deploy 上重新做 UAT 才能确认。
+
+### 教训
+
+1. **EXPORT-05 contract 是 assumption,不是 guarantee**。当上游(Hermes
+   localize_markdown)有 partial-failure 模式时,下游需要 defensive sanitization,
+   不能依赖契约口头保证。Strip 函数 idempotent + pure,扩展应用零代价。
+2. **下游清洗策略应该统一一致**:同一个 risk(mmbiz 外链 hotlink 403)
+   有多条数据流路径(rec.body / body_translated / final_content.md),
+   sanitization 必须覆盖全部,否则就是"半 fix"(参考 2026-05-05 lesson #1
+   "half-fix pattern is silent and expensive")。
+3. **Audit-after-bake 比 spec-time 验证更可靠**:第一次 fix 完 bake
+   出来的 SSG 仍然 grep 到 mmbiz refs 才暴露漏 path,**单元测试 / static
+   spec 都不会发现**这种"上游契约假设错"的 bug。这是一种 contract-as-runtime-assertion 的 testing approach。
+
+### 文件清单(本次 session 触及)
+
+- 修改 `kb/data/article_query.py` —— `_strip_external_wechat_images` docstring + `get_article_body` vision_enriched 路径加 strip
+- 重新 bake `kb/output/` (245 articles, 5 topics, 135 entities, 14 wiki pages)
+- 重新 mirror `databricks-deploy/_ssg/` (Pass 0/0b/0c/0d 全部走完)
+- 修改 `databricks-deploy/_kdb_images_fix_VERIFICATION.md` —— 本 postmortem section
