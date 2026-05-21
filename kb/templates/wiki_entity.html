@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+
+{% block title %}{{ wiki.title }} — {{ 'site.brand' | t(lang) }}{% endblock %}
+
+{% block extra_head %}
+<meta name="description" content="{{ wiki.title }}">
+<link rel="canonical" href="{{ page_url }}">
+<meta property="og:title" content="{{ wiki.title }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ page_url }}">
+{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="breadcrumb">
+  <a href="{{ base_path }}/">
+    {{ icon('home', size=14) }}
+    <span data-lang="zh">{{ 'breadcrumb.home' | t('zh-CN') }}</span><span data-lang="en">{{ 'breadcrumb.home' | t('en') }}</span>
+  </a>
+  {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
+  <a href="{{ base_path }}/wiki/">
+    <span data-lang="zh">{{ 'breadcrumb.wiki' | t('zh-CN') }}</span><span data-lang="en">{{ 'breadcrumb.wiki' | t('en') }}</span>
+  </a>
+  {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
+  <span class="breadcrumb__current">{{ wiki.title }}</span>
+</nav>
+
+<header class="article-header wiki-header">
+  <h1>{{ wiki.title }}</h1>
+  <div class="article-meta wiki-meta">
+    {% if wiki.confidence_level %}
+    <span class="chip chip--confidence chip--confidence-{{ wiki.confidence_level }}">
+      {{ icon('sparkle', size=12) }}
+      <span data-lang="zh">{{ ('wiki.confidence.' ~ wiki.confidence_level) | t('zh-CN') }}</span><span data-lang="en">{{ ('wiki.confidence.' ~ wiki.confidence_level) | t('en') }}</span>
+    </span>
+    {% endif %}
+    {% if wiki.sources %}
+    <span class="article-meta__item">
+      {{ icon('articles', size=14) }}
+      <span data-lang="zh">{{ wiki.sources | length }} {{ 'wiki.sources_label' | t('zh-CN') }}</span><span data-lang="en">{{ wiki.sources | length }} {{ 'wiki.sources_label' | t('en') }}</span>
+    </span>
+    {% endif %}
+    {% if wiki.last_updated %}
+    <span class="article-meta__item">
+      {{ icon('clock', size=14) }}
+      <span data-lang="zh">{{ 'wiki.last_updated_label' | t('zh-CN') }} {{ wiki.last_updated }}</span><span data-lang="en">{{ 'wiki.last_updated_label' | t('en') }} {{ wiki.last_updated }}</span>
+    </span>
+    {% endif %}
+  </div>
+</header>
+
+<article class="article-body wiki-body">
+  {{ body_html | safe }}
+</article>
+
+{% if wiki.sources %}
+<aside class="wiki-sources" aria-label="sources">
+  <h2 class="wiki-sources__heading">
+    {{ icon('tag', size=14) }}
+    <span data-lang="zh">{{ 'wiki.sources_heading' | t('zh-CN') }}</span><span data-lang="en">{{ 'wiki.sources_heading' | t('en') }}</span>
+  </h2>
+  <ol class="wiki-sources__list">
+    {% for src in wiki.sources %}
+    <li id="cite-{{ src.n }}">
+      <a href="{{ src.url }}">article:{{ src.hash }}</a>
+      <a class="wiki-sources__back" href="#cite-{{ src.n }}-back" aria-label="back to citation">↩</a>
+    </li>
+    {% endfor %}
+  </ol>
+</aside>
+{% endif %}
+{% endblock %}

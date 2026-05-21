@@ -45,6 +45,7 @@ import sqlite3
 from typing import Any
 from xml.sax.saxutils import escape as xml_escape
 
+import frontmatter  # noqa: E402
 import markdown  # noqa: E402
 from jinja2 import Environment, FileSystemLoader, select_autoescape  # noqa: E402
 
@@ -195,6 +196,12 @@ KB_ENTITY_MIN_FREQ: int = int(os.environ.get("KB_ENTITY_MIN_FREQ", "5"))
 # NEVER use datetime.now() anywhere in this module -- would break byte-equality
 # across runs on different days. See REVISION 1 / Issue #1.
 _LASTMOD_FALLBACK = "1970-01-01"
+
+# llm-wiki: source dir for LLM-maintained synthesis pages (kb/wiki/entities/*.md).
+# Frontmatter-fronted markdown; ^[article:<10-hex>] inline citations.
+WIKI_DIR = KB_ROOT / "wiki" / "entities"
+LEGACY_WIKI_CITATION_RE = re.compile(r"\^\[article:([a-f0-9]{10})\]")
+_LEADING_H1_RE = re.compile(r"\A\s*#\s+[^\n]+\n+", re.MULTILINE)
 
 
 _VALID_DEFAULT_LANGS = {"zh-CN", "en"}
@@ -849,6 +856,127 @@ def write_url_index(article_index: list[dict], output_dir: Path) -> None:
     _write_atomic(output_dir / "_url_index.json", content + "\n")
 
 
+def _convert_wiki_citations(
+    body_md: str, base_path: str
+) -> tuple[str, list[dict[str, Any]]]:
+    """Rewrite ^[article:<hash>] tokens to numbered <sup> footnote refs.
+
+    Stable numbering by first-seen order; repeated hashes share their number.
+    Returns (rewritten_md, sources) where each source has {n, hash, url}.
+    """
+    seen: dict[str, int] = {}
+
+    def replace(m: re.Match[str]) -> str:
+        h = m.group(1)
+        if h not in seen:
+            seen[h] = len(seen) + 1
+        n = seen[h]
+        return (
+            f'<sup class="wiki-cite">'
+            f'<a href="{base_path}/articles/{h}.html#cite-{n}" id="cite-{n}-back">'
+            f'[{n}]</a></sup>'
+        )
+
+    rewritten = LEGACY_WIKI_CITATION_RE.sub(replace, body_md)
+    sources = [
+        {"n": n, "hash": h, "url": f"{base_path}/articles/{h}.html"}
+        for h, n in sorted(seen.items(), key=lambda kv: kv[1])
+    ]
+    return rewritten, sources
+
+
+def _strip_leading_h1(body_md: str) -> str:
+    """Drop the first leading '# Title\\n' so wiki body doesn't double up the
+    template header. Idempotent on bodies that already lack a leading H1.
+    """
+    return _LEADING_H1_RE.sub("", body_md, count=1)
+
+
+def _render_wiki_pages(
+    env: Environment, output_dir: Path, lang: str = "zh-CN"
+) -> list[dict[str, Any]]:
+    """Render kb/wiki/entities/*.md -> kb/output/wiki/<slug>.html.
+
+    Returns a list of summaries used by _render_wiki_index_page. EXPORT-01:
+    sorted iteration order + deterministic frontmatter handling keep output
+    byte-identical across re-runs on unchanged input.
+    """
+    if not WIKI_DIR.exists():
+        return []
+
+    summaries: list[dict[str, Any]] = []
+    wiki_out_dir = output_dir / "wiki"
+    wiki_out_dir.mkdir(parents=True, exist_ok=True)
+    tpl = env.get_template("wiki_entity.html")
+
+    for path in sorted(WIKI_DIR.glob("*.md")):
+        slug = path.stem
+        post = frontmatter.load(path)
+        meta = post.metadata or {}
+        body_md_raw = post.content or ""
+        body_md = _strip_leading_h1(body_md_raw)
+
+        rewritten_md, sources = _convert_wiki_citations(body_md, config.KB_BASE_PATH)
+        body_html = _annotate_code_block_lang_label(_render_body_html(rewritten_md))
+
+        title = meta.get("title") or slug.replace("-", " ").title()
+        confidence = str(meta.get("confidence_level") or "medium").lower()
+        if confidence not in ("high", "medium", "low"):
+            confidence = "medium"
+
+        last_updated = meta.get("last_updated") or meta.get("created") or ""
+        last_updated_str = str(last_updated) if last_updated else ""
+
+        wiki_ctx = {
+            "slug": slug,
+            "title": title,
+            "confidence_level": confidence,
+            "last_updated": last_updated_str,
+            "sources": sources,
+        }
+        page_url = f"{config.KB_BASE_PATH}/wiki/{slug}.html"
+        html = tpl.render(
+            lang=lang, wiki=wiki_ctx, body_html=body_html, page_url=page_url
+        )
+        _write_atomic(wiki_out_dir / f"{slug}.html", html)
+
+        summaries.append(
+            {
+                "slug": slug,
+                "title": title,
+                "confidence_level": confidence,
+                "sources_count": len(sources),
+            }
+        )
+    return summaries
+
+
+def _render_wiki_index_page(
+    env: Environment,
+    output_dir: Path,
+    summaries: list[dict[str, Any]],
+    lang: str = "zh-CN",
+) -> None:
+    """Render kb/output/wiki/index.html — directory listing of synthesis pages.
+
+    Sort order: confidence DESC (high -> medium -> low), then title ASC.
+    Deterministic for EXPORT-01.
+    """
+    confidence_rank = {"high": 0, "medium": 1, "low": 2}
+    sorted_pages = sorted(
+        summaries,
+        key=lambda p: (
+            confidence_rank.get(p["confidence_level"], 99),
+            p["title"].lower(),
+        ),
+    )
+    page_url = f"{config.KB_BASE_PATH}/wiki/"
+    html = env.get_template("wiki_index.html").render(
+        lang=lang, pages=sorted_pages, page_url=page_url
+    )
+    _write_atomic(output_dir / "wiki" / "index.html", html)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -940,6 +1068,15 @@ def main(argv: list[str] | None = None) -> int:
         print("[260514-d3p] Rendering topics + entities index pages...")
         _render_topics_index_page(env, output_dir, conn, lang="zh-CN")
         _render_entities_index_page(env, output_dir, qualifying_entities, lang="zh-CN")
+
+    # llm-wiki: SSG render of LLM-maintained synthesis pages. Pure filesystem
+    # read of kb/wiki/entities/*.md — no DB conn needed, sits outside the
+    # sqlite3.connect block.
+    print("[llm-wiki] Rendering wiki entity pages...")
+    wiki_summaries = _render_wiki_pages(env, output_dir, lang="zh-CN")
+    print(f"[llm-wiki] wiki pages rendered: {len(wiki_summaries)}")
+    if wiki_summaries:
+        _render_wiki_index_page(env, output_dir, wiki_summaries, lang="zh-CN")
 
     print("Rendering sitemap.xml + robots.txt...")
     render_sitemap(articles, output_dir)

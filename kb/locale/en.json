@@ -6,6 +6,7 @@
 
   "nav.home": "Home",
   "nav.articles": "Articles",
+  "nav.wiki": "Wiki",
   "nav.ask": "Ask AI",
   "nav.search_placeholder": "Search articles, entities, topics…",
 
@@ -109,6 +110,16 @@
 
   "breadcrumb.topics": "Topics",
   "breadcrumb.entities": "Entities",
+  "breadcrumb.wiki": "Wiki",
+
+  "wiki.directory_title": "Wiki",
+  "wiki.directory_intro": "LLM-maintained synthesis pages, compiled from KB articles.",
+  "wiki.confidence.high": "High confidence",
+  "wiki.confidence.medium": "Medium confidence",
+  "wiki.confidence.low": "Draft",
+  "wiki.sources_label": "sources",
+  "wiki.sources_heading": "Sources",
+  "wiki.last_updated_label": "Updated",
 
   "topic.agent.name": "AI Agents",
   "topic.agent.desc": "Frameworks, deployment patterns, enterprise practice",

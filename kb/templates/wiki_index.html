@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+
+{% block title %}{{ 'wiki.directory_title' | t(lang) }} — {{ 'site.brand' | t(lang) }}{% endblock %}
+
+{% block extra_head %}
+<meta name="description" content="{{ 'wiki.directory_intro' | t(lang) }}">
+<link rel="canonical" href="{{ page_url }}">
+{% endblock %}
+
+{% block content %}
+<section class="entities-index wiki-index">
+  <header class="section-header">
+    <h1>
+      {{ icon('sparkle', size=24) }}
+      <span data-lang="zh">{{ 'wiki.directory_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'wiki.directory_title' | t('en') }}</span>
+    </h1>
+    <p class="hero-subtitle hero-subtitle--inline">
+      <span data-lang="zh">{{ 'wiki.directory_intro' | t('zh-CN') }}</span><span data-lang="en">{{ 'wiki.directory_intro' | t('en') }}</span>
+    </p>
+  </header>
+
+  {% if pages %}
+  <div class="entity-cloud" role="list">
+    {% for p in pages %}
+    <a class="chip chip--entity-cloud chip--confidence-{{ p.confidence_level }}" href="{{ base_path }}/wiki/{{ p.slug }}.html" role="listitem">
+      <span class="chip-label">{{ p.title }}</span>
+      <span class="chip-sep" aria-hidden="true">·</span>
+      <span class="chip-count">{{ p.sources_count }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    {{ icon('inbox', size=48, cls='empty-state__icon') }}
+    <h3 class="empty-state__title">
+      <span data-lang="zh">{{ 'entities.index.empty' | t('zh-CN') }}</span><span data-lang="en">{{ 'entities.index.empty' | t('en') }}</span>
+    </h3>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

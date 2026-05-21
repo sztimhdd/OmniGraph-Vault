@@ -6,6 +6,7 @@
 
   "nav.home": "首页",
   "nav.articles": "文章",
+  "nav.wiki": "Wiki",
   "nav.ask": "AI 问答",
   "nav.search_placeholder": "搜索文章、实体、主题…",
 
@@ -109,6 +110,16 @@
 
   "breadcrumb.topics": "主题",
   "breadcrumb.entities": "实体",
+  "breadcrumb.wiki": "Wiki",
+
+  "wiki.directory_title": "Wiki",
+  "wiki.directory_intro": "LLM 维护的合成页面,基于 KB 文章编译而成。",
+  "wiki.confidence.high": "高可信度",
+  "wiki.confidence.medium": "中等可信度",
+  "wiki.confidence.low": "草稿",
+  "wiki.sources_label": "篇来源",
+  "wiki.sources_heading": "来源文章",
+  "wiki.last_updated_label": "更新于",
 
   "topic.agent.name": "AI 智能体",
   "topic.agent.desc": "框架对比、部署模式、企业落地实践",
