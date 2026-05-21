@@ -123,7 +123,13 @@
           {{ body_html | safe }}
         </article>
         <article class="article-body lang-block" data-lang="en">
-          {{ translated_body_html or body_html | safe }}
+          {# kb-images-fix 2026-05-21: parens around (or) ensure |safe applies
+             to the SELECTED branch. Without parens, Jinja parses as
+             `translated_body_html or (body_html | safe)` — when
+             translated_body_html is a non-empty HTML string, it bypasses
+             |safe and Jinja auto-escapes <p>/<img> tags into &lt;p&gt;/&lt;img&gt;,
+             rendering body as literal HTML markup text. #}
+          {{ (translated_body_html or body_html) | safe }}
         </article>
 
         {% if related_entities or related_topics %}
