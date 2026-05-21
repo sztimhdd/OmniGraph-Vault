@@ -30,7 +30,7 @@ Three reasons drive the choice:
 ## Phases
 
 - [ ] **Phase aim-0: Readiness verification on upgraded Aliyun ECS** — Verify 8 vCPU / 16 GB RAM upgrade complete; measure DeepSeek + SiliconFlow + Vertex RTT vs Hermes baseline; LightRAG ainsert peak-memory dry-run < 8 GB; 1-2 article smoke ingest E2E to scratch storage (no production contamination).
-- [ ] **Phase aim-1: Code + env deploy** — git clone repo to Aliyun; Python 3.11+ venv at `/opt/omnigraph-vault/venv/`; provider keys at `/etc/omnigraph/.env` (mode 600); `local_e2e.sh` smoke modes `layer1 5` + `wechat <url>` pass on Aliyun. Hermes still serves prod cron in parallel during this phase.
+- [ ] **Phase aim-1: Code + env deploy** — git clone repo to Aliyun in-place at `/root/OmniGraph-Vault/` (sharing kb-api's existing checkout — see STATE-Aliyun-Ingest-Migration-v1.md:132-133 path correction); Python 3.11+ venv at `/root/OmniGraph-Vault/venv/`; ingest provider keys appended to existing `/root/.hermes/.env` (preserve existing mode + ownership; do NOT create separate `/etc/omnigraph/.env`); `local_e2e.sh` smoke modes `layer1 5` + `wechat <url>` pass on Aliyun. Hermes still serves prod cron in parallel during this phase.
 - [ ] **Phase aim-2: LightRAG storage full migration** — Hermes ingest crons paused ≥30min; tar.gz of `~/.hermes/omonigraph-vault/lightrag_storage/` + sha256; scp to Aliyun + re-hash verify; entity·relation·chunk·kv_keys count ±0% byte-identical between Hermes-source and Aliyun-extracted; Hermes-side storage frozen read-only for 30-day retention.
 - [ ] **Phase aim-3: Cutover** — 11 Hermes crons replaced by 11 Aliyun systemd `.service` + `.timer` pairs; `kol_scan.db` write authority handed off (path `data/kol_scan.db`, repo-root, NOT under `~/.hermes/`); Hermes crontab cleared (`crontab -l | grep -E "ingest|kol_scan|rss" | wc -l == 0`); journald log presence verified on 3 sampled units; Q1a 1-day data loss recorded.
 - [ ] **Phase aim-4: Daily sync Aliyun → Hermes + Databricks** — `scripts/sync-from-aliyun.sh` written (rsync over SSH; articles + DB + images + wiki); Hermes-side `daily-pull-from-aliyun` cron @02:00 ADT (Hermes net cron count: 11 → 1); Databricks pulls wiki + DB via `git pull` on existing checkout; retry policy ≤ 3 attempts exp backoff (60s/300s/1800s) + 48h marker file alert.
@@ -75,12 +75,12 @@ Three reasons drive the choice:
 
 **Success Criteria** (what must be TRUE):
 
-  1. Code deployed at `/opt/omnigraph-vault/` (or operator-chosen path; recorded in DEPLOY-NOTES.md); `git status` clean; HEAD commit hash recorded (DEPLOY-01)
-  2. Python venv at `/opt/omnigraph-vault/venv/` with Python 3.11+; `pip install -r requirements.txt` succeeds zero errors; `python -c "import lightrag, google.genai, deepseek; print('OK')"` prints OK (DEPLOY-02)
-  3. `/etc/omnigraph/.env` exists with mode 600, owned by ingest user; required keys present: `DEEPSEEK_API_KEY`, `SILICONFLOW_API_KEY`, `OMNIGRAPH_VERTEX_SA_JSON_PATH`, `GEMINI_API_KEY`, `APIFY_TOKEN`, `APIFY_TOKEN_BACKUP`; no literal secret committed to repo or any planning doc (DEPLOY-03)
+  1. Code deployed in-place at `/root/OmniGraph-Vault/` (existing kb-api checkout per STATE:132-133; HEAD reconciled to a known commit; pre-aim-1 dirty working tree captured / committed / discarded per operator judgement and recorded in DEPLOY-NOTES.md); `git status` clean post-reconcile; HEAD commit hash recorded (DEPLOY-01)
+  2. Python venv at `/root/OmniGraph-Vault/venv/` with Python 3.11+; `pip install -r requirements.txt` succeeds zero errors; `python -c "import lightrag, google.genai, deepseek; print('OK')"` prints OK (DEPLOY-02)
+  3. Ingest provider keys appended to existing `/root/.hermes/.env` (preserve existing mode + ownership; do NOT create separate `/etc/omnigraph/.env`); required keys present after append: `DEEPSEEK_API_KEY`, `SILICONFLOW_API_KEY`, `OMNIGRAPH_VERTEX_SA_JSON_PATH`, `GEMINI_API_KEY`, `APIFY_TOKEN`, `APIFY_TOKEN_BACKUP`; pre-existing kb-api keys preserved unchanged; no literal secret committed to repo or any planning doc (DEPLOY-03)
   4. `scripts/local_e2e.sh layer1 5` AND `scripts/local_e2e.sh wechat <url>` both reach completion with no errors in `.scratch/local-e2e-*-<ts>.log`; smoke ingests land in **scratch** storage (production path uncontaminated, same as READY-04 discipline) (DEPLOY-04)
 
-**Plans:** TBD
+**Plans:** 4 plans (aim-1-1..aim-1-4) — see `.planning/phases/aim-1-code-env-deploy/`
 **T-shirt:** S (1-2 days; mostly ops work — git clone, pip install, env file edit, smoke runs)
 **Notes:**
 

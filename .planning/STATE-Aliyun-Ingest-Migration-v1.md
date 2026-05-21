@@ -134,7 +134,9 @@ Per PROJECT-Aliyun-Ingest-Migration-v1.md §3 (Decisions 1-5) + §4 (Q1-Q6 all c
 
 ### Pending Todos
 
-None tracked. Awaiting Aliyun ECS upgrade verification, then `/gsd:plan-phase aim-0`.
+- aim-0 PASS recorded 2026-05-21 (commit f3cd667; READY-01 INFO / READY-02 WARN-Vertex / READY-03 PASS / READY-04 PASS).
+- aim-1 plan-phase complete 2026-05-21 — 4 plans (aim-1-1..aim-1-4) ready for execute-phase, queued behind kb-4-lite (Gate 1 Option A order, STATE:132-133).
+- Next: `/gsd:execute-phase aim-1` AFTER kb-4-08 verification closes.
 
 **On aim-0 PASS — deferred actions (registered 2026-05-21; do NOT act before aim-0 verdict = PASS):**
 
