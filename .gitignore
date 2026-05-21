@@ -75,8 +75,20 @@ kb/output/*
 credentials/*
 !credentials/vertex_ai_service_account_example.json
 
-# NOTE: databricks-deploy/_ssg/ is a deploy-time copy of kb/output/ written
-# by Makefile pass-0. It is NOT in .gitignore — `databricks sync` honors
-# .gitignore patterns at any depth, and excluding _ssg/ here would prevent
-# the static frontend from reaching the workspace. Don't `git add -A` from
-# project root; use targeted `git add` for source files only.
+# databricks-deploy/ regenerated artifacts — NOT source.
+# Makefile pass-0/0c copies these from project root each `make deploy`:
+#   _ssg/  ← kb/output/                      (SSG output)
+#   lib/, config.py, kg_synthesize.py ← project root
+# `databricks sync` still picks them up via `.databricksignore` re-includes
+# (`!_ssg/`, `!databricks-deploy/_ssg/**`); root-anchored excludes (`/lib/`)
+# don't match nested `databricks-deploy/lib/`, so deploy contract is intact.
+databricks-deploy/_ssg/
+databricks-deploy/lib/
+databricks-deploy/config.py
+databricks-deploy/kg_synthesize.py
+
+# Production-config backups (timestamped or *.production-backup) — local-only.
+databricks-deploy/*.production-backup
+
+# IDE personal settings — never project artifacts.
+.vscode/
