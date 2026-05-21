@@ -169,6 +169,21 @@ This-session decisions:
   - **Lesson captured in memory `feedback_parallel_track_gates_manual_run.md`:** always verify against Hermes prod data before deferring scope — local dev DB is sparse and misleading.
 - **2026-05-21 — kb-4 SCOPE REDUCED to "kb-4-lite"** post Gate 1 SSH-probe of Aliyun ECS (101.133.154.49). Probe findings: HEAD=`4eaef45` (2026-05-16 v1.0.x); working tree dirty (30+ modified + 40+ untracked from manual SCP/rsync, including kb/wiki/, kb/services/wiki_inject.py, databricks-deploy/translate_kb.py, kb/data/migrations/); kb-api running on `/root/OmniGraph-Vault/` + serving via Caddy `/kb/api/*` → `127.0.0.1:8766`; `/etc/systemd/system/kb-api.service` + `/etc/caddy/Caddyfile` already wired; **no `daily_rebuild.sh`, no SSG/FTS5/lang-detect rebuild cron** (only `gen_agent_news.sh` at 09:30). DEPLOY-01 + DEPLOY-02 + DEPLOY-03 already done-by-side-effect. kb-4-lite remaining scope = **DEPLOY-04** (`daily_rebuild.sh` + 12:00 cron: detect_article_lang.py → export_knowledge_base.py → rebuild_fts.py) + **DEPLOY-05** (3 smoke scenarios). 8-plan structure (kb-4-01..08) collapses to ~2 plans (rebuild-cron + smoke-verification) plus working-tree cleanup commit. Gate 1 chosen path = Option A "kb-4-lite first, then aim-N spec correction" — execution order locked.
 
+- **2026-05-21 evening — kb-4 plan-by-plan supersession map** (executor reference; 8 PLANs from 2026-05-14 retained as artifacts, status overlaid here):
+
+  | Plan | Scope | Gate 1 verdict | Action |
+  | --- | --- | --- | --- |
+  | kb-4-01-systemd-caddy | `kb/deploy/kb-api.service` + Caddyfile | SUPERSEDED-BY-SIDE-EFFECT (live `/etc/systemd/system/kb-api.service` + `/etc/caddy/Caddyfile` on Aliyun) | NO-OP — write SUMMARY citing prod state via `ssh aliyun-vitaclaw 'systemctl cat kb-api'` |
+  | kb-4-02-install-bootstrap | `kb/deploy/install.sh` | SUPERSEDED-BY-SIDE-EFFECT (kb-api running on `/root/OmniGraph-Vault/` from manual deploy; install.sh never executed) | NO-OP — write SUMMARY noting skipped (path differs from spec; documented in aim-N follow-up) |
+  | kb-4-03-logo-png-source | `kb/static/VitaClaw-Logo-v0.png` | SUPERSEDED-BY-SIDE-EFFECT (PNG 2048×2048 RGBA sourced 2026-05-15, present in repo + Aliyun via prior SCP) | NO-OP — minor cleanup `kb/static/VitaClaw-Logo-v0.png.MISSING.txt` removal can land in any commit |
+  | kb-4-04-daily-rebuild-cron | `kb/scripts/daily_rebuild.sh` + 12:00 cron | LIVE (no `daily_rebuild.sh` on Aliyun; only `gen_agent_news.sh` at 09:30) | EXECUTE — adapt path: cron entry on Aliyun `/root/OmniGraph-Vault/kb/scripts/daily_rebuild.sh` |
+  | kb-4-05-local-uat | `.scratch/local_serve.py` UAT | LIVE (PRINCIPLE 6 KB UAT mandatory; `.dev-runtime` baseline) | EXECUTE — local-only |
+  | kb-4-06-smoke-3-scenarios | 3 smoke scenarios on `.dev-runtime` | LIVE | EXECUTE — local-only |
+  | kb-4-07-hermes-prodshape-smoke | smoke against Hermes prod-shape DB (closes kb-3-12 deferral) | RETARGETED to Aliyun (Aliyun IS the new prod target post-aim-N; ALSO Aliyun prod kb-api already serves real DB) | EXECUTE — but probe Aliyun directly (`ssh aliyun-vitaclaw 'sqlite3 /root/OmniGraph-Vault/data/kol_scan.db ".tables"'` + curl kb-api endpoints) instead of scp from Hermes |
+  | kb-4-08-verification-close | `kb-4-VERIFICATION.md` | LIVE | EXECUTE — final close |
+
+  **kb-4-lite execution path = run kb-4-04 → 05 → 06 → 07 (Aliyun-retargeted) → 08; mark 01/02/03 NO-OP via SUMMARY.** This unlocks aim-N plan-phase per Gate 1 Option A.
+
 ### What's locked (do not re-discuss)
 
 - **Goal:** bilingual (zh-CN / en) Agent-tech content site, Ubuntu deploy, public
