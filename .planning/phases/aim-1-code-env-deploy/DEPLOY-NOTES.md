@@ -167,3 +167,110 @@ stash@{2}: WIP on main: f1a6f70 docs(v3.5-state): sync hermes operational state 
 - Operator channel: agent SSHes via local alias `ssh aliyun-vitaclaw` (alias resolution + key auth in `~/.ssh/config` + memory `aliyun_vitaclaw_ssh.md`). Connection details NOT recorded in this artifact.
 
 ---
+
+## DEPLOY-02 — Venv setup (sibling ingest-only venv)
+
+### Decision: Option C — sibling `venv-aim1/` for ingest
+
+User-directed (2026-05-22) after agent surfaced the python-version blocker:
+
+- Existing `/root/OmniGraph-Vault/venv/` = **Python 3.10.12** (kb-api prod runtime, 160 packages, hardcoded in `kb-api.service` ExecStart). LightRAG ≥3.11 requirement makes this venv unusable for ingest.
+- System python inventory: `/usr/bin/python3.10` (3.10.12), `/usr/bin/python3.11` (**3.11.0rc1**), no 3.12/3.13 available.
+- Three options surfaced: (A) rebuild kb-api venv on 3.11 — high blast radius, kb-api 807-package surface validated only on 3.10; (B) stay on 3.10, fork ingest deps — defers LightRAG forever; (C) sibling `venv-aim1/` on 3.11.0rc1 alongside untouched `venv/`.
+- **User chose C** with rationale: kb-api 3.10 surface is verified prod combo (don't disturb running service with MemoryMax=8G OOM risk on restart), 3.11.0rc1 ABI is stable (RC published days before 3.11.0 final), all ingest-side packages have cp311 wheels, aim-3 systemd timer ExecStart simply points at `venv-aim1/bin/python` — double-venv long-term maintenance cost is one path string.
+
+### Two deviations recorded
+
+**Deviation 1 — Python 3.11.0rc1 (release candidate, not formal stable):**
+- Selected because Aliyun Ubuntu has no 3.11 final / 3.12 / 3.13 in `/usr/bin/`.
+- Risk assessment: 3.11.0rc1 is the release candidate published shortly before 3.11.0 final (2022-10); the ABI froze at RC1 and ingest-side packages (lightrag-hku, google-genai, openai, lancedb, kuzu, pymupdf, etc.) all have cp311 wheels that resolve cleanly. Smoke (25/25 imports) confirms ABI compat.
+- Mitigation if instability surfaces in DEPLOY-04 smoke or later: rebuild `venv-aim1` on a properly built python3.11 final (apt or compile from source). Keeping kb-api 3.10 means rebuild is contained.
+
+**Deviation 2 — Dual-venv architecture:**
+- `venv/`     → kb-api (uvicorn), Python 3.10.12, 160 packages, PID 3512216 unchanged through aim-1-2.
+- `venv-aim1/` → ingest (DEPLOY-04 smoke target, aim-3 systemd timer ExecStart target), Python 3.11.0rc1, 153 packages.
+- `aim-1-3` (env extension) and `aim-1-4` (e2e smoke) command templates use `venv-aim1/bin/python` and `venv-aim1/bin/pip` exclusively. `kb-api.service.d/override.conf` is NOT touched.
+- aim-3 systemd timer (future phase) ExecStart will be `/root/OmniGraph-Vault/venv-aim1/bin/python <ingest-script>`.
+
+### Build execution
+
+Commands run on Aliyun (agent via Bash SSH `ssh aliyun-vitaclaw`):
+
+```bash
+cd /root/OmniGraph-Vault
+python3.11 -m venv venv-aim1
+venv-aim1/bin/python -m pip install --upgrade pip setuptools wheel
+venv-aim1/bin/pip install -r requirements.txt   # full requirements.txt — no subset, per user mandate
+```
+
+- pip install ran in background under `nohup ... & disown` with PID=3670346, stdout+stderr → `/tmp/aim1-pip-install.log`, polled by `until grep -q "^EXITCODE="` until completion.
+- Final marker: `EXITCODE=0`. All 27 top-level requirements + ~120 transitive deps installed.
+- Wheels built locally for `langdetect` and `sgmllib3k` (no prebuilt wheels), all others resolved from PyPI cp311 wheels.
+
+### Post-build evidence
+
+```
+=== venv-aim1 python ===
+Python 3.11.0rc1
+sys.version_info(major=3, minor=11, micro=0, releaselevel='candidate', serial=1)
+executable: /root/OmniGraph-Vault/venv-aim1/bin/python
+
+=== venv-aim1 package count ===
+153 packages (pip list --format=freeze | wc -l)
+
+=== Key package versions (from pip list) ===
+aiolimiter==1.2.1
+apify-client==3.0.0
+beautifulsoup4==4.14.3
+feedparser==6.0.12
+google-genai==1.75.0
+graphifyy==0.5.3            # PyPI dist name; import name is `graphify` (one y) — see Smoke note below
+instructor==1.15.1
+kuzu==0.11.3
+lancedb==0.30.2
+langdetect==1.0.9
+lightrag-hku==1.4.16
+litellm==1.82.6
+lxml==5.4.0
+numpy==2.4.6
+openai==2.38.0
+playwright==1.60.0
+PyMuPDF==1.27.2.3
+tenacity==9.1.4
+trafilatura==2.0.0
+
+=== kb-api venv (untouched control) ===
+venv/bin/python -V          → Python 3.10.12
+pip list count              → 160 packages (matches pre-aim-1 baseline)
+kb-api process              → PID 3512216 still running `venv/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766`
+```
+
+### Import smoke (25/25 PASS)
+
+`venv-aim1/bin/python` imported all 25 ingest-critical modules cleanly:
+
+```
+OK (25/25): lightrag, google.genai, openai, apify_client, playwright, lancedb,
+            kuzu, pymupdf, trafilatura, feedparser, litellm, instructor,
+            graphify, langdetect, aiolimiter, tenacity, pytest, numpy,
+            requests, PIL, bs4, html2text, dotenv, nest_asyncio, lxml
+FAIL (0)
+EXIT=0
+```
+
+**Smoke note — graphifyy import-name divergence:** PyPI distribution `graphifyy==0.5.3` (two `y`) installs into site-packages under top-level module `graphify` (one `y`). Confirmed via `graphifyy-0.5.3.dist-info/top_level.txt` which lists `graphify` (plus benchmark/eval/test fixture dirs). Production code that uses this lib must `import graphify`, not `import graphifyy`. First smoke iteration imported `graphifyy` and FAILED with `ModuleNotFoundError`; corrected to `graphify` and 25/25 PASS.
+
+### Discipline checks
+
+- ✅ **No-secrets:** This section contains only python versions, package names + versions, file paths, process PIDs, log file paths. No API keys / tokens / SA JSON / `.env` content / connection details.
+- ✅ **No-connection-details:** No SSH host / port / user / IP / private key. Agent uses local SSH alias `aliyun-vitaclaw`.
+- ✅ **Operator-channel:** Agent IS operator per `feedback_aim1_agent_is_operator.md`. All venv build + pip install + smoke ops ran via direct Bash SSH, no user round-trips.
+- ✅ **Red lines honored:** No `git add -A` / `git add .` (venv-aim1/ is untracked on Aliyun and will NOT be committed — venv contents are reproducible from `requirements.txt`), no `--amend`, no `--force`, no `--hard`, no `systemctl` ops, no `kb-api.service.d/override.conf` touched, no kb-api restart triggered, no kb-api venv (`venv/`) packages added/removed/upgraded.
+- ✅ **Forward-only edit:** This §DEPLOY-02 section is a net-new append to DEPLOY-NOTES.md. §DEPLOY-01 from aim-1-1 is unchanged.
+- ✅ **kb-api preservation:** PID 3512216 still serving on `127.0.0.1:8766` throughout aim-1-2; `venv/` Python version (3.10.12) and package count (160) unchanged from pre-aim-1 baseline.
+
+### Bridge to aim-1-3
+
+`venv-aim1` is operational with all 27 top-level deps + transitive resolved. aim-1-3 (DEPLOY-03 env extension) and aim-1-4 (DEPLOY-04 e2e smoke) command templates use `venv-aim1/bin/python` exclusively. `/root/.hermes/.env` is **not** touched in aim-1-2 — env extension is aim-1-3 scope. aim-1-3 will append 6 ingest provider keys (DEEPSEEK / SILICONFLOW / VERTEX SA path / GEMINI / APIFY × 2) preserving existing kb-api keys + file mode/ownership.
+
+---
