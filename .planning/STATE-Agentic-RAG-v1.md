@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: Agentic-RAG-v1
 milestone_name: — Agentic-RAG-v1 (parallel-track to v3.4)
 status: in-progress
-last_updated: "2026-05-22T23:30:00Z"
-last_activity: 2026-05-22 — ar-2 phase planned. /gsd:plan-phase ar-2 --skip-research executed. 4 artifacts written (ar-2-CONTEXT.md + 3 PLAN.md files at ~31-37KB each). gsd-plan-checker verdict PASS_WITH_NITS, 0 required patches, all 5 ROADMAP success criteria covered, 4 planner-flagged ambiguities ruled (CONTRACT-01 multi-file ALLOWED, asyncio.gather MAY, additional_chunks→sources ALLOWED, _amain sig change ACCEPTABLE). 5 non-blocking nits documented for executor. Wave order: ar-2-01 (Reasoner real loop, REQs ORCH-03+TOOL-04+TEST-03/half) → ar-2-02 (Synthesizer caption-anchored embeds, REQs ORCH-05+TEST-03/half) → ar-2-03 (CLI flags --max-iter-reasoner/--max-iter-verifier/--no-grounding, REQ CLI-03). Mandatory operator note (ar-3 needs TAVILY+BRAVE keys) verbatim on last line of every PLAN.md. Phase ready for /gsd:execute-phase ar-2.
+last_updated: "2026-05-23T00:30:00Z"
+last_activity: 2026-05-22/23 — ar-2 phase CLOSED. All 3 waves executed sequentially. Wave 1 (ar-2-01 Reasoner real loop, commit 0674f66): 7 unit tests, 69/69 green; ORCH-03 + TOOL-04 + TEST-03/Reasoner-half delivered. Wave 2 (ar-2-02 Synthesizer caption embeds, commits 942dc48 + 5aedf57 SUMMARY-backfill): 10 unit tests, 79/79 green; ORCH-05 + TEST-03/Synthesizer-half delivered; principled tightening — additional_chunks→sources gated on state.reasoned.status=="ok" (mirrors Retriever discipline). Wave 3 (ar-2-03 CLI flags, commits 8ca46ad + 8cd2642 SUMMARY-backfill): 9 unit tests, 88/88 green; CLI-03 delivered (--max-iter-reasoner / --max-iter-verifier / --no-grounding via dataclasses.replace, NO --llm-provider per CLI-03 hard rule, _amain body 15 LOC under 18 cap). L2 cap=0 LLM-free CLI smoke exit 0, 308-char markdown w/ 3 degradation note lines. VisionCascade adapter deferred to ar-3+ (Option A) — ar-2 stays mock-only. CONTRACT-01/02 clean. Forward-only commits throughout, zero amend/reset. Phase ready for /gsd:plan-phase ar-3.
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 7
 ---
 
 # Project State — Agentic-RAG-v1 (parallel)
@@ -26,35 +26,39 @@ Requirements: `.planning/REQUIREMENTS-Agentic-RAG-v1.md`
 ## Current Position
 
 Milestone: Agentic-RAG-v1 (parallel-track)
-Phase: ar-2 — Reasoner + vision deepening — **planned** (3/3 plans authored, plan-check PASS_WITH_NITS, 0 required patches)
-Plan: ready for `/gsd:execute-phase ar-2` — Wave 1 (ar-2-01) first
-Status: ar-1 = closed (4/4 plans executed, commits 962f995..cbd432d); ar-2 = planned, 3 PLAN.md files written.
-Last activity: 2026-05-22 — /gsd:plan-phase ar-2 --skip-research authored ar-2-CONTEXT.md + 3 PLAN.md files; gsd-plan-checker verdict PASS_WITH_NITS, all 5 ROADMAP success criteria covered, 4 ambiguities ruled, 5 non-blocking nits documented.
+Phase: ar-2 — Reasoner + vision deepening — **complete** (3/3 plans executed, 88/88 unit tests green, L2 cap=0 LLM-free CLI smoke exit 0)
+Plan: ready for `/gsd:plan-phase ar-3` (Verifier + Tavily/Brave/Grounding)
+Status: ar-1 = closed (4/4 plans, commits 962f995..cbd432d); ar-2 = closed (3/3 plans, commits 0674f66, 942dc48, 5aedf57, 8ca46ad, 8cd2642); 7/7 ar-N plans executed.
+Last activity: 2026-05-23 — ar-2 phase closed. All 5 ar-2 REQs delivered (ORCH-03, ORCH-05, TOOL-04, CLI-03, TEST-03). VisionCascade adapter deferred to ar-3+ per Option A (ar-2 mock-only).
 
 ### Phase plan
 
 | Phase | Goal | REQs | T-shirt | Status |
 | ----- | ---- | ---- | ------- | ------ |
 | ar-1 | MVP vertical slice (skeleton runs end-to-end) | 25 | L | complete (4/4) |
-| ar-2 | Reasoner + vision deepening | 5 | M | planned (0/3 executed) |
+| ar-2 | Reasoner + vision deepening | 5 | M | complete (3/3) |
 | ar-3 | Verifier + Tavily/Brave/Grounding | 7 | L | not started |
 | ar-4 | Telemetry, streaming, smoke pass + audit | 4 | M | not started |
 
-Total: 41/41 v1 REQs mapped, 0 orphans.
+Total: 41/41 v1 REQs mapped, 30/41 delivered (ar-1: 25, ar-2: 5), 0 orphans.
 
 ### Immediate next step
 
-`/gsd:execute-plan .planning/phases/ar-2-reasoner-vision-deepening/ar-2-01-reasoner-agent-loop-PLAN.md`
+`/gsd:plan-phase ar-3` — Verifier real LLM agent loop + Tavily primary + Brave fallback + Vertex Grounding opt-in. **BLOCKED** until operator injects `TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY` into `~/.hermes/.env` on Hermes deployment target.
 
-ar-2 wave order (strictly sequential — no in-phase parallelism):
+ar-2 wave summary (all closed):
 
-- Wave 1: ar-2-01 reasoner-agent-loop — real bounded LLM agent loop with kg_search + vision_analyze tools (REQs: ORCH-03, TOOL-04, TEST-03 Reasoner half)
-- Wave 2: ar-2-02 synthesizer-caption-embeds — alt text source = `state.reasoned.analyzed_images[*].caption` with ar-1 filename fallback (REQs: ORCH-05, TEST-03 Synthesizer half)
-- Wave 3: ar-2-03 cli-flags — `--max-iter-reasoner / --max-iter-verifier / --no-grounding` via `dataclasses.replace()`; LLM provider stays env-only (REQ: CLI-03)
+- Wave 1 (ar-2-01 reasoner-agent-loop, commit `0674f66`): real bounded LLM agent loop with kg_search + vision_analyze tools — ORCH-03, TOOL-04, TEST-03/Reasoner-half. 7 unit tests, 69/69 green.
+- Wave 2 (ar-2-02 synthesizer-caption-embeds, commits `942dc48` + `5aedf57`): alt text source = `state.reasoned.analyzed_images[*].caption` with ar-1 filename fallback — ORCH-05, TEST-03/Synthesizer-half. 10 unit tests, 79/79 green. additional_chunks→sources tightened to gate on `state.reasoned.status=="ok"`.
+- Wave 3 (ar-2-03 cli-flags, commits `8ca46ad` + `8cd2642`): `--max-iter-reasoner / --max-iter-verifier / --no-grounding` via `dataclasses.replace()`; NO `--llm-provider` (env-only) — CLI-03. 9 unit tests, 88/88 green. `_amain` body 15 LOC (≤18 cap). L2 cap=0 LLM-free CLI smoke exit 0.
 
 ### Operator dependency for ar-3 (must land before ar-3 execute begins)
 
-`TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY` must be injected into `~/.hermes/.env` on the Hermes deployment target before `/gsd:execute-phase ar-3` starts. ar-2 does NOT require either key (stubs from ar-1 cover the WebBaseline/Verifier paths through ar-2 close). Procurement should happen during ar-2 execution so ar-3 is unblocked at handoff. The mandatory operator note is repeated verbatim on the last line of every ar-2 PLAN.md.
+`TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY` must be injected into `~/.hermes/.env` on the Hermes deployment target before `/gsd:execute-phase ar-3` starts. ar-2 closed without requiring either key (stubs from ar-1 covered the WebBaseline/Verifier paths through ar-2). **STATUS at ar-2 close (2026-05-23): keys not yet confirmed injected — must verify before /gsd:plan-phase ar-3 advances past planning into execute.**
+
+### VisionCascade adapter (deferred to ar-3+, Option A)
+
+Production `lib/vision_cascade.py:VisionCascade.describe(id, bytes, mime)` (sync) does NOT match Reasoner's expected `await describe(image_path, question)` (async). ar-2 stayed mock-only (mock IS the contract for ar-2). Adapter wiring is in ar-3 production scope (Verifier loop + real-tool wiring will surface the same need). Do NOT add adapter retroactively into ar-2 stages.
 
 ## Parallel-Track Boundary
 
