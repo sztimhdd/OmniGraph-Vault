@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: candidate, not Phase 5 scope.
 status: Awaiting Hermes to close Gate 3 (fixture scrape + E2E batch run)
-stopped_at: Completed kb-3-05-articles-endpoints-PLAN.md
-last_updated: "2026-05-21T00:00:00.000Z"
-last_activity: 2026-05-21 -- Completed quick task 260521-kbq (KB Working-Tree Triage): 3 atomic commits closing kb-v2.2-7 Phase 5 backfill (bec8811 — 234/238 translated, $0), llm-wiki W4-tail SSG render + nav + locale + templates (4fcc7af), and FTS5 rebuild race micro-fix (08e7a50 — drop ?mode=ro + add timeout=10). Audit-first on Commit 2 confirmed real increment, not dev residue. Out-of-scope working-tree residue (databricks-deploy artifacts / aim-0 milestone files / kdb-2 SMOKE-EVIDENCE / __pycache__) untouched.
+stopped_at: Completed ar-1-01 package scaffolding
+last_updated: "2026-05-22T16:11:05.523Z"
+last_activity: "2026-05-19 - Completed quick task 260519-ijn (F1): drop stale `min_depth=...` kwarg from 5 `ingest_from_db()` test calls (4 in `tests/unit/test_max_articles_hard_cap.py`, 1 in `tests/unit/test_vision_worker.py`) — closes fixture-drift gap surfaced during 260519-hwr (R1) full unit regression. H4 quick (260518-jpu) removed `min_depth` from `ingest_from_db()` signature but these two old tests still passed `min_depth=2` / `min_depth=1` and tripped `TypeError: ingest_from_db() got an unexpected keyword argument 'min_depth'` (CLAUDE.md 2026-05-15 lesson #2 pattern). **Verification:** pre-change pytest **5 failed**, 9 passed (`.scratch/quick-f1-pre.log`); post-change pytest **14 passed in 10.34s** (`.scratch/quick-f1-post.log`); full unit `pytest tests/unit/ -v` → **973 passed**, 1 unrelated subprocess flake (`.scratch/quick-f1-full.log`). **Unrelated flake:** `test_kol_scan_db_path_override.py::test_env_override_routes_to_custom_path[batch_classify_kol]` failed with `subprocess.TimeoutExpired` after 120s under full-suite load (wall-clock 1:33:39 = 5619s); verified F1-causally-independent — passes in isolation in 3.32s. **Pure surgical:** 5 line-changes total (kwarg deletion only); no production code touched, no fixture helper touched. **Discipline:** explicit `git add tests/unit/test_max_articles_hard_cap.py tests/unit/test_vision_worker.py` per `feedback_git_add_explicit_in_parallel_quicks.md` (NEVER `-A`); NO `--amend` / `git reset` / force-push per `feedback_no_amend_in_concurrent_quicks.md`. Single atomic forward-only commit on main."
 progress:
   total_phases: 14
   completed_phases: 10
@@ -183,6 +183,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase kb-3 P05 | 15 | 2 tasks | 4 files |
 | Phase kb-3-fastapi-bilingual-api P07 | 6 | 1 tasks | 2 files |
 | Phase kb-3 P08 | 8min | 2 tasks | 5 files |
+| Phase ar-1-mvp-vertical-slice P01 | 294 | 7 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -372,8 +373,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-05-14T12:00:00.000Z
-Stopped at: Completed kb-3-05-articles-endpoints-PLAN.md
+Last session: 2026-05-22T16:11:05.513Z
+Stopped at: Completed ar-1-01 package scaffolding
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 

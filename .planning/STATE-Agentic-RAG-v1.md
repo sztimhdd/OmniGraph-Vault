@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: Agentic-RAG-v1
 milestone_name: — Agentic-RAG-v1 (parallel-track to v3.4)
-status: ready-for-discuss-phase
-last_updated: "2026-05-06T21:00:00Z"
-last_activity: 2026-05-06 — ROADMAP-Agentic-RAG-v1.md created by gsd-roadmapper; 41/41 v1 REQs mapped across 4 phases (ar-1..ar-4); vertical-slice MVP-first decomposition chosen.
+status: in-progress
+last_updated: "2026-05-22T16:10:00Z"
+last_activity: 2026-05-22 — ar-1-01 (Wave 1 entrypoint) executed PASS. 7 commits, 21/21 unit tests, CONTRACT-01+02 clean, omnigraph.research namespace mapping declared. Ready for ar-1-02 (Wave 1 cont.).
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 4
+  completed_plans: 1
 ---
 
 # Project State — Agentic-RAG-v1 (parallel)
@@ -26,10 +26,10 @@ Requirements: `.planning/REQUIREMENTS-Agentic-RAG-v1.md`
 ## Current Position
 
 Milestone: Agentic-RAG-v1 (parallel-track)
-Phase: Not started — roadmap approved, ready for first phase planning
-Plan: —
-Status: Ready for `/gsd:discuss-phase ar-1`
-Last activity: 2026-05-06 — ROADMAP committed, 41/41 REQs mapped
+Phase: ar-1 — MVP vertical slice — **in-progress** (4/4 plans authored, 1/4 executed)
+Plan: ar-1-02 (Wave 1 cont.) ready for `/gsd:execute-plan`
+Status: ar-1-01 PASS — ready for `/gsd:execute-plan ar-1-02` (stage stubs)
+Last activity: 2026-05-22 — ar-1-01 executed: lib/research/ skeleton + 21/21 tests + CONTRACT-01+02 clean (commits 7a26fed..d6dc04b)
 
 ### Phase plan
 
@@ -44,7 +44,13 @@ Total: 41/41 v1 REQs mapped, 0 orphans.
 
 ### Immediate next step
 
-`/gsd:discuss-phase ar-1` (or `/gsd:plan-phase ar-1` if ready to skip discussion).
+`/gsd:execute-plan .planning/phases/ar-1-mvp-vertical-slice/ar-1-01-package-scaffolding-PLAN.md`
+
+Wave order:
+
+- Wave 1: ar-1-01 (package scaffolding) + ar-1-02 (stage stubs) — can run sequentially or in parallel; coordinate to avoid merge churn on `lib/research/__init__.py`
+- Wave 2: ar-1-03 (CLI + image server) — Task 0 runs `pip install -e .` before any `-m omnigraph.research` invocation
+- Wave 3: ar-1-04 (skill packaging)
 
 ## Parallel-Track Boundary
 
