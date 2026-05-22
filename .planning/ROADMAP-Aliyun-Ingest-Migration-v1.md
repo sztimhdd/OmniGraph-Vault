@@ -29,8 +29,8 @@ Three reasons drive the choice:
 
 ## Phases
 
-- [ ] **Phase aim-0: Readiness verification on upgraded Aliyun ECS** — Verify 8 vCPU / 16 GB RAM upgrade complete; measure DeepSeek + SiliconFlow + Vertex RTT vs Hermes baseline; LightRAG ainsert peak-memory dry-run < 8 GB; 1-2 article smoke ingest E2E to scratch storage (no production contamination).
-- [ ] **Phase aim-1: Code + env deploy** — git clone repo to Aliyun in-place at `/root/OmniGraph-Vault/` (sharing kb-api's existing checkout — see STATE-Aliyun-Ingest-Migration-v1.md:132-133 path correction); Python 3.11+ venv at `/root/OmniGraph-Vault/venv/`; ingest provider keys appended to existing `/root/.hermes/.env` (preserve existing mode + ownership; do NOT create separate `/etc/omnigraph/.env`); `local_e2e.sh` smoke modes `layer1 5` + `wechat <url>` pass on Aliyun. Hermes still serves prod cron in parallel during this phase.
+- [x] **Phase aim-0: Readiness verification on upgraded Aliyun ECS** — Verify 8 vCPU / 16 GB RAM upgrade complete; measure DeepSeek + SiliconFlow + Vertex RTT vs Hermes baseline; LightRAG ainsert peak-memory dry-run < 8 GB; 1-2 article smoke ingest E2E to scratch storage (no production contamination).
+- [x] **Phase aim-1: Code + env deploy** — git clone repo to Aliyun in-place at `/root/OmniGraph-Vault/` (sharing kb-api's existing checkout — see STATE-Aliyun-Ingest-Migration-v1.md:132-133 path correction); Python 3.11+ venv at `/root/OmniGraph-Vault/venv/`; ingest provider keys appended to existing `/root/.hermes/.env` (preserve existing mode + ownership; do NOT create separate `/etc/omnigraph/.env`); `local_e2e.sh` smoke modes `layer1 5` + `wechat <url>` pass on Aliyun. Hermes still serves prod cron in parallel during this phase.
 - [ ] **Phase aim-2: LightRAG storage full migration** — Hermes ingest crons paused ≥30min; tar.gz of `~/.hermes/omonigraph-vault/lightrag_storage/` + sha256; scp to Aliyun + re-hash verify; entity·relation·chunk·kv_keys count ±0% byte-identical between Hermes-source and Aliyun-extracted; Hermes-side storage frozen read-only for 30-day retention.
 - [ ] **Phase aim-3: Cutover** — 11 Hermes crons replaced by 11 Aliyun systemd `.service` + `.timer` pairs; `kol_scan.db` write authority handed off (path `data/kol_scan.db`, repo-root, NOT under `~/.hermes/`); Hermes crontab cleared (`crontab -l | grep -E "ingest|kol_scan|rss" | wc -l == 0`); journald log presence verified on 3 sampled units; Q1a 1-day data loss recorded.
 - [ ] **Phase aim-4: Daily sync Aliyun → Hermes + Databricks** — `scripts/sync-from-aliyun.sh` written (rsync over SSH; articles + DB + images + wiki); Hermes-side `daily-pull-from-aliyun` cron @02:00 ADT (Hermes net cron count: 11 → 1); Databricks pulls wiki + DB via `git pull` on existing checkout; retry policy ≤ 3 attempts exp backoff (60s/300s/1800s) + 48h marker file alert.
@@ -202,9 +202,9 @@ Three reasons drive the choice:
 
 | Phase | Plans Complete | Status | Completed |
 | ----- | -------------- | ------ | --------- |
-| aim-0: Readiness on upgraded Aliyun ECS | — | NOT STARTED — gated on Aliyun upgrade | — |
-| aim-1: Code + env deploy | — | blocked by aim-0 | — |
-| aim-2: LightRAG storage migration | — | blocked by aim-1 | — |
+| aim-0: Readiness on upgraded Aliyun ECS | — | ✅ DONE | commit f3cd667 / 2026-05-21 |
+| aim-1: Code + env deploy | 4/4 plans | ✅ DONE | commit 718c52d / 2026-05-23 |
+| aim-2: LightRAG storage migration | — | ready — /gsd:plan-phase aim-2 | — |
 | aim-3: Cutover | — | blocked by aim-2 | — |
 | aim-4: Daily sync | — | blocked by aim-3 | — |
 | aim-5: 7-day stability | — | blocked by aim-4 | — |
@@ -302,4 +302,4 @@ No phase-internal parallelism is recommended; phases are strictly sequential.
 
 ---
 *Roadmap created: 2026-05-20 (evening, after Q1-Q6 closed).*
-*Last updated: 2026-05-20 — initial creation; all 6 phases NOT STARTED, gated on Aliyun ECS 8C/16G upgrade (Q6 — user-driven, ETA ~24h).*
+*Last updated: 2026-05-23 — aim-0 + aim-1 ✅ DONE.*

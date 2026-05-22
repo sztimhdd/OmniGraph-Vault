@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: Aliyun-Ingest-Migration-v1
 milestone_name: — Migrate ingest pipeline Hermes → Aliyun ECS as new authoritative ingest node
-status: planning
-stopped_at: "Milestone chartered 2026-05-20 evening; PROJECT-Aliyun-Ingest-Migration-v1.md fully patched with Q1-Q6 decisions. Awaiting Aliyun ECS upgrade to 8 vCPU / 16 GB RAM (24h after 2026-05-20) before Phase aim-0 (Readiness) execution."
-last_updated: "2026-05-20T22:00:00Z"
-last_activity: "2026-05-20 — Milestone Aliyun-Ingest-Migration-v1 chartered; sibling planning files (PROJECT / REQUIREMENTS / ROADMAP / STATE) created; Q1-Q6 all decided; main PROJECT.md updated with parallel milestone pointer."
+status: execution-active
+stopped_at: "aim-1 ✅ DONE 2026-05-23 — 7/7 UAT PASS; next: /gsd:plan-phase aim-2"
+last_updated: "2026-05-23T00:00:00Z"
+last_activity: "2026-05-23 — aim-1 execute + UAT complete; STATE/ROADMAP closure"
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 2
   total_plans: 0
-  completed_plans: 0
+  completed_plans: 4
 ---
 
 # Project State — Aliyun-Ingest-Migration-v1 (parallel)
@@ -25,7 +25,7 @@ Requirements: `.planning/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md`
 ## Current Position
 
 Milestone: Aliyun-Ingest-Migration-v1 (parallel-track to v3.4 / v3.5-Ingest-Refactor / Agentic-RAG-v1)
-Phase: aim-0 (Readiness) — NOT STARTED, awaiting Aliyun ECS 8C/16G upgrade (2026-05-21+)
+Phase: aim-1 ✅ DONE — aim-2 next
 Plan: pending — `/gsd:plan-phase aim-0` after upgrade complete
 Status: chartered; all Q1-Q6 decisions logged in PROJECT-Aliyun-Ingest-Migration-v1.md §3-§4
 Last activity: 2026-05-20 evening — milestone files written; main PROJECT.md updated
@@ -34,8 +34,8 @@ Last activity: 2026-05-20 evening — milestone files written; main PROJECT.md u
 
 | Phase | Goal | REQs | T-shirt | Status |
 | ----- | ---- | ---- | ------- | ------ |
-| aim-0 | Readiness verification on upgraded Aliyun ECS (disk / RTT / mem peak / smoke) | 4 | S | NOT STARTED — awaits 8C/16G upgrade |
-| aim-1 | Code + env deploy (git clone + venv + provider keys + local_e2e smoke) | 4 | S | blocked by aim-0 |
+| aim-0 | Readiness verification on upgraded Aliyun ECS (disk / RTT / mem peak / smoke) | 4 | S | ✅ DONE — commit f3cd667 / 2026-05-21 |
+| aim-1 | Code + env deploy (git clone + venv + provider keys + local_e2e smoke) | 4 | S | ✅ DONE — commit 718c52d / 2026-05-23 |
 | aim-2 | LightRAG storage full migration (Hermes pause + tar.gz + scp + sha256 + count verify) | 5 | M | blocked by aim-1 |
 | aim-3 | Cutover (systemd timer + kol_scan.db handoff + Hermes crontab clear + journald) | 5 | M | blocked by aim-2 |
 | aim-4 | Daily sync Aliyun → Hermes + Databricks (consumer-side cron + retry + journald) | 4 | S | blocked by aim-3 |
@@ -137,6 +137,7 @@ Per PROJECT-Aliyun-Ingest-Migration-v1.md §3 (Decisions 1-5) + §4 (Q1-Q6 all c
 - aim-0 PASS recorded 2026-05-21 (commit f3cd667; READY-01 INFO / READY-02 WARN-Vertex / READY-03 PASS / READY-04 PASS).
 - aim-1 plan-phase complete 2026-05-21 — 4 plans (aim-1-1..aim-1-4) ready for execute-phase, queued behind kb-4-lite (Gate 1 Option A order, STATE:132-133).
 - Next: `/gsd:execute-phase aim-1` AFTER kb-4-08 verification closes.
+- aim-1 execute ✅ DONE 2026-05-23 (commit 718c52d); UAT 7/7 PASS; aim-1-UAT.md; next: /gsd:plan-phase aim-2
 
 **On aim-0 PASS — deferred actions (registered 2026-05-21; do NOT act before aim-0 verdict = PASS):**
 
@@ -187,9 +188,11 @@ Expected baselines after aim-0 readiness (per PROJECT §6 risk mitigation):
 - DeepSeek + SiliconFlow + Vertex RTT from Aliyun (cn-east-mainland) — expected ≤ Hermes (corp network) for SiliconFlow; comparable for Vertex; comparable for DeepSeek
 - Monthly cost = upgraded ECS baseline + LLM API spend (target: same envelope as Hermes-side baseline, $1-5/day)
 
+**aim-1 actuals (2026-05-23):** aim-1-4 smoke: batch_elapsed=778.44s / budget=28800s (2.7%); 85 nodes / 93 edges; SiliconFlow 38/38 vision OK; venv-aim1 py3.11.0rc1 153 pkgs
+
 ## Session Continuity
 
 Last session: 2026-05-20T22:00:00Z
 Stopped at: 4 sibling planning docs written + PROJECT.md pointer added; milestone chartered
 Resume file: None
-Next command: `/gsd:plan-phase aim-0` (after Aliyun ECS upgrade verified, ~2026-05-21+)
+Next command: `/gsd:plan-phase aim-2`
