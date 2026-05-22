@@ -65,7 +65,8 @@
           <span data-lang="zh">{{ 'breadcrumb.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'breadcrumb.articles' | t('en') }}</span>
         </a>
         {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
-        <span class="breadcrumb__current">{{ article.title }}</span>
+        {# kb-images-fix 260522 Postmortem #9: dual-span breadcrumb mirrors h1 pattern (article.title_translated may be empty → fall back to article.title for mixed-language display per locked decision A4). #}
+        <span class="breadcrumb__current"><span data-lang="zh">{{ article.title }}</span><span data-lang="en">{{ article.title_translated or article.title }}</span></span>
       </nav>
 
       <header class="article-header">

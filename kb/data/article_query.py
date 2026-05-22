@@ -653,6 +653,113 @@ def rewrite_translated_body(body_translated: str | None) -> str | None:
     return body
 
 
+# ---- 260522 Postmortem #9: EN body image parity ----
+#
+# Issue: translated body (Pass 3 LLM) drops most image refs unevenly — ZH side
+# renders full image set from final_content.md; EN side renders zero. User
+# directive 2026-05-21: "没刮下来的图不要了 但是已经 Hermes 有的图你得 100% 给我
+# 显示出来". Fix: at SSG render time, when translated body has fewer image blocks
+# than source body, splice the missing source-image blocks at evenly-distributed
+# paragraph boundaries in the translated body. No LLM cost, fully deterministic.
+#
+# A "source-internal" image is one that resolves under {KB_BASE_PATH}/static/img/
+# (i.e. has a local download). External / orphan refs are stripped earlier by
+# _strip_external_wechat_images and never reach this helper.
+
+# Match an HTML <img ...> tag OR a markdown ![alt](url) image. Greedy bracket
+# content disallowed — alt text cannot contain ']' / src cannot contain ')'.
+_IMG_BLOCK_PATTERN = re.compile(
+    r'<img\b[^>]*>|!\[[^\]]*\]\([^)]+\)'
+)
+
+
+def _extract_image_blocks(body: str) -> list[str]:
+    """Return all image-rendering blocks (HTML ``<img>`` + markdown ``![](...)``)
+    in document order.
+
+    Pure function. Empty/None body returns ``[]``.
+    """
+    if not body:
+        return []
+    return _IMG_BLOCK_PATTERN.findall(body)
+
+
+def _splice_images_into_body(body: str, missing_images: list[str]) -> str:
+    """Insert ``missing_images`` at evenly-distributed paragraph boundaries.
+
+    Paragraphs are separated by blank lines (``\\n\\n``). With N paragraphs
+    and K missing images, image i (0-indexed) goes after paragraph
+    ``floor((i+1) * N / (K+1))`` so they spread out instead of clumping
+    at start or end. Ties broken by index order (deterministic).
+
+    If the body has no paragraph boundary, all missing images are appended
+    after the body separated by blank lines (graceful degradation, single
+    article-level "image dump" still better than zero images per user
+    directive 2026-05-21).
+
+    Pure function. Empty body + empty list returns body unchanged.
+    """
+    if not missing_images:
+        return body
+    if not body:
+        return "\n\n".join(missing_images)
+    # Split on blank-line paragraph boundaries. Preserve original separators
+    # by re-joining with the canonical ``\n\n``.
+    paragraphs = re.split(r"\n\s*\n", body)
+    n_para = len(paragraphs)
+    k_img = len(missing_images)
+    if n_para <= 1:
+        # No paragraph boundary: append all images at the end.
+        return body.rstrip() + "\n\n" + "\n\n".join(missing_images) + "\n"
+    # Build insertion map: para_index -> list of images to splice AFTER it.
+    # i in [0, K), insert position p = floor((i+1) * N / (K+1)) clamped to [1, N-1]
+    # so we never insert before the first paragraph or after the last (the
+    # last position would be functionally equivalent to "after body" but the
+    # intent is to interleave with content, not append).
+    insertions: dict[int, list[str]] = {}
+    for i, img in enumerate(missing_images):
+        p = ((i + 1) * n_para) // (k_img + 1)
+        p = max(1, min(p, n_para - 1))
+        insertions.setdefault(p, []).append(img)
+    out: list[str] = []
+    for idx, para in enumerate(paragraphs):
+        out.append(para)
+        if idx + 1 in insertions:
+            out.extend(insertions[idx + 1])
+    return "\n\n".join(out)
+
+
+def rewrite_translated_body_with_image_parity(
+    rec: ArticleRecord,
+) -> str | None:
+    """260522 Postmortem #9: rewrite translated body and splice missing
+    source images so ZH and EN render counts match.
+
+    Pipeline:
+        1. Resolve source body via ``get_article_body(rec)``.
+        2. Resolve translated body via
+           ``rewrite_translated_body(pick_translated_body(rec))``.
+        3. If translated body has fewer image blocks than source, take the
+           missing ones (in source-document order) and splice into the
+           translated body at evenly-distributed paragraph boundaries.
+
+    Returns None when no translated body exists so the SSG template's
+    ``or body_html`` fallback kicks in (locked decision A4 — mixed-language
+    display acceptable; same fall-through behavior as plain
+    ``rewrite_translated_body``).
+    """
+    translated = rewrite_translated_body(pick_translated_body(rec))
+    if translated is None:
+        return None
+    source_body, _ = get_article_body(rec)
+    source_imgs = _extract_image_blocks(source_body)
+    translated_imgs = _extract_image_blocks(translated)
+    if len(translated_imgs) >= len(source_imgs):
+        return translated
+    missing = source_imgs[len(translated_imgs):]
+    return _splice_images_into_body(translated, missing)
+
+
 # ---- kb-2 query functions (TOPIC + ENTITY + LINK) ----
 
 

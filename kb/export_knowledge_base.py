@@ -56,6 +56,7 @@ from kb.data.article_query import (  # noqa: E402
     list_articles,
     resolve_url_hash,
     rewrite_translated_body,  # kb-v2.2-7
+    rewrite_translated_body_with_image_parity,  # 260522 Postmortem #9
     pick_translated_body,  # 260522-clt Pass 3
     # kb-2 additions:
     cooccurring_entities_in_topic,
@@ -435,7 +436,12 @@ def render_article_detail(
     # `or body_html` fallback (locked decision A4) covers untranslated rows.
     # 260522-clt Pass 3: pick_translated_body picks body_repositioned (LLM image
     # relocation for end-dumped articles) when present, else body_translated.
-    translated_body_md = rewrite_translated_body(pick_translated_body(rec))
+    # 260522 Postmortem #9: when translated body has fewer image refs than
+    # source body (translator dropped them unevenly), splice the missing
+    # source images at evenly-distributed paragraph boundaries so EN visual
+    # parity matches ZH (user directive 2026-05-21: "已经 Hermes 有的图你得
+    # 100% 给我显示出来").
+    translated_body_md = rewrite_translated_body_with_image_parity(rec)
     translated_body_html = (
         _annotate_code_block_lang_label(_render_body_html(translated_body_md))
         if translated_body_md
