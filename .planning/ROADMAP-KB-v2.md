@@ -62,7 +62,7 @@ simpler given this risk profile.
 - [x] **Phase kb-1: SSG Export + i18n Foundation** — Completed 2026-05-13. Bilingual data layer, content_hash runtime resolution, Jinja2 SSG templates, sitemap/robots/og/JSON-LD baseline. The full read path goes from `kol_scan.db` to static HTML. (26/27 REQs satisfied; UI-04 placeholder accepted, real PNG carried to kb-4. 4 human-verifiable browser UAT items in kb-1-HUMAN-UAT.md. UI redesign in progress 2026-05-13 to close design-dimension audit findings — `kb-1-DESIGN-AUDIT.md`.)
 - [x] **Phase kb-2: Topic Pillar + Entity Pages + Cross-Link Network** — Completed 2026-05-13. Generates `/topics/{slug}.html` × 5 (Agent / CV / LLM / NLP / RAG) + `/entities/{slug}.html` × ~91 (entities ≥5 articles, 6 in fixture) + JSON-LD CollectionPage / Thing. Article detail page gains related-entities + related-topics sidebar. Homepage adds "Browse by Topic" + "Featured Entities" sections. Inherits kb-1 redesigned UI tokens — no re-design. (12/12 REQs satisfied; full Skill discipline regex passes; 58 integration tests covering 37 UI-SPEC §8 acceptance grep patterns; 12/12 Playwright UAT viewports zero horizontal scroll.)
 - [x] **Phase kb-3: FastAPI Backend + Bilingual API + Search + Q&A** — Completed 2026-05-14. `/api/articles` / `/api/article/{hash}` / `/api/search` (FTS5 + KG mode) / `/api/synthesize` (async + lang directive + FTS5 fallback) / `/static/img` mount. All 12 plans, 19/19 REQs (DATA-07 + I18N-07 + API-01..08 + SEARCH-01..03 + QA-01..05 + CONFIG-02), 256 new tests across 5 waves. All 5 Skill discipline floors met (api-design=1, python-patterns=7, writing-tests=9, ui-ux-pro-max=2, frontend-design=2). CSS 2099/2100 ceiling, 31 :root vars unchanged from kb-1 baseline. C1 (`kg_synthesize.synthesize_response`) + C2 (`omnigraph_search.query.search`) contracts untouched. DATA-07 visibility: 160/2501 articles = 6.4% (matches Hermes prod prediction). FTS5 fallback NEVER-500 invariant verified end-to-end. See `kb-3-VERIFICATION.md`.
-- [ ] **Phase kb-4: Ubuntu Deploy + Cron + Smoke Verification** — systemd unit + Caddy snippet + `install.sh` + `daily_rebuild.sh` cron + 3 smoke scenarios pass.
+- [x] **Phase kb-4: Ubuntu Deploy + Cron + Smoke Verification** — Completed 2026-05-22. systemd unit + Caddy snippet (SUPERSEDED-BY-SIDE-EFFECT, already live) + daily_rebuild.sh cron (installed Aliyun 2026-05-22 `0 12 * * *`) + 3 PROJECT-KB-v2 smoke scenarios PASS (4/4 + 5/5 + 3/3) + Local UAT artifact (Rule 3, 24 PNG, P0 CSS fts5_fallback gap closed via Skills) + Aliyun prod-shape PASS (16-poll NEVER-500, terminal envelope, cgroup MemoryHigh=infinity/MemoryMax=8G). 5/5 DEPLOY REQs · UI-04 satisfied · 8 plans across 4 waves · database-reviewer + ui-ux-pro-max + frontend-design Skills floors met. See `kb-4-VERIFICATION.md`.
 
 ---
 
@@ -339,14 +339,14 @@ fallback all working; smoke #1 requires kb-1's i18n).
      `rss_articles.lang` are 100% non-NULL post-rebuild (PROJECT-KB-v2.md "Pass
      conditions" §4).
 **Plans:** 8 plans across 4 waves (planned 2026-05-14 by gsd-planner)
-- [ ] kb-4-01-systemd-caddy-PLAN.md — kb/deploy/kb-api.service + kb/deploy/Caddyfile.snippet (security-reviewer mandatory) (Wave 1)
-- [ ] kb-4-02-install-bootstrap-PLAN.md — kb/deploy/install.sh idempotent + 6-prereq checks (Wave 1)
-- [ ] kb-4-03-logo-png-source-PLAN.md — UI-04 carry-forward gate (Wave 1, checkpoint:decision)
-- [ ] kb-4-04-daily-rebuild-cron-PLAN.md — kb/scripts/daily_rebuild.sh + VACUUM (database-reviewer mandatory) (Wave 2)
-- [ ] kb-4-05-local-uat-PLAN.md — Rule 3 mandatory Local UAT (Wave 3, conditional ui-ux-pro-max + frontend-design)
-- [ ] kb-4-06-smoke-3-scenarios-PLAN.md — 3 PROJECT-KB-v2 smoke scenarios verbatim (Wave 3)
-- [ ] kb-4-07-hermes-prodshape-smoke-PLAN.md — closes kb-3-12 deferral via option-a/b/c (Wave 3, checkpoint:decision)
-- [ ] kb-4-08-verification-close-PLAN.md — kb-4-VERIFICATION.md + STATE/ROADMAP close (Wave 4)
+- [x] kb-4-01-systemd-caddy-PLAN.md — kb/deploy/kb-api.service + kb/deploy/Caddyfile.snippet — SUPERSEDED-BY-SIDE-EFFECT (already live on Aliyun; security hardening retroactively verified via kb-4-07 prod-shape) (Wave 1)
+- [x] kb-4-02-install-bootstrap-PLAN.md — kb/deploy/install.sh idempotent + 6-prereq checks — SUPERSEDED-BY-SIDE-EFFECT (Aliyun bootstrapped out-of-band; script in repo for future greenfield) (Wave 1)
+- [x] kb-4-03-logo-png-source-PLAN.md — UI-04 carry-forward gate — SUPERSEDED-BY-SIDE-EFFECT (VitaClaw-Logo-v0.png 2048×2048 RGBA present since 2026-05-15) (Wave 1, checkpoint:decision)
+- [x] kb-4-04-daily-rebuild-cron-PLAN.md — kb/scripts/daily_rebuild.sh shipped + database-reviewer applied; cron installed Aliyun 2026-05-22 (Wave 2)
+- [x] kb-4-05-local-uat-PLAN.md — Rule 3 mandatory Local UAT (24 PNG, 6/6 endpoints); P0 CSS fts5_fallback gap surfaced + closed via ui-ux-pro-max + frontend-design Skills (Wave 3)
+- [x] kb-4-06-smoke-3-scenarios-PLAN.md — 3 PROJECT-KB-v2 smoke scenarios PASS (4/4 + 5/5 + 3/3) (Wave 3)
+- [x] kb-4-07-hermes-prodshape-smoke-PLAN.md — Aliyun prod-shape PASS (Aliyun-retargeted per supersession map; 16-poll NEVER-500, cgroup remediation 2-iter) (Wave 3)
+- [x] kb-4-08-verification-close-PLAN.md — kb-4-VERIFICATION.md + STATE/ROADMAP close + Aliyun cron install (Wave 4)
 **UI hint:** **conditional yes** (revised 2026-05-13 — smoke verification at 3 viewports against production-data-rendered output is the milestone gate; visual regressions surfaced by smoke MUST be closed by re-invoking design Skills, not by ad-hoc CSS patches)
 **Required Skills (HARD — see kb/docs/10-DESIGN-DISCIPLINE.md):**
 - `Skill(skill="ui-ux-pro-max", ...)` — IF smoke discovers visual gaps (overflow, truncation, responsive issues, RTL chars, long-title wrapping, etc.), invoke to design proper component-level fix — do NOT band-aid with one-off CSS overrides.
@@ -378,7 +378,7 @@ fallback all working; smoke #1 requires kb-1's i18n).
 | kb-1: SSG Export + i18n Foundation | 11/11 + redesign-quick-in-progress | Complete pre-redesign (26/27 REQs; UI-04 partial → kb-4 PNG carry-forward); UI redesign quick task in progress 2026-05-13 to close design-dimension audit | 2026-05-13 |
 | kb-2: Topic Pillar + Entity Pages + Cross-Link Network | 10/10 | Complete (12/12 REQs; full Skill discipline; 58 integration tests; 12/12 UAT viewports) | 2026-05-13 |
 | kb-3: FastAPI Backend + Bilingual API + Search + Q&A | 0/? | Not started | — |
-| kb-4: Ubuntu Deploy + Cron + Smoke Verification | 0/? | Not started | — |
+| kb-4: Ubuntu Deploy + Cron + Smoke Verification | 8/8 | Complete (5/5 DEPLOY REQs · 3 smoke PASS · cron installed · Aliyun prod-shape PASS · Skill floors met) | 2026-05-22 |
 
 ---
 

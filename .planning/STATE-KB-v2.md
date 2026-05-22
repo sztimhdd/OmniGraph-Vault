@@ -64,7 +64,7 @@ Prior activity: 2026-05-17 — kb-v2.2 milestone-open completed via hand-driven 
 | kb-1 | SSG Export + i18n Foundation (data layer + Jinja2 + bilingual chrome) | 27 | L+0.5d redesign | 10+1 (kb-1-10 gap) + redesign-quick | ✅ **COMPLETE pre-redesign** (26/27 codebase-satisfied; UI-04 logo deferred to kb-4); UI redesign quick task in progress 2026-05-13 to close design-dimension audit |
 | **kb-2** | Topic Pillar + Entity Pages + Cross-Link Network | **12** | M (1.5-2d) | TBD | **NEW 2026-05-13** — revived from "skipped" after Hermes prod data verification |
 | kb-3 | FastAPI Backend + Bilingual API + Search + Q&A | 18 | L | TBD | not started |
-| kb-4 | Ubuntu Deploy + Cron + Smoke Verification | 5 | S | TBD | not started (UI-04 carry-forward gate) |
+| kb-4 | Ubuntu Deploy + Cron + Smoke Verification | 5 | S | 8 plans | ✅ **COMPLETE 2026-05-22** (5/5 DEPLOY REQs; 3 smoke PASS; Aliyun cron `0 12 * * *` installed; prod-shape PASS 16-poll NEVER-500; cgroup MemoryHigh=infinity/MemoryMax=8G; see `kb-4-VERIFICATION.md`) |
 
 Total: **62/62 v2.0 REQs** mapped (was 50; +12 from kb-2 revival). kb-1: 26/27 satisfied + 1 deferred-by-approval (UI-04). kb-2/3/4: 35 REQs pending.
 
