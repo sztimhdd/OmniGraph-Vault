@@ -68,10 +68,13 @@ async def test_research_returns_result_all_state_populated(
     assert result.state.reasoned is not None
     assert result.state.verified is not None
     assert result.state.synthesized is not None
-    # Status alphabet for ar-1
+    # Status alphabet for ar-1 (ar-2 update: reasoner is no longer a stub —
+    # with the dummy stub llm_complete in _make_cfg the loop body raises and
+    # surfaces as status="failed" via Axis 3 best-effort. Either "ok" or
+    # "failed" is acceptable here; the orchestrator MUST NOT raise out.)
     assert result.state.web_baseline.status in {"ok", "skipped"}
     assert result.state.retrieved.status in {"ok", "skipped"}
-    assert result.state.reasoned.status == "skipped"
+    assert result.state.reasoned.status in {"ok", "failed"}
     assert result.state.verified.status == "skipped"
     # Synthesizer has NO status field (Axis 8)
     assert not hasattr(result.state.synthesized, "status")

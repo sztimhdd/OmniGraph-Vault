@@ -14,6 +14,7 @@ Mocks ``omnigraph_search.query.search`` via the import alias
 """
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -208,19 +209,26 @@ async def test_retriever_ok_with_no_images_dir(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Test 8: reasoner stub
+# Test 8: reasoner — ar-2 replaces the ar-1 stub with a real bounded LLM
+# agent loop. With a mock cfg.llm_complete that returns a final-on-turn-1
+# decision, the loop terminates after one turn with empty output lists.
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
-async def test_reasoner_stub_skipped(tmp_path):
+async def test_reasoner_returns_ok_on_immediate_final(tmp_path):
+    from lib.research.stages.reasoner import _LLMDecision
+
+    async def _final_llm(prompt, tools):
+        return _LLMDecision(is_final=True, content="")
+
     cfg = _make_cfg(tmp_path / "lightrag_storage")
+    cfg = dataclasses.replace(cfg, llm_complete=_final_llm)
     retrieved = RetrieverOutput(chunks=[], image_candidates=[])
     out = await reasoner_stage.run("hello", cfg, retrieved)
     assert isinstance(out, ReasonerOutput)
-    assert out.status == "skipped"
-    assert out.iter_count == 0
+    assert out.status == "ok"
+    assert out.iter_count == 1
     assert out.additional_chunks == []
     assert out.analyzed_images == []
-    assert "ar-2" in (out.reason or "")
 
 
 # ---------------------------------------------------------------------------
