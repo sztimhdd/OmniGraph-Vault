@@ -1,3 +1,16 @@
+[project]
+name = "omnigraph-vault"
+version = "1.0.0"
+description = "Personal LightRAG-backed knowledge base + Agentic-RAG-v1 research lib"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lib", "lib.*", "omnigraph_search", "omnigraph_search.*"]
+
+[tool.setuptools.package-dir]
+"omnigraph.research" = "lib/research"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
