@@ -200,4 +200,6 @@ The Retriever embedding-dim mismatch is a pre-existing local dev-graph state iss
 
 ## Commit hash
 
-To be backfilled via forward-only follow-up commit per Wave 2 precedent (commit `5aedf57`).
+Main commit: **`8ca46ad`** — `feat(ar-2-03): CLI flags --max-iter-reasoner/--max-iter-verifier/--no-grounding (CLI-03)`
+
+This SUMMARY hash backfill is itself a forward-only follow-up commit per Wave 2 precedent (commit `5aedf57`). NEVER `git commit --amend` on shared main checkout — see `feedback_no_amend_in_concurrent_quicks.md`.
