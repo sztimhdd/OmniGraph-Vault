@@ -1,13 +1,17 @@
 """Synthesizer stage — terminal stage (NO status field, Axis 8).
 
-ar-1 status: minimal markdown synthesis using a CJK-ratio language heuristic
-(Axis 10) and degradation note_lines for any upstream stage with
-``status != "ok"``. The real LLM-driven synthesis prompt lands in ar-2; final
-tuning lands in ar-4.
+ar-2 status: caption-anchored image embeds (alt text sourced from
+``state.reasoned.analyzed_images[i].caption``); CJK-ratio language heuristic
+preserved (Axis 10 ar-1 scope, swapped for LLM-driven detection in ar-4).
+
+When ``state.reasoned`` is ``None`` or ``analyzed_images`` is empty, falls
+back to ``state.retrieved.image_candidates`` with the image filename as alt
+text — preserves ar-1 behavior under Reasoner skip/failure (Axis 3 best
+effort). Final LLM-driven synthesis prompt tuning lands in ar-4.
 
 Per Axis 8, the Synthesizer has no ``status`` field — degradation surfaces
 only via ``note_lines``. Per Axis 10, output language matches query language;
-ar-1 uses a heuristic (CJK char ratio ≥ 0.3 → Chinese; else English). ar-2
+ar-1 uses a heuristic (CJK char ratio ≥ 0.3 → Chinese; else English). ar-4
 swaps in real LLM-driven detection.
 
 This stage MUST NOT raise out — it is the terminal stage. None-snippet edge
@@ -49,13 +53,33 @@ async def run(
     lang = _detect_language(query)
     note_lines: list[str] = []
     sources: list[Source] = []
-    embedded_images: list[Path] = []
 
-    # Collect sources from upstream Retriever (ar-1 — chunks come from KG only).
+    # ar-2 source collection: KG chunks from Retriever; Reasoner's
+    # ``additional_chunks`` (kg_search findings) surfaced when Reasoner ran
+    # successfully — gated on status="ok" so a failed Reasoner doesn't leak
+    # partial chunks into ``result.sources``.
     if state.retrieved is not None and state.retrieved.status == "ok":
         sources.extend(state.retrieved.chunks)
-        for img in state.retrieved.image_candidates[:5]:  # cap at 5 for ar-1
-            embedded_images.append(img.image_path)
+    if (
+        state.reasoned is not None
+        and state.reasoned.status == "ok"
+        and state.reasoned.additional_chunks
+    ):
+        sources.extend(state.reasoned.additional_chunks)
+
+    # ar-2 image collection: prefer ``reasoned.analyzed_images`` (caption-
+    # anchored), fall back to ``retrieved.image_candidates`` with filename
+    # alt text (ar-1 behavior under Reasoner skip/failure — Axis 3).
+    image_entries: list[tuple[Path, str]] = []
+    if state.reasoned is not None and state.reasoned.analyzed_images:
+        for img in state.reasoned.analyzed_images[:5]:  # cap preserved
+            alt_text = img.caption or img.image_path.name
+            image_entries.append((img.image_path, alt_text))
+    elif state.retrieved is not None and state.retrieved.status == "ok":
+        for img in state.retrieved.image_candidates[:5]:
+            image_entries.append((img.image_path, img.image_path.name))
+
+    embedded_images: list[Path] = [path for path, _alt in image_entries]
 
     # Degradation notes for skipped/failed/missing upstream stages.
     for name, st in (
@@ -85,13 +109,14 @@ async def run(
     else:
         body += "(no chunks retrieved)\n"
 
-    # Inline images via local image-server URL pattern (port 8765).
-    if embedded_images:
+    # Inline images via local image-server URL pattern (port 8765). Alt text
+    # sourced from ar-2 ``image_entries`` tuple (caption or filename fallback).
+    if image_entries:
         body += "\n\n## Retrieved Images\n\n"
-        for img in embedded_images:
+        for path, alt in image_entries:
             body += (
-                f"![{img.name}](http://localhost:8765/"
-                f"{img.parent.name}/{img.name})\n"
+                f"![{alt}](http://localhost:8765/"
+                f"{path.parent.name}/{path.name})\n"
             )
 
     # Append degradation notes.
