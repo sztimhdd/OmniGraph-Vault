@@ -274,3 +274,144 @@ EXIT=0
 `venv-aim1` is operational with all 27 top-level deps + transitive resolved. aim-1-3 (DEPLOY-03 env extension) and aim-1-4 (DEPLOY-04 e2e smoke) command templates use `venv-aim1/bin/python` exclusively. `/root/.hermes/.env` is **not** touched in aim-1-2 — env extension is aim-1-3 scope. aim-1-3 will append 6 ingest provider keys (DEEPSEEK / SILICONFLOW / VERTEX SA path / GEMINI / APIFY × 2) preserving existing kb-api keys + file mode/ownership.
 
 ---
+
+## DEPLOY-03 — Env extension (`/root/.hermes/.env` ingest keys)
+
+### Pre-extension audit (Task 1 capture)
+
+Pre-state of `/root/.hermes/.env`:
+
+```
+mode/owner:  -rw------- 1 root root 2276 May 22 20:?? .env
+line count:  49
+
+6 ingest-key presence (count of lines starting with KEY=):
+  DEEPSEEK_API_KEY              count=1   (already present, sourced from earlier deploy)
+  SILICONFLOW_API_KEY           count=1   (already present)
+  GEMINI_API_KEY                count=1   (already present)
+  APIFY_TOKEN                   count=1   (already present)
+  GOOGLE_APPLICATION_CREDENTIALS=/root/.hermes/gcp-paid-sa.json   (semantic equivalent of OMNIGRAPH_VERTEX_SA_JSON_PATH)
+  OMNIGRAPH_VERTEX_SA_JSON_PATH count=0   (ABSENT — needs append)
+  APIFY_TOKEN_BACKUP            count=0   (ABSENT — needs append, source: Hermes ~/.hermes/.env)
+
+kb-api keys spot-check (must remain unchanged):
+  WEIXIN_TOKEN, GATEWAY_ALLOW_ALL_USERS, HERMES_CRON_TIMEOUT,
+  TELEGRAM_BOT_TOKEN, BRAVE_API_KEY                             all count=1
+```
+
+### Decision: scope = 2-key minimal append (Option A)
+
+User-directed (2026-05-22) after agent surfaced 4-of-6 keys already present:
+
+- **Append-only-the-absent (A) chosen** over (B) full 6-key normalization, because the 4 pre-existing keys are byte-identical to what aim-1-3 would write, making rewriting them pure churn and creating diff noise that hides the actual 2-line change.
+- Backup file `/root/.hermes/.env.bak-aim1-20260522-233253` (2276 bytes, mode 600 root:root) preserved in-place for rollback. Rolls back the +2 lines via `cp /root/.hermes/.env.bak-aim1-20260522-233253 /root/.hermes/.env`.
+
+### Two value-derivation decisions
+
+**Decision 1 — `OMNIGRAPH_VERTEX_SA_JSON_PATH` value:**
+
+- Existing line `GOOGLE_APPLICATION_CREDENTIALS=/root/.hermes/gcp-paid-sa.json` already references the SA JSON file (mode 600 root:root, 2400 bytes). `OMNIGRAPH_VERTEX_SA_JSON_PATH` is the OmniGraph-namespaced reference to the same SA JSON.
+- Agent SSH'd Aliyun to read the path value via `grep "^GOOGLE_APPLICATION_CREDENTIALS=" /root/.hermes/.env | cut -d= -f2-`. The path string (not the SA JSON contents) was used as `OMNIGRAPH_VERTEX_SA_JSON_PATH=<path>`. SA JSON file bytes never read or transmitted.
+- Rationale: semantic equivalence — both env vars point at the same file, so reusing the existing path eliminates "where does this SA come from" ambiguity for future operators.
+
+**Decision 2 — `APIFY_TOKEN_BACKUP` source channel (Hermes → Aliyun SSH-pipe):**
+
+- Source: Hermes `~/.hermes/.env`, where `APIFY_TOKEN_BACKUP` was deployed 2026-05-08 as part of the dual-token rotation (quick `260508-ev2`, see `feedback_no_literal_secrets_in_prompts.md`). Hermes is the canonical source-of-truth for ingest secrets since aim-1 is migrating ingest from Hermes → Aliyun.
+- Channel: SSH-pipe pattern with value transiting the local SSH client process pipe between two `ssh` invocations:
+  ```
+  ssh hermes 'grep "^APIFY_TOKEN_BACKUP=" ~/.hermes/.env' | ssh aliyun-vitaclaw 'cat >> /root/.hermes/.env'
+  ```
+  The value flows directly from Hermes to Aliyun through the local pipe; the receiving `cat >> file` produces empty stdout, so the literal token never appears in agent stdout / context / artifacts. Honors both the agent-IS-operator mandate (`feedback_aim1_agent_is_operator.md`) AND the no-literal-secrets-in-context constraint (`feedback_no_literal_secrets_in_prompts.md`).
+- Pipe exit code 0; verified via post-extension audit (key shape match, length 47 bytes incl. trailing newline / 46 bytes content).
+
+### Execution sequence (agent via Bash SSH, no user round-trips)
+
+```bash
+# Step 1: Aliyun-side backup + read SA path + append OMNIGRAPH_VERTEX_SA_JSON_PATH
+ssh aliyun-vitaclaw '
+  set -e
+  TS=$(date +%Y%m%d-%H%M%S)
+  cp -p /root/.hermes/.env /root/.hermes/.env.bak-aim1-$TS
+  SA_PATH=$(grep "^GOOGLE_APPLICATION_CREDENTIALS=" /root/.hermes/.env | head -1 | cut -d= -f2-)
+  [ -f "$SA_PATH" ] || exit 1
+  echo "OMNIGRAPH_VERTEX_SA_JSON_PATH=$SA_PATH" >> /root/.hermes/.env
+'
+
+# Step 2: Hermes -> Aliyun SSH-pipe for APIFY_TOKEN_BACKUP (value never enters agent stdout)
+ssh hermes 'grep "^APIFY_TOKEN_BACKUP=" ~/.hermes/.env' \
+  | ssh aliyun-vitaclaw 'cat >> /root/.hermes/.env'
+
+# Step 3: Aliyun-side post-extension masked audit
+ssh aliyun-vitaclaw '
+  ls -la /root/.hermes/.env
+  wc -l /root/.hermes/.env
+  for K in DEEPSEEK_API_KEY SILICONFLOW_API_KEY OMNIGRAPH_VERTEX_SA_JSON_PATH \
+           GEMINI_API_KEY APIFY_TOKEN APIFY_TOKEN_BACKUP; do
+    echo "$K count=$(grep -c "^$K=" /root/.hermes/.env)"
+  done
+'
+```
+
+### Post-extension audit (Aliyun-side, masked)
+
+```
+mode/owner:  -rw------- 1 root root 2403 May 22 23:43 .env
+line count:  51 (was 49, +2 net)
+
+6 ingest-key presence (post-extension):
+  DEEPSEEK_API_KEY              count=1   (unchanged)
+  SILICONFLOW_API_KEY           count=1   (unchanged)
+  OMNIGRAPH_VERTEX_SA_JSON_PATH count=1   (NEW, value = /root/.hermes/gcp-paid-sa.json,
+                                            file exists=True, mode 600 root:root, 2400 bytes)
+  GEMINI_API_KEY                count=1   (unchanged)
+  APIFY_TOKEN                   count=1   (unchanged)
+  APIFY_TOKEN_BACKUP            count=1   (NEW, val_len=47 bytes incl. \n,
+                                            prefix=apify_ap — Apify token shape)
+
+kb-api keys spot-check (post-extension, unchanged):
+  WEIXIN_TOKEN                  count=1   (PRESENT, len=58)
+  GATEWAY_ALLOW_ALL_USERS       count=1
+  HERMES_CRON_TIMEOUT           count=1
+  TELEGRAM_BOT_TOKEN            count=1
+  BRAVE_API_KEY                 count=1
+
+backup file:  /root/.hermes/.env.bak-aim1-20260522-233253
+              -rw------- 1 root root 2276 (pre-extension snapshot, mode 600 root:root)
+```
+
+### venv-aim1 env-presence smoke (masked, no values)
+
+`venv-aim1/bin/python` was invoked under `set -a; . /root/.hermes/.env; set +a` and asked to read each ingest key from `os.environ`. Output (masked — only key NAME + length category + 8-char prefix or path-shape):
+
+```
+=== venv-aim1 env presence smoke ===
+DEEPSEEK_API_KEY:               len=35  prefix=sk-06d83        (DeepSeek shape ✓)
+SILICONFLOW_API_KEY:            len=51  prefix=sk-yhhvd        (SiliconFlow shape ✓)
+OMNIGRAPH_VERTEX_SA_JSON_PATH:  path-shape (file_exists=True)  (SA JSON resolves ✓)
+GEMINI_API_KEY:                 len=39  prefix=AIzaSyDt        (Google AIza... shape ✓)
+APIFY_TOKEN:                    len=46  prefix=apify_ap        (Apify shape ✓)
+APIFY_TOKEN_BACKUP:             len=46  prefix=apify_ap        (Apify shape ✓)
+
+=== kb-api keys still loadable from same .env ===
+WEIXIN_TOKEN:             PRESENT (len=58)
+GATEWAY_ALLOW_ALL_USERS:  PRESENT (len=4)
+HERMES_CRON_TIMEOUT:      PRESENT (len=5)
+```
+
+All 6 ingest keys readable by ingest python; all kb-api spot-check keys still readable from the same `.env` after extension. No literal values emitted.
+
+### Discipline checks
+
+- ✅ **No-secrets:** This section contains only key NAMES, length-bytes, 8-char prefixes (token shape sanity), and file paths. No full token values, no SA JSON contents. Backup filename includes timestamp only.
+- ✅ **No-connection-details:** No SSH host / port / user / IP / private key. Agent uses local SSH aliases `aliyun-vitaclaw` and `hermes`.
+- ✅ **Operator-channel:** Agent IS operator per `feedback_aim1_agent_is_operator.md`. All env-extension ops (backup + path read + 2-line append + masked audit + smoke) ran via direct Bash SSH. APIFY_TOKEN_BACKUP value transited Hermes → Aliyun via local SSH-pipe; agent stdout / artifacts contain no literal tokens. Zero user round-trips after the 3-decision message.
+- ✅ **Red lines honored:** No `git add -A` / `git add .`, no `--amend`, no `--force`, no `--hard`, no `systemctl` ops, no `kb-api.service.d/override.conf` touched, no kb-api restart triggered, no kb-api venv (`venv/`) touched. `/root/.hermes/.env` mode 600 root:root preserved (verified pre + post). 4 pre-existing kb-api keys + 4 pre-existing ingest keys byte-identical (count=1 each, no rewrite).
+- ✅ **Forward-only edit:** This §DEPLOY-03 is a net-new append to DEPLOY-NOTES.md. §DEPLOY-01 (aim-1-1) and §DEPLOY-02 (aim-1-2) unchanged.
+- ✅ **kb-api preservation:** PID 3512216 still serving uvicorn on `127.0.0.1:8766` throughout aim-1-3; `venv/` and `kb-api.service.d/override.conf` untouched.
+- ✅ **Backup recoverable:** `/root/.hermes/.env.bak-aim1-20260522-233253` (2276 bytes, mode 600 root:root) preserves pre-extension state. Rollback: `cp -p /root/.hermes/.env.bak-aim1-20260522-233253 /root/.hermes/.env`.
+
+### Bridge to aim-1-4
+
+`/root/.hermes/.env` now exposes all 6 ingest provider keys to `venv-aim1/bin/python`. aim-1-4 (DEPLOY-04 e2e smoke) can run the full ingest path against scratch storage with `OMNIGRAPH_BASE_DIR=/tmp/aim1-smoke`, exercising DeepSeek (Layer 2 + LightRAG entity extraction), SiliconFlow (vision primary), Vertex AI Gemini (Layer 1 + embedding fallback), Gemini API (vision last-resort), Apify (scrape primary + backup token rotation). kb-api on `:8766` remains untouched — smoke is a parallel-tenant test, not a kb-api co-tenant test.
+
+---
