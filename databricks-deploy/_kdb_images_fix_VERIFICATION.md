@@ -1302,3 +1302,21 @@ update_time:  2026-05-22T18:36:44Z
 - 仅修 EN 视图:ZH 路径(走 `final_content.md` chain)完全不动
 - 不 LLM 翻译重跑:1133 articles already body_translated;splice 在 SSG 渲染时跑,纯确定性
 - 不动 Hermes 流水线:image parity 是 KB-side render fix,Hermes 翻译 LLM 行为不改
+
+### Correction (post-commit clarification — 2026-05-22)
+
+Commit `e001919` 的 message body 末段 "Deferred to v1.0.y: #1/#3 from 260521-uat — Hermes 翻译流水线 body 翻译 pass (cross-process)" **是错的**。
+
+把 Postmortem #7 (260521-uat) 的 deferred-list line 972 "Hermes 翻译流水线补 body 翻译 pass" 不假思索地搬过来 — 但 Postmortem #8 (`1b14bae`,本日上午 14:46 ADT)的 Pass 2 已经通过 `databricks-claude-haiku-4-5` 把 zh-CN candidates 的 `body_translated` 反填到 174/175 (99.4%) 覆盖。**Postmortem #7 deferred-list 里的 #1/#3 翻译子项在 Postmortem #9 之前就已经闭合**,不是 v1.0.y 待办。
+
+正确的 Postmortem #9 派生 deferred 子集(narrower):
+
+| 旧 # | 旧 deferred 框 | Postmortem #8 (1b14bae) 是否已闭合 | 仍 deferred 的实际子项 |
+|------|---------------|----------------------------------|---------------------|
+| #1 | Hermes 翻译 + scraper byline 复读 | 翻译子项 ✅ 闭合(174/175) | Hermes scraper byline-dedup(scraper 层,非翻译层) |
+| #3 | "title 翻译有,body 翻译无" | ✅ 闭合(99.4% body_translated 覆盖) | (无;残留 1 篇 id=696 由 Hermes daily-translate cron 自然 backfill) |
+| #4 | Hermes RSS scraper 段落保留 | 未触及 | 仍 deferred(Hermes scraper 阶段) |
+| #5 | Hermes Layer 1 长度门 | 未触及 | 仍 deferred(`MIN_BODY_LENGTH_CHARS` 策略 + 部署) |
+| Pass 3 limitation | (新增,from 1b14bae 自身 SUMMARY) | — | 仍 deferred:filter Pass 3 eligibility by local-image-count > 0 + Hermes mmbiz materialize |
+
+走查 commit `e001919` message body 时漏掉了 [[project_ssg_bake_v4pro_validated_260522.md]] memory + 1b14bae commit message 已记录的 Pass 2 反填事实。Memory 新增 `project_260522_clt_pass2_translation.md` 防御未来同类回归。
