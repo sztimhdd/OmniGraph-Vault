@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # No wrapper change needed here; deepseek_model_complete reads the env var.
 
 TRANSLATE_TITLE_TIMEOUT_S: float = 15.0
-TRANSLATE_BODY_TIMEOUT_S: float = 60.0
+TRANSLATE_BODY_TIMEOUT_S: float = 300.0
 
 # SSG-bake model: body translate path is hardcoded to deepseek-v4-pro,
 # independent of DEEPSEEK_MODEL env (which still governs LightRAG callers).
