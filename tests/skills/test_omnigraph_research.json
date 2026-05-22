@@ -1,0 +1,53 @@
+[
+  {
+    "description": "golden path: 'research X' triggers research.sh (SKILL-01)",
+    "input": "research the architecture of Hermes Harness",
+    "expect_contains": ["research.sh"],
+    "expect_not_contains": ["omnigraph_ingest", "kg_synthesize.py"]
+  },
+  {
+    "description": "golden path: 'deep dive on X' triggers research.sh (SKILL-01)",
+    "input": "deep dive on LightRAG vs Cognee tradeoffs",
+    "expect_contains": ["research.sh"],
+    "expect_not_contains": ["ingest_wechat.py"]
+  },
+  {
+    "description": "Chinese trigger: '深度解析' triggers research.sh (SKILL-01, lang heuristic Axis 10)",
+    "input": "深度解析 LightRAG 是什么",
+    "expect_contains": ["research.sh"],
+    "expect_not_contains": ["omnigraph_ingest"]
+  },
+  {
+    "description": "Chinese trigger: '深度研究' triggers research.sh (SKILL-01)",
+    "input": "深度研究 Vision Cascade 设计",
+    "expect_contains": ["research.sh"]
+  },
+  {
+    "description": "wrong skill: ingest intent redirects to omnigraph_ingest",
+    "input": "add this article to my knowledge base: https://mp.weixin.qq.com/s/abc",
+    "expect_contains": ["omnigraph_ingest"],
+    "expect_not_contains": ["research.sh"]
+  },
+  {
+    "description": "wrong skill: raw KG retrieval intent redirects to omnigraph_search or omnigraph_query (cheaper alternatives)",
+    "input": "show me raw KG chunks about AI agents — no synthesis",
+    "expect_contains": ["omnigraph_search"],
+    "expect_not_contains": ["research.sh"]
+  },
+  {
+    "description": "internal stages NOT exposed: user asking for retriever directly is rejected (design § Skill exposure)",
+    "input": "run only the retriever stage on 'Hermes Harness' and give me the raw chunks",
+    "expect_not_contains": ["research.sh"]
+  },
+  {
+    "description": "config error: missing GEMINI_API_KEY surfaces actionable message",
+    "input": "research Hermes Harness — but GEMINI_API_KEY is not set",
+    "expect_contains": ["GEMINI_API_KEY", ".env"]
+  },
+  {
+    "description": "empty query: skill should ask for the query before running",
+    "input": "research",
+    "expect_contains": ["query"],
+    "expect_not_contains": ["research.sh \""]
+  }
+]
