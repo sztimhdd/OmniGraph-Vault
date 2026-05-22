@@ -13,9 +13,8 @@ Both:
     never raise. Caller leaves DB column NULL on None per user spec
     "翻译失败 -> NULL,不'best-effort 写半句中文'".
 
-Body prompt mirrors kb-v2.2-7 Wave 2 R7 mitigation: image positioning is
-structural data; do NOT relocate to ends; do NOT consolidate consecutive
-images; do NOT reorder paragraphs.
+Body prompt applies SSG-bake discipline: boilerplate strip, H1 demotion,
+alt-text enrichment, code fence language inference, paragraph splitting.
 """
 from __future__ import annotations
 
@@ -35,6 +34,10 @@ logger = logging.getLogger(__name__)
 
 TRANSLATE_TITLE_TIMEOUT_S: float = 15.0
 TRANSLATE_BODY_TIMEOUT_S: float = 60.0
+
+# SSG-bake model: body translate path is hardcoded to deepseek-v4-pro,
+# independent of DEEPSEEK_MODEL env (which still governs LightRAG callers).
+_BAKE_MODEL: str = "deepseek-v4-pro"
 
 # Authoritative-domain restriction for Tavily lookups (per user spec
 # "*.org, *.gov, 维基, 大厂官网"). Tavily accepts wildcards.
@@ -150,22 +153,42 @@ def _build_body_prompt(
     target_lang: str,
     context_snippets: list[str],
 ) -> str:
-    """Body prompt mirrors kb-v2.2-7 Wave 2 R7 mitigation discipline."""
+    """SSG-bake body prompt: translate + restructure for static-site rendering.
+
+    Applies bake discipline (H1 demotion, WeChat boilerplate strip, lead
+    filler strip, alt-text enrichment, code-fence language inference,
+    paragraph splitting). Image references stay at their source positions —
+    they are NOT batched at the end.
+    """
     return (
         f"Translate the following article body from {source_lang} to "
-        f"{target_lang}. The body is markdown.\n\n"
-        f"Hard rules (each is non-negotiable, treat as structural data):\n"
-        f"  - Image references ![alt](url) MUST appear at the EXACT same "
-        f"line/paragraph positions as in the source markdown. Do NOT "
-        f"relocate images to section ends. Do NOT consolidate consecutive "
-        f"images. Do NOT reorder paragraphs.\n"
-        f"  - Code blocks ```...``` are preserved verbatim — content "
-        f"untranslated.\n"
-        f"  - Heading levels (#/##/###) preserved exactly.\n"
-        f"  - Translate natural-language text only. Image positioning is "
-        f"structural data, NOT stylistic.\n"
-        f"  - Return ONLY the translated markdown — no preamble, no "
-        f"explanation.\n"
+        f"{target_lang} and restructure it for clean static-site rendering. "
+        f"The body is markdown. Apply ALL of the following rules:\n\n"
+        f"1. HEADINGS: NEVER output H1 (`#`). Demote any H1 in the source to "
+        f"H2 (`##`). Top-level sections use H2 (`##`); sub-sections use H3 "
+        f"(`###`). Preserve relative depth below H2 unchanged.\n\n"
+        f"2. WECHAT BOILERPLATE STRIP (body end): remove any of these tail "
+        f"sections if present — 关注公众号 / 点赞 / 在看 / 分享提示, "
+        f"扫码 / 二维码段落, 转载声明, 作者简介尾段 (e.g. "
+        f"\"作者：xxx，现任/曾任...\"). Stop output at the last paragraph of "
+        f"real content.\n\n"
+        f"3. LEAD FILLER STRIP: remove pure-filler opening sentences such as "
+        f"\"今天我们来聊\", \"大家好\", \"本文将介绍\", or their target-language "
+        f"equivalents. The first paragraph MUST open with real content.\n\n"
+        f"4. IMAGES: image references `![alt](url)` MUST stay at the EXACT "
+        f"same line / paragraph position as in the source — do NOT batch them "
+        f"at the end of sections or the article. Translate or generate "
+        f"descriptive alt text in {target_lang}. Preserve the URL verbatim.\n\n"
+        f"5. CODE BLOCKS: fenced code blocks (```...```) are preserved "
+        f"verbatim; their content is NOT translated. For unlabeled fences "
+        f"(```) infer and add a language tag where obvious "
+        f"(python / bash / json / yaml). Leave the tag empty if the language "
+        f"is genuinely unclear.\n\n"
+        f"6. PARAGRAPH SPLITTING: long paragraphs (natural break beyond "
+        f"~200 characters) should be split at logical sentence boundaries "
+        f"for web readability. Do NOT merge short paragraphs.\n\n"
+        f"7. OUTPUT: return ONLY the baked markdown — no preamble, no "
+        f"explanation, no surrounding fences.\n"
         f"{_format_context_block(context_snippets)}"
         f"\n\nTitle (for context only — do not translate or include): {title}"
         f"\n\nBody:\n{body}"
@@ -250,7 +273,7 @@ async def translate_body_with_deepseek_tavily(
         snippets = await _tavily_search(search_seed, n_results=5)
         prompt = _build_body_prompt(title or "", body, src, tgt, snippets)
         translated = await asyncio.wait_for(
-            deepseek_model_complete(prompt),
+            deepseek_model_complete(prompt, model=_BAKE_MODEL),
             timeout=TRANSLATE_BODY_TIMEOUT_S,
         )
         cleaned = (translated or "").strip()

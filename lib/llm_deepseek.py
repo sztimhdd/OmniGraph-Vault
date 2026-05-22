@@ -104,12 +104,17 @@ async def deepseek_model_complete(
     prompt: str,
     system_prompt: str | None = None,
     history_messages: list[dict] | None = None,
+    model: str | None = None,
     **kwargs,
 ) -> str:
     """Match LightRAG's ``llm_model_func`` signature; return plain string.
 
     ``kwargs`` is accepted and ignored (e.g. ``keyword_extraction``,
     ``hashing_kv``). DeepSeek chat completions do not use them.
+
+    The optional ``model`` parameter overrides the module-level ``_MODEL`` for
+    a single call (e.g. SSG-bake callers pinning ``deepseek-v4-pro``); when
+    ``None`` (default), behavior is unchanged for LightRAG callers.
     """
     messages: list[dict] = []
     if system_prompt:
@@ -118,8 +123,9 @@ async def deepseek_model_complete(
         messages.extend(history_messages)
     messages.append({"role": "user", "content": prompt})
 
+    effective_model = model or _MODEL
     response = await _get_client().chat.completions.create(
-        model=_MODEL,
+        model=effective_model,
         messages=messages,
         stream=False,
     )
