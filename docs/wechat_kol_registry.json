@@ -157,48 +157,6 @@
       ]
     },
     {
-      "name": "CVer",
-      "wechat_id": "CVerNews",
-      "fakeid": "MzUxNjcxMjQxNg==",
-      "source": "searchbiz_API",
-      "tags": [
-        "CV",
-        "论文精读"
-      ]
-    },
-    {
-      "name": "CV技术指南",
-      "wechat_id": "p15080074221",
-      "fakeid": "MzkyMDE2OTA3Mw==",
-      "source": "searchbiz_API",
-      "tags": [
-        "CV",
-        "论文解读",
-        "教程"
-      ]
-    },
-    {
-      "name": "OpenCV学堂",
-      "wechat_id": "CVSCHOOL",
-      "fakeid": "MzA4MDExMDEyMw==",
-      "source": "searchbiz_API",
-      "tags": [
-        "图像处理",
-        "OpenCV",
-        "CV"
-      ]
-    },
-    {
-      "name": "我爱计算机视觉",
-      "wechat_id": "aicvml",
-      "fakeid": "MzIwMTE1NjQxMQ==",
-      "source": "searchbiz_API",
-      "tags": [
-        "CV",
-        "开源技术"
-      ]
-    },
-    {
       "name": "AI 深度研究员",
       "wechat_id": "AIshenduyanjiuyuan",
       "fakeid": "MzYyNTQwNzIwNA==",
@@ -487,16 +445,6 @@
       "source": "searchbiz_API",
       "tags": [
         "NLP"
-      ]
-    },
-    {
-      "name": "AIWalker",
-      "wechat_id": "happyaiwalker",
-      "fakeid": "MzIyMjIxNDk3OA==",
-      "source": "searchbiz_API",
-      "tags": [
-        "CV",
-        "图像处理"
       ]
     },
     {
