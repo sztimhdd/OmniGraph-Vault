@@ -245,4 +245,4 @@ extras are surface area additions only.
 - CONTRACT-01 ok / CONTRACT-02 ok
 - Axis 8 invariant: `SynthesizerOutput` has no `status` field
 - Programmatic smoke: caption `SMOKE_CAP` threads into markdown
-- Commit hash: pending (added post-commit)
+- Commit hash: `942dc48`
