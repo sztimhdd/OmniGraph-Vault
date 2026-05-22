@@ -1010,3 +1010,173 @@ compute_status : ACTIVE (App compute is running)
   下次 sync(本次手动 workspace delete 已绕过,但根因是 deploy 脚本无 exclude 规则)。
 - 队列到 v1.0.y backlog 第 5 项。
 
+---
+
+## Postmortem #8 (2026-05-22) — 260522-clt: 4-pass body cleanup + translation + image reposition
+
+### 背景
+
+Postmortem #7 之后用户在 prod UAT 上报 KB 内容质量仍有 3 个未解问题:
+1. 全 zh-CN body 在 EN 默认站显示中文(用户期望英文优先)
+2. 部分 KOL 文章保留 javascript:void 链接 wrapper / lead-filler 序文
+3. 图文文章常把全部图片 dump 到尾部("end-dumped"),正文与图片严重分离
+
+修复策略:在 `databricks-deploy/_hermes_pull/data/kol_scan.db` 上做 4 pass DB-level
+后处理 + 1 pass SSG 端 wiring,**不动 Hermes scraper / cron 流水线**。
+
+### 数据
+
+DB at `databricks-deploy/_hermes_pull/data/kol_scan.db`(gitignored,Volume 拉下来的副本):
+
+| 维度 | 总数 | body_cleaned | body_translated | body_repositioned |
+|------|------|-------|-------|-------|
+| KOL articles 总池 | 979 | 368 | 378 | 10 |
+| Display pool (L1=candidate AND L2=ok) | 175 | 163 (93%) | 174 (99.4%) | 4 |
+
+### Pass 1 — Regex strip → `body_cleaned`
+
+应用 5 条 regex 到 candidate 池 KOL body,产出 `body_cleaned` 列(原 `body` 不动):
+
+1. `javascript:void(0)` 链接 wrapper(`[text](javascript:void(0))` → `text`)
+2. WeChat reading bonus 序文(`阅读时间约 N 分钟` 段)
+3. 引用号 lead-filler(`[1] [2] ...` 串前导)
+4. WeChat profile mention boilerplate(`[作者ID](profile?...)` chain)
+5. trailing 二维码 + 关注文案
+
+163/175 (93%) display-pool 文章 body_cleaned 非空。
+
+`get_article_body()` 修改:`body = rec.body_cleaned or rec.body or ""`(优先用清理后,
+fallback 原始 body)。原始 body 保留以便回滚 / 调试。
+
+### Pass 2 — zh-CN → en 翻译 → `body_translated`
+
+针对 `lang='zh-CN' AND body_translated IS NULL` 的 candidate 跑批翻译,模型
+`databricks-claude-haiku-4-5` via Databricks serving endpoint。
+
+- 209/210 OK,1 失败(id=696,长 body 超 timeout retry 后 skip)
+- `translated_lang='en'` 标记
+- SSG 端 EN 视图通过 `body_translated_html or body_html` 优先展示翻译版
+
+display pool 174/175 (99.4%) `body_translated` 非空 — 单数失败可由 Hermes
+后续 backfill cron 补齐(v1.0.y 队列)。
+
+### Pass 3 — LLM 图片 reposition → `body_repositioned`
+
+对 `body_translated` 做"end-dumped" 启发式扫描:
+
+- 触发条件:`>= 50%` 的 `![](url)` 标记落在 body 后 25%
+- 扫描:373 candidate
+- 触发(eligible):18
+- 处理(LLM 重排,语义对齐图片到正文):10
+- 失败 fallback(verify_image_set parity 不通过,保持原 body):8
+
+LLM 调用 `databricks-claude-haiku-4-5`,prompt 要求"按语义把每张图插入到最相关
+段落之后,**不许新增/删除任何图片**"。`verify_image_set()` 比对前后图片 URL set,
+mismatch 直接 keep 原 body — 防止幻觉丢图。
+
+display pool 中 4/175 文章 `body_repositioned` 非空(L1=candidate AND L2=ok 滤掉
+另外 6 个 Pass 3 处理过但未公开的行)。
+
+### Pass 4 — SSG wiring + bake + Databricks 部署
+
+**4a — `kb/data/article_query.py` + `kb/export_knowledge_base.py` 修改**
+
+- `ArticleRecord` 加 `body_cleaned` + `body_repositioned` Optional[str] 字段
+- 全部 4 处 KOL SELECT(list / by_hash / topic / entity)+ 2 处 RSS SELECT 增加列
+- `_row_to_record_kol/_rss` mapping 同步
+- `get_article_body()` 优先 `body_cleaned`,fallback `body`
+- 新函数 `pick_translated_body(rec)`:`rec.body_repositioned or rec.body_translated`
+- `export_knowledge_base.py` 两处 `rewrite_translated_body(rec.body_translated)`
+  改为 `rewrite_translated_body(pick_translated_body(rec))`(`_record_to_dict`
+  + `render_article_detail`)
+
+**4b — `kb/output/` 重 bake**
+
+- 347 article HTML 重新渲染(`KB_DB_PATH=databricks-deploy/_hermes_pull/data/kol_scan.db`)
+- 验证:id=64 baked HTML 中 `javascript:void(0)` wrapper 已被 strip(确认用了
+  modified DB 而非默认 `~/.hermes/data/kol_scan.db`)
+
+**4c — UC Volume 上传 modified DB**
+
+- `dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/data/kol_scan.db`
+  替换 — Databricks app 启动时从 Volume 拉取最新 DB
+
+**4d — `inline_deploy.sh` 部署**
+
+- 第一次 sync 失败:`databricks-deploy/_volume_staging/delta_images.tgz`(残留)+
+  `_hermes_pull/` 也被推上去触发了 50MB/file 限制
+- 修复:加 `databricks-deploy/.databricksignore` 文件 + `inline_deploy.sh` 显式
+  `--exclude` flags 排除 `_volume_staging/` `_hermes_pull/` `.delta_*.txt`
+  `.kol_*.txt` `.url_hashes_*.txt` `.hermes_image_*.txt` `.volume_image_*.txt`
+- 第二次 sync OK,部署 SUCCEEDED
+
+```text
+deployment_id  : 01f1560328f01786971d8f5fa939ad0f  (active)
+state          : SUCCEEDED
+message        : App started successfully
+app_status     : RUNNING (App is running)
+compute_status : ACTIVE (App compute is running)
+service_principal: app-529s0g omnigraph-kb
+url            : https://omnigraph-kb-2717931942638877.17.azure.databricksapps.com
+```
+
+### Local UAT(Rule 6 mandatory)
+
+`venv/Scripts/python.exe .scratch/local_serve.py` on `:8766`,curl HTTP 200 全过:
+
+| URL hash | id | 类型 | 验证 |
+|----------|----|----|----|
+| `c5e5a98589` | 1 | TRANS | EN 视图英文 body,ZH 视图原 body(含 metadata 残留 — Postmortem #7 strip 范围,本次未触) |
+| `ff129334ef` | 64 | TRANS+CLEAN | EN 视图英文 body,`javascript:void(0)` wrapper 已 strip(验证 Pass 1) |
+| `99c16b8382` | 574 | REPOS | EN body 51 段,2 张图分别在 60% / 100% 位置(原 body 全图尾) |
+| `8562eddb27` | 587 | REPOS | EN body 0 张图 — 见下文 Pass 3 限制 |
+| `82539b4eed` | 738 | REPOS | EN body 76 段,4 张图 markers 在段 0 / 70 / 72 / 74(3 mmbiz + 1 local) |
+| `ccabb90511` | 1138 | REPOS | EN body 52 段,6 张图 markers 在段 8 / 19 / 28 / 40 / 47 / 51(全 mmbiz) |
+
+### Pass 3 限制(本 UAT 期间发现)
+
+`kb/data/article_query.py:_strip_external_wechat_images()` 在 SSG 渲染时
+**无条件**剥离 `mmbiz.qpic.cn` / `mmbiz.qlogo.cn` / `mp.weixin.qq.com` URL
+图片 — 这是用户既有 directive "没刮下来的图不要了" 的实现。
+
+后果:Pass 3 reposition 结果中如果某张图是 mmbiz URL,LLM 把它语义化定位到正文
+中段是无效的 — 渲染时直接消失。
+
+各文章实际可见图片数:
+
+| 文章 | body_repositioned 总图 | mmbiz | local | 渲染时可见 |
+|------|---|---|---|---|
+| id=574 | 4 | 3 | 1 | 1 张 + 1 张(实测 2 张,verify_image_set 数据待复查) |
+| id=587 | 3 | 3 | 0 | **0 张** |
+| id=738 | 4 | 3 | 1 | 1 张 |
+| id=1138 | 6 | 6 | 0 | **0 张** |
+
+**结论:** Pass 3 在"全 mmbiz 图"文章上效果为零 — 重排再合理,filter 一过都没了。
+Pass 3 真正生效的是 `local > 0` 的 case(id=574 / 738),把 1-2 张本地图从尾部
+搬到正文相关位置。
+
+### v1.0.y backlog 增补(本 quick 派生)
+
+1. **Pass 3 eligibility 应过滤 local-image-count > 0** — 当前 18 candidate 里
+   有 ~13 是全 mmbiz,跑 LLM 是浪费 token。
+2. **Hermes scrape pipeline mmbiz materialize** — re-scrape mmbiz URL 用合适的
+   CDN headers 把图落本地,根本上让 `_strip_external_wechat_images` filter 不
+   再淹没 KOL 内容。跨进程 — Hermes 端工作。
+3. **`databricks-deploy/.databricksignore` + `inline_deploy.sh --exclude` 已落地**
+   — 关掉 Postmortem #7 followup 第 5 项("75 MB tgz 防 sync"),本 quick scope
+   内顺带做了。
+4. **Pass 2 失败 id=696 backfill** — 单数 timeout 失败,Hermes daily-translate
+   cron 跑下一轮自动补。
+
+### 关键文件
+
+- [kb/data/article_query.py](../kb/data/article_query.py) — `body_cleaned` /
+  `body_repositioned` 字段 + 6 处 SQL SELECT + `pick_translated_body()` 函数
+- [kb/export_knowledge_base.py](../kb/export_knowledge_base.py) — 2 处 wiring
+  改 `pick_translated_body(rec)`
+- [databricks-deploy/.databricksignore](.databricksignore) — workspace sync
+  exclude 规则
+- [.scratch/inline_deploy.sh](../.scratch/inline_deploy.sh) — `--exclude` flags
+  防 50MB+ 残留 tgz 进 sync
+- 本 Postmortem #8
+

@@ -56,6 +56,7 @@ from kb.data.article_query import (  # noqa: E402
     list_articles,
     resolve_url_hash,
     rewrite_translated_body,  # kb-v2.2-7
+    pick_translated_body,  # 260522-clt Pass 3
     # kb-2 additions:
     cooccurring_entities_in_topic,
     entity_articles_query,
@@ -360,7 +361,7 @@ def _record_to_dict(
     if body_md is not None:
         out["snippet"] = _make_snippet(body_md)
         out["reading_time"] = _estimate_reading_time(body_md)
-        translated_body_md = rewrite_translated_body(rec.body_translated)
+        translated_body_md = rewrite_translated_body(pick_translated_body(rec))
         out["snippet_translated"] = (
             _make_snippet(translated_body_md) if translated_body_md else None
         )
@@ -432,7 +433,9 @@ def render_article_detail(
     # rewrites happen at the data layer (rewrite_translated_body) so EXPORT-05
     # parity is preserved. None when body_translated IS NULL — template's
     # `or body_html` fallback (locked decision A4) covers untranslated rows.
-    translated_body_md = rewrite_translated_body(rec.body_translated)
+    # 260522-clt Pass 3: pick_translated_body picks body_repositioned (LLM image
+    # relocation for end-dumped articles) when present, else body_translated.
+    translated_body_md = rewrite_translated_body(pick_translated_body(rec))
     translated_body_html = (
         _annotate_code_block_lang_label(_render_body_html(translated_body_md))
         if translated_body_md

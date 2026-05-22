@@ -1,0 +1,10 @@
+# Local-only staging dirs created by image-delta / hermes-pull workflows.
+# These never need to deploy to the workspace; some payloads exceed the
+# 50 MB per-file workspace upload limit (e.g. _volume_staging/*.tgz).
+_volume_staging/
+_hermes_pull/
+.delta_*.txt
+.kol_*.txt
+.url_hashes_*.txt
+.hermes_image_*.txt
+.volume_image_*.txt
