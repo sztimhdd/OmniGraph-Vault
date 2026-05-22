@@ -121,8 +121,9 @@ def test_main_imports_only_allowed_modules() -> None:
         )
 
     # All top-level `import x` (no dots) should be stdlib.
+    # ar-2-03 (CLI-03) adds `dataclasses` for dataclasses.replace overrides.
     stdlib_imports = re.findall(r"^import (\w+)", src, flags=re.M)
-    allowed_stdlib = {"argparse", "asyncio", "sys"}
+    allowed_stdlib = {"argparse", "asyncio", "dataclasses", "sys"}
     for mod in stdlib_imports:
         assert mod in allowed_stdlib, (
             f"Forbidden top-level import '{mod}' in __main__.py — pure "
