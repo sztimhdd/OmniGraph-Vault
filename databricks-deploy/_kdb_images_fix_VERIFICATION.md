@@ -1320,3 +1320,91 @@ Commit `e001919` 的 message body 末段 "Deferred to v1.0.y: #1/#3 from 260521-
 | Pass 3 limitation | (新增,from 1b14bae 自身 SUMMARY) | — | 仍 deferred:filter Pass 3 eligibility by local-image-count > 0 + Hermes mmbiz materialize |
 
 走查 commit `e001919` message body 时漏掉了 [[project_ssg_bake_v4pro_validated_260522.md]] memory + 1b14bae commit message 已记录的 Pass 2 反填事实。Memory 新增 `project_260522_clt_pass2_translation.md` 防御未来同类回归。
+
+---
+
+## Postmortem #10 — KB_IMAGES_DIR + Stale-DB Bake (2026-05-22 evening)
+
+### 用户报告 (regression after `e001919`)
+
+```
+1. 英文版首页现在全是中文文章 无论是标题还是body
+2. article 页切换语言根本没有用 中文文章永远是中文 英文还是英文
+3. breadcrumb 的中文问题一样没解决
+4. 看不到英文翻译版本的中文文章了 但我估计里面还是一样没有图片
+   只有中文版本文章有图片
+```
+
+User 强调:在 `1b14bae` (Postmortem #8 last-known-good) 时只有 2 个问题(EN 图片丢 + breadcrumb ZH);`e001919` 后 2 小时的修复循环把所有功能回滚丢失。
+
+### 根因二段式
+
+**根因 A — bake 用错 DB**:`e001919` 之后的某次 bake 运行用了**本地 `.dev-runtime/data/kol_scan.db`**(只有少量 zh-CN 行无任何 `title_translated` / `body_translated`)而非 Hermes 生产 DB(`186/1013 title_translated` + `169/1013 body_translated`)。结果整个 `kb/output/` 的 EN spans 全 fallback 到 ZH 原文。
+
+**根因 B — bake 用错 images 路径**:`kb/config.py:14-19` 默认 `KB_IMAGES_DIR=~/.hermes/omonigraph-vault/images`(本机为空目录)。`get_article_body()` chain (article_query.py:587-619) 用这个默认拼 `final_content.md` 路径,没找到时退到 `rec.body_cleaned or rec.body`,**完全跳过 image-parity splice**。结果即便 ZH 文章本身能渲染,EN 翻译里的 `<img>` 全数丢失(splice 上游没素材可用)。
+
+### Triage 表
+
+| # | 用户报告 | 根因 | 修法 |
+|---|----------|------|------|
+| 1 | EN 首页全中文 | 根因 A (stale DB) | bake 用 `KB_DB_PATH=.dev-runtime/data/kol_scan_hermes_260522.db`(SCP 拉自 Hermes prod) |
+| 2 | article 页语言切换无效 | 根因 A 衍生(translated 字段空,EN span fallback ZH,toggle 无差异可显示) | 同 #1 |
+| 3 | breadcrumb 中文 | Postmortem #9 已修(`kb/templates/article.html:68-69` dual-span),但 #1 让根本读不到 EN 内容,所以 breadcrumb 修复也"看似失效" | 同 #1 + 已修模板保留 |
+| 4 | EN 文章没图(仅 ZH 有) | 根因 B (`KB_IMAGES_DIR` 默认空) | bake 用 `KB_IMAGES_DIR=.dev-runtime/images` |
+
+### 修复动作 (本 quick)
+
+1. **SCP 拉 Hermes DB → `.dev-runtime/data/kol_scan_hermes_260522.db`** (26 MB),`ALTER TABLE` 加上本地 SSG 用的 `body_cleaned` / `body_repositioned` 列(Hermes prod 不需要)
+2. **重 bake** 用正确 env vars:
+   ```
+   PYTHONIOENCODING=utf-8 \
+   KB_DB_PATH=.dev-runtime/data/kol_scan_hermes_260522.db \
+   KB_IMAGES_DIR=.dev-runtime/images \
+   venv/Scripts/python.exe kb/export_knowledge_base.py --output-dir kb/output
+   ```
+3. **重新部署** 走 4-pass 流程(Pass 0/0b/0c/0d/1/2 + apps deploy)
+
+### Local UAT (Rule 6)
+
+`venv/Scripts/python.exe .scratch/local_serve.py` + curl `:8766/articles/<hash>.html`:
+
+| 文章 hash | total `<img>` | ZH spans | EN spans | Verdict |
+|-----------|---------------|----------|----------|---------|
+| `5a362bf61e` (Claude Code 源码逆向工程,大图集) | 97 | 20 | 20 | PASS |
+| `064f03c965` (中等图量) | 49 | 20 | 20 | PASS |
+| `03aa92df5e` (no-image article) | 1 | 16 | 17 | PASS (parity holds) |
+| `064b992447` (no local images) | 1 | 16 | 17 | PASS |
+| `080202d10b` (no local images) | 1 | 19 | 19 | PASS |
+
+Homepage `index.html`:25 cards、155 个 EN spans(含 nav + cards),17/25 cards 有真实英文翻译,3 cards fallback ZH(RSS articles 本就没翻译,符合预期)。Breadcrumb 走 `kb/templates/article.html:68-69` dual-span 模板(Postmortem #9 修复,本次保留)。
+
+### Databricks deploy
+
+```
+deployment_id:        01f1561ba211165b8b2a1e8ca61647d3
+state:                SUCCEEDED
+app_status:           RUNNING
+compute_status:       ACTIVE
+URL:                  https://omnigraph-kb-2717931942638877.17.azure.databricksapps.com
+update_time:          2026-05-22T20:22:38Z
+boot log:             FTS5 rebuild complete: 245 rows indexed (clean)
+```
+
+### Postmortem #9 UAT 漏掉了什么
+
+`e001919` 走查的 Local UAT 只 curl 了 `/articles/5a362bf61e.html` 的 image count,**没 cross-validate** EN spans 是否有真实英文(对比 ZH spans 内容字面)。如果 UAT 步骤包括"取一个 EN span,确认它不是 ZH 字符串复制",根因 A 的 stale DB 在 Postmortem #9 之前就会被抓到。
+
+UAT 也没验证 `KB_IMAGES_DIR` 是 effective vs default — 本机默认路径空目录所以 image splice 整个跳过,但 spot-check 只看了 zh 渲染成功,没看 en 那侧的 `<img>` 数量是否和 zh 对齐。
+
+### 教训
+
+1. **bake 前必须 print effective config 验证 4 个关键 env**(`KB_DB_PATH` / `KB_IMAGES_DIR` / `KB_OUTPUT_DIR` / `KB_DEFAULT_LANG`)。`config.py` 的默认值碰到本机 Windows 用户主目录布局就 silently 退化成空目录,这是 Python `Path.home()` 默认惯性带来的隐性回归
+2. **Local UAT 必须 cross-language assertion**:取至少一个 article,对比 ZH span 字符串和 EN span 字符串,**两者必须不相等**(若相等说明 fallback 触发,即 translated 字段空)
+3. **Hermes DB 是 SSG 的真相源**;`.dev-runtime/data/kol_scan.db` 是开发期 fixture,**不能用于生产部署 bake**。`config.py:KB_DB_PATH` 默认值不能假设本机主目录有 Hermes-shape DB
+4. **任何 SSG bake 命令的"成功"必须要求 effective env 显示在日志开头**,不能只看 articles_processed=N 计数 — N 可以是 250,但其中 0 篇有 EN 翻译就完全废
+5. **e001919 的 commit message body 把 `1b14bae` Pass 2 翻译回填工作错位 deferred** 已在 Postmortem #9 Correction 段记录;本 Postmortem 不再重复
+
+### Deferred (与 Postmortem #9 一致 + 新增)
+
+- 新增:`kb/export_knowledge_base.py` bake 入口加 effective-config print + cross-lang sanity check(防御未来同类回归)— 进 v1.0.y backlog
+- 其他 deferred 项(Hermes byline-dedup / RSS scraper 段落保留 / Layer 1 `MIN_BODY_LENGTH_CHARS` / Pass 3 mmbiz materialize)与 Postmortem #9 一致,无变化
