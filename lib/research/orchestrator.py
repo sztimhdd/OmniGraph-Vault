@@ -31,20 +31,35 @@ async def research(query: str, config: ResearchConfig | None = None) -> Research
     """Run the 5-stage research pipeline. Strict sequential order (Axis 1).
 
     Stages are imported lazily so import-time failures in any stage don't
-    poison module load. Each stage is wrapped best-effort in ar-1-02 (Axis 3).
+    poison module load. Each stage is best-effort internally (Axis 3) — the
+    orchestrator never sees a raise from a stage. If an unexpected exception
+    escapes anyway, let it propagate (it's a real bug, not a stage degradation).
     """
     cfg = config if config is not None else from_env()
     state = ResearchState(query=query, timestamp_start=time.time())
 
-    # Stages wired in ar-1-02:
-    # from .stages.web_baseline import run as run_web_baseline
-    # state.web_baseline = await run_web_baseline(query, cfg)
-    # from .stages.retriever import run as run_retriever
-    # state.retrieved = await run_retriever(query, cfg)
-    # ... (Reasoner, Verifier, Synthesizer)
-    _ = (cfg, state)  # silence unused warnings until ar-1-02 wires the stages
+    # Lazy stage imports — preserves clean module load even if a stage has
+    # init-time issues, and helps with circular-import resolution.
+    from .stages.web_baseline import run as run_web_baseline
+    from .stages.retriever import run as run_retriever
+    from .stages.reasoner import run as run_reasoner
+    from .stages.verifier import run as run_verifier
+    from .stages.synthesizer import run as run_synthesizer
 
-    raise NotImplementedError("Stage wiring lands in ar-1-02")
+    # Strict sequential pipeline (Axis 1).
+    state.web_baseline = await run_web_baseline(query, cfg)
+    state.retrieved = await run_retriever(query, cfg)
+    state.reasoned = await run_reasoner(query, cfg, state.retrieved)
+    state.verified = await run_verifier(query, cfg, state.reasoned)
+    state.synthesized = await run_synthesizer(query, cfg, state)
+
+    return ResearchResult(
+        markdown=state.synthesized.markdown,
+        confidence=state.synthesized.confidence,
+        sources=state.synthesized.sources,
+        images_embedded=state.synthesized.embedded_images,
+        state=state,
+    )
 
 
 async def research_stream(
