@@ -4,12 +4,24 @@ version = "1.0.0"
 description = "Personal LightRAG-backed knowledge base + Agentic-RAG-v1 research lib"
 requires-python = ">=3.11"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["lib", "lib.*", "omnigraph_search", "omnigraph_search.*"]
+[tool.setuptools]
+# Explicit list — `find` doesn't pick up the `omnigraph.research` namespace
+# alias (no physical `omnigraph/` dir on disk), so we declare every package
+# by name and pin its source dir via `package-dir`.
+packages = [
+    "lib",
+    "lib.research",
+    "lib.research.stages",
+    "omnigraph_search",
+    "omnigraph.research",
+    "omnigraph.research.stages",
+]
 
 [tool.setuptools.package-dir]
+# `omnigraph.research` is an alias for the physical `lib/research` dir; this
+# is what makes `python -m omnigraph.research` resolve after `pip install -e .`.
 "omnigraph.research" = "lib/research"
+"omnigraph.research.stages" = "lib/research/stages"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
