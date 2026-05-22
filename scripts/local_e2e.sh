@@ -89,15 +89,19 @@ export PYTHONPATH="${PYTHONPATH:-$(pwd)}"
 export DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-dummy}"
 export SCRAPE_CASCADE="${SCRAPE_CASCADE:-ua,apify}"
 
-# Cross-platform Python venv resolution: Windows (Git Bash) → Linux/Mac fallback
-if [[ -x "venv/Scripts/python.exe" ]]; then
+# Cross-platform Python venv resolution: $PYTHON env override → Windows (Git Bash) → Linux/Mac fallback
+# aim-1-4 deviation: $PYTHON env override added so smoke can pin to venv-aim1/bin/python (ingest sibling venv,
+# py3.11.0rc1) instead of kb-api venv/bin/python (py3.10.12). Default behavior unchanged when $PYTHON unset.
+if [[ -n "${PYTHON:-}" && -x "$PYTHON" ]]; then
+  : # honor caller-supplied PYTHON
+elif [[ -x "venv/Scripts/python.exe" ]]; then
   PYTHON="venv/Scripts/python.exe"
 elif [[ -x "venv/Scripts/python" ]]; then
   PYTHON="venv/Scripts/python"
 elif [[ -x "venv/bin/python" ]]; then
   PYTHON="venv/bin/python"
 else
-  echo "ERROR: Python venv not found at venv/Scripts/python(.exe) or venv/bin/python" >&2
+  echo "ERROR: Python venv not found at venv/Scripts/python(.exe) or venv/bin/python (and \$PYTHON unset/invalid)" >&2
   exit 1
 fi
 
