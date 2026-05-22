@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: Agentic-RAG-v1
 milestone_name: — Agentic-RAG-v1 (parallel-track to v3.4)
 status: in-progress
-last_updated: "2026-05-22T16:10:00Z"
-last_activity: 2026-05-22 — ar-1-01 (Wave 1 entrypoint) executed PASS. 7 commits, 21/21 unit tests, CONTRACT-01+02 clean, omnigraph.research namespace mapping declared. Ready for ar-1-02 (Wave 1 cont.).
+last_updated: "2026-05-22T23:30:00Z"
+last_activity: 2026-05-22 — ar-2 phase planned. /gsd:plan-phase ar-2 --skip-research executed. 4 artifacts written (ar-2-CONTEXT.md + 3 PLAN.md files at ~31-37KB each). gsd-plan-checker verdict PASS_WITH_NITS, 0 required patches, all 5 ROADMAP success criteria covered, 4 planner-flagged ambiguities ruled (CONTRACT-01 multi-file ALLOWED, asyncio.gather MAY, additional_chunks→sources ALLOWED, _amain sig change ACCEPTABLE). 5 non-blocking nits documented for executor. Wave order: ar-2-01 (Reasoner real loop, REQs ORCH-03+TOOL-04+TEST-03/half) → ar-2-02 (Synthesizer caption-anchored embeds, REQs ORCH-05+TEST-03/half) → ar-2-03 (CLI flags --max-iter-reasoner/--max-iter-verifier/--no-grounding, REQ CLI-03). Mandatory operator note (ar-3 needs TAVILY+BRAVE keys) verbatim on last line of every PLAN.md. Phase ready for /gsd:execute-phase ar-2.
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 4
-  completed_plans: 1
+  completed_phases: 1
+  total_plans: 7
+  completed_plans: 4
 ---
 
 # Project State — Agentic-RAG-v1 (parallel)
@@ -26,31 +26,35 @@ Requirements: `.planning/REQUIREMENTS-Agentic-RAG-v1.md`
 ## Current Position
 
 Milestone: Agentic-RAG-v1 (parallel-track)
-Phase: ar-1 — MVP vertical slice — **in-progress** (4/4 plans authored, 1/4 executed)
-Plan: ar-1-02 (Wave 1 cont.) ready for `/gsd:execute-plan`
-Status: ar-1-01 PASS — ready for `/gsd:execute-plan ar-1-02` (stage stubs)
-Last activity: 2026-05-22 — ar-1-01 executed: lib/research/ skeleton + 21/21 tests + CONTRACT-01+02 clean (commits 7a26fed..d6dc04b)
+Phase: ar-2 — Reasoner + vision deepening — **planned** (3/3 plans authored, plan-check PASS_WITH_NITS, 0 required patches)
+Plan: ready for `/gsd:execute-phase ar-2` — Wave 1 (ar-2-01) first
+Status: ar-1 = closed (4/4 plans executed, commits 962f995..cbd432d); ar-2 = planned, 3 PLAN.md files written.
+Last activity: 2026-05-22 — /gsd:plan-phase ar-2 --skip-research authored ar-2-CONTEXT.md + 3 PLAN.md files; gsd-plan-checker verdict PASS_WITH_NITS, all 5 ROADMAP success criteria covered, 4 ambiguities ruled, 5 non-blocking nits documented.
 
 ### Phase plan
 
-| Phase | Goal | REQs | T-shirt |
-|-------|------|------|---------|
-| ar-1 | MVP vertical slice (skeleton runs end-to-end) | 25 | L |
-| ar-2 | Reasoner + vision deepening | 5 | M |
-| ar-3 | Verifier + Tavily/Brave/Grounding | 7 | L |
-| ar-4 | Telemetry, streaming, smoke pass + audit | 4 | M |
+| Phase | Goal | REQs | T-shirt | Status |
+| ----- | ---- | ---- | ------- | ------ |
+| ar-1 | MVP vertical slice (skeleton runs end-to-end) | 25 | L | complete (4/4) |
+| ar-2 | Reasoner + vision deepening | 5 | M | planned (0/3 executed) |
+| ar-3 | Verifier + Tavily/Brave/Grounding | 7 | L | not started |
+| ar-4 | Telemetry, streaming, smoke pass + audit | 4 | M | not started |
 
 Total: 41/41 v1 REQs mapped, 0 orphans.
 
 ### Immediate next step
 
-`/gsd:execute-plan .planning/phases/ar-1-mvp-vertical-slice/ar-1-01-package-scaffolding-PLAN.md`
+`/gsd:execute-plan .planning/phases/ar-2-reasoner-vision-deepening/ar-2-01-reasoner-agent-loop-PLAN.md`
 
-Wave order:
+ar-2 wave order (strictly sequential — no in-phase parallelism):
 
-- Wave 1: ar-1-01 (package scaffolding) + ar-1-02 (stage stubs) — can run sequentially or in parallel; coordinate to avoid merge churn on `lib/research/__init__.py`
-- Wave 2: ar-1-03 (CLI + image server) — Task 0 runs `pip install -e .` before any `-m omnigraph.research` invocation
-- Wave 3: ar-1-04 (skill packaging)
+- Wave 1: ar-2-01 reasoner-agent-loop — real bounded LLM agent loop with kg_search + vision_analyze tools (REQs: ORCH-03, TOOL-04, TEST-03 Reasoner half)
+- Wave 2: ar-2-02 synthesizer-caption-embeds — alt text source = `state.reasoned.analyzed_images[*].caption` with ar-1 filename fallback (REQs: ORCH-05, TEST-03 Synthesizer half)
+- Wave 3: ar-2-03 cli-flags — `--max-iter-reasoner / --max-iter-verifier / --no-grounding` via `dataclasses.replace()`; LLM provider stays env-only (REQ: CLI-03)
+
+### Operator dependency for ar-3 (must land before ar-3 execute begins)
+
+`TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY` must be injected into `~/.hermes/.env` on the Hermes deployment target before `/gsd:execute-phase ar-3` starts. ar-2 does NOT require either key (stubs from ar-1 cover the WebBaseline/Verifier paths through ar-2 close). Procurement should happen during ar-2 execution so ar-3 is unblocked at handoff. The mandatory operator note is repeated verbatim on the last line of every ar-2 PLAN.md.
 
 ## Parallel-Track Boundary
 

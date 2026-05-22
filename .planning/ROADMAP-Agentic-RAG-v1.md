@@ -70,7 +70,12 @@ Three reasons drive the choice:
   3. Reasoner uses `lib/vision_cascade.py` directly for `vision_analyze` (no new vision infrastructure introduced — verified by import-graph inspection) (TOOL-04)
   4. CLI accepts `--max-iter-reasoner`, `--max-iter-verifier`, and `--no-grounding` flags; values propagate into `ResearchConfig` and override defaults (CLI-03). Note: `--no-grounding` is plumbed-but-no-op until ar-3 wires Grounding.
   5. Mock-based test exercises Reasoner agent loop calling `vision_analyze` ≥1 time and confirms the resulting caption is embedded in Synthesizer's input prompt (TEST-03)
-**Plans:** TBD
+**Plans:**
+
+- `ar-2-01-reasoner-agent-loop` (Wave 1) — real bounded LLM agent loop with `kg_search` + `vision_analyze` tools (ORCH-03, TOOL-04, TEST-03 Reasoner half)
+- `ar-2-02-synthesizer-caption-embeds` (Wave 2, depends on ar-2-01) — alt text source = `state.reasoned.analyzed_images[*].caption` with ar-1 filename fallback (ORCH-05, TEST-03 Synthesizer half)
+- `ar-2-03-cli-flags` (Wave 3, depends on ar-2-02) — `--max-iter-reasoner / --max-iter-verifier / --no-grounding` via `dataclasses.replace()`; LLM provider stays env-only (CLI-03)
+
 **UI hint:** no
 **Notes:**
 - ORCH-05 belongs in ar-2 (not ar-1) because the *quality* of image-caption anchoring is what distinguishes a real Synthesizer from the ar-1 stub. The ar-1 stub Synthesizer can emit raw image URLs; ar-2 makes them caption-anchored.
@@ -118,9 +123,9 @@ Three reasons drive the choice:
 ## Progress Table
 
 | Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| ar-1: MVP vertical slice | 0/? | Not started | — |
-| ar-2: Reasoner + vision deepening | 0/? | Not started | — |
+| ----- | -------------- | ------ | --------- |
+| ar-1: MVP vertical slice | 4/4 | Complete | 2026-05-22 (commits 962f995..cbd432d) |
+| ar-2: Reasoner + vision deepening | 0/3 | Planned (PLAN.md authored, plan-check PASS_WITH_NITS) | — |
 | ar-3: Verifier + web tools | 0/? | Not started | — |
 | ar-4: Telemetry, streaming, smoke + audit | 0/? | Not started | — |
 
