@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: Agentic-RAG-v1
 milestone_name: — Agentic-RAG-v1 (parallel-track to v3.4)
 status: in-progress
-last_updated: "2026-05-23T00:30:00Z"
-last_activity: 2026-05-22/23 — ar-2 phase CLOSED. All 3 waves executed sequentially. Wave 1 (ar-2-01 Reasoner real loop, commit 0674f66): 7 unit tests, 69/69 green; ORCH-03 + TOOL-04 + TEST-03/Reasoner-half delivered. Wave 2 (ar-2-02 Synthesizer caption embeds, commits 942dc48 + 5aedf57 SUMMARY-backfill): 10 unit tests, 79/79 green; ORCH-05 + TEST-03/Synthesizer-half delivered; principled tightening — additional_chunks→sources gated on state.reasoned.status=="ok" (mirrors Retriever discipline). Wave 3 (ar-2-03 CLI flags, commits 8ca46ad + 8cd2642 SUMMARY-backfill): 9 unit tests, 88/88 green; CLI-03 delivered (--max-iter-reasoner / --max-iter-verifier / --no-grounding via dataclasses.replace, NO --llm-provider per CLI-03 hard rule, _amain body 15 LOC under 18 cap). L2 cap=0 LLM-free CLI smoke exit 0, 308-char markdown w/ 3 degradation note lines. VisionCascade adapter deferred to ar-3+ (Option A) — ar-2 stays mock-only. CONTRACT-01/02 clean. Forward-only commits throughout, zero amend/reset. Phase ready for /gsd:plan-phase ar-3.
+last_updated: "2026-05-23T01:30:00Z"
+last_activity: 2026-05-23 — ar-3 phase planned. /gsd:plan-phase ar-3 --skip-research executed. 4 artifacts written (ar-3-CONTEXT.md 31KB + 3 PLAN.md files at 41-61KB each, total ~190KB). Capability-first 3-wave decomposition orchestrator-confirmed before planner spawn. gsd-plan-checker iter-1 verdict PASS_WITH_NITS, 0 required patches, all 5 ROADMAP success criteria covered, 7 ambiguities ruled (httpx per-call ALLOWED, vertex_gemini_grounding async MUST, Wave 3 absorption-and-delete of test_verifier_cap.py MUST, AsyncMock vs respx ALLOWED, Brave-only 10th test SHOULD-NOT, deepseek-dummy smoke ALLOWED, Branch A vs B impl ALLOWED). 7 non-blocking nits documented for executor (highlight: nit #1 Wave 1 from_env tests should monkeypatch.delenv OMNIGRAPH_LLM_PROVIDER proactively to avoid Wave 3 retrofit). Wave order: ar-3-01 (Tavily+Brave+cascade+TEST-02+CONFIG-03 env-half) → ar-3-02 (Verifier real loop ORCH-04+TEST-04 Verifier-half) → ar-3-03 (Vertex Grounding TOOL-03+CONFIG-03 autodetect+TEST-04 Reasoner-half consolidation). Mandatory operator note (TAVILY+BRAVE keys before live-key Layer 2b smoke) verbatim on last line of every PLAN.md. Phase ready for /gsd:execute-phase ar-3.
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 7
+  total_plans: 10
   completed_plans: 7
 ---
 
@@ -26,10 +26,10 @@ Requirements: `.planning/REQUIREMENTS-Agentic-RAG-v1.md`
 ## Current Position
 
 Milestone: Agentic-RAG-v1 (parallel-track)
-Phase: ar-2 — Reasoner + vision deepening — **complete** (3/3 plans executed, 88/88 unit tests green, L2 cap=0 LLM-free CLI smoke exit 0)
-Plan: ready for `/gsd:plan-phase ar-3` (Verifier + Tavily/Brave/Grounding)
-Status: ar-1 = closed (4/4 plans, commits 962f995..cbd432d); ar-2 = closed (3/3 plans, commits 0674f66, 942dc48, 5aedf57, 8ca46ad, 8cd2642); 7/7 ar-N plans executed.
-Last activity: 2026-05-23 — ar-2 phase closed. All 5 ar-2 REQs delivered (ORCH-03, ORCH-05, TOOL-04, CLI-03, TEST-03). VisionCascade adapter deferred to ar-3+ per Option A (ar-2 mock-only).
+Phase: ar-3 — Verifier + web tools — **planned** (3/3 plans authored, plan-check PASS_WITH_NITS iter-1, 0 required patches)
+Plan: ready for `/gsd:execute-phase ar-3` — Wave 1 (ar-3-01) first
+Status: ar-1 = closed (4/4 plans, commits 962f995..cbd432d); ar-2 = closed (3/3 plans, commits 0674f66, 942dc48, 5aedf57, 8ca46ad, 8cd2642, 08edd1d); ar-3 = planned, 3 PLAN.md files written.
+Last activity: 2026-05-23 — /gsd:plan-phase ar-3 --skip-research authored ar-3-CONTEXT.md + 3 PLAN.md files; gsd-plan-checker verdict PASS_WITH_NITS, all 5 ROADMAP success criteria covered, 7 ambiguities ruled, 7 non-blocking nits documented.
 
 ### Phase plan
 
@@ -37,16 +37,36 @@ Last activity: 2026-05-23 — ar-2 phase closed. All 5 ar-2 REQs delivered (ORCH
 | ----- | ---- | ---- | ------- | ------ |
 | ar-1 | MVP vertical slice (skeleton runs end-to-end) | 25 | L | complete (4/4) |
 | ar-2 | Reasoner + vision deepening | 5 | M | complete (3/3) |
-| ar-3 | Verifier + Tavily/Brave/Grounding | 7 | L | not started |
+| ar-3 | Verifier + Tavily/Brave/Grounding | 7 | L | planned (0/3 executed) |
 | ar-4 | Telemetry, streaming, smoke pass + audit | 4 | M | not started |
 
 Total: 41/41 v1 REQs mapped, 30/41 delivered (ar-1: 25, ar-2: 5), 0 orphans.
 
 ### Immediate next step
 
-`/gsd:plan-phase ar-3` — Verifier real LLM agent loop + Tavily primary + Brave fallback + Vertex Grounding opt-in. **BLOCKED** until operator injects `TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY` into `~/.hermes/.env` on Hermes deployment target.
+`/gsd:execute-plan .planning/phases/ar-3-verifier-web-tools/ar-3-01-web-tools-PLAN.md`
 
-ar-2 wave summary (all closed):
+ar-3 wave order (strictly sequential — no in-phase parallelism):
+
+- Wave 1: ar-3-01 web-tools — Tavily search+extract callables, Brave fallback callable, cascade wrapper, from_env() env-half wiring (REQs: TOOL-01, TOOL-02, TEST-02, CONFIG-03 env-half)
+- Wave 2: ar-3-02 verifier-loop — real bounded LLM agent loop with web_search/web_extract/conditional grounding tools; consumes Wave 1 cascade (REQs: ORCH-04, TEST-04 Verifier-half)
+- Wave 3: ar-3-03 grounding-caps — Vertex Gemini Grounding pass-through, from_env() two-signal auto-detect, consolidated cap test for both Reasoner+Verifier loops; absorbs and deletes Wave 2's standalone test_verifier_cap.py (REQs: TOOL-03, CONFIG-03 autodetect-half, TEST-04 Reasoner-half)
+
+### Ambiguity rulings (folded into PLAN files; SUMMARYs at execute close should record adoption)
+
+1. httpx per-call vs shared session — ALLOWED (per-call planner default)
+2. vertex_gemini_grounding sync vs async — MUST be async (matches Tavily/Brave callable shape)
+3. Wave 3 absorption-and-delete of Wave 2's test_verifier_cap.py — MUST delete (single source of truth for cap tests)
+4. httpx mocking via unittest.mock.AsyncMock vs respx — ALLOWED (planner default mock; respx if already in requirements)
+5. Brave-only edge-case explicit test (10th) — SHOULD-NOT add (covered by implication; defer to ar-4 if time)
+6. Layer 2a smoke LLM provider choice — ALLOWED either deepseek-dummy or Vertex VS Code metadata (cap=0 → no LLM call)
+7. Vertex Grounding impl Branch A (helper) vs Branch B (inline genai) — ALLOWED, executor decides at Task 1 read_first
+
+### Operator dependency for ar-3 live-key smoke (phase-close gate)
+
+`TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY` must be injected into `~/.hermes/.env` on the Hermes deployment target before the **Layer 2b live-key CLI smoke** can be performed. Wave 1+2 unit tests use mocks; Wave 3 Grounding test uses mocks; Layer 2a cap=0 smoke is mock-equivalent (no LLM call). Live-key Layer 2b is the phase-close gate, NOT a per-wave gate. Procurement should happen during ar-3 execution.
+
+### Closed ar-2 wave summary (for cross-reference)
 
 - Wave 1 (ar-2-01 reasoner-agent-loop, commit `0674f66`): real bounded LLM agent loop with kg_search + vision_analyze tools — ORCH-03, TOOL-04, TEST-03/Reasoner-half. 7 unit tests, 69/69 green.
 - Wave 2 (ar-2-02 synthesizer-caption-embeds, commits `942dc48` + `5aedf57`): alt text source = `state.reasoned.analyzed_images[*].caption` with ar-1 filename fallback — ORCH-05, TEST-03/Synthesizer-half. 10 unit tests, 79/79 green. additional_chunks→sources tightened to gate on `state.reasoned.status=="ok"`.

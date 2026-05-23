@@ -93,7 +93,13 @@ Three reasons drive the choice:
   3. Brave REST integration is live: `web_search_fallback` is invoked when Tavily errors, quotas, or times out — verified by mock-based test that asserts the fallback is called exactly once per failed primary call (TOOL-02, TEST-02)
   4. `ResearchConfig.from_env()` auto-detects Vertex Gemini `llm_complete` (via `__module__ == "lib.vertex_gemini_complete"` OR `OMNIGRAPH_LLM_PROVIDER == "vertex_gemini"`) and adds `google_search_grounding` to Verifier tool registry only in that case; `--no-grounding` flag from ar-2 now enforces opt-out (TOOL-03, CONFIG-03)
   5. Mock-based tests confirm cap enforcement on both loops: Reasoner's `iter_count` reaches `max_iter_reasoner` and terminates without raising; Verifier's `iter_count` reaches `max_iter_verifier` and terminates without raising (TEST-04)
-**Plans:** TBD
+**Plans:**
+
+- `ar-3-01-web-tools` (Wave 1) — Tavily search+extract callables, Brave fallback callable, cascade wrapper, `from_env()` env-half wiring (TOOL-01, TOOL-02, TEST-02, CONFIG-03 env-half)
+- `ar-3-02-verifier-loop` (Wave 2, depends on ar-3-01) — real bounded LLM agent loop with web_search/web_extract/conditional grounding tools (ORCH-04, TEST-04 Verifier-half)
+- `ar-3-03-grounding-caps` (Wave 3, depends on ar-3-02) — Vertex Gemini Grounding pass-through, `from_env()` two-signal auto-detect, consolidated cap test for both loops; absorbs and deletes Wave 2's standalone test_verifier_cap.py (TOOL-03, CONFIG-03 autodetect-half, TEST-04 Reasoner-half)
+
+**UI hint:** no
 **Notes:**
 - TEST-04 covers BOTH loops (Reasoner cap + Verifier cap). Reasoner cap is technically testable starting ar-2, but consolidating both cap tests in ar-3 reduces duplication and lets one mock harness cover both loops.
 - Brave fallback (TOOL-02) is tested with mocks (TEST-02) before going live — the order is: implement Tavily, implement Brave, write mock test, then run live integration smoke (informal — no live API smoke required for ar-3 close; that's TEST-05 in ar-4).
@@ -126,7 +132,7 @@ Three reasons drive the choice:
 | ----- | -------------- | ------ | --------- |
 | ar-1: MVP vertical slice | 4/4 | Complete | 2026-05-22 (commits 962f995..cbd432d) |
 | ar-2: Reasoner + vision deepening | 3/3 | Complete | 2026-05-23 (commits 0674f66, 942dc48, 5aedf57, 8ca46ad, 8cd2642; 88/88 green; L2 cap=0 smoke exit 0) |
-| ar-3: Verifier + web tools | 0/? | Not started (BLOCKED on TAVILY+BRAVE keys) | — |
+| ar-3: Verifier + web tools | 0/3 | Planned (PLAN.md authored, plan-check PASS_WITH_NITS, 0 required patches) | — |
 | ar-4: Telemetry, streaming, smoke + audit | 0/? | Not started | — |
 
 ---
