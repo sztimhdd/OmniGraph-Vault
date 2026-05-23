@@ -200,13 +200,24 @@ async def test_research_pipeline_order(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Test 5: research_stream raises NotImplementedError("ar-4") — LIB-08 split holds
+# Test 5: research_stream yields events (post ar-4-01 — body landed; LIB-08
+# closed). This test pinned the ar-1 stub `raise NotImplementedError("ar-4")`;
+# ar-4-01 fills the body so the assertion flips: the iterator must produce at
+# least pipeline_start as its first event. Detailed iterator-order coverage
+# lives in test_research_stream.py.
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
-async def test_research_stream_raises_not_implemented(tmp_path):
+async def test_research_stream_yields_events_after_ar4(tmp_path, monkeypatch):
+    async def _empty_search(q, mode="hybrid"):
+        return ""
+
+    monkeypatch.setattr(
+        "lib.research.stages.retriever.kg_search", _empty_search
+    )
     cfg = _make_cfg(tmp_path / "lightrag_storage")
-    with pytest.raises(NotImplementedError) as exc_info:
-        # research_stream is an async generator — must consume to trigger body.
-        async for _evt in research_stream("test query", cfg):
-            break
-    assert "ar-4" in str(exc_info.value)
+    events = []
+    async for evt in research_stream("test query", cfg):
+        events.append(evt)
+    assert len(events) >= 1
+    assert events[0]["event_type"] == "pipeline_start"
+    assert events[-1]["event_type"] == "pipeline_end"

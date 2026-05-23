@@ -1,21 +1,20 @@
-"""Agentic-RAG-v1 orchestrator (ar-1 skeleton).
+"""Agentic-RAG-v1 orchestrator (ar-4 telemetry-wired).
 
-Stages are wired by ar-1-02. This file establishes the public async API:
+Single source of stage-emit ordering: the private async generator
+``_run_pipeline`` runs all 5 stages and yields one event per boundary
+(pipeline_start, 5x stage_start/stage_end pairs, pipeline_end).
 
-  - async def research(query, config) -> ResearchResult
-  - async def research_stream(query, config) -> AsyncIterator[dict]
-    (signature only; body raises NotImplementedError("ar-4"))
+- ``research_stream()`` returns directly from ``_run_pipeline`` — its
+  consumers see every event the pipeline emits in real time.
+- ``research()`` consumes ``_run_pipeline`` and builds ``ResearchResult``
+  from the closure-captured ``ResearchState`` instance.
 
-Pipeline order (Axis 1, strict sequential):
-    WebBaseline -> Retriever -> Reasoner -> Verifier -> Synthesizer
+Both surfaces honour ``cfg.telemetry_jsonl`` identically: when set, every
+event is also appended via :func:`write_event`. Sink-disabled (None) does
+no file I/O (Axis 4 opt-in side effect).
 
-`research_stream` exists in ar-1 to lock the streaming-peer API rule today
-(Axis 5: every async def research has a streaming peer). The body lands in
-ar-4 with telemetry. LIB-08 splits this responsibility: signature here,
-body in ar-4.
-
-Pure async entrypoint (Axis 1) — no print, no file I/O, no argv parsing in
-this file. Stage modules are imported lazily inside research() so a stage
+Pure async entrypoint (Axis 1) — no print, no argv parsing in this file.
+Stage modules are imported lazily inside ``_run_pipeline`` so a stage
 import-time failure doesn't poison module load.
 """
 from __future__ import annotations
@@ -24,35 +23,158 @@ import time
 from typing import AsyncIterator
 
 from .config import ResearchConfig, from_env
+from .telemetry import (
+    EVENT_PIPELINE_END,
+    EVENT_PIPELINE_START,
+    EVENT_STAGE_END,
+    EVENT_STAGE_START,
+    make_event,
+    write_event,
+)
 from .types import ResearchResult, ResearchState
 
 
-async def research(query: str, config: ResearchConfig | None = None) -> ResearchResult:
-    """Run the 5-stage research pipeline. Strict sequential order (Axis 1).
+async def _run_pipeline(
+    query: str, cfg: ResearchConfig, state: ResearchState
+) -> AsyncIterator[dict]:
+    """Master pipeline emission generator (Pattern A).
 
-    Stages are imported lazily so import-time failures in any stage don't
-    poison module load. Each stage is best-effort internally (Axis 3) — the
-    orchestrator never sees a raise from a stage. If an unexpected exception
-    escapes anyway, let it propagate (it's a real bug, not a stage degradation).
+    Yields events only; populates ``state`` in-place as a side effect.
+    ``state`` is intentionally mutable — both ``research()`` and
+    ``research_stream()`` capture it via closure to expose the final
+    ``ResearchState`` after the generator completes.
+
+    Order: pipeline_start, then for each of (web_baseline, retriever,
+    reasoner, verifier, synthesizer) a (stage_start, stage_end) pair,
+    then pipeline_end. Synthesizer's stage_end omits ``status`` per
+    Axis 8 (terminal-stage rule).
     """
-    cfg = config if config is not None else from_env()
-    state = ResearchState(query=query, timestamp_start=time.time())
+    sink = cfg.telemetry_jsonl
 
-    # Lazy stage imports — preserves clean module load even if a stage has
-    # init-time issues, and helps with circular-import resolution.
+    # Lazy stage imports — preserves clean module load even if a stage
+    # has init-time issues, and helps with circular-import resolution.
     from .stages.web_baseline import run as run_web_baseline
     from .stages.retriever import run as run_retriever
     from .stages.reasoner import run as run_reasoner
     from .stages.verifier import run as run_verifier
     from .stages.synthesizer import run as run_synthesizer
 
-    # Strict sequential pipeline (Axis 1).
-    state.web_baseline = await run_web_baseline(query, cfg)
-    state.retrieved = await run_retriever(query, cfg)
-    state.reasoned = await run_reasoner(query, cfg, state.retrieved)
-    state.verified = await run_verifier(query, cfg, state.reasoned)
-    state.synthesized = await run_synthesizer(query, cfg, state)
+    ev = make_event(EVENT_PIPELINE_START, "pipeline", query=query)
+    write_event(sink, ev)
+    yield ev
 
+    # WebBaseline ----------------------------------------------------------
+    t0 = time.time()
+    ev = make_event(EVENT_STAGE_START, "web_baseline")
+    write_event(sink, ev)
+    yield ev
+    state.web_baseline = await run_web_baseline(query, cfg)
+    ev = make_event(
+        EVENT_STAGE_END,
+        "web_baseline",
+        status=state.web_baseline.status,
+        reason=state.web_baseline.reason,
+        duration_s=time.time() - t0,
+        snippet_count=len(state.web_baseline.snippets),
+    )
+    write_event(sink, ev)
+    yield ev
+
+    # Retriever ------------------------------------------------------------
+    t0 = time.time()
+    ev = make_event(EVENT_STAGE_START, "retriever")
+    write_event(sink, ev)
+    yield ev
+    state.retrieved = await run_retriever(query, cfg)
+    ev = make_event(
+        EVENT_STAGE_END,
+        "retriever",
+        status=state.retrieved.status,
+        reason=state.retrieved.reason,
+        duration_s=time.time() - t0,
+        chunk_count=len(state.retrieved.chunks),
+        image_candidate_count=len(state.retrieved.image_candidates),
+    )
+    write_event(sink, ev)
+    yield ev
+
+    # Reasoner -------------------------------------------------------------
+    t0 = time.time()
+    ev = make_event(EVENT_STAGE_START, "reasoner")
+    write_event(sink, ev)
+    yield ev
+    state.reasoned = await run_reasoner(query, cfg, state.retrieved)
+    ev = make_event(
+        EVENT_STAGE_END,
+        "reasoner",
+        status=state.reasoned.status,
+        reason=state.reasoned.reason,
+        duration_s=time.time() - t0,
+        iter_count=state.reasoned.iter_count,
+        image_analyzed_count=len(state.reasoned.analyzed_images),
+    )
+    write_event(sink, ev)
+    yield ev
+
+    # Verifier -------------------------------------------------------------
+    t0 = time.time()
+    ev = make_event(EVENT_STAGE_START, "verifier")
+    write_event(sink, ev)
+    yield ev
+    state.verified = await run_verifier(query, cfg, state.reasoned)
+    ev = make_event(
+        EVENT_STAGE_END,
+        "verifier",
+        status=state.verified.status,
+        reason=state.verified.reason,
+        duration_s=time.time() - t0,
+        iter_count=state.verified.iter_count,
+        confidence=state.verified.confidence,
+        external_citation_count=len(state.verified.external_citations),
+    )
+    write_event(sink, ev)
+    yield ev
+
+    # Synthesizer (NO status — terminal stage, Axis 8) ---------------------
+    t0 = time.time()
+    ev = make_event(EVENT_STAGE_START, "synthesizer")
+    write_event(sink, ev)
+    yield ev
+    state.synthesized = await run_synthesizer(query, cfg, state)
+    ev = make_event(
+        EVENT_STAGE_END,
+        "synthesizer",
+        duration_s=time.time() - t0,
+        embedded_image_count=len(state.synthesized.embedded_images),
+        note_line_count=len(state.synthesized.note_lines),
+        confidence=state.synthesized.confidence,
+    )
+    write_event(sink, ev)
+    yield ev
+
+    ev = make_event(
+        EVENT_PIPELINE_END,
+        "pipeline",
+        duration_s=time.time() - state.timestamp_start,
+    )
+    write_event(sink, ev)
+    yield ev
+
+
+async def research(query: str, config: ResearchConfig | None = None) -> ResearchResult:
+    """Run the 5-stage research pipeline. Strict sequential order (Axis 1).
+
+    Consumes ``_run_pipeline`` and builds ``ResearchResult`` from the
+    closure-captured final state. Both this surface and ``research_stream``
+    share one emission generator — no skew, no duplicated stage logic.
+    """
+    cfg = config if config is not None else from_env()
+    state = ResearchState(query=query, timestamp_start=time.time())
+    async for _ev in _run_pipeline(query, cfg, state):
+        # Events flow through the sink writer inside _run_pipeline; we
+        # discard them here. The closure-captured `state` carries the
+        # final dataclass we return.
+        pass
     return ResearchResult(
         markdown=state.synthesized.markdown,
         confidence=state.synthesized.confidence,
@@ -65,9 +187,14 @@ async def research(query: str, config: ResearchConfig | None = None) -> Research
 async def research_stream(
     query: str, config: ResearchConfig | None = None
 ) -> AsyncIterator[dict]:
-    """Streaming peer of research(). Body lands in ar-4 with telemetry.
+    """Streaming peer of :func:`research` — yields per-stage events (LIB-08).
 
-    Signature exists in ar-1 to lock the API rule (Axis 5: streaming peer).
+    Pipeline order: WebBaseline -> Retriever -> Reasoner -> Verifier ->
+    Synthesizer. Each event also flows through ``cfg.telemetry_jsonl``
+    when set (Axis 4 opt-in side effect). Sink-disabled iteration does
+    no file I/O.
     """
-    raise NotImplementedError("ar-4")
-    yield {}  # unreachable; kept so type-checker accepts AsyncIterator return
+    cfg = config if config is not None else from_env()
+    state = ResearchState(query=query, timestamp_start=time.time())
+    async for ev in _run_pipeline(query, cfg, state):
+        yield ev
