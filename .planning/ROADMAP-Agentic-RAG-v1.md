@@ -132,7 +132,7 @@ Three reasons drive the choice:
 | ----- | -------------- | ------ | --------- |
 | ar-1: MVP vertical slice | 4/4 | Complete | 2026-05-22 (commits 962f995..cbd432d) |
 | ar-2: Reasoner + vision deepening | 3/3 | Complete | 2026-05-23 (commits 0674f66, 942dc48, 5aedf57, 8ca46ad, 8cd2642; 88/88 green; L2 cap=0 smoke exit 0) |
-| ar-3: Verifier + web tools | 0/3 | Planned (PLAN.md authored, plan-check PASS_WITH_NITS, 0 required patches) | — |
+| ar-3: Verifier + web tools | 3/3 | Complete | 2026-05-23 (commits 6bc7db7, e594363, 17a8fca; 113/113 green; L2a cap=0 smoke exit 0; L2b live-key deferred to ar-4 execute) |
 | ar-4: Telemetry, streaming, smoke + audit | 0/? | Not started | — |
 
 ---
