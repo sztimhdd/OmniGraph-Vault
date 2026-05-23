@@ -9,9 +9,16 @@ Path defaults preserve the canonical `omonigraph` typo per CLAUDE.md — do NOT
 """
 from __future__ import annotations
 
+import functools
 import os
 from pathlib import Path
 
+from .tools.web_search import (
+    brave_search,
+    make_web_search_with_fallback,
+    tavily_extract,
+    tavily_search,
+)
 from .types import ResearchConfig
 
 
@@ -47,16 +54,37 @@ def from_env() -> ResearchConfig:
     from lib.vision_cascade import VisionCascade
     vision_cascade = VisionCascade()
 
-    # Web search — ar-1 stub (Tavily lands in ar-3). Note: even with the env
-    # var set we use the stub here; the real Tavily callable is wired in ar-3.
-    if os.environ.get("TAVILY_API_KEY"):
-        web_search = _skipped_web_search
+    # Web search — ar-3 Wave 1 wiring (TOOL-01 + TOOL-02 + CONFIG-03 env-half).
+    tavily_key = os.environ.get("TAVILY_API_KEY")
+    brave_key = os.environ.get("BRAVE_SEARCH_API_KEY")
+
+    # Brave fallback callable — exposed regardless of Tavily presence (observability slot).
+    if brave_key:
+        web_search_fallback = functools.partial(brave_search, api_key=brave_key)
+    else:
+        web_search_fallback = None
+
+    # Tavily extract callable — only when Tavily key set.
+    if tavily_key:
+        web_extract = functools.partial(tavily_extract, api_key=tavily_key)
+    else:
+        web_extract = None
+
+    # Three-way cascade for web_search:
+    #   - both keys → cascade-wrapped Tavily+Brave
+    #   - Tavily only → bare Tavily partial
+    #   - neither (or Brave-only) → ar-1 _skipped_web_search stub (cascade requires both ends)
+    if tavily_key and brave_key:
+        web_search = make_web_search_with_fallback(
+            functools.partial(tavily_search, api_key=tavily_key),
+            functools.partial(brave_search, api_key=brave_key),
+        )
+    elif tavily_key:
+        web_search = functools.partial(tavily_search, api_key=tavily_key)
     else:
         web_search = _skipped_web_search
 
-    web_search_fallback = None  # ar-3 wires Brave when BRAVE_SEARCH_API_KEY set
-    web_extract = None
-    google_search_grounding = None  # ar-3 wires Vertex Grounding when llm_complete is Vertex
+    google_search_grounding = None  # Wave 3 wires Vertex Grounding auto-detect
 
     output_dir = (
         Path(os.environ["OMNIGRAPH_RESEARCH_OUTPUT_DIR"])

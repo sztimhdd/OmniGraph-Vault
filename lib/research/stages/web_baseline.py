@@ -12,6 +12,8 @@ and surfaced as ``status="failed"`` with ``reason=str(e)``.
 """
 from __future__ import annotations
 
+import inspect
+
 from ..types import ResearchConfig, Source, WebBaseline
 
 
@@ -20,10 +22,16 @@ async def run(query: str, cfg: ResearchConfig) -> WebBaseline:
 
     Returns a frozen ``WebBaseline`` with ``status`` in
     ``{"ok", "skipped", "failed"}``. Never raises.
+
+    Accepts both sync (``_skipped_web_search`` stub) and async (Tavily/Brave
+    cascade from ar-3 Wave 1) ``cfg.web_search`` callables — awaits if the
+    return value is awaitable.
     """
     queries_used = [query]
     try:
         results = cfg.web_search(query)
+        if inspect.isawaitable(results):
+            results = await results
     except Exception as e:  # noqa: BLE001 — Axis 3 best-effort
         return WebBaseline(
             queries_used=queries_used,
