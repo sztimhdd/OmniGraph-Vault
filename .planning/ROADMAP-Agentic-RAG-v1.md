@@ -116,7 +116,10 @@ Three reasons drive the choice:
   2. CLI accepts `--dump-state <path>` flag that writes the full `ResearchState` as JSONL (per-stage entries) to the given path; consumable by debug tooling (CLI-02)
   3. Smoke test on `"Hermes Harness 深度解析"` produces markdown that satisfies ALL 5 pass conditions: (a) ≥3 inline `![desc](http://localhost:8765/...)` images, (b) `state.verified.confidence >= 60`, (c) wall time ≤ 120 s, (d) no stage with `status="failed"` in JSONL telemetry, (e) answer language is Chinese (TEST-05)
   4. Manual side-by-side audit vs `session_20260506_105324_b7b9f4.json` Telegram answer: scores ≥3/5 on each of 5 dimensions (coverage breadth, technical depth, philosophical framing, source attribution, image relevance); scores recorded in `.planning/MILESTONE_Agentic-RAG-v1_AUDIT.md` (TEST-06 — milestone-close gate)
-**Plans:** TBD
+**Plans:**
+
+- `ar-4-01-telemetry-dump-state` (Wave 1) — `lib/research/telemetry.py` event sink + `research_stream()` body + `research()` refactor to share emission via `_run_pipeline` async generator + `--dump-state <path>` CLI flag with `_write_dump_state` helper in `__main__.py` (LIB-08, CLI-02)
+- `ar-4-02-smoke-audit` (Wave 2, depends on ar-4-01) — `scripts/smoke_milestone.py` driver for TEST-05 5-condition verdict on Hermes + manual audit doc `.planning/MILESTONE_Agentic-RAG-v1_AUDIT.md` for TEST-06 5-dimension scoring; allows conditional Synthesizer prompt iteration if any of 5 conditions fails on first run (TEST-05, TEST-06 — milestone-close)
 **Notes:**
 - TEST-05 is the milestone-close gate. The phase containing TEST-05 (ar-4) gates the entire milestone — completion of ar-4 = completion of Agentic-RAG-v1.
 - TEST-06 (manual audit) is performed AT milestone close, not within an individual plan inside ar-4. Treat it as the final gate after ar-4's other plans complete.
@@ -133,7 +136,7 @@ Three reasons drive the choice:
 | ar-1: MVP vertical slice | 4/4 | Complete | 2026-05-22 (commits 962f995..cbd432d) |
 | ar-2: Reasoner + vision deepening | 3/3 | Complete | 2026-05-23 (commits 0674f66, 942dc48, 5aedf57, 8ca46ad, 8cd2642; 88/88 green; L2 cap=0 smoke exit 0) |
 | ar-3: Verifier + web tools | 3/3 | Complete | 2026-05-23 (commits 6bc7db7, e594363, 17a8fca; 113/113 green; L2a cap=0 smoke exit 0; L2b live-key deferred to ar-4 execute) |
-| ar-4: Telemetry, streaming, smoke + audit | 0/? | Not started | — |
+| ar-4: Telemetry, streaming, smoke + audit | 0/2 | Planned | — (plans landed 2026-05-23: ar-4-01 telemetry+dump-state, ar-4-02 smoke+audit; plan-checker PASS_WITH_NITS / 0 required patches) |
 
 ---
 

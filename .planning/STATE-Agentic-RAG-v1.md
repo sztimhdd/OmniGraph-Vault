@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: Agentic-RAG-v1
 milestone_name: — Agentic-RAG-v1 (parallel-track to v3.4)
 status: in-progress
-last_updated: "2026-05-23T05:00:00Z"
-last_activity: 2026-05-23 — ar-3 phase CLOSED. All 3 waves executed sequentially. Wave 1 (ar-3-01 web-tools, commit 6bc7db7): 9 unit tests, 97/97 green; TOOL-01+TOOL-02+TEST-02+CONFIG-03 env-half delivered; surgical adapter at web_baseline.py via inspect.isawaitable() (orchestrator-accepted deviation). Wave 2 (ar-3-02 verifier-loop, commit e594363): 10 unit tests (9 agent-loop + 1 cap), 107/107 green; ORCH-04+TEST-04 Verifier-half delivered; tool wire format = list[dict] with name+fn keys (matches Reasoner pattern); 2 surgical forward-fixes to test_orchestrator.py + test_stages_stubs.py (~11 LOC, ar-1 stub assertions tracked the old skipped state). Wave 3 (ar-3-03 grounding-caps, commit 17a8fca): 7 net unit tests (5 autodetect + 2 consolidated caps − 1 deleted test_verifier_cap.py), 113/113 green; TOOL-03+CONFIG-03 autodetect+TEST-04 Reasoner-half delivered; Branch B chosen (inline google.genai Vertex client, lib/vertex_gemini_complete.py does not expose complete_with_grounding helper). L2a cap=0 LLM-free CLI smoke exit 0, 155-char markdown (acceptable — fewer degradation notes than ar-2-03 smoke = progress; Retriever 3072/768 embedding dim mismatch is pre-existing v1.0.y operator-side KG issue out of ar-3 scope). CONTRACT-01/02 clean across all 3 waves. Forward-only commits throughout, zero amend/reset. Phase ready for /gsd:plan-phase ar-4.
+last_updated: "2026-05-23T20:30:00Z"
+last_activity: 2026-05-23 evening — ar-4 plan-phase complete (parallel-track manual gates). 3 planning artifacts authored under .planning/phases/ar-4-telemetry-streaming-smoke/ — ar-4-CONTEXT.md (733 LOC), ar-4-01-telemetry-dump-state-PLAN.md (907 LOC, Wave 1 covering LIB-08 + CLI-02 with 18 truths / 6 artifacts / 5 key_links), ar-4-02-smoke-audit-PLAN.md (880 LOC, Wave 2 covering TEST-05 + TEST-06 with 12 truths / 2 artifacts / 5 key_links). Plan-checker verdict PASS_WITH_NITS / 0 required patches (matches ar-3-* template precedent). 4/4 ar-4 REQs covered exactly once, 0 orphans, 0 duplicates. Wave 1 picks Pattern A (private async generator _run_pipeline shared by research() and research_stream() — single source of emission ordering); _amain stays at 17 LOC (≤ 18 cap); _write_dump_state helper lives in __main__.py preserving lib/research/ pure-async character (Axis 1). Wave 2 hardcodes query="Hermes Harness 深度解析" + 5 TEST-05 conditions verbatim + 5 TEST-06 dimensions verbatim + audit doc spec for .planning/MILESTONE_Agentic-RAG-v1_AUDIT.md + remediation sub-cycle bounded at 3 smoke iterations + 1 audit re-run before user escalation. CONTRACT-01/02 grep commands present in both PLANs. Forward-only commit discipline reaffirmed. Phase ready for /gsd:execute-plan ar-4-01-telemetry-dump-state.
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 10
+  total_plans: 12
   completed_plans: 10
 ---
 
@@ -26,10 +26,10 @@ Requirements: `.planning/REQUIREMENTS-Agentic-RAG-v1.md`
 ## Current Position
 
 Milestone: Agentic-RAG-v1 (parallel-track)
-Phase: ar-3 — Verifier + web tools — **complete** (3/3 plans executed, 113/113 unit tests green, L2a cap=0 LLM-free CLI smoke exit 0)
-Plan: ready for `/gsd:plan-phase ar-4` (Telemetry, streaming, smoke pass + milestone audit)
-Status: ar-1 = closed (4/4 plans, commits 962f995..cbd432d); ar-2 = closed (3/3 plans, commits 0674f66..08edd1d); ar-3 = closed (3/3 plans, commits 6bc7db7, e594363, 17a8fca); 10/10 ar-N plans executed.
-Last activity: 2026-05-23 — ar-3 phase closed. All 7 ar-3 REQs delivered (ORCH-04, TOOL-01, TOOL-02, TOOL-03, CONFIG-03, TEST-02, TEST-04). Vertex Grounding via Branch B (inline google.genai). Test progression 88 → 97 → 107 → 113 green. CONTRACT-01/02 clean across all 3 waves.
+Phase: ar-4 — Telemetry, streaming, smoke + milestone audit — **planned** (2/2 plans authored, plan-checker PASS_WITH_NITS / 0 required patches; 0/2 plans executed)
+Plan: ready for `/gsd:execute-plan ar-4-01-telemetry-dump-state` (Wave 1 — telemetry sink + research_stream body + --dump-state CLI flag)
+Status: ar-1 = closed (4/4 plans, commits 962f995..cbd432d); ar-2 = closed (3/3 plans, commits 0674f66..08edd1d); ar-3 = closed (3/3 plans, commits 6bc7db7, e594363, 17a8fca); ar-4 = planned (2/2 plans authored 2026-05-23, 0/2 executed); 10/12 ar-N plans executed.
+Last activity: 2026-05-23 evening — ar-4 plan-phase complete (CONTEXT 733 LOC + W1 PLAN 907 LOC + W2 PLAN 880 LOC). 4/4 ar-4 REQs (LIB-08, CLI-02, TEST-05, TEST-06) mapped, 0 orphans, 0 duplicates. Plan-checker verdict PASS_WITH_NITS, 0 required patches (matches ar-3-* precedent). Wave 1 picks Pattern A (single _run_pipeline async generator shared by both surfaces). Wave 2 milestone-close gate spec-set with remediation sub-cycle bounded at 3 smoke iterations + 1 audit re-run.
 
 ### Phase plan
 
@@ -44,7 +44,7 @@ Total: 41/41 v1 REQs mapped, 37/41 delivered (ar-1: 25, ar-2: 5, ar-3: 7), 0 orp
 
 ### Immediate next step
 
-`/gsd:plan-phase ar-4` — Telemetry JSONL, `research_stream()` body, `--dump-state` CLI flag, milestone-close smoke (TEST-05 — Hermes Harness 深度解析 with 5 pass conditions), milestone audit (TEST-06).
+`/gsd:execute-plan ar-4-01-telemetry-dump-state` — Wave 1: author `lib/research/telemetry.py` (event constants + make_event + write_event + _json_default), refactor `lib/research/orchestrator.py` to share emission via `_run_pipeline` async generator (research_stream body + research() refactor), add `--dump-state <path>` flag + `_write_dump_state` helper to `__main__.py` (≤ 18 LOC `_amain` cap), ≥ 10 new unit tests across 3 new test files. After Wave 1 lands and pytest ≥ 123 green, proceed to `/gsd:execute-plan ar-4-02-smoke-audit` for the milestone-close gate.
 
 ### Operator dependency for ar-3 live-key Layer 2b smoke (deferred phase-close gate)
 
