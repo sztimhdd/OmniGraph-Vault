@@ -18,6 +18,7 @@ from .tools.web_search import (
     make_web_search_with_fallback,
     tavily_extract,
     tavily_search,
+    vertex_gemini_grounding,
 )
 from .types import ResearchConfig
 
@@ -84,7 +85,21 @@ def from_env() -> ResearchConfig:
     else:
         web_search = _skipped_web_search
 
-    google_search_grounding = None  # Wave 3 wires Vertex Grounding auto-detect
+    # Vertex Gemini Grounding auto-detect (CONFIG-03 Wave-3 half):
+    # Promoted to "available" if EITHER signal indicates Vertex is the LLM
+    # provider. Both signals are checked (defense in depth): the env-var path
+    # wins when set, the bound-module path is the safety net for callers that
+    # constructed llm_complete directly without setting OMNIGRAPH_LLM_PROVIDER.
+    _provider_env = os.environ.get("OMNIGRAPH_LLM_PROVIDER", "").strip().lower()
+    _llm_module = getattr(llm_complete, "__module__", "")
+    is_vertex = (
+        _provider_env == "vertex_gemini"
+        or _llm_module == "lib.vertex_gemini_complete"
+    )
+    if is_vertex:
+        google_search_grounding = vertex_gemini_grounding
+    else:
+        google_search_grounding = None
 
     output_dir = (
         Path(os.environ["OMNIGRAPH_RESEARCH_OUTPUT_DIR"])

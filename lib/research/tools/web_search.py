@@ -133,9 +133,35 @@ def make_web_search_with_fallback(
     return cascade
 
 
+async def vertex_gemini_grounding(query: str) -> str:
+    """Vertex Gemini Google Search Grounding pass-through (TOOL-03).
+
+    Thin pass-through. Full prompt-engineering deferred to ar-4 final-tuning.
+    Reads creds at CALL time (lazy import) — keeps web_search.py importable
+    without Vertex creds at module-import time.
+
+    Returns the grounded answer text. Raises on any failure — the Verifier's
+    outer try/except surfaces failures as status='failed' (Axis 3).
+    """
+    # Lazy imports — keep module importable without google-genai / Vertex creds.
+    from google import genai
+    from google.genai import types as genai_types
+
+    client = genai.Client(vertexai=True, location="global")
+    grounding_tool = genai_types.Tool(google_search=genai_types.GoogleSearch())
+    config = genai_types.GenerateContentConfig(tools=[grounding_tool])
+    response = await client.aio.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=query,
+        config=config,
+    )
+    return response.text or ""
+
+
 __all__ = [
     "brave_search",
     "make_web_search_with_fallback",
     "tavily_extract",
     "tavily_search",
+    "vertex_gemini_grounding",
 ]

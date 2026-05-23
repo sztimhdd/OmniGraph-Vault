@@ -10,6 +10,7 @@ from .web_search import (
     make_web_search_with_fallback,
     tavily_extract,
     tavily_search,
+    vertex_gemini_grounding,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "make_web_search_with_fallback",
     "tavily_extract",
     "tavily_search",
+    "vertex_gemini_grounding",
 ]
