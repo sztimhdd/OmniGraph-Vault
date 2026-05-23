@@ -352,6 +352,12 @@ html[lang="en"] .lang-flex[data-lang="en"] {
   display: flex;
 }
 
+/* kb 260522: Option B — hide cards lacking snippet_translated in EN view.
+   Marker class is added by templates when (lang == 'zh-CN' AND not snippet_translated). */
+html[lang="en"] .article-card--zh-only {
+  display: none !important;
+}
+
 
 /* ==========================================================================
  * 6. Hero

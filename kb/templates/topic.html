@@ -70,7 +70,8 @@
     {% if articles %}
     <div class="article-list">
       {% for article in articles %}
-      <a class="article-card" href="{{ base_path }}/articles/{{ article.url_hash }}.html"
+      {# kb 260522 Option B: hide cards in EN view ONLY when a zh snippet exists without an EN counterpart. #}
+      <a class="article-card{% if article.lang == 'zh-CN' and article.snippet and not article.snippet_translated %} article-card--zh-only{% endif %}" href="{{ base_path }}/articles/{{ article.url_hash }}.html"
          data-lang="{{ article.lang or 'unknown' }}" data-source="{{ article.source }}">
         <div class="article-card-meta">
           <span class="lang-badge" data-lang="{{ article.lang or 'unknown' }}">

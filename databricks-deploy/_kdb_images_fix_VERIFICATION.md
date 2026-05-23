@@ -1408,3 +1408,114 @@ UAT 也没验证 `KB_IMAGES_DIR` 是 effective vs default — 本机默认路径
 
 - 新增:`kb/export_knowledge_base.py` bake 入口加 effective-config print + cross-lang sanity check(防御未来同类回归)— 进 v1.0.y backlog
 - 其他 deferred 项(Hermes byline-dedup / RSS scraper 段落保留 / Layer 1 `MIN_BODY_LENGTH_CHARS` / Pass 3 mmbiz materialize)与 Postmortem #9 一致,无变化
+
+---
+
+## Postmortem #11 — 翻译缺口 + Option B 部分翻译过滤(2026-05-23)
+
+### 用户报告
+
+承接 KDB 分支 debug:
+1. **handoff 声称缺 28 行 `body_translated`,实测 gap = 238 行**(169 articles + 69 rss_articles)— Hermes DeepSeek translate cron 覆盖不全。
+2. EN 视图仍出现整段中文 — Option B 防御没生效:有 `snippet` 但无 `snippet_translated` 的 zh-CN 卡片在 EN view 里只能 fallback 显示原文,导致英文用户撞中文段落。
+
+### 根因
+
+**A. 翻译缺口**
+Hermes 后台 DeepSeek translate cron(commit `1b14bae` Pass 2 之后)**没追上 167 篇 KOL articles + 69 篇 RSS articles**(总 238 行 `body_translated IS NULL`)。Pass 2 当时只覆盖了 batch 推送给 cron 的子集,后续新增/重抓的文章没被回填。这些文章渲染时 `body_translated` fallback 到 `body`,EN 视图里就是整段中文。
+
+**B. 模板层缺失 Option B**
+4 个文章列表模板(`index.html` Latest / `articles_index.html` 全列表 / `entity.html` 实体下挂列表 / `topic.html` 主题下挂列表)**都用 dual-span 渲染卡片标题 + snippet**,但 EN span 在 `snippet_translated IS NULL` 时 fallback 回 zh-CN snippet。结果:中文卡片在 EN view 里以中文 snippet 显示,完全破坏单语用户体验。
+
+CSS 已有 `html[lang="en"] .lang-flex[data-lang="en"] { display: flex; }` 这种 lang-scoped 规则,但**没有针对 `article-card` 的 zh-only 隐藏规则**,因为之前未识别到这个 fallback 路径。
+
+### 修复
+
+**Pass 1 — Databricks Claude bulk 翻译(根因 A)**
+
+写 `.scratch/translate_body_bulk_260522.py`(scratch 目录 git-ignored,不入库):
+- 走 Databricks `databricks-claude-haiku-4-5` serving endpoint(`/serving-endpoints/{name}/invocations` REST + PAT 来自 `~/.databrickscfg [dev]` profile)
+- SELECT `WHERE body IS NOT NULL AND body_translated IS NULL` from `articles` + `rss_articles` — 238 行候选
+- 每行 atomic UPDATE + commit(resume-safe,断网恢复后从下一未译行继续)
+- 用 haiku-4-5 而非 Hermes DeepSeek cron — 用户明确指示"用 databricks 给翻译了就行了",不走 Hermes 通道因为 cron 已证明不可靠
+
+执行结果:238 / 238 行成功填入 `body_translated`(0 fail / 0 skip),后续 SCP 把翻译完的 DB 推回 Hermes(Hermes 仍是 source-of-truth per Postmortem #10)。
+
+**Pass 2 — 模板层 Option B(根因 B)**
+
+4 个模板里的卡片 `<a>` 标签加条件 class:
+
+```jinja
+<a class="article-card{% if article.lang == 'zh-CN' and article.snippet and not article.snippet_translated %} article-card--zh-only{% endif %}" href="...">
+```
+
+关键设计:**`article.snippet and` 防御 false-positive 隐藏**。`/articles/` 全列表卡片可能根本不渲染 snippet(`a.snippet` 为 None / 空串),如果只判 `not article.snippet_translated` 会把所有不带 snippet 的中文卡也藏掉,造成"列表空白"假象。加 `article.snippet and` 后,只有"明确算了 snippet 但没翻译"的卡片才被标记。
+
+CSS 在 `kb/static/style.css` 加:
+
+```css
+/* kb 260522: Option B — hide cards lacking snippet_translated in EN view. */
+html[lang="en"] .article-card--zh-only {
+  display: none !important;
+}
+```
+
+`html[lang]` selector 保证只在 EN view 隐藏;ZH view(`html[lang="zh-CN"]`)所有卡片照常显示。
+
+### 部署结果
+
+```
+deployment_id:        01f1566323e1150b8c0784c7c76bdcf6
+state:                SUCCEEDED
+update_time:          2026-05-23T04:55:18Z
+build time:           1m0s
+URL:                  https://omnigraph-kb-2717931942638877.17.azure.databricksapps.com
+boot log:             FTS5 245 rows indexed clean / DB hydrated 37445632 bytes
+```
+
+### Local UAT(Rule 6)
+
+`venv/Scripts/python.exe .scratch/local_serve.py` (port 8766)+ Playwright MCP 浏览 4 个表面,EN view 各页 zhOnly 标记数 / 可见卡片数:
+
+| 表面 | URL | EN visible | EN zhOnly marked |
+|---|---|---|---|
+| Articles 全列表 | `/articles/` | 238 | 0 |
+| Home Latest | `/` | 25 | 0 |
+| Topic 页 | `/topics/agent.html` | 132 | 0 |
+| Entity 页 | `/entities/claude-code.html` | 54 | 0 |
+
+`zhOnly marked = 0` = Pass 1 翻译成功:`snippet_translated` 全部 populated,Option B class 没匹配到任何卡片(因为没有 `snippet AND not snippet_translated` 的行了)。Pass 2 是**保险机制**,在未来 Hermes translate cron 再次落后时托底 — 而不是当前页面已经依赖它工作。
+
+### Production UAT 状态
+
+Private Link 阻止外部 curl(per Decision 4 in Makefile smoke comment);交互式 UAT 需要浏览器 SSO。已通过 deploy log(`scripts/tail_app_logs.py`)间接验证:`Deployment successful`、`App started successfully`、DB 字节数 37445632(预期翻译后大小)、FTS5 重建 245 行。**完整浏览器 UAT 待用户上线后由用户在浏览器侧验证**。
+
+### 教训
+
+1. **Pass 2 (Option B) 是托底,不是首选** — 主路径必须靠 Pass 1(翻译数据齐全)。Option B 只在 `snippet_translated IS NULL` 时生效,如果它频繁触发说明翻译 cron 又落后了,需要 alert,不是默默隐藏卡片
+2. **`{% if article.snippet and ... %}` 的 `article.snippet and` 不能省** — `/articles/` 列表卡片可能根本不计算 snippet,省略保护会把整个列表 hide 空。这是一种"零参条件"的常见陷阱
+3. **Bulk translate via Databricks > Hermes DeepSeek cron** — 用户明确选择 Databricks haiku-4-5 是因为 Hermes cron 已证明覆盖不全(238 行 gap 就是 Hermes 留下的)。轻量列填数据走 Databricks (REST + PAT) 比绕一圈 Hermes 通道更直接
+4. **Hermes 仍是 source-of-truth** — 翻译完 SCP 推回 Hermes,不让 Databricks Volume 与 Hermes DB 长期 diverge(per Postmortem #10 lesson)
+5. **断网继续策略**:atomic UPDATE + commit per-row 让翻译脚本具备 resume 语义;模板改 + UAT + 部署不需要用户决策的步骤可以独立完成
+6. **deploy log 可作为 prod UAT 替代证据**(短期):`Deployment successful` + DB 字节数 + FTS5 行数与预期一致 = 部署本身没塌。**最终交互验证仍需用户浏览器侧 SSO 后人工 spot-check**
+
+### Deferred(后续 backlog)
+
+- **Hermes translate cron 覆盖率监控**:每天 `SELECT count(*) FROM articles WHERE body IS NOT NULL AND body_translated IS NULL` 应该 ~0;持续 >50 触发 alert
+- **DB sync 链一致化**:Hermes(source-of-truth)→ 本地 bake DB → Databricks Volume DB 三者目前手动 SCP / sync;未来加入定时 reconcile job
+- **Option B class 加遥测**:模板渲染时记录 `zh_only_marked_count`,如果某次 bake 这个数 > 0 就说明 Pass 1 翻译没追上,bake 应当 abort + 告警(防御性 fail-loud)
+
+### 文件清单
+
+修改:
+- `kb/static/style.css` — `html[lang="en"] .article-card--zh-only` 隐藏规则
+- `kb/templates/index.html` — Latest 卡片加 Option B class
+- `kb/templates/articles_index.html` — 全列表卡片加 Option B class(带 `article.snippet and` 防御)
+- `kb/templates/entity.html` — Entity 下挂列表卡片加 Option B class
+- `kb/templates/topic.html` — Topic 下挂列表卡片加 Option B class
+- `databricks-deploy/_kdb_images_fix_VERIFICATION.md` — 本 Postmortem #11
+
+新增(临时,git-ignored):
+- `.scratch/translate_body_bulk_260522.py` — Databricks Claude bulk 翻译脚本(scratch 目录,不入库)
+
+部署:`deployment_id=01f1566323e1150b8c0784c7c76bdcf6` 2026-05-23T04:55:18Z SUCCEEDED
