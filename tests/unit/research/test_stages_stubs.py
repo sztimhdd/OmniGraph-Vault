@@ -232,11 +232,20 @@ async def test_reasoner_returns_ok_on_immediate_final(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Test 9: verifier stub
+# Test 9: verifier — real bounded loop with deterministic final-answer mock
+# (ar-3-02 update: ar-1 stub replaced; injecting an immediate-final
+# llm_complete keeps this test deterministic without exercising the live
+# loop body, which is covered in test_verifier_agent_loop.py.)
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
-async def test_verifier_stub_skipped(tmp_path):
+async def test_verifier_returns_typed_output(tmp_path):
+    from lib.research.stages.verifier import _LLMDecision
+
+    async def _final_llm(prompt, tools):
+        return _LLMDecision(is_final=True, content="", confidence=0.0)
+
     cfg = _make_cfg(tmp_path / "lightrag_storage")
+    cfg = dataclasses.replace(cfg, llm_complete=_final_llm)
     reasoned = ReasonerOutput(
         inferences_md="",
         additional_chunks=[],
@@ -245,12 +254,11 @@ async def test_verifier_stub_skipped(tmp_path):
     )
     out = await verifier_stage.run("hello", cfg, reasoned)
     assert isinstance(out, VerifierOutput)
-    assert out.status == "skipped"
-    assert out.iter_count == 0
+    assert out.status in {"ok", "failed"}
+    assert out.iter_count >= 0
     assert out.confidence == 0.0
     assert out.external_citations == []
     assert out.discrepancies == []
-    assert "ar-3" in (out.reason or "")
 
 
 # ---------------------------------------------------------------------------
