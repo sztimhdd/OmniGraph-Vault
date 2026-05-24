@@ -136,6 +136,18 @@ SSH-inline `rm -f` after smoke. CLEANUP_OK echoed.
 - Memory `feedback_git_add_explicit_in_parallel_quicks.md` — explicit `git add` of 2 files only
 - Memory `feedback_no_amend_in_concurrent_quicks.md` — forward-only commit
 
+## Forward-only correction
+
+Initial commit `996412c` landed the script as mode `100644` (Windows
+Git Bash on the corp dev box does not propagate the in-tree `chmod +x`
+to the git index — `core.filemode=false` on this clone). Forward-only
+follow-up commit `8cc6204` `fix(aim-4): chmod +x scripts/sync-from-aliyun.sh
+(Windows core.filemode workaround)` runs `git update-index --chmod=+x`
+to flip the index mode to `100755`. Per memory
+`feedback_no_amend_in_concurrent_quicks.md`, no `--amend` was used.
+Post-fix: `git ls-files --stage scripts/sync-from-aliyun.sh` reports
+`100755` (PASS plan §Acc #2).
+
 ## Next step
 
 aim-4-3 will install `omnigraph-daily-pull.service` + `.timer` on
