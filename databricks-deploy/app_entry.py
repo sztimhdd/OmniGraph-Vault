@@ -41,8 +41,8 @@ async def sdk_probe() -> dict:
     silently skipped by hydrate_images_dir).
     """
     try:
-        from databricks.sdk import WorkspaceClient
-        w = WorkspaceClient()
+        from _db_client import get_databricks_client
+        w = get_databricks_client()
     except Exception as e:
         return {"error": f"WorkspaceClient init failed: {e}"}
 

@@ -5,9 +5,12 @@ Model Serving endpoints for LightRAG instantiation. Consumed by kdb-2 App
 startup (post LLM-DBX-01 dispatcher integration) and kdb-2.5 re-index Job.
 
 Auth:
-    - Locally: ``WorkspaceClient()`` reads ``~/.databrickscfg [dev]`` profile (user OAuth).
-    - In Apps:  ``WorkspaceClient()`` reads ``DATABRICKS_HOST/CLIENT_ID/CLIENT_SECRET``
-                injected automatically by the Apps runtime.
+    - Both factory bodies obtain their ``WorkspaceClient`` via
+      ``_db_client.get_databricks_client()``. That helper picks PAT-via-profile
+      when ``DATABRICKS_CONFIG_PROFILE`` is set (local UAT — also passes
+      ``auth_type="pat"`` to skip the ~5-min Azure metadata probe that hangs
+      on EDC corp network), or bare ``WorkspaceClient()`` in deployed Apps
+      (platform-injected M2M credentials take over).
 
 See ``.planning/phases/kdb-1.5-lightrag-databricks-provider-adapter/kdb-1.5-RESEARCH.md``
 Q5 + Decision 3 for design rationale.
@@ -20,9 +23,10 @@ Design notes:
     - Pitfall 5 (RESEARCH.md): never wrap a function already decorated with
       ``@wrap_embedding_func_with_attrs`` in another ``EmbeddingFunc``. We expose
       the decorated ``_embed`` directly via ``make_embedding_func()``.
-    - ``WorkspaceClient`` is lazy-imported inside factory bodies so this module
-      imports cleanly in environments without ``databricks-sdk`` installed
-      (e.g., when only the storage adapter is being tested).
+    - ``WorkspaceClient`` is lazy-imported (via ``_db_client``) inside factory
+      bodies so this module imports cleanly in environments without
+      ``databricks-sdk`` installed (e.g., when only the storage adapter is
+      being tested).
 """
 from __future__ import annotations
 
@@ -60,10 +64,11 @@ def make_llm_func():
                                history_messages: list[dict] | None = None,
                                **kwargs) -> str
     """
-    from databricks.sdk import WorkspaceClient
     from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
 
-    w = WorkspaceClient()  # closure captures the client - constructed once per factory call
+    from _db_client import get_databricks_client
+
+    w = get_databricks_client()  # honors DATABRICKS_CONFIG_PROFILE for local PAT, bare for cloud M2M
 
     async def llm_func(
         prompt: str,
@@ -110,9 +115,9 @@ async def _embed(texts: list[str], **_kwargs: Any) -> np.ndarray:
 
     Returns ``np.ndarray`` of shape ``(N, EMBEDDING_DIM)``, ``dtype=float32``.
     """
-    from databricks.sdk import WorkspaceClient
+    from _db_client import get_databricks_client
 
-    w = WorkspaceClient()
+    w = get_databricks_client()
     loop = asyncio.get_running_loop()
     resp = await loop.run_in_executor(
         None,
