@@ -21,7 +21,7 @@ must_haves:
     - "scripts/smoke_milestone.py exists, is executable as `python scripts/smoke_milestone.py` (no positional args), uses the hardcoded query string `Hermes Harness 深度解析`, and writes telemetry JSONL to `.scratch/smoke-telemetry-<unix-ts>.jsonl`"
     - "smoke driver computes condition (a) via regex `re.findall(r\"!\\[[^\\]]*\\]\\(http://localhost:8765/\", result.markdown)` and asserts count ≥ 3 inline images"
     - "smoke driver reads condition (b) directly from `result.state.verified.confidence` and asserts `>= 60.0` (float)"
-    - "smoke driver measures condition (c) wall time as `time.time() - t0` around the `await research(...)` call and asserts `<= 120.0` seconds"
+    - "smoke driver measures condition (c) wall time as `time.time() - t0` around the `await research(...)` call and asserts `<= 240.0` seconds"
     - "smoke driver verifies condition (d) by parsing the telemetry JSONL line-by-line, collecting any `event_type==stage_end` entries with `status==failed`, and asserting the resulting list is empty"
     - "smoke driver computes condition (e) Chinese-language ratio after stripping inline-image markdown and bare URLs, counting CJK chars (range `一-鿿`) over total non-whitespace chars, and asserts `>= 0.5`"
     - "smoke driver emits a JSON verdict on stdout containing all 10 fields (a_image_count + a_pass, b_confidence + b_pass, c_elapsed_s + c_pass, d_failed_stages + d_pass, e_cjk_ratio + e_pass) and exits 0 if and only if every `*_pass` is True"
@@ -123,7 +123,7 @@ No positional args, no flags. Hardcoded `QUERY = "Hermes Harness 深度解析"` 
 |---|---|---|
 | (a) | Markdown contains ≥ 3 inline `![desc](http://localhost:8765/...)` images | `len(re.findall(r"!\[[^\]]*\]\(http://localhost:8765/", result.markdown)) >= 3` |
 | (b) | `state.verified.confidence >= 60` | Read `result.state.verified.confidence` (VerifierOutput field; float) |
-| (c) | Total wall time ≤ 120 s | `time.time() - t0 <= 120.0` measured around `await research(...)` |
+| (c) | Total wall time ≤ 240 s (calibrated 2026-05-24 from pre-empirical 120 s) | `time.time() - t0 <= 240.0` measured around `await research(...)` |
 | (d) | No stage with `status="failed"` in JSONL telemetry | Parse `<telemetry_jsonl>` line-by-line; collect any `event_type==stage_end` event with `status==failed`; assert empty |
 | (e) | Answer language is Chinese | Strip inline-image markdown + bare URLs, count CJK chars (`一-鿿`) over total non-whitespace, assert ratio `>= 0.5` |
 
@@ -220,7 +220,7 @@ The local-dev workstation cannot run TEST-05 because:
 1. The local KG has the 3072/768 embedding-dim mismatch (pre-existing v1.0.y operator-side issue) → Retriever returns `status="failed"` → condition (d) auto-fails.
 2. Corp Cisco Umbrella proxy blocks Tavily + Brave egress → WebBaseline + Verifier external citation paths fail.
 3. `BASE_IMAGE_DIR` and the local image HTTP server (port 8765) populated with real ingested article images live only on Hermes.
-4. Wallclock ≤ 120 s requires real network concurrency from Hermes's egress, not the corp-proxy-routed dev box.
+4. Wallclock ≤ 240 s requires real network concurrency from Hermes's egress, not the corp-proxy-routed dev box.
 
 Required env vars on the Hermes target's `~/.hermes/.env` BEFORE smoke can run:
 - `TAVILY_API_KEY` — primary web-search path (mandatory for condition d non-failure)
@@ -267,7 +267,7 @@ async def main():
     verdict = {
         "a_image_count": image_count, "a_pass": image_count >= 3,
         "b_confidence": confidence, "b_pass": confidence >= 60.0,
-        "c_elapsed_s": elapsed, "c_pass": elapsed <= 120.0,
+        "c_elapsed_s": elapsed, "c_pass": elapsed <= 240.0,
         "d_failed_stages": failed_stages, "d_pass": len(failed_stages) == 0,
         "e_cjk_ratio": cjk_ratio, "e_pass": cjk_ratio >= 0.5,
     }
@@ -449,7 +449,7 @@ User holds the final say on the audit verdict. If user disagrees with any dimens
                "b_confidence": confidence,
                "b_pass": confidence >= 60.0,
                "c_elapsed_s": elapsed,
-               "c_pass": elapsed <= 120.0,
+               "c_pass": elapsed <= 240.0,
                "d_failed_stages": failed_stages,
                "d_pass": len(failed_stages) == 0,
                "e_cjk_ratio": cjk_ratio,
@@ -565,7 +565,7 @@ User holds the final say on the audit verdict. If user disagrees with any dimens
        **Outcome B — one or more conditions fail:** enter remediation sub-cycle. Diagnose:
        - **(a) `image_count < 3`**: Synthesizer prompt may not be selecting/embedding enough caption-anchored images, OR Reasoner image-selection (ar-2-01) didn't analyze ≥3 images. Inspect `result.state.reasoned.analyzed_images` count via dump-state (Wave 1's `--dump-state .scratch/dump.jsonl` flag). If `analyzed_images >= 3` but markdown has < 3 inline images: Synthesizer prompt iteration in `lib/research/stages/synthesizer.py` (ROADMAP § Cross-phase touches ORCH-05 blessing). If `analyzed_images < 3`: Reasoner prompt iteration in `lib/research/stages/reasoner.py` (also ROADMAP-blessed cross-phase touch).
        - **(b) `confidence < 60.0`**: Verifier external citations are weak. Inspect `result.state.verified.external_citations` count. If 0 citations, web tools may have `status="skipped"` (no API key in `~/.hermes/.env`). Re-run with TAVILY+BRAVE keys present. If citations exist but confidence still low: Verifier prompt iteration may be needed (`lib/research/stages/verifier.py`) — ROADMAP-blessed cross-phase touch.
-       - **(c) `elapsed > 120.0 s`**: pipeline too slow. Likely culprits: Reasoner cap (default 5) or Verifier cap (default 3) too high; serialized image-vision calls; Tavily/Brave latency. Mitigation: lower caps via env (`OMNIGRAPH_RESEARCH_MAX_ITER_REASONER=3`, `..._VERIFIER=2`), OR investigate Vision parallelism inside Reasoner.
+       - **(c) `elapsed > 240.0 s`**: pipeline too slow. Likely culprits: Reasoner cap (default 5) or Verifier cap (default 3) too high; serialized image-vision calls; Tavily/Brave latency. Mitigation: lower caps via env (`OMNIGRAPH_RESEARCH_MAX_ITER_REASONER=3`, `..._VERIFIER=2`), OR investigate Vision parallelism inside Reasoner.
        - **(d) `failed_stages` non-empty**: a stage's outer try/except surfaced a failure. Inspect telemetry JSONL `reason` field for that stage. Common causes: Retriever embedding-dim mismatch (Hermes KG re-ingest needed); Verifier grounding tool credential failure (drop with `--no-grounding`); WebBaseline Tavily timeout (raise timeout or accept skipped status).
        - **(e) `cjk_ratio < 0.5`**: model picked English mid-stream. Synthesizer prompt iteration (ROADMAP-blessed) — strengthen the "respond in Chinese matching the query language" instruction.
 
@@ -706,7 +706,7 @@ User holds the final say on the audit verdict. If user disagrees with any dimens
          - Query: "Hermes Harness 深度解析"
          - Verdict: see .planning/MILESTONE_Agentic-RAG-v1_AUDIT.md § Smoke verdict
          - All 5 conditions pass: image_count >= 3, confidence >= 60.0,
-           elapsed <= 120s, no failed stages, cjk_ratio >= 0.5
+           elapsed <= 240s, no failed stages, cjk_ratio >= 0.5
 
        TEST-06 manual audit (.planning/MILESTONE_Agentic-RAG-v1_AUDIT.md):
          - Coverage breadth: <score>/5

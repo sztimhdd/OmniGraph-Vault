@@ -420,7 +420,7 @@ deep-dive query established by the design doc.
 |---|---|---|
 | (a) | Markdown contains ≥ 3 inline `![desc](http://localhost:8765/...)` images | Regex count: `re.findall(r"!\[[^\]]*\]\(http://localhost:8765/", markdown)` ≥ 3 |
 | (b) | `state.verified.confidence >= 60` | Read from `result.state.verified.confidence` |
-| (c) | Total wall time ≤ 120 s | `time.time() - state.timestamp_start <= 120.0` |
+| (c) | Total wall time ≤ 240 s | `time.time() - state.timestamp_start <= 240.0`. Calibrated 2026-05-24 against measured DeepSeek latency: default-cap agent loops (Reasoner 5 + Verifier 3) at ~25-30s per LLM call × up to 8 calls + Retriever ~30s realistic ceiling. Original 120s value was pre-empirical estimate; relaxed by user directive at iteration-3 calibration checkpoint. |
 | (d) | No stage with `status="failed"` in JSONL telemetry | Parse `<telemetry_jsonl>`, ensure all `stage_end` events have `status` ∈ {ok, skipped, None for synthesizer} |
 | (e) | Answer language is Chinese | Heuristic: ≥ 50% of non-image, non-URL characters in markdown are CJK (`一-鿿`); reuse logic from existing language detector if any, else a small inline check |
 

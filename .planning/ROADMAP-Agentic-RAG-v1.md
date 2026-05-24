@@ -114,7 +114,7 @@ Three reasons drive the choice:
 **Success Criteria** (what must be TRUE):
   1. `async def research_stream(query, config) -> AsyncIterator[Event]` exists alongside `research()` and emits incremental progress events (one per stage minimum, ideally per-tool-call) (LIB-08)
   2. CLI accepts `--dump-state <path>` flag that writes the full `ResearchState` as JSONL (per-stage entries) to the given path; consumable by debug tooling (CLI-02)
-  3. Smoke test on `"Hermes Harness 深度解析"` produces markdown that satisfies ALL 5 pass conditions: (a) ≥3 inline `![desc](http://localhost:8765/...)` images, (b) `state.verified.confidence >= 60`, (c) wall time ≤ 120 s, (d) no stage with `status="failed"` in JSONL telemetry, (e) answer language is Chinese (TEST-05)
+  3. Smoke test on `"Hermes Harness 深度解析"` produces markdown that satisfies ALL 5 pass conditions: (a) ≥3 inline `![desc](http://localhost:8765/...)` images, (b) `state.verified.confidence >= 60`, (c) wall time ≤ 240 s (calibrated 2026-05-24 from pre-empirical 120 s estimate against measured DeepSeek latency on Hermes path), (d) no stage with `status="failed"` in JSONL telemetry, (e) answer language is Chinese (TEST-05)
   4. Manual side-by-side audit vs `session_20260506_105324_b7b9f4.json` Telegram answer: scores ≥3/5 on each of 5 dimensions (coverage breadth, technical depth, philosophical framing, source attribution, image relevance); scores recorded in `.planning/MILESTONE_Agentic-RAG-v1_AUDIT.md` (TEST-06 — milestone-close gate)
 **Plans:**
 
