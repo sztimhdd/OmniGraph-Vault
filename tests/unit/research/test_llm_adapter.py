@@ -260,3 +260,55 @@ def test_strip_fences_json_fence():
 
 def test_strip_fences_bare_fence():
     assert _strip_fences("```\nbody\n```") == "body"
+
+
+# --- Verifier-only fields: confidence + discrepancies ---
+
+
+def test_parse_decision_extracts_verifier_confidence_and_discrepancies():
+    raw = (
+        '{"is_final": true, "content": "verdict text", '
+        '"confidence": 82.5, "discrepancies": ["claim X unsupported", "date mismatch"]}'
+    )
+    d = _parse_decision(raw)
+    assert d.is_final is True
+    assert d.content == "verdict text"
+    assert d.confidence == 82.5
+    assert d.discrepancies == ("claim X unsupported", "date mismatch")
+
+
+def test_parse_decision_clamps_confidence_to_0_100():
+    over = _parse_decision('{"is_final": true, "content": "x", "confidence": 200}')
+    assert over.confidence == 100.0
+    under = _parse_decision('{"is_final": true, "content": "x", "confidence": -5}')
+    assert under.confidence == 0.0
+
+
+def test_parse_decision_invalid_confidence_defaults_zero():
+    raw = '{"is_final": true, "content": "x", "confidence": "not-a-number"}'
+    d = _parse_decision(raw)
+    assert d.confidence == 0.0
+
+
+def test_parse_decision_filters_non_string_discrepancies():
+    raw = '{"is_final": true, "content": "x", "discrepancies": ["ok", 42, null, "fine"]}'
+    d = _parse_decision(raw)
+    assert d.discrepancies == ("ok", "fine")
+
+
+def test_parse_decision_reasoner_path_unaffected_by_verifier_fields():
+    """A Reasoner-style response (no confidence/discrepancies) still parses
+    cleanly; the new fields default to 0.0 and ()."""
+    raw = '{"is_final": true, "content": "reasoner answer"}'
+    d = _parse_decision(raw)
+    assert d.is_final is True
+    assert d.content == "reasoner answer"
+    assert d.confidence == 0.0
+    assert d.discrepancies == ()
+    assert d.tool_calls == ()
+
+
+def test_build_structured_prompt_mentions_confidence_and_discrepancies():
+    structured = _build_structured_prompt("verifier prompt", [{"name": "web_search"}])
+    assert "confidence" in structured
+    assert "discrepancies" in structured

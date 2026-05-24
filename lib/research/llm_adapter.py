@@ -81,11 +81,17 @@ class _ToolCallPayload:
 class _DecisionPayload:
     """Duck-type-compatible with stages/{reasoner,verifier}.py's _LLMDecision.
 
-    Loops access ``.is_final``, ``.content``, and ``.tool_calls`` only.
+    Reasoner accesses: ``.is_final``, ``.content``, ``.tool_calls``.
+    Verifier accesses: those plus ``.confidence`` (float 0-100) and
+    ``.discrepancies`` (tuple of str). Both extras default to safe values
+    so the Reasoner path is unaffected — its prompt never mentions them
+    and they stay at their defaults; the Reasoner loop never reads them.
     """
     is_final: bool
     content: str | None = None
     tool_calls: tuple[_ToolCallPayload, ...] = field(default_factory=tuple)
+    confidence: float = 0.0
+    discrepancies: tuple[str, ...] = field(default_factory=tuple)
 
 
 # Type alias for clarity at call sites.
@@ -125,9 +131,13 @@ def _build_structured_prompt(prompt: str, tools: list[dict] | None) -> str:
         "Respond with ONE valid JSON object ONLY — no prose before or after, "
         "no markdown code fences. Schema:\n"
         '{"is_final": <bool>, "content": <string|null>, '
-        '"tool_calls": [{"name": <string>, "args": <object>}, ...]}\n'
+        '"tool_calls": [{"name": <string>, "args": <object>}, ...], '
+        '"confidence": <number 0-100, optional>, '
+        '"discrepancies": [<string>, ...] (optional)}\n'
         "When is_final=true, content is REQUIRED (the final answer). "
-        "When is_final=false, tool_calls is REQUIRED (one or more calls)."
+        "When is_final=false, tool_calls is REQUIRED (one or more calls). "
+        "If the task requests a fact-check / confidence score, include "
+        "confidence (0-100) and discrepancies on the final-answer object."
     )
 
 
@@ -179,16 +189,38 @@ def _parse_decision(raw: str) -> _DecisionPayload:
             args = {}
         tool_calls.append(_ToolCallPayload(name=name, args=args))
 
+    # Verifier-only fields: confidence (float 0-100) and discrepancies (list[str]).
+    # Default 0.0 / () when absent so the Reasoner path (which never reads them)
+    # is unaffected.
+    confidence_raw = obj.get("confidence")
+    try:
+        confidence = float(confidence_raw) if confidence_raw is not None else 0.0
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(100.0, confidence))
+
+    discrepancies_raw = obj.get("discrepancies") or []
+    if not isinstance(discrepancies_raw, list):
+        discrepancies_raw = []
+    discrepancies = tuple(d for d in discrepancies_raw if isinstance(d, str))
+
     # If model claimed not-final but emitted no tool calls, treat raw text as
     # a final answer to avoid an infinite loop where the model has nothing to
     # dispatch but nothing to finalize either.
     if not is_final and not tool_calls:
-        return _DecisionPayload(is_final=True, content=content if content else raw)
+        return _DecisionPayload(
+            is_final=True,
+            content=content if content else raw,
+            confidence=confidence,
+            discrepancies=discrepancies,
+        )
 
     return _DecisionPayload(
         is_final=is_final,
         content=content,
         tool_calls=tuple(tool_calls),
+        confidence=confidence,
+        discrepancies=discrepancies,
     )
 
 
