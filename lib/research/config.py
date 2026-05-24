@@ -48,7 +48,15 @@ def from_env() -> ResearchConfig:
     # Lazy imports — keep lib.research importable even if these modules have
     # init-time side effects, and avoid eager cost for callers that mock these.
     from lib.llm_complete import get_llm_func
-    llm_complete = get_llm_func()
+    underlying_llm = get_llm_func()
+
+    # ar-4-02 Option A: wrap the LightRAG-compatible (prompt) -> str provider
+    # in the JSON-mode tool-calling adapter so the Reasoner / Verifier loops
+    # get a (prompt, tools) -> _DecisionPayload interface (duck-type-compatible
+    # with their _LLMDecision contracts). Adapter forwards underlying.__module__
+    # so the Vertex Grounding auto-detect below still sees the real provider.
+    from .llm_adapter import make_json_decision_adapter
+    llm_complete = make_json_decision_adapter(underlying_llm)
 
     from lib.lightrag_embedding import embedding_func
 
