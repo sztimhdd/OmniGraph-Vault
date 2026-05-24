@@ -37,7 +37,7 @@ Last activity: 2026-05-20 evening — milestone files written; main PROJECT.md u
 | aim-0 | Readiness verification on upgraded Aliyun ECS (disk / RTT / mem peak / smoke) | 4 | S | ✅ DONE — commit f3cd667 / 2026-05-21 |
 | aim-1 | Code + env deploy (git clone + venv + provider keys + local_e2e smoke) | 4 | S | ✅ DONE — commit 718c52d / 2026-05-23 |
 | aim-2 | LightRAG storage full migration (Hermes pause + tar.gz + scp + sha256 + count verify) | 5 | M | blocked by aim-1 |
-| aim-3 | Cutover (systemd timer + kol_scan.db handoff + Hermes crontab clear + journald) | 5 | M | blocked by aim-2 |
+| aim-3 | Cutover (systemd timer + kol_scan.db handoff + Hermes crontab clear + journald) | 5 | M | ✅ DONE — commit aim-3-4 evidenced / 2026-05-24 |
 | aim-4 | Daily sync Aliyun → Hermes + Databricks (consumer-side cron + retry + journald) | 4 | S | blocked by aim-3 |
 | aim-5 | 7-day stability (systemd / reconcile / daily sync — all 7d zero-failure) | 5 | S (7-day wall-clock) | blocked by aim-4 |
 
