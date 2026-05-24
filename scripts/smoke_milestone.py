@@ -35,6 +35,13 @@ import sys
 import time
 from pathlib import Path
 
+# Ensure project root is on sys.path so top-level `config.py` (consumed by
+# lib/llm_deepseek.py and friends) resolves regardless of how the driver is
+# invoked. The smoke driver lives in scripts/ so default sys.path[0] is wrong.
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+
 from omnigraph.research import research
 from omnigraph.research.config import from_env
 
