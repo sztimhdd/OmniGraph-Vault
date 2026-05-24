@@ -617,6 +617,27 @@ html[lang="en"] .article-card--zh-only {
   flex-shrink: 0;
 }
 
+/* KG progressive-enhancement marker — appended to article cards that
+ * surfaced from the LightRAG knowledge-graph augmentation pass. Visual
+ * weight intentionally below .lang-badge / .source-chip so it reads as
+ * provenance metadata rather than a primary attribute. */
+.kg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.25rem;
+  padding: 0.0625rem 0.4375rem;
+  border-radius: 3px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: var(--accent-blue-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-blue-30);
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
 .source-chip {
   display: inline-flex;
   align-items: center;

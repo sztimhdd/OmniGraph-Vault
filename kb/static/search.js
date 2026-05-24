@@ -48,10 +48,15 @@
   var MIN_QUERY_LEN = 2;
   var FETCH_LIMIT = 10;
 
+  // KG progressive enhancement (additive, never blocks FTS first paint).
+  var KG_POLL_MS = 800;
+  var KG_POLL_MAX = 12;  // ~9.6s ceiling — KG local mode typically returns within 4-8s
+
   var input = null;
   var resultsEl = null;
   var debounceTimer = null;
   var inFlight = null;  // AbortController for the current fetch
+  var kgToken = 0;       // monotonic token — each new query bumps; stale KG callbacks bail
 
   function $(sel, root) { return (root || document).querySelector(sel); }
 
@@ -203,6 +208,7 @@
   function runSearch(q) {
     if (inFlight) inFlight.abort();
     inFlight = (typeof AbortController === 'function') ? new AbortController() : null;
+    var myToken = ++kgToken;  // invalidate any KG poll from a previous query
     showLoading();
     var lang = getLang();
     fetchSearch(q, lang)
@@ -217,11 +223,113 @@
       })
       .then(function (data) {
         renderItems(data.items || [], data.total || 0, q);
+        // Progressive enhancement: kick off KG augmentation AFTER FTS paint.
+        // Failure modes (503, 404, network, empty) silently keep FTS-only.
+        runKgEnhancement(q, myToken);
       })
       .catch(function (e) {
         if (e && e.name === 'AbortError') return;  // Superseded by newer query
         showError(e && e.message ? e.message : '');
       });
+  }
+
+  // ---- KG progressive enhancement ----------------------------------------
+
+  function collectFtsHashes() {
+    if (!resultsEl) return {};
+    var seen = {};
+    var nodes = resultsEl.querySelectorAll('.article-card');
+    for (var i = 0; i < nodes.length; i++) {
+      var href = nodes[i].getAttribute('href') || '';
+      var m = href.match(/\/articles\/([a-f0-9]{10})\.html/);
+      if (m) seen[m[1]] = true;
+    }
+    return seen;
+  }
+
+  function kgCardHtml(item) {
+    var hash = encodeURIComponent(item.hash || '');
+    var title = escapeHtml(item.title || '');
+    var snippet = escapeHtml(item.snippet || '');
+    return '<a class="article-card article-card--kg" href="'
+      + (window.KB_BASE_PATH || '') + '/articles/' + hash + '.html"'
+      + ' data-lang="' + escapeHtml(item.lang || 'unknown') + '"'
+      + ' data-source="' + escapeHtml(item.source || 'web') + '">'
+      + '<div class="article-card-meta">'
+      + langBadgeHtml(item.lang)
+      + sourceChipHtml(item.source)
+      + '<span class="kg-badge" aria-label="Knowledge graph result">'
+      + '<span aria-hidden="true">🔗</span> KG'
+      + '</span>'
+      + '</div>'
+      + '<h3 class="article-card-title">' + title + '</h3>'
+      + (snippet ? '<p class="article-card-snippet">' + snippet + '</p>' : '')
+      + '</a>';
+  }
+
+  function appendKgResults(items, myToken) {
+    if (myToken !== kgToken) return;  // stale — newer query already running
+    if (!resultsEl || !items || items.length === 0) return;
+    var ftsHashes = collectFtsHashes();
+    var fresh = items.filter(function (it) {
+      return it && it.hash && !ftsHashes[it.hash];
+    });
+    if (fresh.length === 0) return;
+    var list = resultsEl.querySelector('.search-results__list');
+    if (!list) {
+      // FTS rendered an empty-state — replace with a fresh list to host KG cards
+      var html = '<div class="article-list search-results__list">';
+      fresh.forEach(function (it) { html += kgCardHtml(it); });
+      html += '</div>';
+      resultsEl.hidden = false;
+      resultsEl.innerHTML = html;
+      return;
+    }
+    var buf = '';
+    fresh.forEach(function (it) { buf += kgCardHtml(it); });
+    list.insertAdjacentHTML('beforeend', buf);
+  }
+
+  function pollKgJob(jobId, attempt, myToken) {
+    if (myToken !== kgToken) return;  // superseded by newer query
+    if (attempt >= KG_POLL_MAX) return;  // budget exhausted — silent giveup
+    var url = (window.KB_BASE_PATH || '') + '/api/search/kg/' + encodeURIComponent(jobId);
+    fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (myToken !== kgToken) return;
+        if (data && data.status === 'pending') {
+          setTimeout(function () { pollKgJob(jobId, attempt + 1, myToken); }, KG_POLL_MS);
+          return;
+        }
+        if (data && Array.isArray(data.results)) {
+          appendKgResults(data.results, myToken);
+        }
+      })
+      .catch(function () { /* silent — keep FTS-only view */ });
+  }
+
+  function runKgEnhancement(q, myToken) {
+    var url = (window.KB_BASE_PATH || '') + '/api/search/kg';
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ query: q })
+    })
+      .then(function (r) {
+        if (r.status === 503) return null;  // KG unavailable — silent
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.job_id) return;
+        if (myToken !== kgToken) return;
+        setTimeout(function () { pollKgJob(data.job_id, 0, myToken); }, KG_POLL_MS);
+      })
+      .catch(function () { /* silent — keep FTS-only view */ });
   }
 
   function onInput(e) {
