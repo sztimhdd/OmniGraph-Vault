@@ -1,0 +1,10 @@
+[Unit]
+Description=OmniGraph reconcile ingestions (bidirectional) timer
+Requires=omnigraph-reconcile.service
+
+[Timer]
+OnCalendar=*-*-* 12:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

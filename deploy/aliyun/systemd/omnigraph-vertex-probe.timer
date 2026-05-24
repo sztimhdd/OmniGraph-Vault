@@ -1,0 +1,10 @@
+[Unit]
+Description=OmniGraph monthly Vertex AI live probe (1st of month) timer
+Requires=omnigraph-vertex-probe.service
+
+[Timer]
+OnCalendar=*-*-1 11:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=OmniGraph daily RSS fetch timer
+Requires=omnigraph-rss-fetch.service
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
