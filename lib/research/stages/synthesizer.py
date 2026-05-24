@@ -109,13 +109,14 @@ async def run(
     else:
         body += "(no chunks retrieved)\n"
 
-    # Inline images via local image-server URL pattern (port 8765). Alt text
-    # sourced from ar-2 ``image_entries`` tuple (caption or filename fallback).
+    # Inline images via app-relative static path (kb-web serves
+    # /static/img/{article_hash}/{filename} from the runtime images dir).
+    # Alt text sourced from ``image_entries`` tuple (caption or filename fallback).
     if image_entries:
         body += "\n\n## Retrieved Images\n\n"
         for path, alt in image_entries:
             body += (
-                f"![{alt}](http://localhost:8765/"
+                f"![{alt}](/static/img/"
                 f"{path.parent.name}/{path.name})\n"
             )
 

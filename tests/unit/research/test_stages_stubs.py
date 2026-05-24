@@ -209,6 +209,137 @@ async def test_retriever_ok_with_no_images_dir(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# arx-1 retriever tests: paragraph split, cross-paragraph hash dedup,
+# multi-extension case-insensitive glob, top-10 lex truncation.
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+async def test_retriever_splits_paragraphs_into_multiple_chunks(
+    tmp_path, monkeypatch
+):
+    kg_text = (
+        "First paragraph about topic A.\n\n"
+        "Second paragraph about topic B with hash abcdef0123.\n\n"
+        "Third paragraph closing thoughts."
+    )
+
+    async def _live_search(q, mode="hybrid"):
+        return kg_text
+
+    monkeypatch.setattr(
+        "lib.research.stages.retriever.kg_search", _live_search
+    )
+    cfg = _make_cfg(tmp_path / "lightrag_storage")
+    out = await retriever_stage.run("hello", cfg)
+    assert out.status == "ok"
+    assert len(out.chunks) == 3
+    assert all(c.kind == "kg_chunk" for c in out.chunks)
+    assert "First paragraph" in out.chunks[0].snippet
+    assert "Second paragraph" in out.chunks[1].snippet
+    assert "Third paragraph" in out.chunks[2].snippet
+
+
+@pytest.mark.unit
+async def test_retriever_dedups_hashes_across_paragraphs(
+    tmp_path, monkeypatch
+):
+    base_dir = tmp_path
+    images_root = base_dir / "images"
+    h = "abcdef0123"
+    d = images_root / h
+    d.mkdir(parents=True)
+    (d / "1.jpg").write_bytes(b"")
+    (d / "2.jpg").write_bytes(b"")
+
+    kg_text = (
+        f"Para 1 mentioning {h}.\n\n"
+        f"Para 2 mentioning {h} again.\n\n"
+        f"Para 3 mentioning {h} once more."
+    )
+
+    async def _live_search(q, mode="hybrid"):
+        return kg_text
+
+    monkeypatch.setattr(
+        "lib.research.stages.retriever.kg_search", _live_search
+    )
+    cfg = _make_cfg(base_dir / "lightrag_storage")
+    out = await retriever_stage.run("hello", cfg)
+    assert out.status == "ok"
+    # Hash appears in 3 paragraphs but glob runs once → exactly 2 images.
+    assert len(out.image_candidates) == 2
+    assert {ic.image_path.name for ic in out.image_candidates} == {"1.jpg", "2.jpg"}
+
+
+@pytest.mark.unit
+async def test_retriever_globs_multiple_extensions_case_insensitive(
+    tmp_path, monkeypatch
+):
+    base_dir = tmp_path
+    images_root = base_dir / "images"
+    h = "abcdef0123"
+    d = images_root / h
+    d.mkdir(parents=True)
+    (d / "a.jpg").write_bytes(b"")
+    (d / "b.JPEG").write_bytes(b"")
+    (d / "c.PNG").write_bytes(b"")
+    (d / "d.webp").write_bytes(b"")
+    (d / "skip.txt").write_bytes(b"")  # Non-image: must be filtered out.
+
+    kg_text = f"Para mentioning {h}."
+
+    async def _live_search(q, mode="hybrid"):
+        return kg_text
+
+    monkeypatch.setattr(
+        "lib.research.stages.retriever.kg_search", _live_search
+    )
+    cfg = _make_cfg(base_dir / "lightrag_storage")
+    out = await retriever_stage.run("hello", cfg)
+    assert out.status == "ok"
+    names = {ic.image_path.name for ic in out.image_candidates}
+    assert names == {"a.jpg", "b.JPEG", "c.PNG", "d.webp"}
+
+
+@pytest.mark.unit
+async def test_retriever_caps_image_candidates_at_10(tmp_path, monkeypatch):
+    base_dir = tmp_path
+    images_root = base_dir / "images"
+    # 3 hashes × 4 images each = 12 candidates; expect cap of 10.
+    hashes = ["aaaaaaaaaa", "bbbbbbbbbb", "cccccccccc"]
+    for h in hashes:
+        d = images_root / h
+        d.mkdir(parents=True)
+        for i in range(4):
+            (d / f"{i}.jpg").write_bytes(b"")
+
+    kg_text = (
+        f"Para 1 mentions {hashes[0]}.\n\n"
+        f"Para 2 mentions {hashes[1]}.\n\n"
+        f"Para 3 mentions {hashes[2]}."
+    )
+
+    async def _live_search(q, mode="hybrid"):
+        return kg_text
+
+    monkeypatch.setattr(
+        "lib.research.stages.retriever.kg_search", _live_search
+    )
+    cfg = _make_cfg(base_dir / "lightrag_storage")
+    out = await retriever_stage.run("hello", cfg)
+    assert out.status == "ok"
+    assert len(out.image_candidates) == 10
+    # Deterministic lex order: hash then filename.
+    sorted_keys = [
+        (ic.article_hash, ic.image_path.name) for ic in out.image_candidates
+    ]
+    assert sorted_keys == sorted(sorted_keys)
+    # First 10 in (hash, name) lex order: all 4 of aaaa, all 4 of bbbb, first 2 of cccc.
+    assert all(ic.article_hash == hashes[0] for ic in out.image_candidates[:4])
+    assert all(ic.article_hash == hashes[1] for ic in out.image_candidates[4:8])
+    assert all(ic.article_hash == hashes[2] for ic in out.image_candidates[8:10])
+
+
+# ---------------------------------------------------------------------------
 # Test 8: reasoner — ar-2 replaces the ar-1 stub with a real bounded LLM
 # agent loop. With a mock cfg.llm_complete that returns a final-on-turn-1
 # decision, the loop terminates after one turn with empty output lists.

@@ -97,7 +97,7 @@ async def test_synthesizer_uses_reasoned_caption(tmp_path):
     cfg = _make_minimal_cfg(tmp_path)
     result = await run_synthesizer("test query", cfg, state)
 
-    expected = "![<MOCK_CAPTION>](http://localhost:8765/deadbeef00/5.jpg)"
+    expected = "![<MOCK_CAPTION>](/static/img/deadbeef00/5.jpg)"
     assert expected in result.markdown
     # Path-shape regression guard (sealed once here per plan-checker note).
     assert isinstance(result.embedded_images[0], Path)
@@ -124,7 +124,7 @@ async def test_synthesizer_falls_back_to_filename_when_reasoned_none(tmp_path):
     cfg = _make_minimal_cfg(tmp_path)
     result = await run_synthesizer("test", cfg, state)
 
-    expected = "![3.jpg](http://localhost:8765/abc1234567/3.jpg)"
+    expected = "![3.jpg](/static/img/abc1234567/3.jpg)"
     assert expected in result.markdown
 
 
@@ -154,7 +154,7 @@ async def test_synthesizer_falls_back_when_analyzed_images_empty(tmp_path):
     cfg = _make_minimal_cfg(tmp_path)
     result = await run_synthesizer("test", cfg, state)
 
-    expected = "![3.jpg](http://localhost:8765/abc1234567/3.jpg)"
+    expected = "![3.jpg](/static/img/abc1234567/3.jpg)"
     assert expected in result.markdown
 
 
@@ -201,10 +201,10 @@ async def test_synthesizer_url_format_unchanged(tmp_path):
     result_cap = await run_synthesizer("q", cfg, state_cap)
     result_fb = await run_synthesizer("q", cfg, state_fb)
 
-    pat = re.compile(r"!\[[^\]]*\]\((http://localhost:8765/[^\)]+)\)")
+    pat = re.compile(r"!\[[^\]]*\]\((/static/img/[^\)]+)\)")
     url_cap = pat.search(result_cap.markdown).group(1)
     url_fb = pat.search(result_fb.markdown).group(1)
-    assert url_cap == url_fb == "http://localhost:8765/abc1234567/7.jpg"
+    assert url_cap == url_fb == "/static/img/abc1234567/7.jpg"
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +248,7 @@ async def test_synthesizer_caption_path_caps_at_5(tmp_path):
     result = await run_synthesizer("q", cfg, state)
 
     assert len(result.embedded_images) == 5
-    inline_refs = re.findall(r"!\[[^\]]*\]\(http://localhost:8765/[^\)]+\)",
+    inline_refs = re.findall(r"!\[[^\]]*\]\(/static/img/[^\)]+\)",
                              result.markdown)
     assert len(inline_refs) == 5
 
@@ -279,7 +279,7 @@ async def test_synthesizer_caption_none_falls_back_to_filename(tmp_path):
     cfg = _make_minimal_cfg(tmp_path)
     result = await run_synthesizer("q", cfg, state)
 
-    expected = "![9.jpg](http://localhost:8765/h/9.jpg)"
+    expected = "![9.jpg](/static/img/h/9.jpg)"
     assert expected in result.markdown
 
 
