@@ -138,6 +138,8 @@ Per PROJECT-Aliyun-Ingest-Migration-v1.md §3 (Decisions 1-5) + §4 (Q1-Q6 all c
 - aim-1 plan-phase complete 2026-05-21 — 4 plans (aim-1-1..aim-1-4) ready for execute-phase, queued behind kb-4-lite (Gate 1 Option A order, STATE:132-133).
 - Next: `/gsd:execute-phase aim-1` AFTER kb-4-08 verification closes.
 - aim-1 execute ✅ DONE 2026-05-23 (commit 718c52d); UAT 7/7 PASS; aim-1-UAT.md; next: /gsd:plan-phase aim-2
+- aim-2 execute ✅ DONE 2026-05-23 (commits: STORAGE-01..04 prior waves; STORAGE-05 commit 3b2ebad); Q2a (a)(b)(c) all PASS; backup at lightrag_storage.aliyun-pre-aim2-bak-20260523T231949Z; next: /gsd:plan-phase aim-3
+- Hermes lightrag_storage cold-backup retention deadline: 2026-06-22 (set by aim-2-5; cleanup at aim-5 close or later)
 
 **On aim-0 PASS — deferred actions (registered 2026-05-21; do NOT act before aim-0 verdict = PASS):**
 
