@@ -3,7 +3,7 @@ Description=OmniGraph daily RSS body rescrape timer
 Requires=omnigraph-rss-rescrape.service
 
 [Timer]
-OnCalendar=*-*-* 09:30:00
+OnCalendar=*-*-* 09:30:00 UTC
 Persistent=true
 
 [Install]

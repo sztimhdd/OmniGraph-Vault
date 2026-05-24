@@ -3,7 +3,7 @@ Description=OmniGraph kol-enrich (STUB — see FINDING 6) timer
 Requires=omnigraph-kol-enrich.service
 
 [Timer]
-OnCalendar=*-*-* 11:30:00
+OnCalendar=*-*-* 11:30:00 UTC
 Persistent=true
 
 [Install]

@@ -3,7 +3,7 @@ Description=OmniGraph daily KOL scan (WeChat MP API) timer
 Requires=omnigraph-kol-scan.service
 
 [Timer]
-OnCalendar=*-*-* 11:00:00
+OnCalendar=*-*-* 11:00:00 UTC
 Persistent=true
 
 [Install]

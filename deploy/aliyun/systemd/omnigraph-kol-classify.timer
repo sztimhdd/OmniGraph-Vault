@@ -3,7 +3,7 @@ Description=OmniGraph daily KOL Layer-1 classify (5 topics) timer
 Requires=omnigraph-kol-classify.service
 
 [Timer]
-OnCalendar=*-*-* 11:15:00
+OnCalendar=*-*-* 11:15:00 UTC
 Persistent=true
 
 [Install]

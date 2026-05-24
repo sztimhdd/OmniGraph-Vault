@@ -3,7 +3,7 @@ Description=OmniGraph kol zombie cleanup (pre-scan health check) timer
 Requires=omnigraph-kol-zombie-cleanup.service
 
 [Timer]
-OnCalendar=*-*-* 10:55:00
+OnCalendar=*-*-* 10:55:00 UTC
 Persistent=true
 
 [Install]

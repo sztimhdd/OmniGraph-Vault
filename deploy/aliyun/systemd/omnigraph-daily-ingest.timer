@@ -3,7 +3,7 @@ Description=OmniGraph daily ingest 09:00 ADT (12:00 UTC) timer
 Requires=omnigraph-daily-ingest.service
 
 [Timer]
-OnCalendar=*-*-* 12:00:00
+OnCalendar=*-*-* 12:00:00 UTC
 Persistent=true
 
 [Install]
