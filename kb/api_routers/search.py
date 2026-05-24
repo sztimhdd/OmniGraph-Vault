@@ -42,18 +42,17 @@ _HASH_PAT = re.compile(r"/article/([a-f0-9]{10})")
 
 
 async def _kg_worker(job_id: str, q: str) -> None:
-    """Run ``omnigraph_search.query.search`` (C2) and update job_store.
+    """Run KG-backed synthesis and update job_store.
 
-    C2 contract preserved: the function is called with its original
-    ``(query_text, mode='hybrid')`` signature; we ``await`` it because C2 is
-    declared ``async def`` (omnigraph_search/query.py:35). Any exception is
-    captured into ``status='failed'`` — KG search has no FTS5 fallback per
-    kb-3-API-CONTRACT §6.5 (synthesize is the never-500 surface, not search).
+    Uses ``kg_synthesize.synthesize_response`` — the same Databricks-aware
+    LightRAG entry point the /api/synthesize service uses (so this works
+    on Databricks Apps where ``omnigraph_search`` is not packaged). Returns
+    a markdown answer string.
     """
     try:
-        from omnigraph_search.query import search as kg_search
+        from kg_synthesize import synthesize_response
 
-        result = await kg_search(q, mode="hybrid")
+        result = await synthesize_response(q, mode="hybrid")
         job_store.update_job(job_id, status="done", result=result)
     except Exception as e:  # noqa: BLE001 — surface all errors to job record
         job_store.update_job(job_id, status="failed", error=str(e))
@@ -80,12 +79,11 @@ def _make_snippet(body: Optional[str], max_len: int = 200) -> str:
 async def _kg_local_worker(job_id: str, query: str) -> None:
     """KG-enhanced search worker for the progressive-enhancement endpoint.
 
-    Calls C2 ``omnigraph_search.query.search`` with ``mode='local'`` (cheaper
-    than hybrid for the article-card augmentation use case), parses the
-    returned markdown for ``/article/{10-hex}`` links, deduplicates while
-    preserving order, then resolves each hash to a ``{hash, title, snippet,
-    lang, source}`` row using the same DATA-05 lookup the article-by-hash API
-    uses (DATA-07 carve-out: unfiltered).
+    Calls ``kg_synthesize.synthesize_response`` with ``mode='local'`` (cheaper
+    than hybrid for the article-card augmentation use case). The query is
+    wrapped with an explicit citation directive so the LLM emits sources in
+    ``[/article/{hash}.html]`` form; we then parse those hashes, deduplicate
+    while preserving order, and resolve each via the DATA-05 article lookup.
 
     Graceful degradation: any exception (LightRAG storage missing, embedding
     timeout, hash lookup failure) is logged at WARNING and the job completes
@@ -93,11 +91,18 @@ async def _kg_local_worker(job_id: str, query: str) -> None:
     """
     results: list[dict[str, Any]] = []
     try:
-        from omnigraph_search.query import search as kg_search
+        from kg_synthesize import synthesize_response
 
         from kb.data.article_query import get_article_by_hash
 
-        markdown = await kg_search(query_text=query, mode="local")
+        wrapped = (
+            "When citing knowledge-base sources in your answer, write each "
+            "citation in the form [/article/{hash}.html] where {hash} is the "
+            "10-character hex source identifier of the cited document. "
+            "Cite every document you draw on.\n\n"
+            f"Question: {query}"
+        )
+        markdown = await synthesize_response(wrapped, mode="local")
         hashes = list(dict.fromkeys(_HASH_PAT.findall(markdown or "")))
         for h in hashes:
             try:

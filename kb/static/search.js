@@ -49,8 +49,10 @@
   var FETCH_LIMIT = 10;
 
   // KG progressive enhancement (additive, never blocks FTS first paint).
-  var KG_POLL_MS = 800;
-  var KG_POLL_MAX = 12;  // ~9.6s ceiling — KG local mode typically returns within 4-8s
+  // Budget sized for kg_synthesize.synthesize_response worst-case
+  // (3-attempt LightRAG retry × ~10-15s each) — see kb/api_routers/search.py.
+  var KG_POLL_MS = 1500;
+  var KG_POLL_MAX = 30;  // ~45s ceiling
 
   var input = null;
   var resultsEl = null;
@@ -59,6 +61,15 @@
   var kgToken = 0;       // monotonic token — each new query bumps; stale KG callbacks bail
 
   function $(sel, root) { return (root || document).querySelector(sel); }
+
+  function setBodySearchActive(active) {
+    // Toggle a body class so CSS can hide page-level article grids while
+    // search results are visible. Reveals on any results state (loading /
+    // empty / error / items); hides only when the input clears.
+    if (!document.body || !document.body.classList) return;
+    if (active) document.body.classList.add('kb-search-active');
+    else document.body.classList.remove('kb-search-active');
+  }
 
   function locateInput() {
     // Tolerant cascade: the homepage hero uses `<input type="search">` inside
@@ -88,6 +99,7 @@
   function showLoading() {
     if (!resultsEl) return;
     resultsEl.hidden = false;
+    setBodySearchActive(true);
     // Reuse kb-1 .skeleton — three placeholder rows so the reveal feels
     // populated without flashing emptiness mid-debounce.
     resultsEl.innerHTML = ''
@@ -99,6 +111,7 @@
   function showEmpty() {
     if (!resultsEl) return;
     resultsEl.hidden = false;
+    setBodySearchActive(true);
     resultsEl.innerHTML = ''
       + '<div class="empty-state">'
       + '<p class="empty-state__hint">'
@@ -111,6 +124,7 @@
   function showError(msg) {
     if (!resultsEl) return;
     resultsEl.hidden = false;
+    setBodySearchActive(true);
     var detail = msg ? '<span class="error-state__detail">' + escapeHtml(msg) + '</span>' : '';
     resultsEl.innerHTML = ''
       + '<div class="error-state" role="alert">'
@@ -183,6 +197,7 @@
     }
 
     resultsEl.hidden = false;
+    setBodySearchActive(true);
     resultsEl.innerHTML = html;
   }
 
@@ -282,6 +297,7 @@
       fresh.forEach(function (it) { html += kgCardHtml(it); });
       html += '</div>';
       resultsEl.hidden = false;
+      setBodySearchActive(true);
       resultsEl.innerHTML = html;
       return;
     }
@@ -338,6 +354,7 @@
     if (q.length < MIN_QUERY_LEN) {
       if (inFlight) { inFlight.abort(); inFlight = null; }
       if (resultsEl) { resultsEl.hidden = true; resultsEl.innerHTML = ''; }
+      setBodySearchActive(false);
       return;
     }
     debounceTimer = setTimeout(function () { runSearch(q); }, DEBOUNCE_MS);

@@ -2141,3 +2141,19 @@ html[lang="en"] .article-card--zh-only {
 .search-results { margin-top: 1rem; } .search-results[hidden] { display: none; }
 .search-results__skeleton-row { height: 4.5rem; margin-bottom: 0.5rem; }
 .search-results__footer { padding-top: 1rem; text-align: center; }
+
+/* While search results are visible, hide the page-level article grid + CTA
+ * sections so the user focuses on what they searched for. Toggled by
+ * search.js via document.body.classList. The site header, hero search input,
+ * and search-results container itself stay visible. */
+body.kb-search-active .hero-image-strip,
+body.kb-search-active .hero-chips,
+body.kb-search-active .hero-cta-row,
+body.kb-search-active .section--latest,
+body.kb-search-active .section--topics,
+body.kb-search-active .section--entities,
+body.kb-search-active .section--ask-cta,
+body.kb-search-active .filter-bar,
+body.kb-search-active .filter-counter,
+body.kb-search-active #article-list,
+body.kb-search-active #empty-filter-state { display: none !important; }
