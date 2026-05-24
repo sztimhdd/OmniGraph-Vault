@@ -1,0 +1,27 @@
+# STUB — FINDING 6 gap (aim-3 CONTEXT.md):
+# The Hermes "daily-enrich" job uses the `enrich_article` Hermes skill via
+# `enrichment/run_enrich_for_id.py`, invoked through the Hermes agent prompt
+# layer. There is no standalone batch enrich script in the repo at aim-3 close.
+# This unit is enabled so its timer fires (proves the schedule works) and so
+# adding a real ExecStart later is a one-line edit. /bin/true exits 0 — no
+# false-fail signal in journald.
+#
+# Pending: derivative milestone OR an ingest-side `--enrich-only` mode flag
+# that wires through the same code path. Recorded in CUTOVER-EVIDENCE.md.
+
+[Unit]
+Description=OmniGraph kol-enrich (STUB — see FINDING 6)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/OmniGraph-Vault
+EnvironmentFile=/root/.hermes/.env
+ExecStart=/bin/true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

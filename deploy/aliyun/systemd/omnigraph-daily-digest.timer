@@ -1,0 +1,10 @@
+[Unit]
+Description=OmniGraph daily digest timer
+Requires=omnigraph-daily-digest.service
+
+[Timer]
+OnCalendar=*-*-* 12:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

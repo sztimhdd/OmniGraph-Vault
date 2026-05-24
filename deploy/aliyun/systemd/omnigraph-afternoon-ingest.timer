@@ -1,0 +1,10 @@
+[Unit]
+Description=OmniGraph afternoon ingest 14:00 ADT (17:00 UTC) timer
+Requires=omnigraph-afternoon-ingest.service
+
+[Timer]
+OnCalendar=*-*-* 17:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
