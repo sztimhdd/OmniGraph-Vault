@@ -8,6 +8,7 @@ Type=simple
 User=root
 WorkingDirectory=/root/OmniGraph-Vault
 EnvironmentFile=/root/.hermes/.env
+TimeoutStartSec=300
 ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed
 ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 5
 StandardOutput=journal
