@@ -205,7 +205,7 @@ Three reasons drive the choice:
 | aim-0: Readiness on upgraded Aliyun ECS | — | ✅ DONE | commit f3cd667 / 2026-05-21 |
 | aim-1: Code + env deploy | 4/4 plans | ✅ DONE | commit 718c52d / 2026-05-23 |
 | aim-2: LightRAG storage migration | — | ready — /gsd:plan-phase aim-2 | — |
-| aim-3: Cutover | — | blocked by aim-2 | — |
+| aim-3: Cutover | 4/4 plans | ready — /gsd:execute-phase aim-3 | — |
 | aim-4: Daily sync | — | blocked by aim-3 | — |
 | aim-5: 7-day stability | — | blocked by aim-4 | — |
 
