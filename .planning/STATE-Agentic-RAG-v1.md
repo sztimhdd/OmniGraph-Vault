@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: Agentic-RAG-v1
 milestone_name: — Agentic-RAG-v1 (parallel-track to v3.4)
-status: in-progress
-last_updated: "2026-05-23T20:30:00Z"
-last_activity: 2026-05-23 evening — ar-4 plan-phase complete (parallel-track manual gates). 3 planning artifacts authored under .planning/phases/ar-4-telemetry-streaming-smoke/ — ar-4-CONTEXT.md (733 LOC), ar-4-01-telemetry-dump-state-PLAN.md (907 LOC, Wave 1 covering LIB-08 + CLI-02 with 18 truths / 6 artifacts / 5 key_links), ar-4-02-smoke-audit-PLAN.md (880 LOC, Wave 2 covering TEST-05 + TEST-06 with 12 truths / 2 artifacts / 5 key_links). Plan-checker verdict PASS_WITH_NITS / 0 required patches (matches ar-3-* template precedent). 4/4 ar-4 REQs covered exactly once, 0 orphans, 0 duplicates. Wave 1 picks Pattern A (private async generator _run_pipeline shared by research() and research_stream() — single source of emission ordering); _amain stays at 17 LOC (≤ 18 cap); _write_dump_state helper lives in __main__.py preserving lib/research/ pure-async character (Axis 1). Wave 2 hardcodes query="Hermes Harness 深度解析" + 5 TEST-05 conditions verbatim + 5 TEST-06 dimensions verbatim + audit doc spec for .planning/MILESTONE_Agentic-RAG-v1_AUDIT.md + remediation sub-cycle bounded at 3 smoke iterations + 1 audit re-run before user escalation. CONTRACT-01/02 grep commands present in both PLANs. Forward-only commit discipline reaffirmed. Phase ready for /gsd:execute-plan ar-4-01-telemetry-dump-state.
+status: closed-with-documented-v1.1-gaps
+last_updated: "2026-05-24T11:00:00Z"
+last_activity: 2026-05-24 — Agentic-RAG-v1 milestone CLOSED-WITH-DOCUMENTED-V1.1-GAPS. ar-4 = complete (Wave 1 commits 0c13801+70d35a4 telemetry+research_stream+--dump-state ship; Wave 2 commits 9cf40f6+4df3949+e628bea+440dc0f+0fc543e ship smoke driver + Option-A JSON-mode LLM-decision adapter + condition-(c) calibration + Verifier-fields fix). TEST-05 milestone smoke 4/5 PASS on Hermes iter-5 (b=100 confidence, c=124s, d=[] no failed stages, e=0.593 CJK; condition (a) zero-images deferred to v1.1 — Retriever↔KG plumbing gap, NOT architecture issue). TEST-06 audit 3/5 dimensions PASS (1=3 coverage breadth, 2=3 technical depth, 3=4 philosophical framing; 4=2 source attribution + 5=1 image relevance deferred to v1.1). Wave 2 SSH-run sub-cycle ran 5 iterations (vs 3-iter PLAN budget) — every escalation user-directed (perms restore + Option A adapter + 240s calibration + Verifier-fields fix + accept 4/5). 165/165 unit tests green at close (113 ar-3 baseline + 22 ar-4-01 + 24 ar-4-02 adapter + 6 Verifier-fields). 41/41 ar-N REQs delivered. Forward-only commit discipline maintained throughout (zero --amend, zero git reset, explicit git add only). Hermes operator side: pip install -e . persistent (required for python -m omnigraph.research); lightrag_storage/ restored to read-only (aim-2 baseline). v1.1 follow-up work items A-E catalogued in .planning/MILESTONE_Agentic-RAG-v1_AUDIT.md.
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 12
 ---
 
 # Project State — Agentic-RAG-v1 (parallel)

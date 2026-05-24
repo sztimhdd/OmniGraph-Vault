@@ -136,7 +136,7 @@ Three reasons drive the choice:
 | ar-1: MVP vertical slice | 4/4 | Complete | 2026-05-22 (commits 962f995..cbd432d) |
 | ar-2: Reasoner + vision deepening | 3/3 | Complete | 2026-05-23 (commits 0674f66, 942dc48, 5aedf57, 8ca46ad, 8cd2642; 88/88 green; L2 cap=0 smoke exit 0) |
 | ar-3: Verifier + web tools | 3/3 | Complete | 2026-05-23 (commits 6bc7db7, e594363, 17a8fca; 113/113 green; L2a cap=0 smoke exit 0; L2b live-key deferred to ar-4 execute) |
-| ar-4: Telemetry, streaming, smoke + audit | 0/2 | Planned | — (plans landed 2026-05-23: ar-4-01 telemetry+dump-state, ar-4-02 smoke+audit; plan-checker PASS_WITH_NITS / 0 required patches) |
+| ar-4: Telemetry, streaming, smoke + audit | 2/2 | Complete-with-documented-v1.1-gaps | 2026-05-24 (commits 0c13801, 70d35a4, 9cf40f6, 4df3949, e628bea, 440dc0f, 0fc543e; TEST-05 4/5 PASS — condition (a) zero-images deferred to v1.1; TEST-06 audit 3/5 dimensions PASS — dims 4+5 deferred to v1.1; Agentic-RAG-v1 milestone CLOSED) |
 
 ---
 
