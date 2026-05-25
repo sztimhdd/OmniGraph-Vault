@@ -23,16 +23,13 @@ _log = logging.getLogger(__name__)
 
 
 def _get_embedding_func():
-    """Embedding dispatcher — branches on OMNIGRAPH_LLM_PROVIDER.
+    """Return the LightRAG embedding function (Vertex Gemini, 3072-dim).
 
-    kdb-3 (Databricks deploy): Qwen3-0.6B serving endpoint emits 1024-dim
-    vectors; Vertex Gemini path stays 768-dim (legacy default). Lazy import
-    so Databricks containers don't pull google-genai/numpy at module load.
+    arx-2 (2026-05-25): collapsed dispatcher — Aliyun storage is canonical
+    3072-dim Vertex; Databricks UC volume mirrors it. LLM provider routing
+    (databricks_serving / deepseek / vertex_gemini) stays separate via
+    lib.llm_complete.get_llm_func; embedding is unconditionally Vertex.
     """
-    provider = os.environ.get("OMNIGRAPH_LLM_PROVIDER", "deepseek").lower()
-    if provider == "databricks_serving":
-        from lightrag_databricks_provider import make_embedding_func
-        return make_embedding_func()
     from lib.lightrag_embedding import embedding_func
     return embedding_func
 
@@ -223,7 +220,7 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
             )
             break
         except Exception as e:
-            print(f"Query attempt {i+1} failed: {e}")
+            _log.warning("Query attempt %d failed: %s", i + 1, e)
             if i < 2: await asyncio.sleep(5)
             else: raise e
 

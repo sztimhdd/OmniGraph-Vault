@@ -19,7 +19,9 @@ Skill discipline (kb/docs/10-DESIGN-DISCIPLINE.md Rule 1):
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 import re
 from typing import Annotated, Any, Literal, Optional
 
@@ -27,6 +29,16 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from kb.services import job_store, search_index, synthesize as synthesize_svc
+
+# Outer budget for the KG-enhancement worker. The inner LightRAG aquery() call
+# is bounded by KB_LIGHTRAG_INNER_TIMEOUT (kg_synthesize.py), but
+# synthesize_response() also performs unbounded setup (LightRAG construction,
+# initialize_storages(), canonical_map load) before reaching the inner-bounded
+# retry loop. Without an outer wait_for, a hang in setup leaves the job
+# permanently in "running" — the front end polls "pending" forever (observed
+# 2026-05-25). Default 90s ≈ 1× inner attempt + setup headroom; on TimeoutError
+# the existing except below catches it and degrades to results=[].
+KB_KG_SEARCH_TIMEOUT: int = int(os.environ.get("KB_KG_SEARCH_TIMEOUT", "90"))
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +102,11 @@ async def _kg_local_worker(job_id: str, query: str) -> None:
     with ``results=[]`` so the front end silently keeps the FTS-only view.
     """
     results: list[dict[str, Any]] = []
+    # Diagnostic: emit at WARNING so it survives the default root-logger=WARNING
+    # filter on Databricks Apps (uvicorn launches without --log-level so root
+    # stays at WARNING; logger.info would be silent). Demote to info once the
+    # "all-pending" bug is reproduced and root cause is fixed.
+    logger.warning("kg_local_worker_start jid=%s query_len=%d", job_id, len(query))
     try:
         from kg_synthesize import synthesize_response
 
@@ -102,7 +119,10 @@ async def _kg_local_worker(job_id: str, query: str) -> None:
             "Cite every document you draw on.\n\n"
             f"Question: {query}"
         )
-        markdown = await synthesize_response(wrapped, mode="local")
+        markdown = await asyncio.wait_for(
+            synthesize_response(wrapped, mode="local"),
+            timeout=KB_KG_SEARCH_TIMEOUT,
+        )
         hashes = list(dict.fromkeys(_HASH_PAT.findall(markdown or "")))
         for h in hashes:
             try:
@@ -122,6 +142,7 @@ async def _kg_local_worker(job_id: str, query: str) -> None:
     except Exception as e:  # noqa: BLE001 — graceful degrade, never raise
         logger.warning("kg-search worker failed for query=%r: %s", query, e)
         results = []
+    logger.warning("kg_local_worker_done jid=%s n_results=%d", job_id, len(results))
     job_store.update_job(job_id, status="done", result=results)
 
 
