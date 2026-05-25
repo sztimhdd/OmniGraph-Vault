@@ -36,6 +36,10 @@ from spiders.wechat_spider import (
 
 DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH", str(PROJECT_ROOT / "data" / "kol_scan.db")))
 SESSION_LIMIT = 54  # 1 req/acct for 54 KOLs; WeChat real limit ~60 (2026-04-27 calibrated)
+# Threshold for ret=200003 cookie-expiry detection. NOT env-overridable
+# per CLAUDE.md v1.0.x lesson #1 (cross-coupling risk). Forward-only fix
+# if tuning needed.
+SESSION_INVALID_THRESHOLD = 0.30  # 30% of attempts returning ret=200003
 
 logging.basicConfig(
     level=logging.INFO,
@@ -208,8 +212,8 @@ def _import_articles(conn: sqlite3.Connection, articles: list[dict], account_nam
     return new, skipped
 
 
-def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: int, max_articles: int) -> tuple[bool, int, int]:
-    """Scan single account. Returns (ok, new, skipped)."""
+def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: int, max_articles: int) -> tuple[bool, int, int, bool]:
+    """Scan single account. Returns (ok, new, skipped, session_invalid)."""
     logger.info("  Scanning %s (fakeid=%s)...", name, fakeid[:20] + "..." if len(fakeid) > 20 else fakeid)
     try:
         articles = list_articles(
@@ -221,11 +225,12 @@ def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: in
         )
     except Exception as exc:
         logger.error("  Failed to scan %s: %s", name, exc)
-        return False, 0, 0
+        session_invalid = "ret=200003" in str(exc)
+        return False, 0, 0, session_invalid
 
     new, skipped = _import_articles(conn, articles, name, fakeid)
     logger.info("  %s: %d new, %d skipped (total %d scanned)", name, new, skipped, len(articles))
-    return True, new, skipped
+    return True, new, skipped, False
 
 
 def run(days_back: int, max_articles: int, account_filter: str | None, resume: bool,
@@ -263,6 +268,7 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
         req_count = 0
         scanned_count = 0
         failed_count = 0
+        invalid_count = 0
         total_new = 0
         total_skipped = 0
         by_account: list[dict] = []
@@ -277,8 +283,10 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
                 break
 
             logger.info("[%d/%d] %s", i, len(rows), name)
-            ok, new, skipped = scan_account(conn, name, fakeid, days_back, max_articles)
+            ok, new, skipped, session_invalid = scan_account(conn, name, fakeid, days_back, max_articles)
             req_count += 1
+            if session_invalid:
+                invalid_count += 1
             if ok:
                 scanned_count += 1
                 total_new += new
@@ -297,6 +305,11 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
             "Scan complete: %d ok, %d failed, %d requests.",
             scanned_count, failed_count, req_count,
         )
+
+        total_attempts = scanned_count + failed_count
+        if total_attempts > 0 and invalid_count / total_attempts >= SESSION_INVALID_THRESHOLD:
+            print(f"WECHAT_SESSION_INVALID: {invalid_count}/{total_attempts}", file=sys.stderr)
+            sys.exit(2)
 
         if summary_json:
             summary = {

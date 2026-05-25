@@ -1,0 +1,7 @@
+[Unit]
+Description=OmniGraph KOL scan failure alert (touches ~/.hermes/wechat-session-stale)
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/bin/bash -c 'mkdir -p /root/.hermes && date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ > /root/.hermes/wechat-session-stale'
