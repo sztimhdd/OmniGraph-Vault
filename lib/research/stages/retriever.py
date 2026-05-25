@@ -36,7 +36,7 @@ async def run(query: str, cfg: ResearchConfig) -> RetrieverOutput:
     ``{"ok", "skipped", "failed"}``. Never raises.
     """
     try:
-        kg_text = await kg_search(query, mode="hybrid")
+        kg_text = await kg_search(query, mode="hybrid", only_context=True)
     except Exception as e:  # noqa: BLE001 — Axis 3 best-effort
         return RetrieverOutput(
             chunks=[],

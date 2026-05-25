@@ -51,7 +51,7 @@ def _make_cfg(rag_working_dir: Path, web_search=None) -> ResearchConfig:
 async def test_research_returns_result_all_state_populated(
     tmp_path, monkeypatch
 ):
-    async def _empty_search(q, mode="hybrid"):
+    async def _empty_search(q, mode="hybrid", **kwargs):
         return ""
 
     monkeypatch.setattr(
@@ -91,7 +91,7 @@ async def test_research_returns_result_all_state_populated(
 async def test_research_with_live_kg_response(tmp_path, monkeypatch):
     kg_response = "LightRAG is a hybrid knowledge graph engine."
 
-    async def _live_search(q, mode="hybrid"):
+    async def _live_search(q, mode="hybrid", **kwargs):
         return kg_response
 
     monkeypatch.setattr(
@@ -112,7 +112,7 @@ async def test_research_with_live_kg_response(tmp_path, monkeypatch):
 async def test_research_orchestrator_does_not_raise_on_kg_failure(
     tmp_path, monkeypatch
 ):
-    async def _boom(q, mode="hybrid"):
+    async def _boom(q, mode="hybrid", **kwargs):
         raise RuntimeError("KG down")
 
     monkeypatch.setattr(
@@ -180,7 +180,7 @@ async def test_research_pipeline_order(tmp_path, monkeypatch):
     monkeypatch.setattr(synthesizer_stage, "run", _wrap_sn)
 
     # Also stub out kg_search so retriever doesn't try to hit live KG.
-    async def _empty_search(q, mode="hybrid"):
+    async def _empty_search(q, mode="hybrid", **kwargs):
         return ""
 
     monkeypatch.setattr(
@@ -208,7 +208,7 @@ async def test_research_pipeline_order(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 async def test_research_stream_yields_events_after_ar4(tmp_path, monkeypatch):
-    async def _empty_search(q, mode="hybrid"):
+    async def _empty_search(q, mode="hybrid", **kwargs):
         return ""
 
     monkeypatch.setattr(

@@ -117,7 +117,7 @@ async def test_web_baseline_ok_with_live_results(tmp_path):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 async def test_retriever_skipped_when_empty(tmp_path, monkeypatch):
-    async def _empty_search(q, mode="hybrid"):
+    async def _empty_search(q, mode="hybrid", **kwargs):
         return ""
 
     monkeypatch.setattr(
@@ -137,7 +137,7 @@ async def test_retriever_skipped_when_empty(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 async def test_retriever_failed_when_raises(tmp_path, monkeypatch):
-    async def _boom(q, mode="hybrid"):
+    async def _boom(q, mode="hybrid", **kwargs):
         raise RuntimeError("KG down")
 
     monkeypatch.setattr(
@@ -171,7 +171,7 @@ async def test_retriever_globs_images_from_base_image_dir(
         f"Paragraph mentioning hash {h1} and another hash {h2} embedded."
     )
 
-    async def _live_search(q, mode="hybrid"):
+    async def _live_search(q, mode="hybrid", **kwargs):
         return kg_text
 
     monkeypatch.setattr(
@@ -195,7 +195,7 @@ async def test_retriever_globs_images_from_base_image_dir(
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 async def test_retriever_ok_with_no_images_dir(tmp_path, monkeypatch):
-    async def _live_search(q, mode="hybrid"):
+    async def _live_search(q, mode="hybrid", **kwargs):
         return "Some text mentioning hash abcdef0123 but no dir on disk."
 
     monkeypatch.setattr(
@@ -222,7 +222,7 @@ async def test_retriever_splits_paragraphs_into_multiple_chunks(
         "Third paragraph closing thoughts."
     )
 
-    async def _live_search(q, mode="hybrid"):
+    async def _live_search(q, mode="hybrid", **kwargs):
         return kg_text
 
     monkeypatch.setattr(
@@ -256,7 +256,7 @@ async def test_retriever_dedups_hashes_across_paragraphs(
         f"Para 3 mentioning {h} once more."
     )
 
-    async def _live_search(q, mode="hybrid"):
+    async def _live_search(q, mode="hybrid", **kwargs):
         return kg_text
 
     monkeypatch.setattr(
@@ -287,7 +287,7 @@ async def test_retriever_globs_multiple_extensions_case_insensitive(
 
     kg_text = f"Para mentioning {h}."
 
-    async def _live_search(q, mode="hybrid"):
+    async def _live_search(q, mode="hybrid", **kwargs):
         return kg_text
 
     monkeypatch.setattr(
@@ -318,7 +318,7 @@ async def test_retriever_caps_image_candidates_at_10(tmp_path, monkeypatch):
         f"Para 3 mentions {hashes[2]}."
     )
 
-    async def _live_search(q, mode="hybrid"):
+    async def _live_search(q, mode="hybrid", **kwargs):
         return kg_text
 
     monkeypatch.setattr(
@@ -397,7 +397,7 @@ async def test_verifier_returns_typed_output(tmp_path):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 async def test_all_stages_return_typed_dataclasses(tmp_path, monkeypatch):
-    async def _empty_search(q, mode="hybrid"):
+    async def _empty_search(q, mode="hybrid", **kwargs):
         return ""
 
     monkeypatch.setattr(

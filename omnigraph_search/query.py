@@ -32,13 +32,22 @@ from lib.llm_complete import get_llm_func
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 
-async def search(query_text: str, mode: str = "hybrid") -> str:
-    """Query LightRAG at RAG_WORKING_DIR and return the raw retrieval text.
+async def search(
+    query_text: str, mode: str = "hybrid", only_context: bool = False
+) -> str:
+    """Query LightRAG at RAG_WORKING_DIR and return the retrieval text.
 
     Args:
         query_text: Natural-language question.
         mode: LightRAG retrieval mode — one of 'naive', 'local', 'global',
             'hybrid' (default), 'mix'.
+        only_context: When True, skip the LLM synthesis layer and return the
+            raw retrieved context (entities + relations + chunks +
+            reference list, with embedded ``file_path`` markers carrying the
+            10-char hex article hash). When False (default), return the
+            LLM-synthesized answer text. Additive — pre-existing callers
+            (kb/api_routers/search.py, lib/research/stages/reasoner.py)
+            keep their LLM-synthesized behavior unchanged.
 
     Returns:
         Response string from LightRAG.aquery.
@@ -57,7 +66,10 @@ async def search(query_text: str, mode: str = "hybrid") -> str:
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
-    return await rag.aquery(query_text, param=QueryParam(mode=mode))
+    return await rag.aquery(
+        query_text,
+        param=QueryParam(mode=mode, only_need_context=only_context),
+    )
 
 
 def main() -> None:
