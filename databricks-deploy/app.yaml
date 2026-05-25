@@ -69,3 +69,14 @@ env:
 
   - name: KB_IMAGES_DIR
     value: "/tmp/omnigraph_vault/images"
+
+  # 260525-c1-fix-A: outer C1 wait_for budget. Code default is 60s
+  # (kb/services/synthesize.py:69) which preempts long_form hybrid queries
+  # at t=60s on the Databricks runtime — observed in
+  # .scratch/260525-kdb-smoke-longform.log (poll_at_60.6s=running →
+  # poll_at_63.4s=done, wallclock 64.19s, error="C1 timeout"). Mirrors
+  # Aliyun's /etc/systemd/system/kb-api.service.d/override.conf value
+  # validated since 260517-lok. Diagnosis:
+  # .planning/quick/260525-c1-no-content-at-64s/REPORT.md
+  - name: KB_SYNTHESIZE_TIMEOUT
+    value: "240"
