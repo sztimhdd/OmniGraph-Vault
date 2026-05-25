@@ -3,7 +3,7 @@
 Runs the full Agentic-RAG-v1 pipeline against the canonical Chinese-language
 deep-dive query and verifies all 5 pass conditions:
 
-  (a) >=3 inline ![desc](http://localhost:8765/...) images
+  (a) >=3 inline ![desc](/static/img/...) images
   (b) state.verified.confidence >= 60
   (c) wall time <= 120 s
   (d) no stage with status="failed" in JSONL telemetry
@@ -88,8 +88,8 @@ async def _amain() -> int:
 
     archive_path.write_text(result.markdown, encoding="utf-8")
 
-    # condition (a): inline localhost:8765 image count
-    image_count = len(re.findall(r"!\[[^\]]*\]\(http://localhost:8765/", result.markdown))
+    # condition (a): inline /static/img/ image count (Decision 3 canonical prefix)
+    image_count = len(re.findall(r"!\[[^\]]*\]\(/static/img/", result.markdown))
 
     # condition (b): verifier confidence
     confidence = (
