@@ -2,7 +2,7 @@
 
 **Milestone:** Agentic-RAG-v1.1
 **Created:** 2026-05-24
-**Current status:** PLANNED — scaffold landed, awaiting Track 1 execution
+**Current status:** IN-PROGRESS — Track 1 closed PASS, Track 2 unblocked
 
 ---
 
@@ -10,8 +10,8 @@
 
 | Phase | Status | Commits | Notes |
 |---|---|---|---|
-| arx-1-images | PLANNED | — | Awaiting `/gsd:quick 260524-arx-A-images` |
-| arx-2-http | BLOCKED | — | Cannot start until arx-1-images Synthesizer URL flip lands |
+| arx-1-images | ✅ CLOSED PASS (2026-05-25) | `39c8f43` | TEST-05 (a) 0 → 10 images on Hermes real-KG. See `.planning/quick/260524-arx-A-images/VERIFICATION-1.1-A.md` |
+| arx-2-http | UNBLOCKED | — | Ready for code (kb/api_routers/research.py SSE) + Databricks UAT 5-step gate |
 
 ---
 
@@ -44,3 +44,4 @@ None at scaffold time. All resolved in PROJECT-Agentic-RAG-v1.1.md and user 2026
 ## Audit Trail
 
 - 2026-05-24 — Scaffold landed (this file + PROJECT/REQUIREMENTS/ROADMAP-Agentic-RAG-v1.1.md). Awaiting Track 1 quick.
+- 2026-05-25 — arx-1-images closed PASS. Option A fix (`only_context` additive param at sole CONTRACT-01 entry) unstarved retriever's hash-grep. Hermes real-KG: `STATUS: ok / CHUNKS: 9 / IMAGES: 10` (v1 baseline 0). Commit `39c8f43`. VERIFICATION at `.planning/quick/260524-arx-A-images/VERIFICATION-1.1-A.md`.
