@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: Aliyun-Ingest-Migration-v1
 milestone_name: — Migrate ingest pipeline Hermes → Aliyun ECS as new authoritative ingest node
-status: execution-active
-stopped_at: "aim-4 execute ✅ DONE 2026-05-24 — 4/4 waves PASS; next: /gsd:plan-phase aim-5"
-last_updated: "2026-05-25T00:30:00Z"
-last_activity: "2026-05-24 evening — aim-4 execute-phase complete; Wave 1-4 all PASS; commits d9cf8da/996412c/8cc6204/e1994e1/b522f64/7a111ed"
+status: closed
+stopped_at: "aim-5 ✅ CLOSED 2026-05-25 — redefined to 10-article E2E smoke per user; PASS via natural cron evidence (10 ok ingestions + graph delta +398/+638 today)"
+last_updated: "2026-05-25T22:00:00Z"
+last_activity: "2026-05-25 — aim-5 redefined from 7-day stability watch to immediate 10-article max E2E smoke; closed via natural cron evidence (no extra run); milestone Aliyun-Ingest-Migration-v1 fully closed (6/6 phases)"
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 12
+  completed_phases: 6
+  total_plans: 18
   completed_plans: 12
 ---
 
@@ -25,10 +25,10 @@ Requirements: `.planning/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md`
 ## Current Position
 
 Milestone: Aliyun-Ingest-Migration-v1 (parallel-track to v3.4 / v3.5-Ingest-Refactor / Agentic-RAG-v1)
-Phase: aim-4 ✅ DONE — aim-5 next
-Plan: pending — `/gsd:plan-phase aim-5`
-Status: 4/6 phases complete (aim-0/1/2/3/4 done); aim-5 = 7-day stability watch
-Last activity: 2026-05-24 evening — aim-4 execute-phase complete; 4 waves PASS
+Phase: aim-5 ✅ CLOSED — milestone fully closed
+Plan: N/A — aim-5 redefined and closed without executing the 6 authored plans (kept on disk for audit)
+Status: 6/6 phases complete (aim-0/1/2/3/4/5 done)
+Last activity: 2026-05-25 — aim-5 redefined to 10-article E2E smoke per user; closed via natural cron evidence (10 ok ingestions today + LightRAG graph delta +398 entities / +638 relations vs aim-2 baseline). See `.scratch/aim-5-close-260525-aliyun-evidence.log`.
 
 ### Phase plan
 
@@ -39,7 +39,7 @@ Last activity: 2026-05-24 evening — aim-4 execute-phase complete; 4 waves PASS
 | aim-2 | LightRAG storage full migration (Hermes pause + tar.gz + scp + sha256 + count verify) | 5 | M | blocked by aim-1 |
 | aim-3 | Cutover (systemd timer + kol_scan.db handoff + Hermes crontab clear + journald) | 5 | M | ✅ DONE — commit aim-3-4 evidenced / 2026-05-24 |
 | aim-4 | Daily sync Aliyun → Hermes + Databricks (consumer-side cron + retry + journald) | 4 | S | ✅ DONE 2026-05-24 — Wave 1 d9cf8da / Wave 2 996412c+8cc6204+e1994e1 / Wave 3 b522f64 / Wave 4 7a111ed |
-| aim-5 | 7-day stability (systemd / reconcile / daily sync — all 7d zero-failure) | 5 | S (7-day wall-clock) | next — `/gsd:plan-phase aim-5` |
+| aim-5 | **REDEFINED 2026-05-25 (user)**: 10-article max E2E smoke (scan → scrape → ingest → graph) | 5 | XS (single-day evidence) | ✅ CLOSED 2026-05-25 — natural cron PASS, no extra run (see closure evidence below) |
 
 Total: 27 REQs across 6 phases, 0 orphans expected.
 
@@ -141,7 +141,9 @@ Per PROJECT-Aliyun-Ingest-Migration-v1.md §3 (Decisions 1-5) + §4 (Q1-Q6 all c
 - aim-2 execute ✅ DONE 2026-05-23 (commits: STORAGE-01..04 prior waves; STORAGE-05 commit 3b2ebad); Q2a (a)(b)(c) all PASS; backup at lightrag_storage.aliyun-pre-aim2-bak-20260523T231949Z; next: /gsd:plan-phase aim-3
 - aim-3 plan-phase ✅ DONE 2026-05-24; 4 PLAN.md (aim-3-1..4) + CONTEXT.md (13-job SSH audit); plan-checker PASS; next: /gsd:execute-phase aim-3
 - aim-4 execute ✅ DONE 2026-05-24 — 4 waves PASS; commits: Wave 1 d9cf8da (SSH key bootstrap), Wave 2 996412c+8cc6204+e1994e1 (sync-from-aliyun.sh + chmod+x), Wave 3 b522f64 (Hermes systemd timer + 9 gates PASS, Result=success), Wave 4 7a111ed (SYNC-03 verification + Aliyun wiki commit runbooks). aim-4-4-EVIDENCE PARTIAL with 4-item TODO checklist deferred to aim-5 STAB checkpoint. Next: /gsd:plan-phase aim-5.
-- Hermes lightrag_storage cold-backup retention deadline: 2026-06-22 (set by aim-2-5; cleanup at aim-5 close or later)
+- aim-5 plan-phase ✅ DONE 2026-05-25 — 6 PLAN.md authored (aim-5-{1..6}) + aim-5-CONTEXT.md (gathered prior). Verification: gsd-plan-checker iter 1 REVISE (aim-5-4/aim-5-5 wave label `1` → `2`), iter 2 PASS. 5/5 STAB-NN covered, Decision 4 / Q5c hard-fail discipline preserved in aim-5-4, verbatim 4-item aim-4-4 TODO closure intact in aim-5-3. Wave 1: aim-5-6 (scaffold). Wave 2: aim-5-{1..5} (daily probes; aim-5-5 operator-only).
+- **aim-5 ✅ CLOSED 2026-05-25** — user redefined scope from "7-day stability watch" to "10-article max E2E smoke; close without re-running if already successful". Evidence (`.scratch/aim-5-close-260525-aliyun-evidence.log`): (a) 2026-05-25 ingestions table on canonical Aliyun DB `/root/OmniGraph-Vault/data/kol_scan.db` shows 10 ok rows = exact threshold; (b) LightRAG graphml mtime `May 25 20:27 UTC` aligns with today's 14:00 UTC ingest cron; (c) graph node count 28052 (vs aim-2 baseline 27654, Δ +398) and edge count 40242 (vs 39604, Δ +638) prove ainsert path actually built KG, not just wrote DB rows. Authored aim-5-{1..6} plans kept on disk for audit; not executed.
+- Hermes lightrag_storage cold-backup retention deadline: 2026-06-22 (set by aim-2-5; carried forward as standalone follow-up — no longer wrapped under aim-5-6 day-7 close)
 
 **On aim-0 PASS — deferred actions (registered 2026-05-21; do NOT act before aim-0 verdict = PASS):**
 
@@ -202,7 +204,7 @@ Expected baselines after aim-0 readiness (per PROJECT §6 risk mitigation):
 
 ## Session Continuity
 
-Last session: 2026-05-25T00:30:00Z
-Stopped at: aim-4 execute-phase complete; 4/4 waves PASS; commits d9cf8da/996412c/8cc6204/e1994e1/b522f64/7a111ed; STATE updated
+Last session: 2026-05-25T22:00:00Z
+Stopped at: aim-5 ✅ CLOSED via natural cron evidence (no extra run); milestone Aliyun-Ingest-Migration-v1 fully closed (6/6 phases done)
 Resume file: None
-Next command: `/gsd:plan-phase aim-5`
+Next command: N/A — milestone closed. Open follow-ups tracked outside this STATE: (1) Hermes cold-backup retention 2026-06-22; (2) Databricks SYNC-03 first real verification (24h post Aliyun first real wiki commit); (3) v1.0.y P0/P1/P2 backlog (separate STATE).
