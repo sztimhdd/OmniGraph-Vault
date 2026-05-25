@@ -167,6 +167,36 @@ def hydrate_images_dir(src_dir: str, dst_dir: str) -> int:
     return 0
 
 
+def hydrate_gcp_sa(src: str, dst: str) -> int:
+    """Download GCP service-account JSON from UC volume → local /tmp.
+
+    arx-2: embedding is unconditionally Vertex (3072-dim); SA must be present
+    before LightRAG initialises. Boot aborts (rc=8) if this fails.
+    """
+    dst_path = Path(dst)
+    dst_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("Hydrating GCP SA: %s -> %s", src, dst_path)
+    try:
+        from databricks.sdk import WorkspaceClient
+        w = WorkspaceClient()
+        resp = w.files.download(src)
+        with dst_path.open("wb") as fh:
+            for chunk in iter(lambda: resp.contents.read(1024 * 1024), b""):
+                fh.write(chunk)
+    except Exception as e:
+        logger.exception("GCP SA download failed: %s", e)
+        return 1
+    size = dst_path.stat().st_size
+    if size == 0:
+        logger.error("GCP SA file is empty; aborting boot")
+        return 2
+    try:
+        os.chmod(dst_path, 0o600)
+    except OSError as e:
+        logger.warning("chmod 0600 on GCP SA failed (non-fatal): %s", e)
+    return 0
+
+
 def main() -> int:
     src = os.environ.get("KB_VOLUME_DB_PATH")
     dst = os.environ.get("KB_DB_PATH")
@@ -232,6 +262,25 @@ def main() -> int:
     except Exception as e:
         logger.exception("FTS5 rebuild failed: %s", e)
         return 7
+
+    # arx-2: hydrate GCP SA JSON from UC volume → /tmp so lib/lightrag_embedding.py
+    # can authenticate to Vertex AI (3072-dim). Must run before LightRAG hydration.
+    gcp_sa_src = os.environ.get("KB_VOLUME_GCP_SA_PATH")
+    gcp_sa_dst = os.environ.get("KB_KG_GCP_SA_KEY_PATH")
+    if gcp_sa_src and gcp_sa_dst:
+        rc = hydrate_gcp_sa(gcp_sa_src, gcp_sa_dst)
+        if rc != 0:
+            logger.error(
+                "GCP SA hydration failed rc=%d; Vertex embedding unavailable, "
+                "aborting boot to prevent LightRAG init OOM",
+                rc,
+            )
+            return 8
+    else:
+        logger.warning(
+            "KB_VOLUME_GCP_SA_PATH or KB_KG_GCP_SA_KEY_PATH unset; "
+            "skipping GCP SA hydration (KG mode will degrade)"
+        )
 
     # kdb-3 LightRAG storage hydration (post-FTS, optional — degrade to
     # KG-disabled if it fails so /api/articles + /api/search?mode=fts stay up).

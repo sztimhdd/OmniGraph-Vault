@@ -48,8 +48,21 @@ env:
   - name: KB_LLM_MODEL
     value: "databricks-claude-sonnet-4-6"
 
-  - name: KB_EMBEDDING_MODEL
-    value: "databricks-qwen3-embedding-0-6b"
+  # arx-2: Vertex AI SA for 3072-dim embedding (unconditional; Aliyun storage canonical)
+  - name: GOOGLE_APPLICATION_CREDENTIALS
+    value: "/tmp/omnigraph_vault/gcp-paid-sa.json"
+
+  - name: GOOGLE_CLOUD_PROJECT
+    value: "project-df08084f-6db8-4f04-be8"
+
+  - name: GOOGLE_CLOUD_LOCATION
+    value: "global"
+
+  - name: KB_VOLUME_GCP_SA_PATH
+    value: "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/gcp-paid-sa.json"
+
+  - name: KB_KG_GCP_SA_KEY_PATH
+    value: "/tmp/omnigraph_vault/gcp-paid-sa.json"
 
   # kdb-3 LightRAG storage hydration (UC volume → /tmp at boot).
   # _db_bootstrap.py mirrors the dir via SDK Files API; RAG_WORKING_DIR is
