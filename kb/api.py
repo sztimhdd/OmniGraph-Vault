@@ -27,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 
 from kb import config
 from kb.api_routers.articles import router as articles_router
+from kb.api_routers.research import router as research_router
 from kb.api_routers.search import router as search_router
 from kb.api_routers.synthesize import router as synthesize_router
 
@@ -65,6 +66,12 @@ app.include_router(search_router)
 # with I18N-07 language directive injection. Reuses kb.services.job_store from kb-3-06.
 # Failure path is BASIC ('failed' status); kb-3-09 will replace with FTS5 fallback per QA-05.
 app.include_router(synthesize_router)
+
+# Agentic-RAG-v1.1 arx-2-http: POST /api/research SSE stream wrapping the
+# 5-stage pipeline in lib/research/orchestrator.py. Single-shot streaming
+# endpoint (no job polling) — clients consume text/event-stream until the
+# terminal `done` event lands with the ResearchResult JSON.
+app.include_router(research_router)
 
 
 @app.get("/health")

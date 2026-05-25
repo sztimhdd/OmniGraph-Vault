@@ -198,3 +198,39 @@ async def research_stream(
     state = ResearchState(query=query, timestamp_start=time.time())
     async for ev in _run_pipeline(query, cfg, state):
         yield ev
+
+
+async def research_stream_with_result(
+    query: str, config: ResearchConfig | None = None
+) -> AsyncIterator[dict]:
+    """Streaming peer of :func:`research_stream` that also emits a terminal
+    ``done`` event carrying the final ``ResearchResult`` payload.
+
+    Yields the same 12 pipeline events as :func:`research_stream`, then a
+    final dict ``{"event": "done", "result": {...}}`` whose ``result``
+    mirrors :class:`ResearchResult` fields, with ``Path`` objects coerced
+    to strings and ``Source`` dataclasses to plain dicts so the payload is
+    JSON-serializable for HTTP/SSE consumers.
+
+    Same closure-capture state pattern as :func:`research` — does not
+    mutate the :func:`research_stream` contract (test_research_stream.py
+    assertions stay green).
+    """
+    cfg = config if config is not None else from_env()
+    state = ResearchState(query=query, timestamp_start=time.time())
+    async for ev in _run_pipeline(query, cfg, state):
+        yield ev
+    syn = state.synthesized
+    yield {
+        "event": "done",
+        "result": {
+            "markdown": syn.markdown,
+            "confidence": syn.confidence,
+            "sources": [
+                {"kind": s.kind, "uri": s.uri, "title": s.title, "snippet": s.snippet}
+                for s in syn.sources
+            ],
+            "images_embedded": [str(p) for p in syn.embedded_images],
+            "note_lines": list(syn.note_lines),
+        },
+    }
