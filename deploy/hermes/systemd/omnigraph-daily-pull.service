@@ -1,0 +1,15 @@
+[Unit]
+Description=OmniGraph daily pull from Aliyun
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sztimhdd
+WorkingDirectory=/home/sztimhdd/OmniGraph-Vault
+ExecStart=/home/sztimhdd/OmniGraph-Vault/scripts/sync-from-aliyun.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
