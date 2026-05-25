@@ -2,6 +2,7 @@
 Description=OmniGraph daily KOL scan (WeChat MP API)
 After=network-online.target
 Wants=network-online.target
+OnFailure=omnigraph-kol-scan-alert.service
 
 [Service]
 Type=simple
