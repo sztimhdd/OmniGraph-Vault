@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: Aliyun-Ingest-Migration-v1
 milestone_name: — Migrate ingest pipeline Hermes → Aliyun ECS as new authoritative ingest node
 status: execution-active
-stopped_at: "aim-3 plan-phase ✅ DONE 2026-05-24 — 4/4 plans checker PASS; next: /gsd:execute-phase aim-3"
-last_updated: "2026-05-24T00:00:00Z"
-last_activity: "2026-05-24 — aim-2 CLOSED PASS + aim-3 plan-phase complete; 4 PLAN.md + CONTEXT.md written"
+stopped_at: "aim-4 execute ✅ DONE 2026-05-24 — 4/4 waves PASS; next: /gsd:plan-phase aim-5"
+last_updated: "2026-05-25T00:30:00Z"
+last_activity: "2026-05-24 evening — aim-4 execute-phase complete; Wave 1-4 all PASS; commits d9cf8da/996412c/8cc6204/e1994e1/b522f64/7a111ed"
 progress:
   total_phases: 6
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 4
+  total_plans: 12
+  completed_plans: 12
 ---
 
 # Project State — Aliyun-Ingest-Migration-v1 (parallel)
@@ -25,10 +25,10 @@ Requirements: `.planning/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md`
 ## Current Position
 
 Milestone: Aliyun-Ingest-Migration-v1 (parallel-track to v3.4 / v3.5-Ingest-Refactor / Agentic-RAG-v1)
-Phase: aim-1 ✅ DONE — aim-2 next
-Plan: pending — `/gsd:plan-phase aim-0` after upgrade complete
-Status: chartered; all Q1-Q6 decisions logged in PROJECT-Aliyun-Ingest-Migration-v1.md §3-§4
-Last activity: 2026-05-20 evening — milestone files written; main PROJECT.md updated
+Phase: aim-4 ✅ DONE — aim-5 next
+Plan: pending — `/gsd:plan-phase aim-5`
+Status: 4/6 phases complete (aim-0/1/2/3/4 done); aim-5 = 7-day stability watch
+Last activity: 2026-05-24 evening — aim-4 execute-phase complete; 4 waves PASS
 
 ### Phase plan
 
@@ -38,8 +38,8 @@ Last activity: 2026-05-20 evening — milestone files written; main PROJECT.md u
 | aim-1 | Code + env deploy (git clone + venv + provider keys + local_e2e smoke) | 4 | S | ✅ DONE — commit 718c52d / 2026-05-23 |
 | aim-2 | LightRAG storage full migration (Hermes pause + tar.gz + scp + sha256 + count verify) | 5 | M | blocked by aim-1 |
 | aim-3 | Cutover (systemd timer + kol_scan.db handoff + Hermes crontab clear + journald) | 5 | M | ✅ DONE — commit aim-3-4 evidenced / 2026-05-24 |
-| aim-4 | Daily sync Aliyun → Hermes + Databricks (consumer-side cron + retry + journald) | 4 | S | blocked by aim-3 |
-| aim-5 | 7-day stability (systemd / reconcile / daily sync — all 7d zero-failure) | 5 | S (7-day wall-clock) | blocked by aim-4 |
+| aim-4 | Daily sync Aliyun → Hermes + Databricks (consumer-side cron + retry + journald) | 4 | S | ✅ DONE 2026-05-24 — Wave 1 d9cf8da / Wave 2 996412c+8cc6204+e1994e1 / Wave 3 b522f64 / Wave 4 7a111ed |
+| aim-5 | 7-day stability (systemd / reconcile / daily sync — all 7d zero-failure) | 5 | S (7-day wall-clock) | next — `/gsd:plan-phase aim-5` |
 
 Total: 27 REQs across 6 phases, 0 orphans expected.
 
@@ -140,6 +140,7 @@ Per PROJECT-Aliyun-Ingest-Migration-v1.md §3 (Decisions 1-5) + §4 (Q1-Q6 all c
 - aim-1 execute ✅ DONE 2026-05-23 (commit 718c52d); UAT 7/7 PASS; aim-1-UAT.md; next: /gsd:plan-phase aim-2
 - aim-2 execute ✅ DONE 2026-05-23 (commits: STORAGE-01..04 prior waves; STORAGE-05 commit 3b2ebad); Q2a (a)(b)(c) all PASS; backup at lightrag_storage.aliyun-pre-aim2-bak-20260523T231949Z; next: /gsd:plan-phase aim-3
 - aim-3 plan-phase ✅ DONE 2026-05-24; 4 PLAN.md (aim-3-1..4) + CONTEXT.md (13-job SSH audit); plan-checker PASS; next: /gsd:execute-phase aim-3
+- aim-4 execute ✅ DONE 2026-05-24 — 4 waves PASS; commits: Wave 1 d9cf8da (SSH key bootstrap), Wave 2 996412c+8cc6204+e1994e1 (sync-from-aliyun.sh + chmod+x), Wave 3 b522f64 (Hermes systemd timer + 9 gates PASS, Result=success), Wave 4 7a111ed (SYNC-03 verification + Aliyun wiki commit runbooks). aim-4-4-EVIDENCE PARTIAL with 4-item TODO checklist deferred to aim-5 STAB checkpoint. Next: /gsd:plan-phase aim-5.
 - Hermes lightrag_storage cold-backup retention deadline: 2026-06-22 (set by aim-2-5; cleanup at aim-5 close or later)
 
 **On aim-0 PASS — deferred actions (registered 2026-05-21; do NOT act before aim-0 verdict = PASS):**
@@ -193,9 +194,15 @@ Expected baselines after aim-0 readiness (per PROJECT §6 risk mitigation):
 
 **aim-1 actuals (2026-05-23):** aim-1-4 smoke: batch_elapsed=778.44s / budget=28800s (2.7%); 85 nodes / 93 edges; SiliconFlow 38/38 vision OK; venv-aim1 py3.11.0rc1 153 pkgs
 
+**aim-4 actuals (2026-05-24):**
+- Wave 2 sync-from-aliyun.sh smoke: first-run 41.061s / second-run 19.945s (idempotency proven); 4 sync targets verified (kol_scan.db = 26,959,872 B; articles/ = 1944 HTML files; images/ = 872M; kb/wiki/ NO_MARKER_OK)
+- Wave 3 systemd timer manual fire: `sudo systemctl start omnigraph-daily-pull.service` → Result=success ExecMainStatus=0; journalctl shows 4 rsync log lines + "sync OK on attempt 1"; next fire `Mon 2026-05-25 02:00:00 ADT` (= 05:00 UTC, explicit UTC suffix on OnCalendar after Hermes TZ deviation surfaced at G5)
+- Hermes net cron count: 11 → 1 (G6 returns 0 legacy ingest cron lines; G7 returns exactly 1 omnigraph- timer)
+- aim-4-3 deviation: Hermes WSL2 TZ = America/Halifax (not UTC as plan README assumed); fixed via explicit `OnCalendar=*-*-* 05:00:00 UTC` suffix; redeployed; next fire validated
+
 ## Session Continuity
 
-Last session: 2026-05-20T22:00:00Z
-Stopped at: 4 sibling planning docs written + PROJECT.md pointer added; milestone chartered
+Last session: 2026-05-25T00:30:00Z
+Stopped at: aim-4 execute-phase complete; 4/4 waves PASS; commits d9cf8da/996412c/8cc6204/e1994e1/b522f64/7a111ed; STATE updated
 Resume file: None
-Next command: `/gsd:plan-phase aim-2`
+Next command: `/gsd:plan-phase aim-5`
