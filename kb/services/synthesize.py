@@ -37,6 +37,7 @@ import dataclasses
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 
@@ -505,6 +506,12 @@ async def kb_synthesize(
     # Per Decision 4: read-only — synthesize NEVER writes back to kb/wiki/.
     wiki_context = await resolve_wiki_context(question)
     query_text = wiki_context + query_text
+    # 260524-tk5: monotonic clock for C1 wall-time observability.
+    t0 = time.monotonic()
+    _log.info(
+        "c1_before_aquery: job_id=%s mode=%s prompt_chars=%d",
+        job_id, mode, len(query_text),
+    )
     try:
         # QA-04: bound C1 wall-time. asyncio.wait_for raises TimeoutError on
         # exceedance; the inner coroutine is cancelled.
@@ -517,7 +524,16 @@ async def kb_synthesize(
             synthesize_response(query_text, mode="hybrid"),
             timeout=KB_SYNTHESIZE_TIMEOUT,
         )
+        _log.info(
+            "c1_after_aquery: job_id=%s wall_s=%.2f response_chars=%d",
+            job_id, time.monotonic() - t0,
+            len(response) if isinstance(response, str) else 0,
+        )
     except asyncio.TimeoutError:
+        _log.warning(
+            "c1_timeout: job_id=%s wall_s=%.2f",
+            job_id, time.monotonic() - t0,
+        )
         _fts5_fallback(question, lang, job_id, reason="C1 timeout")
         return
     except Exception as e:  # noqa: BLE001 — QA-05: NEVER 500; route to fallback

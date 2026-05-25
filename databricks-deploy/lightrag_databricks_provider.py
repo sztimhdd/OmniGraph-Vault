@@ -95,7 +95,8 @@ def make_llm_func():
         resp = await loop.run_in_executor(
             None,
             lambda: w.serving_endpoints.query(
-                name=KB_LLM_MODEL, messages=messages
+                name=KB_LLM_MODEL, messages=messages,
+                max_tokens=63999,
             ),
         )
         return resp.choices[0].message.content
@@ -122,7 +123,8 @@ async def _embed(texts: list[str], **_kwargs: Any) -> np.ndarray:
     resp = await loop.run_in_executor(
         None,
         lambda: w.serving_endpoints.query(
-            name=KB_EMBEDDING_MODEL, input=texts
+            name=KB_EMBEDDING_MODEL,
+            input=texts,
         ),
     )
     # SDK returns .data: list[{embedding: list[float]}] (OpenAI-compat shape).

@@ -33,6 +33,11 @@ def get_databricks_client(**kwargs: Any) -> Any:
     ``Config(http_timeout_seconds=...)``).
     """
     from databricks.sdk import WorkspaceClient
+    from databricks.sdk.core import Config
+
+    # 260524-tk5b: bound SDK HTTP socket so streaming/SSE LLM calls can't hang.
+    if "config" not in kwargs:
+        kwargs["config"] = Config(http_timeout_seconds=120)
 
     profile = os.getenv("DATABRICKS_CONFIG_PROFILE")
     if profile:

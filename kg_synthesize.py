@@ -13,10 +13,13 @@ load_env()
 DB_PATH = Path(os.environ.get("KOL_SCAN_DB_PATH", str(Path(__file__).parent / "data" / "kol_scan.db")))
 
 import asyncio
+import logging
 import time
 
 from lightrag.lightrag import LightRAG, QueryParam
 from lib.llm_complete import get_llm_func  # quick-260509-s29 W3: dispatcher
+
+_log = logging.getLogger(__name__)
 
 
 def _get_embedding_func():
@@ -56,6 +59,16 @@ IMAGE_URL_DIRECTIVE = (
 # synthesis — read failures return empty list; write failures log a warning only.
 # Note: the parent dir name `omonigraph-vault` is the canonical typo (CLAUDE.md).
 QUERY_HISTORY_FILE = Path.home() / ".hermes" / "omonigraph-vault" / "query_history.jsonl"
+
+
+# 260524-tk5: inner per-attempt timeout for rag.aquery(). The outer wrapper at
+# kb/services/synthesize.py uses KB_SYNTHESIZE_TIMEOUT=60 (default) — but
+# long_form requests bump this to 240. Without an inner bound, a hung
+# Databricks SDK HTTP call inside the retry loop blocks the entire 240s
+# wrapper budget on attempt 1 alone. 150s < 240s lets attempt 1 raise
+# TimeoutError into the existing 3-attempt retry, giving attempt 2/3 a chance
+# to succeed once the worker queue clears.
+KB_LIGHTRAG_INNER_TIMEOUT: int = int(os.environ.get("KB_LIGHTRAG_INNER_TIMEOUT", "150"))
 
 
 def _embedding_timeout_default() -> int:
@@ -191,7 +204,23 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
     response = None
     for i in range(3):
         try:
-            response = await rag.aquery(custom_prompt, param=param)
+            _log.info(
+                "kg_before_aquery: attempt=%d mode=%s prompt_chars=%d",
+                i + 1, mode, len(custom_prompt),
+            )
+            t_attempt = time.monotonic()
+            # 260524-tk5: bound inner aquery so a hung SDK call surfaces as
+            # asyncio.TimeoutError (caught below by `except Exception`) instead
+            # of stalling the entire outer KB_SYNTHESIZE_TIMEOUT budget.
+            response = await asyncio.wait_for(
+                rag.aquery(custom_prompt, param=param),
+                timeout=KB_LIGHTRAG_INNER_TIMEOUT,
+            )
+            _log.info(
+                "kg_after_aquery: attempt=%d wall_s=%.2f response_chars=%d",
+                i + 1, time.monotonic() - t_attempt,
+                len(response) if isinstance(response, str) else 0,
+            )
             break
         except Exception as e:
             print(f"Query attempt {i+1} failed: {e}")
