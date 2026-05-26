@@ -93,3 +93,15 @@ env:
   # .planning/quick/260525-c1-no-content-at-64s/REPORT.md
   - name: KB_SYNTHESIZE_TIMEOUT
     value: "240"
+
+  # arx-2-bump180: outer KG-search worker asyncio.wait_for budget. Code
+  # default 90s (kb/api_routers/search.py:41) hit boundary-precise 90.00s
+  # wallclock on post-arx-2 dim-fix redeploy — KG retrieval pipeline
+  # completed (Final context: 40 ent / 143 rel / 13 chunks) but Vertex
+  # Gemini synth ~31s after context-build pushed total worker runtime past
+  # the 90s default. Empty exception str confirms asyncio.TimeoutError.
+  # Evidence: .scratch/260525-kg-pending/tail-nofilter.log:472 (start),
+  # :524 (fail). 180s gives ~2x synth headroom.
+  # Diagnosis: .planning/quick/20260525-200047-synthesize-audit/AUDIT.md
+  - name: KB_KG_SEARCH_TIMEOUT
+    value: "180"
