@@ -35,6 +35,35 @@ SEARCH_BYPASS_QUALITY: bool = (
 # ---- Public API ------------------------------------------------------------
 
 
+def _sanitize_fts5_query(q: str) -> str:
+    """Wrap user input as an FTS5 phrase literal so MATCH never raises syntax errors.
+
+    Per SQLite FTS5 query-language docs: a string enclosed in double quotes is
+    treated as a literal token sequence; any embedded double quote is escaped
+    SQL-style by doubling (``"`` → ``""``). Wrapping defangs every other
+    metachar — ``?`` ``*`` ``:`` ``(`` ``)`` ``+`` ``-`` ``^`` and the
+    ``AND`` / ``OR`` / ``NOT`` / ``NEAR`` keywords — without dropping any
+    tokens the user actually typed.
+
+    Behavior:
+        - empty / whitespace-only ``q`` → ``'""'`` (an empty phrase that
+          MATCH accepts and returns 0 rows for)
+        - all other input → ``'"<q-with-doubled-inner-quotes>"'``
+
+    This closes AUDIT.md F1 (P0): the trigram-tokenized MATCH expression
+    parses ``hello?`` as a syntax error; ``"hello?"`` parses cleanly because
+    the trigram tokenizer ignores ``?`` as non-alnum punctuation.
+
+    Pure function — idempotent on already-sanitized strings (re-wrapping a
+    double-quoted phrase doubles its outer quotes, which is still valid
+    FTS5 syntax and matches the same token sequence).
+    """
+    q = (q or "").strip()
+    if not q:
+        return '""'
+    return '"' + q.replace('"', '""') + '"'
+
+
 def ensure_fts_table(conn: sqlite3.Connection) -> None:
     """Create the `articles_fts` virtual table if absent (idempotent).
 
@@ -93,7 +122,9 @@ def fts_query(
             f"FROM {FTS_TABLE_NAME} f "
             f"WHERE {FTS_TABLE_NAME} MATCH ? "
         )
-        params: list = [q]
+        # F1: sanitize before binding so user input like "hello?" or "AND"
+        # reaches MATCH as a quoted phrase, not an FTS5 expression.
+        params: list = [_sanitize_fts5_query(q)]
         if lang is not None:
             sql += "AND f.lang = ? "
             params.append(lang)

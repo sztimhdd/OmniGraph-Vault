@@ -239,3 +239,72 @@ def test_search_kg_job_completes(app_client: TestClient, monkeypatch: pytest.Mon
             assert status["result"] == "KG result for 'test'"
             return
     pytest.fail(f"kg job {jid} did not complete within 2s")
+
+
+# ---- F1 sanitizer integration tests (AUDIT.md F1 — P0) ---------------------
+#
+# Pre-F1 these queries hit kb/services/search_index.py:fts_query and bubbled
+# `fts5: syntax error near "?"` / `near "AND"` etc. up as a 500 from
+# /api/search?mode=fts. Post-F1 the sanitizer wraps every query as a phrase
+# literal, so MATCH parses cleanly and the endpoint returns 200 with an empty
+# items list when no trigram matches.
+
+
+def test_search_fts_question_mark_suffix_no_500(app_client: TestClient) -> None:
+    """AUDIT.md F1 root-cause repro: ?-suffix query MUST NOT 500."""
+    r = app_client.get("/api/search?q=hello?&mode=fts")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["mode"] == "fts"
+    assert isinstance(body["items"], list)
+
+
+def test_search_fts_and_keyword_no_500(app_client: TestClient) -> None:
+    """Bare FTS5 boolean keyword MUST be defanged to a literal phrase token."""
+    r = app_client.get("/api/search?q=AND&mode=fts")
+    assert r.status_code == 200
+    assert r.json()["mode"] == "fts"
+
+
+def test_search_fts_metachar_barrage_no_500(app_client: TestClient) -> None:
+    """Mixed FTS5 metachars (paren, colon, wildcard, quote) MUST NOT 500."""
+    r = app_client.get('/api/search?q=(title:agent* OR "x")&mode=fts')
+    assert r.status_code == 200
+
+
+# ---- NEVER-500 invariant probe (AUDIT.md F1 — P0) --------------------------
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "hello?",
+        "agent design?",
+        "AND",
+        "OR",
+        "NEAR",
+        "foo*",
+        "(a OR b)",
+        "title:agent",
+        'she said "hi"',
+        "智能体",
+        "智能体 agent?",
+        "?*+-^",
+        '""',
+        "a:b:c",
+    ],
+    ids=[
+        "qmark-suffix", "phrase-qmark", "and-kw", "or-kw", "near-kw",
+        "wildcard", "paren-or", "colon-prefix", "embedded-quote",
+        "unicode-zh", "mixed-script-qmark", "metachar-only",
+        "empty-quote-pair", "multi-colon",
+    ],
+)
+def test_search_fts_never_500_invariant(app_client: TestClient, q: str) -> None:
+    """QA-05 NEVER-500 invariant: every q reaches MATCH defanged → status != 500."""
+    r = app_client.get("/api/search", params={"q": q, "mode": "fts"})
+    assert r.status_code != 500, (
+        f"FTS5 syntax leak — q={q!r} returned 500 (pre-F1 bug regression)"
+    )
+    # Endpoint contract: anything that's not 500 MUST return a JSON body.
+    assert r.headers["content-type"].startswith("application/json")

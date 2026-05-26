@@ -2031,7 +2031,8 @@ html[lang="en"] .article-card--zh-only {
 .qa-result[data-qa-state="done"] [data-qa-state-only*="done"],
 .qa-result[data-qa-state="error"] [data-qa-state-only*="error"],
 .qa-result[data-qa-state="timeout"] [data-qa-state-only*="polling"],
-.qa-result[data-qa-state="fts5_fallback"] [data-qa-state-only*="fts5_fallback"] { display: block; }
+.qa-result[data-qa-state="fts5_fallback"] [data-qa-state-only*="fts5_fallback"],
+.qa-result[data-qa-state="no_results"] [data-qa-state-only*="no_results"] { display: block; }
 
 .qa-question { padding: 1rem 0; color: var(--text-secondary); font-style: italic; }
 .qa-question-icon { display: inline-flex; vertical-align: middle; margin-right: 0.5rem; color: var(--text-tertiary); }
@@ -2073,6 +2074,19 @@ html[lang="en"] .article-card--zh-only {
 }
 .qa-fallback-banner { padding: 0.75rem 0; }
 .qa-fallback-explainer {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0.375rem 0 0;
+}
+
+/* no_results — F2 (AUDIT.md F2). Honest empty state, muted (not error red). */
+.qa-confidence-chip--no-results {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-secondary);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+.qa-no-results-banner { padding: 0.75rem 0; }
+.qa-no-results-explainer {
   font-size: 0.875rem;
   color: var(--text-secondary);
   margin: 0.375rem 0 0;

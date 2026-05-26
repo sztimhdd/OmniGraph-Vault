@@ -192,3 +192,73 @@ def test_fts_query_bypass_quality_includes_negative_rows(monkeypatch: pytest.Mon
     # With bypass on, both negative rows must surface alongside positives.
     assert "BAD AGENT REJECTED" in titles
     assert "RSS BAD AGENT" in titles
+
+
+# ---- F1 sanitizer tests (AUDIT.md F1 — P0 FTS5 metachar syntax error) ------
+#
+# Per SQLite FTS5 docs (https://sqlite.org/fts5.html §3 query-language):
+#     "Within an FTS expression a string may be specified ... by enclosing it
+#      in double quotes ("). Within a string, any embedded double quote
+#      characters may be escaped SQL-style — by adding a second double-quote
+#      character."
+#
+# The sanitizer wraps user input as a literal phrase so the trigram-tokenized
+# MATCH expression never raises `fts5: syntax error near ...`. Tests pin the
+# wrapping rule + verify fts_query no longer 500s on metachar-containing input.
+
+
+def test_sanitize_empty_string_returns_empty_phrase(monkeypatch: pytest.MonkeyPatch) -> None:
+    si = _reload_si(monkeypatch, "off")
+    # Empty / whitespace-only inputs collapse to an empty phrase that MATCH
+    # accepts (and returns 0 rows for). Crucially: NEVER raises.
+    assert si._sanitize_fts5_query("") == '""'
+    assert si._sanitize_fts5_query("   ") == '""'
+    assert si._sanitize_fts5_query(None) == '""'  # type: ignore[arg-type]
+
+
+def test_sanitize_question_mark_suffix_wraps_as_phrase(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AUDIT.md F1 root-cause repro: bare 'hello?' raises FTS5 syntax error."""
+    si = _reload_si(monkeypatch, "off")
+    assert si._sanitize_fts5_query("hello?") == '"hello?"'
+    assert si._sanitize_fts5_query("agent design?") == '"agent design?"'
+    # And against a real fixture: fts_query MUST NOT raise on ?-suffix input.
+    conn = _make_fixture_conn()
+    _populate_fts(conn, si)
+    rows = si.fts_query("agent?", limit=10, conn=conn)  # would have raised pre-F1
+    assert isinstance(rows, list)
+
+
+def test_sanitize_metachars_neutralized(monkeypatch: pytest.MonkeyPatch) -> None:
+    """FTS5 metachars *, AND, OR, NEAR, parens, colons must reach MATCH defanged."""
+    si = _reload_si(monkeypatch, "off")
+    # Wildcards + boolean keywords + grouping all become literal phrase tokens.
+    assert si._sanitize_fts5_query("foo*") == '"foo*"'
+    assert si._sanitize_fts5_query("AND OR NEAR") == '"AND OR NEAR"'
+    assert si._sanitize_fts5_query("(a OR b)") == '"(a OR b)"'
+    assert si._sanitize_fts5_query("title:agent") == '"title:agent"'
+    # Embedded double quote is doubled per FTS5 SQL-style escape rule.
+    assert si._sanitize_fts5_query('she said "hi"') == '"she said ""hi"""'
+
+
+def test_sanitize_unicode_passthrough(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Chinese / mixed-script input must survive sanitization unchanged inside the phrase."""
+    si = _reload_si(monkeypatch, "off")
+    assert si._sanitize_fts5_query("智能体") == '"智能体"'
+    assert si._sanitize_fts5_query("智能体 agent?") == '"智能体 agent?"'
+    # Real query still hits zh-CN fixture row via trigram tokenizer.
+    conn = _make_fixture_conn()
+    _populate_fts(conn, si)
+    rows = si.fts_query("agent?", lang="zh-CN", limit=10, conn=conn)
+    assert isinstance(rows, list)
+
+
+def test_sanitize_safe_passthrough_still_matches(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Plain bareword input that always worked must still return matching rows."""
+    si = _reload_si(monkeypatch, "off")
+    assert si._sanitize_fts5_query("agent") == '"agent"'
+    conn = _make_fixture_conn()
+    _populate_fts(conn, si)
+    # Pre-F1 this returned hits; post-F1 the phrase form must hit the same trigrams.
+    rows = si.fts_query("agent", limit=10, conn=conn)
+    titles = [r[1] for r in rows]
+    assert any("Agent" in t for t in titles)

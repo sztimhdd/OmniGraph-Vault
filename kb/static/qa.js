@@ -232,17 +232,23 @@
           return;
         }
         if (data.status === 'done') {
+          // F2: confidence-aware 4-branch dispatch (AUDIT.md F2 — P1).
+          // The 2-branch fallback_used check collapsed 'no_results' onto
+          // 'fts5_fallback', mismatching banner text vs actual confidence.
+          // Backend confidence values: 'kg' | 'fts5_fallback' | 'no_results'.
           var fallback = data.fallback_used === true;
-          if (fallback) {
-            setState('fts5_fallback');
-          } else {
-            setState('done');
-          }
+          var confidence = (data.result && data.result.confidence) || data.confidence || '';
+          var nextState;
+          if (confidence === 'no_results') nextState = 'no_results';
+          else if (fallback || confidence === 'fts5_fallback') nextState = 'fts5_fallback';
+          else nextState = 'done';
+          setState(nextState);
           if (data.result) {
             renderAnswerMarkdown(data.result.markdown || '');
             renderSources(data.result.sources || []);
-            // fts5_fallback never has entities (D-9)
-            if (!fallback) renderEntities(data.result.entities || []);
+            // entities only render on the real KG branch (D-9): fallback +
+            // no_results both hide the entity cloud.
+            if (nextState === 'done') renderEntities(data.result.entities || []);
           }
           clearPoll();
           return;

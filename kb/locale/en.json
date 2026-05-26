@@ -168,6 +168,8 @@
   "qa.state.timeout.message": "Timeout — showing quick reference",
   "qa.fallback.label": "Quick Reference",
   "qa.fallback.explainer": "Keyword-based quick reference, not full KG answer.",
+  "qa.no_results.label": "No matches",
+  "qa.no_results.explainer": "No articles in the knowledge base matched your query. Try different keywords or broaden the question.",
   "qa.sources.title": "Sources",
   "qa.entities.title": "Related Entities",
   "qa.feedback.prompt": "Was this helpful?",

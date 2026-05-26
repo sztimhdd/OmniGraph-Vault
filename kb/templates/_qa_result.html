@@ -33,7 +33,7 @@
          hidden>
 
   {# Question echo — populated by JS on submit, visible after submit. #}
-  <div class="qa-question" data-qa-state-only="submitting polling streaming done error timeout fts5_fallback">
+  <div class="qa-question" data-qa-state-only="submitting polling streaming done error timeout fts5_fallback no_results">
     <span class="qa-question-icon" aria-hidden="true">{{ icon('chat-bubble-question', size=18) }}</span>
     <p class="qa-question-text"></p>
   </div>
@@ -57,6 +57,20 @@
     </span>
     <p class="qa-fallback-explainer">
       <span class="lang-zh">{{ 'qa.fallback.explainer' | t('zh-CN') }}</span><span class="lang-en">{{ 'qa.fallback.explainer' | t('en') }}</span>
+    </p>
+  </div>
+
+  {# no_results banner — F2 (AUDIT.md F2 — P1).
+     Honest empty-state surface. No anthropomorphism, no apology — just
+     facts + actionable next step. Per D-9 / D-10 + ui-ux-pro-max:
+     no sources, no entities, no feedback (nothing to feed back on). #}
+  <div class="qa-no-results-banner" data-qa-state-only="no_results">
+    <span class="qa-confidence-chip qa-confidence-chip--no-results">
+      {{ icon('warning', size=14) }}
+      <span class="lang-zh">{{ 'qa.no_results.label' | t('zh-CN') }}</span><span class="lang-en">{{ 'qa.no_results.label' | t('en') }}</span>
+    </span>
+    <p class="qa-no-results-explainer">
+      <span class="lang-zh">{{ 'qa.no_results.explainer' | t('zh-CN') }}</span><span class="lang-en">{{ 'qa.no_results.explainer' | t('en') }}</span>
     </p>
   </div>
 
