@@ -549,7 +549,7 @@ async def kb_synthesize(
     markdown = _rewrite_image_urls(markdown)
     sources = _resolve_sources_from_markdown(markdown)
     entities = _resolve_entities_for_sources([s.hash for s in sources])
-    confidence: ConfidenceLevel = "kg" if sources else "no_results"
+    confidence: ConfidenceLevel = "kg" if markdown.strip() else "no_results"
     result = SynthesizeResult(
         markdown=markdown,
         confidence=confidence,

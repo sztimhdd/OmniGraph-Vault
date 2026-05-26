@@ -139,6 +139,24 @@ async def _kg_local_worker(job_id: str, query: str) -> None:
                 "lang": rec.lang or "unknown",
                 "source": rec.source,
             })
+        # arx-3 K1: when the LLM returns substantive markdown but no
+        # /article/{hash} citations, surface FTS5 fallback rows so the UI
+        # shows article cards instead of an empty results pane. Lazy-import
+        # to keep the search-index dependency optional at module-load time.
+        if not results and markdown and markdown.strip():
+            try:
+                from kb.services import search_index as si
+
+                for (h, t, snip, lg, src) in si.fts_query(query, lang=None, limit=10):
+                    results.append({
+                        "hash": h,
+                        "title": t or "",
+                        "snippet": snip,
+                        "lang": lg or "unknown",
+                        "source": src,
+                    })
+            except Exception as fts_err:  # noqa: BLE001 — fallback is best-effort
+                logger.warning("kg-search FTS fallback failed: %s", fts_err)
     except Exception as e:  # noqa: BLE001 — graceful degrade, never raise
         logger.warning("kg-search worker failed for query=%r: %s", query, e)
         results = []

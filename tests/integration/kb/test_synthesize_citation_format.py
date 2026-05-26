@@ -10,7 +10,8 @@ extracts them and confidence='kg'.
 
 Behaviors covered:
     1. QA mode + C1 returns /article/{hash} citations → confidence='kg', sources>0
-    2. QA mode + C1 returns Chinese '来源:' format → no crash, confidence='no_results'
+    2. QA mode + C1 returns Chinese '来源:' format → confidence='kg' (G-remove,
+       markdown is substantive even though sources=[]), no crash
     3. long_form mode unaffected (regression guard)
 """
 from __future__ import annotations
@@ -110,12 +111,19 @@ def test_qa_mode_url_citations_resolve_to_kg_confidence(
     assert "abc1234567" in hashes
 
 
-def test_qa_mode_chinese_citation_format_degrades_gracefully(
+def test_qa_mode_chinese_citation_format_returns_kg_confidence(
     tmp_path, monkeypatch, captured_query
 ):
-    """FU-1 graceful degradation: C1 returns Chinese '来源:' format (not URL).
-    _SOURCE_HASH_PATTERN finds nothing → sources=[] → confidence='no_results'.
-    NEVER crashes; NEVER 500.
+    """G-remove contract: substantive markdown without /article/{hash} URL
+    citations now returns confidence='kg' (was 'no_results' pre-G-remove).
+    The Chinese '(来源:...)' prose is real content the LLM produced — under
+    the bug 2c gate it was hidden behind a no_results banner; post-G-remove
+    the markdown surfaces under confidence='kg' and the empty sources chip
+    set is shown alongside (no crash, NEVER-500 still holds).
+
+    See DECISION.md G-remove section + commit a0b0038 (RED tests fixing
+    this contract forward) + the structurally-identical pin update in
+    test_synthesize_structured.py:test_kg_success_markdown_present_no_sources_returns_kg_confidence.
     """
     _patch_base_dir(tmp_path, monkeypatch)
     _patch_c1_returns(
@@ -136,8 +144,9 @@ def test_qa_mode_chinese_citation_format_degrades_gracefully(
     job = job_store.get_job(jid)
     assert job is not None
     assert job["status"] == "done", "NEVER-500: Chinese citations should degrade, not crash"
-    assert job["confidence"] == "no_results"
+    assert job["confidence"] == "kg"
     assert job["fallback_used"] is False
+    assert job["result"]["markdown"]
     assert job["result"]["sources"] == []
 
 

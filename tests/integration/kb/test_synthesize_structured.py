@@ -171,13 +171,19 @@ def test_kg_success_returns_structured_sources(
 
 
 # ============================================================================
-# 2. KG happy path with no refs → sources=[], confidence='no_results'
+# 2. KG happy path with no refs → sources=[], confidence='kg' (G-remove)
 # ============================================================================
 
 
-def test_kg_success_no_sources_returns_no_results_confidence(
+def test_kg_success_markdown_present_no_sources_returns_kg_confidence(
     synthesize_module, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """G-remove contract: substantive markdown without /article/{hash} citations
+    now returns confidence='kg' (was 'no_results' pre-G-remove). Inverts the
+    bug 2c gate that hid LightRAG synthesis output behind a no_results banner.
+    See DECISION.md G-remove section + commit a0b0038 (RED tests fixing this
+    contract forward).
+    """
     from kb.services import job_store
 
     _patch_c1_writes(
@@ -189,8 +195,9 @@ def test_kg_success_no_sources_returns_no_results_confidence(
     job = job_store.get_job(jid)
 
     assert job["status"] == "done"
-    assert job["confidence"] == "no_results"
+    assert job["confidence"] == "kg"
     assert job["fallback_used"] is False
+    assert job["result"]["markdown"]
     assert job["result"]["sources"] == []
     assert job["result"]["entities"] == []
 
