@@ -381,34 +381,23 @@ Recent archives:
 
 ## Vertex AI Migration Path
 
-### Problem: Quota Coupling
+Current Gemini API calls (embedding + vision + LLM) share one GCP project's free-tier quota; one 429 stops the whole batch. Migration to Vertex AI paid tier gives cross-project quota isolation.
 
-All current Gemini API calls (embedding + Vision + LLM) share a single GCP project's free-tier quota pool. When any one service triggers a 429 (rate limit), the entire batch stops — one slow endpoint kills ingestion of unrelated articles. This is the primary motivator for migrating to Vertex AI paid tier with cross-project quota isolation.
+**Current split-provider config** (sufficient until batch volume forces migration):
+- **Vision:** SiliconFlow Qwen3-VL-32B (¥0.0013/image, no GCP dep)
+- **Embedding:** Gemini API free tier (100 RPM)
+- **LLM:** DeepSeek chat (no GCP dep)
 
-### Recommendation (current)
+Only embedding touches GCP free-tier quota.
 
-Until batch volume justifies the migration, stay on the split-provider approach:
+**Vertex endpoint + model pairing:** production uses `GOOGLE_CLOUD_LOCATION=global` (pools quota across GCP projects). `gemini-embedding-2` is GA on `global`; `gemini-embedding-2-preview` is regional-only. Always match model to endpoint.
 
-- **Vision:** SiliconFlow Qwen3-VL-32B (¥0.0013/image, no GCP dependency)
-- **Embedding:** Gemini API free tier (100 RPM — sufficient for current batches)
-- **LLM:** DeepSeek chat (on-prem, no GCP dependency)
+**Migration triggers** (any one):
+- Embedding regularly hits > 100 RPM (embedding-only 429s)
+- Vision hits > 500 RPD (only if Vision back on Gemini)
+- Single embedding 429 kills the batch despite cascade retries
 
-Only Gemini embedding still touches the GCP free-tier quota. If you observe repeated 429 errors on embedding calls during batch runs, it is time to trigger the migration.
-
-**Vertex endpoint + model pairing (for deployed Vertex paths):** The production-recommended value is `GOOGLE_CLOUD_LOCATION=global` (not `us-central1`). Hermes's `~/.hermes/.env` uses `global` to pool embedding quota across GCP projects. Embedding model naming is endpoint-dependent: gemini-embedding-2 is GA on global; gemini-embedding-2-preview is regional-only. Always match model to endpoint.
-
-### When to Migrate
-
-Trigger the Vertex AI migration when **any** of these become routinely true:
-- Batch ingestion regularly hits > 100 RPM embedding ceiling (visible as embedding-only 429s)
-- Batch ingestion hits > 500 RPD vision ceiling (only applies if you move Vision back to Gemini — not current config)
-- A single 429 on embedding kills the entire batch despite cascade retries
-
-### Full Specification
-
-See `docs/VERTEX_AI_MIGRATION_SPEC.md` for the complete migration runbook: GCP project setup, service account creation, OAuth2 token management, pricing comparison, code integration roadmap, and phased rollout plan.
-
-To estimate monthly cost before migrating, run:
+Full runbook: `docs/VERTEX_AI_MIGRATION_SPEC.md`. Cost estimate:
 
 ```bash
 python scripts/estimate_vertex_ai_cost.py --articles {N} --avg-images-per-article {M}
