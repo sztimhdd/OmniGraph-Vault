@@ -317,3 +317,31 @@ The user/operator picks the path; I implement nothing without an explicit verdic
 If PASS → proceed to a separate fix quick (Option A / B / C).
 If REDIRECT → run Step 3 (local Vertex repro), or run Step 4 (Aliyun direct compare).
 If FAIL → identify what evidence is missing.
+
+---
+
+## Follow-up incident — 2026-05-26 KG search "all pending"
+
+**Status:** distinct bug from this REPORT's C1 timeout — same outward symptom (job stuck), different root cause and code path.
+
+**Resolution path:** Option A from above (`KB_SYNTHESIZE_TIMEOUT=240`) was deployed to production via uncommitted `databricks-deploy/app.yaml` between 260525 and 260526 (later landed in commit `cc0964d` arx-2 batch). C1 long_form timeouts confirmed unblocked.
+
+**New symptom that emerged 2026-05-26:**
+
+- Front-end POST `/api/search/kg` then polls GET `/api/search/kg/{job_id}` indefinitely → user sees "all pending"
+- Backend reality: `_kg_local_worker` completes in ~1s with `status=done, results=[]` (UAT)
+- Worker exception caught + degraded silently per the `_kg_local_worker` graceful-degrade contract: `Embedding dim mismatch, expected: 3072, but loaded: 1024` (caught at `kb/api_routers/search.py:142`)
+
+**Root cause:** UC volume `lightrag_storage` hydrated to `/tmp` was stale 1024-dim while the Vertex AI embedding func (post arx-2) is 3072-dim. The 1024-dim VDB was a residue from pre-arx-2 deploys. Aliyun's canonical storage (27654 ent / 39604 rel, 3072-dim per `aim2_closed_260524`) was never propagated to UC volume.
+
+**Fix (in flight 2026-05-26):** scp Aliyun `lightrag_storage/` snapshot → UC volume `/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/lightrag_storage/`, replacing the 1024-dim files. 12 files / 1.93 GB. Byte-match verified by parallel agent at Step 4 (UC sizes match Aliyun). Then redeploy → re-hydrate → re-probe.
+
+**Defense-in-depth shipped same day (commit `7e61f98`):** outer `asyncio.wait_for(timeout=KB_KG_SEARCH_TIMEOUT=90)` around `_kg_local_worker`'s `synthesize_response("local")` call + WARNING-level start/done diagnostic markers. Did NOT solve THIS bug (the worker wasn't hanging — it was finishing fast with empty results), but caps blast radius if a real hang appears in `synthesize_response` setup.
+
+**Lesson:** "front-end stuck pending" symptom does not imply backend hang. Three patterns now distinguishable via the `kg_local_worker_start` / `kg_local_worker_done` WARNING pair:
+
+- start + done quick + empty results → backend completes, problem is data (e.g., dim mismatch, hydrate failure, KG empty for query)
+- start only, no done → real hang inside `synthesize_response` (wait_for will fire at 90s and produce `kg-search worker failed: TimeoutError` + done)
+- neither marker → BackgroundTask never scheduled (very unlikely; would imply FastAPI internal failure)
+
+For future "pending forever" reports: check for the WARNING pair FIRST before assuming timeout.
