@@ -314,3 +314,49 @@ def test_api_synthesize_get_returns_200_not_500(app_client, monkeypatch):
         assert poll.status_code == 200, (
             f"poll returned {poll.status_code} (expected 200): {poll.text}"
         )
+
+
+# ---- arx-3 G-remove integration test ---------------------------------------
+
+
+def test_api_synthesize_long_form_kg_when_markdown_lacks_citations(
+    app_client, monkeypatch
+):
+    """arx-3 RED — long_form C1 returns prose without /article/ refs MUST be
+    surfaced as confidence='kg', not 'no_results'.
+
+    Pre-fix (kb/services/synthesize.py:552 — confidence keyed off ``sources``):
+        sources=[] (no citations parseable) → confidence='no_results'
+        even though markdown is a substantive long-form answer.
+
+    Post-fix (gate keys off markdown.strip()):
+        markdown non-empty → confidence='kg', sources may legitimately be [].
+
+    The arx-3 product impact: a deep-research long-form answer ('Here is a
+    detailed explanation ...') with zero citation tags is a real result, not
+    a no-result. The /static/qa.js render path under confidence='kg' shows
+    the markdown body; under 'no_results' it shows the empty-state chip set
+    — that's the bug Bug 3 in DECISION.md.
+    """
+    _patch_c1_success(
+        monkeypatch,
+        output="# Long-form answer\n\nDetailed prose, no citations.",
+    )
+
+    r = app_client.post(
+        "/api/synthesize",
+        json={"question": "explain agents", "lang": "en", "mode": "long_form"},
+    )
+    assert r.status_code == 202, r.text
+    jid = r.json()["job_id"]
+
+    final = _poll_until_terminal(app_client, jid, timeout_s=2.0)
+    assert final.get("status") == "done", final
+    assert final.get("fallback_used") is False, (
+        f"C1 succeeded — no fallback should fire. final={final}"
+    )
+    assert final.get("confidence") == "kg", (
+        "G-remove: long_form non-empty markdown w/o citations must be 'kg', "
+        f"not 'no_results'. final={final}"
+    )
+    assert final["result"]["markdown"].startswith("# Long-form answer")

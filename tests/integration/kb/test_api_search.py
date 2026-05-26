@@ -308,3 +308,68 @@ def test_search_fts_never_500_invariant(app_client: TestClient, q: str) -> None:
     )
     # Endpoint contract: anything that's not 500 MUST return a JSON body.
     assert r.headers["content-type"].startswith("application/json")
+
+
+# ---- arx-3 K1: KG search FTS fallback when no /article/ citations ---------
+
+
+def test_kg_search_fts_fallback_when_markdown_lacks_citations(
+    app_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """arx-3 RED — POST /api/search/kg with C1 returning non-empty markdown
+    without /article/ refs MUST surface FTS5 fallback rows in the poll result.
+
+    Pre-fix: ``_kg_local_worker`` parses zero hashes from the markdown,
+    commits ``results=[]``, and the UI sees an empty kg-search response —
+    even when the query trivially matches FTS index entries.
+
+    Post-fix: when the citation loop yields no rows AND the markdown is
+    substantive, the worker queries ``search_index.fts_query(query)`` and
+    appends those rows to ``results`` so the user sees article cards.
+
+    Uses the app_client fixture's pre-populated articles_fts table — query
+    'agent' matches several KOL fixture rows ('agent' appears in titles +
+    bodies of ids 1, 3, 4, 5). Pre-fix this asserts an empty results list;
+    post-fix this asserts >=1 result.
+    """
+
+    async def fake_c1(query_text, mode="local"):
+        # Substantive markdown, no /article/{hash} citations.
+        return (
+            "# What is an agent?\n\n"
+            "An agent is an autonomous LLM-driven system. Detailed prose, "
+            "no citations because the LLM forgot to follow the citation "
+            "directive in the wrapped query."
+        )
+
+    monkeypatch.setattr("kg_synthesize.synthesize_response", fake_c1)
+
+    r = app_client.post("/api/search/kg", json={"query": "agent"})
+    assert r.status_code == 200, r.text
+    jid = r.json()["job_id"]
+
+    # Poll up to 3 seconds for completion.
+    final: dict = {}
+    for _ in range(60):
+        time.sleep(0.05)
+        poll = app_client.get(f"/api/search/kg/{jid}")
+        assert poll.status_code == 200, (
+            f"poll returned {poll.status_code} (kb-3-09 NEVER-500): {poll.text}"
+        )
+        body = poll.json()
+        if "results" in body:  # done
+            final = body
+            break
+    else:
+        pytest.fail(f"kg-search job {jid} did not complete within 3s")
+
+    results = final["results"]
+    assert isinstance(results, list)
+    assert len(results) >= 1, (
+        "K1: non-empty markdown without /article/ citations must trigger "
+        f"FTS fallback. Pre-fix results=[]. final={final}"
+    )
+    # Sanity: fallback rows must include the contract shape kb-3-06 expects.
+    for item in results:
+        for key in ("hash", "title", "snippet", "lang", "source"):
+            assert key in item, f"missing key {key!r} in fallback row {item!r}"
