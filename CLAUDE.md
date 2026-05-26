@@ -265,22 +265,20 @@ Set in `~/.hermes/.env`.
 
 **DeepSeek cross-coupling:** `lib/__init__.py` eagerly imports `deepseek_model_complete`, which raises at import time if `DEEPSEEK_API_KEY` is unset. Gemini-only workloads still need `DEEPSEEK_API_KEY` set (use `DEEPSEEK_API_KEY=dummy`).
 
-### Local dev env vars (quick task 260504-g7a)
+### Local dev env vars
 
-These five env vars enable running the full pipeline on the user's Windows
-dev box against `.dev-runtime/` instead of `~/.hermes/omonigraph-vault/`.
-All five are opt-in; unset values preserve Hermes production behavior.
+Opt-in vars for local-dev runs against `.dev-runtime/` instead of `~/.hermes/omonigraph-vault/`. Unset preserves prod behavior.
 
 | Var | Required | Default | Purpose |
 |-----|----------|---------|---------|
-| `OMNIGRAPH_LLM_PROVIDER` | No | `deepseek` | `deepseek` (production parity) or `vertex_gemini` (local sandbox). Unset == DeepSeek. |
-| `OMNIGRAPH_LLM_MODEL` | No | `gemini-3.1-flash-lite-preview` | Vertex Gemini model ID. Applies only when `OMNIGRAPH_LLM_PROVIDER=vertex_gemini`. |
-| `OMNIGRAPH_VISION_SKIP_PROVIDERS` | No | _(empty)_ | Comma-list of vision providers to drop from the cascade. Typical local value: `siliconflow,openrouter` (no paid balances / keys). |
-| `OMNIGRAPH_BASE_DIR` | Yes for local dev | `~/.hermes/omonigraph-vault` | Absolute path to runtime data root. Empty string treated as unset. |
-| `OMNIGRAPH_LLM_TIMEOUT_SEC` | No | `600` | Int seconds; applies to Vertex Gemini LLM calls only. DeepSeek path unaffected. |
-| `OMNIGRAPH_PROCESSED_RETRY` | No | `30` | Int. h09 PROCESSED-gate max retries; combined with `OMNIGRAPH_PROCESSED_BACKOFF` controls the post-ainsert verification budget (default 30 × 2.0s = 60s, was 3 × 2.0s = 6s before quick 260510-h09b). |
-| `OMNIGRAPH_PROCESSED_BACKOFF` | No | `2.0` | Float seconds. h09 PROCESSED-gate retry backoff. See `OMNIGRAPH_PROCESSED_RETRY`. |
-| `OMNIGRAPH_DEEPSEEK_TIMEOUT` | No | `300` | Float seconds. DeepSeek client-side per-call timeout. Kills any single hung `chat.completions.create` call; distinct from `LIGHTRAG_LLM_TIMEOUT` (per-task outer budget). See `lib/llm_deepseek.py`. |
+| `OMNIGRAPH_LLM_PROVIDER` | No | `deepseek` | `deepseek` (prod parity) or `vertex_gemini` (local sandbox). |
+| `OMNIGRAPH_LLM_MODEL` | No | `gemini-3.1-flash-lite-preview` | Vertex Gemini model ID. Applies only when provider=`vertex_gemini`. |
+| `OMNIGRAPH_VISION_SKIP_PROVIDERS` | No | _(empty)_ | Comma-list of vision providers to skip. Typical local: `siliconflow,openrouter`. |
+| `OMNIGRAPH_BASE_DIR` | Yes for local dev | `~/.hermes/omonigraph-vault` | Runtime data root (absolute path). |
+| `OMNIGRAPH_LLM_TIMEOUT_SEC` | No | `600` | Int seconds; Vertex Gemini LLM only. |
+| `OMNIGRAPH_PROCESSED_RETRY` | No | `30` | Int. PROCESSED-gate max retries (×`_BACKOFF` = post-ainsert verification budget). |
+| `OMNIGRAPH_PROCESSED_BACKOFF` | No | `2.0` | Float seconds. PROCESSED-gate retry backoff. |
+| `OMNIGRAPH_DEEPSEEK_TIMEOUT` | No | `300` | Float seconds. DeepSeek client-side per-call timeout. See `lib/llm_deepseek.py`. |
 
 Full local-dev runbook: `docs/LOCAL_DEV_SETUP.md`.
 
