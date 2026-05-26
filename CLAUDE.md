@@ -190,14 +190,6 @@ See [README.md](README.md) for v1.0 declaration.
 > Available modes: `rss` / `kol` / `wechat <url>` / `layer1 N` / `layer2 N` / `cleanup` / `help`. The raw commands listed in this section are reference-only — for any new local invocation prefer the harness mode.
 
 ```bash
-# Setup
-python -m venv venv && source venv/bin/activate   # Linux/macOS
-python -m venv venv && venv\Scripts\activate       # Windows
-pip install -r requirements.txt
-
-# Verify imports
-python -c "import lightrag; print('LightRAG OK')"
-
 # Ingest a WeChat article (dual-path: Apify primary, CDP fallback)
 python ingest_wechat.py "https://mp.weixin.qq.com/s/..."
 
@@ -216,8 +208,6 @@ python list_entities.py
 # Start image server (background)
 cd ~/.hermes/omonigraph-vault && python -m http.server 8765 --directory images &
 ```
-
-No pytest framework, no linting, no CI configured yet. Tests are manual verification scripts that hit live APIs.
 
 ### Local E2E testing
 
