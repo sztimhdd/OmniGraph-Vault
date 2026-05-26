@@ -114,6 +114,33 @@ Full discipline doc: `kb/docs/10-DESIGN-DISCIPLINE.md` Rule 3 (extended version 
 
 **Related:** Principle #5 (Don't Outsource Mechanical Work) covers SSH and Hermes prompts; this principle extends it to Databricks CLI.
 
+8. Right-Size GSD Ceremony — Diagnostic Complexity ≠ Fix Complexity
+
+**Principle:** GSD mode must be re-picked AFTER the diagnostic phase reveals actual fix scope. Heavy `/gsd:plan-phase` ceremony is the wrong tool for tiny fixes, even when the diagnostic was complex.
+
+**Why:** 2026-05-26 bug 2c spent 5+ hours in `/gsd:plan-phase` Phase 0/1/2 doc ceremony to ship 16 LoC. The diagnostic was genuinely complex (LightRAG storage transplant + 3-mode dispatch + chunk-anchor injection theory + provider-agnostic LLM compliance failure across DeepSeek + Vertex Gemini), but once root-caused the actual fix was 1 line in `kb/services/synthesize.py:552` plus ~15 LoC FTS5 fallback in `kb/api_routers/search.py:_kg_local_worker`. Writing PLAN.md + verifying tests across 4 phases for 16 LoC is value/cost negative — the doc-writing burned more wall-clock than the fix.
+
+**How to apply:**
+
+After Phase 1 DECIDE produces a fix-scope estimate (LoC + files touched + risk), downshift the remaining work:
+
+| Fix scope | Remaining-work mode |
+| --- | --- |
+| LoC ≤ 5, single file, obvious, tests already cover the path | Exit GSD entirely. Direct `Edit` → `git add` → `git commit` → deploy in chat. No agent, no phase, no doc. |
+| 5 < LoC ≤ 50, single concern, single deploy | Downshift to `/gsd:quick` — atomic commit + STATE tracking, NO Phase 2 PLAN.md doc. TDD red→green→commit inline. |
+| LoC > 50, multi-file, architectural, or unclear blast radius | Keep `/gsd:plan-phase` — PLAN.md + plan-checker + verifier worth the cost. |
+
+**Investigation-heavy + fix-light = 2 quicks, NOT 1 plan-phase.** When the diagnostic is unclear but the fix is likely small, structure as two separate quicks:
+
+1. `/gsd:quick "investigate <symptom>"` — read-only, produces RESEARCH.md / DECISION.md only, no Phase 2/3/4
+2. `/gsd:quick "ship <fix>"` — atomic commit + deploy
+
+**Trigger to downshift:** Phase 1 DECIDE MUST produce a numeric LoC estimate. If estimate ≤ 50, immediately fork to `/gsd:quick` or exit GSD. Do NOT auto-proceed to Phase 2 PLAN.md for tiny fixes — that's the failure mode this principle prevents.
+
+**Inverse trigger:** during a `/gsd:quick`, if the work expands past ~50 LoC or starts touching multiple subsystems / requiring architectural decisions, halt the quick and escalate to `/gsd:plan-phase`. Don't grind a quick into a plan-phase by accretion.
+
+**Related:** Principle #2 (Simplicity First) — process simplicity matches code simplicity. Principle #4 (Goal-Driven Execution) — don't manufacture milestones for trivial fixes.
+
 ---
 
 ## Project-Specific Disciplines
