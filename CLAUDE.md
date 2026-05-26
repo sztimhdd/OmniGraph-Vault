@@ -261,9 +261,9 @@ Query → kg_synthesize.py
 
 Set in `~/.hermes/.env`.
 
-**Phase 7 scoped env vars** (added 2026-04-28): the preferred Gemini key variable is `OMNIGRAPH_GEMINI_KEY` (namespaced, won't collide with Hermes's own LLM vars). `GEMINI_API_KEY` remains as a fallback for local dev. For multi-account rotation set `OMNIGRAPH_GEMINI_KEYS` (comma-separated; only useful across different Google accounts / GCP projects). Model names are pure string constants in `lib/models.py` (NOT env-overridable per Amendment 1 — rollback is `git revert`). Per-model RPM caps ARE env-overridable via `OMNIGRAPH_RPM_*` (D-08 retained for paid-tier upgrade). Embedding default is `gemini-embedding-2` (D-10). Full deploy table in `Deploy.md`.
+**Scoped env vars:** `OMNIGRAPH_GEMINI_KEY` (canonical; `GEMINI_API_KEY` fallback for local dev). `OMNIGRAPH_GEMINI_KEYS` (comma-separated; multi-account rotation across Google accounts / GCP projects). Model names hard-coded in `lib/models.py` (not env-overridable). Per-model RPM caps env-overridable via `OMNIGRAPH_RPM_*`. Embedding default: `gemini-embedding-2`. Full deploy table in `Deploy.md`.
 
-**Phase 5 DeepSeek cross-coupling (Hermes FLAG 2):** `lib/__init__.py` eagerly imports `deepseek_model_complete`, which raises at import time if `DEEPSEEK_API_KEY` is unset. Gemini-only workloads still need `DEEPSEEK_API_KEY` set (use `DEEPSEEK_API_KEY=dummy` if you don't have a real one). This is a documented Phase 5 side-effect; soft-fail is a future Phase 5 follow-up, not a Phase 7 fix.
+**DeepSeek cross-coupling:** `lib/__init__.py` eagerly imports `deepseek_model_complete`, which raises at import time if `DEEPSEEK_API_KEY` is unset. Gemini-only workloads still need `DEEPSEEK_API_KEY` set (use `DEEPSEEK_API_KEY=dummy`).
 
 ### Local dev env vars (quick task 260504-g7a)
 
