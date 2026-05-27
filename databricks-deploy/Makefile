@@ -99,15 +99,25 @@ deploy:
 	  -e "s|if (l.indexOf('en') === 0) return 'en';|if (l.indexOf('en') === 0) return DEFAULT_LANG;|" \
 	  ./databricks-deploy/_ssg/static/lang.js
 	@echo ">>> Pass 1: sync databricks-deploy/* → workspace/databricks-deploy/"
-	@# --include "_ssg/**" overrides the project-root .gitignore rule
-	@# `databricks-deploy/_ssg/`. Without it, `databricks sync` silently
-	@# skips the entire pre-rendered SSG output (200+ files) and the app
-	@# serves stale HTML from the previous deploy. Verified 2026-05-21
-	@# during Issue #3 (homepage card snippet pollution) deploy: sync
-	@# reported "Initial Sync Complete" with zero errors but workspace
-	@# `_ssg/` was empty; only `--include "_ssg/**"` produced the upload.
+	@# --include overrides the project-root .gitignore rules (databricks sync
+	@# honors .gitignore by default). Three families of staged artifacts must
+	@# be force-included or sync silently skips them:
+	@#   1. _ssg/**          — pre-rendered SSG output (.gitignore L91)
+	@#   2. kg_synthesize.py — Pass-0c project-root LightRAG entry (L94)
+	@#   3. config.py        — Pass-0c project-root config (L93)
+	@#   4. lib/**           — Pass-0c project-root LLM/embed providers (L92)
+	@# Verified 2026-05-21 (Issue #3 SSG empty after deploy) and 2026-05-27
+	@# (arx-3 singleton REGRESSION: deployed kg_synthesize.py was an OLD
+	@# pre-singleton copy because Pass-0c staged it but Pass-1 sync silently
+	@# skipped it — graph reloaded on every synthesize call, ~28s wall-time
+	@# per request. Without these explicit includes, every Pass-0c artifact
+	@# is gitignored away. Sync reports "Initial Sync Complete" with zero
+	@# errors regardless — the failure mode is silent skip, not error.
 	MSYS_NO_PATHCONV=1 databricks --profile $(PROFILE) sync --full \
 	  --include "_ssg/**" \
+	  --include "kg_synthesize.py" \
+	  --include "config.py" \
+	  --include "lib/**" \
 	  ./databricks-deploy $(WORKSPACE_ROOT)/databricks-deploy
 	@echo ">>> Pass 2: sync kb/* → workspace/databricks-deploy/kb/"
 	MSYS_NO_PATHCONV=1 databricks --profile $(PROFILE) sync --full \
