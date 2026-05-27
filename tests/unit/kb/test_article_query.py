@@ -148,7 +148,9 @@ def fixture_conn() -> sqlite3.Connection:
             body_translated TEXT,
             title_translated TEXT,
             translated_lang VARCHAR(5),
-            translated_at DATETIME
+            translated_at DATETIME,
+            body_cleaned TEXT,
+            body_repositioned TEXT
         );
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY,
@@ -164,7 +166,8 @@ def fixture_conn() -> sqlite3.Connection:
             body_translated TEXT,
             title_translated TEXT,
             translated_lang VARCHAR(5),
-            translated_at DATETIME
+            translated_at DATETIME,
+            body_cleaned TEXT
         );
         """
     )
@@ -478,7 +481,9 @@ def fixture_conn_prod_shape() -> sqlite3.Connection:
             body_translated TEXT,
             title_translated TEXT,
             translated_lang VARCHAR(5),
-            translated_at DATETIME
+            translated_at DATETIME,
+            body_cleaned TEXT,
+            body_repositioned TEXT
         );
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY,
@@ -494,7 +499,8 @@ def fixture_conn_prod_shape() -> sqlite3.Connection:
             body_translated TEXT,
             title_translated TEXT,
             translated_lang VARCHAR(5),
-            translated_at DATETIME
+            translated_at DATETIME,
+            body_cleaned TEXT
         );
         """
     )

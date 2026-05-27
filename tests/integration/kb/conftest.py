@@ -90,7 +90,9 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
                 body_translated TEXT,
                 title_translated TEXT,
                 translated_lang VARCHAR(5),
-                translated_at DATETIME
+                translated_at DATETIME,
+                body_cleaned TEXT,
+                body_repositioned TEXT
             );
             CREATE TABLE rss_articles (
                 id INTEGER PRIMARY KEY,
@@ -108,7 +110,8 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
                 body_translated TEXT,
                 title_translated TEXT,
                 translated_lang VARCHAR(5),
-                translated_at DATETIME
+                translated_at DATETIME,
+                body_cleaned TEXT
             );
             CREATE TABLE classifications (
                 id INTEGER PRIMARY KEY,
