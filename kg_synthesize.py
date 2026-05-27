@@ -68,6 +68,45 @@ QUERY_HISTORY_FILE = Path.home() / ".hermes" / "omonigraph-vault" / "query_histo
 KB_LIGHTRAG_INNER_TIMEOUT: int = int(os.environ.get("KB_LIGHTRAG_INNER_TIMEOUT", "150"))
 
 
+# v1.1-LR-singleton (2026-05-27): module-level LightRAG cache. Without this
+# every call to synthesize_response() reconstructs a LightRAG instance and
+# re-hydrates the full graph (~30068 nodes / 43143 edges) + 3 NanoVectorDB
+# stores from disk. Observed in Databricks Apps logs as a ~30s cold-start on
+# every request. Lazy-init under an asyncio.Lock so concurrent requests on
+# the same loop share one instance; first request pays the cold-start cost,
+# all subsequent requests reuse the in-memory graph.
+_rag_singleton: "LightRAG | None" = None
+_rag_init_lock: "asyncio.Lock | None" = None
+
+
+async def _get_or_init_rag() -> LightRAG:
+    """Return the cached module-level LightRAG instance, lazy-initializing once."""
+    global _rag_singleton, _rag_init_lock
+    if _rag_singleton is not None:
+        return _rag_singleton
+    if _rag_init_lock is None:
+        _rag_init_lock = asyncio.Lock()
+    async with _rag_init_lock:
+        if _rag_singleton is not None:
+            return _rag_singleton
+        t0 = time.monotonic()
+        _log.info("lightrag_singleton_init_start working_dir=%s", RAG_WORKING_DIR)
+        rag = LightRAG(
+            working_dir=RAG_WORKING_DIR,
+            llm_model_func=get_llm_func(),
+            embedding_func=_get_embedding_func(),
+            default_embedding_timeout=_embedding_timeout_default(),
+        )
+        if hasattr(rag, "initialize_storages"):
+            await rag.initialize_storages()
+        await asyncio.sleep(2)
+        _log.info(
+            "lightrag_singleton_ready wall_s=%.2f", time.monotonic() - t0,
+        )
+        _rag_singleton = rag
+        return rag
+
+
 def _embedding_timeout_default() -> int:
     """Return embedding timeout in seconds (env override or 90s default).
 
@@ -144,15 +183,7 @@ def _append_query_history(query: str, mode: str, response_len: int) -> None:
 
 
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
-    rag = LightRAG(
-        working_dir=RAG_WORKING_DIR,
-        llm_model_func=get_llm_func(),
-        embedding_func=_get_embedding_func(),
-        default_embedding_timeout=_embedding_timeout_default(),
-    )
-    if hasattr(rag, "initialize_storages"): await rag.initialize_storages()
-        
-    await asyncio.sleep(2)
+    rag = await _get_or_init_rag()
     # Apply canonical mapping if exists (DB-first, JSON fallback)
     canonical_map = {}
     if DB_PATH.exists():
