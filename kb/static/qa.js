@@ -30,7 +30,12 @@
   'use strict';
 
   var POLL_INTERVAL = window.KB_QA_POLL_INTERVAL_MS || 1500;
-  var POLL_TIMEOUT = window.KB_QA_POLL_TIMEOUT_MS || 60000;
+  // 260527-tk-stale-poll: floor POLL_TIMEOUT at 240000ms to match backend
+  // KB_SYNTHESIZE_TIMEOUT prod default. ask.html ships window value 60000
+  // which is too short for long_form mode (real wallclock 90-180s per
+  // arx-3 Gate 4 evidence). Sync-only deploy: ask.html template change
+  // won't take effect until apps deploy, so floor must live here.
+  var POLL_TIMEOUT = Math.max(window.KB_QA_POLL_TIMEOUT_MS || 0, 240000);
 
   var resultEl = null;
   var currentJobId = null;
@@ -272,6 +277,9 @@
     currentJobId = null;
     setQuestionEcho(question);
     setState('submitting');
+    // 260527-tk-stale-poll: clear stale answer DOM so timeout/fts5_fallback
+    // path doesn't show prior job's markdown above the new state banner.
+    renderAnswerMarkdown('');
     fetch((window.KB_BASE_PATH || '') + '/api/synthesize', {
       method: 'POST',
       headers: {
