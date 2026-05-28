@@ -1,8 +1,10 @@
-# Local-only staging dirs created by image-delta / hermes-pull workflows.
-# These never need to deploy to the workspace; some payloads exceed the
-# 50 MB per-file workspace upload limit (e.g. _volume_staging/*.tgz).
+# Local-only staging dirs created by image-delta / hermes-pull / aliyun-pull
+# workflows. These never need to deploy to the workspace; some payloads exceed
+# the 50 MB per-file workspace upload limit (e.g. _volume_staging/*.tgz,
+# _aliyun_pull/lightrag_storage/vdb_entities.json ~700 MB).
 _volume_staging/
 _hermes_pull/
+_aliyun_pull/
 .delta_*.txt
 .kol_*.txt
 .url_hashes_*.txt
