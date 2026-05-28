@@ -1,18 +1,19 @@
 """Nightly body-translation cron (260520-trans-inc).
 
 Translates ~10 articles per run that have passed Layer 1 + Layer 2 but lack
-``body_translated``. Runs on Hermes only; Aliyun + Databricks consume the
-translated DB via existing SCP / Databricks-deploy mechanisms.
+``body_translated`` or ``title_translated``. Runs on Hermes only; Aliyun +
+Databricks consume the translated DB via existing SCP / Databricks-deploy
+mechanisms.
 
 Behavior:
   - SELECT from articles + rss_articles (UNION ALL) where
         layer1_verdict='candidate' AND layer2_verdict='ok'
         AND body IS NOT NULL AND body != ''
-        AND body_translated IS NULL
+        AND (body_translated IS NULL OR title_translated IS NULL)
     ORDER BY layer2_at ASC LIMIT N (default 10)
-  - For each row: detect source lang, call translate_body_with_deepseek_tavily,
-    on success UPDATE body_translated + translated_lang + translated_at
-    (DO NOT touch title_translated — preserve any pre-existing inline title)
+  - For each row: detect source lang, then independently translate whichever
+    of body / title is NULL. Body and title each have their own try/except
+    so a failure in one path does not block the other (260528-mi6 BL-1).
   - Per-row failure logged and skipped; whole run never crashes on individual
     LLM/Tavily errors.
 
@@ -104,29 +105,35 @@ def _setup_logging() -> logging.Logger:
 
 def _select_candidate_rows(
     conn: sqlite3.Connection, limit: int
-) -> list[tuple[int, str, str, str]]:
-    """Return list of (id, table_name, title, body) for body translation.
+) -> list[tuple[int, str, str, str, Optional[str], Optional[str]]]:
+    """Return rows needing body and/or title translation.
+
+    Tuple shape: ``(id, table_name, title, body, body_translated, title_translated)``.
+    The two trailing columns let ``_translate_one_row`` decide per-row which
+    field(s) actually need an LLM call — a row where body is already filled
+    but title is NULL still enters the pool (260528-mi6 BL-1 backfill).
 
     Wraps the UNION ALL in a subquery so ORDER BY layer2_at applies across
-    both tables (cannot ORDER BY layer2_at directly across UNION without
-    the subquery wrap).
+    both tables.
     """
     sql = """
-        SELECT id, table_name, title, body
+        SELECT id, table_name, title, body, body_translated, title_translated
           FROM (
-            SELECT id, 'articles' AS table_name, title, body, layer2_at
+            SELECT id, 'articles' AS table_name, title, body,
+                   body_translated, title_translated, layer2_at
               FROM articles
              WHERE layer1_verdict = 'candidate'
                AND layer2_verdict = 'ok'
                AND body IS NOT NULL AND body != ''
-               AND body_translated IS NULL
+               AND (body_translated IS NULL OR title_translated IS NULL)
             UNION ALL
-            SELECT id, 'rss_articles' AS table_name, title, body, layer2_at
+            SELECT id, 'rss_articles' AS table_name, title, body,
+                   body_translated, title_translated, layer2_at
               FROM rss_articles
              WHERE layer1_verdict = 'candidate'
                AND layer2_verdict = 'ok'
                AND body IS NOT NULL AND body != ''
-               AND body_translated IS NULL
+               AND (body_translated IS NULL OR title_translated IS NULL)
           )
          ORDER BY layer2_at ASC, id ASC
          LIMIT ?
@@ -135,20 +142,28 @@ def _select_candidate_rows(
 
 
 async def _translate_one_row(
-    row: tuple[int, str, str, str],
+    row: tuple[int, str, str, str, Optional[str], Optional[str]],
     conn: sqlite3.Connection,
     dry_run: bool,
     logger: logging.Logger,
 ) -> str:
-    """Translate one row and UPDATE the source table (or log only on dry-run).
+    """Translate one row's missing field(s) and UPDATE the source table.
 
-    Returns: 'ok' / 'fail' / 'dry_run' so the caller can tally.
+    Body and title are translated independently — each path has its own
+    try/except so a failure in one does not abort the other. Outcome
+    aggregation: returns 'ok' if AT LEAST ONE field needed translation and
+    succeeded; 'fail' if every needed field failed; 'dry_run' if dry-run.
     """
-    art_id, table, title, body = row
+    art_id, table, title, body, body_translated, title_translated = row
+    needs_body = body_translated is None
+    needs_title = title_translated is None
+
     if dry_run:
         logger.info(
-            "[dry-run] WOULD translate id=%s table=%s title=%s body_len=%d",
-            art_id, table, (title or "")[:80], len(body or ""),
+            "[dry-run] WOULD translate id=%s table=%s needs_body=%s needs_title=%s "
+            "title=%s body_len=%d",
+            art_id, table, needs_body, needs_title,
+            (title or "")[:80], len(body or ""),
         )
         return "dry_run"
 
@@ -157,46 +172,80 @@ async def _translate_one_row(
     from lib.translate import (
         detect_source_lang,
         translate_body_with_deepseek_tavily,
+        translate_title_with_deepseek_tavily,
     )
 
     src_lang = detect_source_lang(title or body or "")
-    try:
-        result = await translate_body_with_deepseek_tavily(
-            title or "", body, source_lang=src_lang
-        )
-    except Exception as e:
-        logger.warning(
-            "translate_body raised (id=%s table=%s): %s — leaving NULL",
-            art_id, table, e,
-        )
-        return "fail"
+    body_ok = False
+    title_ok = False
 
-    if not result:
-        logger.info(
-            "translate_body returned None (id=%s table=%s) — leaving NULL",
-            art_id, table,
-        )
-        return "fail"
+    if needs_body:
+        try:
+            body_result = await translate_body_with_deepseek_tavily(
+                title or "", body, source_lang=src_lang
+            )
+        except Exception as e:
+            logger.warning(
+                "translate_body raised (id=%s table=%s): %s — leaving NULL",
+                art_id, table, e,
+            )
+            body_result = None
 
-    # NB: do NOT touch title_translated — preserve any inline-translated title
-    # from batch_ingest_from_spider.py path. Only update the body fields.
-    conn.execute(
-        f"UPDATE {table} SET body_translated = ?, "  # noqa: S608 (table is a fixed literal from SELECT)
-        "translated_lang = ?, translated_at = ? WHERE id = ?",
-        (
-            result["body_translated"],
-            result["lang"],
-            datetime.now(timezone.utc).isoformat(),
-            art_id,
-        ),
-    )
-    conn.commit()
-    logger.info(
-        "ok id=%s table=%s lang=%s body_len_in=%d body_len_out=%d",
-        art_id, table, result["lang"], len(body or ""),
-        len(result["body_translated"]),
-    )
-    return "ok"
+        if body_result:
+            conn.execute(
+                f"UPDATE {table} SET body_translated = ?, "  # noqa: S608 (table is a fixed literal from SELECT)
+                "translated_lang = ?, translated_at = ? WHERE id = ?",
+                (
+                    body_result["body_translated"],
+                    body_result["lang"],
+                    datetime.now(timezone.utc).isoformat(),
+                    art_id,
+                ),
+            )
+            conn.commit()
+            body_ok = True
+            logger.info(
+                "body ok id=%s table=%s lang=%s body_len_in=%d body_len_out=%d",
+                art_id, table, body_result["lang"], len(body or ""),
+                len(body_result["body_translated"]),
+            )
+        else:
+            logger.info(
+                "translate_body returned None (id=%s table=%s) — leaving NULL",
+                art_id, table,
+            )
+
+    if needs_title and title and title.strip():
+        try:
+            title_result = await translate_title_with_deepseek_tavily(
+                title, source_lang=src_lang
+            )
+        except Exception as e:
+            logger.warning(
+                "translate_title raised (id=%s table=%s): %s — leaving NULL",
+                art_id, table, e,
+            )
+            title_result = None
+
+        if title_result:
+            conn.execute(
+                f"UPDATE {table} SET title_translated = ? WHERE id = ?",  # noqa: S608
+                (title_result["title_translated"], art_id),
+            )
+            conn.commit()
+            title_ok = True
+            logger.info(
+                "title ok id=%s table=%s lang=%s title_in=%s title_out=%s",
+                art_id, table, title_result["lang"],
+                title[:60], title_result["title_translated"][:60],
+            )
+        else:
+            logger.info(
+                "translate_title returned None (id=%s table=%s) — leaving NULL",
+                art_id, table,
+            )
+
+    return "ok" if (body_ok or title_ok) else "fail"
 
 
 async def _run(args: argparse.Namespace, logger: logging.Logger) -> int:
