@@ -68,45 +68,6 @@ QUERY_HISTORY_FILE = Path.home() / ".hermes" / "omonigraph-vault" / "query_histo
 KB_LIGHTRAG_INNER_TIMEOUT: int = int(os.environ.get("KB_LIGHTRAG_INNER_TIMEOUT", "150"))
 
 
-# v1.1-LR-singleton (2026-05-27): module-level LightRAG cache. Without this
-# every call to synthesize_response() reconstructs a LightRAG instance and
-# re-hydrates the full graph (~30068 nodes / 43143 edges) + 3 NanoVectorDB
-# stores from disk. Observed in Databricks Apps logs as a ~30s cold-start on
-# every request. Lazy-init under an asyncio.Lock so concurrent requests on
-# the same loop share one instance; first request pays the cold-start cost,
-# all subsequent requests reuse the in-memory graph.
-_rag_singleton: "LightRAG | None" = None
-_rag_init_lock: "asyncio.Lock | None" = None
-
-
-async def _get_or_init_rag() -> LightRAG:
-    """Return the cached module-level LightRAG instance, lazy-initializing once."""
-    global _rag_singleton, _rag_init_lock
-    if _rag_singleton is not None:
-        return _rag_singleton
-    if _rag_init_lock is None:
-        _rag_init_lock = asyncio.Lock()
-    async with _rag_init_lock:
-        if _rag_singleton is not None:
-            return _rag_singleton
-        t0 = time.monotonic()
-        _log.info("lightrag_singleton_init_start working_dir=%s", RAG_WORKING_DIR)
-        rag = LightRAG(
-            working_dir=RAG_WORKING_DIR,
-            llm_model_func=get_llm_func(),
-            embedding_func=_get_embedding_func(),
-            default_embedding_timeout=_embedding_timeout_default(),
-        )
-        if hasattr(rag, "initialize_storages"):
-            await rag.initialize_storages()
-        await asyncio.sleep(2)
-        _log.info(
-            "lightrag_singleton_ready wall_s=%.2f", time.monotonic() - t0,
-        )
-        _rag_singleton = rag
-        return rag
-
-
 def _embedding_timeout_default() -> int:
     """Return embedding timeout in seconds (env override or 90s default).
 
@@ -182,8 +143,23 @@ def _append_query_history(query: str, mode: str, response_len: int) -> None:
         print(f"Warning: query history append failed: {e}")
 
 
-async def synthesize_response(query_text: str, mode: str = "hybrid"):
-    rag = await _get_or_init_rag()
+async def synthesize_response(
+    query_text: str,
+    mode: str = "hybrid",
+    rag: LightRAG | None = None,
+    lightrag_lock: asyncio.Lock | None = None,
+) -> str:
+    if rag is None:
+        # CLI fallback path: build a one-shot LightRAG. Production callers
+        # (kb-api routers) pass the lifespan-pinned app.state.lightrag.
+        rag = LightRAG(
+            working_dir=RAG_WORKING_DIR,
+            llm_model_func=get_llm_func(),
+            embedding_func=_get_embedding_func(),
+            default_embedding_timeout=_embedding_timeout_default(),
+        )
+        if hasattr(rag, "initialize_storages"):
+            await rag.initialize_storages()
     # Apply canonical mapping if exists (DB-first, JSON fallback)
     canonical_map = {}
     if DB_PATH.exists():
@@ -240,10 +216,19 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
             # 260524-tk5: bound inner aquery so a hung SDK call surfaces as
             # asyncio.TimeoutError (caught below by `except Exception`) instead
             # of stalling the entire outer KB_SYNTHESIZE_TIMEOUT budget.
-            response = await asyncio.wait_for(
-                rag.aquery(custom_prompt, param=param),
-                timeout=KB_LIGHTRAG_INNER_TIMEOUT,
-            )
+            # v1.1.P5: lock acquired strictly INSIDE wait_for so a hung holder
+            # is cancelable; CLI path (lock=None) skips acquisition entirely.
+            if lightrag_lock is not None:
+                async with lightrag_lock:
+                    response = await asyncio.wait_for(
+                        rag.aquery(custom_prompt, param=param),
+                        timeout=KB_LIGHTRAG_INNER_TIMEOUT,
+                    )
+            else:
+                response = await asyncio.wait_for(
+                    rag.aquery(custom_prompt, param=param),
+                    timeout=KB_LIGHTRAG_INNER_TIMEOUT,
+                )
             _log.info(
                 "kg_after_aquery: attempt=%d wall_s=%.2f response_chars=%d",
                 i + 1, time.monotonic() - t_attempt,
