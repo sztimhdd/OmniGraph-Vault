@@ -70,6 +70,8 @@ def app_client(tmp_path, fixture_db, monkeypatch):
     importlib.reload(kb.services.synthesize)
     importlib.reload(kb.api_routers.synthesize)
     importlib.reload(kb.api)
+    from tests.integration.kb.conftest import _stub_app_state
+    _stub_app_state(kb.api.app)
     return TestClient(kb.api.app)
 
 
@@ -81,7 +83,7 @@ def _patch_c1_success(
     synthesis_output.md (back-compat side effect) AND returns the markdown
     string (260517-fyb: wrapper now consumes the return value)."""
 
-    async def fake(query_text: str, mode: str = "hybrid"):
+    async def fake(query_text: str, mode: str = "hybrid", **_kw):
         import config as og_config
 
         (Path(og_config.BASE_DIR) / "synthesis_output.md").write_text(
@@ -203,7 +205,7 @@ def test_synthesize_zh_lang_directive_used(app_client, monkeypatch):
     """
     captured = {"text": None}
 
-    async def fake(query_text: str, mode: str = "hybrid"):
+    async def fake(query_text: str, mode: str = "hybrid", **_kw):
         captured["text"] = query_text
         import config as og_config
 
@@ -276,6 +278,8 @@ def test_api_synthesize_never_500_on_timeout(tmp_path, monkeypatch):
     importlib.reload(kb.services.synthesize)
     importlib.reload(kb.api_routers.synthesize)
     importlib.reload(kb.api)
+    from tests.integration.kb.conftest import _stub_app_state
+    _stub_app_state(kb.api.app)
     client = TestClient(kb.api.app)
 
     async def slow(*a, **kw):

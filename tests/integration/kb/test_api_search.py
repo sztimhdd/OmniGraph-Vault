@@ -106,6 +106,8 @@ def app_client(
     importlib.reload(kb.services.synthesize)
     importlib.reload(kb.api_routers.search)
     importlib.reload(kb.api)
+    from tests.integration.kb.conftest import _stub_app_state
+    _stub_app_state(kb.api.app)
     return TestClient(kb.api.app)
 
 
@@ -224,10 +226,13 @@ def test_search_kg_unknown_job_id_404(app_client: TestClient) -> None:
 def test_search_kg_job_completes(app_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Polling returns status='done' + result once the BackgroundTask finishes."""
 
-    async def fake_search(q, mode="hybrid"):
+    async def fake_search(q, mode="hybrid", **_kw):
         return f"KG result for {q!r}"
 
-    monkeypatch.setattr("omnigraph_search.query.search", fake_search)
+    # v1.1.P5: search KG worker uses kg_synthesize.synthesize_response;
+    # patch that boundary (search router no longer routes through
+    # omnigraph_search.query.search for the production KG path).
+    monkeypatch.setattr("kg_synthesize.synthesize_response", fake_search)
     r = app_client.get("/api/search?q=test&mode=kg")
     assert r.status_code in (200, 202)
     jid = r.json()["job_id"]
@@ -333,7 +338,7 @@ def test_kg_search_fts_fallback_when_markdown_lacks_citations(
     post-fix this asserts >=1 result.
     """
 
-    async def fake_c1(query_text, mode="local"):
+    async def fake_c1(query_text, mode="local", **_kw):
         # Substantive markdown, no /article/{hash} citations.
         return (
             "# What is an agent?\n\n"

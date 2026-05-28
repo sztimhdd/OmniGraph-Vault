@@ -269,3 +269,16 @@ def build_kb2_fixture_db(db_path: Path) -> Path:
 def fixture_db(tmp_path: Path) -> Path:
     """Hermes-prod-shape SQLite DB with 8 articles + classifications + entities."""
     return build_kb2_fixture_db(tmp_path / "fixture.db")
+
+
+def _stub_app_state(app) -> None:
+    """v1.1.P5: TestClient(app) without `with` block does not run lifespan, so
+    `app.state.lightrag` / `app.state.lightrag_lock` are absent and the routers
+    raise AttributeError on `request.app.state.lightrag`. Tests monkeypatch
+    `kg_synthesize.synthesize_response` so the real LightRAG is never used —
+    but the routers still threads state through to the BG task. Set `None`
+    placeholders so the threading attribute access succeeds; the patched fake
+    stubs ignore both kwargs (`**_kw`)."""
+    import asyncio
+    app.state.lightrag = None
+    app.state.lightrag_lock = asyncio.Lock()

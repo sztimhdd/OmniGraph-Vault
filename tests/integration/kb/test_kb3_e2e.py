@@ -117,6 +117,8 @@ def fully_wired_app(fixture_db: Path, tmp_path: Path, monkeypatch: pytest.Monkey
     rc = rebuild_main(["--db", str(fixture_db), "--quiet"])
     assert rc == 0, "rebuild_fts.main returned non-zero exit"
 
+    from tests.integration.kb.conftest import _stub_app_state
+    _stub_app_state(kb.api.app)
     return TestClient(kb.api.app)
 
 
@@ -201,7 +203,7 @@ def test_e2e_synthesize_happy_path(
     writing-tests SKILL Mocking Guidelines (LightRAG is external).
     """
 
-    async def fake_c1(query_text: str, mode: str = "hybrid") -> str:
+    async def fake_c1(query_text: str, mode: str = "hybrid", **_kw) -> str:
         import config as og_config
 
         # kb-v2.1-4: reference a fixture-known KOL hash so structured source
@@ -248,7 +250,7 @@ def test_e2e_synthesize_zh_directive_prepended(
     """
     captured: dict[str, str | None] = {"text": None}
 
-    async def fake_c1(query_text: str, mode: str = "hybrid") -> None:
+    async def fake_c1(query_text: str, mode: str = "hybrid", **_kw) -> None:
         captured["text"] = query_text
         import config as og_config
 

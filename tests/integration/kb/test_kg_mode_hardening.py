@@ -48,6 +48,8 @@ def _reload_kb_stack() -> None:
     importlib.reload(kb.api_routers.search)
     importlib.reload(synthesize_router_mod)
     importlib.reload(kb.api)
+    from tests.integration.kb.conftest import _stub_app_state
+    _stub_app_state(kb.api.app)
 
 
 def _populate_fts(fixture_db: Path) -> None:

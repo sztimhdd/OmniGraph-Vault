@@ -66,7 +66,7 @@ def _patch_c1(
     query_text + mode and writes a synthetic synthesis_output.md so the wrapper
     can read it back."""
 
-    async def fake_synthesize(query_text: str, mode: str = "hybrid"):
+    async def fake_synthesize(query_text: str, mode: str = "hybrid", **_kw):
         captured["text"] = query_text
         captured["mode"] = mode
         # Simulate kg_synthesize writing synthesis_output.md.
@@ -433,7 +433,7 @@ def test_kg_happy_path_uses_synthesize_response_return_value(
     sentinel = "# Sentinel Answer\n\nThe truth is at [a](/article/abc1234567)."
 
     # Stub C1 to RETURN the sentinel (and explicitly NOT write any file).
-    async def fake_return_only(query_text: str, mode: str = "hybrid"):
+    async def fake_return_only(query_text: str, mode: str = "hybrid", **_kw):
         return sentinel
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake_return_only)

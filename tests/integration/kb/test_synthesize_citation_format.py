@@ -38,7 +38,7 @@ def _patch_c1_returns(
     captured: dict,
     output: str,
 ) -> None:
-    async def fake_synthesize(query_text: str, mode: str = "hybrid"):
+    async def fake_synthesize(query_text: str, mode: str = "hybrid", **_kw):
         captured["text"] = query_text
         captured["mode"] = mode
         return output

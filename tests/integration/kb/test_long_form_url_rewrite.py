@@ -52,7 +52,7 @@ def _reload_synthesize(monkeypatch: pytest.MonkeyPatch) -> object:
 def _patch_c1_returns(
     monkeypatch: pytest.MonkeyPatch, output: str
 ) -> None:
-    async def fake_synthesize(query_text: str, mode: str = "hybrid"):
+    async def fake_synthesize(query_text: str, mode: str = "hybrid", **_kw):
         return output
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake_synthesize)

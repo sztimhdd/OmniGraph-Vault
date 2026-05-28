@@ -45,6 +45,7 @@ from kb import config as kb_config
 from kb.data import article_query
 from kb.services import job_store
 from kb.services.wiki_inject import resolve_wiki_context
+from lightrag.lightrag import LightRAG
 
 _log = logging.getLogger(__name__)
 
@@ -454,7 +455,12 @@ def _fts5_fallback(question: str, lang: str, job_id: str, reason: str) -> None:
 
 
 async def kb_synthesize(
-    question: str, lang: str, job_id: str, mode: str = "qa"
+    question: str,
+    lang: str,
+    job_id: str,
+    mode: str = "qa",
+    rag: LightRAG | None = None,
+    lightrag_lock: asyncio.Lock | None = None,
 ) -> None:
     """Background-task entry. Prepends lang directive, calls C1, updates job_store.
 
@@ -519,7 +525,12 @@ async def kb_synthesize(
         # POST /api/synthesize requests on Aliyun (2026-05-17) to return the
         # same byte-identical markdown from a 2026-05-08 rsync'd file.
         response = await asyncio.wait_for(
-            synthesize_response(query_text, mode="hybrid"),
+            synthesize_response(
+                query_text,
+                mode="hybrid",
+                rag=rag,
+                lightrag_lock=lightrag_lock,
+            ),
             timeout=KB_SYNTHESIZE_TIMEOUT,
         )
         _log.info(

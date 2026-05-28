@@ -37,6 +37,8 @@ def app_client(tmp_path, fixture_db, monkeypatch):
     importlib.reload(kb.services.synthesize)
     importlib.reload(kb.api_routers.synthesize)
     importlib.reload(kb.api)
+    from tests.integration.kb.conftest import _stub_app_state
+    _stub_app_state(kb.api.app)
     return TestClient(kb.api.app)
 
 
@@ -54,7 +56,7 @@ def _poll_until_terminal(client: TestClient, jid: str, timeout_s: float = 2.0) -
 def _capture_query_text(monkeypatch: pytest.MonkeyPatch) -> dict:
     captured: dict = {"text": None}
 
-    async def fake(query_text: str, mode: str = "hybrid"):
+    async def fake(query_text: str, mode: str = "hybrid", **_kw):
         captured["text"] = query_text
         return "# Answer\n\nSee [a](/article/abc1234567)"
 

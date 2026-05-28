@@ -102,7 +102,7 @@ def _patch_c1_writes(
     string (260517-fyb: wrapper now consumes the return value)."""
     import config as og_config
 
-    async def fake(query_text: str, mode: str = "hybrid") -> str:
+    async def fake(query_text: str, mode: str = "hybrid", **_kw) -> str:
         (Path(og_config.BASE_DIR) / "synthesis_output.md").write_text(
             output_md, encoding="utf-8"
         )
@@ -114,14 +114,14 @@ def _patch_c1_writes(
 
 
 def _patch_c1_raises(monkeypatch: pytest.MonkeyPatch, exc: BaseException) -> None:
-    async def fake(query_text: str, mode: str = "hybrid") -> None:
+    async def fake(query_text: str, mode: str = "hybrid", **_kw) -> None:
         raise exc
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake)
 
 
 def _patch_c1_sleeps(monkeypatch: pytest.MonkeyPatch, seconds: float) -> None:
-    async def fake(query_text: str, mode: str = "hybrid") -> None:
+    async def fake(query_text: str, mode: str = "hybrid", **_kw) -> None:
         await asyncio.sleep(seconds)
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake)

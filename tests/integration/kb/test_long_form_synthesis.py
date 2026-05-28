@@ -59,6 +59,8 @@ def app_client(tmp_path, fixture_db, monkeypatch):
     importlib.reload(kb.services.synthesize)
     importlib.reload(kb.api_routers.synthesize)
     importlib.reload(kb.api)
+    from tests.integration.kb.conftest import _stub_app_state
+    _stub_app_state(kb.api.app)
     return TestClient(kb.api.app)
 
 
@@ -69,7 +71,7 @@ def _patch_c1_capture(monkeypatch: pytest.MonkeyPatch, captured: dict) -> None:
 
     _output = "# Answer\n\nSee [a](/article/abc1234567)."
 
-    async def fake(query_text: str, mode: str = "hybrid"):
+    async def fake(query_text: str, mode: str = "hybrid", **_kw):
         captured["text"] = query_text
         captured["mode"] = mode
         import config as og_config
@@ -331,7 +333,7 @@ def test_kb_synthesize_accepts_mode_kwarg(tmp_path, fixture_db, monkeypatch):
 
     captured: dict = {}
 
-    async def fake(query_text: str, mode: str = "hybrid"):
+    async def fake(query_text: str, mode: str = "hybrid", **_kw):
         captured["text"] = query_text
         (Path(og_config.BASE_DIR) / "synthesis_output.md").write_text(
             "# x", encoding="utf-8"

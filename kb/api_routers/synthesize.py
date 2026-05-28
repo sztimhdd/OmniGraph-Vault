@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from kb.services import job_store
@@ -49,6 +49,7 @@ class SynthesizeRequest(BaseModel):
 
 @router.post("/synthesize", status_code=status.HTTP_202_ACCEPTED)
 async def synthesize_endpoint(
+    request: Request,
     body: SynthesizeRequest,
     background: BackgroundTasks,
 ) -> dict[str, Any]:
@@ -59,7 +60,12 @@ async def synthesize_endpoint(
     language directive before invoking C1 (kg_synthesize.synthesize_response).
     """
     jid = job_store.new_job(kind="synthesize")
-    background.add_task(kb_synthesize, body.question, body.lang, jid, body.mode)
+    background.add_task(
+        kb_synthesize,
+        body.question, body.lang, jid, body.mode,
+        request.app.state.lightrag,
+        request.app.state.lightrag_lock,
+    )
     return {"job_id": jid, "status": "running"}
 
 
