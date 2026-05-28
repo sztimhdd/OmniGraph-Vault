@@ -10,8 +10,8 @@
 -- Verified failure mode (Aliyun 2026-05-28):
 --   sqlite3.OperationalError: no such column: body_cleaned
 --
--- No backfill required: NULL is correct semantics; get_article_body() already
--- falls back via `body_cleaned or body or ""` (article_query.py:614-615).
+-- No backfill required (NULL is correct semantics). get_article_body()
+-- already falls back via body_cleaned OR body OR empty (article_query.py).
 --
 -- Rollback: ALTER TABLE <t> DROP COLUMN <col> (SQLite >= 3.35).
 
