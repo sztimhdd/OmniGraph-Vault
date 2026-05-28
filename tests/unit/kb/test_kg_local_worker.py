@@ -76,7 +76,7 @@ def test_kg_local_worker_falls_back_to_fts_when_no_citations(
     even when the user's query trivially matches FTS index entries. The
     fallback restores the FTS-only view for that query.
     """
-    async def fake_c1(query_text, mode="hybrid"):
+    async def fake_c1(query_text, mode="hybrid", **_kw):
         return "# Long-form answer\n\nDetailed prose, no citations."
 
     fake_fts_rows = [
@@ -91,7 +91,9 @@ def test_kg_local_worker_falls_back_to_fts_when_no_citations(
     )
 
     jid = search_mod.job_store.new_job(kind="kg_search")
-    asyncio.run(search_mod._kg_local_worker(jid, "agent"))
+    asyncio.run(
+        search_mod._kg_local_worker(jid, "agent", None, asyncio.Lock())
+    )
 
     job = search_mod.job_store.get_job(jid)
     assert job is not None
@@ -120,7 +122,7 @@ def test_kg_local_worker_resolves_citations_when_present(
     """
     from kb.data.article_query import ArticleRecord
 
-    async def fake_c1(query_text, mode="hybrid"):
+    async def fake_c1(query_text, mode="hybrid", **_kw):
         return (
             "# Answer\n\nSee [/article/abc1234567.html] for context."
         )
@@ -153,7 +155,9 @@ def test_kg_local_worker_resolves_citations_when_present(
     )
 
     jid = search_mod.job_store.new_job(kind="kg_search")
-    asyncio.run(search_mod._kg_local_worker(jid, "agent"))
+    asyncio.run(
+        search_mod._kg_local_worker(jid, "agent", None, asyncio.Lock())
+    )
 
     job = search_mod.job_store.get_job(jid)
     assert job is not None

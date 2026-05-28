@@ -36,39 +36,11 @@ _log = logging.getLogger(__name__)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 
-# v1.1-LR-singleton (2026-05-27): same caching pattern as kg_synthesize.py.
-# Avoids ~30s graph + vdb hydrate on every search() call.
-_rag_singleton: "LightRAG | None" = None
-_rag_init_lock: "asyncio.Lock | None" = None
-
-
-async def _get_or_init_rag() -> LightRAG:
-    global _rag_singleton, _rag_init_lock
-    if _rag_singleton is not None:
-        return _rag_singleton
-    if _rag_init_lock is None:
-        _rag_init_lock = asyncio.Lock()
-    async with _rag_init_lock:
-        if _rag_singleton is not None:
-            return _rag_singleton
-        t0 = time.monotonic()
-        _log.info("lightrag_singleton_init_start working_dir=%s", RAG_WORKING_DIR)
-        rag = LightRAG(
-            working_dir=RAG_WORKING_DIR,
-            llm_model_func=get_llm_func(),
-            embedding_func=_embedding_func,
-        )
-        if hasattr(rag, "initialize_storages"):
-            await rag.initialize_storages()
-        _log.info(
-            "lightrag_singleton_ready wall_s=%.2f", time.monotonic() - t0,
-        )
-        _rag_singleton = rag
-        return rag
-
-
 async def search(
-    query_text: str, mode: str = "hybrid", only_context: bool = False
+    query_text: str,
+    mode: str = "hybrid",
+    only_context: bool = False,
+    rag: LightRAG | None = None,
 ) -> str:
     """Query LightRAG at RAG_WORKING_DIR and return the retrieval text.
 
@@ -94,7 +66,17 @@ async def search(
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY not found in environment.")
 
-    rag = await _get_or_init_rag()
+    if rag is None:
+        # CLI fallback (skill_runner / `python -m omnigraph_search.query`):
+        # build a one-shot LightRAG. Production callers (kb-api routers) reach
+        # LightRAG via synthesize_response which holds the lifespan-pinned lock.
+        rag = LightRAG(
+            working_dir=RAG_WORKING_DIR,
+            llm_model_func=get_llm_func(),
+            embedding_func=_embedding_func,
+        )
+        if hasattr(rag, "initialize_storages"):
+            await rag.initialize_storages()
     return await rag.aquery(
         query_text,
         param=QueryParam(mode=mode, only_need_context=only_context),

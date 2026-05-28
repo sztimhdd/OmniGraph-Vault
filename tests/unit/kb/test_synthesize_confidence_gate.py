@@ -66,7 +66,7 @@ def test_confidence_kg_when_markdown_nonempty_without_citations(
     UI must show it under confidence='kg', not the fts5_fallback 'no_results'
     chip set (which suppresses the markdown render in qa.js).
     """
-    async def fake_c1(query_text, mode="hybrid"):
+    async def fake_c1(query_text, mode="hybrid", **_kw):
         return "# Long-form answer\n\nDetailed prose, no citations."
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake_c1)
@@ -101,7 +101,7 @@ def test_confidence_no_results_when_markdown_empty(
     'no_results'. If a future change inverts the truthiness check, this test
     catches it.
     """
-    async def fake_c1(query_text, mode="hybrid"):
+    async def fake_c1(query_text, mode="hybrid", **_kw):
         return ""
 
     monkeypatch.setattr("kg_synthesize.synthesize_response", fake_c1)
@@ -128,7 +128,7 @@ def test_confidence_kg_preserved_when_markdown_has_citations(
     Defensive regression: the post-fix change must NOT break the case where
     sources DO resolve. confidence stays 'kg' and sources are non-empty.
     """
-    async def fake_c1(query_text, mode="hybrid"):
+    async def fake_c1(query_text, mode="hybrid", **_kw):
         return "# Answer\n\nSee [a](/article/abc1234567)."
 
     fake_source = synth_mod.ArticleSource(

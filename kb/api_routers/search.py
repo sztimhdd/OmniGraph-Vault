@@ -25,10 +25,11 @@ import os
 import re
 from typing import Annotated, Any, Literal, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from kb.services import job_store, search_index, synthesize as synthesize_svc
+from lightrag.lightrag import LightRAG
 
 # Outer budget for the KG-enhancement worker. The inner LightRAG aquery() call
 # is bounded by KB_LIGHTRAG_INNER_TIMEOUT (kg_synthesize.py), but
@@ -53,7 +54,9 @@ _HASH_PAT = re.compile(r"/article/([a-f0-9]{10})")
 # ---- KG worker -------------------------------------------------------------
 
 
-async def _kg_worker(job_id: str, q: str) -> None:
+async def _kg_worker(
+    job_id: str, q: str, rag: LightRAG, lightrag_lock: asyncio.Lock
+) -> None:
     """Run KG-backed synthesis and update job_store.
 
     Uses ``kg_synthesize.synthesize_response`` — the same Databricks-aware
@@ -64,7 +67,9 @@ async def _kg_worker(job_id: str, q: str) -> None:
     try:
         from kg_synthesize import synthesize_response
 
-        result = await synthesize_response(q, mode="hybrid")
+        result = await synthesize_response(
+            q, mode="hybrid", rag=rag, lightrag_lock=lightrag_lock,
+        )
         job_store.update_job(job_id, status="done", result=result)
     except Exception as e:  # noqa: BLE001 — surface all errors to job record
         job_store.update_job(job_id, status="failed", error=str(e))
@@ -88,7 +93,9 @@ def _make_snippet(body: Optional[str], max_len: int = 200) -> str:
     return text
 
 
-async def _kg_local_worker(job_id: str, query: str) -> None:
+async def _kg_local_worker(
+    job_id: str, query: str, rag: LightRAG, lightrag_lock: asyncio.Lock
+) -> None:
     """KG-enhanced search worker for the progressive-enhancement endpoint.
 
     Calls ``kg_synthesize.synthesize_response`` with ``mode='local'`` (cheaper
@@ -120,7 +127,9 @@ async def _kg_local_worker(job_id: str, query: str) -> None:
             f"Question: {query}"
         )
         markdown = await asyncio.wait_for(
-            synthesize_response(wrapped, mode="local"),
+            synthesize_response(
+                wrapped, mode="local", rag=rag, lightrag_lock=lightrag_lock,
+            ),
             timeout=KB_KG_SEARCH_TIMEOUT,
         )
         hashes = list(dict.fromkeys(_HASH_PAT.findall(markdown or "")))
@@ -175,6 +184,7 @@ class _KgSearchRequest(BaseModel):
 
 @router.get("/search")
 async def search_endpoint(
+    request: Request,
     background: BackgroundTasks,
     q: Annotated[str, Query(min_length=1, max_length=500)],
     mode: Annotated[Literal["fts", "kg"], Query()] = "kg",
@@ -217,12 +227,17 @@ async def search_endpoint(
         )
     # KG async path — register BackgroundTask, return 202 + job_id immediately.
     jid = job_store.new_job(kind="search")
-    background.add_task(_kg_worker, jid, q)
+    background.add_task(
+        _kg_worker, jid, q,
+        request.app.state.lightrag,
+        request.app.state.lightrag_lock,
+    )
     return {"job_id": jid, "status": "running", "mode": "kg"}
 
 
 @router.post("/search/kg")
 async def kg_enhance_start(
+    request: Request,
     payload: _KgSearchRequest,
     background: BackgroundTasks,
 ) -> dict[str, Any]:
@@ -243,7 +258,11 @@ async def kg_enhance_start(
             },
         )
     jid = job_store.new_job(kind="search")
-    background.add_task(_kg_local_worker, jid, payload.query)
+    background.add_task(
+        _kg_local_worker, jid, payload.query,
+        request.app.state.lightrag,
+        request.app.state.lightrag_lock,
+    )
     return {"job_id": jid}
 
 
