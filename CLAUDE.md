@@ -141,6 +141,27 @@ After Phase 1 DECIDE produces a fix-scope estimate (LoC + files touched + risk),
 
 **Related:** Principle #2 (Simplicity First) — process simplicity matches code simplicity. Principle #4 (Goal-Driven Execution) — don't manufacture milestones for trivial fixes.
 
+9. Touching `kb/static/` or `kb/templates/` Requires Full Makefile Deploy
+
+**Principle:** Any change to files under `kb/static/` or `kb/templates/` REQUIRES the full Databricks Makefile pipeline (Pass 0a SSG bake → 0b lang flip → 0c dep stage → 0d brand flip → Pass 1 → 2 → 3). Sync-only deploy (Pass 2 + Pass 3 alone) is **invariably wrong** for these layers and silently ships stale assets to users.
+
+**Why:** 2026-05-27 bug 2c hot-patch session shipped `kb/static/qa.js` source change (commit 1ccd7aa, 240s POLL_TIMEOUT floor) via sync-only Pass 2 + Pass 3 deploy. The change never reached the user because Databricks Apps actually serves `databricks-deploy/_ssg/static/qa.js` (mounted at `/` in `app_entry.py:159-167`), and `_ssg/` is regenerated only by Makefile Pass 0a SSG bake (`kb/output/` → `_ssg/`). With Pass 0 skipped, `_ssg/static/qa.js` retained the old 60s timeout and the bug appeared "unfixed" despite a successful deploy. Burned ~1h diagnostic to find this gap.
+
+**How to apply:**
+
+| Files touched in commit | Required deploy command |
+| --- | --- |
+| ONLY `databricks-deploy/` (FastAPI routers, lib/, config) | Sync-only OK: `Pass 1 + Pass 2 + Pass 3` |
+| ANY file under `kb/static/` or `kb/templates/` | **Full pipeline required**: `make deploy` (all four passes including Pass 0 SSG bake) |
+| ANY file under `kb/services/`, `kb/api_routers/`, `kb/api.py` | Sync-only OK: `Pass 2 + Pass 3` (kb/ is also synced as Python source, no SSG dependency) |
+| Mixed | Full pipeline (when in doubt, run the whole Makefile) |
+
+**Decision rule:** before any Databricks deploy, run `git diff <prev>..HEAD --name-only | grep -E 'kb/(static|templates)/'`. If there is ANY match, sync-only is forbidden.
+
+**Inverse trigger (hot-patch):** for ad-hoc diagnostic verification, you may directly edit `databricks-deploy/_ssg/static/*.js` or `databricks-deploy/_ssg/<page>/index.html` then sync `_ssg/` only — but flag this as a **temporary patch that the next Makefile bake will roll back**, and queue a permanent fix that runs the full pipeline. Hot-patches must never be the final state of a phase closure.
+
+**Related:** Principle #7 (Claude Owns Databricks Deployments) — Claude must pick the right pipeline, not blindly follow user shortcuts. Principle #6 (Local UAT) — the SSG bake gap can also bite local UAT if `kb/output/` is not refreshed.
+
 ---
 
 ## Project-Specific Disciplines
