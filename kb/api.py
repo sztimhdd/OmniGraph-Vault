@@ -20,23 +20,59 @@ Skill discipline (kb/docs/10-DESIGN-DISCIPLINE.md Rule 1):
 """
 from __future__ import annotations
 
+import asyncio
+import logging
+import time
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from config import RAG_WORKING_DIR
 from kb import config
 from kb.api_routers.articles import router as articles_router
 from kb.api_routers.research import router as research_router
 from kb.api_routers.search import router as search_router
 from kb.api_routers.synthesize import router as synthesize_router
+from kg_synthesize import _embedding_timeout_default, _get_embedding_func
+from lib.llm_complete import get_llm_func
+from lightrag.lightrag import LightRAG
 
 # Application version surfaced via /health and FastAPI metadata.
 # Kept in lock-step with kb-3 milestone v2.0 (PROJECT-KB-v2.md).
 _APP_VERSION = "2.0.0"
 
+_log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    t0 = time.monotonic()
+    _log.warning("lightrag_singleton_init_start working_dir=%s", RAG_WORKING_DIR)
+    rag = LightRAG(
+        working_dir=RAG_WORKING_DIR,
+        llm_model_func=get_llm_func(),
+        embedding_func=_get_embedding_func(),
+        default_embedding_timeout=_embedding_timeout_default(),
+    )
+    if hasattr(rag, "initialize_storages"):
+        await rag.initialize_storages()
+    app.state.lightrag = rag
+    app.state.lightrag_lock = asyncio.Lock()
+    _log.warning(
+        "lightrag_singleton_ready wall_s=%.2f", time.monotonic() - t0,
+    )
+    try:
+        yield
+    finally:
+        if hasattr(rag, "finalize_storages"):
+            await rag.finalize_storages()
+        _log.warning("lightrag_singleton_finalize_done")
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title="OmniGraph KB v2",
     version=_APP_VERSION,
     description="Bilingual Agent-tech content site backend (FTS5 + KG Q&A wrap)",
