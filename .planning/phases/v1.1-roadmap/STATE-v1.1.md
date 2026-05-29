@@ -15,8 +15,8 @@
 | P1 | 1 | ⏸ DEFERRED (2026-05-28) | See Note below. |
 | P5 | 1 | ✅ CLOSED (2026-05-29) | LightRAG singleton + async-safety. 5 commits `315fa79`..`5867a7d` on `main`; verified on Databricks deployments `01f15aeb`/`01f15af3`. See [P5/P5-VERIFICATION.md](P5/P5-VERIFICATION.md): cold-start mean 28.88s (baseline 30.58s, −5.6%); N=4 async-safety 4/4 topic-match no crosstalk; SC#4 finalize via local pytest (Databricks logz/stream platform-limited). |
 | P2-3 | 2 | BLOCKED on Wave 1 close | BGE-v2-m3 reranker + `mix` mode (paired). |
-| P4.0 | 3 | BLOCKED on Wave 1 + 2 | ARAG audit (read-only). |
-| P4.1 | 3 | BLOCKED on P4.0 + user approval | ARAG salvage + Deep Research UI. |
+| P4.0 | 3 | BLOCKED on Wave 1 + 2 | ARAG audit (read-only). Path locked to **C (self-build)** 2026-05-29 — see Note. |
+| P4.1 | 3 | BLOCKED on P4.0 + user approval | ARAG salvage + Deep Research UI. Path **C (self-build)** per P4 path lock. |
 | P6.1 | 4 | OPEN | Full fixture drift audit. |
 | P7 | side | OPEN — fold-or-park | Pydantic `mode` arg silent-ignore; decide at Wave 1 close. |
 
@@ -50,6 +50,44 @@ Rationale (orchestrator):
 - `.scratch/v1.1-P1-plan-phase-halt-20260527T211244Z.log`
 - `.scratch/v1.1-yolo-p1-decide-20260527T233223Z.log` (v1.1 agent sediment)
 - `.scratch/v1.1-yolo-chain-close-20260527.log` (Wave 0+1 chain closure)
+
+---
+
+### 2026-05-29 — P4 path locked to C (self-build), MS ai-agents-for-beginners evaluated
+
+User flagged Microsoft's open-source agentic-RAG release ([microsoft/ai-agents-for-beginners](https://github.com/microsoft/ai-agents-for-beginners), lesson 05-agentic-rag, 65919 stars) as potential fork target to replace v1.1 P4 self-build. Background research agent dispatched 2026-05-29 03:30 UTC (task `a14cdb53f569fc8d1`).
+
+**Conclusion: walk path C (self-build per existing ROADMAP). Match score 1/5.**
+
+| Capability | We need | MS provides | Match |
+| --- | --- | --- | --- |
+| Reasoner (KG agent loop) | LightRAG hybrid + vision_analyze | tool-call on in-memory dict | ✗ |
+| Synthesizer (LLM compose + CJK + image embed) | 5-stage pipeline | `print(response)` | ✗ |
+| Deep Research UI | frontend tab + `/api/research` wire | none | ✗ |
+| LightRAG backend | 1.4.16 + `omnigraph_search.query.search` | Azure AI Search | ✗ |
+| DeepSeek/Vertex provider | `cfg.llm_complete` abstraction | Azure OpenAI hard-bound | ✗ |
+
+**Why C, not A (fork):**
+
+- MS repo is a **12-cell Jupyter teaching demo**, not a framework. 05-agentic-rag total ~50 lines of substantive Python in a single `.ipynb`; main artifact is the .NET sample (33 KB).
+- **Azure-locked**: `AzureCliCredential` + `agent-framework` SDK + `AZURE_AI_PROJECT_ENDPOINT` mandatory; no DeepSeek/Vertex/Gemini path. EDC corp Cisco Umbrella TLS interception adds further migration cost.
+- **Zero KG adaptation**: teaching version uses 4-line dict, production guidance points to Azure AI Search. LightRAG / graphml / hybrid mode is outside MS scope.
+- **We are already ahead**: `lib/research/stages/{reasoner,verifier}.py` bounded agent loop + `cfg.llm_complete` abstraction + tool-dispatch is more production-grade than the MS lesson. ar-1 closed 2026-05-24 with 41/41 REQs and 165 tests; A path = throw away closed work to rebuild on Azure-locked SDK = negative ROI.
+
+**Why not B (借鉴) either, beyond a citation:**
+
+- Maker-checker / iterative retrieval **concept** does match our Reasoner+Verifier, but `verifier.py:1-30` already implements bounded agent loop. Borrowing prompt templates ≈ ~50 LoC marginal value with no architectural change.
+
+**P4.0 audit treatment:**
+
+- Cite this evaluation in `P4-AUDIT.md` rationale section (no code import, no dependency add)
+- Future fork-target search direction: `LightRAG agentic` / `GraphRAG agent` / `kotaemon` — production frameworks, not teaching repos. Filed for next ARAG research cycle if/when path C delivery hits a wall.
+
+**Cross-reference:** `MEMORY.md` → `feedback_repo_evaluation_stars_vs_substance.md` (evergreen lesson on fork-target screening).
+
+**Preserved artifacts:**
+
+- Research agent transcript: task ID `a14cdb53f569fc8d1` (2026-05-29 03:30 UTC, Sonnet 4.6)
 
 ---
 
