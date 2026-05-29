@@ -139,6 +139,7 @@ Beyond the `CLAUDE.md` static layer, Claude Code uses a file-based persistent me
 - [[archon]]
 - [[mini-harness]]
 - [[juno-ai]]
+- [[copilot-studio]] — Microsoft's low-code agent platform, authorable from Claude Code via the first-party `microsoft/skills-for-copilot-studio` plugin (YAML schema validation + 30+ specialized skills covering authoring, eval, and management).
 
 ## Further Reading
 

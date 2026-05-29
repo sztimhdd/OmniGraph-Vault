@@ -121,6 +121,7 @@ Anthropic maintains a continuous-delivery pipeline, employs PMs with engineering
 - [[founders-handbook]]
 - [[ai-compute-crunch]]
 - [[neurosymbolic-ai]]
+- [[mcp-in-copilot-studio]] — Microsoft Copilot Studio's GA integration of Anthropic's Model Context Protocol (2025), a marker of MCP's adoption beyond Anthropic-native tooling into competing-vendor agent platforms.
 
 ## Further Reading
 
