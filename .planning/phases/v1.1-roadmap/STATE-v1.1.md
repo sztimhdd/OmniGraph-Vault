@@ -2,7 +2,7 @@
 
 **Milestone:** v1.1-roadmap
 **Created:** 2026-05-28
-**Current status:** IN-PROGRESS — Wave 0 closed; Wave 1 in flight (P5-verify Branch A closed; P1 deferred; P5 plan-phase next)
+**Current status:** IN-PROGRESS — Wave 0 closed; Wave 1: P5 ✅ CLOSED (2026-05-29); P1 deferred
 
 ---
 
@@ -13,7 +13,7 @@
 | P6.0 | 0 | ✅ CLOSED PASS | Wave 0 unblocker — `body_cleaned` schema + fixture drift fix. See chain log `.scratch/v1.1-yolo-chain-close-20260527.log`. |
 | P5-verify Branch A | 1 | ✅ CLOSED (commit `6f4ce13`) | Singleton race detected on N=4 concurrent `/api/synthesize`; documented in `docs/quick-260527-swt`. Unblocks P5 plan-phase. |
 | P1 | 1 | ⏸ DEFERRED (2026-05-28) | See Note below. |
-| P5 | 1 | NEXT | LightRAG singleton + async-safety. plan-phase dispatch by orchestrator (separate session). |
+| P5 | 1 | ✅ CLOSED (2026-05-29) | LightRAG singleton + async-safety. 5 commits `315fa79`..`5867a7d` on `main`; verified on Databricks deployments `01f15aeb`/`01f15af3`. See [P5/P5-VERIFICATION.md](P5/P5-VERIFICATION.md): cold-start mean 28.88s (baseline 30.58s, −5.6%); N=4 async-safety 4/4 topic-match no crosstalk; SC#4 finalize via local pytest (Databricks logz/stream platform-limited). |
 | P2-3 | 2 | BLOCKED on Wave 1 close | BGE-v2-m3 reranker + `mix` mode (paired). |
 | P4.0 | 3 | BLOCKED on Wave 1 + 2 | ARAG audit (read-only). |
 | P4.1 | 3 | BLOCKED on P4.0 + user approval | ARAG salvage + Deep Research UI. |
@@ -58,4 +58,6 @@ Rationale (orchestrator):
 - **Roadmap:** `ROADMAP.md` (Wave structure, LoC budget, mainstream alignment scores)
 - **Research:** `RESEARCH.md` (10 sections, 25 references, P1 confidence ⭐⭐⭐⭐⭐)
 - **P5 Branch A:** `docs/quick-260527-swt/` + commit `6f4ce13`
+- **P5 plan-phase artifacts:** `P5/PLAN.md` + `P5/RESEARCH.md` (commit `de36db9`)
+- **P5 verification:** `P5/P5-VERIFICATION.md` (Track 1-4 evidence on Databricks deployments `01f15aeb`/`01f15af3`)
 - **Bug 2c context (closed 2026-05-26):** `.planning/phases/arx-3/DECISION.md` §1.7 (Q1 lock — vdb_chunks.json full_doc_id 1967/1967)
