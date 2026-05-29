@@ -253,9 +253,12 @@ KB_ENTITY_MIN_FREQ: int = int(os.environ.get("KB_ENTITY_MIN_FREQ", "5"))
 _LASTMOD_FALLBACK = "1970-01-01"
 
 # llm-wiki: source dir for LLM-maintained synthesis pages (kb/wiki/entities/*.md).
-# Frontmatter-fronted markdown; ^[article:<10-hex>] inline citations.
+# Two citation forms (SCHEMA-2026-05-20):
+#   - Legacy: ^[article:<10-hex>]   -> implicit article-type source
+#   - New:    [^N]                  -> resolves to frontmatter sources[].id
 WIKI_DIR = KB_ROOT / "wiki" / "entities"
 LEGACY_WIKI_CITATION_RE = re.compile(r"\^\[article:([a-f0-9]{10})\]")
+FOOTNOTE_CITATION_RE = re.compile(r"\[\^(\d+)\]")
 _LEADING_H1_RE = re.compile(r"\A\s*#\s+[^\n]+\n+", re.MULTILINE)
 
 
@@ -922,32 +925,151 @@ def write_url_index(article_index: list[dict], output_dir: Path) -> None:
     _write_atomic(output_dir / "_url_index.json", content + "\n")
 
 
-def _convert_wiki_citations(
-    body_md: str, base_path: str
-) -> tuple[str, list[dict[str, Any]]]:
-    """Rewrite ^[article:<hash>] tokens to numbered <sup> footnote refs.
+def _normalize_frontmatter_sources(
+    raw_sources: Any,
+) -> list[dict[str, Any]]:
+    """Normalize frontmatter `sources` to a flat list of dicts.
 
-    Stable numbering by first-seen order; repeated hashes share their number.
-    Returns (rewritten_md, sources) where each source has {n, hash, url}.
+    Two input shapes are accepted (SCHEMA-2026-05-20):
+    - Legacy flat string list: ["article:abc123def0", ...] -> {type:"article", ref:"abc..."}
+    - New dict list: [{id:1, type:"web", ref:"https://...", title:"..."}, ...]
+
+    Mixed lists are tolerated (string + dict items in same list).
+    Returns [] when input is None / empty / unparseable.
     """
-    seen: dict[str, int] = {}
+    if not raw_sources:
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw_sources:
+        if isinstance(item, str):
+            # Legacy form: "article:<hex>"
+            if item.startswith("article:"):
+                out.append({"type": "article", "ref": item.split(":", 1)[1]})
+            else:
+                out.append({"type": "article", "ref": item})
+        elif isinstance(item, dict):
+            out.append(dict(item))
+    return out
 
-    def replace(m: re.Match[str]) -> str:
+
+def _build_source_url(src: dict[str, Any], base_path: str) -> str:
+    """Compute the `url` field for a normalized source dict.
+
+    - article: internal /articles/<hash>.html link
+    - web:     external ref URL
+    - builtin: empty (no link rendered)
+    """
+    stype = (src.get("type") or "").lower()
+    ref = src.get("ref") or ""
+    if stype == "article" and ref:
+        return f"{base_path}/articles/{ref}.html"
+    if stype == "web":
+        return str(ref)
+    return ""
+
+
+def _convert_wiki_citations(
+    body_md: str,
+    base_path: str,
+    frontmatter_sources: Any = None,
+    *,
+    page_slug: str = "",
+) -> tuple[str, list[dict[str, Any]]]:
+    """Rewrite citation tokens to numbered <sup> footnote refs.
+
+    Supports both citation forms (SCHEMA-2026-05-20):
+    - New: [^N] -- N must match an `id` in frontmatter_sources
+    - Legacy: ^[article:<hash>] -- implicit article-type source
+
+    When frontmatter_sources is provided, it seeds the output sources list
+    (preserving frontmatter order/numbering). Legacy hashes not present in
+    frontmatter sources are appended as implicit article-type entries.
+
+    Returns (rewritten_md, sources). Each source dict has at minimum:
+      {n, type, ref, title, url} -- plus a back-compat `hash` field for type=article.
+
+    Failure mode: a [^N] referencing an id not in frontmatter logs a warning
+    and is left as a literal in the body (Decision A: do not raise / do not drop).
+    """
+    # Step 1: normalize frontmatter sources and build by-id index
+    normalized = _normalize_frontmatter_sources(frontmatter_sources)
+    sources: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    for src in normalized:
+        n = src.get("id")
+        if n is None:
+            continue
+        n_str = str(n)
+        try:
+            n_int = int(n)
+        except (TypeError, ValueError):
+            continue
+        entry: dict[str, Any] = {
+            "n": n_int,
+            "type": (src.get("type") or "article").lower(),
+            "ref": src.get("ref") or "",
+            "title": src.get("title") or "",
+            "url": _build_source_url(src, base_path),
+        }
+        if entry["type"] == "article" and entry["ref"]:
+            entry["hash"] = entry["ref"]
+        sources.append(entry)
+        by_id[n_str] = entry
+
+    # Step 2: replace [^N] citations
+    def replace_footnote(m: re.Match[str]) -> str:
+        sid = m.group(1)
+        if sid not in by_id:
+            logger.warning(
+                "wiki citation [^%s] in %r has no matching frontmatter sources[].id; "
+                "leaving literal token in body",
+                sid,
+                page_slug or "<unknown-page>",
+            )
+            return m.group(0)
+        return (
+            f'<sup class="wiki-cite">'
+            f'<a href="#cite-{sid}" id="cite-{sid}-back">'
+            f'[{sid}]</a></sup>'
+        )
+
+    rewritten = FOOTNOTE_CITATION_RE.sub(replace_footnote, body_md)
+
+    # Step 3: replace legacy ^[article:<hash>] tokens (after [^N] -- non-overlapping)
+    # Hashes are merged into the same numbering space as frontmatter sources:
+    # - existing type=article source with matching ref reuses its n
+    # - novel hashes are appended as implicit article-type sources
+    article_ref_to_n: dict[str, int] = {
+        s["ref"]: s["n"] for s in sources if s.get("type") == "article" and s.get("ref")
+    }
+    next_implicit_n = max((s["n"] for s in sources), default=0) + 1
+
+    def replace_legacy(m: re.Match[str]) -> str:
         h = m.group(1)
-        if h not in seen:
-            seen[h] = len(seen) + 1
-        n = seen[h]
+        n = article_ref_to_n.get(h)
+        nonlocal next_implicit_n
+        if n is None:
+            n = next_implicit_n
+            next_implicit_n += 1
+            entry = {
+                "n": n,
+                "type": "article",
+                "ref": h,
+                "hash": h,
+                "title": "",
+                "url": f"{base_path}/articles/{h}.html",
+            }
+            sources.append(entry)
+            article_ref_to_n[h] = n
         return (
             f'<sup class="wiki-cite">'
             f'<a href="{base_path}/articles/{h}.html#cite-{n}" id="cite-{n}-back">'
             f'[{n}]</a></sup>'
         )
 
-    rewritten = LEGACY_WIKI_CITATION_RE.sub(replace, body_md)
-    sources = [
-        {"n": n, "hash": h, "url": f"{base_path}/articles/{h}.html"}
-        for h, n in sorted(seen.items(), key=lambda kv: kv[1])
-    ]
+    rewritten = LEGACY_WIKI_CITATION_RE.sub(replace_legacy, rewritten)
+
+    sources.sort(key=lambda s: s["n"])
     return rewritten, sources
 
 
@@ -982,7 +1104,12 @@ def _render_wiki_pages(
         body_md_raw = post.content or ""
         body_md = _strip_leading_h1(body_md_raw)
 
-        rewritten_md, sources = _convert_wiki_citations(body_md, config.KB_BASE_PATH)
+        rewritten_md, sources = _convert_wiki_citations(
+            body_md,
+            config.KB_BASE_PATH,
+            frontmatter_sources=meta.get("sources"),
+            page_slug=slug,
+        )
         body_html = _annotate_code_block_lang_label(_render_body_html(rewritten_md))
 
         title = meta.get("title") or slug.replace("-", " ").title()

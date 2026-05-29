@@ -62,7 +62,17 @@
   <ol class="wiki-sources__list">
     {% for src in wiki.sources %}
     <li id="cite-{{ src.n }}">
-      <a href="{{ src.url }}">article:{{ src.hash }}</a>
+      {% if src.type == "article" %}
+        <a href="{{ src.url }}">{% if src.title %}{{ src.title }}{% else %}article:{{ src.hash or src.ref }}{% endif %}</a>
+      {% elif src.type == "web" %}
+        <a href="{{ src.ref }}" target="_blank" rel="noopener">{{ src.title or src.ref }}</a>
+        <span class="wiki-sources__type">(web)</span>
+      {% elif src.type == "builtin" %}
+        <span>{{ src.title }}</span>
+        <span class="wiki-sources__type">(LLM training corpus)</span>
+      {% else %}
+        <span>{{ src.title or "(unknown source)" }}</span>
+      {% endif %}
       <a class="wiki-sources__back" href="#cite-{{ src.n }}-back" aria-label="back to citation">↩</a>
     </li>
     {% endfor %}
