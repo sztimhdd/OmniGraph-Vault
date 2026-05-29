@@ -1,0 +1,11 @@
+[Unit]
+Description=OmniGraph translate body 11:00 ADT (14:00 UTC) timer
+Requires=omnigraph-translate.service
+
+[Timer]
+OnCalendar=*-*-* 14:00:00 UTC
+Persistent=false
+Unit=omnigraph-translate.service
+
+[Install]
+WantedBy=timers.target
