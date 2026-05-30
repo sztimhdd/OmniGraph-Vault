@@ -1,0 +1,127 @@
+# OmniGraph-Vault Issue Tracker
+
+**Status:** Living document — single source of truth for known unfixed issues outside active phases.
+**Owner:** Orchestrator (main session) maintains; agents read but do not delete entries.
+**Created:** 2026-05-30
+**Last updated:** 2026-05-30
+
+---
+
+## How to use this file
+
+This is the **issue tracker** for known problems / tech debt / deferred work that is NOT currently in flight. Active phase work lives in `.planning/phases/<milestone>/STATE-*.md`. Active quick work lives in `.planning/quick/<slug>/`. Once a phase or quick closes, issues that surfaced during it but were filed as out-of-scope follow-up land HERE.
+
+**Lifecycle of an entry:**
+
+1. Surfaced (during phase / quick / orchestration) → orchestrator adds row with severity + slug
+2. Picked up by a quick / phase → entry annotated `In flight: <quick-slug>` (don't move; let it block in place)
+3. Resolved → entry annotated `RESOLVED <date> <commit>` and moved to "Resolved (recent)" section
+4. After 30 days in Resolved, moved to `archive/issues-resolved-YYYY-MM.md`
+
+**Severity levels:**
+
+- 🔴 **P0** — Blocks main line / breaks user experience / data correctness. Fix in next available cycle.
+- 🟡 **P1** — Important but not blocking. Schedule within ~1 week.
+- 🟠 **P2** — Cleanup / tech debt. Schedule when matched cleanup window is open.
+- 🟢 **P3** — Future scope. Park; revisit on milestone boundaries.
+- 🔵 **Doc** — Configuration / documentation gap. Fix opportunistically.
+
+**Update policy:**
+
+- Orchestrator updates this file when new issues surface or when status changes.
+- Agents may **read** to inform decisions but should NOT edit; they file new issues by reporting them in their close-out summary, orchestrator adds the row.
+- When closing a quick / phase, orchestrator MUST scan the close-out report for newly surfaced issues and add rows here BEFORE marking quick CLOSED.
+
+---
+
+## Open issues
+
+### 🔴 P0 — Blocking / Data correctness
+
+| # | Issue | Suggested slug | Notes |
+|---|---|---|---|
+| 1 | id=24 (and 11 other rows) `body=''` permanently untranslatable — translate cron SQL filter `body != ''` skips them. They have `layer2_verdict='ok'` so DATA-07 still surfaces them on KB pages with original-only text. | `260530-id24-body-empty-cleanup` | 12 stuck rows total (~3.9% of 310 layer2='ok'). Either backfill body via re-scrape or flip verdict to 'reject'. Filed 2026-05-30 P2-3 prep. |
+| 2 | Vertex 429 RESOURCE_EXHAUSTED on Layer 1 batch 4 burst (30 articles stay NULL classification). | `260530-vertex-burst-isolation` | Daily-ingest auto-retries next cron. Watch for chronic accumulation; if persistent across 3+ days, isolate to its own GCP project. Filed 2026-05-30. |
+
+### 🟡 P1 — Important but not blocking
+
+| # | Issue | Suggested slug | Notes |
+|---|---|---|---|
+| 3 | **Wiki body single-language** — only outer chrome (breadcrumb / sources label / pill) is bilingual; wiki body markdown is whatever the .md author wrote (currently English for Copilot Studio entities). EN/中 toggle leaves body unchanged. | `260530-wiki-bilingual-decide` | Three paths: A manual dual-section per .md, B SSG-bake auto-translate (mirrors articles pipeline), C accept current. Decision delegated to user. Filed 2026-05-30. |
+| 4 | `daily-ingest.service` single-article LightRAG ainsert can run 8h+ on entity-rich articles with no upper bound. | `260530-ainsert-budget-timeout` | Wave 2 (P2-3) follow-up. Add per-article `--ainsert-timeout` budget; SIGTERM after N seconds, log + skip. |
+| 5 | `kb/wiki/_suggestions/` (W1 hook fire-and-forget output) has no review queue; suggestions accumulate without human gate. | TBD | Post-Wave-3 wiki workflow audit. Decision needed: keep W1 gate, retire it, or build review UI. |
+| 6 | `test_css_budget_within_2100` pre-existing failure — `kb/static/style.css` 2172 lines vs budget 2150. Last css change e05d597 (kb-3-qa F1+F2). | `260530-css-budget-overrun` | Two paths: trim style.css to ≤2150 (audit + remove unused tokens) or raise budget to 2200 with diff justification. NOT in P2-3 scope (SC#5 / HT-5). Filed 2026-05-30 P2-3 T4. |
+
+### 🟠 P2 — Cleanup / Tech debt
+
+| # | Issue | Suggested slug | Notes |
+|---|---|---|---|
+| 7 | `.planning/quick/20260525-200047-synthesize-audit/` untracked directory, several days. | `260530-stale-quick-gc` | gc decision: archive into `.planning/quick/archive/` or delete. Single review pass. |
+| 8 | `databricks-deploy/_aliyun_pull/` ~4.4 GB local sync residue from manual sync runs. | TBD | gc; can re-pull on next sync. .databricksignore already covers it. |
+| 9 | `.scratch/sync-to-databricks-*.log` (2 files) + `.scratch/databricks-deploy-*.log` accumulating in scratch. | TBD | gitignored; opportunistic local cleanup. |
+| 10 | `databricks-deploy/deploy.sh` (Databricks deploy) and `kb/scripts/daily_rebuild.sh` (Aliyun) have asymmetric `KB_BASE_PATH` requirement (Databricks needs empty, Aliyun needs `/kb`). Not documented as a contrast anywhere; future readers may copy one into the other. | TBD | Add comment to both scripts pointing at the other; or extract a shared README clarifying the dual-deploy base-path rule. |
+| 11 | `.planning/STATE.md` "Quick Tasks Completed" table style inconsistent — early entries are 1000+ char single-line dumps; recent (260530-d8j) entries use concise multi-line summary. | TBD | Decide canonical format and either reformat history or leave drift annotation. |
+| 12 | Memory `aliyun_drift_recovery_260528_lessons.md` Lesson 1 has v2 + v3 + v4 — wording overlap between v3 (stop service cascades) and v4 (Requires= cascade) needs reconciling; same root mechanism described twice. | TBD | Edit memory to merge into single canonical "systemd cascade traps" sub-section. |
+
+### 🟢 P3 — Future scope (parked)
+
+| # | Issue | Suggested slug | Notes |
+|---|---|---|---|
+| 13 | **P1 K2 citation revisit** (α path ~+14 LoC) — extract `full_doc_id` from LightRAG chunk metadata to replace LLM-output regex citation. Deferred 2026-05-28 (γ choice) until P5 ships; P5 shipped 2026-05-29, can re-evaluate. | `v1.1.P1-revisit` | Low priority — user has not raised citation accuracy as a complaint. Plan-phase tier when picked up. |
+| 14 | **P4.0 / P4.1 ARAG audit + salvage** — read-only audit `lib/research/*` (P4.0), then mutating salvage + frontend "Deep Research" tab (P4.1). | `v1.1.P4-0` / `v1.1.P4-1` | Wave 3, blocked on Wave 1 + Wave 2. Path locked C (self-build) 2026-05-29 after MS ARAG evaluation. |
+| 15 | **P6.1 fixture drift audit** — full pass over `tests/unit/_ingest_fixtures.py` schema vs production migrations + `test_search_kg_job_completes` mock rewire. | `v1.1.P6-1` | Wave 4 housekeeping. Schedule after Wave 2 stabilizes. |
+| 16 | **P7 Pydantic mode-arg silent ignore** — `/api/search/kg` accepts `mode` arg but body schema silently drops it. ~1 line + 1 test. | `v1.1.P7` | Side decision — fold into P1 if P1 shipping window aligns, else standalone v1.1.x quick. |
+| 17 | **wiki-bilingual-ssg-bake** — long-term: SSG bake auto-translates wiki body via DeepSeek/Vertex pipeline (mirrors `articles` `body_translated` pattern). Replaces Issue #3 path B. | `260530-wiki-bilingual-ssg-bake` | 1-2 day phase-tier. Triggered when Issue #3 decision = path B. |
+| 18 | **Databricks PAT rotation** — token leaked once in earlier `env \| grep ANTHROPIC` Bash output. | TBD | Rotate at user's convenience. Not blocking; new PAT must update `~/.databrickscfg` `[dev]` profile. |
+
+### 🔵 Doc / Config gaps
+
+| # | Issue | Notes |
+|---|---|---|
+| 19 | CLAUDE.md PRINCIPLE #3 (Surgical Changes) should explicitly call out "wiki cross-link reverse edits to other people's wiki pages = boundary breach, single quick scope only". Captured 2026-05-29 commit f5da904 lesson but not propagated to CLAUDE.md. | Add to PRINCIPLE #3 enumeration on next CLAUDE.md edit. |
+| 20 | `databricks-deploy/_ssg/` is a build artifact but lives at a path that suggests committed source; it is gitignored but the path is confusing. | Consider rename or README at `databricks-deploy/_ssg/.README.md` explaining the bake-output role. |
+
+---
+
+## Resolved (recent — last 30 days)
+
+| # | Issue | Resolved | Commit(s) | Quick / Phase |
+|---|---|---|---|---|
+| R1 | `daily_rebuild.sh` Phase 1 silent-fail since 2026-05-20 (KB_DB_PATH not exported, subprocess fell to nonexistent path). | 2026-05-30 | `f56a4a6` | `260530-d8j` |
+| R2 | `/var/www/kb/` 9 days stale, no auto-sync from `kb/output/` after SSG bake. | 2026-05-30 | `f56a4a6` (Phase 5 rsync) | `260530-d8j` |
+| R3 | `KB_BASE_PATH` empty default broke Aliyun KB site after `260530-d8j` shipped — HTML emitted bare `/static/*`, Caddy `/kb/*` handle never matched, all CSS/img 404. | 2026-05-30 | `d7b3749` | hot-fix follow-up to `260530-d8j` |
+| R4 | Wiki SSG bake (`kb/export_knowledge_base.py:_convert_wiki_citations`) only handled legacy `^[article:hash]` tokens; SCHEMA-2026-05-20 introduced GFM `[^N]` + multi-type sources but bake path was not updated. | 2026-05-29 | `b4a87ce` | `260529-hlu` |
+| R5 | Aliyun translate cron never registered as systemd timer; body translation backlog grew indefinitely without auto-trigger. | 2026-05-29 | `241d7dd` | `260529-arm-translate-cron` |
+| R6 | `.scratch/deploy_inline_*.sh` recurring drift (2026-05-25 inline missed 3 critical `--include` flags → arx-3 singleton REGRESSION). | 2026-05-29 | `c2cfe0c` | `260529-d3p` |
+| R7 | No script for Aliyun → Databricks data sync; the 22-step manual procedure from `260528-f1s` was not reusable. | 2026-05-29 | `7544234` | `260529-arx` |
+| R8 | LightRAG version pin drift — root `requirements.txt` 1.4.16 ≠ `databricks-deploy/requirements.txt` 1.4.15 ≠ venv 1.4.15. P2-3 plan-phase Phase 0 surfaced. | 2026-05-30 | `2b922d0` | P2-3 Phase 0 cleanup |
+| R9 | `databricks-deploy/requirements.txt` `python-frontmatter` line dirty for 5 days (2026-05-25 hot-fix slipped commit). | 2026-05-30 | `20a4094` | P2-3 Phase 0 cleanup |
+| R10 | `sync_to_databricks.sh` `read -p` lost stdin when run as background task → silent abort exit 0 in 30s instead of 70-min full sync. | 2026-05-30 | `149130a` (`--yes` flag) | 4-cleanup batch |
+| R11 | `sync_to_databricks.sh` Step 9c race: `apps start` auto-creates pending SNAPSHOT deployment that locks Step 9c `apps deploy` for 20+ min. | 2026-05-30 | `149130a` (poll-pending fix) | 4-cleanup batch |
+| R12 | Aliyun SSH manual trigger silently 401s (`DEEPSEEK_API_KEY=dummy` fallback) because `EnvironmentFile=/root/.hermes/.env` is systemd-only, plain SSH shell doesn't source. | 2026-05-30 | `f6b3b97` (`run_with_env.sh`) | 4-cleanup batch |
+| R13 | Tavily Python module not installed in Aliyun `venv-aim1` → translate cron WARNINGs every run (non-fatal but degrades quality). | 2026-05-30 | (Aliyun pip install only, no commit needed) | 4-cleanup Step 1 |
+
+---
+
+## Cross-references
+
+- **Phase milestone state:** `.planning/phases/v1.1-roadmap/STATE-v1.1.md`
+- **Roadmap & success criteria:** `.planning/phases/v1.1-roadmap/ROADMAP.md`
+- **Project guide:** `CLAUDE.md` (PRINCIPLE #10 governs this file's update discipline)
+- **Memory index:** `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/MEMORY.md`
+
+---
+
+## Adding a new issue
+
+When orchestrator (or any agent during close-out) surfaces a new issue:
+
+1. Choose severity (P0/P1/P2/P3/Doc).
+2. Add a row to the appropriate table with:
+   - Short title (≤ 100 chars)
+   - Suggested slug (`260530-<short>` if known, `TBD` if not)
+   - Notes (1-3 sentences: root cause / decision / next action)
+3. If the issue had a triggering quick / phase, link the relevant SUMMARY in Notes.
+4. Update `Last updated:` at top.
+
+**Do NOT** delete entries when fixed — move them to `Resolved (recent)` with date + commit. The history matters for postmortem and pattern detection.

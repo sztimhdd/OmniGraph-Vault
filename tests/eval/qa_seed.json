@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "question": "What is Adaptive RAG and which technology stack pairs with it?",
+    "ground_truth_keywords": ["adaptive", "rag", "langgraph", "fastapi", "streamlit", "retrieval"],
+    "source_article_id": 582
+  },
+  {
+    "id": 2,
+    "question": "How does Adaptive RAG choose retrieval depth based on query complexity?",
+    "ground_truth_keywords": ["adaptive", "rag", "query", "complexity", "retrieval", "strategy"],
+    "source_article_id": 582
+  },
+  {
+    "id": 3,
+    "question": "Why are knowledge graphs considered the answer over vector databases for RAG?",
+    "ground_truth_keywords": ["knowledge", "graph", "vector", "ontology", "embedding", "semantic"],
+    "source_article_id": 463
+  },
+  {
+    "id": 4,
+    "question": "What is the role of ontology in a knowledge-graph RAG system?",
+    "ground_truth_keywords": ["ontology", "knowledge", "graph", "vector", "rag", "soul"],
+    "source_article_id": 463
+  },
+  {
+    "id": 5,
+    "question": "What did MiniMax M2.7 improve over its predecessor in agent capabilities?",
+    "ground_truth_keywords": ["minimax", "m2.7", "agent", "harness", "tool", "claude"],
+    "source_article_id": 165
+  },
+  {
+    "id": 6,
+    "question": "What is Tencent CodeBuddy related to OpenClaw?",
+    "ground_truth_keywords": ["openclaw", "tencent", "deploy", "install"],
+    "source_article_id": 1352
+  },
+  {
+    "id": 7,
+    "question": "How does the privacy-first prompt injection detection system work without storing logs?",
+    "ground_truth_keywords": ["prompt", "injection", "privacy", "telemetry", "feature", "detection"],
+    "source_article_id": 144
+  },
+  {
+    "id": 8,
+    "question": "What are the four pipeline stages in privacy-first prompt injection detection?",
+    "ground_truth_keywords": ["feature", "extractor", "telemetry", "detection", "engine", "session"],
+    "source_article_id": 144
+  },
+  {
+    "id": 9,
+    "question": "What does Pinecone Nexus claim to replace and why?",
+    "ground_truth_keywords": ["pinecone", "nexus", "rag", "vector", "knowledge", "compiler"],
+    "source_article_id": 1031
+  },
+  {
+    "id": 10,
+    "question": "What changed with Claude Code in the 20 USD Pro plan?",
+    "ground_truth_keywords": ["claude", "code", "pro", "anthropic", "subscription", "pricing"],
+    "source_article_id": 1238
+  }
+]

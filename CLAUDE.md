@@ -162,6 +162,24 @@ After Phase 1 DECIDE produces a fix-scope estimate (LoC + files touched + risk),
 
 **Related:** Principle #7 (Claude Owns Databricks Deployments) — Claude must pick the right pipeline, not blindly follow user shortcuts. Principle #6 (Local UAT) — the SSG bake gap can also bite local UAT if `kb/output/` is not refreshed.
 
+10. ISSUES.md is the Single Source of Truth for Known Unfixed Issues
+
+**`.planning/ISSUES.md` tracks every known issue / tech debt / deferred follow-up that is NOT in flight in an active phase or quick.** Read it before starting any quick / plan-phase to check if the work overlaps with an existing entry. Update it on every quick / phase close.
+
+**Why:** Issues surface during phase / quick / orchestration that are out of current scope. If those issues live only in chat / agent reports / scattered memory files, they get forgotten and re-discovered weeks later. ISSUES.md gives every session a single grep-able catalog.
+
+**How to apply:**
+
+1. **Before starting any new quick / plan-phase**, grep `.planning/ISSUES.md` for keywords related to the work. If an entry exists, read its row to inherit prior context (suggested slug, decision branches, related quicks).
+2. **During any quick / phase close-out** (orchestrator OR agent), scan the SUMMARY.md / report for newly surfaced out-of-scope issues. Orchestrator (NOT agent) adds rows to ISSUES.md before marking the quick / phase CLOSED. Update `Last updated:` at top.
+3. **When picking up an existing issue** to fix, annotate its row with `In flight: <quick-slug>` rather than removing the entry. The entry only moves to "Resolved (recent)" after the fix commits land.
+4. **Never delete entries** — move them. Resolved entries stay 30 days then archive to `.planning/archive/issues-resolved-YYYY-MM.md` for postmortem and pattern detection.
+5. **Severity assignment** uses the legend at the top of ISSUES.md: 🔴 P0 (blocks main line / data correctness), 🟡 P1 (important not blocking), 🟠 P2 (cleanup / tech debt), 🟢 P3 (future scope), 🔵 Doc (config / documentation gap).
+
+**Counter-rule:** ISSUES.md is NOT a replacement for ROADMAP.md, STATE.md, or quick SUMMARY.md. Active phase work and active quick work live in those files. ISSUES.md is the long-tail of out-of-scope follow-ups.
+
+**Agent boundary:** agents **read** ISSUES.md to inform their work. Agents do NOT edit ISSUES.md directly — they surface new issues in their close-out report and orchestrator transcribes the row. This keeps the file orchestrator-curated and avoids agent-by-agent style drift.
+
 ---
 
 ## Project-Specific Disciplines
@@ -565,6 +583,29 @@ Use these entry points:
 - `/gsd:execute-phase` for planned phase work
 
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+
+### Issue tracker integration with GSD
+
+`.planning/ISSUES.md` is the single source of truth for known unfixed issues outside active phases (see PRINCIPLE #10). GSD commands MUST integrate with it as follows:
+
+**Before starting any GSD workflow** (`/gsd:quick`, `/gsd:plan-phase`, `/gsd:execute-phase`, `/gsd:debug`):
+
+- Grep `.planning/ISSUES.md` for keywords related to the proposed task. If an entry exists with status "open", read its row to inherit prior context (suggested slug, decision branches, related quicks).
+- If picking up an existing issue, annotate its row with `In flight: <slug>` rather than removing the entry.
+
+**During GSD close-out** (any quick / phase / debug session reaching CLOSED status):
+
+- Scan the SUMMARY.md / report for newly surfaced out-of-scope issues that were not the primary task.
+- Orchestrator (NOT subagent) adds rows to `.planning/ISSUES.md` BEFORE marking the quick / phase CLOSED.
+- Update `Last updated:` at the top of ISSUES.md.
+
+**For resolved issues:**
+
+- Move row from "Open issues" to "Resolved (recent)" with date + resolving commit + quick/phase slug.
+- Do NOT delete entries — history matters for postmortem and pattern detection.
+- After 30 days in Resolved, archive to `.planning/archive/issues-resolved-YYYY-MM.md`.
+
+**Subagent boundary:** subagents (gsd-executor / gsd-debugger / gsd-planner / etc.) **read** ISSUES.md to inform their work. They do NOT edit ISSUES.md directly — they surface new issues in their close-out report and the orchestrator transcribes the row. This keeps the file orchestrator-curated and avoids agent-by-agent style drift.
 <!-- GSD:workflow-end -->
 
 <!-- GSD:profile-start -->

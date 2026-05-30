@@ -32,4 +32,5 @@ markers = [
     "integration: integration-tier tests (remote-only, live deps)",
     "remote: tests that must run on the remote WSL host (see private memory for connection)",
     "slow: tests that spawn subprocesses or hit live deps; opt in with `-m slow`",
+    "eval: opt-in quality eval requiring full LightRAG corpus (skipped by default)",
 ]
