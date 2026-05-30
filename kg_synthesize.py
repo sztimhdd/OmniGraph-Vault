@@ -145,7 +145,7 @@ def _append_query_history(query: str, mode: str, response_len: int) -> None:
 
 async def synthesize_response(
     query_text: str,
-    mode: str = "hybrid",
+    mode: str = "mix",  # v1.1.P2-3: paired with BGE reranker per upstream LightRAG guidance
     rag: LightRAG | None = None,
     lightrag_lock: asyncio.Lock | None = None,
 ) -> str:
@@ -252,6 +252,7 @@ async def main():
     if len(sys.argv) < 2:
         print("Usage: python kg_synthesize.py \"<your query>\" [mode]")
         sys.exit(1)
+    # Note: CLI default stays "hybrid" (v1.1.P2-3 scope A+) — pass `mix` explicitly to use reranker path
     query, mode = sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "hybrid"
     from config import SYNTHESIS_OUTPUT
     try:
