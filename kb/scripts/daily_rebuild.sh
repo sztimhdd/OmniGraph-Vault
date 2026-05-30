@@ -24,11 +24,15 @@ set -euo pipefail
 : "${KB_LOG_MAX_BYTES:=10485760}"           # 10 MiB before rotation
 : "${KB_SQLITE_BUSY_TIMEOUT_MS:=30000}"     # 30s — VACUUM/checkpoint wait window
 : "${KB_SERVE_DIR:=/var/www/kb}"            # Caddy serve root (Phase 5 rsync target)
+: "${KB_BASE_PATH:=/kb}"                    # Caddy serves under /kb/* (override "" for root deploy)
 
-# Export so subprocesses (python -m kb.scripts.*) inherit KB_DB_PATH; without
-# this, kb/config.py falls back to ~/.hermes/data/kol_scan.db (nonexistent),
-# silent-failing Phase 1 since 2026-05-20.
-export KB_INSTALL_PREFIX KB_DB_PATH KB_PYTHON
+# Export so subprocesses (python -m kb.scripts.*, kb/export_knowledge_base.py)
+# inherit these. Without exports kb/config.py defaults take over and:
+#  - KB_DB_PATH → falls to ~/.hermes/data/kol_scan.db (nonexistent), Phase 1 fails
+#  - KB_BASE_PATH → falls to "" (empty), Phase 2 emits HTML referencing /static/*
+#    instead of /kb/static/*, Caddy /kb/* handle never matches, all CSS/img 404
+#    via the SPA catch-all. Both bugs surfaced 2026-05-30 day-of-rsync deploy.
+export KB_INSTALL_PREFIX KB_DB_PATH KB_PYTHON KB_BASE_PATH
 
 cd "${KB_INSTALL_PREFIX}"
 
