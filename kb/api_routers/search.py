@@ -55,7 +55,8 @@ _HASH_PAT = re.compile(r"/article/([a-f0-9]{10})")
 
 
 async def _kg_worker(
-    job_id: str, q: str, rag: LightRAG, lightrag_lock: asyncio.Lock
+    job_id: str, q: str, rag: LightRAG, lightrag_lock: asyncio.Lock,
+    rerank_disabled: bool = False,
 ) -> None:
     """Run KG-backed synthesis and update job_store.
 
@@ -68,7 +69,9 @@ async def _kg_worker(
         from kg_synthesize import synthesize_response
 
         result = await synthesize_response(
-            q, mode="hybrid", rag=rag, lightrag_lock=lightrag_lock,
+            q,
+            mode="mix" if not rerank_disabled else "hybrid",
+            rag=rag, lightrag_lock=lightrag_lock,
         )
         job_store.update_job(job_id, status="done", result=result)
     except Exception as e:  # noqa: BLE001 — surface all errors to job record
@@ -126,6 +129,8 @@ async def _kg_local_worker(
             "Cite every document you draw on.\n\n"
             f"Question: {query}"
         )
+        # NOTE: mode='local' does NOT exercise reranker (LightRAG mix is the rerank path),
+        # so v1.1.P2-3 keeps this path as-is — no rerank_disabled threading needed.
         markdown = await asyncio.wait_for(
             synthesize_response(
                 wrapped, mode="local", rag=rag, lightrag_lock=lightrag_lock,
@@ -231,6 +236,7 @@ async def search_endpoint(
         _kg_worker, jid, q,
         request.app.state.lightrag,
         request.app.state.lightrag_lock,
+        getattr(request.app.state, "rerank_disabled", False),
     )
     return {"job_id": jid, "status": "running", "mode": "kg"}
 
