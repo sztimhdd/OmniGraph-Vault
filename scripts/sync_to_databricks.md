@@ -33,7 +33,13 @@ on Databricks.
 ## Run
 
 ```bash
+# Interactive (default): prompts y/N if _aliyun_pull/ has stale content.
 bash scripts/sync_to_databricks.sh
+
+# Non-interactive (background, no tty): bypass the Step 1 prompt.
+# Required when stdin is not a tty — without --yes the script reads empty
+# stdin, sees confirm="", and silently aborts at exit 0 (looks like success).
+bash scripts/sync_to_databricks.sh --yes
 ```
 
 ## What it does (10 steps)
@@ -48,11 +54,12 @@ bash scripts/sync_to_databricks.sh
 | 6 | `databricks fs cp -r --overwrite` lightrag_storage → UC Volume | ~30min |
 | 7 | `databricks fs cp -r --overwrite` images → UC Volume | ~18min |
 | 8 | `databricks fs cp --overwrite` kol_scan.db → UC Volume | <1min |
-| 9 | `apps stop` + `apps start` + `apps deploy` (memory: stop+start wipes deployment) | ~3min |
+| 9 | `apps stop` + `apps start` + poll-pending-clear + `apps deploy` (memory: stop+start wipes deployment; `apps start` auto-creates a SNAPSHOT pending deployment that races `apps deploy`, so 9b' polls until SUCCEEDED ≤30min before 9c) | ~15-20min |
 | 10 | Echo 4 paste-ready browser-console smoke snippets | instant |
 
-Total wall-clock: **~70 min** at corp egress 0.77 MB/s. Network-bound; CPU
-is idle most of the time.
+Total wall-clock: **~70-90 min** at corp egress 0.77 MB/s. Network-bound;
+CPU is idle most of the time. Step 9 alone is ~15-20min (apps start auto-
+redeploy must drain before our explicit redeploy can fire).
 
 ## Smoke verification (Step 10)
 
@@ -79,6 +86,8 @@ Databricks /tmp tmpfs). The browser console will print poll updates every
 | Step 3/4 SCP times out mid-pull | Tar archive on Aliyun is preserved at `/tmp/*.tar.gz` for ~24h until `/tmp` rotates. Re-run script — Aliyun-side cleanup at the end of each step is best-effort, so re-tar wastes a few minutes but is safe. To save the round trip: `ssh aliyun-vitaclaw "ls -la /tmp/*.tar.gz"` to confirm tarball exists, then resume manually with scp + tar x. |
 | Step 6/7 fs cp times out | Re-run script. UC Volume `--overwrite` is safe to repeat. (Memory: cp `-r --overwrite` MERGES, doesn't replace — old subdirs may linger; harmless but tracked as "Aliyun-side UC Volume historical image residue" backlog.) |
 | Step 9b state=UNAVAILABLE persists | Step 9c redeploy is the fix per memory [databricks_apps_stop_start_wipes_deployment](../.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/databricks_apps_stop_start_wipes_deployment.md). If Step 9c also fails, manually run: `databricks --profile dev apps deploy omnigraph-kb --source-code-path /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy` |
+| Step 9c "pending deployment in progress for less than 20 minutes" | Race against the auto-pending deployment that `apps start` (Step 9b) creates from the last-known source_code_path. Step 9b' should have polled until clear; if you see this on a fresh run, the `pending_deployment.status.state` JSON-grep parsing missed the state field. Either (a) wait 20min and re-run from Step 9c manually, or (b) install `jq` on the host and re-run — script auto-prefers `jq` when available. |
+| Step 1 "stdin not a tty and --yes not given" | You're running the script in a background task / pipe / `nohup` where stdin isn't a terminal. Re-run with `--yes` to bypass the Step 1 confirm prompt. |
 | Step 9c "no source code at workspace path" | Workspace `databricks-deploy/` has nothing to deploy. Run `bash databricks-deploy/deploy.sh` first to push code, then re-run this script. |
 | Smoke 4 returns `fallback_used=true` | LightRAG hydrate failed. Check Databricks app logs via `make logs` (memory: [databricks_apps_logs_websocket](../.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/databricks_apps_logs_websocket.md)). Common cause: `lightrag_storage/` push truncated; re-run script. |
 

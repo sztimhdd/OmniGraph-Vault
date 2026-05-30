@@ -25,6 +25,23 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
+# Args
+# ---------------------------------------------------------------------------
+ASSUME_YES=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -y|--yes) ASSUME_YES=1; shift ;;
+    -h|--help)
+      echo "Usage: $0 [-y|--yes]"
+      echo "  -y, --yes   Skip the Step 1 staging-overwrite confirm prompt"
+      echo "              (required when stdin is not a tty, e.g. background runs)"
+      exit 0
+      ;;
+    *) echo "Unknown arg: $1" >&2; exit 2 ;;
+  esac
+done
+
+# ---------------------------------------------------------------------------
 # Config (edit if Aliyun paths change)
 # ---------------------------------------------------------------------------
 ALIYUN_SSH=aliyun-vitaclaw
@@ -62,8 +79,15 @@ if [ -d "$LOCAL_STAGING" ] && [ -n "$(ls -A "$LOCAL_STAGING" 2>/dev/null)" ]; th
   echo "Step 3-5 SCP will OVERWRITE these. If you want a clean slate, Ctrl+C now"
   echo "and run: rm -rf $LOCAL_STAGING/*"
   echo ""
-  read -p "Continue? [y/N] " -r confirm
-  [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || { echo "Aborted by user."; exit 0; }
+  if [ "$ASSUME_YES" = "1" ]; then
+    echo "  --yes given, proceeding without prompt"
+  elif [ -t 0 ]; then
+    read -p "Continue? [y/N] " -r confirm
+    [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || { echo "Aborted by user."; exit 0; }
+  else
+    echo "ERROR: stdin not a tty and --yes not given. Re-run with --yes." >&2
+    exit 3
+  fi
 fi
 
 echo "  ssh ok, databricks CLI ok"
@@ -167,6 +191,39 @@ echo ""
 echo ">>> Step 9b: start $APP_NAME (state will be UNAVAILABLE until redeploy)"
 MSYS_NO_PATHCONV=1 databricks --profile "$PROFILE" apps start "$APP_NAME" \
   || { echo "STEP 9b FAILED"; exit 9; }
+
+# 'apps start' implicitly creates a SNAPSHOT pending deployment from the
+# last-known source_code_path. Step 9c 'apps deploy' will race that pending
+# and 409 with 'Cannot deploy ... pending deployment in progress'. Poll
+# until the auto-pending clears (state empty or SUCCEEDED) before 9c.
+echo ""
+echo ">>> Step 9b': wait for auto-pending deployment from apps start to clear"
+if command -v jq >/dev/null 2>&1; then
+  jq_available=1
+else
+  jq_available=0
+fi
+for i in $(seq 1 30); do
+  app_json=$(MSYS_NO_PATHCONV=1 databricks --profile "$PROFILE" apps get "$APP_NAME" -o json 2>/dev/null || echo '')
+  if [ "$jq_available" = "1" ]; then
+    pending_state=$(printf '%s' "$app_json" | jq -r '.pending_deployment.status.state // ""')
+  else
+    # grep-only fallback: extract pending_deployment block first 200 chars,
+    # then grab the first "state":"..." inside it. Brittle but works for the
+    # current API response shape (verified 2026-05-29).
+    pending_state=$(printf '%s' "$app_json" | grep -o '"pending_deployment".*' | head -c 400 | grep -o '"state":"[^"]*"' | head -1 | cut -d'"' -f4)
+  fi
+  if [ -z "$pending_state" ] || [ "$pending_state" = "SUCCEEDED" ]; then
+    echo "  pending cleared (iter $i, state='$pending_state')"
+    break
+  fi
+  if [ "$i" = "30" ]; then
+    echo "STEP 9b' FAILED: pending deployment still '$pending_state' after 30min"
+    exit 9
+  fi
+  echo "  pending state='$pending_state' (iter $i/30, sleep 60s)"
+  sleep 60
+done
 
 echo ""
 echo ">>> Step 9c: redeploy $APP_NAME from $WORKSPACE_ROOT/databricks-deploy"
