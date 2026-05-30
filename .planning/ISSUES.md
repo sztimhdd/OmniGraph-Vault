@@ -3,7 +3,7 @@
 **Status:** Living document — single source of truth for known unfixed issues outside active phases.
 **Owner:** Orchestrator (main session) maintains; agents read but do not delete entries.
 **Created:** 2026-05-30
-**Last updated:** 2026-05-30
+**Last updated:** 2026-05-30 (2nd revision after `260530-gf1` doc-housekeeping)
 
 ---
 
@@ -56,12 +56,10 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 
 | # | Issue | Suggested slug | Notes |
 |---|---|---|---|
-| 7 | `.planning/quick/20260525-200047-synthesize-audit/` untracked directory, several days. | `260530-stale-quick-gc` | gc decision: archive into `.planning/quick/archive/` or delete. Single review pass. |
+| 7 | `.planning/quick/20260525-200047-synthesize-audit/` untracked directory, several days. | `260530-stale-quick-gc` | Re-evaluated 2026-05-30: dir contains real audit doc + 4 logs (synthesize deep audit that surfaced FTS5 syntax bug → resolved later via e05d597). NOT empty residue. Action revised: archive to `.planning/quick/archive/` rather than delete. |
 | 8 | `databricks-deploy/_aliyun_pull/` ~4.4 GB local sync residue from manual sync runs. | TBD | gc; can re-pull on next sync. .databricksignore already covers it. |
 | 9 | `.scratch/sync-to-databricks-*.log` (2 files) + `.scratch/databricks-deploy-*.log` accumulating in scratch. | TBD | gitignored; opportunistic local cleanup. |
-| 10 | `databricks-deploy/deploy.sh` (Databricks deploy) and `kb/scripts/daily_rebuild.sh` (Aliyun) have asymmetric `KB_BASE_PATH` requirement (Databricks needs empty, Aliyun needs `/kb`). Not documented as a contrast anywhere; future readers may copy one into the other. | TBD | Add comment to both scripts pointing at the other; or extract a shared README clarifying the dual-deploy base-path rule. |
-| 11 | `.planning/STATE.md` "Quick Tasks Completed" table style inconsistent — early entries are 1000+ char single-line dumps; recent (260530-d8j) entries use concise multi-line summary. | TBD | Decide canonical format and either reformat history or leave drift annotation. |
-| 12 | Memory `aliyun_drift_recovery_260528_lessons.md` Lesson 1 has v2 + v3 + v4 — wording overlap between v3 (stop service cascades) and v4 (Requires= cascade) needs reconciling; same root mechanism described twice. | TBD | Edit memory to merge into single canonical "systemd cascade traps" sub-section. |
+| 11 | `.planning/STATE.md` "Quick Tasks Completed" table style inconsistent — early entries are 1000+ char single-line dumps; recent (260530-d8j, 260530-gf1) entries use concise multi-line summary. | TBD | Decide canonical format and either reformat history or leave drift annotation. |
 
 ### 🟢 P3 — Future scope (parked)
 
@@ -76,10 +74,7 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 
 ### 🔵 Doc / Config gaps
 
-| # | Issue | Notes |
-|---|---|---|
-| 19 | CLAUDE.md PRINCIPLE #3 (Surgical Changes) should explicitly call out "wiki cross-link reverse edits to other people's wiki pages = boundary breach, single quick scope only". Captured 2026-05-29 commit f5da904 lesson but not propagated to CLAUDE.md. | Add to PRINCIPLE #3 enumeration on next CLAUDE.md edit. |
-| 20 | `databricks-deploy/_ssg/` is a build artifact but lives at a path that suggests committed source; it is gitignored but the path is confusing. | Consider rename or README at `databricks-deploy/_ssg/.README.md` explaining the bake-output role. |
+(currently empty — #19 and #20 resolved 2026-05-30 via `260530-gf1`)
 
 ---
 
@@ -100,6 +95,10 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 | R11 | `sync_to_databricks.sh` Step 9c race: `apps start` auto-creates pending SNAPSHOT deployment that locks Step 9c `apps deploy` for 20+ min. | 2026-05-30 | `149130a` (poll-pending fix) | 4-cleanup batch |
 | R12 | Aliyun SSH manual trigger silently 401s (`DEEPSEEK_API_KEY=dummy` fallback) because `EnvironmentFile=/root/.hermes/.env` is systemd-only, plain SSH shell doesn't source. | 2026-05-30 | `f6b3b97` (`run_with_env.sh`) | 4-cleanup batch |
 | R13 | Tavily Python module not installed in Aliyun `venv-aim1` → translate cron WARNINGs every run (non-fatal but degrades quality). | 2026-05-30 | (Aliyun pip install only, no commit needed) | 4-cleanup Step 1 |
+| R14 | CLAUDE.md PRINCIPLE #3 (Surgical Changes) didn't document "wiki cross-link reverse edits to other people's wiki pages = boundary breach". Captured 2026-05-29 commit f5da904 lesson but not propagated to CLAUDE.md until now. | 2026-05-30 | `ce59612` | `260530-gf1` |
+| R15 | `databricks-deploy/deploy.sh` (Databricks deploy) and `kb/scripts/daily_rebuild.sh` (Aliyun) had asymmetric `KB_BASE_PATH` requirement (Databricks empty, Aliyun `/kb`) undocumented; future readers would copy one into the other. | 2026-05-30 | `1a1e31d` | `260530-gf1` |
+| R16 | `databricks-deploy/_ssg/` build artifact path confusing (suggests committed source, actually gitignored). | 2026-05-30 | `758e21b` (`databricks-deploy/_ssg/.README.md` written) | `260530-gf1` |
+| R17 | Memory `aliyun_drift_recovery_260528_lessons.md` Lesson 1 v3 + v4 wording overlap (same root mechanism: systemd `Requires=` cascade described twice). | 2026-05-30 | (out-of-tree memory file edit, no repo commit) | `260530-gf1` |
 
 ---
 
