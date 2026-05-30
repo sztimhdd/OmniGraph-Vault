@@ -25,3 +25,12 @@ tenacity
 aiolimiter
 numpy
 requests
+# kb/services/wiki_inject.py -> kb/wiki_lint.py imports `frontmatter`
+# (python-frontmatter). Loaded at api startup via:
+#   kb.api -> kb.api_routers.search -> kb.services.synthesize ->
+#   kb.services.wiki_inject -> kb.wiki_lint
+# Must be installed in the Apps runtime; missing it boot-crashes uvicorn
+# AFTER _db_bootstrap.py finishes (502 with no obvious symptom in apps get).
+python-frontmatter>=1.0,<2.0
+
+# 2026-05-25T20:25 force rebuild — python-frontmatter missing despite line 34
