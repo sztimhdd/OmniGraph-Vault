@@ -12,7 +12,7 @@ lancedb
 kuzu
 litellm
 instructor
-lightrag-hku==1.4.16
+lightrag-hku==1.4.15
 requests
 pytest>=7.4
 pytest-asyncio>=0.23
