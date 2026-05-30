@@ -23,6 +23,12 @@ set -euo pipefail
 : "${KB_PYTHON:=${KB_INSTALL_PREFIX}/venv/bin/python}"
 : "${KB_LOG_MAX_BYTES:=10485760}"           # 10 MiB before rotation
 : "${KB_SQLITE_BUSY_TIMEOUT_MS:=30000}"     # 30s — VACUUM/checkpoint wait window
+: "${KB_SERVE_DIR:=/var/www/kb}"            # Caddy serve root (Phase 5 rsync target)
+
+# Export so subprocesses (python -m kb.scripts.*) inherit KB_DB_PATH; without
+# this, kb/config.py falls back to ~/.hermes/data/kol_scan.db (nonexistent),
+# silent-failing Phase 1 since 2026-05-20.
+export KB_INSTALL_PREFIX KB_DB_PATH KB_PYTHON
 
 cd "${KB_INSTALL_PREFIX}"
 
@@ -42,32 +48,45 @@ log "KB_DB_PATH=${KB_DB_PATH}"
 log "KB_INSTALL_PREFIX=${KB_INSTALL_PREFIX}"
 
 # ---- Phase 1: lang detect (idempotent — only fills NULL rows) ----
-log "[1/4] detect_article_lang"
+log "[1/5] detect_article_lang"
 "${KB_PYTHON}" -m kb.scripts.detect_article_lang
-log "[1/4] OK"
+log "[1/5] OK"
 
 # ---- Phase 2: SSG re-render (read-only URI mode; no write contention) ----
-log "[2/4] export_knowledge_base"
+log "[2/5] export_knowledge_base"
 "${KB_PYTHON}" kb/export_knowledge_base.py
-log "[2/4] OK"
+log "[2/5] OK"
 
 # ---- Phase 3: FTS5 rebuild (DROP+CREATE+INSERT; ~5s, idempotent) ----
-log "[3/4] rebuild_fts"
+log "[3/5] rebuild_fts"
 "${KB_PYTHON}" -m kb.scripts.rebuild_fts
-log "[3/4] OK"
+log "[3/5] OK"
 
-# ---- Phase 4: WAL checkpoint + VACUUM (LAST per ordering R-09; non-fatal per R-01) ----
+# ---- Phase 4: WAL checkpoint + VACUUM (LAST DB op per ordering R-09; non-fatal per R-01) ----
 # wal_checkpoint(TRUNCATE) is WAL-mode compatible — no full-DB lock, just WAL-level lock.
 # VACUUM acquires EXCLUSIVE — may SQLITE_BUSY if uvicorn holds a read transaction at the
 # same instant. Wrapped `|| true` so a busy-blocked VACUUM does not fail the whole cron;
 # next day's checkpoint reclaims any deferred work. Run manual VACUUM monthly with
 # uvicorn stopped if freelist grows large (see T-03 in kb-4-04-SUMMARY.md).
-log "[4/4] wal_checkpoint(TRUNCATE) + VACUUM"
-sqlite3 "${KB_DB_PATH}" <<SQL || { log "[4/4] BUSY (non-fatal — DB intact, will retry tomorrow)"; true; }
+log "[4/5] wal_checkpoint(TRUNCATE) + VACUUM"
+sqlite3 "${KB_DB_PATH}" <<SQL || { log "[4/5] BUSY (non-fatal — DB intact, will retry tomorrow)"; true; }
 .timeout ${KB_SQLITE_BUSY_TIMEOUT_MS}
 PRAGMA wal_checkpoint(TRUNCATE);
 VACUUM;
 SQL
-log "[4/4] OK"
+log "[4/5] OK"
+
+# ---- Phase 5: rsync baked SSG output to Caddy serve dir (non-fatal) ----
+# kb/output/ is what export_knowledge_base.py writes; /var/www/kb is what Caddy
+# serves (kb/* handle in /etc/caddy/Caddyfile). No prior sync mechanism existed,
+# so /var/www/kb went stale 9+ days after a single manual cp on 2026-05-20.
+# --delete is safe: kb/output/ is the source-of-truth complete tree.
+# Wrapped non-fatal so a transient rsync error does not poison cron status.
+log "[5/5] rsync kb/output/ -> ${KB_SERVE_DIR}/"
+rsync -a --delete \
+  "${KB_INSTALL_PREFIX}/kb/output/" \
+  "${KB_SERVE_DIR}/" >/dev/null \
+  || { log "[5/5] FAILED rsync (non-fatal — Caddy still serves last good snapshot)"; true; }
+log "[5/5] OK"
 
 log "===== daily rebuild complete ====="
