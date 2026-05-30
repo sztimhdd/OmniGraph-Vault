@@ -40,6 +40,16 @@ Remove imports/variables/functions that YOUR changes made unused
 Don't remove pre-existing dead code unless asked
 The test: Every changed line should trace directly to the user's request.
 
+例外 — wiki cross-link 反链:
+
+向其他人的 wiki entity 文件加 `[[your-new-slug]]` 反链是常见需求 (互通图谱), 但这违反 Surgical Changes 原则.
+
+处理: 单独 quick scope, NOT 卷进当前 wiki 写作 quick. 当前 quick 只写自己的 entity, 反链改进单独 follow-up quick.
+
+理由: 把 "我加新 wiki" 跟 "我修别人 wiki" 分两 quick, atomic commit 边界清晰, 别人 review 容易.
+
+参考: 2026-05-29 commit f5da904 (越界但接受的 case).
+
 4. Goal-Driven Execution
 Define success criteria. Loop until verified.
 
