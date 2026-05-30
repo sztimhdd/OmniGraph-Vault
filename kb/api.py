@@ -22,9 +22,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -45,16 +46,67 @@ _APP_VERSION = "2.0.0"
 
 _log = logging.getLogger(__name__)
 
+_BGE_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
+_BGE_MAX_LENGTH = 1024
+
+
+def _build_bge_rerank() -> tuple[Callable[..., object] | None, bool]:
+    """Load BGE-reranker-v2-m3 cross-encoder and return (async-rerank-func, ok-flag).
+
+    Returns (None, False) on any load failure so caller can wire graceful degrade.
+    Honors BGE_FORCE_LOAD_FAIL=1 env override for SC#4 testing.
+    """
+    if os.environ.get("BGE_FORCE_LOAD_FAIL") == "1":
+        _log.warning("bge_load_force_fail (test override)")
+        return None, False
+    t0 = time.monotonic()
+    _log.warning("bge_load_start model=%s", _BGE_MODEL_NAME)
+    try:
+        from sentence_transformers import CrossEncoder
+        cache = os.environ.get("BGE_CACHE_DIR") or None
+        model = CrossEncoder(
+            _BGE_MODEL_NAME,
+            max_length=_BGE_MAX_LENGTH,
+            device="cpu",
+            cache_folder=cache,
+        )
+    except Exception as exc:  # noqa: BLE001 — graceful degrade
+        _log.warning("bge_load_failed err=%s", exc)
+        return None, False
+
+    async def _bge_rerank(
+        query: str,
+        documents: list[str],
+        top_n: int | None = None,
+    ) -> list[dict]:
+        pairs = [[query, d] for d in documents]
+        scores = await asyncio.to_thread(
+            model.predict, pairs,
+            batch_size=32, show_progress_bar=False,
+        )
+        ranked = sorted(
+            ({"index": i, "relevance_score": float(s)} for i, s in enumerate(scores)),
+            key=lambda r: r["relevance_score"], reverse=True,
+        )
+        return ranked[:top_n] if top_n else ranked
+
+    _log.warning("bge_loaded wall_s=%.2f", time.monotonic() - t0)
+    return _bge_rerank, True
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     t0 = time.monotonic()
     _log.warning("lightrag_singleton_init_start working_dir=%s", RAG_WORKING_DIR)
+    rerank_func, rerank_ok = _build_bge_rerank()
+    app.state.reranker = rerank_func
+    app.state.rerank_disabled = not rerank_ok
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
         llm_model_func=get_llm_func(),
         embedding_func=_get_embedding_func(),
         default_embedding_timeout=_embedding_timeout_default(),
+        rerank_model_func=rerank_func,
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()

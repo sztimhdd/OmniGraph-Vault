@@ -34,3 +34,10 @@ requests
 python-frontmatter>=1.0,<2.0
 
 # 2026-05-25T20:25 force rebuild — python-frontmatter missing despite line 34
+
+# v1.1.P2-3: BGE-reranker-v2-m3 cross-encoder loaded in kb/api.py lifespan.
+# CrossEncoder.predict() bridged to async via asyncio.to_thread; LightRAG
+# receives rerank_model_func= kwarg. ~1.2 GB wheel install at deploy time
+# (torch CPU + sentence-transformers + tokenizers + safetensors).
+sentence-transformers>=3.0,<5.0
+torch>=2.1,<3.0
