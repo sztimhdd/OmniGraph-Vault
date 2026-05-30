@@ -14,7 +14,7 @@
 | P5-verify Branch A | 1 | ✅ CLOSED (commit `6f4ce13`) | Singleton race detected on N=4 concurrent `/api/synthesize`; documented in `docs/quick-260527-swt`. Unblocks P5 plan-phase. |
 | P1 | 1 | ⏸ DEFERRED (2026-05-28) | See Note below. |
 | P5 | 1 | ✅ CLOSED (2026-05-29) | LightRAG singleton + async-safety. 5 commits `315fa79`..`5867a7d` on `main`; verified on Databricks deployments `01f15aeb`/`01f15af3`. See [P5/P5-VERIFICATION.md](P5/P5-VERIFICATION.md): cold-start mean 28.88s (baseline 30.58s, −5.6%); N=4 async-safety 4/4 topic-match no crosstalk; SC#4 finalize via local pytest (Databricks logz/stream platform-limited). |
-| P2-3 | 2 | BLOCKED on Wave 1 close | BGE-v2-m3 reranker + `mix` mode (paired). |
+| P2-3 | 2 | PLANNED 2026-05-29 | BGE-v2-m3 reranker + `mix` mode (paired). plan-phase artifacts: [P2-3/PLAN.md](P2-3/PLAN.md) + [P2-3/RESEARCH.md](P2-3/RESEARCH.md). 6 atomic tasks T1-T6, +138 net LoC, plan-checker PASS w/ 4 minor warnings (W1-W5) addressed inline. Ready for `/gsd:execute-phase`. |
 | P4.0 | 3 | BLOCKED on Wave 1 + 2 | ARAG audit (read-only). Path locked to **C (self-build)** 2026-05-29 — see Note. |
 | P4.1 | 3 | BLOCKED on P4.0 + user approval | ARAG salvage + Deep Research UI. Path **C (self-build)** per P4 path lock. |
 | P6.1 | 4 | OPEN | Full fixture drift audit. |
