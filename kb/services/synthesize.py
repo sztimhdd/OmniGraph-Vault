@@ -461,6 +461,7 @@ async def kb_synthesize(
     mode: str = "qa",
     rag: LightRAG | None = None,
     lightrag_lock: asyncio.Lock | None = None,
+    rerank_disabled: bool = False,
 ) -> None:
     """Background-task entry. Prepends lang directive, calls C1, updates job_store.
 
@@ -524,10 +525,11 @@ async def kb_synthesize(
         # written only by the kg_synthesize CLI main(), causing 3 different
         # POST /api/synthesize requests on Aliyun (2026-05-17) to return the
         # same byte-identical markdown from a 2026-05-08 rsync'd file.
+        effective_mode = "mix" if not rerank_disabled else "hybrid"
         response = await asyncio.wait_for(
             synthesize_response(
                 query_text,
-                mode="hybrid",
+                mode=effective_mode,
                 rag=rag,
                 lightrag_lock=lightrag_lock,
             ),

@@ -65,6 +65,7 @@ async def synthesize_endpoint(
         body.question, body.lang, jid, body.mode,
         request.app.state.lightrag,
         request.app.state.lightrag_lock,
+        getattr(request.app.state, "rerank_disabled", False),
     )
     return {"job_id": jid, "status": "running"}
 
