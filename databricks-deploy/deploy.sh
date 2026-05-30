@@ -17,6 +17,11 @@
 
 set -euo pipefail
 
+# IMPORTANT: This deploy is for Databricks Apps which serves at root URL
+# (https://omnigraph-kb-*/...). KB_BASE_PATH MUST stay empty (default).
+# Do NOT copy this from kb/scripts/daily_rebuild.sh which sets /kb (Aliyun
+# Caddy serves under /kb/* path prefix). See ISSUES.md #10.
+
 WORKSPACE_ROOT=/Workspace/Users/hhu@edc.ca/omnigraph-kb
 APP_NAME=omnigraph-kb
 PROFILE=dev

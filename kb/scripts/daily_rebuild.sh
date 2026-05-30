@@ -26,6 +26,11 @@ set -euo pipefail
 : "${KB_SERVE_DIR:=/var/www/kb}"            # Caddy serve root (Phase 5 rsync target)
 : "${KB_BASE_PATH:=/kb}"                    # Caddy serves under /kb/* (override "" for root deploy)
 
+# IMPORTANT: This is for Aliyun Caddy which serves under /kb/* path prefix
+# (http://101.133.154.49/kb/...). KB_BASE_PATH=/kb MUST stay set.
+# Do NOT copy this to databricks-deploy/deploy.sh which uses root deploy
+# (KB_BASE_PATH empty). See ISSUES.md #10.
+
 # Export so subprocesses (python -m kb.scripts.*, kb/export_knowledge_base.py)
 # inherit these. Without exports kb/config.py defaults take over and:
 #  - KB_DB_PATH → falls to ~/.hermes/data/kol_scan.db (nonexistent), Phase 1 fails
