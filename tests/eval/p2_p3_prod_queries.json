@@ -1,0 +1,12 @@
+[
+  {"id": 1, "question": "What is OmniGraph-Vault and how does it use LightRAG?",
+   "expected_keywords": ["lightrag", "knowledge", "graph", "hermes"]},
+  {"id": 2, "question": "How does LightRAG's mix mode differ from hybrid mode?",
+   "expected_keywords": ["mix", "hybrid", "rerank", "chunk"]},
+  {"id": 3, "question": "What changes are in v1.1 milestone roadmap waves?",
+   "expected_keywords": ["wave", "p5", "p2-3", "p4"]},
+  {"id": 4, "question": "Explain the BGE reranker integration pattern.",
+   "expected_keywords": ["bge", "reranker", "cross-encoder", "rerank_model_func"]},
+  {"id": 5, "question": "What is the Databricks Apps tmpfs cold-start behavior?",
+   "expected_keywords": ["tmpfs", "tmp", "lightrag", "hydrate", "30s"]}
+]
