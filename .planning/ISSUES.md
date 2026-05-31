@@ -3,7 +3,7 @@
 **Status:** Living document — single source of truth for known unfixed issues outside active phases.
 **Owner:** Orchestrator (main session) maintains; agents read but do not delete entries.
 **Created:** 2026-05-30
-**Last updated:** 2026-05-31 (v1.1.P2-3-perf-fix-A CLOSED — issue #21 resolved → R18; #22 perf-fix-B unblocked)
+**Last updated:** 2026-05-31 (v1.1.P2-3-perf-fix-A CLOSED — issue #21 resolved → R18; #22 perf-fix-B unblocked + HT-6 N=4 lock-break verification DEFERRED to B Track 4 UAT)
 
 ---
 
@@ -53,7 +53,7 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 | 4 | `daily-ingest.service` single-article LightRAG ainsert can run 8h+ on entity-rich articles with no upper bound. | `260530-ainsert-budget-timeout` | Wave 2 (P2-3) follow-up. Add per-article `--ainsert-timeout` budget; SIGTERM after N seconds, log + skip. |
 | 5 | `kb/wiki/_suggestions/` (W1 hook fire-and-forget output) has no review queue; suggestions accumulate without human gate. | TBD | Post-Wave-3 wiki workflow audit. Decision needed: keep W1 gate, retire it, or build review UI. |
 | 6 | `test_css_budget_within_2100` pre-existing failure — `kb/static/style.css` 2172 lines vs budget 2150. Last css change e05d597 (kb-3-qa F1+F2). | `260530-css-budget-overrun` | Two paths: trim style.css to ≤2150 (audit + remove unused tokens) or raise budget to 2200 with diff justification. NOT in P2-3 scope (SC#5 / HT-5). Filed 2026-05-30 P2-3 T4. |
-| 22 | **v1.1.P2-3-perf-fix-B Aliyun Vertex Gemini rerank parity** — A (Databricks) ships dispatcher; B adds `lib/vertex_gemini_rerank.py` Vertex helper + `lib/llm_rerank.py` vertex_gemini route + Aliyun systemd env update + Aliyun deploy + smoke. **In flight 2026-05-31** as `v1.1.P2-3-perf-fix-B` plan-phase. PLAN.md + CONTEXT.md committed; plan-checker PASS iteration 1; LoC est revised to ~+154 net (above original +65 — 7-task scope with parse-scores duplicate + integration tests + halt-and-document T6 path). | `v1.1.P2-3-perf-fix-B` | Plan-phase status: PLAN+CONTEXT ready, plan-checker PASS. Execute waiting on user trigger. |
+| 22 | **v1.1.P2-3-perf-fix-B Aliyun Vertex Gemini rerank parity** — A (Databricks) ships dispatcher; B adds `lib/vertex_gemini_rerank.py` Vertex helper + `lib/llm_rerank.py` vertex_gemini route + Aliyun systemd env update + Aliyun deploy + smoke. **In flight 2026-05-31** as `v1.1.P2-3-perf-fix-B` plan-phase. PLAN.md + CONTEXT.md committed; plan-checker PASS iteration 1; LoC est revised to ~+154 net (above original +65 — 7-task scope with parse-scores duplicate + integration tests + halt-and-document T6 path). **MUST cover HT-6 deferred from A:** N=4 concurrent /api/synthesize lock-break test (P5 contract verification) was DEFERRED in A close because Databricks Apps OAuth proxy rejects local PAT pytest with 502. Aliyun has direct SSH + uvicorn access — B Track 4 UAT MUST run N=4 lock break against deployed Aliyun kb-api and cite log evidence in B-VERIFICATION.md. | `v1.1.P2-3-perf-fix-B` | Plan-phase status: PLAN+CONTEXT ready, plan-checker PASS. Execute waiting on user trigger. |
 
 ### 🟠 P2 — Cleanup / Tech debt
 
