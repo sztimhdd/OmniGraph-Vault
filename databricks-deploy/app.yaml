@@ -105,3 +105,23 @@ env:
   # Diagnosis: .planning/quick/20260525-200047-synthesize-audit/AUDIT.md
   - name: KB_KG_SEARCH_TIMEOUT
     value: "180"
+
+  # v1.1.P2-3 Operational Escape (PLAN.md Rollback Plan line 688):
+  # BGE-v2-m3 CPU rerank on N=131 chunks (vs RESEARCH §2 N=20 assumption,
+  # 6.5x miss) takes ~160s on Databricks Apps 8GB CPU compute, exceeds
+  # KB_LIGHTRAG_INNER_TIMEOUT=150s. T6 Track 4 verified: 230s+ wall,
+  # c1_timeout=240s fired, fallback empty markdown — SC#2 FAIL.
+  #
+  # Setting BGE_FORCE_LOAD_FAIL=1 makes _build_bge_rerank() in kb/api.py
+  # return (None, False) at lifespan: app.state.reranker=None,
+  # app.state.rerank_disabled=True. kb/services/synthesize.py +
+  # kb/api_routers/search.py both branch to mode='hybrid' fallback when
+  # rerank_disabled — restores P5 baseline (~50s long_form). All P2-3
+  # code paths PRESERVED in git tree (T1-T5 atomic commits). Only this
+  # deployment env disables them.
+  #
+  # Re-enable trigger: '260530-bge-rerank-perf-fix' followup quick ships
+  # chunk truncation / batch_size / FP16 / score caching → flip env
+  # value to "0" or remove → redeploy.
+  - name: BGE_FORCE_LOAD_FAIL
+    value: "1"
