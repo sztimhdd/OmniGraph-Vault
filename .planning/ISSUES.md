@@ -3,7 +3,7 @@
 **Status:** Living document — single source of truth for known unfixed issues outside active phases.
 **Owner:** Orchestrator (main session) maintains; agents read but do not delete entries.
 **Created:** 2026-05-30
-**Last updated:** 2026-05-30 (2nd revision after `260530-gf1` doc-housekeeping)
+**Last updated:** 2026-05-31 (P2-3-perf-fix-A plan-phase close — 4 new rows queued)
 
 ---
 
@@ -42,6 +42,7 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 |---|---|---|---|
 | 1 | id=24 (and 11 other rows) `body=''` permanently untranslatable — translate cron SQL filter `body != ''` skips them. They have `layer2_verdict='ok'` so DATA-07 still surfaces them on KB pages with original-only text. | `260530-id24-body-empty-cleanup` | 12 stuck rows total (~3.9% of 310 layer2='ok'). Either backfill body via re-scrape or flip verdict to 'reject'. Filed 2026-05-30 P2-3 prep. |
 | 2 | Vertex 429 RESOURCE_EXHAUSTED on Layer 1 batch 4 burst (30 articles stay NULL classification). | `260530-vertex-burst-isolation` | Daily-ingest auto-retries next cron. Watch for chronic accumulation; if persistent across 3+ days, isolate to its own GCP project. Filed 2026-05-30. |
+| 21 | **P2-3 reranker DEPLOYED-DISABLED** (BGE_FORCE_LOAD_FAIL=1 in app.yaml). Re-enable trigger = ship `v1.1.P2-3-perf-fix-A` (LLM-as-reranker via Databricks Haiku batch JSON). PLAN+RESEARCH committed 2026-05-31; execute pending. | `v1.1.P2-3-perf-fix-A` | Plan-phase status: PLAN+RESEARCH ready, plan-checker FLAG (PASS w/ 6 recs); execute waiting on user trigger. SC#3 token-overlap NOT MEASURABLE until A ships. P5 baseline preserved meanwhile. |
 
 ### 🟡 P1 — Important but not blocking
 
@@ -51,6 +52,7 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 | 4 | `daily-ingest.service` single-article LightRAG ainsert can run 8h+ on entity-rich articles with no upper bound. | `260530-ainsert-budget-timeout` | Wave 2 (P2-3) follow-up. Add per-article `--ainsert-timeout` budget; SIGTERM after N seconds, log + skip. |
 | 5 | `kb/wiki/_suggestions/` (W1 hook fire-and-forget output) has no review queue; suggestions accumulate without human gate. | TBD | Post-Wave-3 wiki workflow audit. Decision needed: keep W1 gate, retire it, or build review UI. |
 | 6 | `test_css_budget_within_2100` pre-existing failure — `kb/static/style.css` 2172 lines vs budget 2150. Last css change e05d597 (kb-3-qa F1+F2). | `260530-css-budget-overrun` | Two paths: trim style.css to ≤2150 (audit + remove unused tokens) or raise budget to 2200 with diff justification. NOT in P2-3 scope (SC#5 / HT-5). Filed 2026-05-30 P2-3 T4. |
+| 22 | **v1.1.P2-3-perf-fix-B Aliyun Vertex Gemini rerank parity** — A (Databricks) ships dispatcher; B adds `lib/vertex_gemini_rerank.py` Vertex helper + `lib/llm_rerank.py` vertex_gemini route + Aliyun systemd env update + Aliyun deploy + smoke. ~+65 LoC est. Until B ships, Aliyun retains P5 baseline mode='hybrid' (no parity break, but feature asymmetry). | `v1.1.P2-3-perf-fix-B` | Filed 2026-05-31 P2-3-perf-fix-A plan-phase. Triggered when A closes successfully. |
 
 ### 🟠 P2 — Cleanup / Tech debt
 
@@ -60,6 +62,8 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 | 8 | `databricks-deploy/_aliyun_pull/` ~4.4 GB local sync residue from manual sync runs. | TBD | gc; can re-pull on next sync. .databricksignore already covers it. |
 | 9 | `.scratch/sync-to-databricks-*.log` (2 files) + `.scratch/databricks-deploy-*.log` accumulating in scratch. | TBD | gitignored; opportunistic local cleanup. |
 | 11 | `.planning/STATE.md` "Quick Tasks Completed" table style inconsistent — early entries are 1000+ char single-line dumps; recent (260530-d8j, 260530-gf1) entries use concise multi-line summary. | TBD | Decide canonical format and either reformat history or leave drift annotation. |
+| 23 | **Trim `sentence-transformers` + `torch` from requirements files** after `v1.1.P2-3-perf-fix-B` closes. Saves ~1.2 GB deploy + faster pip install. Currently retained in `requirements.txt` + `databricks-deploy/requirements.txt` for Rollback Plan #4 (partial revert path keeps BGE wrapper restorable). Cleanup, not blocking. | TBD (post-B) | Filed 2026-05-31 P2-3-perf-fix-A RESEARCH §8. Surgical Changes principle delays this trim until rollback option no longer needed. |
+| 24 | **Markdown lint cleanup** — `.planning/phases/v1.1-roadmap/P2-3-perf-fix-A/PLAN.md` + several other planning files have MD022/MD031/MD032 (heading/list/fence blank-line) + MD060 (table-pipe-spacing) warnings. Cosmetic; lint never enforced repo-wide. | TBD | Opportunistic cleanup. Filed 2026-05-31. |
 
 ### 🟢 P3 — Future scope (parked)
 
