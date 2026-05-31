@@ -95,13 +95,13 @@
           <span class="meta-dot">·</span>
           <span>{{ article.update_time | humanize(lang) }}</span>
         </div>
-        {# kb-v2.2-x: dual-span title + snippet — falls back to original when *_translated IS NULL #}
+        {# 260530-card-render-direction-fix: title_zh/title_en pre-paired in Python by effective source lang #}
         <h3 class="article-card-title">
-          <span data-lang="zh">{{ article.title }}</span><span data-lang="en">{{ article.title_translated or article.title }}</span>
+          <span data-lang="zh">{{ article.title_zh }}</span><span data-lang="en">{{ article.title_en }}</span>
         </h3>
         {% if article.snippet %}
         <p class="article-card-snippet">
-          <span data-lang="zh">{{ article.snippet }}</span><span data-lang="en">{{ article.snippet_translated or article.snippet }}</span>
+          <span data-lang="zh">{{ article.snippet_zh }}</span><span data-lang="en">{{ article.snippet_en }}</span>
         </p>
         {% endif %}
         <span class="article-card-readmore">

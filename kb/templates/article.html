@@ -65,14 +65,14 @@
           <span data-lang="zh">{{ 'breadcrumb.articles' | t('zh-CN') }}</span><span data-lang="en">{{ 'breadcrumb.articles' | t('en') }}</span>
         </a>
         {{ icon('chevron-right', size=14, cls='breadcrumb__sep') }}
-        {# kb-images-fix 260522 Postmortem #9: dual-span breadcrumb mirrors h1 pattern (article.title_translated may be empty → fall back to article.title for mixed-language display per locked decision A4). #}
-        <span class="breadcrumb__current"><span data-lang="zh">{{ article.title }}</span><span data-lang="en">{{ article.title_translated or article.title }}</span></span>
+        {# 260530-card-render-direction-fix: title_zh/title_en pre-paired in Python by effective source lang. #}
+        <span class="breadcrumb__current"><span data-lang="zh">{{ article.title_zh }}</span><span data-lang="en">{{ article.title_en }}</span></span>
       </nav>
 
       <header class="article-header">
-        {# kb-v2.2-7: dual-span h1 — site language drives visibility via [data-lang] CSS rules #}
+        {# 260530-card-render-direction-fix: title_zh/title_en pre-paired in Python by effective source lang. #}
         <h1>
-          <span data-lang="zh">{{ article.title }}</span><span data-lang="en">{{ article.title_translated or article.title }}</span>
+          <span data-lang="zh">{{ article.title_zh }}</span><span data-lang="en">{{ article.title_en }}</span>
         </h1>
         {# I18N-06 visible content lang badge — emits as the FIXED content lang #}
         <div class="article-meta">
@@ -120,17 +120,15 @@
          (style.css:343+). When article.body_translated IS NULL, the en sibling falls
          back to body_html — mixed-language display is acceptable per locked decision A4. #}
       <div class="article-detail-layout">
+        {# 260530-card-render-direction-fix: body_zh_html / body_en_html pre-paired
+           in Python by effective source lang. EN-source articles get raw English
+           on the en side and Chinese translation on the zh side. Parens around
+           |safe preserved per kb-images-fix 2026-05-21. #}
         <article class="article-body lang-block" data-lang="zh">
-          {{ body_html | safe }}
+          {{ body_zh_html | safe }}
         </article>
         <article class="article-body lang-block" data-lang="en">
-          {# kb-images-fix 2026-05-21: parens around (or) ensure |safe applies
-             to the SELECTED branch. Without parens, Jinja parses as
-             `translated_body_html or (body_html | safe)` — when
-             translated_body_html is a non-empty HTML string, it bypasses
-             |safe and Jinja auto-escapes <p>/<img> tags into &lt;p&gt;/&lt;img&gt;,
-             rendering body as literal HTML markup text. #}
-          {{ (translated_body_html or body_html) | safe }}
+          {{ body_en_html | safe }}
         </article>
 
         {% if related_entities or related_topics %}

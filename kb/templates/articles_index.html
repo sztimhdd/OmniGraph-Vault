@@ -92,14 +92,13 @@
         <span data-lang="zh">{{ article.update_time | humanize('zh-CN') }}</span><span data-lang="en">{{ article.update_time | humanize('en') }}</span>
       </span>
     </div>
-    {# kb-v2.2-7: dual-span card title — falls back to original when title_translated IS NULL #}
+    {# 260530-card-render-direction-fix: title_zh/title_en pre-paired in Python by effective source lang #}
     <h3 class="article-card-title">
-      <span data-lang="zh">{{ article.title }}</span><span data-lang="en">{{ article.title_translated or article.title }}</span>
+      <span data-lang="zh">{{ article.title_zh }}</span><span data-lang="en">{{ article.title_en }}</span>
     </h3>
     {% if article.snippet %}
-    {# kb-v2.2-x: dual-span snippet — falls back to original when snippet_translated IS NULL #}
     <p class="article-card-snippet">
-      <span data-lang="zh">{{ article.snippet }}</span><span data-lang="en">{{ article.snippet_translated or article.snippet }}</span>
+      <span data-lang="zh">{{ article.snippet_zh }}</span><span data-lang="en">{{ article.snippet_en }}</span>
     </p>
     {% endif %}
     <span class="article-card-readmore">

@@ -337,6 +337,43 @@ def _canonical_lang(lang: str | None) -> str:
     return lang
 
 
+def _effective_source_lang(canonical_lang: str, source: str | None) -> str:
+    """260530-card-render-direction-fix: resolve a record's *source* language for
+    bilingual card / detail / breadcrumb dispatch.
+
+    Bug context: templates previously hard-assumed `article.title` is Chinese and
+    `article.title_translated` is English. RSS English sources (lang='en',
+    translated_lang='zh-CN') violated this — EN site showed the Chinese
+    translation, zh-CN site showed the English raw.
+
+    Fix: derive an effective source-language ('zh-CN' or 'en'); the Python
+    layer pairs raw/translated into title_zh/title_en accordingly so templates
+    just read derived fields.
+
+    'unknown' (1426 rows in Aliyun prod, mostly RSS) falls back by source per
+    user decision 260530: rss→en, wechat→zh-CN, anything else→zh-CN. Right
+    >99% of the time, never silently flips a confident lang.
+    """
+    if canonical_lang == "zh-CN" or canonical_lang == "en":
+        return canonical_lang
+    if (source or "") == "rss":
+        return "en"
+    return "zh-CN"
+
+
+def _localize_pair(
+    raw: Any, translated: Any, effective_lang: str
+) -> tuple[Any, Any]:
+    """Pair raw + translated values into (zh_value, en_value) by effective_lang.
+
+    Preserves the legacy fallback shape (`translated or raw`) on the
+    translation side so untranslated rows still render gracefully.
+    """
+    if effective_lang == "en":
+        return (translated or raw, raw)
+    return (raw, translated or raw)
+
+
 def _record_to_dict(
     rec: ArticleRecord,
     url_hash: str,
@@ -349,26 +386,41 @@ def _record_to_dict(
     `reading_time` (minutes) for card / detail rendering. Pass None when these
     fields are not needed (sitemap / url-index path).
     """
+    canonical = _canonical_lang(rec.lang)
+    effective = _effective_source_lang(canonical, rec.source)
+    title_zh, title_en = _localize_pair(rec.title, rec.title_translated, effective)
     out: dict[str, Any] = {
         "id": rec.id,
         "title": rec.title,
         # kb-v2.2-7: surface translated title for dual-span card rendering;
         # template falls back to `article.title` when this is None.
         "title_translated": rec.title_translated,
+        # 260530-card-render-direction-fix: pre-paired title for bilingual SSG.
+        # Templates read these instead of branching on lang inline.
+        "title_zh": title_zh,
+        "title_en": title_en,
+        "effective_source_lang": effective,
         "url_hash": url_hash,
         "url": rec.url,
-        "lang": _canonical_lang(rec.lang),
+        "lang": canonical,
         "source": rec.source,
         "update_time": rec.update_time,
         "publish_time": rec.publish_time,
     }
     if body_md is not None:
-        out["snippet"] = _make_snippet(body_md)
-        out["reading_time"] = _estimate_reading_time(body_md)
+        snippet_raw = _make_snippet(body_md)
         translated_body_md = rewrite_translated_body(pick_translated_body(rec))
-        out["snippet_translated"] = (
+        snippet_translated = (
             _make_snippet(translated_body_md) if translated_body_md else None
         )
+        snippet_zh, snippet_en = _localize_pair(
+            snippet_raw, snippet_translated, effective
+        )
+        out["snippet"] = snippet_raw
+        out["reading_time"] = _estimate_reading_time(body_md)
+        out["snippet_translated"] = snippet_translated
+        out["snippet_zh"] = snippet_zh
+        out["snippet_en"] = snippet_en
     return out
 
 
@@ -454,6 +506,13 @@ def render_article_detail(
     article_dict = _record_to_dict(rec, url_hash, body_md=body_md)
     article_dict["body_source"] = body_source
 
+    # 260530-card-render-direction-fix: pair body HTML by effective source lang
+    # so EN-source articles render English raw on the en site and Chinese
+    # translation on the zh site (and vice versa for zh-CN sources).
+    body_zh_html, body_en_html = _localize_pair(
+        body_html, translated_body_html, article_dict["effective_source_lang"]
+    )
+
     related_entities: list[dict[str, Any]] = []
     related_topics: list[dict[str, Any]] = []
     if conn is not None:
@@ -487,6 +546,9 @@ def render_article_detail(
         # pattern in template consumes this; None lets the `or body_html`
         # Jinja fallback render zh content into the en sibling.
         "translated_body_html": translated_body_html,
+        # 260530-card-render-direction-fix: pre-paired body HTML by source lang.
+        "body_zh_html": body_zh_html,
+        "body_en_html": body_en_html,
         "og": _build_og(article_dict, body_html),
         "page_url": f"{config.KB_BASE_PATH}/articles/{url_hash}.html",
         "json_ld": _build_json_ld(article_dict),
