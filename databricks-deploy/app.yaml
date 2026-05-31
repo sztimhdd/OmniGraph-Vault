@@ -106,22 +106,27 @@ env:
   - name: KB_KG_SEARCH_TIMEOUT
     value: "180"
 
-  # v1.1.P2-3 Operational Escape (PLAN.md Rollback Plan line 688):
-  # BGE-v2-m3 CPU rerank on N=131 chunks (vs RESEARCH §2 N=20 assumption,
-  # 6.5x miss) takes ~160s on Databricks Apps 8GB CPU compute, exceeds
-  # KB_LIGHTRAG_INNER_TIMEOUT=150s. T6 Track 4 verified: 230s+ wall,
-  # c1_timeout=240s fired, fallback empty markdown — SC#2 FAIL.
-  #
-  # Setting BGE_FORCE_LOAD_FAIL=1 makes _build_bge_rerank() in kb/api.py
-  # return (None, False) at lifespan: app.state.reranker=None,
-  # app.state.rerank_disabled=True. kb/services/synthesize.py +
-  # kb/api_routers/search.py both branch to mode='hybrid' fallback when
-  # rerank_disabled — restores P5 baseline (~50s long_form). All P2-3
-  # code paths PRESERVED in git tree (T1-T5 atomic commits). Only this
-  # deployment env disables them.
-  #
-  # Re-enable trigger: '260530-bge-rerank-perf-fix' followup quick ships
-  # chunk truncation / batch_size / FP16 / score caching → flip env
-  # value to "0" or remove → redeploy.
-  - name: BGE_FORCE_LOAD_FAIL
-    value: "1"
+  # v1.1.P2-3-perf-fix-A: LLM-as-reranker (Databricks Haiku batch JSON).
+  # Replaces P2-3 BGE-v2-m3 in-process cross-encoder (eliminated CPU rerank
+  # latency root cause: ~160s on N=131 chunks at 8GB CPU). The reranker is
+  # now a 1-call Haiku batch JSON over top-30 chunks (~6K-token prompt,
+  # ~5-15s wall). Provider dispatch via lib/llm_rerank.py mirrors
+  # lib/llm_complete.py pattern. See P2-3-perf-fix-A-VERIFICATION.md.
+  - name: OMNIGRAPH_LLM_RERANK_PROVIDER
+    value: "databricks_serving"
+
+  - name: OMNIGRAPH_LLM_RERANK_MODEL
+    value: "databricks-claude-haiku-4-5"
+
+  - name: OMNIGRAPH_LLM_RERANK_TOP_K
+    value: "30"
+
+  - name: OMNIGRAPH_LLM_RERANK_TIMEOUT
+    value: "20"
+
+  # SC#6: graceful degrade env. Set to "1" to disable rerank at runtime
+  # without code change (KG paths fall back to mode='hybrid', P5 baseline).
+  # Legacy BGE_FORCE_LOAD_FAIL is also honored by kb/api.py:_build_llm_rerank
+  # for rollback compat (deprecated post-A; remove in v1.2).
+  # - name: OMNIGRAPH_LLM_RERANK_FORCE_FAIL
+  #   value: "0"
