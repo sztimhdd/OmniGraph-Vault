@@ -3,7 +3,7 @@
 **Status:** Living document — single source of truth for known unfixed issues outside active phases.
 **Owner:** Orchestrator (main session) maintains; agents read but do not delete entries.
 **Created:** 2026-05-30
-**Last updated:** 2026-05-31 (P2-3-perf-fix-B plan-phase opened — issue #22 marked In flight)
+**Last updated:** 2026-05-31 (v1.1.P2-3-perf-fix-A CLOSED — issue #21 resolved → R18; #22 perf-fix-B unblocked)
 
 ---
 
@@ -42,7 +42,8 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 |---|---|---|---|
 | 1 | id=24 (and 11 other rows) `body=''` permanently untranslatable — translate cron SQL filter `body != ''` skips them. They have `layer2_verdict='ok'` so DATA-07 still surfaces them on KB pages with original-only text. | `260530-id24-body-empty-cleanup` | 12 stuck rows total (~3.9% of 310 layer2='ok'). Either backfill body via re-scrape or flip verdict to 'reject'. Filed 2026-05-30 P2-3 prep. |
 | 2 | Vertex 429 RESOURCE_EXHAUSTED on Layer 1 batch 4 burst (30 articles stay NULL classification). | `260530-vertex-burst-isolation` | Daily-ingest auto-retries next cron. Watch for chronic accumulation; if persistent across 3+ days, isolate to its own GCP project. Filed 2026-05-30. |
-| 21 | **P2-3 reranker DEPLOYED-DISABLED** (BGE_FORCE_LOAD_FAIL=1 in app.yaml). Re-enable trigger = ship `v1.1.P2-3-perf-fix-A` (LLM-as-reranker via Databricks Haiku batch JSON). PLAN+RESEARCH committed 2026-05-31; execute pending. | `v1.1.P2-3-perf-fix-A` | Plan-phase status: PLAN+RESEARCH ready, plan-checker FLAG (PASS w/ 6 recs); execute waiting on user trigger. SC#3 token-overlap NOT MEASURABLE until A ships. P5 baseline preserved meanwhile. |
+
+<!-- Issue #21 resolved 2026-05-31 — see Resolved (recent) row R18 below. -->
 
 ### 🟡 P1 — Important but not blocking
 
@@ -103,6 +104,7 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 | R15 | `databricks-deploy/deploy.sh` (Databricks deploy) and `kb/scripts/daily_rebuild.sh` (Aliyun) had asymmetric `KB_BASE_PATH` requirement (Databricks empty, Aliyun `/kb`) undocumented; future readers would copy one into the other. | 2026-05-30 | `1a1e31d` | `260530-gf1` |
 | R16 | `databricks-deploy/_ssg/` build artifact path confusing (suggests committed source, actually gitignored). | 2026-05-30 | `758e21b` (`databricks-deploy/_ssg/.README.md` written) | `260530-gf1` |
 | R17 | Memory `aliyun_drift_recovery_260528_lessons.md` Lesson 1 v3 + v4 wording overlap (same root mechanism: systemd `Requires=` cascade described twice). | 2026-05-30 | (out-of-tree memory file edit, no repo commit) | `260530-gf1` |
+| R18 | **P2-3 reranker DEPLOYED-DISABLED** (BGE_FORCE_LOAD_FAIL=1 escape) — replaced with LLM-as-reranker (Databricks Haiku batch JSON). All 6 SC PASS on `01f15d1bcce2189db0557d701a97bf9f`: cold-start 28.15s, qa_seed mean 59.43s, prod-batch 21.07s, token-overlap 1.00 perfect, graceful-degrade verified, kb/static+templates 0 touches, legacy BGE env retained for rollback compat. | 2026-05-31 | `6feb210` `c257c64` `a26ea01` `664c14c` `b8f3baf` + T6 | `v1.1.P2-3-perf-fix-A` |
 
 ---
 
