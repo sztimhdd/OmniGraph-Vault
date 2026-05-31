@@ -46,59 +46,44 @@ _APP_VERSION = "2.0.0"
 
 _log = logging.getLogger(__name__)
 
-_BGE_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
-_BGE_MAX_LENGTH = 1024
 
+def _build_llm_rerank() -> tuple[Callable[..., object] | None, bool]:
+    """Build LightRAG-compatible async rerank function via lib/llm_rerank dispatcher.
 
-def _build_bge_rerank() -> tuple[Callable[..., object] | None, bool]:
-    """Load BGE-reranker-v2-m3 cross-encoder and return (async-rerank-func, ok-flag).
+    Returns (rerank_func, ok_flag). ok=False signals graceful degrade
+    (KG paths fall back to mode='hybrid' via app.state.rerank_disabled).
 
-    Returns (None, False) on any load failure so caller can wire graceful degrade.
-    Honors BGE_FORCE_LOAD_FAIL=1 env override for SC#4 testing.
+    Honors OMNIGRAPH_LLM_RERANK_FORCE_FAIL=1 env override for SC#4 testing.
+    Also honors legacy BGE_FORCE_LOAD_FAIL=1 (P2-3 escape compat).
     """
-    if os.environ.get("BGE_FORCE_LOAD_FAIL") == "1":
-        _log.warning("bge_load_force_fail (test override)")
+    if (os.environ.get("OMNIGRAPH_LLM_RERANK_FORCE_FAIL") == "1"
+            or os.environ.get("BGE_FORCE_LOAD_FAIL") == "1"):
+        _log.warning("llm_rerank_force_fail (test/escape override)")
         return None, False
     t0 = time.monotonic()
-    _log.warning("bge_load_start model=%s", _BGE_MODEL_NAME)
+    _log.warning("llm_rerank_init_start")
     try:
-        from sentence_transformers import CrossEncoder
-        cache = os.environ.get("BGE_CACHE_DIR") or None
-        model = CrossEncoder(
-            _BGE_MODEL_NAME,
-            max_length=_BGE_MAX_LENGTH,
-            device="cpu",
-            cache_folder=cache,
+        from lib.llm_rerank import get_rerank_func
+        func, ok = get_rerank_func()
+        if not ok:
+            _log.warning("llm_rerank_init_disabled (provider returned no-op)")
+            return None, False
+        _log.warning(
+            "llm_rerank_init_ok provider=%s wall_s=%.2f",
+            os.environ.get("OMNIGRAPH_LLM_RERANK_PROVIDER", "databricks_serving"),
+            time.monotonic() - t0,
         )
+        return func, True
     except Exception as exc:  # noqa: BLE001 — graceful degrade
-        _log.warning("bge_load_failed err=%s", exc)
+        _log.warning("llm_rerank_init_failed err=%s", exc)
         return None, False
-
-    async def _bge_rerank(
-        query: str,
-        documents: list[str],
-        top_n: int | None = None,
-    ) -> list[dict]:
-        pairs = [[query, d] for d in documents]
-        scores = await asyncio.to_thread(
-            model.predict, pairs,
-            batch_size=32, show_progress_bar=False,
-        )
-        ranked = sorted(
-            ({"index": i, "relevance_score": float(s)} for i, s in enumerate(scores)),
-            key=lambda r: r["relevance_score"], reverse=True,
-        )
-        return ranked[:top_n] if top_n else ranked
-
-    _log.warning("bge_loaded wall_s=%.2f", time.monotonic() - t0)
-    return _bge_rerank, True
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     t0 = time.monotonic()
     _log.warning("lightrag_singleton_init_start working_dir=%s", RAG_WORKING_DIR)
-    rerank_func, rerank_ok = _build_bge_rerank()
+    rerank_func, rerank_ok = _build_llm_rerank()
     app.state.reranker = rerank_func
     app.state.rerank_disabled = not rerank_ok
     rag = LightRAG(
