@@ -398,10 +398,15 @@ async def get_rag(flush: bool = True) -> "LightRAG":
         # async limits reduce the per-article merge wall from ~40 min → ~5-10.
         # lib/lightrag_embedding.py serial loop (207) and graphml/vdb full
         # rewrites remain the super-linear ceiling — see 2026-05-04 audit.
-        embedding_func_max_async=4,
+        # 260601-ipo: halved from 4/4/3 to 2/2/2 after Aliyun OOM postmortem.
+        # 4 OOM-kills / 24h on 6/1 (anon-rss peak 11 GB on 15 GB ECS); each
+        # async worker holds vdb context (~1-2 GB for 31776×3072 entities).
+        # Halving cuts peak RAM ~40-50% with proportional throughput drop.
+        # Pair with systemd MemoryMax=4G (deploy/aliyun/systemd/*ingest.service).
+        embedding_func_max_async=2,
         embedding_batch_num=64,
-        llm_model_max_async=4,
-        max_parallel_insert=3,
+        llm_model_max_async=2,
+        max_parallel_insert=2,
         addon_params={"insert_batch_size": 100},
     )
     if hasattr(rag, "initialize_storages"):

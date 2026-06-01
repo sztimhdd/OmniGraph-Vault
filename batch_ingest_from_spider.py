@@ -21,6 +21,7 @@ Deepseek. Full pipeline now uses Deepseek for LLM, Gemini only for embeds.
 import argparse
 import asyncio
 import contextlib
+import gc
 import hashlib
 import json
 import logging
@@ -431,6 +432,12 @@ async def ingest_article(
         logger.warning("Ingest failed (%s): %s — skipping: %s",
                        exc.__class__.__name__, exc, url[:80])
         return False, wall, False
+    finally:
+        # 260601-ipo: force-collect at per-article boundary to reclaim vdb /
+        # chunk / entity context held by LightRAG async workers. Aliyun OOM
+        # postmortem (6/1) showed RAM growing 4→11 GB across batch without GC.
+        # Cheap (~tens of ms) — safe to run on every path including timeout.
+        gc.collect()
 
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"

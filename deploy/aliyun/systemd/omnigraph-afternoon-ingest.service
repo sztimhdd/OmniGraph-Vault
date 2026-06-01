@@ -2,6 +2,7 @@
 Description=OmniGraph afternoon ingest 14:00 ADT (17:00 UTC)
 After=network-online.target
 Wants=network-online.target
+Conflicts=omnigraph-daily-ingest.service omnigraph-evening-ingest.service
 
 [Service]
 Type=simple
@@ -9,8 +10,13 @@ User=root
 WorkingDirectory=/root/OmniGraph-Vault
 EnvironmentFile=/root/.hermes/.env
 TimeoutStartSec=300
+MemoryHigh=3G
+MemoryMax=4G
+OOMScoreAdjust=500
+Restart=on-failure
+RestartSec=10min
 ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed
-ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 5
+ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10
 StandardOutput=journal
 StandardError=journal
 
