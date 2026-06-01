@@ -157,6 +157,15 @@
         a.setAttribute('href', base + '/articles/' + hash + '.html');
         a.setAttribute('target', '_blank');
         a.setAttribute('rel', 'noopener');
+        // Inline citations should be footnote-style — long article titles
+        // as link labels make the prose unreadable. Truncate to short hash
+        // when label is verbose (>20 chars). SOURCES chips below the answer
+        // body already display full titles, so we don't lose any info.
+        var labelText = (a.textContent || '').trim();
+        if (labelText.length > 20) {
+          a.textContent = '[' + hash.slice(0, 6) + ']';
+          a.className = (a.className ? a.className + ' ' : '') + 'qa-inline-cite';
+        }
         dbg.kept++;
       } else {
         var span = document.createElement('span');

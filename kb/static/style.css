@@ -2112,6 +2112,17 @@ html[lang="en"] .article-card--zh-only {
   cursor: default;
   opacity: 0.7;
 }
+/* Inline article citations whose label was a long article title. Truncated
+   to [hash6] footnote style by qa.js so prose stays readable; full titles
+   live in the SOURCES chip block below the answer. */
+.qa-inline-cite {
+  font-size: 0.85em;
+  text-decoration: none;
+  margin: 0 0.1em;
+  opacity: 0.85;
+  vertical-align: baseline;
+}
+.qa-inline-cite:hover { text-decoration: underline; opacity: 1; }
 .qa-sources, .qa-entities { margin-top: 1.75rem; }
 .qa-sources-title, .qa-entities-title {
   font-size: 0.8125rem;
