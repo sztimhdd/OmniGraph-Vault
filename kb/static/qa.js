@@ -225,52 +225,42 @@
       }
       return null;
     }
-    // Collect every References-like section + its trailing siblings.
-    // Score each by anchor count (links pointing to /articles/<hash>.html).
-    // Keep the highest-scoring one — LLM commonly emits a disclaimer/no-link
-    // version alongside the real link list, and we want the link list.
-    var refSections = [];
+    // Strip ALL LLM-emitted References sections from the answer body.
+    // Both providers emit unreliable References — Claude duplicates the
+    // section 2-3x with broken links; DeepSeek emits non-article entity
+    // names that resolve to nothing. The page already renders verified
+    // SOURCES chips below the answer body (.qa-sources-list, populated
+    // from data.result.sources by renderSources()). Keeping the LLM
+    // version adds noise without value.
+    var refSectionCount = 0;
     var ch = rootEl.children;
+    // Walk children once collecting reference sections (heading + content
+    // until next heading), then remove. Iterate via a fresh snapshot since
+    // we'll mutate `rootEl.children` mid-loop.
+    var toSweep = [];
     for (var ci = 0; ci < ch.length; ci++) {
       var info = headingLike(ch[ci]);
-      if (info && isReferenceText(info.text)) {
-        var startNode = ch[ci];
-        var sectLevel = info.level;
-        var members = [startNode];
-        var sib = startNode.nextElementSibling;
-        while (sib) {
-          var sibInfo = headingLike(sib);
-          if (sibInfo && sibInfo.level <= sectLevel) break;
-          members.push(sib);
-          sib = sib.nextElementSibling;
-        }
-        var linkCount = 0;
-        for (var mm = 0; mm < members.length; mm++) {
-          var qel = members[mm];
-          if (qel && qel.querySelectorAll) {
-            linkCount += qel.querySelectorAll('a[href*="/articles/"]').length;
-          }
-        }
-        refSections.push({ members: members, linkCount: linkCount });
+      if (!info || !isReferenceText(info.text)) continue;
+      refSectionCount++;
+      var startNode = ch[ci];
+      var sectLevel = info.level;
+      var members = [startNode];
+      var sib = startNode.nextElementSibling;
+      while (sib) {
+        var sibInfo = headingLike(sib);
+        if (sibInfo && sibInfo.level <= sectLevel) break;
+        members.push(sib);
+        sib = sib.nextElementSibling;
+      }
+      toSweep.push(members);
+    }
+    for (var ts = 0; ts < toSweep.length; ts++) {
+      var sweep = toSweep[ts];
+      for (var sn = 0; sn < sweep.length; sn++) {
+        if (sweep[sn].parentNode) sweep[sn].parentNode.removeChild(sweep[sn]);
       }
     }
-    if (refSections.length > 1) {
-      // Tie-break: keep LAST section with max linkCount (LLM tends to put
-      // structured link list at the very end).
-      var bestIdx = 0;
-      for (var bb = 1; bb < refSections.length; bb++) {
-        if (refSections[bb].linkCount >= refSections[bestIdx].linkCount) {
-          bestIdx = bb;
-        }
-      }
-      for (var rs = 0; rs < refSections.length; rs++) {
-        if (rs === bestIdx) continue;
-        var sweep = refSections[rs].members;
-        for (var sn = 0; sn < sweep.length; sn++) {
-          if (sweep[sn].parentNode) sweep[sn].parentNode.removeChild(sweep[sn]);
-        }
-      }
-    }
+    console.log('[qa.js] reference sections stripped:', refSectionCount);
     // <img src> rewrite + data:image placeholder cleanup
     var imgs = rootEl.querySelectorAll('img');
     for (var j = 0; j < imgs.length; j++) {
