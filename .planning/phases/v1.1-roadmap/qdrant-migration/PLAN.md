@@ -81,7 +81,7 @@ A single Aliyun kb-api restart applies three changes together (Qdrant cutover + 
 | SC-1 | Qdrant docker running on Aliyun, bound `127.0.0.1:6333`, `restart=always`, volume `/var/lib/qdrant:/qdrant/storage`. | `ssh aliyun-vitaclaw "docker ps --filter name=qdrant --format '{{.Status}}'"` starts with `Up`; `ssh aliyun-vitaclaw "curl -s http://127.0.0.1:6333/healthz"` returns 200. |
 | SC-2 | LightRAG `vector_storage` env-driven via `OMNIGRAPH_VECTOR_STORAGE` (`qdrant` \| `nanovectordb`; default `nanovectordb`); wired inline in 3 sites: `ingest_wechat.py:392`, `kb/api.py:89`, `kg_synthesize.py:155`. P5 lock contract preserved at `kg_synthesize.py:221-226`. | `grep -c 'OMNIGRAPH_VECTOR_STORAGE' ingest_wechat.py kb/api.py kg_synthesize.py` ≥ 3; each grep hit precedes a conditional `vector_storage="QdrantVectorDBStorage"` kwarg in the LightRAG ctor (verified by `grep -nB1 -A3 'OMNIGRAPH_VECTOR_STORAGE'` showing the conditional shape); `grep -n 'async with lightrag_lock' kg_synthesize.py` returns line 222 unchanged. |
 | SC-3 | Aliyun re-ingest of 252 articles populates Qdrant collections in 6 batches × ≤ 50 articles (WeChat throttle floor) over 3-5 days. | `ssh aliyun-vitaclaw "venv-aim1/bin/python -c 'from qdrant_client import QdrantClient; c=QdrantClient(url=\"http://127.0.0.1:6333\"); print(c.get_collections())'"` lists chunks/entities/relationships namespaces; chunks count ≥ 252; sqlite `kol_scan.db` `ingestions.last_ingested_at` updated for the 252 article ids. |
-| SC-4 | `scripts/qdrant_to_nanovdb.py` (~150-200 LoC) scrolls all Qdrant collections, writes atomic `.tmp+os.replace` `vdb_*.json` matching `{embedding_dim, data:[…], matrix:[…]}` schema, with embedding-dim guard + roundtrip-count smoke. | `wc -l scripts/qdrant_to_nanovdb.py` between 100 and 250; `python -c "from scripts.qdrant_to_nanovdb import export_collection_to_nanovdb"` imports clean; `pytest tests/unit/test_qdrant_to_nanovdb.py -x` exits 0 (asserts: 5-point fixture → output JSON has `embedding_dim==3072`, `len(data)==5`, `len(matrix)==5`, `data[0]["__id__"]` round-trips). |
+| SC-4 | `scripts/qdrant_to_nanovdb.py` (~150-250 LoC) scrolls all Qdrant collections, writes atomic `.tmp+os.replace` `vdb_*.json` matching the real nano_vectordb on-disk schema `{embedding_dim, data:[…], matrix:"<base64-float32-buffer-string>"}` (NOT list-of-lists — see T2 action), with embedding-dim guard + roundtrip-count smoke. | `wc -l scripts/qdrant_to_nanovdb.py` between 100 and 350; `python -c "from scripts.qdrant_to_nanovdb import export_collection_to_nanovdb"` imports clean; `pytest tests/unit/test_qdrant_to_nanovdb.py -x` exits 0. Asserts include: (4a) 5-point fixture → output JSON has `embedding_dim==<test-dim>`, `len(data)==5`, `data[0]["__id__"]` round-trips, output `matrix` field is `str` (not `list`); (4b) **NanoVectorDB roundtrip** — `NanoVectorDB(embedding_dim=<test-dim>, storage_file=output_path)` instantiates without TypeError AND `len(getattr(vdb, "_NanoVectorDB__storage")["data"]) == 5` (real consumer-side hydrate contract). |
 | SC-5 | `deploy/aliyun/systemd/qdrant-snapshot.{service,timer}` deployed on Aliyun, cadence `OnUnitActiveSec=6h`, `WantedBy=timers.target`. | `ssh aliyun-vitaclaw "systemctl list-timers --all qdrant-snapshot.timer"` shows enabled + next-fire ≤ 6 h; `ssh aliyun-vitaclaw "journalctl -u qdrant-snapshot.service --since '12h ago'"` shows ≥ 1 successful run with marker `qdrant_snapshot_ok files_written=3 wall_s=…`. |
 | SC-6 | `scripts/sync_to_databricks.sh` carries fresh `vdb_*.json` to Databricks (Step 3 tarball already covers `lightrag_storage/`; only added comment + version stamp — no functional change). | `git diff` on `scripts/sync_to_databricks.sh` shows only comment + echo-banner changes; first post-cutover sync run uploads new `vdb_*.json` to UC Volume; `databricks fs ls dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/lightrag_storage/ --profile dev` shows freshly-dated files. |
 | SC-7 | Aliyun `/etc/systemd/system/kb-api.service.d/override.conf` appended with `OMNIGRAPH_VECTOR_STORAGE=qdrant` + 4 `OMNIGRAPH_LLM_RERANK_*` lines (folded from #26). | `ssh aliyun-vitaclaw "cat /etc/systemd/system/kb-api.service.d/override.conf"` contains all 5 lines verbatim; `ssh aliyun-vitaclaw "systemctl show kb-api.service \| grep -E 'OMNIGRAPH_(LLM_RERANK_\|VECTOR_STORAGE)'"` returns all 5 vars. |
@@ -219,13 +219,20 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
 
     Implementation requirements:
     - Use `client.scroll(collection_name=..., limit=500, offset=offset, with_payload=True, with_vectors=True)` until `next_offset is None`.
-    - Map each point to `{"__id__": payload[ID_FIELD], "__created_at__": payload.get("created_at", 0), "content": payload.get("content", ""), **{k: payload[k] for k in ("file_path","full_doc_id","tokens","chunk_order_index","src_id","tgt_id") if k in payload}}`.
-    - Note key translation: Qdrant stores `id` (no underscores) per `qdrant_impl.py:637`; LightRAG NanoVectorDBStorage expects `__id__`. Same for `created_at` → `__created_at__`.
-    - Vector matrix: `[p.vector for p in batch]` (list of 3072-float lists).
-    - Emit `nano_format = {"embedding_dim": embedding_dim, "data": [...], "matrix": [...]}`.
-    - Validate `embedding_dim == len(matrix[0])` if matrix non-empty — else raise ValueError (HT-7). Empty matrix is valid (empty Qdrant collection produces empty data:[] valid JSON).
+    - Map each point to `{"__id__": payload[ID_FIELD], "__created_at__": payload.get("created_at", 0), **{k: payload[k] for k in ("content","file_path","full_doc_id","entity_name","source_id","src_id","tgt_id") if k in payload}}`. The set of keys carried per namespace is governed by LightRAG's `meta_fields` declared at `lightrag/lightrag.py:716/722/728`: chunks={full_doc_id,content,file_path}, entities={entity_name,source_id,content,file_path}, relationships={src_id,tgt_id,source_id,content,file_path}.
+    - Note key translation: Qdrant stores `id` (no underscores) per `qdrant_impl.py:637`; LightRAG NanoVectorDBStorage expects `__id__`. Same for `created_at` → `__created_at__`. Drop `workspace_id` (Qdrant-only — NanoVectorDB has no workspace concept).
+    - Do NOT include `__vector__` in any data row. nano_vectordb strips `__vector__` pre-save (`dbs.py:101,112`); the on-disk row does not contain it. Do NOT include the optional `vector` (Float16+zlib+Base64 compressed copy) NanoVectorDBStorage adds — it is NOT used by NanoVectorDB at hydrate/query (`nano_vector_db_impl.py:165` strips it from results) and recomputing it is dead weight.
+    - **Vector matrix — base64 schema, NOT list-of-lists.** Build `np.array(rows, dtype=np.float32)` of shape (N, embedding_dim) from `[p.vector for p in batch]`, then base64-encode via `array_to_buffer_string` from `nano_vectordb.dbs`:
+      ```python
+      from nano_vectordb.dbs import array_to_buffer_string, Float  # Float = np.float32
+      matrix_b64 = array_to_buffer_string(np.array(rows, dtype=Float))  # str
+      ```
+      Reference: `venv/Lib/site-packages/nano_vectordb/dbs.py:27-44, 138-143`. The matrix on disk is a single base64 string; `NanoVectorDB.load_storage` decodes via `np.frombuffer(base64.b64decode(s), dtype=Float).reshape(-1, embedding_dim)`. Writing list-of-lists would produce a TypeError on consumer hydrate (Databricks/Hermes), silently breaking SC-11 / SC-6.
+    - Emit `nano_format = {"embedding_dim": embedding_dim, "data": [...], "matrix": "<base64-encoded float32 buffer string>"}`.
+    - Empty collection: matrix array shape (0, embedding_dim) — `array_to_buffer_string(np.zeros((0, embedding_dim), dtype=Float))` is a valid 0-byte base64 string and `NanoVectorDB` loads it cleanly.
+    - Validate `embedding_dim == len(rows[0])` if rows non-empty — else raise ValueError (HT-7).
     - Validate `len(data) == client.count(collection_name).count` — else raise RuntimeError (roundtrip smoke).
-    - Write atomically: `tmp = output_path + ".tmp"; json.dump(nano_format, open(tmp, "w")); os.replace(tmp, output_path)`.
+    - Write atomically: `tmp = output_path + ".tmp"; json.dump(nano_format, open(tmp, "w"), ensure_ascii=False); os.replace(tmp, output_path)`.
 
     Top-level `main()`:
     - Read `LIGHTRAG_STORAGE_DIR` env (default `/root/.hermes/omonigraph-vault/lightrag_storage`).
@@ -245,13 +252,15 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
     Note: `qdrant_client` is NOT in `requirements.txt` (Aliyun-only via `venv-aim1`). Test uses `pytest.importorskip("qdrant_client")` so local CI without the package skips gracefully; Aliyun execute-phase has it via T5 install.
   </action>
   <acceptance_criteria>
-    - `wc -l scripts/qdrant_to_nanovdb.py` between 100 and 250.
+    - `wc -l scripts/qdrant_to_nanovdb.py` between 100 and 350.
     - `python -c "from scripts.qdrant_to_nanovdb import export_collection_to_nanovdb"` exits 0 (assuming qdrant_client present).
     - `pytest tests/unit/test_qdrant_to_nanovdb.py -x` exits 0 OR emits `SKIPPED [qdrant_client not installed]` (acceptable in environments without qdrant_client).
     - `grep -c 'os.replace' scripts/qdrant_to_nanovdb.py` ≥ 1 (atomic write).
     - `grep -c 'embedding_dim' scripts/qdrant_to_nanovdb.py` ≥ 3 (guard + format key + arg).
+    - `grep -c 'array_to_buffer_string\|base64\.b64encode' scripts/qdrant_to_nanovdb.py` ≥ 1 (real nano_vectordb base64 matrix schema, NOT list-of-lists — SC-4 contract).
+    - **NanoVectorDB roundtrip test present:** `grep -c 'NanoVectorDB(' tests/unit/test_qdrant_to_nanovdb.py` ≥ 1 (consumer-side hydrate test pinning the contract that Databricks/Hermes loads cleanly).
   </acceptance_criteria>
-  <commit_msg>feat(qdrant-migration): qdrant_to_nanovdb converter + unit test</commit_msg>
+  <commit_msg>fix(qdrant-migration): T2 converter — match real nano_vectordb schema (base64 matrix) + roundtrip test</commit_msg>
   <halt_triggers>HT-7</halt_triggers>
   <addresses_sc>SC-4</addresses_sc>
 </task>
