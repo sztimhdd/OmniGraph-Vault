@@ -77,15 +77,44 @@
     if (p) p.textContent = q;
   }
 
-  // Convert orphan inline citations like `[/article/abc1234567]` or
-  // `[/article:abc1234567]` (LLM didn't wrap in markdown link syntax) into
-  // real anchor tags pointing to the article page. Runs on raw markdown
-  // BEFORE marked.js parse so the marked emits proper <a>.
-  function rewriteOrphanCitations(md) {
+  // Build a hash -> title map from sources[] (server-side _resolve_sources)
+  // so orphan citations can use the real article title as link label.
+  function buildTitleMap(sources) {
+    var map = {};
+    if (!sources || !sources.length) return map;
+    for (var i = 0; i < sources.length; i++) {
+      var s = sources[i];
+      var hash = (typeof s === 'string') ? s : (s && s.hash) || '';
+      var title = (s && s.title) || '';
+      if (hash) map[hash] = title;
+    }
+    return map;
+  }
+
+  // Convert orphan inline citations into real markdown links. LLM emits
+  // several broken formats observed in prod:
+  //   [/article/abc1234567]
+  //   [/article:abc1234567]
+  //   [abc1234567]            ← bare 10-hex hash with no /article/ prefix
+  // All collapse to [<title-or-hash>](base/articles/<hash>.html). Runs on
+  // raw markdown BEFORE marked.js parse so the result emits real <a>.
+  function rewriteOrphanCitations(md, titleMap) {
     var base = window.KB_BASE_PATH || '';
-    return md.replace(/\[\/article[/:]([a-f0-9]{10})\]/g, function (_m, hash) {
-      return '[' + hash.slice(0, 6) + '](' + base + '/articles/' + hash + '.html)';
+    function makeLink(hash) {
+      var label = (titleMap && titleMap[hash]) || hash.slice(0, 6);
+      return '[' + label + '](' + base + '/articles/' + hash + '.html)';
+    }
+    // Pass 1: [/article/<hash>] or [/article:<hash>]
+    md = md.replace(/\[\/article[/:]([a-f0-9]{10})\]/g, function (_m, hash) {
+      return makeLink(hash);
     });
+    // Pass 2: bare [<10-hex hash>] — must run AFTER pass 1 so we don't
+    // double-rewrite. Look-behind avoids matching `[abc...](...)` markdown
+    // links the LLM did emit correctly (they have `(` after `]`).
+    md = md.replace(/\[([a-f0-9]{10})\](?!\()/g, function (_m, hash) {
+      return makeLink(hash);
+    });
+    return md;
   }
 
   // After marked render: prepend KB_BASE_PATH to absolute /static/img/ and
@@ -131,10 +160,11 @@
     }
   }
 
-  function renderAnswerMarkdown(md) {
+  function renderAnswerMarkdown(md, sources) {
     var article = $('.qa-answer', resultEl);
     if (!article) return;
-    var text = rewriteOrphanCitations(md || '');
+    var titleMap = buildTitleMap(sources);
+    var text = rewriteOrphanCitations(md || '', titleMap);
     var html;
     if (window.marked && typeof window.marked.parse === 'function') {
       html = window.marked.parse(text);
@@ -304,7 +334,7 @@
           else nextState = 'done';
           setState(nextState);
           if (data.result) {
-            renderAnswerMarkdown(data.result.markdown || '');
+            renderAnswerMarkdown(data.result.markdown || '', data.result.sources || []);
             renderSources(data.result.sources || []);
             // entities only render on the real KG branch (D-9): fallback +
             // no_results both hide the entity cloud.
