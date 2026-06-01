@@ -211,26 +211,47 @@
       }
       return null;
     }
+    // Collect every References-like section + its trailing siblings.
+    // Score each by anchor count (links pointing to /articles/<hash>.html).
+    // Keep the highest-scoring one — LLM commonly emits a disclaimer/no-link
+    // version alongside the real link list, and we want the link list.
     var refSections = [];
     var ch = rootEl.children;
     for (var ci = 0; ci < ch.length; ci++) {
       var info = headingLike(ch[ci]);
       if (info && isReferenceText(info.text)) {
-        refSections.push({ node: ch[ci], level: info.level });
-      }
-    }
-    if (refSections.length > 1) {
-      for (var rs = refSections.length - 1; rs >= 1; rs--) {
-        var startNode = refSections[rs].node;
-        var sectLevel = refSections[rs].level;
-        var sweep = [startNode];
+        var startNode = ch[ci];
+        var sectLevel = info.level;
+        var members = [startNode];
         var sib = startNode.nextElementSibling;
         while (sib) {
           var sibInfo = headingLike(sib);
           if (sibInfo && sibInfo.level <= sectLevel) break;
-          sweep.push(sib);
+          members.push(sib);
           sib = sib.nextElementSibling;
         }
+        var linkCount = 0;
+        for (var mm = 0; mm < members.length; mm++) {
+          var qel = members[mm];
+          if (qel && qel.querySelectorAll) {
+            linkCount += qel.querySelectorAll('a[href*="/articles/"]').length;
+          }
+        }
+        refSections.push({ members: members, linkCount: linkCount });
+      }
+    }
+    if (refSections.length > 1) {
+      // Tie-break: keep LAST section with max linkCount (LLM tends to put
+      // structured link list at the very end).
+      var bestIdx = 0;
+      for (var bb = 1; bb < refSections.length; bb++) {
+        if (refSections[bb].linkCount >= refSections[bestIdx].linkCount) {
+          bestIdx = bb;
+        }
+      }
+      for (var rs = 0; rs < refSections.length; rs++) {
+        if (rs === bestIdx) continue;
+        var sweep = refSections[rs].members;
         for (var sn = 0; sn < sweep.length; sn++) {
           if (sweep[sn].parentNode) sweep[sn].parentNode.removeChild(sweep[sn]);
         }
