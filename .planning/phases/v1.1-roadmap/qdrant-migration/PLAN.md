@@ -18,7 +18,7 @@ files_modified:
   - kb/deploy/kb-api.service.d/override.conf.example  # new — repo mirror of Aliyun additions
   - kb/deploy/omnigraph-ingest-services.service.d/override.conf.example  # new — generalized example for 3 ingest service drop-ins (morning/afternoon/evening)
 autonomous: false
-estimated_loc: 570-750
+estimated_loc: 700-900
 tier: plan-phase
 
 must_haves:
@@ -77,10 +77,12 @@ Original PLAN.md frontmatter (commit `d0d82b1` + iter-3 surgical revise `21bc69a
 | T1 | +15 | +25 | +10 | Inline pattern + warn-log line PLAN action mandated separately from LoC table |
 | T2 | +275 | +420 | +145 | nano_vectordb on-disk schema discovery (base64 matrix, NOT list-of-lists — surfaced via PLAN inline patch in T2 commit `a3b08eb`) + 4 self-contained tests > 1 mega-test for readability |
 | T3 | +103 | +193 | +90 | `qdrant_reingest_252.sh` documentation density — HT-10 invariant doc + flag-drift NOTE (`--topic-filter` not PLAN's `--topics`) + count-driven exit logic + operator runbook prose. Pure logic ~50 LoC matches PLAN. |
-| T4 | +50 | _TBD_ | _TBD_ | (pending) |
-| **Wave 1 partial** | **+443** | **+638** | **+195** | **+44% over original ceiling** |
+| T4 | +50 | +143 | +93 | `tests/integration/test_aliyun_n4_lock_break.py` documentation density — 30-line HT-6 contract docstring + 3-distinct skip-reason gate (env unset / requests missing / health 5xx) + 7-field per-request evidence schema (`job_id, marker, question, status, wall_s, response_excerpt, response_full_len`) for T10 post-mortem latency-vs-crosstalk-vs-cache discrimination. Pure assertion + ThreadPoolExecutor + 4 prompts ≈ 50 LoC matches PLAN. |
+| **Wave 1 final** | **+443** | **+781** | **+338** | **+76% over original 430 ceiling** |
 
-**Decision (orchestrator 2026-06-01, transparency over silent debt):** Frontmatter band updated `390-430` → `570-750` to reflect reality. Tier classification (`plan-phase`, NOT `milestone`) remains intact — the breach is documentation density and schema-correction work, not architectural sprawl. T4 may drift similarly; if cumulative goes >750 a second frontmatter patch is warranted.
+**Decision #1 (orchestrator 2026-06-01, post-T3, commit `400e97f`):** Frontmatter band updated `390-430` → `570-750` to reflect reality. Tier classification (`plan-phase`, NOT `milestone`) remains intact — the breach is documentation density and schema-correction work, not architectural sprawl. T4 may drift similarly; if cumulative goes >750 a second frontmatter patch is warranted.
+
+**Decision #2 (orchestrator 2026-06-01, post-T4, this commit):** T4 trigger fired — Wave 1 cumulative `+781` exceeded the 750 ceiling by `+31` (`+4%` over). Per the >750 commitment in `400e97f`, frontmatter band updated `570-750` → `700-900`. The +93 T4 drift is the same character as T2/T3 (documentation density + structured evidence schema, NOT feature creep). Band ceiling 900 gives Waves 2-4 buffer headroom for similar-character documentation drift. If Wave 2-4 cumulative exceeds 900, a third frontmatter patch is warranted.
 
 ## Goal
 
