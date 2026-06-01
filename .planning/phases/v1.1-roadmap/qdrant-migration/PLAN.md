@@ -18,7 +18,7 @@ files_modified:
   - kb/deploy/kb-api.service.d/override.conf.example  # new — repo mirror of Aliyun additions
   - kb/deploy/omnigraph-ingest-services.service.d/override.conf.example  # new — generalized example for 3 ingest service drop-ins (morning/afternoon/evening)
 autonomous: false
-estimated_loc: 390-430
+estimated_loc: 570-750
 tier: plan-phase
 
 must_haves:
@@ -67,6 +67,20 @@ must_haves:
 ---
 
 # PLAN — v1.1.qdrant-migration
+
+## LoC drift log
+
+Original PLAN.md frontmatter (commit `d0d82b1` + iter-3 surgical revise `21bc69a`) declared `estimated_loc: 390-430`. Wave 1 execution surfaced 4 corrections that the PLAN write phase did not anticipate; cumulative drift breached the band by +48% before Wave 1 closed.
+
+| Task | PLAN | Actual | Drift | Driver |
+|------|-----:|-------:|------:|--------|
+| T1 | +15 | +25 | +10 | Inline pattern + warn-log line PLAN action mandated separately from LoC table |
+| T2 | +275 | +420 | +145 | nano_vectordb on-disk schema discovery (base64 matrix, NOT list-of-lists — surfaced via PLAN inline patch in T2 commit `a3b08eb`) + 4 self-contained tests > 1 mega-test for readability |
+| T3 | +103 | +193 | +90 | `qdrant_reingest_252.sh` documentation density — HT-10 invariant doc + flag-drift NOTE (`--topic-filter` not PLAN's `--topics`) + count-driven exit logic + operator runbook prose. Pure logic ~50 LoC matches PLAN. |
+| T4 | +50 | _TBD_ | _TBD_ | (pending) |
+| **Wave 1 partial** | **+443** | **+638** | **+195** | **+44% over original ceiling** |
+
+**Decision (orchestrator 2026-06-01, transparency over silent debt):** Frontmatter band updated `390-430` → `570-750` to reflect reality. Tier classification (`plan-phase`, NOT `milestone`) remains intact — the breach is documentation density and schema-correction work, not architectural sprawl. T4 may drift similarly; if cumulative goes >750 a second frontmatter patch is warranted.
 
 ## Goal
 
