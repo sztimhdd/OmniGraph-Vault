@@ -101,3 +101,54 @@ def test_lifespan_legacy_bge_force_fail_compat(monkeypatch) -> None:
         assert kb_api.app.state.rerank_disabled is True
     finally:
         client.__exit__(None, None, None)
+
+
+@pytest.mark.integration
+def test_lifespan_vertex_rerank_loaded(monkeypatch) -> None:
+    """SC#4-Aliyun (B): dispatcher routes to vertex_gemini provider; lifespan boots.
+
+    Skips if google.genai SDK absent. Required because the lifespan path
+    actually constructs the Vertex client via lib.vertex_gemini_rerank.
+    _make_client() — which imports google.genai. Without GOOGLE_CLOUD_PROJECT
+    + SA JSON, factory raises during _make_client → dispatcher graceful-
+    degrades → app.state.rerank_disabled=True. We accept either branch
+    (auth-present → reranker loaded; auth-absent → degraded); the contract
+    under test is dispatcher routing + flag/object consistency.
+    """
+    pytest.importorskip("google.genai")
+    monkeypatch.delenv("OMNIGRAPH_LLM_RERANK_FORCE_FAIL", raising=False)
+    monkeypatch.delenv("BGE_FORCE_LOAD_FAIL", raising=False)
+    monkeypatch.setenv("OMNIGRAPH_LLM_RERANK_PROVIDER", "vertex_gemini")
+    import kb.api as kb_api
+    importlib.reload(kb_api)
+    client = _start_or_skip(kb_api)
+    try:
+        r = client.get("/health")
+        assert r.status_code == 200, r.text
+        disabled = kb_api.app.state.rerank_disabled
+        if disabled:
+            assert kb_api.app.state.reranker is None
+            assert kb_api.app.state.lightrag.rerank_model_func is None
+        else:
+            assert kb_api.app.state.reranker is not None
+            assert kb_api.app.state.lightrag.rerank_model_func is not None
+    finally:
+        client.__exit__(None, None, None)
+
+
+@pytest.mark.integration
+def test_dispatcher_unknown_provider_raises(monkeypatch) -> None:
+    """SC#6 (B): setting OMNIGRAPH_LLM_RERANK_PROVIDER=cohere (unknown) raises ValueError.
+
+    Verifies dispatcher fail-fast on typo / misconfiguration. Asserts the error
+    message lists _VALID so operator gets immediate feedback on the valid set.
+    """
+    monkeypatch.setenv("OMNIGRAPH_LLM_RERANK_PROVIDER", "cohere")
+    from lib.llm_rerank import get_rerank_func
+    with pytest.raises(ValueError) as exc_info:
+        get_rerank_func()
+    msg = str(exc_info.value)
+    assert "cohere" in msg
+    assert "databricks_serving" in msg
+    assert "vertex_gemini" in msg
+    assert "disabled" in msg
