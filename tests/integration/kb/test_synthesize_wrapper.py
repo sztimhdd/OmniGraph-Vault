@@ -117,7 +117,7 @@ def test_kb_synthesize_prepends_en_directive(tmp_path, monkeypatch, captured_que
     assert captured_query["text"] is not None
     assert "Please answer in English." in captured_query["text"], captured_query["text"]
     assert "What is LangChain?" in captured_query["text"]
-    assert "/article/" in captured_query["text"], "QA template must instruct citation format"
+    assert "articles/" in captured_query["text"], "QA template must instruct citation format"
     # C1 mode contract (v1.1.P2-3 T2/T3): default 'mix' (paired with BGE reranker)
     assert captured_query["mode"] == "mix"
 
@@ -131,7 +131,7 @@ def test_kb_synthesize_prepends_zh_directive(tmp_path, monkeypatch, captured_que
     asyncio.run(kb_synth_mod.kb_synthesize("LangGraph 是什么?", "zh", jid))
     assert "请用中文回答" in captured_query["text"]
     assert "LangGraph 是什么?" in captured_query["text"]
-    assert "/article/" in captured_query["text"], "QA template must instruct citation format"
+    assert "articles/" in captured_query["text"], "QA template must instruct citation format"
 
 
 def test_kb_synthesize_reads_output_file(tmp_path, monkeypatch, captured_query):

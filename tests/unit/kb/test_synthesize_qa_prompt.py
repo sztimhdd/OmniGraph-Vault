@@ -22,14 +22,14 @@ def test_wrap_question_qa_zh_uses_zh_template() -> None:
     result = _wrap_question_for_mode("Agent 框架有哪些?", "zh", "qa")
     assert "Agent 框架有哪些?" in result
     assert "请用中文回答" in result
-    assert "/article/" in result, "ZH QA template must instruct /article/{hash}.html citation format"
+    assert "articles/" in result, "ZH QA template must instruct articles/{hash}.html citation format"
 
 
 def test_wrap_question_qa_en_uses_en_template() -> None:
     result = _wrap_question_for_mode("What is LightRAG?", "en", "qa")
     assert "What is LightRAG?" in result
     assert "Please answer in English." in result
-    assert "/article/" in result, "EN QA template must instruct /article/{hash}.html citation format"
+    assert "articles/" in result, "EN QA template must instruct articles/{hash}.html citation format"
 
 
 def test_wrap_question_long_form_unchanged() -> None:

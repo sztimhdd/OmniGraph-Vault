@@ -24,13 +24,13 @@ from kb.services.synthesize import (
 
 
 def test_long_form_zh_template_has_article_citation_directive() -> None:
-    assert "/article/" in _LONG_FORM_PROMPT_TEMPLATE_ZH, (
+    assert "articles/" in _LONG_FORM_PROMPT_TEMPLATE_ZH, (
         "ZH long_form template must instruct /article/{hash}.html citation format"
     )
 
 
 def test_long_form_en_template_has_article_citation_directive() -> None:
-    assert "/article/" in _LONG_FORM_PROMPT_TEMPLATE_EN, (
+    assert "articles/" in _LONG_FORM_PROMPT_TEMPLATE_EN, (
         "EN long_form template must instruct /article/{hash}.html citation format"
     )
 
@@ -67,7 +67,7 @@ def test_wrap_question_long_form_zh_uses_zh_template() -> None:
     result = _wrap_question_for_mode("Agent 框架有哪些?", "zh", "long_form")
     assert "Agent 框架有哪些?" in result
     assert "请用中文回答" in result
-    assert "/article/" in result
+    assert "articles/" in result
     assert "/static/img/" in result
 
 
@@ -75,7 +75,7 @@ def test_wrap_question_long_form_en_uses_en_template() -> None:
     result = _wrap_question_for_mode("What is an Agent?", "en", "long_form")
     assert "What is an Agent?" in result
     assert "Please answer in English." in result
-    assert "/article/" in result
+    assert "articles/" in result
     assert "/static/img/" in result
 
 
