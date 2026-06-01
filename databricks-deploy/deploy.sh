@@ -36,6 +36,15 @@ cp -R ./kb/output ./databricks-deploy/_ssg
 # otherwise honor, excluding every file inside _ssg/ from upload.
 rm -f ./databricks-deploy/_ssg/.gitignore
 
+# Pass 0a-fix (2026-06-02): kb/output/ is a stale SSG-bake artifact —
+# nobody re-bakes it on every deploy, so JS / CSS edits in kb/static/
+# silently fail to ship. Explicitly overwrite _ssg/static/ from
+# kb/static/ so Databricks always serves the same source-of-truth
+# files Aliyun does. Cheap (~10 small files); safe (kb/static/ is the
+# canonical asset dir).
+echo ">>> Pass 0a-fix: overlay kb/static/ -> _ssg/static/ (defeats stale bake)"
+cp -R ./kb/static/. ./databricks-deploy/_ssg/static/
+
 echo ">>> Pass 0b: flip KB_DEFAULT_LANG zh-CN -> en for Databricks audience"
 find ./databricks-deploy/_ssg -name '*.html' -print0 | \
   xargs -0 sed -i 's|<html lang="zh-CN">|<html lang="en">|g; s|window\.KB_DEFAULT_LANG = "zh-CN"|window.KB_DEFAULT_LANG = "en"|g'
