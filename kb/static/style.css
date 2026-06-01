@@ -2104,6 +2104,14 @@ html[lang="en"] .article-card--zh-only {
 .qa-retry-btn { font-size: 0.875rem; padding: 0.5rem 1rem; }
 
 .qa-answer { margin-top: 1.5rem; }
+/* Hallucinated citations the LLM emitted as links but pointing nowhere
+   (target hash not in verified sources). Demoted to dim plain text. */
+.qa-dead-citation {
+  color: var(--text-tertiary, #888);
+  text-decoration: none;
+  cursor: default;
+  opacity: 0.7;
+}
 .qa-sources, .qa-entities { margin-top: 1.75rem; }
 .qa-sources-title, .qa-entities-title {
   font-size: 0.8125rem;

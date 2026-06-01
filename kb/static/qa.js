@@ -122,19 +122,68 @@
   // Also nuke broken base64 placeholder srcs (Caddy SPA fallback returned
   // vitaclaw HTML, lazy-load embedded as data:image/jpeg). If data-sv-src
   // exists, swap src to use it; otherwise rely on rewritten src.
-  function rewriteAnswerHtml(rootEl) {
+  //
+  // sourceHashes is the whitelist of real article hashes from data.result.sources.
+  // Any <a> whose href doesn't resolve to a hash in this set is downgraded to
+  // <span> (LLM hallucinated link target — better to look unclickable than to
+  // 404 the user). Also dedupes consecutive References sections (LLM sometimes
+  // emits the list twice).
+  function rewriteAnswerHtml(rootEl, sourceHashes) {
     var base = window.KB_BASE_PATH || '';
     if (!rootEl) return;
-    // <a href="/articles/X.html"> or "/article/X" -> base + /articles/X.html
+    var validSet = {};
+    if (sourceHashes && sourceHashes.length) {
+      for (var k = 0; k < sourceHashes.length; k++) validSet[sourceHashes[k]] = true;
+    }
+    // <a href> rewrite + dead-link sanitize
     var anchors = rootEl.querySelectorAll('a[href]');
     for (var i = 0; i < anchors.length; i++) {
-      var h = anchors[i].getAttribute('href') || '';
-      // /article/<hash> or /article/<hash>.html or articles/<hash>.html
+      var a = anchors[i];
+      var h = a.getAttribute('href') || '';
+      // /article/<hash>, /article/<hash>.html, articles/<hash>.html
       var m = h.match(/^\/?articles?\/([a-f0-9]{10})(?:\.html)?$/);
-      if (m) {
-        anchors[i].setAttribute('href', base + '/articles/' + m[1] + '.html');
-        anchors[i].setAttribute('target', '_blank');
-        anchors[i].setAttribute('rel', 'noopener');
+      var hash = m ? m[1] : null;
+      // Only honor links whose hash is in the verified sources set. LLM-
+      // hallucinated paths (no /article/ prefix, fake hash, raw English
+      // titles, etc.) get demoted to plain text spans so the user doesn't
+      // click into a 404.
+      if (hash && (!sourceHashes || !sourceHashes.length || validSet[hash])) {
+        a.setAttribute('href', base + '/articles/' + hash + '.html');
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener');
+      } else {
+        var span = document.createElement('span');
+        span.className = 'qa-dead-citation';
+        span.textContent = a.textContent;
+        a.parentNode.replaceChild(span, a);
+      }
+    }
+    // Dedupe consecutive References-style sections. LLM occasionally emits
+    // the same list twice; we keep the first and remove the duplicate.
+    var headers = rootEl.querySelectorAll('h1, h2, h3, h4');
+    var seenHeading = {};
+    for (var n = 0; n < headers.length; n++) {
+      var hdr = headers[n];
+      var key = (hdr.textContent || '').trim().toLowerCase();
+      if (!key) continue;
+      if (seenHeading[key]) {
+        // Drop heading + its sibling content until the next heading of <= level.
+        var level = parseInt(hdr.tagName.substring(1), 10);
+        var node = hdr.nextSibling;
+        var toRemove = [hdr];
+        while (node) {
+          if (node.nodeType === 1 && /^H[1-6]$/.test(node.tagName)) {
+            var lvl = parseInt(node.tagName.substring(1), 10);
+            if (lvl <= level) break;
+          }
+          toRemove.push(node);
+          node = node.nextSibling;
+        }
+        for (var r = 0; r < toRemove.length; r++) {
+          if (toRemove[r].parentNode) toRemove[r].parentNode.removeChild(toRemove[r]);
+        }
+      } else {
+        seenHeading[key] = true;
       }
     }
     // <img src> rewrite + data:image placeholder cleanup
@@ -164,6 +213,7 @@
     var article = $('.qa-answer', resultEl);
     if (!article) return;
     var titleMap = buildTitleMap(sources);
+    var sourceHashes = Object.keys(titleMap);
     var text = rewriteOrphanCitations(md || '', titleMap);
     var html;
     if (window.marked && typeof window.marked.parse === 'function') {
@@ -175,7 +225,7 @@
       html = '<pre>' + div.innerHTML + '</pre>';
     }
     article.innerHTML = html;
-    rewriteAnswerHtml(article);
+    rewriteAnswerHtml(article, sourceHashes);
   }
 
   function renderSources(sources) {
