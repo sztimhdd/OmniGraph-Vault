@@ -140,13 +140,8 @@
     for (var i = 0; i < anchors.length; i++) {
       var a = anchors[i];
       var h = a.getAttribute('href') || '';
-      // /article/<hash>, /article/<hash>.html, articles/<hash>.html
       var m = h.match(/^\/?articles?\/([a-f0-9]{10})(?:\.html)?$/);
       var hash = m ? m[1] : null;
-      // Only honor links whose hash is in the verified sources set. LLM-
-      // hallucinated paths (no /article/ prefix, fake hash, raw English
-      // titles, etc.) get demoted to plain text spans so the user doesn't
-      // click into a 404.
       if (hash && (!sourceHashes || !sourceHashes.length || validSet[hash])) {
         a.setAttribute('href', base + '/articles/' + hash + '.html');
         a.setAttribute('target', '_blank');
@@ -158,32 +153,87 @@
         a.parentNode.replaceChild(span, a);
       }
     }
-    // Dedupe consecutive References-style sections. LLM occasionally emits
-    // the same list twice; we keep the first and remove the duplicate.
-    var headers = rootEl.querySelectorAll('h1, h2, h3, h4');
-    var seenHeading = {};
-    for (var n = 0; n < headers.length; n++) {
-      var hdr = headers[n];
-      var key = (hdr.textContent || '').trim().toLowerCase();
-      if (!key) continue;
-      if (seenHeading[key]) {
-        // Drop heading + its sibling content until the next heading of <= level.
-        var level = parseInt(hdr.tagName.substring(1), 10);
-        var node = hdr.nextSibling;
-        var toRemove = [hdr];
-        while (node) {
-          if (node.nodeType === 1 && /^H[1-6]$/.test(node.tagName)) {
-            var lvl = parseInt(node.tagName.substring(1), 10);
-            if (lvl <= level) break;
-          }
-          toRemove.push(node);
-          node = node.nextSibling;
+
+    // Image sanitize. LLM emits ![alt](path) where path is a description
+    // ("Claude Code harness architecture") or invalid. Real images live at
+    // /static/img/<10hex>/<n>.<ext>. Anything else is removed entirely
+    // (broken image icon worse than nothing).
+    var validImgRe = /\/static\/img\/[a-f0-9]{10}\/\d+\.\w+(\?.*)?$/;
+    var imgs = rootEl.querySelectorAll('img');
+    for (var j = imgs.length - 1; j >= 0; j--) {
+      var img = imgs[j];
+      var dataSv = img.getAttribute('data-sv-src');
+      var srcAttr = img.getAttribute('src') || '';
+      var resolved = null;
+      if (dataSv && validImgRe.test(dataSv)) {
+        resolved = dataSv;
+        img.removeAttribute('data-sv-src');
+      } else if (validImgRe.test(srcAttr) && srcAttr.indexOf('data:') !== 0) {
+        resolved = srcAttr;
+      }
+      if (!resolved) {
+        if (img.parentNode) img.parentNode.removeChild(img);
+        continue;
+      }
+      if (resolved.charAt(0) === '/' && resolved.indexOf(base + '/') !== 0) {
+        resolved = base + resolved;
+      }
+      img.setAttribute('src', resolved);
+      img.setAttribute('loading', 'lazy');
+    }
+
+    // Dedupe References sections. LLM uses BOTH H2 (`## References`) and
+    // BOLD (`**References**`) — a duplicate may be one of each. Walk
+    // top-level children, find heading-like nodes whose text matches a
+    // References keyword, keep the first, drop later candidates + their
+    // following siblings until the next heading-like node.
+    var REF_KEYWORDS = ['references', 'reference', '参考文献', '参考来源', '引用', '参考资料'];
+    function isReferenceText(t) {
+      t = (t || '').trim().toLowerCase();
+      if (!t || t.length > 30) return false;
+      for (var x = 0; x < REF_KEYWORDS.length; x++) {
+        if (t === REF_KEYWORDS[x] || t.indexOf(REF_KEYWORDS[x]) === 0) return true;
+      }
+      return false;
+    }
+    function headingLike(node) {
+      if (!node || node.nodeType !== 1) return null;
+      if (/^H[1-6]$/.test(node.tagName)) {
+        return { level: parseInt(node.tagName.substring(1), 10), text: node.textContent };
+      }
+      // <p><strong>References</strong></p> — bold-as-heading
+      if (node.tagName === 'P' && node.children.length === 1) {
+        var c = node.children[0];
+        if ((c.tagName === 'STRONG' || c.tagName === 'B') &&
+            c.textContent.trim() === node.textContent.trim()) {
+          return { level: 99, text: c.textContent };
         }
-        for (var r = 0; r < toRemove.length; r++) {
-          if (toRemove[r].parentNode) toRemove[r].parentNode.removeChild(toRemove[r]);
+      }
+      return null;
+    }
+    var refSections = [];
+    var ch = rootEl.children;
+    for (var ci = 0; ci < ch.length; ci++) {
+      var info = headingLike(ch[ci]);
+      if (info && isReferenceText(info.text)) {
+        refSections.push({ node: ch[ci], level: info.level });
+      }
+    }
+    if (refSections.length > 1) {
+      for (var rs = refSections.length - 1; rs >= 1; rs--) {
+        var startNode = refSections[rs].node;
+        var sectLevel = refSections[rs].level;
+        var sweep = [startNode];
+        var sib = startNode.nextElementSibling;
+        while (sib) {
+          var sibInfo = headingLike(sib);
+          if (sibInfo && sibInfo.level <= sectLevel) break;
+          sweep.push(sib);
+          sib = sib.nextElementSibling;
         }
-      } else {
-        seenHeading[key] = true;
+        for (var sn = 0; sn < sweep.length; sn++) {
+          if (sweep[sn].parentNode) sweep[sn].parentNode.removeChild(sweep[sn]);
+        }
       }
     }
     // <img src> rewrite + data:image placeholder cleanup
