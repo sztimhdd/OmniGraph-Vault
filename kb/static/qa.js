@@ -77,10 +77,64 @@
     if (p) p.textContent = q;
   }
 
+  // Convert orphan inline citations like `[/article/abc1234567]` or
+  // `[/article:abc1234567]` (LLM didn't wrap in markdown link syntax) into
+  // real anchor tags pointing to the article page. Runs on raw markdown
+  // BEFORE marked.js parse so the marked emits proper <a>.
+  function rewriteOrphanCitations(md) {
+    var base = window.KB_BASE_PATH || '';
+    return md.replace(/\[\/article[/:]([a-f0-9]{10})\]/g, function (_m, hash) {
+      return '[' + hash.slice(0, 6) + '](' + base + '/articles/' + hash + '.html)';
+    });
+  }
+
+  // After marked render: prepend KB_BASE_PATH to absolute /static/img/ and
+  // /articles/ paths so they work on Aliyun (/kb/ prefix) and Databricks (/).
+  // Also nuke broken base64 placeholder srcs (Caddy SPA fallback returned
+  // vitaclaw HTML, lazy-load embedded as data:image/jpeg). If data-sv-src
+  // exists, swap src to use it; otherwise rely on rewritten src.
+  function rewriteAnswerHtml(rootEl) {
+    var base = window.KB_BASE_PATH || '';
+    if (!rootEl) return;
+    // <a href="/articles/X.html"> or "/article/X" -> base + /articles/X.html
+    var anchors = rootEl.querySelectorAll('a[href]');
+    for (var i = 0; i < anchors.length; i++) {
+      var h = anchors[i].getAttribute('href') || '';
+      // /article/<hash> or /article/<hash>.html or articles/<hash>.html
+      var m = h.match(/^\/?articles?\/([a-f0-9]{10})(?:\.html)?$/);
+      if (m) {
+        anchors[i].setAttribute('href', base + '/articles/' + m[1] + '.html');
+        anchors[i].setAttribute('target', '_blank');
+        anchors[i].setAttribute('rel', 'noopener');
+      }
+    }
+    // <img src> rewrite + data:image placeholder cleanup
+    var imgs = rootEl.querySelectorAll('img');
+    for (var j = 0; j < imgs.length; j++) {
+      var img = imgs[j];
+      var dataSv = img.getAttribute('data-sv-src');
+      var src = img.getAttribute('src') || '';
+      // If data-sv-src exists, that's the truthful path — use it, ignore src.
+      if (dataSv) {
+        src = dataSv;
+        img.removeAttribute('data-sv-src');
+      } else if (src.indexOf('data:') === 0) {
+        // Broken base64 placeholder with no data-sv-src — skip (already broken).
+        continue;
+      }
+      // Rewrite absolute /static/img/... to base + /static/img/...
+      if (src.charAt(0) === '/' && src.indexOf(base + '/') !== 0) {
+        src = base + src;
+      }
+      img.setAttribute('src', src);
+      img.setAttribute('loading', 'lazy');
+    }
+  }
+
   function renderAnswerMarkdown(md) {
     var article = $('.qa-answer', resultEl);
     if (!article) return;
-    var text = md || '';
+    var text = rewriteOrphanCitations(md || '');
     var html;
     if (window.marked && typeof window.marked.parse === 'function') {
       html = window.marked.parse(text);
@@ -91,6 +145,7 @@
       html = '<pre>' + div.innerHTML + '</pre>';
     }
     article.innerHTML = html;
+    rewriteAnswerHtml(article);
   }
 
   function renderSources(sources) {
