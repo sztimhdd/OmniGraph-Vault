@@ -51,6 +51,14 @@ Environment=KB_BASE_PATH=/kb
 # GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 # GOOGLE_CLOUD_LOCATION=global
 
+# v1.1.P2-3-perf-fix-B: Vertex Gemini batch JSON rerank (Aliyun parity to
+# Databricks-side A). Provider dispatch via lib/llm_rerank.py mirrors
+# lib/llm_complete.py. See P2-3-perf-fix-B-VERIFICATION.md.
+Environment=OMNIGRAPH_LLM_RERANK_PROVIDER=vertex_gemini
+Environment=OMNIGRAPH_LLM_RERANK_MODEL=gemini-2.5-flash-lite
+Environment=OMNIGRAPH_LLM_RERANK_TOP_K=30
+Environment=OMNIGRAPH_LLM_RERANK_TIMEOUT=20
+
 # kb-v2.1-1 memory bounds — closes the OOM-kill class observed on Aliyun
 # 2026-05-14. MemoryHigh triggers throttling first (graceful); MemoryMax is
 # the hard kill ceiling (kernel OOM kills, systemd then auto-restarts under
