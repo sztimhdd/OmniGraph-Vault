@@ -139,23 +139,34 @@
       for (var k = 0; k < sourceHashes.length; k++) validSet[sourceHashes[k]] = true;
     }
     // <a href> rewrite + dead-link sanitize
+    // Match articles in any path-position, not just at start: handles
+    // browser-resolved hrefs like `/ask/articles/X.html` where the LLM
+    // emitted relative `articles/X.html` and the browser prepended `/ask/`.
     var anchors = rootEl.querySelectorAll('a[href]');
+    var dbg = { anchors: anchors.length, kept: 0, demoted: 0, samples: [] };
     for (var i = 0; i < anchors.length; i++) {
       var a = anchors[i];
       var h = a.getAttribute('href') || '';
-      var m = h.match(/^\/?articles?\/([a-f0-9]{10})(?:\.html)?$/);
+      // Anchored at end so we catch /ask/articles/X.html, /articles/X.html,
+      // articles/X.html, /article/X (legacy singular), etc. Hash is the
+      // [a-f0-9]{10} segment immediately after the last `articles?/`.
+      var m = h.match(/articles?\/([a-f0-9]{10})(?:\.html)?$/);
       var hash = m ? m[1] : null;
+      if (i < 3) dbg.samples.push({ href: h, hash: hash });
       if (hash && (!sourceHashes || !sourceHashes.length || validSet[hash])) {
         a.setAttribute('href', base + '/articles/' + hash + '.html');
         a.setAttribute('target', '_blank');
         a.setAttribute('rel', 'noopener');
+        dbg.kept++;
       } else {
         var span = document.createElement('span');
         span.className = 'qa-dead-citation';
         span.textContent = a.textContent;
         a.parentNode.replaceChild(span, a);
+        dbg.demoted++;
       }
     }
+    console.log('[qa.js] anchor sweep', dbg);
 
     // Image sanitize. LLM emits ![alt](path) where path is a description
     // ("Claude Code harness architecture") or invalid. Real images live at
