@@ -18,7 +18,7 @@ files_modified:
   - kb/deploy/kb-api.service.d/override.conf.example  # new — repo mirror of Aliyun additions
   - kb/deploy/omnigraph-ingest-services.service.d/override.conf.example  # new — generalized example for 3 ingest service drop-ins (morning/afternoon/evening)
 autonomous: false
-estimated_loc: 440-480
+estimated_loc: 390-430
 tier: plan-phase
 
 must_haves:
@@ -79,7 +79,7 @@ A single Aliyun kb-api restart applies three changes together (Qdrant cutover + 
 | ID | Criterion | Verification |
 |----|-----------|--------------|
 | SC-1 | Qdrant docker running on Aliyun, bound `127.0.0.1:6333`, `restart=always`, volume `/var/lib/qdrant:/qdrant/storage`. | `ssh aliyun-vitaclaw "docker ps --filter name=qdrant --format '{{.Status}}'"` starts with `Up`; `ssh aliyun-vitaclaw "curl -s http://127.0.0.1:6333/healthz"` returns 200. |
-| SC-2 | LightRAG `vector_storage` env-driven via `OMNIGRAPH_VECTOR_STORAGE` (`qdrant` \| `nanovectordb`; default `nanovectordb`); wired in 3 sites: `ingest_wechat.py:392`, `kb/api.py:89`, `kg_synthesize.py:155`. P5 lock contract preserved at `kg_synthesize.py:221-226`. | `grep -c 'OMNIGRAPH_VECTOR_STORAGE' ingest_wechat.py kb/api.py kg_synthesize.py` ≥ 3; `pytest tests/unit/test_kb_api_vector_storage_env.py -x` exits 0; `grep -n 'async with lightrag_lock' kg_synthesize.py` returns line 222 unchanged. |
+| SC-2 | LightRAG `vector_storage` env-driven via `OMNIGRAPH_VECTOR_STORAGE` (`qdrant` \| `nanovectordb`; default `nanovectordb`); wired inline in 3 sites: `ingest_wechat.py:392`, `kb/api.py:89`, `kg_synthesize.py:155`. P5 lock contract preserved at `kg_synthesize.py:221-226`. | `grep -c 'OMNIGRAPH_VECTOR_STORAGE' ingest_wechat.py kb/api.py kg_synthesize.py` ≥ 3; each grep hit precedes a conditional `vector_storage="QdrantVectorDBStorage"` kwarg in the LightRAG ctor (verified by `grep -nB1 -A3 'OMNIGRAPH_VECTOR_STORAGE'` showing the conditional shape); `grep -n 'async with lightrag_lock' kg_synthesize.py` returns line 222 unchanged. |
 | SC-3 | Aliyun re-ingest of 252 articles populates Qdrant collections in 6 batches × ≤ 50 articles (WeChat throttle floor) over 3-5 days. | `ssh aliyun-vitaclaw "venv-aim1/bin/python -c 'from qdrant_client import QdrantClient; c=QdrantClient(url=\"http://127.0.0.1:6333\"); print(c.get_collections())'"` lists chunks/entities/relationships namespaces; chunks count ≥ 252; sqlite `kol_scan.db` `ingestions.last_ingested_at` updated for the 252 article ids. |
 | SC-4 | `scripts/qdrant_to_nanovdb.py` (~150-200 LoC) scrolls all Qdrant collections, writes atomic `.tmp+os.replace` `vdb_*.json` matching `{embedding_dim, data:[…], matrix:[…]}` schema, with embedding-dim guard + roundtrip-count smoke. | `wc -l scripts/qdrant_to_nanovdb.py` between 100 and 250; `python -c "from scripts.qdrant_to_nanovdb import export_collection_to_nanovdb"` imports clean; `pytest tests/unit/test_qdrant_to_nanovdb.py -x` exits 0 (asserts: 5-point fixture → output JSON has `embedding_dim==3072`, `len(data)==5`, `len(matrix)==5`, `data[0]["__id__"]` round-trips). |
 | SC-5 | `deploy/aliyun/systemd/qdrant-snapshot.{service,timer}` deployed on Aliyun, cadence `OnUnitActiveSec=6h`, `WantedBy=timers.target`. | `ssh aliyun-vitaclaw "systemctl list-timers --all qdrant-snapshot.timer"` shows enabled + next-fire ≤ 6 h; `ssh aliyun-vitaclaw "journalctl -u qdrant-snapshot.service --since '12h ago'"` shows ≥ 1 successful run with marker `qdrant_snapshot_ok files_written=3 wall_s=…`. |
@@ -95,9 +95,9 @@ A single Aliyun kb-api restart applies three changes together (Qdrant cutover + 
 
 | Component | LoC delta |
 |-----------|----------:|
-| `kb/api.py` lifespan: env-driven `vector_storage` | +15 |
-| `ingest_wechat.py:392` env-driven kwarg | +5 |
-| `kg_synthesize.py:155` CLI fallback ctor — same env split | +5 |
+| `kb/api.py` lifespan: inline `os.environ.get` + conditional kwarg + log | +5 |
+| `ingest_wechat.py:392` inline `os.environ.get` + conditional kwarg | +5 |
+| `kg_synthesize.py:155` CLI fallback ctor — same inline pattern | +5 |
 | `scripts/qdrant_to_nanovdb.py` converter (new) | +200 |
 | `tests/unit/test_qdrant_to_nanovdb.py` (new) | +60 |
 | `deploy/aliyun/systemd/qdrant-snapshot.{service,timer}` (new) | +30 |
@@ -106,10 +106,9 @@ A single Aliyun kb-api restart applies three changes together (Qdrant cutover + 
 | `kb/deploy/omnigraph-ingest-services.service.d/override.conf.example` (new — D13a) | +6 |
 | `tests/integration/test_aliyun_n4_lock_break.py` (new HT-6 carrier) | +50 |
 | `scripts/qdrant_reingest_252.sh` (new — incl. ~10 LoC for D9 post-batch Qdrant count() check) | +50 |
-| `tests/unit/test_kb_api_vector_storage_env.py` (new — env-flag wiring) | +25 |
-| **Net total** | **+463** |
+| **Net total** | **+428** |
 
-**Justification for plan-phase tier at this size:** the +463 LoC ceiling is moderately above the original 400 target but well within plan-phase scope (≤ 600 LoC). The +50 budget for `test_aliyun_n4_lock_break.py` is justified per D13b: it is the SC-8 carrier and HT-6 trigger and must capture per-request evidence (job_id, topic, wall_s, response excerpt). The +6 LoC for the ingest-services drop-in example (D13a) prevents executor drift across 3 live Aliyun service overrides. The +10 LoC inside the reingest wrapper (D9) makes the 6th batch boundary count-driven, not hardcoded — robust against article-count drift between plan time and execute time. None of these increases warrant a tier downgrade.
+**Justification for plan-phase tier at this size:** the +428 LoC sits within plan-phase scope (≤ 600 LoC). Iter-3 surgical revise per orchestrator push-back removed the `lib/vector_storage_env.py` shared helper (~25 LoC) and `tests/unit/test_kb_api_vector_storage_env.py` (~25 LoC) per PRINCIPLE #2 (Simplicity First): a 1-line `os.environ.get(...)` stdlib call does not warrant a new module + dedicated unit test. Drift across the 3 sites is mitigated by inline `# NOTE: vector_storage env read — also at <other-2-paths>; sync if changed` comments at each site. The +50 budget for `test_aliyun_n4_lock_break.py` remains justified per D13b: it is the SC-8 carrier and HT-6 trigger and must capture per-request evidence (job_id, topic, wall_s, response excerpt). The +6 LoC for the ingest-services drop-in example (D13a) prevents executor drift across 3 live Aliyun service overrides. The +10 LoC inside the reingest wrapper (D9) makes the 6th batch boundary count-driven, not hardcoded — robust against article-count drift between plan time and execute time.
 
 ## Async-Safety Strategy (P5 lock contract)
 
@@ -139,9 +138,9 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
 
 > **Global halt trigger: HT-10 (Hermes RO breach) applies to every task in this phase.** Any commit, SCP, or systemctl mutation that touches Hermes-side code, env, or runtime — even read-side rsync targets that go beyond the existing operator-driven pull — halts the phase immediately and must be surfaced to the orchestrator for HC-7 violation review. Per-task `<halt_triggers>` lists below enumerate task-specific triggers; HT-10 is implicit in all of them.
 
-<task id="T1" name="Env-driven vector_storage split (3 sites)">
+<task id="T1" name="Env-driven vector_storage split (3 sites, inline)">
   <wave>1</wave>
-  <files>kb/api.py, ingest_wechat.py, kg_synthesize.py, tests/unit/test_kb_api_vector_storage_env.py</files>
+  <files>kb/api.py, ingest_wechat.py, kg_synthesize.py</files>
   <read_first>
     - kb/api.py:75-110 (lifespan, current LightRAG ctor)
     - ingest_wechat.py:380-422 (_get_or_init_rag ctor)
@@ -150,36 +149,43 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
     - .planning/phases/v1.1-roadmap/qdrant-migration/RESEARCH.md (locked decision: Path 2)
   </read_first>
   <action>
-    Add helper `_resolve_vector_storage()` returning `dict` of LightRAG kwargs, gated by `os.environ.get("OMNIGRAPH_VECTOR_STORAGE", "nanovectordb")`. When the value is `"qdrant"`, return `{"vector_storage": "QdrantVectorDBStorage"}`; otherwise return `{}` (LightRAG default — NanoVectorDBStorage).
+    **Inline pattern, no shared helper, no new test module.** Per orchestrator iter-3 surgical revise (PRINCIPLE #2 Simplicity First), env read is a 1-line stdlib call that does not warrant a separate `lib/vector_storage_env.py` module + dedicated `tests/unit/test_kb_api_vector_storage_env.py`.
 
-    Wire it at three sites:
+    At each of the 3 LightRAG ctor sites, add the EXACT same 3-line block immediately above the existing `LightRAG(...)` ctor call, plus a 1-line NOTE comment naming the other 2 sites:
 
-    1. **kb/api.py:89** — lifespan ctor. Add `**_resolve_vector_storage()` to the LightRAG kwargs. Preserve every existing kwarg verbatim (working_dir, llm_model_func, embedding_func, default_embedding_timeout, rerank_model_func). Emit `_log.warning("lightrag_vector_storage backend=%s", backend)` immediately after the ctor.
+    ```python
+    # NOTE: vector_storage env read — also at <other-2-site-paths>; sync if changed.
+    _vector_storage_kwargs = (
+        {"vector_storage": "QdrantVectorDBStorage"}
+        if os.environ.get("OMNIGRAPH_VECTOR_STORAGE", "nanovectordb") == "qdrant"
+        else {}
+    )
+    ```
 
-    2. **ingest_wechat.py:392** — `_get_or_init_rag` ctor. Same `**_resolve_vector_storage()` add. Preserve embedding_func_max_async / embedding_batch_num / llm_model_max_async / max_parallel_insert / addon_params verbatim. Emit a debug log line for the chosen backend.
+    Then expand the ctor with `**_vector_storage_kwargs`:
 
-    3. **kg_synthesize.py:155** — CLI fallback ctor (when `rag is None`). Same `**_resolve_vector_storage()` add. **DO NOT TOUCH lines 221-226 (lock pattern)** — HT-3.
+    1. **kb/api.py:89** — lifespan ctor. NOTE comment names `ingest_wechat.py:392` + `kg_synthesize.py:155` as the other 2 sites. Preserve every existing kwarg verbatim (working_dir, llm_model_func, embedding_func, default_embedding_timeout, rerank_model_func). Add `**_vector_storage_kwargs`. Emit `_log.warning("lightrag_vector_storage backend=%s", os.environ.get("OMNIGRAPH_VECTOR_STORAGE", "nanovectordb"))` immediately after the ctor.
 
-    Place `_resolve_vector_storage()` once in `lib/vector_storage_env.py` (new ~25 LoC module) and import at all three sites; this avoids drift if a fourth site appears later.
+    2. **ingest_wechat.py:392** — `_get_or_init_rag` ctor. NOTE comment names `kb/api.py:89` + `kg_synthesize.py:155` as the other 2 sites. Preserve embedding_func_max_async / embedding_batch_num / llm_model_max_async / max_parallel_insert / addon_params verbatim. Add `**_vector_storage_kwargs`. Optional debug log line for the chosen backend.
 
-    Write `tests/unit/test_kb_api_vector_storage_env.py` (~25 LoC):
-    - Test 1: `OMNIGRAPH_VECTOR_STORAGE` unset → `_resolve_vector_storage()` returns `{}`.
-    - Test 2: env `nanovectordb` → returns `{}`.
-    - Test 3: env `qdrant` → returns `{"vector_storage": "QdrantVectorDBStorage"}`.
-    - Test 4: env `bogus` → returns `{}` (default fallback) AND emits a warning log line.
+    3. **kg_synthesize.py:155** — CLI fallback ctor (when `rag is None`). NOTE comment names `kb/api.py:89` + `ingest_wechat.py:392` as the other 2 sites. Add `**_vector_storage_kwargs`. **DO NOT TOUCH lines 221-226 (lock pattern)** — HT-3.
+
+    Total LoC: ~5 per site × 3 sites = ~15 LoC inline (matches LoC table). No new module file. No new test file.
 
     DO NOT modify the kg_synthesize.py lock acquisition pattern at lines 221-226 in any way (HT-3).
 
     Provider note (PRINCIPLE #5): plan-phase does not SSH-write. Execute-phase carries this commit to Aliyun.
   </action>
   <acceptance_criteria>
-    - `grep -nE 'OMNIGRAPH_VECTOR_STORAGE|_resolve_vector_storage' kb/api.py ingest_wechat.py kg_synthesize.py lib/vector_storage_env.py` returns ≥ 4 hits.
-    - `python -m pytest tests/unit/test_kb_api_vector_storage_env.py -x` exits 0.
+    - `grep -nE 'OMNIGRAPH_VECTOR_STORAGE' kb/api.py ingest_wechat.py kg_synthesize.py` returns exactly 3 hits (one per site).
+    - `grep -nE 'vector_storage.*QdrantVectorDBStorage' kb/api.py ingest_wechat.py kg_synthesize.py` returns exactly 3 hits.
+    - `grep -nE '# NOTE: vector_storage env read' kb/api.py ingest_wechat.py kg_synthesize.py` returns exactly 3 hits.
     - `grep -nE 'async with lightrag_lock' kg_synthesize.py` returns line 222 unchanged (HT-3 invariant).
-    - `python -c "import lib.vector_storage_env"` exits 0 with no ImportError.
-    - `python -c "import os; os.environ['OMNIGRAPH_VECTOR_STORAGE']='qdrant'; from lib.vector_storage_env import _resolve_vector_storage; assert _resolve_vector_storage() == {'vector_storage': 'QdrantVectorDBStorage'}"` exits 0.
+    - `python -c "import os; os.environ['OMNIGRAPH_VECTOR_STORAGE']='qdrant'; import importlib, kb.api as m; importlib.reload(m)"` exits 0 (kb.api imports cleanly with env set).
+    - `python -c "from kb.api import lifespan; print('ok')"` prints `ok` and exits 0 (lifespan import remains valid).
+    - **Verify NO new files** under `lib/vector_storage_env.py` OR `tests/unit/test_kb_api_vector_storage_env.py`: `test ! -f lib/vector_storage_env.py && test ! -f tests/unit/test_kb_api_vector_storage_env.py` exits 0.
   </acceptance_criteria>
-  <commit_msg>feat(qdrant-migration): env-driven vector_storage split at 3 LightRAG init sites</commit_msg>
+  <commit_msg>feat(qdrant-migration): env-driven vector_storage split at 3 LightRAG init sites (inline)</commit_msg>
   <halt_triggers>HT-3</halt_triggers>
   <addresses_sc>SC-2</addresses_sc>
 </task>
@@ -392,7 +398,7 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
 </task>
 
 <wave1_gate>
-**Wave 1 close condition:** All four T1-T4 commits land on `main`. CI (or local pytest) runs `pytest tests/unit/test_kb_api_vector_storage_env.py tests/unit/test_qdrant_to_nanovdb.py -x` and exits 0 (qdrant_to_nanovdb may skip-graceful if qdrant_client not installed locally). PR #4 annotated as superseded by these commits — do NOT merge PR #4.
+**Wave 1 close condition:** All four T1-T4 commits land on `main`. CI (or local pytest) runs `pytest tests/unit/test_qdrant_to_nanovdb.py -x` and exits 0 (qdrant_to_nanovdb may skip-graceful if qdrant_client not installed locally). T1 verified by grep-only assertions (per its acceptance_criteria) — no T1-specific pytest module exists per orchestrator iter-3 surgical revise (PRINCIPLE #2). PR #4 annotated as superseded by these commits — do NOT merge PR #4.
 </wave1_gate>
 
 <task id="T5" name="Aliyun: install qdrant-client + start Qdrant docker">
