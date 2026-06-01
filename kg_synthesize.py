@@ -152,11 +152,18 @@ async def synthesize_response(
     if rag is None:
         # CLI fallback path: build a one-shot LightRAG. Production callers
         # (kb-api routers) pass the lifespan-pinned app.state.lightrag.
+        # NOTE: vector_storage env read — also at kb/api.py:89 + ingest_wechat.py:392; sync if changed.
+        _vector_storage_kwargs = (
+            {"vector_storage": "QdrantVectorDBStorage"}
+            if os.environ.get("OMNIGRAPH_VECTOR_STORAGE", "nanovectordb") == "qdrant"
+            else {}
+        )
         rag = LightRAG(
             working_dir=RAG_WORKING_DIR,
             llm_model_func=get_llm_func(),
             embedding_func=_get_embedding_func(),
             default_embedding_timeout=_embedding_timeout_default(),
+            **_vector_storage_kwargs,
         )
         if hasattr(rag, "initialize_storages"):
             await rag.initialize_storages()

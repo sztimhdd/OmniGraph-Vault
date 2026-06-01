@@ -389,6 +389,12 @@ async def get_rag(flush: bool = True) -> "LightRAG":
     Returns:
         LightRAG: initialized via ``await rag.initialize_storages()``.
     """
+    # NOTE: vector_storage env read — also at kb/api.py:89 + kg_synthesize.py:155; sync if changed.
+    _vector_storage_kwargs = (
+        {"vector_storage": "QdrantVectorDBStorage"}
+        if os.environ.get("OMNIGRAPH_VECTOR_STORAGE", "nanovectordb") == "qdrant"
+        else {}
+    )
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
         llm_model_func=get_llm_func(),
@@ -408,6 +414,7 @@ async def get_rag(flush: bool = True) -> "LightRAG":
         llm_model_max_async=2,
         max_parallel_insert=2,
         addon_params={"insert_batch_size": 100},
+        **_vector_storage_kwargs,
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()

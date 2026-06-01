@@ -86,12 +86,23 @@ async def lifespan(app: FastAPI):
     rerank_func, rerank_ok = _build_llm_rerank()
     app.state.reranker = rerank_func
     app.state.rerank_disabled = not rerank_ok
+    # NOTE: vector_storage env read — also at ingest_wechat.py:392 + kg_synthesize.py:155; sync if changed.
+    _vector_storage_kwargs = (
+        {"vector_storage": "QdrantVectorDBStorage"}
+        if os.environ.get("OMNIGRAPH_VECTOR_STORAGE", "nanovectordb") == "qdrant"
+        else {}
+    )
     rag = LightRAG(
         working_dir=RAG_WORKING_DIR,
         llm_model_func=get_llm_func(),
         embedding_func=_get_embedding_func(),
         default_embedding_timeout=_embedding_timeout_default(),
         rerank_model_func=rerank_func,
+        **_vector_storage_kwargs,
+    )
+    _log.warning(
+        "lightrag_vector_storage backend=%s",
+        os.environ.get("OMNIGRAPH_VECTOR_STORAGE", "nanovectordb"),
     )
     if hasattr(rag, "initialize_storages"):
         await rag.initialize_storages()
