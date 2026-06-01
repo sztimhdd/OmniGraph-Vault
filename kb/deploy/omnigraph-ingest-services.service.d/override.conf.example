@@ -1,0 +1,7 @@
+# Generalized example — apply to all 3 ingest service drop-ins on Aliyun:
+#   /etc/systemd/system/omnigraph-morning-ingest.service.d/override.conf
+#   /etc/systemd/system/omnigraph-afternoon-ingest.service.d/override.conf
+#   /etc/systemd/system/omnigraph-evening-ingest.service.d/override.conf
+# Existing lines on each live drop-in are preserved (HT-4 pre-check enforced); T9 ONLY appends:
+[Service]
+Environment="OMNIGRAPH_VECTOR_STORAGE=qdrant"

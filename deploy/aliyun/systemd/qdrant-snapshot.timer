@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Qdrant -> nano-vectordb JSON snapshot every 6h
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=6h
+Unit=qdrant-snapshot.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

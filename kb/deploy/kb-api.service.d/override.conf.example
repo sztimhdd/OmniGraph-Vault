@@ -1,0 +1,11 @@
+# Aliyun /etc/systemd/system/kb-api.service.d/override.conf — repo mirror.
+# The live file is APPEND-ONLY: existing lines (MemoryMax=12G, KB_DEFAULT_LANG=zh-CN,
+# KB_SYNTHESIZE_TIMEOUT=240, KB_LIGHTRAG_INNER_TIMEOUT=150,
+# LIGHTRAG_EMBEDDING_TIMEOUT=90) are preserved by the executor; this file
+# ONLY documents the lines THIS PHASE (v1.1.qdrant-migration, T7) adds.
+[Service]
+Environment="OMNIGRAPH_VECTOR_STORAGE=qdrant"
+Environment="OMNIGRAPH_LLM_RERANK_PROVIDER=vertex_gemini"
+Environment="OMNIGRAPH_LLM_RERANK_MODEL=gemini-2.5-flash-lite"
+Environment="OMNIGRAPH_LLM_RERANK_TOP_K=30"
+Environment="OMNIGRAPH_LLM_RERANK_TIMEOUT=20"

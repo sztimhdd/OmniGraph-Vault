@@ -1,0 +1,17 @@
+[Unit]
+Description=OmniGraph Qdrant -> nano-vectordb JSON snapshot
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/OmniGraph-Vault
+EnvironmentFile=/root/.hermes/.env
+Environment="LIGHTRAG_STORAGE_DIR=/root/.hermes/omonigraph-vault/lightrag_storage"
+Environment="QDRANT_URL=http://127.0.0.1:6333"
+ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/qdrant_to_nanovdb.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=600

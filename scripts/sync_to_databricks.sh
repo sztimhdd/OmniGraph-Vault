@@ -21,6 +21,13 @@
 #     MSYS_NO_PATHCONV=1 wrapping handles /Workspace/ + dbfs:/Volumes/ paths)
 #
 # Companion runbook: scripts/sync_to_databricks.md
+#
+# 2026-06-XX — post v1.1.qdrant-migration cutover: vdb_*.json under
+# lightrag_storage/ is now derived from Qdrant docker on Aliyun by a 6h
+# converter cron (qdrant-snapshot.timer + scripts/qdrant_to_nanovdb.py).
+# The on-disk schema is unchanged for consumers (nano_vectordb format —
+# embedding_dim + data[] + base64-float32 matrix string), so this sync
+# script needs ZERO behavior change. Schema reference: T2 commit a3b08eb.
 
 set -euo pipefail
 
@@ -104,6 +111,7 @@ mkdir -p "$LOCAL_STAGING/lightrag_storage" "$LOCAL_STAGING/images" "$LOCAL_STAGI
 # ---------------------------------------------------------------------------
 echo ""
 echo ">>> Step 3: SCP lightrag_storage from Aliyun (~2.6GB)"
+echo "  (Step 3 carries Qdrant-derived vdb_*.json from $ALIYUN_LIGHTRAG/, refreshed every 6h by qdrant-snapshot.timer — see v1.1.qdrant-migration phase, T2 commit a3b08eb)"
 echo "  Aliyun: tar czf /tmp/lightrag_storage.tar.gz $ALIYUN_LIGHTRAG"
 ssh "$ALIYUN_SSH" "cd $(dirname "$ALIYUN_LIGHTRAG") && tar czf /tmp/lightrag_storage.tar.gz $(basename "$ALIYUN_LIGHTRAG")/" \
   || { echo "STEP 3 FAILED: Aliyun tar"; exit 3; }
