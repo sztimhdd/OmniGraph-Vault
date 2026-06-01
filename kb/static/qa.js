@@ -117,6 +117,16 @@
     md = md.replace(/\[([a-f0-9]{10})\](?!\()/g, function (_m, hash) {
       return makeLink(hash);
     });
+    // Pass 3: parenthetical citation `(articles/<hash>.html)` with NO
+    // preceding `[label]` — LLM emits this academic-paper style and
+    // marked.js renders it as plain text. Negative look-behind on `]` so
+    // we don't double-process real markdown links `[X](articles/Y.html)`.
+    md = md.replace(
+      /(^|[^\]])\((\/?(?:kb\/)?articles?\/([a-f0-9]{10})(?:\.html)?)\)/g,
+      function (_m, prefix, _path, hash) {
+        return prefix + makeLink(hash);
+      }
+    );
     return md;
   }
 
