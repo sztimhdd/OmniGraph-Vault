@@ -5,6 +5,7 @@
 # ONLY documents the lines THIS PHASE (v1.1.qdrant-migration, T7) adds.
 [Service]
 Environment="OMNIGRAPH_VECTOR_STORAGE=qdrant"
+Environment="QDRANT_URL=http://127.0.0.1:6333"
 Environment="OMNIGRAPH_LLM_RERANK_PROVIDER=vertex_gemini"
 Environment="OMNIGRAPH_LLM_RERANK_MODEL=gemini-2.5-flash-lite"
 Environment="OMNIGRAPH_LLM_RERANK_TOP_K=30"

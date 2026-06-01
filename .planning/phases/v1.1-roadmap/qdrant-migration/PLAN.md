@@ -328,7 +328,7 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
     WantedBy=timers.target
     ```
 
-    **3. `kb/deploy/kb-api.service.d/override.conf.example`** (repo mirror of Aliyun additions, ~12 lines):
+    **3. `kb/deploy/kb-api.service.d/override.conf.example`** (repo mirror of Aliyun additions, ~13 lines):
     ```ini
     # Aliyun /etc/systemd/system/kb-api.service.d/override.conf — repo mirror.
     # The live file is APPEND-ONLY: existing lines (MemoryMax=12G, KB_DEFAULT_LANG=zh-CN,
@@ -337,13 +337,21 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
     # ONLY documents the lines THIS PHASE adds.
     [Service]
     Environment="OMNIGRAPH_VECTOR_STORAGE=qdrant"
+    Environment="QDRANT_URL=http://127.0.0.1:6333"
     Environment="OMNIGRAPH_LLM_RERANK_PROVIDER=vertex_gemini"
     Environment="OMNIGRAPH_LLM_RERANK_MODEL=gemini-2.5-flash-lite"
     Environment="OMNIGRAPH_LLM_RERANK_TOP_K=30"
     Environment="OMNIGRAPH_LLM_RERANK_TIMEOUT=20"
     ```
+    `QDRANT_URL` is mandated by LightRAG 1.4.16 `check_storage_env_vars()` whenever
+    `vector_storage="QdrantVectorDBStorage"` (verified `lightrag/kg/__init__.py:85`);
+    omitting it crashes lifespan startup with
+    `ValueError: Storage implementation 'QdrantVectorDBStorage' requires the following
+    environment variables: QDRANT_URL`. Surfaced live during Wave 2 T7 cutover; this
+    line was patched into the live override.conf to unblock kb-api boot. Defect-A
+    repo-sync commit (post-Wave-2) keeps this example == reality.
 
-    **4. `kb/deploy/omnigraph-ingest-services.service.d/override.conf.example`** (NEW — D13a fix; generalized example for the 3 ingest service drop-ins on Aliyun, ~6 lines):
+    **4. `kb/deploy/omnigraph-ingest-services.service.d/override.conf.example`** (NEW — D13a fix; generalized example for the 3 ingest service drop-ins on Aliyun, ~7 lines):
     ```ini
     # Generalized example — apply to all 3 ingest service drop-ins on Aliyun:
     #   /etc/systemd/system/omnigraph-morning-ingest.service.d/override.conf
@@ -352,7 +360,13 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
     # Existing lines on each live drop-in are preserved (HT-4 pre-check enforced); T9 ONLY appends:
     [Service]
     Environment="OMNIGRAPH_VECTOR_STORAGE=qdrant"
+    Environment="QDRANT_URL=http://127.0.0.1:6333"
     ```
+    `QDRANT_URL` mandated by LightRAG (same defect-A surface as kb-api above).
+    `ingest_wechat.py:392-417` instantiates LightRAG with the Qdrant kwarg; without
+    `QDRANT_URL` in the ingest service env, the next scheduled morning/afternoon/evening
+    ingest fire would crash before any candidate scrape. T9 MUST append BOTH lines to
+    each of the 3 live drop-ins.
 
     **5. `scripts/sync_to_databricks.sh`** — comment-only diff:
     - At Step 3 banner add: `echo "  (Step 3 carries Qdrant→nano snapshot from /root/.hermes/omonigraph-vault/lightrag_storage/, refreshed every 6h by qdrant-snapshot.timer — see v1.1.qdrant-migration phase)"`.
@@ -375,7 +389,9 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
     - `grep -c 'OnUnitActiveSec=6h' deploy/aliyun/systemd/qdrant-snapshot.timer` == 1.
     - `grep -c 'OMNIGRAPH_VECTOR_STORAGE=qdrant' kb/deploy/kb-api.service.d/override.conf.example` == 1.
     - `grep -c 'OMNIGRAPH_LLM_RERANK_' kb/deploy/kb-api.service.d/override.conf.example` == 4.
+    - `grep -c 'QDRANT_URL=http://127.0.0.1:6333' kb/deploy/kb-api.service.d/override.conf.example` == 1 (defect-A).
     - `grep -c 'OMNIGRAPH_VECTOR_STORAGE=qdrant' kb/deploy/omnigraph-ingest-services.service.d/override.conf.example` == 1.
+    - `grep -c 'QDRANT_URL=http://127.0.0.1:6333' kb/deploy/omnigraph-ingest-services.service.d/override.conf.example` == 1 (defect-A).
     - `git diff scripts/sync_to_databricks.sh` shows only comment + echo additions, zero behavior change (verify with `bash -n scripts/sync_to_databricks.sh` exits 0).
     - `bash -n scripts/qdrant_reingest_252.sh` exits 0 (syntax valid).
     - `grep -c 'qdrant_client.*count\|c.count' scripts/qdrant_reingest_252.sh` ≥ 1 (D9 — count-driven early exit gate present).
@@ -573,10 +589,11 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
     ssh aliyun-vitaclaw "cp /etc/systemd/system/kb-api.service.d/override.conf /etc/systemd/system/kb-api.service.d/override.conf.bak-pre-qdrant-migration"
     ```
 
-    **Append the 5 new lines** (single ssh `cat <<'EOF' >> override.conf` — careful to preserve [Service] section semantics; systemd allows multiple Environment= lines under one [Service]):
+    **Append the 6 new lines** (single ssh `cat <<'EOF' >> override.conf` — careful to preserve [Service] section semantics; systemd allows multiple Environment= lines under one [Service]). `QDRANT_URL` is included per defect-A (LightRAG 1.4.16 mandate; verified live during Wave 2 T7 — omitting it crashes lifespan startup):
     ```bash
     ssh aliyun-vitaclaw "cat >> /etc/systemd/system/kb-api.service.d/override.conf <<'EOF'
     Environment=\"OMNIGRAPH_VECTOR_STORAGE=qdrant\"
+    Environment=\"QDRANT_URL=http://127.0.0.1:6333\"
     Environment=\"OMNIGRAPH_LLM_RERANK_PROVIDER=vertex_gemini\"
     Environment=\"OMNIGRAPH_LLM_RERANK_MODEL=gemini-2.5-flash-lite\"
     Environment=\"OMNIGRAPH_LLM_RERANK_TOP_K=30\"
@@ -593,8 +610,8 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
 
     **Verify the restart applies all 3 changes simultaneously:**
     ```bash
-    ssh aliyun-vitaclaw "systemctl show kb-api.service | grep -E 'OMNIGRAPH_(VECTOR_STORAGE|LLM_RERANK_)'"
-    # Expect 5 lines, all present.
+    ssh aliyun-vitaclaw "systemctl show kb-api.service | grep -E 'OMNIGRAPH_(VECTOR_STORAGE|LLM_RERANK_)|QDRANT_URL'"
+    # Expect 6 lines: 5 OMNIGRAPH_* + 1 QDRANT_URL.
 
     ssh aliyun-vitaclaw "journalctl -u kb-api.service --since '5min ago' | grep lightrag_singleton_ready"
     # Expect: lightrag_singleton_ready wall_s=<X.XX>
@@ -615,6 +632,7 @@ The `app.state.lightrag` + `app.state.lightrag_lock` pair created in `kb/api.py:
   </action>
   <acceptance_criteria>
     - `ssh aliyun-vitaclaw "cat /etc/systemd/system/kb-api.service.d/override.conf | grep -cE 'OMNIGRAPH_(VECTOR_STORAGE|LLM_RERANK_)'"` returns `5`.
+    - `ssh aliyun-vitaclaw "cat /etc/systemd/system/kb-api.service.d/override.conf | grep -c '^Environment=\"QDRANT_URL='"` returns `1` (defect-A).
     - `ssh aliyun-vitaclaw "systemctl is-active kb-api.service"` returns `active`.
     - `ssh aliyun-vitaclaw "journalctl -u kb-api.service --since '10min ago' | grep -oE 'lightrag_singleton_ready wall_s=[0-9.]+' | head -1"` returns `wall_s=` ≤ 30.
     - `ssh aliyun-vitaclaw "ls /etc/systemd/system/kb-api.service.d/override.conf.bak-pre-qdrant-migration"` exists (rollback path).

@@ -5,3 +5,4 @@
 # Existing lines on each live drop-in are preserved (HT-4 pre-check enforced); T9 ONLY appends:
 [Service]
 Environment="OMNIGRAPH_VECTOR_STORAGE=qdrant"
+Environment="QDRANT_URL=http://127.0.0.1:6333"
