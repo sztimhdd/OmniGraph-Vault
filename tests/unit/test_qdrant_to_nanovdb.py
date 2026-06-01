@@ -148,6 +148,42 @@ def test_converter_handles_empty_collection(tmp_path: Path) -> None:
     assert storage["matrix"].shape == (0, _DIM)
 
 
+def test_main_handles_missing_collections(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """SC-4 (4e): main() writes valid empty JSON when Qdrant has no collections.
+
+    Pre-Wave-3 / pre-first-ingest window: kb-api boots Qdrant-on-empty, but
+    no collection exists yet (first upsert creates them). The systemd timer
+    fires every 6h regardless — so main() must produce valid empty JSON
+    instead of returning 1, else the timer stays in failed state until
+    reingest lands. Regression guard for the T8 PLAN-defect class B fix.
+
+    Stubs `QdrantClient(url=...)` to return an in-memory client (`":memory:"`)
+    so the test does not require a live Qdrant server.
+    """
+    monkeypatch.setenv("LIGHTRAG_STORAGE_DIR", str(tmp_path))
+    monkeypatch.setenv("OMNIGRAPH_EMBEDDING_DIM", str(_DIM))
+
+    def _in_memory_factory(url: str = "", **_: object) -> QdrantClient:
+        return QdrantClient(":memory:")
+
+    monkeypatch.setattr("qdrant_client.QdrantClient", _in_memory_factory, raising=True)
+
+    rc = qdrant_to_nanovdb.main()
+    assert rc == 0, "main() must return 0 when collections are missing (skip-write-empty)"
+
+    for namespace in ("chunks", "entities", "relationships"):
+        out = tmp_path / f"vdb_{namespace}.json"
+        assert out.exists(), f"vdb_{namespace}.json missing"
+        loaded = json.loads(out.read_text(encoding="utf-8"))
+        assert loaded["embedding_dim"] == _DIM
+        assert loaded["data"] == []
+        assert isinstance(loaded["matrix"], str)
+        # Real consumer hydrate must succeed off the empty JSON.
+        vdb = NanoVectorDB(embedding_dim=_DIM, storage_file=str(out))
+        storage = getattr(vdb, "_NanoVectorDB__storage")
+        assert len(storage["data"]) == 0
+
+
 def test_converter_dimension_mismatch_raises(tmp_path: Path) -> None:
     """SC-4 (4d) / HT-7: vector dim ≠ embedding_dim raises ValueError."""
     client = QdrantClient(":memory:")

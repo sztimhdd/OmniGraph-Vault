@@ -225,6 +225,32 @@ def main() -> int:
     files_written = 0
     for namespace, qdrant_collection in NAMESPACE_TO_QDRANT_COLLECTION.items():
         output_path = str(storage_dir / f"vdb_{namespace}.json")
+        # Pre-Wave-3 / pre-first-ingest: collections do not yet exist (kb-api
+        # boots Qdrant-on-empty cleanly via the QdrantVectorDBStorage init,
+        # but does NOT eagerly create collections — first upsert does). The
+        # converter must produce valid-but-empty JSON in that window so
+        # Databricks/Hermes consumers can hydrate the empty NanoVDB without
+        # 404 errors propagating off-station. Skip-and-write-empty rather
+        # than crash + return 1 (the prior behavior, which kept the timer
+        # in failed state until Wave 3 ingest landed first).
+        if not client.collection_exists(qdrant_collection):
+            empty_arr = np.zeros((0, embedding_dim), dtype=Float)
+            empty_format = {
+                "embedding_dim": embedding_dim,
+                "data": [],
+                "matrix": array_to_buffer_string(empty_arr),
+            }
+            tmp_path = output_path + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(empty_format, f, ensure_ascii=False)
+            os.replace(tmp_path, output_path)
+            logger.warning(
+                "qdrant_snapshot_collection_missing collection=%s wrote_empty=%s",
+                qdrant_collection,
+                output_path,
+            )
+            files_written += 1
+            continue
         try:
             export_collection_to_nanovdb(
                 client=client,
