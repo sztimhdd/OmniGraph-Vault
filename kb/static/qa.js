@@ -104,8 +104,11 @@
       var label = (titleMap && titleMap[hash]) || hash.slice(0, 6);
       return '[' + label + '](' + base + '/articles/' + hash + '.html)';
     }
-    // Pass 1: [/article/<hash>] or [/article:<hash>]
-    md = md.replace(/\[\/article[/:]([a-f0-9]{10})\]/g, function (_m, hash) {
+    // Pass 1: bracketed article refs in any of these LLM-emitted shapes:
+    //   [/article/<hash>]  [/article:<hash>]
+    //   [article/<hash>]   [article:<hash>]
+    //   [article-<hash>]   [article <hash>]
+    md = md.replace(/\[\/?article[\s/:_-]([a-f0-9]{10})\]/g, function (_m, hash) {
       return makeLink(hash);
     });
     // Pass 2: bare [<10-hex hash>] — must run AFTER pass 1 so we don't
