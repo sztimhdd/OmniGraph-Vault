@@ -97,7 +97,8 @@ def _make_snippet(body: Optional[str], max_len: int = 200) -> str:
 
 
 async def _kg_local_worker(
-    job_id: str, query: str, rag: LightRAG, lightrag_lock: asyncio.Lock
+    job_id: str, query: str, rag: LightRAG, lightrag_lock: asyncio.Lock,
+    mode: str = "local",
 ) -> None:
     """KG-enhanced search worker for the progressive-enhancement endpoint.
 
@@ -129,11 +130,13 @@ async def _kg_local_worker(
             "Cite every document you draw on.\n\n"
             f"Question: {query}"
         )
-        # NOTE: mode='local' does NOT exercise reranker (LightRAG mix is the rerank path),
+        # NOTE: mode='local' default does NOT exercise reranker (LightRAG mix is the rerank path),
         # so v1.1.P2-3 keeps this path as-is — no rerank_disabled threading needed.
+        # ISSUES #16 (R22): caller may override via POST body so progressive-enhancement
+        # client can ask for 'mix' / 'hybrid' / etc when KG retrieval depth matters.
         markdown = await asyncio.wait_for(
             synthesize_response(
-                wrapped, mode="local", rag=rag, lightrag_lock=lightrag_lock,
+                wrapped, mode=mode, rag=rag, lightrag_lock=lightrag_lock,
             ),
             timeout=KB_KG_SEARCH_TIMEOUT,
         )
@@ -179,9 +182,16 @@ async def _kg_local_worker(
 
 
 class _KgSearchRequest(BaseModel):
-    """POST /api/search/kg body."""
+    """POST /api/search/kg body.
+
+    ISSUES #16 (R22): ``mode`` is now a first-class body field; pre-fix the
+    handler accepted it as a query-string arg but the body schema silently
+    dropped it. Allowed values mirror LightRAG ``QueryParam.mode`` minus
+    ``bypass`` (internal escape hatch, not appropriate for public API).
+    """
 
     query: str = Field(min_length=1, max_length=500)
+    mode: Literal["local", "global", "hybrid", "naive", "mix"] = "local"
 
 
 # ---- Endpoints -------------------------------------------------------------
@@ -268,6 +278,7 @@ async def kg_enhance_start(
         _kg_local_worker, jid, payload.query,
         request.app.state.lightrag,
         request.app.state.lightrag_lock,
+        payload.mode,
     )
     return {"job_id": jid}
 

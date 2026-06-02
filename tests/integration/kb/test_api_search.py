@@ -378,3 +378,82 @@ def test_kg_search_fts_fallback_when_markdown_lacks_citations(
     for item in results:
         for key in ("hash", "title", "snippet", "lang", "source"):
             assert key in item, f"missing key {key!r} in fallback row {item!r}"
+
+
+# ---- ISSUES #16 (R22): /api/search/kg accepts mode arg via body schema -----
+
+
+def test_kg_search_body_accepts_mode_field(
+    app_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ISSUES #16: POST /api/search/kg now accepts ``mode`` in body schema.
+
+    Pre-fix: extra fields silently dropped, hard-coded mode='local'.
+    Post-fix: ``mode`` is a Literal field, propagated to synthesize_response.
+    """
+    captured: dict[str, str] = {}
+
+    async def fake_c1(query_text, mode="hybrid", **_kw):
+        captured["mode"] = mode
+        return "# Answer\n\nNo citations here."
+
+    monkeypatch.setattr("kg_synthesize.synthesize_response", fake_c1)
+
+    r = app_client.post(
+        "/api/search/kg", json={"query": "agent", "mode": "mix"},
+    )
+    assert r.status_code == 200, r.text
+    jid = r.json()["job_id"]
+
+    # Poll briefly for the BackgroundTask to land.
+    for _ in range(60):
+        time.sleep(0.05)
+        poll = app_client.get(f"/api/search/kg/{jid}")
+        if "results" in poll.json():
+            break
+    else:
+        pytest.fail(f"kg-search job {jid} did not complete within 3s")
+
+    assert captured.get("mode") == "mix", (
+        f"mode='mix' from body schema did not reach synthesize_response. "
+        f"captured={captured}"
+    )
+
+
+def test_kg_search_body_rejects_invalid_mode(app_client: TestClient) -> None:
+    """ISSUES #16: invalid mode value MUST 422 (Pydantic Literal enforcement)."""
+    r = app_client.post(
+        "/api/search/kg", json={"query": "agent", "mode": "BOGUS"},
+    )
+    assert r.status_code == 422, (
+        f"invalid mode must 422, got {r.status_code}: {r.text}"
+    )
+
+
+def test_kg_search_body_default_mode_is_local(
+    app_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ISSUES #16: omitting mode preserves pre-fix behavior — defaults to 'local'."""
+    captured: dict[str, str] = {}
+
+    async def fake_c1(query_text, mode="hybrid", **_kw):
+        captured["mode"] = mode
+        return "# Answer\n\nNo citations."
+
+    monkeypatch.setattr("kg_synthesize.synthesize_response", fake_c1)
+
+    r = app_client.post("/api/search/kg", json={"query": "agent"})
+    assert r.status_code == 200, r.text
+    jid = r.json()["job_id"]
+
+    for _ in range(60):
+        time.sleep(0.05)
+        poll = app_client.get(f"/api/search/kg/{jid}")
+        if "results" in poll.json():
+            break
+    else:
+        pytest.fail(f"kg-search job {jid} did not complete within 3s")
+
+    assert captured.get("mode") == "local", (
+        f"default mode regression — expected 'local', got {captured!r}"
+    )

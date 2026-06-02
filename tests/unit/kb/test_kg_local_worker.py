@@ -168,3 +168,83 @@ def test_kg_local_worker_resolves_citations_when_present(
     assert results[0]["title"] == "Cited Article"
     assert results[0]["lang"] == "en"
     assert results[0]["source"] == "wechat"
+
+
+# ---- ISSUES #16 (R22): mode arg propagation ---------------------------------
+
+
+def test_kg_local_worker_propagates_mode_to_synthesize_response(
+    search_mod, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ISSUES #16: mode arg from POST body MUST reach synthesize_response.
+
+    Pre-fix the body schema dropped ``mode`` silently and the worker hard-coded
+    ``mode='local'``. Post-fix the worker takes a ``mode`` kwarg defaulting to
+    ``'local'`` and forwards it; this test asserts the kwarg surfaces at the
+    LightRAG entry point with whatever the caller passed in.
+    """
+    captured: dict[str, str] = {}
+
+    async def fake_c1(query_text, mode="hybrid", **_kw):
+        captured["mode"] = mode
+        return "# Answer\n\nSee [/article/abc1234567.html] for context."
+
+    from kb.data.article_query import ArticleRecord
+
+    fake_record = ArticleRecord(
+        id=1, source="wechat", title="X", url="https://example.com/x",
+        body="Body.", content_hash="abc1234567", lang="en",
+        update_time="2026-01-01T00:00:00",
+    )
+
+    monkeypatch.setattr("kg_synthesize.synthesize_response", fake_c1)
+    monkeypatch.setattr(
+        "kb.data.article_query.get_article_by_hash",
+        lambda h, conn=None: fake_record if h == "abc1234567" else None,
+    )
+
+    jid = search_mod.job_store.new_job(kind="kg_search")
+    asyncio.run(
+        search_mod._kg_local_worker(
+            jid, "agent", None, asyncio.Lock(), "mix",
+        )
+    )
+
+    assert captured.get("mode") == "mix", (
+        f"mode arg did not reach synthesize_response. captured={captured}"
+    )
+
+
+def test_kg_local_worker_default_mode_is_local(
+    search_mod, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Defensive default-mode regression — backward-compat with pre-fix
+    callers that didn't pass mode (still get ``'local'``)."""
+    captured: dict[str, str] = {}
+
+    async def fake_c1(query_text, mode="hybrid", **_kw):
+        captured["mode"] = mode
+        return "# Answer\n\nSee [/article/abc1234567.html] for context."
+
+    from kb.data.article_query import ArticleRecord
+
+    fake_record = ArticleRecord(
+        id=1, source="wechat", title="X", url="https://example.com/x",
+        body="Body.", content_hash="abc1234567", lang="en",
+        update_time="2026-01-01T00:00:00",
+    )
+
+    monkeypatch.setattr("kg_synthesize.synthesize_response", fake_c1)
+    monkeypatch.setattr(
+        "kb.data.article_query.get_article_by_hash",
+        lambda h, conn=None: fake_record if h == "abc1234567" else None,
+    )
+
+    jid = search_mod.job_store.new_job(kind="kg_search")
+    asyncio.run(
+        search_mod._kg_local_worker(jid, "agent", None, asyncio.Lock())
+    )
+
+    assert captured.get("mode") == "local", (
+        f"default mode regression — expected 'local', got {captured!r}"
+    )
