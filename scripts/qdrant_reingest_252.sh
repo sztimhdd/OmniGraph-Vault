@@ -78,7 +78,7 @@ qdrant_chunk_count() {
 from qdrant_client import QdrantClient
 try:
     c = QdrantClient(url="${QDRANT_URL}")
-    print(c.count("lightrag_vdb_chunks", exact=True).count)
+    print(c.count("lightrag_vdb_chunks_gemini_embedding_2_3072d", exact=True).count)
 except Exception:
     # Collection may not exist yet on first run — treat as 0 so first
     # batch fires and creates it via ingest_wechat upsert.
