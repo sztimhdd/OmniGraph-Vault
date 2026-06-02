@@ -414,6 +414,14 @@ async def get_rag(flush: bool = True) -> "LightRAG":
         llm_model_max_async=2,
         max_parallel_insert=2,
         addon_params={"insert_batch_size": 100},
+        # 2026-06-03 ISSUES #31 fix: cross-border Aliyun→Vertex embedding 130s+ vs
+        # LightRAG default EMBEDDING_TIMEOUT=30 → max_execution_timeout=60s → retry
+        # storm. kb-api side (kg_synthesize.py:165) already sets this; ingest side
+        # was missing → batch_ingest worker timeouts every embedding call. Default
+        # 180s mirrors kg_synthesize._embedding_timeout_default behavior; LLM 300s
+        # accommodates Vertex long_form completions cross-border.
+        default_embedding_timeout=int(os.environ.get("LIGHTRAG_EMBEDDING_TIMEOUT", "180")),
+        default_llm_timeout=int(os.environ.get("LIGHTRAG_LLM_TIMEOUT", "300")),
         **_vector_storage_kwargs,
     )
     if hasattr(rag, "initialize_storages"):
