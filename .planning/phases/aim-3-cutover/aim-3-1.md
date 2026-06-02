@@ -65,11 +65,13 @@ This plan is autonomous (agent-only): no operator prompt, no Aliyun SSH. It prod
 ### Task 1 — Author all 13 .service files
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-3-cutover\aim-3-CONTEXT.md` lines 122-181 (systemd templates + 13-row schedule table + ExecStartPre snippet)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` lines 60-65 (CUTOVER-01..05 wording)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\scripts\cron_daily_ingest.sh` (study what NOT to copy — tmux wrapper, pycache cleanup, MAX_ARTICLES default of 10. The systemd unit replaces this entirely with a direct python call and `--max-articles 5`.)
 
 **`<acceptance_criteria>`**
+
 - 13 `.service` files exist under `deploy/aliyun/systemd/`.
 - Every file: `[Unit]`, `[Service]`, `[Install]` blocks. `Type=simple`, `User=root`, `WorkingDirectory=/root/OmniGraph-Vault`, `EnvironmentFile=/root/.hermes/.env`, `StandardOutput=journal`, `StandardError=journal`, `WantedBy=multi-user.target`.
 - ExecStart values match the table in this plan (Section "ExecStart matrix" below).
@@ -177,10 +179,12 @@ Description suggestions per unit (use any clear human-readable string — these 
 ### Task 2 — Author all 13 .timer files
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-3-cutover\aim-3-CONTEXT.md` lines 161-176 (UTC schedule table)
 - systemd.time(7) man page, OnCalendar syntax. Format `*-*-* HH:MM:SS` = every day at HH:MM:SS UTC. Format `*-*-1 HH:MM:SS` = on the 1st of every month at HH:MM:SS UTC.
 
 **`<acceptance_criteria>`**
+
 - 13 `.timer` files exist under `deploy/aliyun/systemd/`.
 - Every file has `[Unit]`, `[Timer]`, `[Install]`.
 - Every `Requires=` line references the matching `.service` filename (e.g., `omnigraph-kol-scan.timer` requires `omnigraph-kol-scan.service`).
@@ -227,9 +231,11 @@ Description suggestions: same as the matching .service Description with " timer"
 ### Task 3 — Author deploy/aliyun/systemd/README.md
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-3-cutover\aim-3-CONTEXT.md` (full file — to write the gap section accurately)
 
 **`<acceptance_criteria>`**
+
 - `deploy/aliyun/systemd/README.md` exists and contains:
   - Purpose and scope (CUTOVER-01 of aim-3 milestone)
   - Deployment command (target dir `/etc/systemd/system/`)
@@ -282,10 +288,12 @@ before the timers are enabled; thereafter Aliyun owns writes.)
 ### Task 4 — Local sanity check + commit
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\CLAUDE.md` — Lessons Learned 2026-05-06 #5 + 2026-05-15 #1 (forward-only commits, explicit `git add`, never `-A`)
 - Memory `feedback_git_add_explicit_in_parallel_quicks.md`
 
 **`<acceptance_criteria>`**
+
 - Sanity grep on `deploy/aliyun/systemd/` returns expected counts (see action below).
 - Single forward-only commit on `main` containing all 27 files (26 unit files + README.md).
 - Commit message follows conventional commits format (`docs(aim-3): ...` or `feat(aim-3): ...`).

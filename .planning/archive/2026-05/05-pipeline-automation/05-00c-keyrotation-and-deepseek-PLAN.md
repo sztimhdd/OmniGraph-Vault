@@ -129,6 +129,7 @@ From LightRAG (`venv/Lib/site-packages/lightrag/lightrag.py:400`):
 ```
 
 Existing call sites follow the pattern:
+
 ```python
 async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
     # ... construct messages ...
@@ -137,6 +138,7 @@ async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwar
 ```
 
 Deepseek OpenAI-compat target signature:
+
 ```python
 from openai import AsyncOpenAI
 
@@ -166,6 +168,7 @@ async def deepseek_model_complete(
 ```
 
 Key rotation target for `lightrag_embedding.py`:
+
 ```python
 _KEY_POOL = [
     os.environ.get("GEMINI_API_KEY"),
@@ -194,6 +197,7 @@ async def _embed_with_rotation(contents):
             raise
     raise RuntimeError("All Gemini keys exhausted (429)")
 ```
+
 </interfaces>
 </context>
 
@@ -531,6 +535,7 @@ async def _embed_with_rotation(contents):
 </verification>
 
 <success_criteria>
+
 - All 6 tasks executed and committed atomically (--no-verify).
 - Unit test count added: 12 (6 Deepseek + 6 rotation) — all passing.
 - Zero Gemini LLM calls in LightRAG-driven paths (grep audit confirms).
@@ -544,8 +549,10 @@ async def _embed_with_rotation(contents):
 `.planning/phases/05-pipeline-automation/05-00c-SUMMARY.md` with the sections listed in success_criteria.
 
 The SUMMARY must include a **"Hand-off to Plan 05-00 runtime"** section listing the exact command to retry Wave 0 after this plan merges:
+
 ```
 ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && source venv/bin/activate && python scripts/wave0_reembed.py --i-understand"
 ```
+
 and noting that with 2-key rotation + Deepseek-only LLM, the 22-doc re-embed should succeed in a single pass (~1200 embed calls spread across 2 key buckets + 0 generate_content calls).
 </output>

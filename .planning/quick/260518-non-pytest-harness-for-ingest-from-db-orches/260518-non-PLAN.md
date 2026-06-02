@@ -52,11 +52,13 @@ Build a pytest behavior-anchoring harness for `batch_ingest_from_spider.py:inges
 Purpose: pin the post-v1.0.y ingest orchestration contract so the next contract-shape change (e.g. another column added to the layer2_queue tuple, a new SKIP_REASON_VERSION bump, a new ingestions status) breaks tests at unit level — BEFORE prod cron silently swallows the regression. Direct response to the 2026-05-15 v1.0.z imc bug (single missed call site, plan-checker substring match passed, ghost successes in prod) and the 2026-05-16 image_count_row stale-0 bug.
 
 Output:
+
 - tests/unit/_ingest_fixtures.py (new, ~150 lines)
 - tests/unit/test_ingest_from_db_orchestration.py (new, ~280 lines, 5 tests)
 - CLAUDE.md (modified, +~25 lines for principle #7)
 
 Scope strictness:
+
 - Pure ADDITIVE — no business code touched
 - Single atomic commit (feat(test/quick-260518): ...)
 - Verification: `venv/Scripts/python.exe -m pytest tests/unit/test_ingest_from_db_orchestration.py -v` shows 5 passed
@@ -80,6 +82,7 @@ Scope strictness:
 <!-- Use these directly — no codebase exploration needed. -->
 
 From batch_ingest_from_spider.py (top-level constants — do NOT recompute):
+
 ```python
 SKIP_REASON_VERSION_CURRENT = 1   # L90 — used in every INSERT INTO ingestions
 LAYER1_BATCH_SIZE = 30            # imported from lib.article_filter
@@ -89,6 +92,7 @@ SLEEP_BETWEEN_ARTICLES            # int; monkeypatch to 0 for fast tests
 ```
 
 From batch_ingest_from_spider.py L1585-L1600 (ingestions CREATE TABLE — copy VERBATIM into fixture):
+
 ```sql
 CREATE TABLE IF NOT EXISTS ingestions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,11 +111,13 @@ CREATE TABLE IF NOT EXISTS ingestions (
 ```
 
 From batch_ingest_from_spider.py L1899 (8-col candidate row tuple unpacked in outer loop):
+
 ```python
 for i, (art_id, source, title, url, account, body, summary, image_count_row) in enumerate(candidate_rows, 1):
 ```
 
 From batch_ingest_from_spider.py L2064-L2067 (the queue.append site that 2026-05-15 imc missed):
+
 ```python
 layer2_queue.append((
     (art_id, source, title, url, account, body, summary, image_count_row),
@@ -120,12 +126,14 @@ layer2_queue.append((
 ```
 
 From batch_ingest_from_spider.py L1840-L1841 (drain calls _compute_article_budget_s with kwarg=image_count):
+
 ```python
 image_count_d = row[7]
 article_budget = _compute_article_budget_s(body or "", url=url_d, image_count=image_count_d)
 ```
 
 From batch_ingest_from_spider.py L2009-L2032 (image_count_row refresh after fresh scrape — 260516-htm fix):
+
 ```python
 if _needs_scrape(source, body):
     try:
@@ -142,6 +150,7 @@ if _needs_scrape(source, body):
 ```
 
 From lib/article_filter.py (data classes):
+
 ```python
 @dataclass(frozen=True)
 class ArticleMeta:
@@ -169,6 +178,7 @@ PROMPT_VERSION_LAYER2: str = "layer2_v1_20260513"
 ```
 
 From lib/scraper.py:
+
 ```python
 @dataclass(frozen=True)
 class ScrapeResult:
@@ -181,6 +191,7 @@ class ScrapeResult:
 ```
 
 Mock-stack reference (mirror tests/unit/test_max_articles_hard_cap.py:_patch_downstream — STYLE NOT VERBATIM):
+
 - monkeypatch.setattr(bi, "DB_PATH", db_path)
 - monkeypatch.setattr(bi, "_load_hermes_env", lambda: None)
 - monkeypatch.setattr(bi, "get_deepseek_api_key", lambda: "dummy")
@@ -194,6 +205,7 @@ Mock-stack reference (mirror tests/unit/test_max_articles_hard_cap.py:_patch_dow
 - monkeypatch.setattr(logging, "basicConfig", lambda *a, **kw: None)  # caplog defence
 
 Late-import patching note (CRITICAL):
+
 - `from ingest_wechat import get_rag` happens INSIDE ingest_from_db at L1705 → patch via sys.modules
 - `from lib.scraper import scrape_url` happens INSIDE ingest_from_db at L2011 → patch lib.scraper.scrape_url BEFORE await ingest_from_db
 - `_compute_article_budget_s` is module-level in batch_ingest_from_spider — patch via mocker.patch.object(bi, "_compute_article_budget_s", spy)
@@ -225,6 +237,7 @@ Insert verbatim into CLAUDE.md after the line `Full discipline doc: \`kb/docs/10
 
 This rule applies ONLY to `ingest_from_db` and any future orchestrator that meets these three signals: (a) >300 LOC of nested batches, (b) silent broad except handlers around external calls, (c) cost-or-correctness consequences from missed call sites (paid API spend / DB writes that affect tomorrow's candidate pool / ghost successes). Smaller helpers covered by their own focused tests do not need this discipline. The list of in-scope orchestrators is currently {`ingest_from_db`} and grows ONLY by adding a name to this rule, never implicitly.
 ```
+
 </claude_md_principle_7_text>
 </context>
 
@@ -237,6 +250,7 @@ This rule applies ONLY to `ingest_from_db` and any future orchestrator that meet
 Create the fixture module. Single file, ~150 lines, no test functions (NOT a conftest — leading underscore prevents pytest auto-collection on the file basename, and it's not named conftest.py so it's NOT auto-applied to other tests).
 
 Module-level imports + setup (top of file):
+
 ```python
 """Behavior-anchor harness fixtures for ingest_from_db orchestration tests.
 
@@ -341,6 +355,7 @@ Module `__all__` list at bottom for clarity.
 CRITICAL — verbatim ingestions schema check: after writing the file, verify by grep that `CHECK (source IN ('wechat', 'rss'))` AND `UNIQUE (article_id, source)` AND `skip_reason_version INTEGER NOT NULL DEFAULT 0` all appear in _ingest_fixtures.py — if any is missing, the production SELECT's NOT IN sub-query won't fire correctly and tests will pass for the wrong reason.
 
 Style notes per project rules:
+
 - PEP 8, type hints on all signatures (per ~/.claude/rules/python/coding-style.md)
 - No `print()` — use `logging.getLogger(__name__)` if needed (per python/hooks.md)
 - Frozen dataclasses where applicable (re-use ones from lib.article_filter; don't duplicate)
@@ -371,6 +386,7 @@ CLAUDE.md gets new principle #7 inserted at the precise location.
 **Step A: Write tests/unit/test_ingest_from_db_orchestration.py**
 
 File header docstring (top, before imports):
+
 ```python
 """Behavior-anchor regression tests for batch_ingest_from_spider.ingest_from_db.
 
@@ -397,6 +413,7 @@ from __future__ import annotations
 ```
 
 Common imports + setup:
+
 ```python
 import logging
 import os
@@ -422,6 +439,7 @@ from tests.unit._ingest_fixtures import (
 ```
 
 Shared helper to redirect ingest_from_db's own sqlite3.connect to a shared in-memory DB:
+
 ```python
 def _wire_db(monkeypatch, tmp_path: Path) -> sqlite3.Connection:
     """Create one in-memory DB connection; redirect both DB_PATH (.exists()
@@ -446,6 +464,7 @@ def _wire_db(monkeypatch, tmp_path: Path) -> sqlite3.Connection:
 **T1 — test_layer1_reject_writes_skipped_with_correct_source:**
 
 Seed 1 KOL article (art_id=1) and 1 RSS article (art_id=1) — same id across sources is the deliberate stress test for the UNIQUE(article_id, source) two-row contract. Both with body present (so they're real candidates). Layer1 returns 2 reject FilterResults. Verify after `await bi.ingest_from_db(...)`:
+
 - `SELECT article_id, source, status, skip_reason_version FROM ingestions ORDER BY source` returns exactly 2 rows
 - One row has source='wechat', one has source='rss'
 - Both rows have status='skipped' and skip_reason_version=`bi.SKIP_REASON_VERSION_CURRENT`
@@ -456,6 +475,7 @@ Seed 1 KOL article (art_id=1) and 1 RSS article (art_id=1) — same id across so
 Seed 1 KOL article with body present + image_count=15 in DB + layer1_verdict='candidate' + layer1_prompt_version=PROMPT_VERSION_LAYER1 (so it skips Layer 1 reject branch and lands directly as candidate).
 
 Spy on `_compute_article_budget_s`:
+
 ```python
 captured: dict = {}
 real_budget = bi._compute_article_budget_s
@@ -490,6 +510,7 @@ Verify: `SELECT status, COUNT(*) FROM ingestions GROUP BY status` — `ok + fail
 Seed 1 KOL candidate. layer1=candidate, layer2=ok, ingest_outcome=(True, 0.5, True). Pass `rag=mock_rag()` to patch_layer_funcs and capture handles dict.
 
 Force budget exhaustion via stepping time.time:
+
 ```python
 real_time = time.time
 call_count = {"n": 0}
@@ -507,6 +528,7 @@ monkeypatch.chdir(tmp_path); (tmp_path / "data").mkdir(exist_ok=True).
 Call `await bi.ingest_from_db(topic="ai", min_depth=2, dry_run=False, batch_timeout=1)`.
 
 Assert (finally contract):
+
 - `handles["drain_vision"].assert_called()` (called at least once)
 - `handles["rag"].finalize_storages.assert_called_once()`
 - (Tolerant) metrics file written under tmp_path/data/ OR finalize_storages call_count==1 (PROJECT_ROOT path may diverge).
@@ -518,6 +540,7 @@ Assert (finally contract):
 Seed 1 KOL article with body=NULL + image_count=0 + layer1_verdict='candidate' + layer1_prompt_version=PROMPT_VERSION_LAYER1. Construct ScrapeResult with images=[41 paths]. layer2=ok, ingest_outcome=(True, 1.0, True).
 
 Spy on `_compute_article_budget_s` capturing list of image_count kwargs across all calls:
+
 ```python
 captured: dict = {}
 real_budget = bi._compute_article_budget_s
@@ -545,6 +568,7 @@ After all three files are written + the verify command for Task 1 passes + the p
 Files to add explicitly: `tests/unit/_ingest_fixtures.py`, `tests/unit/test_ingest_from_db_orchestration.py`, `CLAUDE.md`.
 
 Commit message (HEREDOC):
+
 ```
 feat(test/quick-260518): behavior-anchor harness for ingest_from_db()
 
@@ -557,6 +581,7 @@ Pure additive — no business code touched.
 
 Verification: venv/Scripts/python.exe -m pytest tests/unit/test_ingest_from_db_orchestration.py -v → 5 passed
 ```
+
   </action>
   <verify>
     <automated>venv/Scripts/python.exe -m pytest tests/unit/test_ingest_from_db_orchestration.py -v 2>&1 | tail -25</automated>
@@ -575,12 +600,14 @@ After both tasks complete, run:
 3. `git diff HEAD~1 -- batch_ingest_from_spider.py lib/article_filter.py lib/scraper.py ingest_wechat.py` — expects empty output (zero business-code changes)
 
 Cross-cutting checks:
+
 - Tests are deterministic — re-running 3× produces identical result
 - No HTTP egress: tests pass with network disabled (mocks cover DeepSeek/Vertex/SiliconFlow/Apify)
 - No real DEEPSEEK_API_KEY needed: `os.environ.setdefault("DEEPSEEK_API_KEY", "dummy")` at top of both files handles Phase 5 cross-coupling
 </verification>
 
 <success_criteria>
+
 - 5 tests pass with `venv/Scripts/python.exe -m pytest tests/unit/test_ingest_from_db_orchestration.py -v`
 - tests/unit/_ingest_fixtures.py is callable as a module (in_memory_db / mock_rag / patch_layer_funcs / sample_kol_row / sample_rss_row exported)
 - CLAUDE.md HIGHEST PRIORITY PRINCIPLES section now ends with principle #7 (search "Behavior-Anchor Harness" returns one match in CLAUDE.md, sitting immediately before "## Project Summary")

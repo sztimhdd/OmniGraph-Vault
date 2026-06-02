@@ -79,6 +79,7 @@ Output: 3 modified files, 1 atomic commit, 7/7 unit tests PASS, no push.
 <!-- Key call sites and contracts the executor needs. -->
 
 From enrichment/orchestrate_daily.py (current target — lines 54-75):
+
 ```python
 def _run(cmd: list[str], dry_run: bool, critical: bool = False) -> StepResult:
     logger.info("%sRUN: %s", "DRY " if dry_run else "", " ".join(cmd))
@@ -107,6 +108,7 @@ def _run(cmd: list[str], dry_run: bool, critical: bool = False) -> StepResult:
 `import os` IS already present at line 26. No new import needed.
 
 `StepResult` is a dataclass at lines 46-51:
+
 ```python
 @dataclass
 class StepResult:
@@ -117,6 +119,7 @@ class StepResult:
 ```
 
 From lib/lightrag_queue_probe.py (current target — lines 46-72):
+
 ```python
 def compute_dynamic_budget(
     doc_status: dict[str, Any] | None = None,
@@ -141,6 +144,7 @@ def compute_dynamic_budget(
 `logger = logging.getLogger(__name__)` is already at line 16. No new import.
 
 From tests/unit/test_lightrag_queue_probe.py:
+
 - 6 existing tests (lines 12-62)
 - Uses `pytest.mark.unit` decorator
 - Imports already present: `from lib.lightrag_queue_probe import compute_dynamic_budget, read_queue_depth`
@@ -149,6 +153,7 @@ From tests/unit/test_lightrag_queue_probe.py:
 
 <out_of_scope>
 The plan must NOT do any of these:
+
 - Refactor _run() logic broadly (e.g. Popen + streaming, signal handling, partial-output capture)
 - Touch any other step_* function in orchestrate_daily.py
 - Change SUBPROCESS_TIMEOUT_SECONDS or add an env override for it
@@ -350,6 +355,7 @@ End-to-end gates that must hold after Task 1 lands:
 </verification>
 
 <success_criteria>
+
 - 3 files modified: `enrichment/orchestrate_daily.py`, `lib/lightrag_queue_probe.py`, `tests/unit/test_lightrag_queue_probe.py`.
 - 1 atomic git commit with message header `chore(observability): drop capture_output in orchestrate _run + log Pattern A budget activation`.
 - Test count went 6 → 7, all PASS.

@@ -43,6 +43,7 @@ venv/Scripts/python -m pytest tests/unit/test_ingest_wechat_cognee_gate.py -v
 ```
 
 All 17 tests pass:
+
 - 4 predicate-level explicit tests (`unset`, `"0"`, `"1"`, empty string) → PASS
 - 7 predicate-level parametrized truthy-string tests → PASS (strict match enforced)
 - 2 call-level "gate off" tests (unset + `"0"`) → PASS
@@ -84,6 +85,7 @@ Two rollback paths, depending on whether the root fix has landed:
    minutes-long retry loop that blocked Day-1 cron.
 
 2. **Full revert of the hotfix (code + tests + docs):**
+
    ```
    git revert 3f6d065 e2d16e4
    git push --no-verify origin main

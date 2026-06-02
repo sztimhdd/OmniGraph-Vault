@@ -62,6 +62,7 @@ metrics:
 None — plan executed exactly as written with the following minor deviation:
 
 **1. [Rule 2 - Missing critical file] Added omnigraph_search/__init__.py**
+
 - **Found during:** Task 3.4
 - **Issue:** `python -m omnigraph_search.query` requires the directory to be a Python package (needs `__init__.py`). Without it the `-m` flag would fail with `No module named omnigraph_search`.
 - **Fix:** Created a 1-line `__init__.py` package marker.
@@ -69,6 +70,7 @@ None — plan executed exactly as written with the following minor deviation:
 - **Commit:** `9816b0c`
 
 **2. [Note - Windows] chmod +x not applicable**
+
 - `chmod +x skills/omnigraph_search/scripts/query.sh` was skipped — Windows NTFS does not support Unix executable bits.
 - `test -x` still passes in Git Bash because Git for Windows emulates executable mode from the index.
 - When deployed to remote WSL2 Linux via `git pull`, the executable bit will be set correctly if the file was staged with `git update-index --chmod=+x` or if the umask allows it. This is tracked as a known platform difference, not a defect.
@@ -89,6 +91,7 @@ Verified with: `git diff HEAD~4 -- kg_synthesize.py query_lightrag.py config.py 
 **Deferred to Plan 06-03b** (as designed).
 
 Plan 06-03 covers file authoring and import/syntax validation only. Full runtime validation (`skill_runner --validate`, `skill_runner --test-file`, live LightRAG query) happens in Plan 06-03b, which depends on:
+
 1. Plan 06-02 having seeded the remote code graph
 2. Remote LightRAG storage confirmed non-empty
 

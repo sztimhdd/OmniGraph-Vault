@@ -29,6 +29,7 @@ inherits_from:
 - **No icon fonts. Inline SVG only.** Single stroke style: 1.5px stroke, currentColor, 24×24 viewbox.
 
 The signature moments:
+
 - **Hero h1** — gradient text fill (`background-clip: text`) with 3-stop gradient `text → accent-blue → accent-green`
 - **CTA buttons** — `.glow` and `.glow-green` utility classes (per D-12) with `box-shadow: 0 0 24px -4px rgba(...)`. CTA is felt, not loud.
 - **Card hover** — background flips to `#2a3a4a`, border to `rgba(accent, 0.3)`, transform `translateY(-2px)`. 300ms cubic-bezier(0.4, 0, 0.2, 1).
@@ -115,6 +116,7 @@ The signature moments:
 ```
 
 Detail:
+
 - `.hero h1` — `font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 700; letter-spacing: -0.02em;` + gradient `linear-gradient(135deg, var(--text) 0%, var(--accent) 50%, var(--accent-green) 100%)` clipped to text
 - `.hero-search` — `max-width: 560px`, `border-radius: var(--radius-lg)`, `border: 1px solid var(--border)`, `background: var(--bg-elevated)`, padding `1rem 1.25rem 1rem 3rem` (left padding for icon), inline SVG search icon absolutely positioned at left:1rem
 - Focus state: `border-color: var(--accent)`, `box-shadow: 0 0 0 4px var(--accent-blue-soft)`, transition 300ms
@@ -137,6 +139,7 @@ Detail:
 ```
 
 Detail:
+
 - `border-radius: var(--radius-lg)` (16px = rounded-2xl)
 - `background: var(--bg-card)`, `border: 1px solid var(--border)`
 - Padding `1.5rem`

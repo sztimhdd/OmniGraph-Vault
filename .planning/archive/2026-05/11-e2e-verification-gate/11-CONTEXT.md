@@ -104,12 +104,14 @@ All plans MUST cross-reference these files when implementing decisions:
 ### D-11.04 — Semantic aquery validation (E2E-04)
 
 - **Decision:** After text ingest returns, the benchmark calls EXACTLY:
+
   ```python
   response = await rag.aquery(
       query="GPT-5.5 benchmark results",
       param=QueryParam(mode="hybrid", top_k=3),
   )
   ```
+
   The query string is LITERAL: `"GPT-5.5 benchmark results"`. No variations. No prompting
   tweaks. Mode=`hybrid`. top_k=3.
 - **Pass criteria:** parse `response` and assert at least 1 of the following:
@@ -136,9 +138,11 @@ All plans MUST cross-reference these files when implementing decisions:
   (hardcoded `0.036` CNY for single article per PRD), emits structured warning with
   `status: "insufficient_for_batch"`. Otherwise `status: "ok"`.
 - **Structured warning shape:** appended to `warnings[]` in the output JSON (exact PRD shape):
+
   ```json
   {"event": "balance_warning", "provider": "siliconflow", "balance_cny": <float>, "estimated_cost_cny": 0.036, "status": "ok" | "insufficient_for_batch"}
   ```
+
 - **Non-fatal for v3.1 gate:** even `insufficient_for_batch` status does NOT fail the gate for
   single-article ingest. The warning is informational — future batch invocations (v3.2) may
   elevate it to fatal.
@@ -179,6 +183,7 @@ All plans MUST cross-reference these files when implementing decisions:
 
 - **Decision:** Output written to `test/fixtures/gpt55_article/benchmark_result.json` (overwrites
   prior run). The schema is EXACTLY the PRD-specified shape, reproduced here verbatim:
+
   ```json
   {
     "article_hash": "<str — md5(url)[:10]>",
@@ -208,6 +213,7 @@ All plans MUST cross-reference these files when implementing decisions:
     "errors": [<error objs>]
   }
   ```
+
 - **Field sources:**
   - `article_hash`: md5 of the fixture URL truncated to 10 chars (matches `ingest_wechat` hash shape)
   - `fixture_path`: relative path string (not absolute); planner uses `"test/fixtures/gpt55_article/"` literal or `args.fixture` as-passed
@@ -241,6 +247,7 @@ All plans MUST cross-reference these files when implementing decisions:
   - Change is SURGICAL: ~8-12 lines conditional; default path (no env vars set) IS the current
     free-tier behavior. Production deployments unchanged. v3.3 will do the REAL migration.
 - **Implementation sketch (PRD-provided):**
+
   ```python
   _USE_VERTEX = bool(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")) and bool(os.environ.get("GOOGLE_CLOUD_PROJECT"))
 
@@ -258,6 +265,7 @@ All plans MUST cross-reference these files when implementing decisions:
           return "gemini-embedding-2-preview"
       return base_model
   ```
+
   - `_USE_VERTEX` MUST be evaluated AT CALL TIME (not import time) so tests can monkeypatch
     env vars and see the behavior change. Move to a function `_is_vertex_mode() -> bool` if needed.
 - **Scope discipline:**

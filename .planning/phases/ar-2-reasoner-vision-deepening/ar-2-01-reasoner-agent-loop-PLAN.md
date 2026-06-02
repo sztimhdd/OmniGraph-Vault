@@ -51,11 +51,13 @@ must_haves:
 Replace the ar-1 deterministic-stub body in `lib/research/stages/reasoner.py` with a real bounded LLM agent loop. Two tools are exposed to the loop: `kg_search(query, top_k)` (wraps `omnigraph_search.query.search`) and `vision_analyze(image_path, question)` (wraps `cfg.vision_cascade.describe`). The loop terminates either when the LLM emits a final answer OR when `iter_count` reaches `cfg.max_iter_reasoner` (default 5). Any exception inside the loop is caught and surfaces as `status="failed"` per Axis 3.
 
 Purpose:
+
 - ORCH-03: deliver the Reasoner agent loop that the ar-1 plan deferred ("real loops land in ar-2").
 - TOOL-04: reuse `lib/vision_cascade.py` directly via `cfg.vision_cascade` — introduce no new vision infrastructure.
 - TEST-03 (Reasoner half): mock-based test asserting that the loop runs ≥1 turn, calls `vision_analyze` ≥1 time, and produces `analyzed_images` entries whose `caption` field carries the mocked vision-cascade output. The Synthesizer half of TEST-03 is delivered in ar-2-02.
 
 Output:
+
 - One file rewritten: `lib/research/stages/reasoner.py` (signature unchanged: `async def run(query, cfg, retrieved) -> ReasonerOutput`).
 - One new test file: `tests/unit/research/test_reasoner_agent_loop.py` (≥5 tests, all using mocks — no live LLM or vision call).
 - ar-1 regression suite still green (every existing test under `tests/unit/research/` continues to pass).
@@ -577,6 +579,7 @@ The `_build_tool_call_decision` and `_build_final_decision` test helpers constru
 
 ar-2 Layer 2 smoke test (manual, documented step — full smoke is wired up in ar-2-03):
 After ar-2-03 lands, the upgraded smoke command is:
+
 ```bash
 venv/Scripts/python.exe -m omnigraph.research \
   --max-iter-reasoner 2 \
@@ -584,10 +587,12 @@ venv/Scripts/python.exe -m omnigraph.research \
   --no-grounding \
   "什么是 Hermes Harness 深度解析"
 ```
+
 This plan does NOT exercise the upgraded smoke (CLI flags don't exist yet) — Layer 2 smoke is the responsibility of ar-2-03.
 </verification>
 
 <success_criteria>
+
 - ROADMAP § "Phase ar-2: Reasoner + vision deepening" Success Criterion #1: Reasoner executes a bounded LLM agent loop with `kg_search` and `vision_analyze` as tools, terminating at `iter_count <= max_iter_reasoner` (default 5), returning `iter_count` in `ReasonerOutput`. ✓ delivered by Task 1.
 - ROADMAP Success Criterion #3: Reasoner uses `lib/vision_cascade.py` directly via `cfg.vision_cascade` — no new vision infra. ✓ enforced by acceptance criterion "module body contains literal `cfg.vision_cascade.describe`".
 - ROADMAP Success Criterion #5 (Reasoner half): Mock-based test exercises Reasoner agent loop calling `vision_analyze` ≥1 time and confirms the resulting caption appears in `analyzed_images`. ✓ delivered by Task 2 Test 1 (`<MOCK_CAPTION>` round-trip). The Synthesizer half of #5 lands in ar-2-02.

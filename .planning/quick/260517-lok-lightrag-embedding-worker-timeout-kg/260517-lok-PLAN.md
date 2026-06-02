@@ -58,6 +58,7 @@ takes 15-25s per Vertex call, and one hybrid query batches 3 sequential
 calls → 45-75s easily exceeds 60s.
 
 Output:
+
   - 1 modified file: kg_synthesize.py (single-line constructor edit)
   - 1 new test file: tests/unit/test_lightrag_embedding_timeout.py (3-4 cases)
   - 1 SUMMARY.md citing local pytest evidence + Aliyun retest evidence
@@ -80,12 +81,14 @@ Output:
 <!-- Use these directly — no codebase exploration required. -->
 
 From kg_synthesize.py:106 (current — to be modified):
+
 ```python
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
     rag = LightRAG(working_dir=RAG_WORKING_DIR, llm_model_func=get_llm_func(), embedding_func=embedding_func)
 ```
 
 From kg_synthesize.py:106 (target shape after edit):
+
 ```python
 async def synthesize_response(query_text: str, mode: str = "hybrid"):
     rag = LightRAG(
@@ -102,15 +105,18 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
 ```
 
 From venv/Lib/site-packages/lightrag/lightrag.py:393-395 (verified in RESEARCH.md):
+
 ```python
 default_embedding_timeout: int = field(
     default=int(os.getenv("EMBEDDING_TIMEOUT", DEFAULT_EMBEDDING_TIMEOUT))
 )
 ```
+
 LightRAG accepts `default_embedding_timeout` as a dataclass field; passing it
 as a kwarg overrides the env-default lookup.
 
 From venv/Lib/site-packages/lightrag/utils.py:680-689 (verified in RESEARCH.md):
+
 ```python
 if llm_timeout is not None:
     if max_execution_timeout is None:
@@ -118,14 +124,17 @@ if llm_timeout is not None:
     if max_task_duration is None:
         max_task_duration = llm_timeout * 2 + 15         # Health Check
 ```
+
 Confirms 90 → 180 Worker / 195 Health.
 
 From tests/unit/test_lightrag_timeout.py (existing pattern for LLM-side timeout test):
+
 - Uses `monkeypatch.setenv` + `importlib.reload(lr)` to re-evaluate dataclass field default.
 - Useful as a reference, but for THIS task we want a different angle: assert the
   kwarg propagates from `kg_synthesize` to `LightRAG()` (not that env-var-only
   reload works, which is already covered by test_lightrag_timeout.py for the LLM side).
 </interfaces>
+
 </context>
 
 <tasks>
@@ -347,12 +356,14 @@ From tests/unit/test_lightrag_timeout.py (existing pattern for LLM-side timeout 
 8. With invalid env: `LIGHTRAG_EMBEDDING_TIMEOUT=abc python -c "import kg_synthesize; print(kg_synthesize._embedding_timeout_default())"` prints `90`
 
 **Aliyun verification (operator, Task 3):**
+
 - Journal `Embedding func: 8 new workers initialized (Timeouts: Func: 90s, Worker: 180s, Health Check: 195s)`
 - POST /api/synthesize qa returns non-empty markdown
 - POST /api/synthesize long_form returns markdown_len > 2000 with sources
 - No `Worker timeout for task` warnings during smoke
 
 **SUMMARY.md must cite:**
+
 - Local pytest output (4/4 new + 489/489 existing)
 - Aliyun journal startup line (verbatim)
 - Aliyun curl JSON snippets (qa + long_form)
@@ -360,6 +371,7 @@ From tests/unit/test_lightrag_timeout.py (existing pattern for LLM-side timeout 
 </verification>
 
 <success_criteria>
+
 - [ ] `tests/unit/test_lightrag_embedding_timeout.py` exists with 3-4 unit tests asserting kwarg propagation, env override, and defensive int parse
 - [ ] All 4 new tests PASS
 - [ ] `kb/tests/` suite remains 489/489 PASS

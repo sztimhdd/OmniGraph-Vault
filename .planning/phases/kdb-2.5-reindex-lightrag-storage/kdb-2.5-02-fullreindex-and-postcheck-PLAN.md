@@ -60,6 +60,7 @@ Purpose: Complete the LightRAG knowledge-graph build on Databricks, producing th
 `lightrag_storage/` artifacts that enable kdb-3 Smoke 3 KG-mode RAG round-trips.
 
 Output:
+
 - `/Volumes/.../lightrag_storage/` populated (vdb_*.json + graph_*.graphml + kv_store_*.json)
 - `/Volumes/.../output/kdb-2.5-FAILURES.csv` (failed hashes, if any)
 - `/Volumes/.../output/kdb-2.5-postcheck-stats.json` (Step 3 evidence)
@@ -84,14 +85,17 @@ Output:
 <!-- Key artifacts produced by Plan 01 that this plan consumes. -->
 
 From kdb-2.5-SMALLBATCH-FINDINGS.md (Plan 01 output):
+
 - Step 1 avg_wallclock_per_ok: used for Step 2 burn-rate alert baseline
 - Step 1 cost per article: used for Step 2 real-time cost monitoring
 - Gate decision: MUST be PASS before this plan executes
 
 From kdb-2.5-progress.csv (written by Step 1 run):
+
 - OK content_hashes from Step 1: Step 2 resumes by skipping these (D-06 idempotency)
 
 Volume paths (locked per STATE rev 3):
+
 ```
 /Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/
   lightrag_storage/              # must be EMPTY at Step 2 start (D-07)
@@ -101,6 +105,7 @@ Volume paths (locked per STATE rev 3):
 ```
 
 Step 3 verification check shape (from RESEARCH Q4 _run_postcheck):
+
 ```python
 # Verify in vdb_entities.json:
 data["embedding_dim"] == 1024
@@ -112,6 +117,7 @@ resp_zh = await rag.aquery("LangGraph 与 CrewAI 的对比", QueryParam(mode="hy
 resp_en = await rag.aquery("compare LangGraph and CrewAI frameworks", QueryParam(mode="hybrid"))
 # Both len() >= 50
 ```
+
 </interfaces>
 </context>
 
@@ -136,32 +142,41 @@ filesystem access. The executor performs both checks and reports results.
 **Check 1 — WRITE_VOLUME grant:**
 
 Run via Databricks MCP execute_sql (warehouse eaa098820703bf5f):
+
 ```sql
 SHOW GRANTS ON VOLUME mdlg_ai_shared.kb_v2.omnigraph_vault
 ```
+
 Expected: row with `grantee = 'hhu@edc.ca'` and `action_type = 'WRITE_VOLUME'`
 (or 'ALL PRIVILEGES').
 
 If not present, user must run:
+
 ```sql
 GRANT WRITE_VOLUME ON VOLUME mdlg_ai_shared.kb_v2.omnigraph_vault TO `hhu@edc.ca`
 ```
+
 Then re-verify before proceeding.
 
 **Check 2 — Empty target:**
+
 ```bash
 databricks fs ls dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/lightrag_storage/ 2>&1
 ```
+
 Expected for first run: "Error: Path does not exist" OR an empty listing.
 If non-empty: STOP. Do not proceed. Ask user for explicit --force-overwrite intent.
 
 **If both checks pass:**
+
 - Type "pre-flight PASS — WRITE_VOLUME granted, lightrag_storage/ empty"
 
 **If either check fails:**
+
 - Type "pre-flight BLOCKED: [which check failed] — [details]"
 - Do NOT proceed to Task 2.2 until resolved
 </how-to-verify>
+
 <resume-signal>
 Type "pre-flight PASS — WRITE_VOLUME granted, lightrag_storage/ empty"
 OR "pre-flight BLOCKED: [reason]"
@@ -185,16 +200,19 @@ observes this warning in the streaming logs, STOP and escalate before proceeding
 </what-built>
 <how-to-verify>
 **Step A — Trigger Step 2:**
+
 ```bash
 databricks bundle run kdb_2_5_reindex_fullrun -t dev
 # Streams logs. Note the run-id from output.
 ```
+
 Note: if lightrag_storage/ is non-empty from a previous attempt, operator must pass
 `--params force-overwrite=true` explicitly (D-07 requirement). The YAML default does
 NOT include this flag.
 
 **Step B — Monitor progress (while Job runs):**
 Every 30 min, check:
+
 ```bash
 # Count OK rows in progress CSV:
 databricks fs cat dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/output/kdb-2.5-progress.csv | grep ",ok," | wc -l
@@ -202,9 +220,11 @@ databricks fs cat dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/output/kdb-
 # Check for BURN-RATE WARNING in logs:
 databricks jobs runs get-output <run-id> 2>&1 | grep "BURN-RATE alert"
 ```
+
 If BURN-RATE alert appears AND cost looks like it will exceed $200: manually cancel + escalate.
 
 **Step C — Wait for Job completion:**
+
 ```bash
 databricks jobs runs get <run-id>
 # Wait until state.life_cycle_state = "TERMINATED"
@@ -212,19 +232,23 @@ databricks jobs runs get <run-id>
 ```
 
 **Step D — Pull FAILURES.csv if any:**
+
 ```bash
 databricks fs cp dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/output/kdb-2.5-FAILURES.csv \
   .planning/phases/kdb-2.5-reindex-lightrag-storage/kdb-2.5-FAILURES.csv
 ```
+
 If file does not exist on Volume (zero failures): create an empty CSV with header row only:
 `content_hash,source_table,error_truncated`
 
 **Step E — Assess failure rate:**
+
 ```bash
 # Count failed rows in progress CSV:
 databricks fs cat dbfs:/Volumes/.../output/kdb-2.5-progress.csv | grep ",failed," | wc -l
 # Failure rate = failed / (ok + failed + skipped)
 ```
+
 If failure_rate > 5% (> 9 of ~170): PHASE REOPENED — type "Step 2 REOPENED: failure_rate = X%"
 If failure_rate <= 5%: type "Step 2 PASS: ok=X failed=Y failure_rate=Z%"
 
@@ -257,20 +281,24 @@ Skill(skill="databricks-patterns", args="databricks bundle run kdb_2_5_reindex_p
 Skill(skill="writing-tests", args="Assert embedding_dim == 1024 from postcheck-stats.json. Assert n_zh >= 10 and n_en >= 10 from bilingual sample. Assert len(zh_response) >= 50 and len(en_response) >= 50 from round-trip excerpts. These are SEED-DBX-03 acceptance criteria.")
 
 **Step A — Trigger Step 3:**
+
 ```bash
 databricks bundle run kdb_2_5_reindex_postcheck -t dev
 # Note run-id, wait for completion (~30 min)
 ```
 
 **Step B — Pull postcheck stats:**
+
 ```bash
 databricks fs cat dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/output/kdb-2.5-postcheck-stats.json
 ```
+
 Parse JSON: embedding_dim, bilingual_zh_count_in_sample, bilingual_en_count_in_sample,
 zh_response_excerpt, en_response_excerpt.
 
 **Step C — Verify SEED-DBX-03 criteria:**
 Assert programmatically (can be a one-off Python snippet run locally):
+
 ```python
 import json
 data = json.loads(open(".../kdb-2.5-postcheck-stats.json").read())
@@ -281,10 +309,12 @@ assert len(data["zh_response_excerpt"]) >= 50, "zh round-trip too short"
 assert len(data["en_response_excerpt"]) >= 50, "en round-trip too short"
 print("SEED-DBX-03 PASS")
 ```
+
 If any assertion fails: postcheck FAILED — phase REOPENED.
 
 **Step D — Author kdb-2.5-VERIFICATION.md:**
 Use the RESEARCH Q8 template. Populate all sections with real measured values:
+
 - Phase ROADMAP success criteria table (5 rows: Job state, Volume populated, failure rate <= 5%, post-check, cost recorded)
 - Step 1 small-batch findings (from SMALLBATCH-FINDINGS.md values)
 - Step 2 full re-index (run-id, start/end time, wallclock, ok/failed counts, total cost from billing)
@@ -302,6 +332,7 @@ Use the RESEARCH Q8 template. Populate all sections with real measured values:
 
 **Step E — Update STATE-kb-databricks-v1.md:**
 Update "Current Position" section:
+
 ```
 - **Phase:** kdb-2.5 — Re-index LightRAG Storage (COMPLETE)
 - **Status:** kdb-2.5 complete. SEED-DBX-02 (Step 1 + Step 2) + SEED-DBX-03 (Step 3) PASS.
@@ -310,13 +341,16 @@ Update "Current Position" section:
 - **Last activity:** <date> — kdb-2.5 fullreindex + postcheck shipped.
   Run-id: <run-id>. Commit hashes (forward-only): <hash> (VERIFICATION + STATE backfill).
 ```
+
 This is the "2-forward-commit pattern" from STATE rev 3. Do NOT amend previous commits.
 
 Commit order:
+
 1. `docs(kdb-2.5-02): VERIFICATION + FAILURES.csv` — stages VERIFICATION.md + FAILURES.csv
 2. `docs(kdb-2.5): backfill STATE-kb-databricks-v1.md phase complete` — stages STATE file only
 Both commits explicit file paths; no git add -A.
 </action>
+
 <verify>
   <automated>
     cd C:\Users\huxxha\Desktop\OmniGraph-Vault && .venv/Scripts/python -c "
@@ -390,6 +424,7 @@ git log cfe47b4..HEAD --grep '(kdb-' --name-only -- kb/ lib/ \
   | grep -v -E '^lib/llm_complete\.py$|^kg_synthesize\.py$' | sort -u
 # Expected: empty output
 ```
+
 </verification>
 
 <success_criteria>
@@ -433,6 +468,7 @@ Concurrent safety: git add explicit files only; forward-only commits.
 </hard_constraints>
 
 <anti_patterns>
+
 - DO NOT trigger Step 2 before WRITE_VOLUME pre-flight PASS (Task 2.1).
 - DO NOT skip the empty-target check — the first Step 2 run is the ONLY run that starts on a clean Volume. Retries resume via progress CSV.
 - DO NOT mark VERIFICATION as passed if failure_rate > 5% or any SEED-DBX-03 criterion fails.

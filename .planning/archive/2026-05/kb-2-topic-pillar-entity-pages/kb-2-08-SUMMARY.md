@@ -13,12 +13,15 @@ requirements: [LINK-01, LINK-02]
 # kb-2-08 — Article Aside (Related Entities + Related Topics) Plan Summary
 
 ## Objective
+
 Extend `kb/templates/article.html` per `kb-2-UI-SPEC.md §3.4` — wrap existing `.article-body` in `.article-detail-layout` grid + add `.article-aside` sibling with conditional related_entities (3-5 chips) + related_topics (1-3 chips) sections. Sticky on desktop ≥1024px, stacked on mobile. Append article-aside CSS.
 
 ## Tasks
+
 2 tasks (template extension + CSS authoring). Surgical changes — kb-1 .article-footer Ask AI CTA untouched.
 
 ## Skills (per kb/docs/10-DESIGN-DISCIPLINE.md)
+
 This plan invokes both required UI Skills literally in task `<action>` blocks:
 
 - **Skill(skill="ui-ux-pro-max", args="...")** — translate UI-SPEC §3.4 verifying 7 design constraints (sibling not nested, restraint .glow stays footer, empty-section guard, sticky desktop ≥1024px, stacked mobile, .chip--topic green hue semantic, prefers-reduced-motion compliance).
@@ -27,10 +30,12 @@ This plan invokes both required UI Skills literally in task `<action>` blocks:
 These literal `Skill(skill=...)` strings are embedded in `kb-2-08-article-aside-PLAN.md` Task 1 + Task 2 `<action>` blocks for kb/docs/10-DESIGN-DISCIPLINE.md Check 1 regex match.
 
 ## Dependency graph
+
 - **Depends on:** kb-2-02 (i18n keys article.related_aria, article.related_entities, article.related_topics), kb-2-03 (icons folder-tag + tag), kb-2-04 (related_entities_for_article + related_topics_for_article query functions consumed at render time by plan 09)
 - **Consumed by:** kb-2-09-export-driver-extension — driver populates `related_entities` + `related_topics` in article render context
 
 ## Tech-stack notes
+
 - Position rule honored: aside is SIBLING to .article-body inside .article-detail-layout (NOT nested in body, NOT in footer)
 - Sticky on desktop ≥1024px (top: 88px = kb-1 64px nav + 24px breathing); max-height: calc(100vh - 104px) with overflow-y: auto
 - Mobile <1024px: stacked single column; aside-list switches to flex-wrap row
@@ -40,6 +45,7 @@ These literal `Skill(skill=...)` strings are embedded in `kb-2-08-article-aside-
 - Topic chip uses `folder-tag` icon (12px in chip, 14px in heading); entity chip uses `tag` icon
 
 ## Acceptance signal
+
 - `kb/templates/article.html` parses Jinja2
 - All 4 UI-SPEC §8 accept patterns for article extensions (#19-22) satisfied
 - kb-1 .article-footer Ask AI CTA still present (regression)
@@ -50,6 +56,7 @@ These literal `Skill(skill=...)` strings are embedded in `kb-2-08-article-aside-
 ## Execution Record (2026-05-13)
 
 ### One-liner
+
 Extended `kb/templates/article.html` with `.article-detail-layout` + `.article-aside` per UI-SPEC §3.4, AND consolidated 3 deferred CSS blocks (§3.2 entity, §3.3 homepage, §3.4 article-aside = 139 LOC) into `kb/static/style.css`.
 
 ### Skills invoked (literal — passes design-discipline Check 1 regex)
@@ -67,12 +74,14 @@ Extended `kb/templates/article.html` with `.article-detail-layout` + `.article-a
 ### Selectors added by section
 
 **§3.2 entity-page (kb-2-06 deferred):**
+
 - `.entity-header` — padding/border-bottom shell
 - `.entity-header__title` — SOLID `var(--text)` (no gradient — restraint), `clamp(1.5rem, 3vw, 2.25rem)`, `word-break: break-word` for long Latin entity names
 - `.entity-header__meta` — flex-wrap row for count chip + lang-distribution
 - `.entity-lang-distribution` — inline-flex container for kb-1 `.lang-badge` chips
 
 **§3.3 homepage (kb-2-07 deferred):**
+
 - `.article-list--topics` — 5/3/2/1 col responsive grid (≥1200 → 5, 768-1199 → 3, 480-767 → 2, <480 → 1)
 - `.entity-cloud` — flex-wrap chip cloud
 - `.chip--entity-cloud` — composes `.chip` with baseline-aligned `chip-label · chip-count` layout
@@ -80,6 +89,7 @@ Extended `kb/templates/article.html` with `.article-detail-layout` + `.article-a
 - `.chip--entity-cloud:hover .chip-count` — count brightens to secondary on hover
 
 **§3.4 article-aside (kb-2-08 primary):**
+
 - `.article-detail-layout` — grid wrapper (single col default, `minmax(0, 1fr) 280px` ≥1024px). **Cascade-order override note:** kb-1 declared a stub at line 1573 (`grid-template-columns: minmax(0, 1fr) 240px`); the new ≥1024px rule appended at end of style.css overrides via cascade (same specificity, later wins for `grid-template-columns`).
 - `.article-aside` (≥1024px only) — `position: sticky; top: 88px; max-height: calc(100vh - 104px); overflow-y: auto`
 - `.article-aside__group + .article-aside__group` — separator (border-top + padding/margin)

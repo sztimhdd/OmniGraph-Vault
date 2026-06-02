@@ -38,6 +38,7 @@ This matches aim-2-5.md plan but contradicts wave-3 evidence; wave-3 evidence wa
 **Resolution**: User authorized **Backup-then-overwrite** via AskUserQuestion (recommended option). Existing Aliyun state preserved at sibling timestamped path before cutover mv.
 
 **Backup path** (Aliyun, recoverable): `/root/.hermes/omonigraph-vault/lightrag_storage.aliyun-pre-aim2-bak-20260523T231949Z/`
+
 - 752 MB / 47 files / counts {entities=22412, relations=31566, chunks=1478, kv_keys=60919}
 - Untouched by cutover mv; rollback path available if Aliyun-source state turns out to be needed.
 
@@ -78,6 +79,7 @@ cd /root/OmniGraph-Vault && source venv-aim1/bin/activate \
 ```
 
 **New Aliyun production**:
+
 ```json
 {"chunks": 1875, "entities": 27654, "kv_keys": 76249, "relations": 39604,
  "script_version": "1.0",
@@ -85,6 +87,7 @@ cd /root/OmniGraph-Vault && source venv-aim1/bin/activate \
 ```
 
 **Hermes source (from STORAGE-04 / re-verified during pause this wave)**:
+
 ```json
 {"chunks": 1875, "entities": 27654, "kv_keys": 76249, "relations": 39604,
  "script_version": "1.0",
@@ -133,6 +136,7 @@ Note: plan estimated 11 ingest cron lines based on STORAGE-01 snapshot; operator
 ## Hand-off to aim-3
 
 aim-3 (Aliyun ingest cron cutover proper) inherits:
+
 - Aliyun lightrag_storage = byte-identical Hermes-source state at `2026-05-23T23:19:49Z`
 - Hermes lightrag_storage = read-only frozen, retained until `2026-06-22`
 - Hermes ingest cron resumed (10 lines) — Aliyun-side ingest cron NOT yet active; Hermes remains the active ingest writer until aim-3 cuts over the cron schedule.

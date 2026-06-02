@@ -136,6 +136,7 @@ The 1 "deletion" is the line-continuation of the last sentence in the frontmatte
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Routing tests 2 and 3 failed: omnigraph_search SKILL.md produced self-referencing redirect responses**
+
 - **Found during:** Task 3.6 (routing test run on remote)
 - **Issue:** Test cases "code-structure routes to graphify" and "long-form synthesis routes to omnigraph_query" had `expect_not_contains: ["omnigraph_search"]` but the LLM, acting as the omnigraph_search skill, naturally said "The `omnigraph_search` skill is not for this, use graphify/omnigraph_query". The skill name appeared in the redirect explanation.
 - **Fix (attempt 1):** Added "When redirecting, name only the target skill in your response — do NOT mention this skill's own name" instruction to `## When NOT to Use`. (commit `ba446ab`)
@@ -144,6 +145,7 @@ The 1 "deletion" is the line-continuation of the last sentence in the frontmatte
 - **Files modified:** `skills/omnigraph_search/SKILL.md`
 
 **2. [Rule 1 - Bug] omnigraph_search/query.py used 768-dim embedding (pre-Phase-5); remote storage migrated to 3072-dim in Phase 5**
+
 - **Found during:** Task 3.6 (remote live smoke test)
 - **Issue:** `query.py` was written in Plan 06-03 using inline `gemini_embed` at 768 dims (`gemini-embedding-001`). Phase 5 re-embedded the remote storage to 3072 dims (`gemini-embedding-2`). Running the query exited 1 with "Embedding dim mismatch, expected: 768, but loaded: 3072".
 - **Fix:** Replaced inline embedding function with `from lightrag_embedding import embedding_func as _embedding_func` — the shared Phase 5 module that uses `gemini-embedding-2` at 3072 dims. Matches `query_lightrag.py` production pattern exactly. (commit `5d7bdc0`)
@@ -174,11 +176,13 @@ None.
 ## Self-Check: PASSED
 
 Files exist:
+
 - `skills/omnigraph_query/SKILL.md` — FOUND (modified, 3 occurrences of omnigraph_search)
 - `skills/omnigraph_search/SKILL.md` — FOUND (modified, routing templates added)
 - `omnigraph_search/query.py` — FOUND (modified, lightrag_embedding import)
 
 Commits exist:
+
 - `6519b01` — FOUND (feat: omnigraph_query cross-reference)
 - `ba446ab` — FOUND (fix: routing self-reference prevention)
 - `5d7bdc0` — FOUND (fix: embedding 3072-dim alignment)

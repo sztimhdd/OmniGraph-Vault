@@ -7,6 +7,7 @@
 **Coverage:** 30/30 requirements mapped
 
 > **Locked design:** `.planning/PROJECT-v3.5-Ingest-Refactor.md` — 6 D-decisions
+>
 > + Layer 1 v0 prompt verbatim, treated as final, no re-derivation.
 > **Cross-milestone contract:** `omnigraph_search.query.search(query_text, mode)`
 > stays stable. Migration 006/007 are additive; existing rows untouched.

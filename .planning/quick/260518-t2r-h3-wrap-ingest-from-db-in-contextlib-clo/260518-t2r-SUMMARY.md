@@ -85,6 +85,7 @@ Pushed: `3c849c4..2c273dd  main -> main` (no rebase needed despite intervening c
 ## Concurrency Safety Notes
 
 Concurrent dirty paths in working tree at task start (kdb-2-04 + kb-v2.2 translation track):
+
 - `databricks-deploy/app.yaml`, `databricks-deploy/_wave0_probe.py`, `databricks-deploy/app.yaml.production-backup`
 - `kb/api_routers/articles.py`, `kb/templates/article.html`, `kb/services/translation.py`, `kb/data/migrations/*`
 - `tests/integration/kb/conftest.py`

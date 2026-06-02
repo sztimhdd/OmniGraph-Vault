@@ -220,6 +220,7 @@ elif 'option-c' in summary:
 </verification>
 
 <success_criteria>
+
 - UI-04 closed: real PNG present (option-a/b) OR carry-forward documented (option-c)
 - No silent acceptance — user/operator made an explicit decision
 </success_criteria>

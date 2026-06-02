@@ -172,6 +172,7 @@ Per PROJECT-Aliyun-Ingest-Migration-v1.md §3 (Decisions 1-5) + §4 (Q1-Q6 all c
    Forward-only edit; no PLAN, no ROADMAP-KB-v2 phase-table entry, no phase scaffolding. This memo only ensures the design risk doesn't rot in `.scratch/`.
 
 Red lines for both:
+
 - Gate 1 is a hard-stop. aim-0 PASS does NOT auto-flow into aim-1 — Q1/Q2/Q3 must be answered first.
 - Memo 2 modifies only the future-improvements section of STATE-KB-v2.md; forward-only, no overwrite of existing content.
 - Strictly do not opportunistically expand scope to draft kb-4 / aim-1 plans together while resolving Gate 1.
@@ -197,6 +198,7 @@ Expected baselines after aim-0 readiness (per PROJECT §6 risk mitigation):
 **aim-1 actuals (2026-05-23):** aim-1-4 smoke: batch_elapsed=778.44s / budget=28800s (2.7%); 85 nodes / 93 edges; SiliconFlow 38/38 vision OK; venv-aim1 py3.11.0rc1 153 pkgs
 
 **aim-4 actuals (2026-05-24):**
+
 - Wave 2 sync-from-aliyun.sh smoke: first-run 41.061s / second-run 19.945s (idempotency proven); 4 sync targets verified (kol_scan.db = 26,959,872 B; articles/ = 1944 HTML files; images/ = 872M; kb/wiki/ NO_MARKER_OK)
 - Wave 3 systemd timer manual fire: `sudo systemctl start omnigraph-daily-pull.service` → Result=success ExecMainStatus=0; journalctl shows 4 rsync log lines + "sync OK on attempt 1"; next fire `Mon 2026-05-25 02:00:00 ADT` (= 05:00 UTC, explicit UTC suffix on OnCalendar after Hermes TZ deviation surfaced at G5)
 - Hermes net cron count: 11 → 1 (G6 returns 0 legacy ingest cron lines; G7 returns exactly 1 omnigraph- timer)

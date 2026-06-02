@@ -22,12 +22,14 @@ The kg_synthesize.py:64-70 comment claims `long_form` requests "bump this to 240
 ### Hit 1: `error="C1 timeout"` string literal
 
 `kb/services/synthesize.py:537`
+
 ```python
 537      _fts5_fallback(question, lang, job_id, reason="C1 timeout")
 ```
 
 **Function:** `kb_synthesize` (the BackgroundTask entry called by `POST /api/synthesize` handler)
 **Context (lines 532-541):**
+
 ```python
 532  except asyncio.TimeoutError:
 533      _log.warning(
@@ -48,6 +50,7 @@ The kg_synthesize.py:64-70 comment claims `long_form` requests "bump this to 240
 ### Hit 2: `asyncio.wait_for` / `asyncio.TimeoutError` call sites in synthesize path
 
 `kb/services/synthesize.py:515-541` (single outer wait_for around `synthesize_response`):
+
 ```python
 515  try:
 516      # QA-04: bound C1 wall-time. asyncio.wait_for raises TimeoutError on
@@ -76,6 +79,7 @@ The kg_synthesize.py:64-70 comment claims `long_form` requests "bump this to 240
 ```
 
 `kg_synthesize.py:208-228` (inner per-attempt wait_for inside 3-attempt retry loop):
+
 ```python
 207  for i in range(3):
 208      try:
@@ -120,6 +124,7 @@ Both modules read the env independently. The `kb/services/synthesize.py:69` valu
 ### `databricks-deploy/app.yaml` env block
 
 Read in full (`databricks-deploy/app.yaml` lines 17-72). The `env:` list contains:
+
 - `OMNIGRAPH_BASE_DIR=/tmp/omnigraph_vault`
 - `KB_VOLUME_DB_PATH=/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/data/kol_scan.db`
 - `KB_DB_PATH=/tmp/kol_scan.db`
@@ -144,6 +149,7 @@ Read in full (`databricks-deploy/app.yaml` lines 17-72). The `env:` list contain
 1. `grep -rn 'KB_SYNTHESIZE_TIMEOUT' kb/ kg_synthesize.py lib/ databricks-deploy/` — every production hit is either the env-read at module load (synthesize.py:69, config.py:42), the wait_for usage (synthesize.py:525), or doc comments. **No code path mutates the value based on `mode`.**
 
 2. The kg_synthesize.py:64-70 comment claim:
+
    ```python
    64  # 260524-tk5: inner per-attempt timeout for rag.aquery(). The outer wrapper at
    65  # kb/services/synthesize.py uses KB_SYNTHESIZE_TIMEOUT=60 (default) — but
@@ -153,6 +159,7 @@ Read in full (`databricks-deploy/app.yaml` lines 17-72). The `env:` list contain
    69  # TimeoutError into the existing 3-attempt retry, giving attempt 2/3 a chance
    70  # to succeed once the worker queue clears.
    ```
+
    …describes the *Aliyun* behavior — Aliyun's `/etc/systemd/system/kb-api.service.d/override.conf` sets `Environment=KB_SYNTHESIZE_TIMEOUT=240` (per `.planning/quick/260517-lok-lightrag-embedding-worker-timeout-kg/260517-lok-VERIFICATION.md:34, 36, 206`). That bump was **never ported into `databricks-deploy/app.yaml`** during the kdb-2 deploy migration.
 
 3. `kb/services/synthesize.py:469-541` — the `kb_synthesize` function signature accepts `mode: str` (qa | long_form) and dispatches the prompt template via `_wrap_question_for_mode()`, but the timeout value passed to `asyncio.wait_for` is the module-level `KB_SYNTHESIZE_TIMEOUT` constant — independent of mode.
@@ -253,9 +260,11 @@ Aliyun's 240s was set during `260517-lok` quick (LightRAG embedding worker timeo
 ## Fix proposals (NOT IMPLEMENTED — listing only)
 
 ### Option A: Add `KB_SYNTHESIZE_TIMEOUT=240` to `databricks-deploy/app.yaml`
+
 **Tradeoff:** simplest, mirrors Aliyun, single-line config change. Requires `databricks sync` + `databricks apps deploy` redeploy. Does not address whether Databricks long_form hybrid genuinely needs 240s or could land at 90s.
 
 **Concrete change:**
+
 ```yaml
 # databricks-deploy/app.yaml — add to env: list
   - name: KB_SYNTHESIZE_TIMEOUT
@@ -263,9 +272,11 @@ Aliyun's 240s was set during `260517-lok` quick (LightRAG embedding worker timeo
 ```
 
 ### Option B: Wire `mode`-based timeout in `kb_synthesize`
+
 **Tradeoff:** structural fix that finally implements the kg_synthesize.py:64-70 comment's "long_form bumps to 240" promise. Code change, more invasive, requires test updates. Future-proof if more modes get added.
 
 **Concrete change:**
+
 ```python
 # kb/services/synthesize.py
 KB_SYNTHESIZE_TIMEOUT_QA: int = int(os.environ.get("KB_SYNTHESIZE_TIMEOUT_QA", "60"))
@@ -280,6 +291,7 @@ response = await asyncio.wait_for(
 ```
 
 ### Option C: Calibrate then set
+
 **Tradeoff:** measure actual Databricks `long_form` p99 wallclock via 5-10 sample run, set `KB_SYNTHESIZE_TIMEOUT` to p99 + safety margin (e.g., 90s or 120s) instead of mirroring Aliyun's 240s blindly. Lower upper bound on user wait when LightRAG genuinely hangs. Requires probe runs.
 
 ### Recommendation (not a decision)

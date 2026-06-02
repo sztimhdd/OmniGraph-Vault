@@ -86,6 +86,7 @@ Output: 4 populated directories under `test/fixtures/` + 4 metadata.json files.
 <!-- NOTE: baseline metadata is SLIMMER than Phase 14 PRD schema — Phase 14 fixtures ADD expected_chunks/expected_entities/notes. -->
 
 Baseline metadata.json (gpt55_article, already on disk):
+
 ```json
 {
   "title": "GPT-5.5来了！全榜第一碾压Opus 4.7，OpenAI今夜雪耻",
@@ -97,6 +98,7 @@ Baseline metadata.json (gpt55_article, already on disk):
 ```
 
 Phase 14 LOCKED schema (PRD §B3.2) — superset used for NEW fixtures:
+
 ```json
 {
   "title": "...",
@@ -111,12 +113,14 @@ Phase 14 LOCKED schema (PRD §B3.2) — superset used for NEW fixtures:
 ```
 
 Baseline fixture file layout (from `ls test/fixtures/gpt55_article/`):
+
 - article.md
 - raw.html (baseline uses `raw.html` — new fixtures use `article.html` per PRD layout; both are acceptable; keep consistent per-fixture)
 - images/img_000.jpg, img_001.png, ... (28 files kept after filter)
 - metadata.json
 
 v3.1 Phase 8 IMG-01 filter rule (for dense_image_article design):
+
 - Images kept when `min(width, height) >= 300`
 - A 100×800 narrow banner has `min(100, 800) = 100 < 300` → FILTERED OUT
 </interfaces>
@@ -207,6 +211,7 @@ v3.1 Phase 8 IMG-01 filter rule (for dense_image_article design):
      - If the scraped article had images (e.g., tracking pixels), remove the images/ dir entirely so `total_images_raw` is truly 0.
 
   5. For **dense_image_article**: verify that at least 10+ images have `min(w,h) < 300` using:
+
      ```bash
      python -c "
      from PIL import Image
@@ -215,6 +220,7 @@ v3.1 Phase 8 IMG-01 filter rule (for dense_image_article design):
      print(f'Narrow images: {len(narrow)}/{len(list(Path(\"test/fixtures/dense_image_article/images\").iterdir()))}')
      "
      ```
+
      - If fewer than 10 narrow images, replace the URL (the article does not adequately exercise IMG-01). Return to Task 1.
 
   6. For **sparse_image_article**, **mixed_quality_article**: no special processing — just verify image counts match profile (±20%).
@@ -277,6 +283,7 @@ test -d test/fixtures/mixed_quality_article/images
   ```
 
   If `/dev/urandom` is unavailable on Windows Git Bash, alternative:
+
   ```bash
   # Python one-liner fallback
   python -c "
@@ -292,6 +299,7 @@ test -d test/fixtures/mixed_quality_article/images
   ```
 
   Verify corruption: each target file must now fail PIL decode:
+
   ```bash
   python -c "
   from PIL import Image
@@ -401,11 +409,13 @@ print(f'Corrupted count: {corrupt} (OK)')
   | mixed_quality_article | `max(1, text_chars // 4800)` | `max(5, text_chars // 400)` | "2-3 corrupted images — exercises Phase 13 Vision cascade error handling" |
 
   Heuristic rationale (Claude's Discretion per 14-CONTEXT.md):
+
   - `expected_chunks`: LightRAG default chunk size ~1200 tokens ≈ 4800 chars (matches `scripts/bench_ingest_fixture.py` heuristic at line 524)
   - `expected_entities`: ~1 entity per 400 chars (empirically ≈ 10-15 entities for a 5000-char article; conservative floor of 5)
   - Tolerance (±10%) is applied by the validation script, not baked into metadata
 
   After writing, validate each metadata.json:
+
   ```bash
   python -c "
   import json
@@ -419,6 +429,7 @@ print(f'Corrupted count: {corrupt} (OK)')
       print(f'{f}: OK ({len(meta)} fields)')
   "
   ```
+
   </action>
   <verify>
     <automated>
@@ -486,12 +497,14 @@ print('All 4 metadata.json files valid')
   Tolerance is intentionally wide here (±50-100% of PRD nominal values) since operator picked real WeChat articles that are unlikely to match exact counts. Tighten if operator wishes.
 
   If any fixture fails profile validation:
+
   - For **text_only_article**: delete images/ subdirectory entirely, re-run Task 4 for that fixture only
   - For **dense_image_article**: if < 30 images, it's the wrong URL; return to Task 1 to pick a better candidate
   - For **sparse_image_article**: if > 8 images, delete excess images from images/ dir (keep the largest 3-5)
   - For **mixed_quality_article**: if < 10 images, no hard failure — note in metadata.notes
 
   Additionally verify dense_image_article narrow-banner coverage:
+
   ```bash
   python -c "
   from PIL import Image, UnidentifiedImageError
@@ -588,6 +601,7 @@ All four assertions must pass for this plan to be complete.
 </verification>
 
 <success_criteria>
+
 - [ ] 4 new fixture directories exist under `test/fixtures/` (sparse/dense/text_only/mixed)
 - [ ] Each fixture has `article.md` with non-empty Markdown content
 - [ ] Each fixture has `metadata.json` matching PRD §B3.2 8-field schema

@@ -105,6 +105,7 @@ Executed all 4 tasks of aim-3-2:
 ## Self-Check
 
 Files created/modified:
+
 - `.planning/phases/aim-3-cutover/EVIDENCE/CUTOVER-01-deploy-evidence.md` — created
 - `deploy/aliyun/systemd/omnigraph-*.timer` (all 13) — modified (UTC suffix)
 - Commit `d2f8fd5` — verified via `git log --oneline -3`

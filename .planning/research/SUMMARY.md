@@ -30,6 +30,7 @@ Two D-level decisions needed locking before Wave 1 begins. Both are now locked p
 **Stack's reasoning for B:** "KOL sources are WeChat-only so there is no Day-1 regression risk." This reasoning is incorrect because it misses the pre-existing breakage context: `batch_ingest_from_spider.py:940` ALREADY calls `scrape_wechat_ua` (UA-only, no cascade), and this is the path that failed on Day-1 pre-flight article 1. KOL sources ARE WeChat — but WeChat under anti-abuse throttle consistently blocks UA-only calls, which is exactly why the full cascade (Apify → CDP → MCP → UA fallback) was built. Option B leaves a confirmed broken path untouched.
 
 **Domain consensus (2:1 files explicitly recommend A; Stack's dissent rests on missed context):**
+
 - Architecture (HIGH confidence): Option A — line 940 is the Day-1 article 1 fail bug, already broken
 - Pitfalls CP-01 (Critical): Option A — Option B leaves "silent hollow-doc bomb" in 1020-backlog re-ingest
 - Features: Option A — "fixes Day-1 KOL scrape bug" listed as key differentiator
@@ -175,6 +176,7 @@ orchestrate_daily.step_7_ingest_all
 ```
 
 **Key invariants preserved from KOL path:**
+
 - Checkpoint writes: `.tmp` → `os.replace()` (atomic)
 - Vision worker: fire-and-forget; text ingest never blocked
 - `enriched=2`: only after `aget_docs_by_ids` confirms PROCESSED status
@@ -182,6 +184,7 @@ orchestrate_daily.step_7_ingest_all
 - LightRAG instance: one shared instance per `run()` call with `finalize_storages()` in `finally`
 
 **Schema migration (5 columns, Wave 1):**
+
 ```sql
 ALTER TABLE rss_articles ADD COLUMN body TEXT;
 ALTER TABLE rss_articles ADD COLUMN body_scraped_at TEXT;
@@ -189,6 +192,7 @@ ALTER TABLE rss_articles ADD COLUMN depth INTEGER;
 ALTER TABLE rss_articles ADD COLUMN topics TEXT;
 ALTER TABLE rss_articles ADD COLUMN classify_rationale TEXT;
 ```
+
 SQLite `ADD COLUMN` with `DEFAULT NULL` is safe at any table size; 1020 existing rows return NULL until populated.
 
 ---
@@ -252,6 +256,7 @@ These decisions are locked based on domain consensus across research files. Writ
 **Rationale:** All downstream work (RSS rewrite, classifer, image pipeline calls) requires `scrape_url()` to exist. The KOL line-940 patch is a surgical 8-line change that closes the Day-1 failure mode permanently and costs almost nothing alongside the scraper extraction. This is the blocker for everything else.
 
 **Delivers:**
+
 - `lib/scraper.py` — `scrape_url(url, site_hint)` with 4-layer cascade and `ScrapeResult` dataclass
 - `batch_ingest_from_spider.py:940` patched to call `scrape_url(..., site_hint="wechat")`
 - `rss_articles` schema migration (5-column ALTER TABLE)
@@ -267,6 +272,7 @@ These decisions are locked based on domain consensus across research files. Writ
 **Rationale:** Depends entirely on Wave 1 `scrape_url()`. All three sub-components (classify, image pipeline calls, LightRAG ingest) change simultaneously in `rss_ingest.py` — they share the same article object and cannot be split further without creating intermediate partial states. The drain call and timeout wrapper must ship in this wave, not Wave 3.
 
 **Delivers:**
+
 - `rss_classify.py` rewrite: `_build_fullbody_prompt` + `_call_deepseek_fullbody` port; `FULLBODY_THROTTLE_SECONDS=4.5`; 429 backoff
 - `rss_ingest.py` full rewrite: scrape → classify → image pipeline → multimodal `ainsert` with PROCESSED gate
 - `asyncio.wait_for` + rollback pattern in rss_ingest (CP-04 prevention)
@@ -282,6 +288,7 @@ These decisions are locked based on domain consensus across research files. Writ
 **Rationale:** Only executable after Wave 2 is functional end-to-end. Task ordering within Wave 3 is constrained: (1) VDB cleanup spike first (Delta 2 resolution) → (2) CLI tool → (3) fixture → (4) joint KOL+RSS regression → (5) backlog in 50-100 article increments → (6) cron cutover. The stuck-doc tool and kill-switch must exist BEFORE the 1020-article backlog run.
 
 **Delivers:**
+
 - Wave 3 Task 1: 30-min diagnostic spike — confirm NanoVectorDB cleanup completeness in live LightRAG version (resolves Delta 2 confidence gap)
 - `scripts/cleanup_stuck_docs.py` CLI tool: `--dry-run`, `--doc-id`, `--all-failed`, `--all-processing`, pipeline-busy guard
 - Kill-switch flag file check in `register_phase5_cron.sh` (`~/.hermes/omnigraph_rss_pause`)
@@ -302,6 +309,7 @@ The three waves are sequentially dependent: Wave 1 unblocks Wave 2 (scrape_url m
 ### Research Flags
 
 Research complete — all waves have established patterns:
+
 - **Wave 1:** Standard refactoring patterns; scraper extraction and cascade well-documented in codebase; no additional research needed.
 - **Wave 2:** `_build_fullbody_prompt` port is a direct copy from `batch_classify_kol.py:226-276`; LightRAG `ainsert` pattern is validated. No additional research needed. CONTEXT.md must specify `FULLBODY_THROTTLE_SECONDS=4.5`.
 - **Wave 3:** One remaining open question (VDB cleanup spike, Delta 2) — budget 30 minutes as Task 1 before building the CLI tool.

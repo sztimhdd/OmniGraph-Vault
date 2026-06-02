@@ -10,9 +10,11 @@ earlier unrelated work (model constant rename, Gemini embedding key rotation
 refactor) and are NOT regressions caused by this plan.
 
 ### `tests/unit/test_lightrag_embedding.py` — 1 failure
+
 - `test_embedding_func_reads_current_key`
 
 ### `tests/unit/test_lightrag_embedding_rotation.py` — 6 failures
+
 - `test_single_key_fallback`
 - `test_round_robin_two_keys`
 - `test_429_failover_within_single_call`
@@ -21,6 +23,7 @@ refactor) and are NOT regressions caused by this plan.
 - `test_empty_backup_env_var_treated_as_no_backup`
 
 ### `tests/unit/test_models.py` — 3 failures
+
 - `test_ingestion_llm_is_pure_constant` — expects `gemini-2.5-flash-lite`, got `gemini-2.5-flash`
 - `test_vision_llm_is_pure_constant` — similar constant drift
 - `test_no_model_env_override` — similar constant drift

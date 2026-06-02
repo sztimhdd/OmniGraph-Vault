@@ -285,6 +285,7 @@ Hooks: kb-1 `kb/templates/index.html` already exists. The 2 new sections are ins
 </verification>
 
 <success_criteria>
+
 - LINK-03 enabled: homepage gains discovery surfaces for topics + entities
 </success_criteria>
 

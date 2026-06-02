@@ -107,6 +107,7 @@ qa.js:207    pollOnce()  every 1500ms, POLL_TIMEOUT=60000ms
 > — `docs/en/docs/release-notes.md`
 
 **Audit application:**
+
 - `kb/api_routers/synthesize.py:62` `background.add_task(kb_synthesize, …)` — ✅ correct usage; the 202 response is sent before `kb_synthesize` runs (per FastAPI docs above).
 - `kb_synthesize` is `async def` — FastAPI awaits it on the main event loop after response, NOT in the threadpool. This is correct for the LightRAG `aquery` await chain — but it means a single hung BackgroundTask CAN block other BackgroundTasks scheduled on the same loop. With `--workers 1` and no parallelism guarantee, two simultaneous slow long_form queries serialize. Documented constraint, not a bug, but worth noting for capacity planning (F8 follow-up).
 - `kb/services/job_store.py:26` `_LOCK = Lock()` (threading) — defensive; in pure async-loop usage the GIL makes dict ops atomic, but if FastAPI ever upgrades to dispatching async BackgroundTasks via threadpool (per the 0.106 release note re: independent resources), the lock prevents corruption. ✅ kept.
@@ -116,6 +117,7 @@ qa.js:207    pollOnce()  every 1500ms, POLL_TIMEOUT=60000ms
 ### asyncio.wait_for + cancellation (Python 3.11+ stdlib semantics)
 
 `asyncio.wait_for(coro, timeout)` cancels the inner coroutine on timeout and raises `asyncio.TimeoutError` to the caller. Correctly used at:
+
 - `kb/services/synthesize.py:521-525` (outer 60s/240s wrapper)
 - `kg_synthesize.py:212-218` (inner 150s per-attempt)
 
@@ -139,6 +141,7 @@ $ venv/Scripts/python.exe -m pytest tests/unit/ -k synthesize -v
 **Log:** `.planning/quick/20260525-200047-synthesize-audit/audit-unit-20260525.log`
 
 All 51 synthesize-related unit tests green. Coverage spans:
+
 - prompt-template helpers (qa + long_form, zh + en) — 13 tests
 - structured-result schema (`SynthesizeResult.asdict`, `_extract_source_hashes`, `_resolve_sources_from_markdown`) — 9 tests
 - wiki-inject fallthroughs — 5 tests
@@ -183,6 +186,7 @@ $ venv/Scripts/python.exe -m pytest tests/integration/kb/ -k synthesize -v
 **NEVER-500 invariant: HOLDS.** Every poll across all probes returned 200. Even the double-failure (KG unavailable + FTS5 syntax error) returned 200 with `status=done`.
 
 **Browser UAT (Playwright MCP):**
+
 1. Navigate to `http://127.0.0.1:8766/ask/` → 200, page title "AI Knowledge Q&A"
 2. Toggle "Quick answer" mode (radio `[checked]`)
 3. Type `What is LightRAG?` into textarea
@@ -197,6 +201,7 @@ $ venv/Scripts/python.exe -m pytest tests/integration/kb/ -k synthesize -v
 ## 6. Gap List
 
 ### Tests missing
+
 - **G1 — F1 unit test gap:** no test pins `fts_query` behavior on questions containing FTS5 special chars (`?`, `*`, `"`, `:`, `(`, `)`, NEAR/AND/OR keywords). 51-test unit suite all green BUT none would have caught F1.
 - **G2 — `kg_synthesize.synthesize_response` returns None:** no test for the `for…else`-missing path that may yield `response=None` from a 3-attempt retry that exits on `break` without setting response. F4 fix needs a test.
 - **G3 — qa.js no_results vs fts5_fallback state machine:** `tests/integration/kb/test_ask_html_state_matrix.py` has only one test and it doesn't exercise the F2 differentiation. No JS-unit harness for qa.js.
@@ -204,12 +209,14 @@ $ venv/Scripts/python.exe -m pytest tests/integration/kb/ -k synthesize -v
 - **G5 — `test_kb3_e2e.py` body_cleaned schema drift:** 3 ERRORs blocking E2E coverage of synthesize end-to-end. Not directly relevant to bug fixes but reduces confidence in any non-obvious change.
 
 ### Observability missing
+
 - **O1 — `markdown_len=0` source ambiguity:** the `kb_synthesize` path logs `c1_after_aquery: response_chars=0` (synthesize.py:526-529) but doesn't escalate or add a marker tag. If response is empty after the await, the wrapper proceeds silently with `markdown=""`. Add `_log.error("c1_returned_empty …")` before line 545.
 - **O2 — `_fts5_fallback` outer except (synthesize.py:433) does not log:** the swallow only writes the result; no `_log.warning` to surface that FTS5 itself blew up. F1 was invisible in server logs until `error` field was inspected.
 - **O3 — No request-id propagation:** logs emit `job_id=…` but client headers carry no correlation id. Hard to grep prod logs for a single user's session.
 - **O4 — qa.js poll cadence not telemetry'd:** no client-side timing emission, so we can't measure POLL_TIMEOUT exhaustion frequency.
 
 ### Contract drift suspected
+
 - **D1 — `kg_synthesize.synthesize_response` and `omnigraph_search.query.search` both wrap `LightRAG.aquery`** — different default modes, different bootstrap (`omnigraph_search.query` lazy-imports `lightrag_embedding` directly; `kg_synthesize` uses `_get_embedding_func`). Two flavors of "the same thing" — not a bug, but a future refactor risk if either drifts.
 - **D2 — `kb/config.py:42` `KB_SYNTHESIZE_TIMEOUT` defined but only the `kb/services/synthesize.py:69` copy is read in the synthesize path.** Tests cover both reloads, prod uses only one. F5 follow-up.
 
@@ -242,6 +249,7 @@ Synthesize surface is bounded: 4 files, ~660 LoC, 96/99 tests green, clean call 
 ### Rewrite scope (rejected for reference)
 
 If we rewrote /api/synthesize from scratch:
+
 - 4 files, 660 LoC: `kb/api_routers/synthesize.py` (88 LoC), `kb/services/synthesize.py` (567 LoC), `kg_synthesize.py` (263 LoC), `kb/static/qa.js` (320 LoC) = 1238 LoC
 - 96 tests to re-pass, 12 NEVER-500 invariant tests in particular
 - Risk: re-introduce already-fixed regressions (260513-fyb stale-file-read, 260514 race ghost-success, 260517-lok timeout, 260519-s65 image rewrite, 260524-tk5 inner timeout, 260525-c1-fix-A outer timeout)

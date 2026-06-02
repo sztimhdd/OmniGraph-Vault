@@ -133,11 +133,13 @@ None. Plan scope achieved fully within scope boundary. Out-of-scope items (per p
 ## Self-Check: PASSED
 
 **Files verified:**
+
 - FOUND: image_pipeline.py (added helpers, constants, accessor, emit_batch_complete; modified 3 functions)
 - FOUND: ingest_wechat.py (updated import, wrapped WeChat batch with perf_counter + emit_batch_complete)
 - FOUND: tests/unit/test_image_pipeline.py (fixed stale test + 9 new tests, all passing)
 
 **Commits verified (5):**
+
 - FOUND: `7c3017e` feat(08-01): add _emit_log helper + outcome taxonomy + describe stats accessor
 - FOUND: `85507d2` feat(08-01): emit per-image JSON-lines in download + filter stages (IMG-03)
 - FOUND: `ffdaee7` feat(08-01): describe_images emits per-image events + exposes stats (IMG-02/04)

@@ -104,6 +104,7 @@ the change with `260509-p1n`.
 each adding 4 lines: import + comment + wrap).
 
 **Result:** 2 of 3 tests now pass (`test_run_drains_pending_vision_tasks`
+
 + `test_drain_timeout_cancels_stragglers`); the 3rd remained failing
 because it was already failing on baseline for an unrelated reason
 (see Deferred Issues).
@@ -156,12 +157,15 @@ User asked whether local repro could verify the fix beyond the unit tests. Hones
 What was done instead (with user approval):
 
 ### Step A — Apply migration 008 to align `.dev-runtime` with Hermes schema
+
 Backed up `.dev-runtime/data/kol_scan.db` to `.dev-runtime/data/kol_scan.db.backup-pre-mig008-20260509-203424` per CLAUDE.md Lessons #2; ran `venv/Scripts/python migrations/008_ingestions_dual_source.py .dev-runtime/data/kol_scan.db`; **577 rows migrated cleanly**, all stamped `source='wechat'`, integrity_check + foreign_key_check both clean.
 
 ### Step B — Import smoke
+
 `from lib.vision_tracking import track_vision_task, drain_vision_tasks, _VISION_TASKS` + `import batch_ingest_from_spider as bif` + `import ingest_wechat` — all clean. Identity check: `ingest_wechat.track_vision_task is track_vision_task` → **True** (no circular import; the late-import inside `ingest_article` resolves to the same object).
 
 ### Step C — Integration smoke (`.scratch/d10-09-integration-smoke.py`)
+
 Difference from `tests/unit/test_drain_cap.py`: unit tests exercise `lib.vision_tracking.drain_vision_tasks` directly. This smoke exercises **the real orchestrator wrapper** `batch_ingest_from_spider._drain_pending_vision_tasks()`, proving the 1-line delegate works end-to-end. Three scenarios mirroring the unit tests:
 
 | # | Scenario | Wall-clock | Verdict |

@@ -84,6 +84,7 @@ for i, (url_img, path) in enumerate(url_to_path.items()):
 ```
 
 This `Image {i} from article '{title}': {local_url}` line is INTENTIONAL — it lives in:
+
 - The parent LightRAG doc (full article body)
 - The sub-doc inserted by background _vision_worker_impl (image descriptions: `[image N]: desc (URL)`)
 
@@ -93,6 +94,7 @@ DO NOT MODIFY ingest_wechat.py. DO NOT MODIFY LightRAG storage.
 </root_cause>
 
 <call_chain_for_ssg>
+
 1. kb/export_knowledge_base.py:308 — `body_md, body_source = get_article_body(rec)`
 2. kb/data/article_query.py:407 — `get_article_body(rec)` reads markdown (file fallback OR rec.body)
 3. kb/data/article_query.py:429 — calls `_rewrite_image_paths(md, base_path)` (kb-v2.1-2 EXPORT-05)
@@ -101,6 +103,7 @@ DO NOT MODIFY ingest_wechat.py. DO NOT MODIFY LightRAG storage.
 6. kb/templates/article.html:116 — `{{ body_html | safe }}`
 
 The fix point is Step 3 — add `_rewrite_image_text_refs_to_html()` AFTER `_rewrite_image_paths()`. This way:
+
 - Image URLs already have correct prefix (KB_BASE_PATH applied first)
 - Markdown processor (Step 5) sees raw <img> HTML (not markdown image syntax) → passes through verbatim because Markdown allows raw HTML
 
@@ -169,6 +172,7 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
     body = _rewrite_image_text_refs_to_html(body)        # kb-v2.1-6
     return body, "raw_markdown"
 ```
+
 </helper_implementation>
 </context>
 
@@ -448,6 +452,7 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
 Per task 1's <verify> block: pytest passes on test_image_rendering.py (≥7 cases) AND test_image_paths.py (no regression).
 
 Cross-checks:
+
 - `git diff origin/main -- ingest_wechat.py` → empty (Phase 5-00 untouched)
 - `grep "Image 0 from article" kb/output-uat-rqk/articles/*.html` → 0 occurrences (all converted)
 - `grep "<img src=\"/kb/static/img/" kb/output-uat-rqk/articles/*.html | wc -l` → ≥1
@@ -478,21 +483,25 @@ Plus Rule 3 (KB Local UAT mandatory) compliance verified by SUMMARY.md UAT evide
 
 <concurrent_quick_safety>
 **CAVEAT 1 — STATE.md edit discipline (concurrent with kb-v2.1-7 + possibly kdb-1.5):**
+
 - Add/modify ONLY the kb-v2.1-6 phase line. NEVER rewrite STATE.md whole.
 - Push collision handling: `git fetch origin main && git merge --ff-only origin/main && git push origin main`.
 - ABSOLUTELY FORBIDDEN: `git reset --hard origin/main`, `git rebase -i`, `git push --force`, `git commit --amend`.
 - If ff-merge has conflict in STATE.md: keep our v2.1-6 line, take incoming for others, `git add .planning/STATE.md && git commit -m "merge: ..." && push`.
 
 **CAVEAT 2 — UAT port 8766 lockfile (collision with kb-v2.1-7):**
+
 - Lockfile: `.scratch/.uat-port-8766.lock`
 - Acquire BEFORE starting `local_serve.py`. Wait 60s × max 3 retries; STOP + report blocked if exhausted.
 - TOCTOU defeat: write to lock then `grep` the lock file to confirm we won the race.
 - Trap-release on shell exit.
 
 **git add discipline (per feedback_git_add_explicit_in_parallel_quicks.md):**
+
 - Use `git add <explicit-paths>` ONLY. NEVER `git add -A` / `git add .`.
 
 **Per feedback_no_amend_in_concurrent_quicks.md:**
+
 - NO `git commit --amend`. Use forward-only follow-up commits to backfill commit hashes into STATE.md.
 </concurrent_quick_safety>
 

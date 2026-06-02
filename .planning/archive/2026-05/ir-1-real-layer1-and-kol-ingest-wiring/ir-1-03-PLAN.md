@@ -115,20 +115,24 @@ ls .dev-runtime/data/kol_scan.db 2>&1
 2. **If exists, run smoke**. Otherwise, jump to step 5.
 
 3. Apply migration 006 to local DB:
+
 ```bash
 python migrations/006_layer1_columns.py .dev-runtime/data/kol_scan.db | tee /tmp/ir-1-mig006.log
 sqlite3 .dev-runtime/data/kol_scan.db "PRAGMA table_info(articles)" | grep layer1_
 sqlite3 .dev-runtime/data/kol_scan.db "PRAGMA table_info(rss_articles)" | grep layer1_
 ```
+
 Expect: 8 lines total (4 layer1_* columns × 2 tables).
 
 4. Run dry-run smoke:
+
 ```bash
 TS=$(date +%Y-%m-%d-%H%M)
 OMNIGRAPH_BASE_DIR=$(pwd)/.dev-runtime \
   python batch_ingest_from_spider.py --from-db --max-articles 5 --dry-run \
   2>&1 | tee /tmp/ir-1-smoke-${TS}.log
 ```
+
 Expect: at least one `[layer1] batch` line; exit code 0.
 
 5. **Author** `.scratch/ir-1-local-smoke-${TS}.md` with this template:
@@ -143,13 +147,17 @@ Expect: at least one `[layer1] batch` line; exit code 0.
 ## Migration 006
 
 ```
+
 <paste output of `python migrations/006_layer1_columns.py .dev-runtime/data/kol_scan.db` here>
+
 ```
 
 PRAGMA verification:
 
 ```
+
 <paste sqlite3 PRAGMA table_info output for articles + rss_articles, layer1_* lines>
+
 ```
 
 ## Dry-run smoke
@@ -157,14 +165,18 @@ PRAGMA verification:
 Command:
 
 ```
+
 OMNIGRAPH_BASE_DIR=.dev-runtime \
   python batch_ingest_from_spider.py --from-db --max-articles 5 --dry-run
+
 ```
 
 Output (last ~30 lines):
 
 ```
+
 <paste tail of the smoke log, including [layer1] batch lines>
+
 ```
 
 ## Post-run DB verification
@@ -192,6 +204,7 @@ LIMIT 10;
 Sign-off (local sanity only — Hermes deploy gated by operator):
 
 — <author>, <YYYY-MM-DD HH:MM ADT>
+
 ```
 
 6. **If `.dev-runtime/data/kol_scan.db` did NOT exist** in step 2, populate the file with a "DEFERRED" section explaining what's missing and pointing operator at `docs/LOCAL_DEV_SETUP.md`. Do NOT block ir-1 close on operator setup; flag the gap clearly in the file and continue to Task 4.2.
@@ -472,6 +485,7 @@ operator's chosen window (likely overlapping with `daily-ingest` 09:00 ADT
 schedule; see Step 9 backlog warning).
 
 After deploy completes, operator:
+
 - Updates STATE-v3.5-Ingest-Refactor.md per Step 10 sign-off
 - Decides whether to proceed to ir-2 (real Layer 2 + DeepSeek) or pause for
   observation. Per ROADMAP, ir-2 starts immediately if ir-1 deploy is clean
@@ -490,6 +504,7 @@ After deploy completes, operator:
 - ir-1-02-PLAN.md (LF-1.9 unit tests)
 - .scratch/ir-1-local-smoke-<ts>.md (local sanity evidence)
 - Foundation Quick HERMES-DEPLOY.md: `.planning/quick/260507-lai-v3-5-foundation-bypass-classify-gate-wir/HERMES-DEPLOY.md` (structural model)
+
 ```
 
 **HARD CONSTRAINTS:**

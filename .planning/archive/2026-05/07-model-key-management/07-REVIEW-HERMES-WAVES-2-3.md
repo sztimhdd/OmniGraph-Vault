@@ -36,6 +36,7 @@ IMAGE_DESCRIPTION_MODEL = VISION_LLM       # D-11 shim ✓
 | `kg_synthesize.py` | `refresh_cognee()` | First statement of async entry | ✅ Once per CLI invocation (per-asyncio.run) |
 
 **The cadence concern (too aggressive vs too lazy):**
+
 - `cognee_batch_processor.py` polls `entity_buffer/` continuously. Calling `refresh_cognee()` at each loop entry is correct because: (1) Cognee's `cognee.config` is `@lru_cache`'d, (2) `refresh_cognee()` invalidates that cache, (3) rotation writes `os.environ["COGNEE_LLM_API_KEY"]`, (4) next Cognee call picks up the new env var. The cost is negligible (one env-var write + one `cache_clear()` per poll iteration).
 - `kg_synthesize.py` calls it once at synthesis entry — this is the CLI invocation pattern, correct.
 
@@ -55,6 +56,7 @@ IMAGE_DESCRIPTION_MODEL = VISION_LLM       # D-11 shim ✓
 ```
 
 Preserved invariants:
+
 - `_disambiguation_cache = {}` — line 74 ✓
 - Fire-and-forget via `asyncio.create_task(...)` ✓
 - `asyncio.wait_for(..., timeout=5.0)` ✓
@@ -99,6 +101,7 @@ from .llm_deepseek import deepseek_model_complete
 This is an **eager import** of the DeepSeek module. If `DEEPSEEK_API_KEY` is unset, `llm_deepseek.py` will raise at import time. This blocks `import lib` entirely — including for modules that only need Gemini (embedding, vision, etc.).
 
 **Impact assessment:**
+
 - Phase 5 owns this coupling (DeepSeek is Phase 5 scope)
 - For Phase 7 Waves 2-3, all migrated files use Gemini (not DeepSeek) — the crash-on-missing-key is irrelevant
 - For Phase 7 Wave 4, same — no DeepSeek dependency

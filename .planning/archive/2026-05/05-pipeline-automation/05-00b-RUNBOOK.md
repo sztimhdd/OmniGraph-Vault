@@ -33,6 +33,7 @@ ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && git fetch origin &&
 ```
 
 Expect: HEAD at or ahead of `00e4b17` (the latest pushed commit). If behind:
+
 ```bash
 ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && git pull --ff-only"
 ```
@@ -44,6 +45,7 @@ ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && source venv/bin/act
 ```
 
 Expect:
+
 - Prints candidate articles (or "no matches" if DB has no new matches)
 - No `TypeError`, `ArgumentParser` error, or SQL syntax error
 - Should list ~22 articles (the ones your earlier run didn't finish — the 9 already ingested are skipped via the `ingestions` table dedup)
@@ -74,6 +76,7 @@ for name, key in keys:
 ```
 
 Expect: both probes return `OK 3072-dim`. If one is 429:
+
 - That key's project burned its daily budget elsewhere today → wait for UTC midnight reset OR substitute a fresh key.
 - Running with 1 working key is fine-ish for 22 articles (22 × ~300 calls = 6600 — over single-key 1000/day cap). Strongly prefer both keys working.
 
@@ -131,6 +134,7 @@ Then paste the exact topic labels into `--topic-filter`.
 `batch_ingest_from_spider.py:71` hardcodes `SLEEP_BETWEEN_ARTICLES = 60` with a comment `# Gemini free tier: 15 RPM`. That 60s delay was sized for the **old** single-key Gemini Flash LLM path, which hit 15 RPM on free tier.
 
 **That constraint no longer applies post-Plan 05-00c:**
+
 - LLM calls go to Deepseek (independent RPM pool; measured ~plenty for serial ingest)
 - Embedding calls use 2-key Gemini rotation (~200 RPM combined on free tier)
 - A 22-article run at 60s/article = 22 min of *pure sleep* on top of actual work
@@ -156,6 +160,7 @@ ssh -p 49221 sztimhdd@ohca.ddns.net "cd ~/OmniGraph-Vault && source venv/bin/act
 ```
 
 What you should see:
+
 - For each of ~22 articles: fetch → LLM entity extraction (Deepseek) → embedding (Gemini, rotated) → LightRAG `ainsert` → `ingestions` row marked `ok`.
 - Per-doc wall-clock: ~30–60s typical, longer for dense content.
 - Expect occasional transient 429s (per-minute) → the embedding wrapper's failover rotates to the other key.

@@ -86,12 +86,14 @@ search.results.* locale keys (kb-3-03 added):
 - `search.results.count` — "找到 {n} 条结果" / "{n} results found"
 
 Backend endpoint (kb-3-06):
+
 - GET /api/search?q=...&mode=fts&lang=...&limit=20 → `{items: [...], total, mode: "fts"}`
 - items[i] = {hash, title, snippet, lang, source}
 
 Existing search input markup in homepage (verify in current index.html — likely a form with name="q" or similar). The JS must be tolerant: `document.querySelector('form[role="search"], #search-form, input[name="q"]')` — locate whichever is the canonical search input.
 
 Existing reusable classes (kb-1 baseline, locked — REUSE verbatim):
+
 - `.article-card` — for each result row
 - `.empty-state` — for "No results found" message
 - `.skeleton` — for loading placeholder
@@ -99,6 +101,7 @@ Existing reusable classes (kb-1 baseline, locked — REUSE verbatim):
 - `.lang-badge` (zh-CN blue / en green / unknown grey) — for per-result lang chip
 - `.source-icon` — for wechat/rss icon
 </interfaces>
+
 </context>
 
 <tasks>
@@ -455,6 +458,7 @@ Existing reusable classes (kb-1 baseline, locked — REUSE verbatim):
 </verification>
 
 <success_criteria>
+
 - SEARCH-01: FTS5 query consumed by inline reveal
 - SEARCH-03: lang filter inferred from document.documentElement.lang
 - Component restraint upheld (UI-SPEC §10): no new component patterns

@@ -28,6 +28,7 @@
 ## Bug 7 — D-05 post-check doc id prefix 错误 (false-negative)
 
 50/50 progress.csv status='failed' 但是**全部 50 篇 ainsert 真实成功**:
+
 - KG storage 56 MB+ 数据写入 (graphml 2.6 MB / vdb_entities 17.8 MB / vdb_relationships 22.5 MB / 等)
 - avg per-article wallclock 50.7s 在 RESEARCH anchor 25-35s 范围 (略偏长合理)
 - LightRAG entity extraction + embedding + chunking 正常工作
@@ -51,6 +52,7 @@ KG storage 实际写入证据 (`dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vau
 | **Total** | **~56 MB / 50 articles** |
 
 根因 (lightrag.py:1395-1415):
+
 - 我们 ainsert(ids=[content_hash]) 显式传 ids
 - LightRAG 用裸 hash 作 doc_status key,不加 prefix (line 1412-1415: `contents = {id_: ...}`)
 - D-05 post-check 错用 `f"doc-{hash}"` 查 → 永远 unknown → mark failed
@@ -101,6 +103,7 @@ relies on doc_status post-check being correct)
 ## Cost gate FAIL contingency (not triggered)
 
 如 Plan 02 实际跑出 cost_actual > $200 OR wallclock > 30h:
+
 - STOP, escalate to user (D-07 哲学应用到 Plan 02 同样)
 - 调查可能原因: full_corpus_size 偏离预期 (currently 75) / Sonnet 长尾输出膨胀 / 网络抖动
 - 不要无脑 retry — 修因再跑
@@ -117,6 +120,7 @@ window: 2026-05-17 21:12-21:56 ADT)
 ## Plan 02 触发条件清单
 
 GATE PASS 但触发 Plan 02 前必须:
+
 - [ ] Bug 7 fix commit (本 commit 含)
 - [ ] (建议) 清空 production /lightrag_storage/ + 删 /output/kdb-2.5-progress.csv
        使 Plan 02 fullreindex 从干净状态开始

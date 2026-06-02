@@ -65,6 +65,7 @@ Output: 2 JSON files (zh-CN + en), 1 Python helper module, 1 test file.
 - Missing key → return `key` literal + log WARN (so missing translations are visible)
 
 **Key namespace (from CONTEXT.md):** dot-notation, ~50 keys total covering:
+
 - `nav.*` — navigation labels
 - `article.*` — article meta labels (read_more, source_label, lang_label, published_at)
 - `articles.*` — article list page (title, filter labels)
@@ -75,6 +76,7 @@ Output: 2 JSON files (zh-CN + en), 1 Python helper module, 1 test file.
 - `ask.*` — Q&A entry page
 - `site.*` — site-level (title, tagline, brand name)
 </interfaces>
+
 </context>
 
 <tasks>
@@ -376,6 +378,7 @@ Output: 2 JSON files (zh-CN + en), 1 Python helper module, 1 test file.
 </verification>
 
 <success_criteria>
+
 - I18N-03 satisfied: ~50 keys, Jinja2 filter registered, both langs in parity
 - Missing-key visible in UI for fast debugging (returns key literal + logs WARN)
 - All 8 unit tests pass

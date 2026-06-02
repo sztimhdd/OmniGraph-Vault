@@ -3,6 +3,7 @@
 **Phase:** aim-2-lightrag-storage-migration
 **Task:** STORAGE-03 (wave-3 — scp transfer, round-trip integrity, extract to holding dir)
 **Operator channel:** Mixed
+
 - Hermes-side scp push: agent direct via SSH (one-time, user-authorized exception — Hermes-agent policy was blocking outbound transfers)
 - Aliyun-side rehash + extract: agent direct via `ssh aliyun-vitaclaw` (aim-2 agent IS operator on Aliyun side per phase contract)
 **Captured:** 2026-05-23 (UTC)
@@ -147,12 +148,14 @@ All gates green. Holding dir is the rollback breakpoint — production swap is d
 ## Hand-off → Wave 4
 
 **Wave-4 inputs:**
+
 - Hermes source: `~/.hermes/omonigraph-vault/lightrag_storage/` (untouched, read-only by Hermes pause)
 - Aliyun extracted holding dir: `/tmp/aim2-extract/lightrag_storage/`
 - Both sides will be queried for: entity count, relation count, chunk count, kv_keys count
 - Pass criterion: all four counts byte-identical
 
 **Holding-dir invariant:**
+
 - `/tmp/aim2-extract/lightrag_storage/` is NOT production
 - Wave-5 atomic `mv` to `/root/OmniGraph-Vault/lightrag_storage/` only after wave-4 verify passes
 - If wave-4 fails: abort + Hermes operator cron-resume + retain holding dir for forensics (do NOT auto-cleanup)

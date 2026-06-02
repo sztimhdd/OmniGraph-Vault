@@ -17,6 +17,7 @@ The SCR-07 `lxml<6` cap in the upstream milestone spec is **overly conservative*
 ---
 
 <user_constraints>
+
 ## User Constraints (from upstream CONTEXT)
 
 ### Locked Decisions (from .planning/STATE.md Decisions block + REQUIREMENTS.md header)
@@ -43,6 +44,7 @@ The SCR-07 `lxml<6` cap in the upstream milestone spec is **overly conservative*
 </user_constraints>
 
 <phase_requirements>
+
 ## Phase Requirements
 
 | ID | Description | Research Support |
@@ -349,6 +351,7 @@ def _passes_quality_gate(markdown: str | None) -> bool:
 ## Standard Stack
 
 ### Core — already installed, no change needed
+
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
 | beautifulsoup4 | (current) | HTML parsing in `process_content` | Existing `ingest_wechat.process_content` already uses it |
@@ -357,6 +360,7 @@ def _passes_quality_gate(markdown: str | None) -> bool:
 | urllib.parse | stdlib | URL routing in SCR-03 | SCR-03 explicitly forbids `tldextract` |
 
 ### Core — NEW, to add
+
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
 | trafilatura | `>=2.0.0,<3.0` | Generic HTML → markdown extraction for non-WeChat URLs | SCR-07; production-stable (dev status 5); 132KB wheel; pure-Python downloader + lxml-backed extractor |
@@ -371,11 +375,13 @@ lxml>=5.3,<7    # see Question 1 — raised floor from spec 4.9 to 5.3 per trafi
 ```
 
 **Version verification performed 2026-05-03:**
+
 - `trafilatura==2.0.0` — confirmed available on PyPI, wheel downloaded, METADATA inspected.
 - `lxml==6.1.0` — confirmed available on PyPI, resolved in dependency test alongside trafilatura 2.0.0.
 - Extraction smoke test passed: `extract(html, output_format='markdown', include_images=True)` returned 404-char markdown with inline `![alt](url)` for a 2-paragraph + 1-image synthetic article.
 
 ### Alternatives Considered
+
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
 | trafilatura | readability-lxml | Older (last release 2022); lower extraction quality per independent benchmarks; worse multilingual support |
@@ -513,30 +519,35 @@ async def _fetch_with_backoff_on_429(url: str, ua: str | None = None) -> str | N
 ## Common Pitfalls
 
 ### Pitfall 1: `trafilatura.fetch_url` silently returns None on 429
+
 **What goes wrong:** A layer-1 trafilatura call against a rate-limited endpoint returns `None`, indistinguishable from "DNS failed" or "timeout". Cascade code treats all as "try next layer", but we wanted to backoff-and-retry on 429 specifically (SCR-05).
 **Why it happens:** trafilatura's `fetch_url` does not expose the HTTP status code to callers.
 **How to avoid:** Implement 429 backoff at layer 2 (explicit `requests.get`), not layer 1. See Pattern 2 above.
 **Warning signs:** If end-to-end failure on a Medium article always cascades from trafilatura → requests → CDP without any backoff log line, you've skipped the 429 path.
 
 ### Pitfall 2: Mid-batch hash migration leaves orphaned 10-char dirs on Hermes
+
 **What goes wrong:** SCH-02 ships, next batch writes 16-char dirs, but existing 10-char dirs on the Hermes PC linger forever — `checkpoint_status.py` shows a growing stale list.
 **Why it happens:** No automatic cleanup — SCH-02 only changes what's WRITTEN, not what EXISTS.
 **How to avoid:** Add `python scripts/checkpoint_reset.py --all --confirm` to the Phase 19 deploy runbook (on each machine after SCH-02 commit lands). This is a 1-line operator action.
 **Warning signs:** `ls ~/.hermes/omonigraph-vault/checkpoints/ | awk '{print length($0)}' | sort -u` shows both 10 and 16 post-deploy.
 
 ### Pitfall 3: `ScrapeResult` as frozen dataclass breaks subclassing / mocking
+
 **What goes wrong:** `@dataclass(frozen=True)` makes `ScrapeResult` hashable and immutable, but prevents tests from monkey-patching fields via `scraped.content_html = "foo"`.
 **Why it happens:** Frozen dataclasses raise `FrozenInstanceError` on attribute assignment.
 **How to avoid:** Tests should construct fresh `ScrapeResult(...)` objects, not mutate existing ones. This aligns with CLAUDE.md Principle 1 Coding Style — Immutability.
 **Warning signs:** Test code uses `scraped.markdown = "x"` instead of `scraped = ScrapeResult(markdown="x", ...)`.
 
 ### Pitfall 4: `_classify_full_body` consumes `scraped.content_html` on line 946 — if `scrape_url` for WeChat returns `content_html=None`, the KOL classify breaks silently
+
 **What goes wrong:** The WeChat path of `scrape_url` must populate `content_html`; if a refactor accidentally strips it, `process_content(None)` raises TypeError.
 **Why it happens:** The generic (non-WeChat) path can legitimately have `content_html=None`. If the WeChat path is coded symmetrically, it might forget.
 **How to avoid:** Add a unit test asserting `scrape_url(wechat_url).content_html is not None`, and another asserting `scrape_url(generic_url).content_html is None` for clarity.
 **Warning signs:** `_classify_full_body` logs "scrape-on-demand failed" for URLs that were actually scraped successfully.
 
 ### Pitfall 5: lxml 6 was historically incompatible with trafilatura < 2.0; the `<6` spec pin is a legacy worry
+
 **What goes wrong:** Plan honors SCR-07 strictly and pins `lxml<6`, forcing lxml 5.4.0 downgrade on machines that already have lxml 6.1. This is harmless but wastes a pip solve.
 **Why it happens:** The SCR-07 spec was written before trafilatura 2.0 shipped with explicit `lxml>=5.3` support.
 **How to avoid:** Recommend `lxml>=5.3,<7` in requirements.txt (empirically verified 2026-05-03). Plan should make an explicit call, not silently follow stale spec.
@@ -667,6 +678,7 @@ article_hash = get_article_hash(url)   # 16-char SHA-256 hex
 | lxml 4.x | lxml 5.x / 6.x | lxml 5.0 released 2023; 6.0 released 2024 | Faster parsing, better type stubs |
 
 **Deprecated/outdated:**
+
 - trafilatura 1.x: use 2.0 (production-stable; breaking API changes are minor)
 - MD5 hash for doc IDs: SHA-256 first-16-hex is the project-standard per `lib/checkpoint.py:63`
 
@@ -707,9 +719,11 @@ article_hash = get_article_hash(url)   # 16-char SHA-256 hex
 | html2text | process_content existing | ✓ | — | — |
 
 **Missing dependencies with no fallback:**
+
 - trafilatura, lxml — MUST install via SCR-07 requirements.txt update. These are the phase's core new deps.
 
 **Missing dependencies with fallback:**
+
 - None — SCR-07 is a hard install requirement.
 
 ---
@@ -717,6 +731,7 @@ article_hash = get_article_hash(url)   # 16-char SHA-256 hex
 ## Validation Architecture
 
 ### Test Framework
+
 | Property | Value |
 |----------|-------|
 | Framework | pytest + pytest-asyncio + pytest-mock |
@@ -759,6 +774,7 @@ article_hash = get_article_hash(url)   # 16-char SHA-256 hex
 Suggested wave/task decomposition — planner refines into plans:
 
 **Wave 0 — test scaffolding + deps**
+
 1. Add `trafilatura>=2.0.0,<3.0` and `lxml>=5.3,<7` to `requirements.txt` (plan must decide floor per Question 1); run `pip install -r requirements.txt` locally; verify `python -c "import trafilatura; print(trafilatura.__version__)"` prints `2.0.0`.
 2. Create empty `tests/unit/test_scraper.py`, `tests/unit/test_batch_ingest_hash.py`, `tests/unit/test_rss_schema_migration.py` with RED test stubs.
 
@@ -784,6 +800,7 @@ Suggested wave/task decomposition — planner refines into plans:
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - Direct inspection of `trafilatura-2.0.0-py3-none-any.whl` METADATA (downloaded 2026-05-03 from PyPI mirror via `pip download`)
 - Empirical install in isolated venv: `pip install trafilatura==2.0.0 lxml>=5.3,<7` → resolved to trafilatura 2.0.0 + lxml 6.1.0 on Python 3.13/Windows; extraction smoke-test passed (404-char markdown output with inline images)
 - Direct read of `lib/checkpoint.py` (SHA-256-16 canonical), `batch_ingest_from_spider.py` lines 269-320 + 900-1000, `ingest_wechat.py` lines 415-506 + 725-737 (scrape_wechat_ua + process_content)
@@ -791,9 +808,11 @@ Suggested wave/task decomposition — planner refines into plans:
 - Direct filesystem check: `ls ~/.hermes/omonigraph-vault/checkpoints/` (10 dirs, all 16-char SHA-256 — confirms dev-machine state)
 
 ### Secondary (MEDIUM confidence)
+
 - Login-wall keyword list: compiled from common paywall phrasing across Medium / WSJ / NYT / FT / WeChat / Zhihu gated patterns. No single authoritative source; list is extensible and can be tuned in Phase 20 based on real RSS corpus.
 
 ### Tertiary (LOW confidence)
+
 - None. All claims in this research are either empirically verified or derived from direct code inspection.
 
 **Could not be verified:** Neither `WebFetch` (Cisco Umbrella TLS issue) nor built-in `WebSearch` (400 error on Databricks endpoint per CLAUDE.md) were available during research. No Brave or Context7 MCP reachable in the GSD sub-agent runtime either. This is fine — the empirical install path substitutes for docs lookup and gives HIGHER confidence than prose-level research.
@@ -803,6 +822,7 @@ Suggested wave/task decomposition — planner refines into plans:
 ## Metadata
 
 **Confidence breakdown:**
+
 - Standard stack: HIGH — trafilatura 2.0.0 + lxml 6.1.0 empirically verified to install + extract correctly on 2026-05-03
 - Architecture: HIGH — cascade pattern mirrors existing Vision Cascade; all delegated primitives (WeChat cascade, hash function, process_content) already battle-tested in prod
 - Pitfalls: HIGH for #1-2 (directly observed in code/filesystem); MEDIUM for #3-4 (derived from dataclass semantics); HIGH for #5 (empirical test)
@@ -817,6 +837,7 @@ Suggested wave/task decomposition — planner refines into plans:
 **Confidence:** HIGH
 
 ### Key Findings
+
 - trafilatura 2.0.0 + lxml 6.1.0 + Python 3.11 combination is empirically verified working (install + extraction smoke test executed 2026-05-03). SCR-07's `lxml<6` cap is overly conservative; recommend `lxml>=5.3,<7`.
 - Line-940 downstream consumer reads exactly `scraped["content_html"]` — `ScrapeResult` MUST include a `content_html: Optional[str] = None` field to keep the hotfix surgical (no change to `_classify_full_body`).
 - Dev machine checkpoints are already 100% SHA-256-16 (zero 10-char MD5 residue). Migration is a deploy-time concern on Hermes only; `reset_all()` + existing `checkpoint_reset.py --all --confirm` cover option (a) delete-and-rebuild with zero new code.
@@ -824,9 +845,11 @@ Suggested wave/task decomposition — planner refines into plans:
 - SCR-05 429 backoff belongs at the `requests.get` layer (layer 2), not at `trafilatura.fetch_url` (layer 1) — layer 1 cannot expose HTTP status.
 
 ### File Created
+
 `C:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\19-generic-scraper-schema-kol-hotfix\19-RESEARCH.md`
 
 ### Confidence Assessment
+
 | Area | Level | Reason |
 |------|-------|--------|
 | Standard Stack | HIGH | Empirical install + extraction round-trip |
@@ -835,9 +858,11 @@ Suggested wave/task decomposition — planner refines into plans:
 | Login-wall list | MEDIUM | Judgment call, documented as extensible |
 
 ### Open Questions (documented in Open Questions section)
+
 1. Generic-path CDP/MCP layer: defer to Phase 20 — recommendation locked
 2. `ImageRef` shape: `list[str]` in Phase 19, upgrade in Phase 20 — recommendation locked
 3. `ScrapeResult` frozen or mutable: frozen — recommendation locked
 
 ### Ready for Planning
+
 Research complete. Planner can now create PLAN.md files using the Implementation Plan Outline section (13 suggested tasks across 3 waves). All 9 phase requirements (SCR-01..07, SCH-01..02) have concrete specs, code snippets, and test commands.

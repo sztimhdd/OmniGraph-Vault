@@ -13,6 +13,7 @@ kdb-1.5's trigger is documentary-inferred from kdb-1 Wave 3: Apps SSO + Private 
 **Primary recommendation:** Use `shutil.copytree` (FUSE path) with `databricks-sdk w.files.download_directory` as Files-API fallback. Copy only `lightrag_storage/` to `/tmp/lightrag_storage/`; **leave `kol_scan.db` on `/Volumes/...`** opened via `?mode=ro&immutable=1` URI (the existing pattern in `kb/data/article_query.py:142-143` already does `?mode=ro` and works against any read-only mount). Use LightRAG's existing `lightrag.llm.openai.openai_complete_if_cache` + `openai_embed` with `base_url` pointed at Databricks's OpenAI-compatible serving endpoint (zero new HTTP plumbing); fall back to `WorkspaceClient().serving_endpoints.query()` only if the OpenAI-compat path fails the dry-run.
 
 <user_constraints>
+
 ## User Constraints (from CONTEXT.md and ROADMAP-kb-databricks-v1.md rev 3)
 
 > No CONTEXT.md exists for this phase. Constraints are extracted from REQUIREMENTS-kb-databricks-v1.md rev 3 + ROADMAP rev 3 + the orchestrator prompt's `<scope_constraints>` block.
@@ -47,6 +48,7 @@ kdb-1.5's trigger is documentary-inferred from kdb-1 Wave 3: Apps SSO + Private 
 </user_constraints>
 
 <phase_requirements>
+
 ## Phase Requirements
 
 | ID | Description | Research Support |
@@ -164,12 +166,14 @@ Command: find ~/.hermes/omonigraph-vault/lightrag_storage -maxdepth 1 -type f
 **Evidence — existing pattern:**
 
 - `kb/data/article_query.py:140-143`:
+
   ```python
   def _connect() -> sqlite3.Connection:
       """Open a read-only connection to KB_DB_PATH using SQLite URI mode."""
       uri = f"file:{config.KB_DB_PATH}?mode=ro"
       return sqlite3.connect(uri, uri=True)
   ```
+
 - This is the only sqlite3 connector for `kol_scan.db` in `kb/`. `kg_synthesize.py` opens a different DB (`canonical_map.db`, project-internal), not `kol_scan.db`.
 - `kb/config.py` resolves `KB_DB_PATH` from `OMNIGRAPH_BASE_DIR` env var. In Apps deploy, set `OMNIGRAPH_BASE_DIR=/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault` and `kb/data/article_query.py` opens `/Volumes/.../data/kol_scan.db?mode=ro` directly — works without any /tmp copy.
 
@@ -403,6 +407,7 @@ Sketch above (Q5 implementation). 4 tests; ~10 min wallclock; ~$0.20–$0.80 cos
 **Impact:** Apps health check times out → App fails to reach RUNNING → kdb-2 first deploy blocked.
 
 **Mitigation:**
+
 - Adapter sketches a fast-path (FUSE `shutil.copytree`) which on a properly mounted volume should hit local-filesystem speed (>100 MB/s).
 - If kdb-2 first deploy fails the 60s budget, two falls back: (a) raise budget to 120s in `app.yaml`, (b) implement lazy-load (defer LightRAG init to first /synthesize request).
 - Adapter MUST log copy-elapsed time + bytes so kdb-2 has data to make this call.
@@ -430,6 +435,7 @@ Sketch above (Q5 implementation). 4 tests; ~10 min wallclock; ~$0.20–$0.80 cos
 **Impact:** Corrupted JSON → next App start can't load cache → LightRAG init may raise on cache parse failure.
 
 **Mitigation:**
+
 - LightRAG's `JsonKVStorage._load_data` (verify in source — quick grep) likely catches JSON parse error and starts with empty cache. If not, document as known bug + add try/except wrapper in adapter.
 - Long-term: CONC-DBX (deferred to v2) tackles atomic write properly.
 - For v1, accept the rare-edge-case failure mode; document in RUNBOOK that "if App fails to start with cache parse error, delete `/tmp/omnigraph_vault/lightrag_storage/kv_store_llm_response_cache.json`."
@@ -463,6 +469,7 @@ Sketch above (Q5 implementation). 4 tests; ~10 min wallclock; ~$0.20–$0.80 cos
 **What goes wrong:** LightRAG's storage backend `__post_init__` raises `OSError [Errno 30] Read-only file system`.
 
 **Source evidence:**
+
 - `lightrag/kg/json_kv_impl.py:30-39` — `working_dir = self.global_config["working_dir"]` then `os.makedirs(workspace_dir, exist_ok=True)`
 - `lightrag/kg/networkx_impl.py:41-50` — same pattern
 - `lightrag/kg/nano_vector_db_impl.py:43-54` — same pattern
@@ -478,6 +485,7 @@ Sketch above (Q5 implementation). 4 tests; ~10 min wallclock; ~$0.20–$0.80 cos
 **What goes wrong:** Process crash mid-write to `kv_store_llm_response_cache.json` corrupts file.
 
 **Source evidence:**
+
 - `lightrag/utils.py:1255-1270` — direct `open("w") + json.dump`. No `.tmp` + rename. No `f.flush()` + `os.fsync()`.
 
 **Why it happens:** LightRAG upstream design choice; tracked but not patched in v1 (research SUMMARY pitfall #4).
@@ -562,6 +570,7 @@ rag = LightRAG(
 | Vector dim 3072 (Vertex Gemini) | Vector dim 1024 (Qwen3) | kdb-1.5 factory pin, kdb-2.5 re-index | 3× shrinkage on vdb_*.json files → ~1.3 GB Hermes → ~400–600 MB on Databricks |
 
 **Deprecated/outdated:**
+
 - DeepSeek provider in v1 Databricks deploy — fully retired per rev 3 constraint #1.
 - Vertex Gemini path in v1 Databricks deploy — retired; code paths remain reachable via env var for non-Databricks deploys.
 
@@ -609,6 +618,7 @@ rag = LightRAG(
 > Per `.planning/config.json` workflow.nyquist_validation default (treat as enabled).
 
 ### Test Framework
+
 | Property | Value |
 |----------|-------|
 | Framework | pytest 7+ (existing project venv) |

@@ -716,6 +716,7 @@ Make executable: `chmod +x scripts/check_contract.sh`.
 </verification>
 
 <success_criteria>
+
 - 7 frozen dataclasses + ResearchState + ResearchResult + ResearchConfig live in `lib/research/types.py` matching CONTEXT.md verbatim
 - `ResearchConfig.from_env()` reads all documented env vars at construction time only (Axis 3)
 - `lib/research/__init__.py` exports exactly 7 public names

@@ -87,6 +87,7 @@ Forbidden files (parallel ir-4 W2 agent territory) were not modified:
 - Migration / SQL / Layer 1 / Layer 2 code — untouched
 
 Post-commit `git diff --name-only HEAD~1 HEAD` shows ONLY:
+
 - `ingest_wechat.py`
 - `tests/unit/test_apify_run_input.py`
 - `.planning/quick/260509-elc-apify-maxitems-run-input-fix-for-daily-i/260509-elc-PLAN.md`

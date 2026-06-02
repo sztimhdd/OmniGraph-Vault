@@ -41,6 +41,7 @@ The "3 flips in 4 days" narrative was an illusion. Google never flipped the Vert
 - Regional endpoints (`us-central1` etc.) host `gemini-embedding-2-preview`.
 
 Three confounders combined:
+
 1. `scripts/vertex_live_probe.py` probed only `us-central1`, so it always saw `-preview` work.
 2. `_VERTEX_EMBEDDING_ALIAS` silently remapped every `-2` request to `-preview`, regardless of endpoint.
 3. Production Hermes `.env` had (undocumented at the time) `GOOGLE_CLOUD_LOCATION=global`; the silent alias made every production embed 404.
@@ -77,11 +78,13 @@ All three pushed with `--no-verify` in a single `git push origin main` (`289a87d
 ### Task 1 — Remove alias layer (TDD RED → GREEN → commit `f6be225`)
 
 **RED phase** — flipped 3 assertions first, ran pytest, confirmed 3 failures:
+
 - `test_vertex_mode_both_env_vars_set` expected `gemini-embedding-2`, got `-preview`.
 - `test_is_vertex_mode_evaluated_at_call_time` same.
 - `test_vertex_mode_preserves_ga_model_name` (renamed from `test_vertex_mode_maps_to_preview`) expected `gemini-embedding-2`, got `-preview`.
 
 **GREEN phase** — applied Fix 1 + Fix 2:
+
 - `lib/lightrag_embedding.py`: deleted `_VERTEX_EMBEDDING_ALIAS` dict, deleted `_resolve_model()` function, simplified `_embed_once` to pass `model` through unchanged. Replaced 45-line "Preview lifecycle" docstring header with the 10-line plan-verbatim docstring pointing at 05-00-SUMMARY § C.
 - `cognee_wrapper.py`: removed `from lib.lightrag_embedding import _resolve_model`; changed `os.environ["EMBEDDING_MODEL"] = _resolve_model("gemini-embedding-2")` to literal `"gemini-embedding-2"`. Stale 5-line comment block replaced with single-line explanation.
 - Updated test-file docstrings to drop the "3 flips" narrative and point at 05-00-SUMMARY § C.
@@ -100,6 +103,7 @@ All three pushed with `--no-verify` in a single `git push origin main` (`289a87d
 - Rewrote `tests/unit/test_vertex_live_probe.py` to match the new 2×3 contract (7 tests). Added `test_known_good_dict_matches_spec` pinning the exact dict.
 
 Verification:
+
 ```
 $ venv/Scripts/python -c "import ast; ast.parse(...); print('syntax-ok')"
 syntax-ok
@@ -111,6 +115,7 @@ usage: vertex_live_probe.py [-h] [--no-telegram] [--json]
 ### Task 3 — Rewrite 05-00 § C + CLAUDE.md Vertex clarification (commit `b3f153c`)
 
 **05-00-SUMMARY § C:**
+
 - Table (rows A-E) preserved unchanged.
 - Narrative paragraphs rewritten under new header `### § C narrative — endpoint × model mismatch (retroactively corrected 2026-05-03 PM)`.
 - Bold Lesson line as first narrative line: **Lesson: When Google releases a new model, probe the full endpoint matrix, not a single endpoint.**
@@ -119,6 +124,7 @@ usage: vertex_live_probe.py [-h] [--no-telegram] [--json]
 - Old "Preview lifecycle 3 flips in 4 days" assertions retired entirely.
 
 **CLAUDE.md Vertex AI Migration Path:**
+
 - Added line under "Recommendation (current)" documenting `GOOGLE_CLOUD_LOCATION=global` is production-recommended (not `us-central1`) and the verbatim plan sentence: `Embedding model naming is endpoint-dependent: gemini-embedding-2 is GA on global; gemini-embedding-2-preview is regional-only. Always match model to endpoint.`
 
 ---
@@ -152,12 +158,14 @@ tests/unit/test_vertex_live_probe.py:4,88,93,...                                
 ```
 
 **Zero residuals:**
+
 - `lib/` outside the docstring narrative: ✅ clean
 - `cognee_wrapper.py`: ✅ clean (no `_resolve_model` import, no alias function call)
 - `tests/unit/test_lightrag_embedding_vertex.py`: ✅ clean
 - `tests/unit/test_cognee_vertex_model_name.py`: ✅ clean
 
 **Expected residuals (plan spec):**
+
 - `scripts/vertex_live_probe.py` — `-preview` is a probe target string in the `known_good` dict (per Task 2 spec).
 - `lib/lightrag_embedding.py:5` — narrative docstring explaining the regional-only nature of `-preview` (plan-verbatim docstring content).
 - `tests/unit/test_vertex_live_probe.py` — fixture strings exercising the probe's known_good contract; unavoidable because the test must reference the same model names the probe accepts.
@@ -211,6 +219,7 @@ No other deviations.
 ## Self-Check: PASSED
 
 Files that were supposed to land, land:
+
 - `lib/lightrag_embedding.py` — FOUND; no `_VERTEX_EMBEDDING_ALIAS`, no `_resolve_model`, `_embed_once` passes `model=model` directly.
 - `cognee_wrapper.py` — FOUND; no `_resolve_model` import; `EMBEDDING_MODEL` literal.
 - `tests/unit/test_lightrag_embedding_vertex.py` — FOUND; 7 tests pass, all assert GA `gemini-embedding-2` in Vertex mode.
@@ -221,6 +230,7 @@ Files that were supposed to land, land:
 - `CLAUDE.md` — FOUND; `GOOGLE_CLOUD_LOCATION=global` + `endpoint-dependent` on line 407.
 
 Commits exist on origin/main:
+
 - `f6be225` — FOUND.
 - `8d31d71` — FOUND.
 - `b3f153c` — FOUND.

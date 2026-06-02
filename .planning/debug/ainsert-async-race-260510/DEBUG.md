@@ -182,6 +182,7 @@ The consistent FAILED pattern only emerged after the Vertex path became the acti
 **File:** `lib/lightrag_embedding.py`, line 141
 
 **Code:**
+
 ```python
 location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
 ```
@@ -281,14 +282,17 @@ override still works. The default change only affects callers that don't set it.
 
 1. Confirm `GOOGLE_CLOUD_LOCATION=global` is present in Hermes's `~/.hermes/.env`.
    The CLAUDE.md states it IS there, but verify directly:
+
    ```bash
    grep GOOGLE_CLOUD_LOCATION ~/.hermes/.env
    ```
+
    If the line is present, Hermes has been shielded from this bug even before the fix ships.
    If the line is ABSENT, Hermes production cron is hitting the exact same 404.
 
 2. If `GOOGLE_CLOUD_LOCATION` is absent from `~/.hermes/.env`, add it immediately
    (before or alongside the code fix):
+
    ```
    GOOGLE_CLOUD_LOCATION=global
    ```
@@ -296,19 +300,23 @@ override still works. The default change only affects callers that don't set it.
 ### After deploying
 
 1. Run the T3 contract test from the local harness:
+
    ```bash
    PYTHONIOENCODING=utf-8 \
    GOOGLE_CLOUD_PROJECT=project-df08084f-6db8-4f04-be8 \
    venv/Scripts/python -m pytest tests/unit/test_ainsert_persistence_contract.py \
      -v -m slow --no-header -s
    ```
+
    Expected: T3, T3a, T3b all PASS. T3a should log `post-await: processed`.
 
 2. Run a single-article wechat smoke via the harness:
+
    ```bash
    PYTHONIOENCODING=utf-8 \
    bash scripts/local_e2e.sh wechat "https://simonwillison.net/2026/May/6/vibe-coding-and-agentic-engineering/"
    ```
+
    Expected: exits 0, `--- Successfully Ingested! ---`, no RuntimeError.
 
 3. On Hermes: trigger a manual ingest of one article (not the full cron) and verify

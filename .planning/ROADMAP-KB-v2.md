@@ -13,6 +13,7 @@
 > C4 `images/{hash}/final_content.md` path. **Read-only**, do NOT break.
 
 > **Note on REQ count history:**
+>
 > - 2026-05-12 initial roadmap mapped 50 REQs across 9 categories.
 > - 2026-05-13 kb-2 revival added 12 REQs across 3 new categories (TOPIC 5 + ENTITY 4 + LINK 3) → **62 REQs total across 12 categories**.
 > - kb-2 was originally "explicitly skipped" based on local dev DB data (0 classifications, 13 canonical entities). Hermes prod data (3945 classifications, 5257 extracted_entities, 91 entities at ≥5-article freq) supports kb-2 implementation today. Three v2.1 dependencies — LLM canonicalization (CANON-*), entity_type fill (TYPED-*), topic taxonomy hierarchy (TOPIC-HIER-*) — are explicitly deferred and won't block this milestone.
@@ -69,6 +70,7 @@ simpler given this risk profile.
 ## Phase Details
 
 ### Phase kb-1: SSG Export + i18n Foundation
+
 **Goal:** Bilingual SSG output renders from a clean `kol_scan.db`-plus-filesystem data
 layer. Article list, article detail, and Q&A entry pages are produced as static HTML
 with full UI i18n, badge-correct content language, image URL rewriting, and SEO/share
@@ -79,6 +81,7 @@ DATA-01, DATA-02, DATA-03, DATA-04, DATA-05, DATA-06, EXPORT-01, EXPORT-02,
 EXPORT-03, EXPORT-04, EXPORT-05, EXPORT-06, UI-01, UI-02, UI-03, UI-04, UI-05,
 UI-06, UI-07, CONFIG-01 (27 REQs)
 **Success Criteria** (what must be TRUE):
+
   1. `kb/scripts/detect_article_lang.py` runs on the live `kol_scan.db` and reports
      `articles.lang` + `rss_articles.lang` 100% non-NULL afterward (DATA-01..03);
      re-running is a no-op (idempotent).
@@ -118,6 +121,7 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
      `KB_DEFAULT_LANG`, `KB_SYNTHESIZE_TIMEOUT` from env with documented defaults;
      no path is hardcoded outside config.py (CONFIG-01).
 **Plans:** 10 plans across 5 waves (kb-1-10 gap-closure added 2026-05-13 by gsd-phase-planner)
+
 - [x] kb-1-01-config-skeleton-PLAN.md — kb/ package skeleton + env-driven kb/config.py (Wave 1)
 - [x] kb-1-02-migration-lang-detect-PLAN.md — DATA-01 migration + lang_detect helper (Wave 1)
 - [x] kb-1-03-i18n-locale-PLAN.md — zh-CN.json + en.json + Jinja2 t() filter (Wave 1)
@@ -149,10 +153,12 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
 ---
 
 ### Phase kb-2: Topic Pillar + Entity Pages + Cross-Link Network
+
 **Goal:** Generate topic pillar pages (`/topics/{slug}.html` × 5) and entity pages (`/entities/{slug}.html` × ~91) with cross-linking from article details. Homepage gains topic + entity discovery sections. Pure SSG (Jinja2 + data layer extensions); no HTTP, no new LLM calls. Inherits kb-1 redesigned UI tokens.
 **Depends on:** Phase kb-1 (article_query.py + kb-1-UI-SPEC.md tokens for chips/glow/icons/state-classes; templates `base.html` + `article.html` to extend; export driver to extend).
 **Requirements:** TOPIC-01..05, ENTITY-01..04, LINK-01..03 (12 REQs)
 **Success Criteria** (what must be TRUE):
+
   1. `python kb/export_knowledge_base.py` against Hermes-prod-shape DB produces:
      - `kb/output/topics/agent.html`, `cv.html`, `llm.html`, `nlp.html`, `rag.html` (5 files)
      - `kb/output/entities/<slug>.html` for ~91 entities (verified by `ls kb/output/entities/*.html | wc -l ≥ 50` against threshold KB_ENTITY_MIN_FREQ=5)
@@ -164,6 +170,7 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
   7. `kb/output/sitemap.xml` includes all topic + entity URLs (recursive `Path.rglob("*")` — auto-handles new pages).
   8. Topic pages emit JSON-LD `CollectionPage` schema; entity pages emit JSON-LD `Thing` schema (generic `@type`, `entity_type` typing deferred to v2.1 CANON-* / TYPED-* per REQUIREMENTS).
 **Plans:** 10 plans across 5 waves (planned 2026-05-13)
+
 - kb-2-01-fixture-extension — test fixture: classifications + extracted_entities tables (Wave 1)
 - kb-2-02-locale-keys — 28 new keys in zh-CN.json + en.json per UI-SPEC §5 (Wave 1)
 - kb-2-03-svg-icons — 2 new icons (folder-tag + users) per UI-SPEC §3.5 (Wave 1)
@@ -193,6 +200,7 @@ UI-06, UI-07, CONFIG-01 (27 REQs)
 ---
 
 ### Phase kb-3: FastAPI Backend + Bilingual API + Search + Q&A
+
 **Goal:** A single FastAPI app on port 8766 exposes the KB data layer over HTTP,
 runs FTS5 trigram search across both languages, and serves bilingual RAG Q&A via
 async wrapping of `kg_synthesize.synthesize_response()` with KB-side language
@@ -205,6 +213,7 @@ API-07, API-08, SEARCH-01, SEARCH-02, SEARCH-03, QA-01, QA-02, QA-03, QA-04, QA-
 CONFIG-02 (19 REQs — DATA-07 added 2026-05-13: content-quality filter, see
 `.planning/phases/kb-3-fastapi-bilingual-api/kb-3-CONTENT-QUALITY-DECISIONS.md`)
 **Success Criteria** (what must be TRUE):
+
   1. `uvicorn kb.api:app --port 8766` boots and serves all endpoints listed below;
      port is overridable via `KB_PORT` env (API-01). `app.mount("/static/img", ...)`
      replaces the standalone `:8765` image server — fetching
@@ -257,6 +266,7 @@ CONFIG-02 (19 REQs — DATA-07 added 2026-05-13: content-quality filter, see
      See `.planning/phases/kb-3-fastapi-bilingual-api/kb-3-CONTENT-QUALITY-DECISIONS.md`
      for SQL clauses, fixture coordination, and rollout plan.
 **Plans:** 12 plans across 5 waves (planned 2026-05-13 by gsd-planner)
+
 - [ ] kb-3-01-api-contract-PLAN.md — REST API contract lock (api-design Skill); kb-3-API-CONTRACT.md
 - [ ] kb-3-02-data07-filter-PLAN.md — DATA-07 content-quality filter on 6 list-style query functions; carve-out for get_article_by_hash
 - [ ] kb-3-03-locale-icons-PLAN.md — 20 new locale keys + chat-bubble-question + lightning-bolt icons (foundation for kb-3-10/11)
@@ -296,6 +306,7 @@ CONFIG-02 (19 REQs — DATA-07 added 2026-05-13: content-quality filter, see
 ---
 
 ### Phase kb-4: Ubuntu Deploy + Cron + Smoke Verification
+
 **Goal:** A clean Ubuntu host runs `install.sh`, gets the systemd unit + Caddy
 snippet active, daily cron rebuilds SSG + FTS5, and the 3 smoke-test scenarios
 defined in PROJECT-KB-v2.md all PASS.
@@ -303,6 +314,7 @@ defined in PROJECT-KB-v2.md all PASS.
 fallback all working; smoke #1 requires kb-1's i18n).
 **Requirements:** DEPLOY-01, DEPLOY-02, DEPLOY-03, DEPLOY-04, DEPLOY-05 (5 REQs)
 **Success Criteria** (what must be TRUE):
+
   1. `kb/deploy/install.sh` is idempotent: re-running on an installed host produces
      no errors and leaves `systemctl is-active kb-api.service` = `active`;
      `journalctl -u kb-api --since '5 minutes ago'` shows zero ERROR lines
@@ -339,6 +351,7 @@ fallback all working; smoke #1 requires kb-1's i18n).
      `rss_articles.lang` are 100% non-NULL post-rebuild (PROJECT-KB-v2.md "Pass
      conditions" §4).
 **Plans:** 8 plans across 4 waves (planned 2026-05-14 by gsd-planner)
+
 - [x] kb-4-01-systemd-caddy-PLAN.md — kb/deploy/kb-api.service + kb/deploy/Caddyfile.snippet — SUPERSEDED-BY-SIDE-EFFECT (already live on Aliyun; security hardening retroactively verified via kb-4-07 prod-shape) (Wave 1)
 - [x] kb-4-02-install-bootstrap-PLAN.md — kb/deploy/install.sh idempotent + 6-prereq checks — SUPERSEDED-BY-SIDE-EFFECT (Aliyun bootstrapped out-of-band; script in repo for future greenfield) (Wave 1)
 - [x] kb-4-03-logo-png-source-PLAN.md — UI-04 carry-forward gate — SUPERSEDED-BY-SIDE-EFFECT (VitaClaw-Logo-v0.png 2048×2048 RGBA present since 2026-05-15) (Wave 1, checkpoint:decision)

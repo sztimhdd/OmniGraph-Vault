@@ -65,6 +65,7 @@ Hard constraint: **no literal secret values appear in this PLAN, in DEPLOY-NOTES
 Purpose: DEPLOY-04 smoke (`scripts/local_e2e.sh layer1 5` + `wechat <url>`) requires DeepSeek + SiliconFlow + Vertex + Gemini + Apify all configured. Without env extension, the smoke fails at the first provider call.
 
 Output:
+
 - Aliyun: `/root/.hermes/.env` extended with 6 ingest keys (real values placed by operator side-channel)
 - Local: DEPLOY-NOTES.md §DEPLOY-03 records key names + verification artifacts (no values)
 </objective>
@@ -88,6 +89,7 @@ Output:
 </context>
 
 <pre_conditions>
+
 - aim-1-1 + aim-1-2 complete (working tree clean + venv operational)
 - DEPLOY-NOTES.md §DEPLOY-01 + §DEPLOY-02 populated
 - Operator has SSH access via alias `aliyun-vitaclaw`
@@ -365,6 +367,7 @@ Output:
 **ROADMAP SC3 (line 80):** "Ingest provider keys appended to existing `/root/.hermes/.env` (preserve existing mode + ownership; do NOT create separate `/etc/omnigraph/.env`); required keys present after append: `DEEPSEEK_API_KEY`, `SILICONFLOW_API_KEY`, `OMNIGRAPH_VERTEX_SA_JSON_PATH`, `GEMINI_API_KEY`, `APIFY_TOKEN`, `APIFY_TOKEN_BACKUP`; pre-existing kb-api keys preserved unchanged; no literal secret committed to repo or any planning doc (DEPLOY-03)"
 
 Mapped:
+
 - ✅ Append to existing `/root/.hermes/.env`: Tasks 2 explicitly targets this path; alternative `/etc/omnigraph/.env` forbidden in PLAN context
 - ✅ Preserve mode + ownership: Task 1 captures pre-state; Task 2 Step 2c preserves; Task 3 audit verifies match
 - ✅ All 6 ingest keys present: Task 3 Step 3a Block 3 + Block 5 verify presence + non-sentinel

@@ -81,6 +81,7 @@ async def health() -> dict[str, Any]:
 ```
 
 Routes registered:
+
 - `/openapi.json` (auto)
 - `/docs` (auto)
 - `/redoc` (auto)
@@ -126,18 +127,22 @@ None. The plan executed exactly as specified. The only judgement call was decidi
 ## Self-Check: PASSED
 
 **Files exist:**
+
 - `kb/api.py`: FOUND (65 lines)
 - `tests/integration/kb/test_api_skeleton.py`: FOUND (124 lines)
 
 **Commits exist** (verified via `git log --oneline`):
+
 - `233a7da`: FOUND — `test(kb-3-04): add failing tests for FastAPI skeleton (/health + /static/img)`
 - `295e16f`: FOUND — `feat(kb-3-04): create FastAPI skeleton with /health + /static/img mount`
 
 **Tests pass:**
+
 - `pytest tests/integration/kb/test_api_skeleton.py -v` → 9 passed
 - `pytest tests/unit/kb/ tests/integration/kb/ -q` → 234 passed (no regressions)
 
 **App boots:**
+
 - `python -c "from kb.api import app"` → exits 0 with title="OmniGraph KB v2", version="2.0.0"
 - `uvicorn.Config(app, host='127.0.0.1', port=8766)` → builds successfully
 

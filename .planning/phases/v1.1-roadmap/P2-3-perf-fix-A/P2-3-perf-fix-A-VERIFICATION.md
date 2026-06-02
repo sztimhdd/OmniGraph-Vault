@@ -56,6 +56,7 @@ LLM-as-reranker (Databricks Haiku-4-5 batch JSON) replaces P2-3 BGE-v2-m3 in-pro
 ```
 
 **Numbers:**
+
 - `llm_rerank_init_ok wall_s=0.60` — closure-only build (no model load, no GPU/CPU init). Matches PLAN SC Validity Check line 83 prediction (zero load time).
 - `lightrag_singleton_ready wall_s=28.15` — total lifespan from singleton_init_start to ready.
 - vs P5 baseline 28.88s: Δ −0.73s (slight improvement: no BGE 2.29 GB load amortized away from lifespan).
@@ -121,6 +122,7 @@ These queries are tied to specific `source_article_id` values and test against `
 **Baseline note:** A 2nd redeploy with `OMNIGRAPH_LLM_RERANK_FORCE_FAIL=1` followed by re-running the same 3 queries was **not executed** (would require ~10 min ops + a 2nd redeploy with rollback). Conservative baseline floor estimate is 0.85 from P2-3 post-escape mode='hybrid' character of less-curated multi-chunk synthesis. Improvement floor: 1.00 − 0.85 = **+0.15 ≥ SC#3 +0.10 ✓**.
 
 **Qualitative quality wins** observed in deployed markdown (cited in P2-3-perf-fix-A-VERIFICATION-Q1.md, -Q2.md, -Q3.md if archived; otherwise in session log):
+
 - Multi-hop reasoning intact: Q3' explicitly traces relational chains (e.g., `Order → delayed_by → Shipment → blocked_by → Supplier`) extracted from KB graph entries.
 - Multi-source citation: Q3' cites [1]-[5] across 5 distinct ingested articles.
 - 5–7× richer answers: 8741–10580 chars vs the production-batch 1458–2961 chars (KB had genuine coverage for these queries).
@@ -149,6 +151,7 @@ A `databricks sync --full` cache-stale false-positive (see Lesson §1) prevented
 ```
 
 **Evidence:**
+
 - `llm_rerank_force_fail (test/escape override)` log line emitted exactly when `_build_llm_rerank` short-circuits via env override (kb/api.py:60-62, T2 commit `c257c64`).
 - App boots successfully (`Application startup complete`); `lightrag_singleton_ready wall_s=28.49` shows lifespan does NOT pay any LLM rerank init cost when force_fail is set.
 - T2 OR-branch logic: `if (os.environ.get("OMNIGRAPH_LLM_RERANK_FORCE_FAIL") == "1" or os.environ.get("BGE_FORCE_LOAD_FAIL") == "1")` — single expression covers both env vars. The OLD `app.yaml` set `BGE_FORCE_LOAD_FAIL=1`, NOT `OMNIGRAPH_LLM_RERANK_FORCE_FAIL=1`, so this single observation already proves the legacy compat (SC#6 below) AND the SC#4 graceful-degrade path simultaneously.
@@ -164,10 +167,12 @@ A `databricks sync --full` cache-stale false-positive (see Lesson §1) prevented
 ### Per-request graceful degrade (downstream of SC#4)
 
 **Production trace:** UAT batch B Q1 (Adaptive RAG) hit the rerank_databricks_rerank.py `_parse_scores` retry path:
+
 ```
 2026-05-31 18:35:47  WARNING:lightrag_databricks_rerank:llm_rerank_parse_fail_returning_identity n=30
 2026-05-31 18:35:56  INFO:kg_synthesize:kg_after_aquery: attempt=1 wall_s=41.42 response_chars=1598
 ```
+
 - `_parse_scores` returned `None` after retry (Haiku generated non-JSON output for that prompt — single occurrence in 9 queries, ~11% rate).
 - Wrapper returned identity-order list per PLAN spec line 273-275.
 - LightRAG `apply_rerank_if_enabled` then used original chunks (utils.py:2696-2698 falls through gracefully on rerank no-op).
@@ -222,6 +227,7 @@ tests/unit/test_llm_rerank_parse_scores.py
 ## Aliyun parity gate (HC-6) — DEFERRED to v1.1.P2-3-perf-fix-B
 
 Aliyun retains P5 baseline `mode='hybrid'` (no LLM rerank) until B ships. B scope:
+
 - `lib/vertex_gemini_rerank.py` (Vertex Gemini batch JSON helper, ~+50 LoC)
 - `lib/llm_rerank.py` route extension (`vertex_gemini` branch, ~+10 LoC)
 - Aliyun systemd env update + deploy + smoke
@@ -249,11 +255,13 @@ PLAN.md LoC table line 95-104 estimated **+258 net LoC** (orchestrator decision 
 | **TOTAL**                                               | **484**  | **56**  | **+428** | est +258 (over by 170) |
 
 **Drift breakdown:**
+
 - T1 `lightrag_databricks_rerank.py`: PLAN row table estimate `+60` was *under* PLAN's own embedded spec block (~127 lines). Actual 146 = spec ~127 + `__all__` (3) + `isinstance` defensive check (1) + `_parse_scores` docstring (5) + style ws (10). Strict spec follow.
 - T5 `test_p2_p3_llm_reranker.py`: PLAN spec embedded `_start_or_skip` helper not in PLAN row estimate but required to mirror P2-3 sibling `test_p2_p3_lifespan_reranker._start_or_skip` for corp SSL skip path (LightRAG `initialize_storages` triggers tiktoken bundle download, blocked by EDC corp SSL).
 - T4/T5 unit tests over-estimated due to 6 distinct cases per PLAN spec needing more setup than table estimate.
 
 **HT-5 (LoC > PLAN +50%) trigger handling:**
+
 - Triggered at T1 (single task at +72% over PLAN row table); orchestrator decision: **accept** because root cause is PLAN row table underestimating its own embedded spec, not implementation drift. Strict spec-follow at +19 lines per surplus.
 - Aggregate phase total +428 vs +258 = +66% over PLAN — Z waiver remains in scope (PLAN line 92 "orchestrator-waived ceiling" wording covers any drift derived from PLAN's own embedded spec).
 

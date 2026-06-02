@@ -98,6 +98,7 @@ The test file patches `logging.basicConfig` to a no-op (L264) because `ingest_fr
 No gaps. All 6 truths verified, all 3 requirements satisfied, all 4 pytest cases independently re-run GREEN by verifier (4 passed in 3.77s, log captured `.scratch/...`-equivalent live this session).
 
 **Note on scratch evidence files:** SUMMARY.md cites `.scratch/maxcap-prefix-20260511T185332Z.log`, `.scratch/maxcap-postfix-20260511T185437Z.log`, `.scratch/maxcap-pytest-20260511T185651Z.log`, and `.scratch/lmx-repro.py`. These files are not present on disk at verification time — `.scratch/` is gitignored and these paths are session-local artifacts that have been cleaned up. The contract these logs would assert (pre-fix leak, post-fix exact-N enforcement) is independently re-proven by:
+
 1. pytest Test 2 (`test_cap_break_on_third_ok`) GREEN — proves exactly N ok rows when ≥N candidates available
 2. pytest Test 4 (`test_cap_pool_exhausted_before_reached`) GREEN — proves clean exit on pool exhaustion
 3. Code inspection at L1780 — confirms predicate matches plan spec verbatim

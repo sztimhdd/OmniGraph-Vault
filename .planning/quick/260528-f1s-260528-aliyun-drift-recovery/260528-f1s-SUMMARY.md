@@ -37,6 +37,7 @@ Backend log timestamps (Aliyun-side `/api/synthesize` POST):
 | 4 | `POST /api/synthesize` long_form `What is LightRAG?` | 202 Accepted → poll → status=done; **`response_chars=3305 markdown` (NOT fts5_fallback)**; `wall_s=80.51`; LightRAG load+query trace verified | 07:08:06 → 07:09:27 |
 
 Critical synthesize trace evidence:
+
 - 07:08:06 POST /api/synthesize 202 Accepted (BG dispatch)
 - 07:08:11 LightRAG graphml load 30068 nodes / 43143 edges
 - 07:08:34 nano-vectordb 3 collections (3072-dim) loaded

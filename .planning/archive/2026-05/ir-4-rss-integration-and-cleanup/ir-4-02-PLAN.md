@@ -6,6 +6,7 @@
 ## Goal
 
 Replace W1's KOL-only scrape gate with proper dual-source dispatch:
+
 - KOL: scrape only when body missing (legacy semantic preserved).
 - RSS: scrape when body missing OR shorter than `RSS_SCRAPE_THRESHOLD` (100
   chars) — RSS feed `<description>` excerpts are typically 50-80 chars,

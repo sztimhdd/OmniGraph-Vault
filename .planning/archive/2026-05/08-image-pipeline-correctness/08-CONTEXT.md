@@ -29,12 +29,14 @@ No external specs / ADRs beyond these. All decisions traceable to the above.
 **Decision:** New function `filter_small_images(url_to_path: dict[str, Path], *, min_dim: int = 300) -> tuple[dict[str, Path], FilterStats]` added to `image_pipeline.py`. `ingest_wechat.ingest_article` (and future Zhihu/GitHub callers) call it explicitly; `describe_images()` stays single-purpose (Vision calls only).
 
 **Return contract:**
+
 - `filtered_map`: subset of input dict containing only images where `min(w,h) >= min_dim` (mathematically equivalent to current `or` logic, but explicit)
 - `FilterStats`: `{input: int, kept: int, filtered_too_small: int, size_read_failed: int, timings_ms: {total_read: int}}`
 
 **PIL open failure degrades to KEEP** (don't drop images we can't measure; log reason).
 
 **Rationale:**
+
 - D-15 already established "pipeline owns batch logic" pattern
 - Returning stats tuple feeds IMG-04 aggregate counts directly (no log scraping)
 - Single-responsibility: filter is content-type classification, describe is I/O-bound Vision call — separate lifecycle
@@ -85,10 +87,12 @@ No external specs / ADRs beyond these. All decisions traceable to the above.
 ### D-08.03 — Threshold = kwarg `min_dim: int = 300` + env override in caller (GA3)
 
 **Decision:**
+
 - `filter_small_images(url_to_path, *, min_dim: int = 300)` — kwarg is authoritative
 - `ingest_wechat.ingest_article` reads env at call site: `min_dim = int(os.environ.get("IMAGE_FILTER_MIN_DIM", 300))`, passes to function
 
 **Rationale:**
+
 - kwarg default 300 matches Hermes's empirical finding (21.4% of 1317 images <300px are junk)
 - env override lets ops tune for different corpora (academic papers, screenshot archives) without code change
 - Test isolation: unit tests call with explicit `min_dim=` (no monkeypatching env)
@@ -98,6 +102,7 @@ No external specs / ADRs beyond these. All decisions traceable to the above.
 **Decision:** `_DESCRIBE_INTER_IMAGE_SLEEP_SECS = 0` (down from current `2`). `VISION_INTER_IMAGE_SLEEP` env var allows caller to restore non-zero value if a provider develops RPM issues.
 
 **Rationale:**
+
 - SiliconFlow Qwen3-VL-32B has no RPM cap (verified in Hermes's cascade)
 - OpenRouter GLM-4.5V has per-key limits but they're generous
 - 28-image fixture × 2s = 56s pure waste (documented in Hermes diagnostic §6)
@@ -116,6 +121,7 @@ No `cache_hit` (no per-image Vision cache in v3.1 scope) — deferred to v3.2.
 **Decision:** `PILImage.open(path).size` called synchronously in-process.
 
 **Rationale:**
+
 - 28 images × ~30ms/open = <1s — invisible in a 90-120s article budget
 - Async wrapping adds complexity without measurable win at single-article scale
 - If v3.2 batch scale makes this measurable, wrap in `asyncio.to_thread` at that point

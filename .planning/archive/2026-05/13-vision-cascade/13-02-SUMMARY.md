@@ -16,14 +16,17 @@ tests_updated: 0
 ## Diff Summary
 
 ### Replaced
+
 - Old `_describe_one` function (Gemini-first cascade ladder): **removed**.
 - `describe_images` body: rewritten to use `VisionCascade` + balance helpers.
 
 ### Preserved (kept as deprecated internal helpers)
+
 - `_describe_via_gemini`, `_describe_via_siliconflow`, `_describe_via_openrouter`: **kept**.
 - Rationale: (a) no external callers were found, but (b) removing them would expand the diff with no functional benefit, and (c) they remain useful for ad-hoc debugging scripts. They are now unused by the main `describe_images` path (VisionCascade has its own inlined adapters).
 
 ### New keys in `get_last_describe_stats()`
+
 ```python
 {
     "provider_mix": {...},       # (existing)
@@ -37,12 +40,15 @@ tests_updated: 0
 ```
 
 ### New env flag
+
 - `OMNIGRAPH_VISION_SKIP_BALANCE_CHECK=1` -- skip pre-batch and mid-batch balance checks. Primary purpose: tests. Secondary: offline debugging.
 
 ### Legacy env vars
+
 - `VISION_PROVIDER` is no longer read. The cascade is always siliconflow-first, with OpenRouter-primary as a balance-driven fallback. Per the Phase 13 PRD, per-call provider selection by the caller is out of scope.
 
 ### New batch-end alerts (CASC-05)
+
 - WARNING when `gemini_share > 5%` at batch end (signals upstream issues).
 - WARNING when any provider's circuit remains open at batch end (signals transient/quota issues).
 

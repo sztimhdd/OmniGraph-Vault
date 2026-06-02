@@ -131,6 +131,7 @@ Take your business to the AI frontier.
 [Sign out](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/app-runtime#)
 
 [Azure](https://learn.microsoft.com/en-us/azure/)
+
 *   Products
     *   Popular products
         *   [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry/)
@@ -348,6 +349,7 @@ The `app.yaml` file in a Databricks app defines how your app runs. If your app r
 You can use the `.yaml` or `.yml` file extension. This file must be located in the root of your project directory.
 
 [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/app-runtime#supported-settings)
+
 ## Supported settings
 
 The `app.yaml` file supports the following settings.
@@ -360,6 +362,7 @@ Expand table
 | `env` | `list` | Azure Databricks automatically sets several [default environment variables](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/system-env) in the app runtime environment. This top-level key defines an optional list of additional environment variables to pass to your app. Each variable can use a hardcoded value or reference an external source, such as a secret or database entry. The valid items in the list are: * `name`: The name of the environment variable. * One of: * `value`: The value for the environment variable. * `valueFrom`: The name of an external source that contains the value, such as a secret or a database table. See [Use environment variables to access resources](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/environment-variables#access-resources). This setting is optional. |
 
 [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/app-runtime#example-appyaml-for-a-streamlit-app)
+
 ## [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/app-runtime)Example `app.yaml` for a Streamlit app
 
 The following `app.yaml` file shows how to configure a Streamlit app. It uses a custom command to start the app with `streamlit run`, and it sets environment variables for the SQL warehouse ID and a usage tracking flag.
@@ -380,6 +383,7 @@ env:
 Use a setup like this if your app depends on a specific compute resource, such as a SQL warehouse, or requires certain environment variables to control runtime behavior.
 
 [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/app-runtime#example-appyaml-for-a-flask-app)
+
 ## [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/app-runtime)Example `app.yaml` for a Flask app
 
 This example shows how to configure a Flask app using the Gunicorn server. The `command` setting specifies the Gunicorn startup parameters, and the `env` section sets the path to a Unity Catalog volume as an environment variable.
@@ -402,6 +406,7 @@ env:
 Use this approach when your app needs a production-ready WSGI server like Gunicorn and when it depends on data stored in a Unity Catalog volume or another environment-specific path.
 
 [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/app-runtime#next-steps)
+
 ## Next steps
 
 *   [Define environment variables in a Databricks app](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/environment-variables)
@@ -738,6 +743,7 @@ Build, ship, and scale with AI-first tools and platforms.
 [Sign out](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets#)
 
 [Azure](https://learn.microsoft.com/en-us/azure/)
+
 *   Products
     *   Popular products
         *   [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry/)
@@ -969,6 +975,7 @@ Feedback
 Add [Databricks secrets](https://learn.microsoft.com/en-us/azure/databricks/security/secrets/) as Databricks Apps resources to securely pass sensitive values, such as API keys or tokens, to your app. Databricks Apps supports secrets stored in [secret scopes](https://learn.microsoft.com/en-us/azure/databricks/security/secrets/#scopes). Apps retrieve these secrets at runtime, which keeps them out of your application code and environment definitions.
 
 [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets#add-a-secret-resource)
+
 ## [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets)Add a secret resource
 
 Before you add a secret as a resource, review the [app resource prerequisites](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/resources#resources-prereqs).
@@ -990,6 +997,7 @@ These steps allow the app to securely access a selected secret from the scope by
 Secret permissions apply at the _scope_ level, however, not the individual secret. To limit access between apps, create a separate secret scope for each app and store only the required secrets in that scope.
 
 [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets#environment-variables)
+
 ## [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets)Environment variables
 
 When you deploy an app that uses secret resources, Azure Databricks injects each secret as an environment variable. The name of each variable matches the resource key that you defined when you added the secret.
@@ -1005,11 +1013,13 @@ Important
 Never store sensitive values directly in environment variables or your app code. Instead, pass the resource key to Azure Databricks as an environment variable, and retrieve the secret value securely at runtime.
 
 [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets#remove-a-secret-resource)
+
 ## [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets)Remove a secret resource
 
 When you remove a secret resource from an app, the secret itself remains in the secret scope. However, the app loses access to the secret unless you add it again.
 
 [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets#best-practices)
+
 ## [](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets)Best practices
 
 Follow these best practices when managing secrets in your app:

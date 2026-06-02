@@ -47,6 +47,7 @@ P0 hotfix: kb_synthesize KG happy path was discarding `synthesize_response`'s re
 ## Bug Evidence
 
 Aliyun production 2026-05-17:
+
 - Request A (Q: "AI Agent trends"): markdown = 2399 chars, starts with `# OmniGraph Synthesis...`
 - Request B (Q: different question): markdown = same 2399 chars byte-identical
 - Request C (Q: yet another question): markdown = same 2399 chars byte-identical
@@ -62,6 +63,7 @@ grep -n "from pathlib import Path" kb/services/synthesize.py            → 0 hi
 ```
 
 All 4 changes verified:
+
 1. `response = await asyncio.wait_for(synthesize_response(...), timeout=KB_SYNTHESIZE_TIMEOUT)` — captures return value
 2. `markdown = response if isinstance(response, str) else ""` — uses return value directly
 3. `_read_synthesis_output()` function deleted (12 lines)
@@ -70,6 +72,7 @@ All 4 changes verified:
 ## TDD Verification
 
 **RED (Task 1 — pre-fix):**
+
 ```
 FAILED tests/integration/kb/test_synthesize_wrapper.py::test_kg_happy_path_uses_synthesize_response_return_value
 AssertionError: markdown should be the synthesize_response return value, got: ''
@@ -77,6 +80,7 @@ assert '' == '# Sentinel Answer\n\nThe truth is at [a](/article/abc1234567).'
 ```
 
 **GREEN (Task 2 — post-fix):**
+
 ```
 tests/integration/kb/test_synthesize_wrapper.py::test_kg_happy_path_uses_synthesize_response_return_value PASSED
 1 passed in 1.89s
@@ -106,6 +110,7 @@ All 489 tests pass (baseline 472 + 1 new regression test + 16 tests from other r
 ## Local UAT (deferred to Aliyun)
 
 Local KG path cannot run on the dev box: no GCP service-account credential locally → `KG_MODE_AVAILABLE=False` → `kb_synthesize` short-circuits to `fts5_fallback` before reaching the patched lines. The equivalent verification is the new regression test `test_kg_happy_path_uses_synthesize_response_return_value` which:
+
 - Uses real FastAPI + real SQLite fixture_db
 - Monkeypatches only the LLM boundary (C1)
 - Explicitly asserts `synthesis_output.md` does NOT exist before or after the call

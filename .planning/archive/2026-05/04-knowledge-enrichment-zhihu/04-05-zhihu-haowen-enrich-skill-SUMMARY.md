@@ -147,15 +147,18 @@ This is a Windows-only dev machine artifact; no file changes needed.
 ## Self-Check
 
 ### Files exist
+
 - `skills/zhihu-haowen-enrich/SKILL.md` — FOUND
 - `skills/zhihu-haowen-enrich/references/flow.md` — FOUND
 - `skills/zhihu-haowen-enrich/README.md` — FOUND
 
 ### Commits exist
+
 - `996fcf0` feat(04-05): add zhihu-haowen-enrich SKILL.md — FOUND
 - `d2725e0` feat(04-05): add zhihu-haowen-enrich references/flow.md and README.md — FOUND
 
 ### D-02 compliance
+
 - No `scripts/` directory — CONFIRMED
 - No `.py` files anywhere under skill — CONFIRMED
 

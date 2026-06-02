@@ -76,6 +76,7 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
 ```
 
 C2 (read-only — DO NOT modify):
+
 ```python
 # omnigraph_search/query.py:35
 def search(query_text: str, mode: str = "hybrid") -> str:
@@ -83,6 +84,7 @@ def search(query_text: str, mode: str = "hybrid") -> str:
 ```
 
 Endpoint inventory (from ROADMAP-KB-v2.md kb-3 success criteria):
+
 - API-01: app boot, KB_PORT env, default 8766
 - API-02: GET /api/articles?page&limit&source&lang&q
 - API-03: GET /api/article/{hash}
@@ -92,6 +94,7 @@ Endpoint inventory (from ROADMAP-KB-v2.md kb-3 success criteria):
 - API-07: GET /api/synthesize/{job_id}
 - API-08: app.mount("/static/img", StaticFiles)
 </interfaces>
+
 </context>
 
 <tasks>
@@ -158,6 +161,7 @@ Endpoint inventory (from ROADMAP-KB-v2.md kb-3 success criteria):
 </verification>
 
 <success_criteria>
+
 - API-01..API-08 contract locked in writing
 - C1 + C2 read-only contracts referenced verbatim
 - DATA-07 filter behavior across endpoints documented

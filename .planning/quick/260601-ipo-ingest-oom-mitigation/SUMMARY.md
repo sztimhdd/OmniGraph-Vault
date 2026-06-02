@@ -45,6 +45,7 @@ Plus `import gc` added.
 OOM frequency last 24h was: **4 OOM-kills** (`evening-ingest 06:52`, `daily-ingest 08:21`, `afternoon-ingest 14:31`, `daily-ingest 20:39`), all anon-rss peak 10.9-11.0 GB on 15 GB ECS host.
 
 Causes:
+
 1. No systemd memory cap (`MemoryMax=infinity` everywhere)
 2. No mutex between 3 ingest services (overlap → 2× RAM)
 3. LightRAG `*_max_async=4` worker fanout → 4 vdb context copies (~1-2 GB each)
@@ -59,6 +60,7 @@ ISSUES.md #4 (`260530-ainsert-budget-timeout`) was found **stale** — Phase 17 
 2. **scp** new 3 unit files to `/etc/systemd/system/` + `batch_ingest_from_spider.py` + `ingest_wechat.py` to `/root/OmniGraph-Vault/`
 3. **`systemctl daemon-reload`** — succeeded
 4. **`systemctl show ...`** verified live:
+
    ```
    MemoryMax=4294967296   (4 GiB)
    MemoryHigh=3221225472  (3 GiB)
@@ -66,6 +68,7 @@ ISSUES.md #4 (`260530-ainsert-budget-timeout`) was found **stale** — Phase 17 
    Restart=on-failure
    Conflicts=<other two ingest>
    ```
+
 5. **`systemctl start omnigraph-daily-ingest.service`** — manual smoke run (~12 min)
 6. **Per-30s cgroup memory polling** during run:
    - `T+15s`:  157 MB (just started)

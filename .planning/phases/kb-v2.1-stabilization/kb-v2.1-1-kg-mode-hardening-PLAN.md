@@ -22,6 +22,7 @@ response while FTS5 + happy-path /api/synthesize continue to work.
 ## Why this is P0
 
 Aliyun production observation 2026-05-14:
+
 - KG search triggered LightRAG embedding work
 - Logged error for missing local credential path: `/home/sztimhdd/.hermes/gcp-paid-sa.json`
 - One KG search caused `kb-api.service` OOM kill (auto-restart by systemd)
@@ -84,6 +85,7 @@ StartLimitIntervalSec=60
 ```
 
 Rationale:
+
 - `MemoryHigh=1.5G` triggers throttling before OOM
 - `MemoryMax=2G` is hard cap (kernel kills process; systemd restarts)
 - Aliyun ECS has 3.4Gi RAM total; vitaclaw-site Node uses ~500MB; 2G cap leaves headroom
@@ -98,6 +100,7 @@ Invoke `Skill(skill="python-patterns", args="Review credential env-var pattern +
 When `KG_MODE_AVAILABLE = False`:
 
 `GET /api/search?mode=kg`:
+
 ```json
 {
   "items": [],
@@ -118,6 +121,7 @@ HTTP status: 200 (NOT 500/502).
 Invoke `Skill(skill="writing-tests", args="Testing Trophy: integration > unit. Real DB + real FastAPI TestClient. Test: env var unset → KG_MODE_AVAILABLE=False → /api/search?mode=kg returns kg_unavailable=true with HTTP 200. Test: env var pointing to non-existent file → same behavior. Test: KG-mode request when KG_MODE_AVAILABLE=True does NOT 500. Test: rapid 10x KG-mode requests don't crash service (smoke).")`.
 
 `tests/integration/kb/test_kg_mode_hardening.py`:
+
 - `test_kg_mode_unavailable_when_env_unset`
 - `test_kg_mode_unavailable_when_credential_file_missing`
 - `test_kg_mode_response_shape_includes_kg_unavailable_field`
@@ -168,6 +172,7 @@ Capture screenshots: `.playwright-mcp/kb-v2.1-1-kg-disabled-{uat-step}.png`.
 ## Skill discipline (regex check)
 
 After execution, SUMMARY.md MUST contain:
+
 - `Skill(skill="security-reviewer"` — credential audit
 - `Skill(skill="python-patterns"` — env var + flag pattern
 - `Skill(skill="writing-tests"` — test suite

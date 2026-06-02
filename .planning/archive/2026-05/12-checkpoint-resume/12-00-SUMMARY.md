@@ -13,6 +13,7 @@ key-files:
 ## What was built
 
 `lib/checkpoint.py` (239 lines) — Phase 12 foundation module with the full public API:
+
 - `get_article_hash(url)` / `get_checkpoint_dir(hash)` — deterministic 16-hex SHA256 + path helper
 - `has_stage` / `read_stage` / `write_stage` — 6-stage state machine (scrape / classify / image_download / text_ingest / vision_worker / **sub_doc_ingest**)
 - `write_vision_description` / `list_vision_markers` — per-image vision marker helpers (D-SUBDOC, Phase 12 closure Finding 1)

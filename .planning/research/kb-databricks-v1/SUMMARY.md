@@ -14,12 +14,14 @@
 ## Key facts (verbatim, traceable to source)
 
 ### Stack additions
+
 - **No new Python dependencies** — KB-v2's FastAPI/uvicorn/Jinja2/markdown stack ships unchanged
 - **New tooling:** Databricks CLI ≥ v0.260.0 (already on dev box), `databricks-sdk` Python (already in repo's transitive deps)
 - **Auto-injected env vars in Apps runtime:** `DATABRICKS_CLIENT_ID`, `DATABRICKS_CLIENT_SECRET`, `DATABRICKS_HOST`, `DATABRICKS_APP_PORT` — `WorkspaceClient()` picks them up via default config chain (no explicit auth code in app)
 - **Critical CLI subcommands:** `databricks apps create/deploy/start/stop/get`, `databricks secrets create-scope/put-secret/list-acls`, `databricks fs cp -r --overwrite`
 
 ### Feature table-stakes (in-scope for v1)
+
 - **Read SQLite** from `/Volumes/.../data/kol_scan.db` (after WAL checkpoint on Hermes side)
 - **Read images** from `/Volumes/.../images/{hash}/...` via FastAPI `StaticFiles` mount (or proxy if FUSE not mounted)
 - **Read LightRAG state** from `/Volumes/.../lightrag_storage/` (likely via copy-to-/tmp adapter — see kdb-1.5 trigger)
@@ -27,6 +29,7 @@
 - **Workspace SSO** (Apps default; internal preview only)
 
 ### Differentiators (deferred to v2 / v3 / out-of-scope)
+
 - Foundation Model `databricks-claude-sonnet-4-6` swap (v2, bundled with ingest LLM)
 - Automated Hermes → Volume sync via Workflow / Job (v2)
 - Per-user OBO auth (v2)
@@ -34,6 +37,7 @@
 - Ingest pipeline on Databricks (separate future milestone)
 
 ### Architecture decisions
+
 - **Topology:** App reads UC Volume; Hermes writes (via user-driven sync) (ARCHITECTURE.md §1)
 - **Sync v1:** Manual `databricks fs cp` from Windows dev (Option A locked); 5-step runbook including SQLite WAL checkpoint
 - **Auth:** App service principal auto-created on `databricks apps create`; runtime env injection of credentials

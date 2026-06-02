@@ -15,6 +15,7 @@ date: 2026-05-13
 # 260513-g0d Summary — Layer 2 v1 prompt (HARD-KEEP RULE 0 + LF-2.7)
 
 Patch A of 2026-05-13 Layer 2 audit. Bumps `PROMPT_VERSION_LAYER2` v0 → v1, replaces `_LAYER2_V0_PROMPT_BODY` with `_LAYER2_V1_PROMPT_BODY` carrying:
+
 - NEW: RULE 0 HARD-KEEP section (mirrored byte-identical from Layer 1 v1)
 - NEW: LF-2.7 English long-form section (≥5000 chars + ≥90% ASCII + relevant=true → depth=2 default)
 - VERBATIM v0: header, depth_score (1/2/3), relevant (true/false), reason, 关键判断窍门 A-E, 输出格式 JSON schema
@@ -69,6 +70,7 @@ ALL_KEYWORDS_PRESENT: True
 Cross-layer byte-identity (L1 keyword groups [A]/[B]/[C] + 5 precision rules) confirmed: every keyword in L1 v1 RULE 0 is also in L2 v1.
 
 Test 5 `test_v1_prompt_body_contains_precision_matching_rules` pins the 5-line precision defense literally:
+
 - `"Claude Code" 必须作为完整两词短语` ✓
 - `裸 "Claude"` ✓
 - `"Cursor" 必须` ✓
@@ -80,9 +82,11 @@ LF-2.7 confirmed via Test 3: header `"LF-2.7"` + body marker `"英文长文"` bo
 ## 3. PROMPT_VERSION_LAYER2 bump verified
 
 Literal value asserted in Test 1:
+
 ```python
 assert PROMPT_VERSION_LAYER2 == "layer2_v1_20260513"
 ```
+
 PASS. Bumped from `layer2_v0_20260507`. Module-level constant docstring updated to reference 2026-05-13 audit doc instead of v0 spike report.
 
 ## 4. Test count: 20 existing + 5 new = 25 total
@@ -122,6 +126,7 @@ tests/unit/test_article_filter.py::test_v1_prompt_body_contains_precision_matchi
 5 new tests: ALL PASS. 19 of 20 pre-existing tests: PASS.
 
 The 1 failure (`test_layer1_prompt_version_bump_invalidates_prior`) is **pre-existing and unrelated to Patch A**:
+
 - Cause: test imports `from batch_ingest_from_spider import _build_topic_filter_query` which calls `import kol_config` — `kol_config.py` is gitignored (local-only) and not present in the worktree.
 - This failure exists independent of any changes in this commit (the failure path is `batch_ingest_from_spider.py:100 sys.exit(1)` triggered at import time, which happens before any Layer 2 code is executed).
 - No regression introduced by Patch A. All Layer 1/2 logic tests pass.
@@ -186,11 +191,13 @@ tests/unit/test_article_filter.py:695-725: (5 assertion sites in 5 new tests)
 **Minimal — `git pull` on Hermes is sufficient.** No explicit deploy / restart / config change needed. The cron auto-detects the version bump via LF-2.6 predicate.
 
 **However**, operator may wish to:
+
 1. Time the pull so the reclassify storm fires during low-traffic window (08:20 ADT cron is already chosen for this reason).
 2. Monitor the first batch via `tail -f hermes/logs/daily-classify-rss-layer2-*.log` to confirm v1 prompt is loaded and DeepSeek responses parse cleanly.
 3. Optionally pause the storm via Hermes scheduler if cost is a concern (not necessary at $2.22).
 
 **No SSH command issued by this quick task.** Operator gate fully respected:
+
 - ❌ No push to remote
 - ❌ No SSH to Hermes prod
 - ❌ No reclassify trigger fired

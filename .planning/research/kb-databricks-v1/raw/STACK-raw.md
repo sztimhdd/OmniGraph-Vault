@@ -130,6 +130,7 @@ Flags:
 ```
 
 Constraints (verbatim from help):
+
 - Scope name: alphanumeric + dashes/underscores/periods, ≤ 128 chars
 - If `initial_manage_principal` not specified → ACL with MANAGE granted to API issuer's identity
 - Default backend = `databricks` (workspace storage)
@@ -147,6 +148,7 @@ Flags:
 ```
 
 Three input methods (verbatim):
+
 1. `--string-value` flag
 2. Interactive prompt
 3. Pass via stdin (multi-line)
@@ -234,6 +236,7 @@ From Apps Cookbook FastAPI Volumes streaming example: uses OAuth client_credenti
 For our use case (POSIX-style file read at `/Volumes/...`), a simpler approach: **the Apps runtime mounts UC Volumes via FUSE** when the service principal has `READ VOLUME`. Confirmed by Cookbook patterns that simply pass `/Volumes/...` paths to standard Python file ops (`open()`, `os.listdir()`).
 
 **Required UC grants for our service principal** (`omnigraph-kb` Apps SP):
+
 - `USE CATALOG` on `mdlg_ai_shared`
 - `USE SCHEMA` on `mdlg_ai_shared.kb_v2`
 - `READ VOLUME` on `mdlg_ai_shared.kb_v2.omnigraph_vault`

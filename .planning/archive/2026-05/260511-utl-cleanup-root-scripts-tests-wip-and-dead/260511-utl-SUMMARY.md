@@ -68,6 +68,7 @@ ssh -p <port> sztimhdd@<host> "cd ~/OmniGraph-Vault && \
 ```
 
 Sizes verified before delete (Phase 0):
+
 - `kol_scan.db` = 0 bytes (matches expectation: empty stub)
 - `.env.bak-wave0-1777422818` = 161 bytes
 - `.env.pre-delete.bak.20260429-120931` = 161 bytes

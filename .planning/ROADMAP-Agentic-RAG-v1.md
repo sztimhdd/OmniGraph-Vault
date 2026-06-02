@@ -39,10 +39,12 @@ Three reasons drive the choice:
 ## Phase Details
 
 ### Phase ar-1: MVP vertical slice
+
 **Goal:** End-to-end skeleton runs from skill trigger through all 5 stages and emits a markdown answer without crashing — even if the answer is shallow or stub-quality.
 **Depends on:** Nothing (first phase).
 **Requirements:** LIB-01, LIB-02, LIB-03, LIB-04, LIB-05, LIB-06, LIB-07, LIB-09, ORCH-01, ORCH-02, ORCH-06, ORCH-07, ORCH-08, ORCH-09, SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, CLI-01, CONFIG-01, CONFIG-02, TEST-01, CONTRACT-01, CONTRACT-02 (25 REQs)
 **Success Criteria** (what must be TRUE):
+
   1. `python -m omnigraph.research "test query"` exits 0 and prints a non-empty markdown answer to stdout (CLI-01 + ORCH-01..02..05..06 stubs)
   2. `skill_runner.py skills/omnigraph_research --test-file tests/skills/test_omnigraph_research.json` is green for at least the trigger-routing test cases (SKILL-01..05)
   3. Stages execute in strict WebBaseline → Retriever → Reasoner → Verifier → Synthesizer order and every stub stage returns `status="ok"` or `status="skipped"` — no stage raises (ORCH-06, ORCH-09)
@@ -51,6 +53,7 @@ Three reasons drive the choice:
   6. Local image HTTP server on port 8765 is running (or auto-started) before any markdown with image embeds is emitted (ORCH-08)
 **Plans:** TBD
 **Notes:**
+
 - LIB-08 (`research_stream`) is intentionally deferred to ar-4. ar-1 implements `research()` only.
 - LLM agent loops in Reasoner/Verifier are stubbed with deterministic placeholders (e.g., Reasoner picks first 3 images by glob order; Verifier returns hardcoded `confidence=70.0`). The real loops land in ar-2 / ar-3.
 - TEST-01 (dataclass unit tests) is in ar-1 because the dataclasses are defined here. Subsequent phases add behavioral tests (TEST-02..04) for the parts they introduce.
@@ -61,10 +64,12 @@ Three reasons drive the choice:
 ---
 
 ### Phase ar-2: Reasoner + vision deepening
+
 **Goal:** Reasoner becomes a real LLM agent loop that selects KG chunks and images intelligently; Synthesizer emits markdown with image embeds anchored to vision-generated captions.
 **Depends on:** Phase ar-1 (needs `ResearchState`, stub Reasoner shell, `vision_cascade` integration point, Synthesizer skeleton).
 **Requirements:** ORCH-03, ORCH-05, TOOL-04, CLI-03, TEST-03 (5 REQs)
 **Success Criteria** (what must be TRUE):
+
   1. Reasoner executes a bounded LLM agent loop with `kg_search(query, top_k)` and `vision_analyze(image_path, question)` as tools; loop terminates at `iter_count <= max_iter_reasoner` (default 5) and returns `iter_count` in `ReasonerOutput` (ORCH-03)
   2. Synthesizer's emitted markdown contains inline `![desc](http://localhost:8765/...)` image references where `desc` is anchored to a vision-generated caption from `ReasonerOutput.analyzed_images`, not a placeholder (ORCH-05)
   3. Reasoner uses `lib/vision_cascade.py` directly for `vision_analyze` (no new vision infrastructure introduced — verified by import-graph inspection) (TOOL-04)
@@ -78,16 +83,19 @@ Three reasons drive the choice:
 
 **UI hint:** no
 **Notes:**
+
 - ORCH-05 belongs in ar-2 (not ar-1) because the *quality* of image-caption anchoring is what distinguishes a real Synthesizer from the ar-1 stub. The ar-1 stub Synthesizer can emit raw image URLs; ar-2 makes them caption-anchored.
 - CLI-03 is in ar-2 because `--max-iter-reasoner` is meaningful only after the Reasoner loop is real. `--max-iter-verifier` flag is plumbed in ar-2 but enforces a real cap only after ar-3 lands the Verifier loop. This is intentional — flag plumbing is cheap, behavior delivery follows naturally.
 
 ---
 
 ### Phase ar-3: Verifier + web tools (Tavily / Brave / Grounding)
+
 **Goal:** Verifier becomes a real LLM agent loop that fact-checks the Reasoner's output against external web sources; Tavily primary + Brave fallback + Vertex Grounding opt-in.
 **Depends on:** Phase ar-2 (needs deepened Reasoner output for Verifier to consume).
 **Requirements:** ORCH-04, TOOL-01, TOOL-02, TOOL-03, CONFIG-03, TEST-02, TEST-04 (7 REQs)
 **Success Criteria** (what must be TRUE):
+
   1. Verifier executes a bounded LLM agent loop with tools `web_search`, `web_extract`, and conditionally `google_search_grounding`; loop terminates at `iter_count <= max_iter_verifier` (default 3) and returns `iter_count` and a real `confidence: float` in `VerifierOutput` (ORCH-04)
   2. Tavily REST integration is live: `web_search` callable hits Tavily API and returns `list[dict]`; `web_extract` callable hits Tavily extract endpoint (TOOL-01)
   3. Brave REST integration is live: `web_search_fallback` is invoked when Tavily errors, quotas, or times out — verified by mock-based test that asserts the fallback is called exactly once per failed primary call (TOOL-02, TEST-02)
@@ -101,6 +109,7 @@ Three reasons drive the choice:
 
 **UI hint:** no
 **Notes:**
+
 - TEST-04 covers BOTH loops (Reasoner cap + Verifier cap). Reasoner cap is technically testable starting ar-2, but consolidating both cap tests in ar-3 reduces duplication and lets one mock harness cover both loops.
 - Brave fallback (TOOL-02) is tested with mocks (TEST-02) before going live — the order is: implement Tavily, implement Brave, write mock test, then run live integration smoke (informal — no live API smoke required for ar-3 close; that's TEST-05 in ar-4).
 - CONFIG-03 enforcement check: feeding `ResearchConfig` two different `llm_complete` callables (one Vertex, one DeepSeek) and asserting that `Verifier.tool_registry` differs by exactly one entry (`google_search_grounding`).
@@ -108,10 +117,12 @@ Three reasons drive the choice:
 ---
 
 ### Phase ar-4: Telemetry, streaming, smoke pass + milestone audit
+
 **Goal:** Smoke test passes all 5 conditions on `"Hermes Harness 深度解析"`; manual side-by-side audit vs Hermes ground truth scores ≥3/5 on every dimension; streaming + telemetry land for HTTP-readiness.
 **Depends on:** Phase ar-3 (needs full pipeline before smoke pass is meaningful).
 **Requirements:** LIB-08, CLI-02, TEST-05, TEST-06 (4 REQs)
 **Success Criteria** (what must be TRUE):
+
   1. `async def research_stream(query, config) -> AsyncIterator[Event]` exists alongside `research()` and emits incremental progress events (one per stage minimum, ideally per-tool-call) (LIB-08)
   2. CLI accepts `--dump-state <path>` flag that writes the full `ResearchState` as JSONL (per-stage entries) to the given path; consumable by debug tooling (CLI-02)
   3. Smoke test on `"Hermes Harness 深度解析"` produces markdown that satisfies ALL 5 pass conditions: (a) ≥3 inline `![desc](http://localhost:8765/...)` images, (b) `state.verified.confidence >= 60`, (c) wall time ≤ 240 s (calibrated 2026-05-24 from pre-empirical 120 s estimate against measured DeepSeek latency on Hermes path), (d) no stage with `status="failed"` in JSONL telemetry, (e) answer language is Chinese (TEST-05)

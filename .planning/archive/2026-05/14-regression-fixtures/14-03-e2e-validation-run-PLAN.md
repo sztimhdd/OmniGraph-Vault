@@ -50,6 +50,7 @@ Purpose: Close Milestone v3.2 Acceptance Criteria Gate 3 ("Regression Fixtures P
 Output: 1 JSON report + 1 SUMMARY.md. No new code files.
 
 **Preconditions (blocking — verified in Task 1):**
+
 - Phase 12 merged: `lib/checkpoint.py` exists and `from lib.checkpoint import reset_article, get_article_hash` works
 - Phase 13 merged: `lib/vision_cascade.py` exists and `from lib.vision_cascade import VisionCascade` works with `total_usage()` method
 - Plan 14-01 complete: All 4 new fixture directories + metadata.json exist
@@ -77,12 +78,14 @@ Output: 1 JSON report + 1 SUMMARY.md. No new code files.
 <!-- Runtime preconditions for this plan. All must be satisfied BEFORE Task 1. -->
 
 Phase 12 (lib/checkpoint.py) must export:
+
 ```python
 def get_article_hash(url: str) -> str: ...
 def reset_article(article_hash: str) -> None: ...
 ```
 
 Phase 13 (lib/vision_cascade.py) must export:
+
 ```python
 class VisionCascade:
     def __init__(self, providers_in_order: list[str], checkpoint_dir: Path): ...
@@ -90,6 +93,7 @@ class VisionCascade:
 ```
 
 Fixture directory layout (from Plan 14-01):
+
 ```
 test/fixtures/
 ├── gpt55_article/              (already existed — baseline from Milestone A)
@@ -100,6 +104,7 @@ test/fixtures/
 ```
 
 PRD §B3.3 LOCKED CLI:
+
 ```bash
 python scripts/validate_regression_batch.py \
   --fixtures test/fixtures/gpt55_article \
@@ -111,6 +116,7 @@ python scripts/validate_regression_batch.py \
 ```
 
 Gate 3 acceptance criteria (MILESTONE_v3.2_REQUIREMENTS.md §Acceptance Criteria Gate 3):
+
 - All 5 fixtures complete without exception
 - batch_validation_report.json shows batch_pass: true
 - dense_image_article (45 images) successfully filters to expected count and all survive Vision
@@ -148,13 +154,17 @@ Gate 3 acceptance criteria (MILESTONE_v3.2_REQUIREMENTS.md §Acceptance Criteria
   ```
 
   Additional sanity:
+
   - 5. No stale graph state that would poison the run:
+
     ```bash
     # Check for leftover Phase 12 checkpoints from prior runs; optional cleanup:
     python scripts/checkpoint_status.py 2>/dev/null || echo "(checkpoint_status not yet wired — skip)"
     # If needed: python scripts/checkpoint_reset.py --all
     ```
+
   - 6. Environment variables set for ingest pipeline (CLAUDE.md § Environment Variables):
+
     ```bash
     env | grep -E "GEMINI_API_KEY|OMNIGRAPH_GEMINI_KEY|DEEPSEEK_API_KEY|SILICONFLOW_API_KEY" | wc -l
     # Expected: 2-4 (at least GEMINI + DEEPSEEK set; SILICONFLOW optional)
@@ -201,6 +211,7 @@ Gate 3 acceptance criteria (MILESTONE_v3.2_REQUIREMENTS.md §Acceptance Criteria
   ```
 
   If this is Windows Git Bash and `PIPESTATUS` is not available:
+
   ```bash
   # Capture exit code separately without pipe
   python scripts/validate_regression_batch.py \
@@ -217,11 +228,13 @@ Gate 3 acceptance criteria (MILESTONE_v3.2_REQUIREMENTS.md §Acceptance Criteria
   ```
 
   Expected behavior:
+
   - All 5 fixtures ingest without Python traceback in stdout
   - `batch_validation_report.json` is written to repo root
   - Exit code is 0 if `aggregate.batch_pass == true`, else 1
 
   Validate immediately after run:
+
   ```bash
   # Report exists and is valid JSON
   test -f batch_validation_report.json && python -m json.tool batch_validation_report.json > /dev/null
@@ -239,11 +252,14 @@ Gate 3 acceptance criteria (MILESTONE_v3.2_REQUIREMENTS.md §Acceptance Criteria
   ```
 
   If the run fails with Python traceback, diagnose:
+
   1. `grep -A 20 "Traceback" logs/regression_run.log` → identify failing stage
   2. If a specific fixture is the cause, isolate it:
+
      ```bash
      python scripts/validate_regression_batch.py --fixtures test/fixtures/<failing_fixture> --output /tmp/isolated.json
      ```
+
   3. Common failure modes + fixes:
      - **LightRAG state corruption from prior run**: `rm -rf ~/.hermes/omonigraph-vault/lightrag_storage/*` + retry
      - **SiliconFlow balance 0**: script should still complete with Vision task skipped; check `/tmp/isolated.json` for `errors[]`
@@ -261,7 +277,9 @@ assert r['aggregate']['total_articles'] == 5, f'Expected 5 articles, got {r[\"ag
 fixtures = sorted(a['fixture'] for a in r['articles'])
 expected = ['dense_image_article','gpt55_article','mixed_quality_article','sparse_image_article','text_only_article']
 assert fixtures == expected, f'Fixture list mismatch: {fixtures}'
+
 # PRD §B3.4 schema presence
+
 assert set(r.keys()) == {'batch_id','timestamp','articles','aggregate','provider_usage'} or set(r.keys()) >= {'batch_id','timestamp','articles','aggregate','provider_usage'}
 for a in r['articles']:
     assert a['status'] in {'PASS','FAIL','TIMEOUT'}
@@ -379,10 +397,12 @@ print(f'  passed/failed={r[\"aggregate\"][\"passed\"]}/{r[\"aggregate\"][\"faile
   ```
 
   **Decision points for human review (in Task 4 SUMMARY):**
+
   - If any criterion FAILs with `images_kept > images_input` → fixture metadata is wrong; Plan 14-01 regeneration needed (block merge)
   - If `batch_pass=false` due to tolerance drift only (chunks/entities off by <±15%), document in SUMMARY as a tolerance-tuning TODO, not a hard fail
   - If Vision cascade attempts went all to Gemini (`provider_usage.gemini > 0.5 * total`), flag as upstream-provider alert per Phase 13 alerting semantics
   </action>
+
   <verify>
     <automated>test -f batch_validation_report.json && python -c "
 import json
@@ -498,6 +518,7 @@ print(f'Report analyzable: {len(articles)} fixtures covered')
   Fill in every `<placeholder>` from actual data in `batch_validation_report.json` + `logs/gate3_analysis.txt`. Do NOT leave any `<>` marker unexpanded in the final SUMMARY.
 
   After writing:
+
   ```bash
   # Validate SUMMARY.md has no unexpanded placeholders
   grep -c "<[A-Za-z/ -]*>" .planning/phases/14-regression-fixtures/14-03-e2e-validation-run-SUMMARY.md || echo "No unexpanded placeholders"
@@ -505,15 +526,18 @@ print(f'Report analyzable: {len(articles)} fixtures covered')
   ```
 
   If Gate 3 is FAIL:
+
   - Do NOT mark this plan as "PASS" — write `Gate 3 status: FAIL` honestly
   - Provide specific remediation path (which fixture failed, which Phase needs a bug fix)
   - Roadmap Phase 14 does NOT close — Phase 15/16 can proceed in parallel but milestone close is blocked
 
   If Gate 3 is PASS-WITH-NOTES:
+
   - Valid status when batch_pass=true but one or more sub-criteria have yellow flags (e.g., Gemini usage 6%, tolerance drift within ±15%)
   - Document notes explicitly in "Known limitations observed" section
   - Gate 3 can still close; limitations become TODOs for future milestones
   </action>
+
   <verify>
     <automated>
 test -f .planning/phases/14-regression-fixtures/14-03-e2e-validation-run-SUMMARY.md && \
@@ -580,6 +604,7 @@ All 4 checks must pass for Phase 14 to close.
 </verification>
 
 <success_criteria>
+
 - [ ] Preconditions verified (Phase 12 + 13 merged, 5 fixtures exist, Plan 14-02 script works)
 - [ ] `batch_validation_report.json` emitted at repo root matching PRD §B3.4 schema
 - [ ] All 5 fixtures present in report with valid status (PASS/FAIL/TIMEOUT)

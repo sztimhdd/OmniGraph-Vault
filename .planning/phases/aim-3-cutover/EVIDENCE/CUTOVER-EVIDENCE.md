@@ -132,6 +132,7 @@ as a stub (`ExecStart=/bin/true`).
 This is a CUTOVER-01 gap that does NOT block aim-3 closure (12 of 13 units functional).
 
 Resolution path:
+
 - A derivative milestone OR an ingest-side `--enrich-only` mode flag wires the same code path.
 - When the real ExecStart is authored: edit `omnigraph-kol-enrich.service` and run
   `systemctl daemon-reload && systemctl restart omnigraph-kol-enrich.timer`

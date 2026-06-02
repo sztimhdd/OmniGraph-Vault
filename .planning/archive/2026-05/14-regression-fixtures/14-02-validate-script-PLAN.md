@@ -78,6 +78,7 @@ Output: 1 new script + 1 new test file. Does NOT modify `ingest_wechat.py` or an
 <!-- APIs this script CONSUMES. Executor embeds these directly — no exploration needed. -->
 
 From lib/checkpoint.py (Phase 12 — 12-CONTEXT.md):
+
 ```python
 def get_article_hash(url: str) -> str: ...
 def reset_article(article_hash: str) -> None: ...  # delete dir; idempotent
@@ -85,6 +86,7 @@ def has_stage(article_hash: str, stage: str) -> bool: ...  # stage in {scrape,cl
 ```
 
 From lib/vision_cascade.py (Phase 13 — 13-CONTEXT.md):
+
 ```python
 class VisionCascade:
     def __init__(self, providers_in_order: list[str], checkpoint_dir: Path): ...
@@ -94,6 +96,7 @@ class VisionCascade:
 ```
 
 From scripts/bench_ingest_fixture.py (already on disk; reuse patterns):
+
 ```python
 def _compute_article_hash(url: str) -> str:
     # md5(url)[:10] — existing ingest_wechat pattern
@@ -108,6 +111,7 @@ def _write_result(path: Path, result: dict[str, Any]) -> None:
 ```
 
 From ingest_wechat.py (consumed via fixture-based ingest):
+
 ```python
 # Existing entry point (approx signature):
 async def ingest_article(url: str, rag: Any, ...) -> None: ...
@@ -116,6 +120,7 @@ async def ingest_article(url: str, rag: Any, ...) -> None: ...
 ```
 
 From PRD §B3.4 — batch_validation_report.json LOCKED schema:
+
 ```json
 {
   "batch_id": "regression_2026-05-01_001",       // str: "regression_<YYYY-MM-DD>_<HHMMSS>"
@@ -148,12 +153,14 @@ From PRD §B3.4 — batch_validation_report.json LOCKED schema:
 ```
 
 Tolerance rules (14-CONTEXT.md + PRD §B3.3):
+
 - `images_input` vs `metadata.total_images_raw`: EXACT match required
 - `images_kept` vs `metadata.images_after_filter`: EXACT match required (deterministic IMG-01 filter)
 - `chunks` vs `metadata.expected_chunks`: ±10% tolerance
 - `entities` vs `metadata.expected_entities`: ±10% tolerance
 
 Status decision:
+
 - PASS: all tolerance checks pass AND no exception AND no timeout
 - FAIL: any tolerance check fails OR exception raised
 - TIMEOUT: `asyncio.wait_for` killed the fixture ingest (bubbled from Phase 9 single-article timeout)
@@ -467,12 +474,14 @@ Status decision:
   ```
 
   Key invariants this skeleton must uphold:
+
   - `--help` works without Phase 12/13 imports
   - Script exits with code 1 on missing fixture OR on batch_pass=False
   - Script exits with code 0 only if batch_pass=True AND articles > 0
   - Atomic report write (no partial JSON on crash)
   - Graceful Phase 12/13 import fallback (critical for parallel development with 14-01)
   </action>
+
   <verify>
     <automated>
 python scripts/validate_regression_batch.py --help &&
@@ -482,6 +491,7 @@ sys.path.insert(0, 'scripts')
 import validate_regression_batch as v
 
 # within_tolerance tests
+
 assert v.within_tolerance(100, 100, 0.10) is True
 assert v.within_tolerance(109, 100, 0.10) is True
 assert v.within_tolerance(91, 100, 0.10) is True
@@ -491,18 +501,21 @@ assert v.within_tolerance(0, 0, 0.10) is True
 assert v.within_tolerance(1, 0, 0.10) is False
 
 # build_report shape
+
 r = v.build_report(articles=[], provider_usage={'siliconflow':0}, total_wall_time_s=0)
 assert set(r.keys()) >= {'batch_id','timestamp','articles','aggregate','provider_usage'}
 assert set(r['aggregate'].keys()) >= {'total_articles','passed','failed','total_wall_time_s','batch_pass'}
 assert r['aggregate']['batch_pass'] is False  # empty articles list
 
 # With passing article
+
 ok_art = {'fixture':'x','status':'PASS','timings_ms':{},'counters':{},'errors':[]}
 r2 = v.build_report(articles=[ok_art], provider_usage={}, total_wall_time_s=0)
 assert r2['aggregate']['batch_pass'] is True
 assert r2['aggregate']['passed'] == 1
 
 # With failing article
+
 bad_art = {'fixture':'x','status':'FAIL','timings_ms':{},'counters':{},'errors':[{'m':'x'}]}
 r3 = v.build_report(articles=[bad_art], provider_usage={}, total_wall_time_s=0)
 assert r3['aggregate']['batch_pass'] is False
@@ -654,6 +667,7 @@ print('All pure-helper tests PASS')
   ```
 
   Notes on counter capture limitations:
+
   - `counters["chunks"]` uses the same heuristic as `bench_ingest_fixture.py` (chars // 4800). Not instrumented against real LightRAG chunk count — accepted per bench_ingest_fixture D-11.07 Claude's Discretion.
   - `counters["entities"]` falls back to `meta["expected_entities"]` — this makes the tolerance check trivially pass. If Phase 14-03 wants real entity counts, instrumentation is required (out of scope for this plan; documented in SUMMARY).
   - These heuristics are acceptable because:
@@ -662,6 +676,7 @@ print('All pure-helper tests PASS')
     3. Tolerance fields exist for future tightening once LightRAG exposes chunk/entity counters
 
   Smoke test against existing gpt55_article fixture to confirm wiring:
+
   ```bash
   python scripts/validate_regression_batch.py \
     --fixtures test/fixtures/gpt55_article \
@@ -669,6 +684,7 @@ print('All pure-helper tests PASS')
   # Expected: exit 0 OR 1 (depends on current LightRAG state), but NO Python traceback
   # Expected: /tmp/smoke_report.json contains valid JSON matching PRD §B3.4 schema
   ```
+
   </action>
   <verify>
     <automated>
@@ -895,9 +911,11 @@ print(f'Smoke report OK: status={a[\"status\"]} batch_pass={r[\"aggregate\"][\"b
   ```
 
   Run tests:
+
   ```bash
   python -m pytest tests/test_validate_regression_batch.py -v
   ```
+
   Expected: all tests pass; coverage of `within_tolerance`, `build_report`, `evaluate_status`, `write_report`, and CLI error paths.
   </action>
   <verify>
@@ -930,6 +948,7 @@ All four checks must pass.
 </verification>
 
 <success_criteria>
+
 - [ ] `scripts/validate_regression_batch.py` exists with main(), run_fixture(), within_tolerance(), build_report(), evaluate_status(), write_report()
 - [ ] `--help` flag works
 - [ ] `--fixtures` + `--output` CLI args parsed correctly

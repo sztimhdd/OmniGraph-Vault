@@ -45,6 +45,7 @@ metrics:
 **`batch_ingest_from_spider.py`** — two changes:
 
 1. **New module-level helper** inserted between `_classify_article_fullbody` and `async def ingest_from_db` (lines ~985-1017):
+
    ```python
    def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
        ...
@@ -54,6 +55,7 @@ metrics:
    ```
 
 2. **Call site delegation** inside `ingest_from_db` (replaces 10-line inline SELECT with 2 lines):
+
    ```python
    sql, params = _build_topic_filter_query(topics)
    rows = conn.execute(sql, params).fetchall()
@@ -94,12 +96,14 @@ $ grep -n "LOWER(c.topic)" batch_ingest_from_spider.py
 991:    and applies LOWER(c.topic) on the column side so rows written by
 1009:        WHERE (c.topic IS NULL OR LOWER(c.topic) IN ({placeholders}))
 ```
+
 SQL occurrence: **exactly 1** (line 1009). Line 991 is the docstring.
 
 ```
 $ grep -n "c\.topic IN (" batch_ingest_from_spider.py
 (none)
 ```
+
 Bare case-sensitive form: **fully removed**.
 
 ```
@@ -107,6 +111,7 @@ $ grep -n "ORDER BY a.id" batch_ingest_from_spider.py
 997:      - ORDER BY a.id (FIFO ingest order)
 1011:        ORDER BY a.id
 ```
+
 ORDER BY preserved at line 1011 (SQL) and line 997 (docstring).
 
 ---

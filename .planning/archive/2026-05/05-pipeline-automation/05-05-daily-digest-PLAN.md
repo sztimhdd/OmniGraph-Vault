@@ -77,6 +77,7 @@ PRD section 3.3.2 Markdown sample (abbreviated):
 - Footer stats: KOL total + RSS total | deep articles | ingested
 
 Candidate SQL (planner-supplied shape):
+
 ```
 -- KOL branch: NULL placeholder for dimensions (Phase 10 classifications schema has no dimensions column).
 -- RSS branch: c.dimensions is JSON-encoded list[str] from 05-03 classifier.
@@ -182,6 +183,7 @@ Archive path: `~/.hermes/omonigraph-vault/digests/YYYY-MM-DD.md` (typo'd dir pre
 </verification>
 
 <success_criteria>
+
 - PRD section 3.3.2 Markdown shape reproduced.
 - Top-5 selection sorted per PRD section 3.3.1.
 - Atomic archive write.

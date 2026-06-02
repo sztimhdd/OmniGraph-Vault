@@ -77,11 +77,13 @@ This phase IS the dry-run venue for LLM-DBX-03. The companion test `test_provide
 **Acknowledgement:** RESEARCH Q5 summary suggests OpenAI-compat primary; we follow REQ LLM-DBX-03's `WorkspaceClient` pattern per the REQ-overrides-RESEARCH precedence rule. OpenAI-compat is retained ONLY as a fallback if the SDK `input=...` kwarg shape misbehaves at dry-run time (Decision 3 escape hatch in RESEARCH.md).
 
 Purpose:
+
 - Validate the LightRAG ↔ Databricks SDK adapter shape BEFORE kdb-2.5 burns $20–100 on a full re-index
 - Surface Risk #2 (SDK shape mismatch) and Risk #3 (Qwen3-0.6B bilingual quality) early
 - Lock in the embedding_dim=1024 contract that kdb-2.5 + kdb-2 inherit
 
 Output:
+
 - `databricks-deploy/lightrag_databricks_provider.py` (factory functions, sync→async via run_in_executor, env-var-overridable model names)
 - `databricks-deploy/tests/test_provider_dryrun.py` (4 tests; ~10 min wallclock; ~$0.20–$0.80 cost)
 - `databricks-deploy/tests/fixtures/article_*.txt` (5 short fixture articles — 2 zh, 3 en; ~200–500 chars each)
@@ -137,12 +139,14 @@ Dry-run auth path (verified in PREFLIGHT-DBX-01):
   No service principal needed for dry-run; that comes in kdb-2 first deploy.
 
 From plan 01 (Wave 1, must be merged first):
+
   - databricks-deploy/requirements.txt EXISTS with: databricks-sdk>=0.30.0, lightrag-hku==1.4.15, numpy, fastapi, uvicorn, jinja2, markdown, pygments
   - databricks-deploy/CONFIG-EXEMPTIONS.md EXISTS (initial-empty ledger)
   - databricks-deploy/startup_adapter.py EXISTS (adapter for STORAGE-DBX-05)
   - databricks-deploy/tests/__init__.py + conftest.py EXIST
 
 Fixture articles (5 short test docs, ~200–500 chars each):
+
   - article_zh_1.txt: "LangGraph 是 LangChain 推出的多 Agent 编排框架..."
   - article_zh_2.txt: "CrewAI 是另一个流行的多 Agent 框架,与 LangGraph 不同..."
   - article_en_1.txt: "LangGraph from LangChain is a stateful multi-agent orchestration framework..."
@@ -663,6 +667,7 @@ Phase-level verification anchors (this plan's contribution):
 </verification>
 
 <success_criteria>
+
 - All 4 dry-run tests pass: `pytest databricks-deploy/tests/test_provider_dryrun.py -v -m dryrun` → `4 passed`
 - Plan 01 unit tests still pass (Wave 1 should already be merged before this Wave 2 plan starts): `pytest databricks-deploy/tests/test_startup_adapter.py -v` → `5 passed`
 - Combined test count: 9 tests green across both plans

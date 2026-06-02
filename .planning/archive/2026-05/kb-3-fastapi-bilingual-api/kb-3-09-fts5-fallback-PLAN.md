@@ -167,6 +167,7 @@ except Exception as e:
     _fts5_fallback(question, lang, job_id, reason=f"{type(e).__name__}: {e}")
     return
 ```
+
 </interfaces>
 </context>
 
@@ -501,6 +502,7 @@ except Exception as e:
 </verification>
 
 <success_criteria>
+
 - QA-04 + QA-05 satisfied: never 500 + FTS5 fallback active
 - UI consumer (kb-3-10) can trust `confidence: "fts5_fallback"` field for state matrix routing
 - Hermes agent skill consumers can rely on POST /api/synthesize ALWAYS getting a usable answer

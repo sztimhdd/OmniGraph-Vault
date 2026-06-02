@@ -9,6 +9,7 @@
 ## Files Created
 
 ### Wiki scaffold (`kb/wiki/`)
+
 - `kb/wiki/SCHEMA.md` — formal contract (frontmatter + citation + cross-ref + lint)
 - `kb/wiki/index.md` — directory listing (entities/openclaw bullet seeded)
 - `kb/wiki/log.md` — operation log (W0 entry seeded)
@@ -17,9 +18,11 @@
 - `kb/wiki/{entities,concepts,comparisons,queries,_suggestions}/.gitkeep` — empty subdir markers
 
 ### Hermes operator prompt
+
 - `.planning/phases/llm-wiki-integration/HERMES-PROMPT-W0-SYNC.md` — two-section operator prompt (Section 1 read-only export, Section 2 production symlink) per CLAUDE.md Rule 5 (no SSH outsourcing)
 
 ### Test stubs (`@pytest.mark.skip`)
+
 - `tests/unit/test_wiki_lint.py` (4 stubs: test_unresolved_citation, test_contradicts_existing, test_backlink_validity, test_staleness_check)
 - `tests/unit/test_wiki_centrality.py` (test_centrality_ranking)
 - `tests/unit/test_wiki_citations.py` (test_all_pages_cited)

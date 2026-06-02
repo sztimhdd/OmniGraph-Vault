@@ -65,6 +65,7 @@ All 7 tests pass including `test_vertex_mode_both_env_vars_set` which now assert
 ### E2E wechat smoke
 
 Command:
+
 ```bash
 GOOGLE_CLOUD_PROJECT=project-df08084f-6db8-4f04-be8 PYTHONIOENCODING=utf-8 \
   bash scripts/local_e2e.sh wechat "https://simonwillison.net/2026/May/6/vibe-coding-and-agentic-engineering/"
@@ -75,6 +76,7 @@ Log file: `.scratch/local-e2e-wechat-20260511-080610.log`
 Exit code: **0** (`[local-e2e] EXIT=0  log=.scratch/local-e2e-wechat-20260511-080610.log`)
 
 Terminal success line (log end):
+
 ```
 INFO: Phase 3: Updating final 24(24+0) entities and  24 relations from wechat_590ef2d9d3
 INFO: Completed merging: 24 entities, 0 extra entities, 24 relations

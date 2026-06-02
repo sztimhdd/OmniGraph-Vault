@@ -254,6 +254,7 @@ SELECT r.layer1_verdict, r.layer2_verdict, i.status,
 | candidate | ok | failed | body | 4 |
 
 **Interpretation:**
+
 - **1058 + 503 = 1561 rows** are Layer 1 rejects. The 503 with body are NOT scrape waste — they came from `rss_fetch`'s `<content:encoded>` path BEFORE Layer 1 ran (rss_fetch populates `body` directly when the feed provides full content). These bodies were never scraped via the expensive cascade.
 - **45 + 35 = 80 candidate rows** await processing (not yet drained to Layer 2 — likely cron didn't fire, or batch hasn't reached them).
 - **31 + 8 = 39 rows** ran Layer 2 → reject. Correctly skipped.

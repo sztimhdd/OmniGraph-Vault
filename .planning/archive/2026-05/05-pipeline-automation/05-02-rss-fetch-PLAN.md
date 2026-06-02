@@ -68,6 +68,7 @@ except Exception as e:
 ```
 
 Expected rss_articles row shape (from PRD §3.1.4):
+
 - feed_id (FK)
 - title
 - url (UNIQUE)
@@ -78,6 +79,7 @@ Expected rss_articles row shape (from PRD §3.1.4):
 - content_length
 
 feedparser API:
+
 ```python
 import feedparser
 parsed = feedparser.parse(url)
@@ -87,10 +89,12 @@ parsed = feedparser.parse(url)
 ```
 
 langdetect:
+
 ```python
 from langdetect import detect
 lang = detect(text)  # 'en', 'zh-cn', 'zh-tw', etc.
 ```
+
 </interfaces>
 </context>
 
@@ -285,6 +289,7 @@ lang = detect(text)  # 'en', 'zh-cn', 'zh-tw', etc.
 </verification>
 
 <success_criteria>
+
 - All 92 feeds iterated with per-feed fault tolerance.
 - Pre-filter drops short/non-supported-language entries.
 - URL-based dedup idempotent across runs.

@@ -76,6 +76,7 @@ Root cause: kb-4-01 (the plan where security-reviewer was mandated per ROADMAP-K
 
 **Retroactive verification (kb-4-07 prod-shape smoke):**
 The systemd unit on Aliyun was inspected directly during kb-4-07 Probe 1:
+
 - `NoNewPrivileges=true` ✓
 - `PrivateTmp=true` ✓
 - `Restart=on-failure` with `StartLimitBurst=5 / StartLimitIntervalSec=60` ✓

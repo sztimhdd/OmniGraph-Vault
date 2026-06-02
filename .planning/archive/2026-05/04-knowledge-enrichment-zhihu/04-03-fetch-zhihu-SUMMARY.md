@@ -45,6 +45,7 @@ Build `enrichment/fetch_zhihu.py` — the per-question Python helper the Hermes 
 **TDD GREEN commit:** `f7cd106` — implementation; all 9 tests pass
 
 **Files created:**
+
 - `enrichment/__init__.py` — empty package marker (parallel-safe: 04-02 also creates this; trivially merged)
 - `enrichment/fetch_zhihu.py` — 333 lines, full implementation
 - `tests/unit/test_fetch_zhihu.py` — 221 lines, 9 unit tests
@@ -54,6 +55,7 @@ Build `enrichment/fetch_zhihu.py` — the per-question Python helper the Hermes 
 ### fetch_zhihu.py
 
 Public API:
+
 - `fetch_zhihu(url, wechat_hash, q_idx, base_dir, html_fetcher=None) -> dict` — async orchestrator
 - `html_to_markdown(raw_html) -> tuple[str, list[str]]` — extract + filter + convert
 - `_filter_small_images(html, min_width=100) -> tuple[str, list[str]]` — PRD §6.2 filter
@@ -62,6 +64,7 @@ Public API:
 ### CDP triple-path
 
 Auto-detects by `CDP_URL` suffix:
+
 1. `http://localhost:9223` — `playwright.connect_over_cdp()` (local Edge)
 2. `http://host:port/mcp` — `_mcp_fetch()` using MCP-over-SSE with `initialize` + `browser_navigate` + `browser_evaluate` (remote Playwright MCP server)
 
@@ -70,6 +73,7 @@ Both paths implement the same contract: accept `url`, return raw HTML string.
 ### Image pipeline reuse
 
 All image work is delegated to `image_pipeline.py` (D-15):
+
 - `download_images(image_urls, images_dir)` — downloads to `<out_dir>/images/`
 - `describe_images(paths)` — batch Gemini Vision describe with 4s inter-image sleep
 - `localize_markdown(md, url_to_path, article_hash=ns_hash)` — rewrites URLs
@@ -80,6 +84,7 @@ No image-download or Gemini-Vision logic duplicated in fetch_zhihu.py.
 ### Image namespacing
 
 Zhihu images are namespaced as `<hash>/zhihu_<q_idx>/` to prevent collision:
+
 - WeChat images: `http://localhost:8765/abc123/0.jpg`
 - Zhihu images: `http://localhost:8765/abc123/zhihu_0/0.jpg`
 
@@ -134,6 +139,7 @@ The plan sketch showed 6 tests. I added 3 additional edge-case tests: `data-widt
 ## Known Stubs
 
 None — all data flows are wired:
+
 - HTML fetcher DI seam is intentional, not a stub (CDP is the real default)
 - Image descriptions use real Gemini Vision in production (mocked in tests only)
 

@@ -118,6 +118,7 @@ Briefing framed dirty state as "kb-api 之前 SCP 遗留", but Task 1 probe reve
 These changes likely represent (a) drift introduced by manual SCPs from the dev box during kb-2/kb-3/kb-4 incident response, plus (b) genuine local edits by another concurrent operator path. Discarding (`git checkout -- .` + `git clean -fd`) would be irreversible and risk losing valid work; explicit committing 35+ files would require enumerating each one (red-line forbids `git add -A` / `git add .`) and would push unverified content to GitHub origin under the agent's authorship.
 
 `git stash push -u` is the right tool for this scope:
+
 - Fully reversible — operator can `git stash pop stash@{0}` later to recover the work
 - Preserves both modified and untracked content in a single stash entry
 - Returns disk to known stable baseline (HEAD=4eaef45, the v1.0.x final commit kb-api + Hermes cron were originally deployed against), maximizing runtime parity with the as-deployed state
@@ -182,11 +183,13 @@ User-directed (2026-05-22) after agent surfaced the python-version blocker:
 ### Two deviations recorded
 
 **Deviation 1 — Python 3.11.0rc1 (release candidate, not formal stable):**
+
 - Selected because Aliyun Ubuntu has no 3.11 final / 3.12 / 3.13 in `/usr/bin/`.
 - Risk assessment: 3.11.0rc1 is the release candidate published shortly before 3.11.0 final (2022-10); the ABI froze at RC1 and ingest-side packages (lightrag-hku, google-genai, openai, lancedb, kuzu, pymupdf, etc.) all have cp311 wheels that resolve cleanly. Smoke (25/25 imports) confirms ABI compat.
 - Mitigation if instability surfaces in DEPLOY-04 smoke or later: rebuild `venv-aim1` on a properly built python3.11 final (apt or compile from source). Keeping kb-api 3.10 means rebuild is contained.
 
 **Deviation 2 — Dual-venv architecture:**
+
 - `venv/`     → kb-api (uvicorn), Python 3.10.12, 160 packages, PID 3512216 unchanged through aim-1-2.
 - `venv-aim1/` → ingest (DEPLOY-04 smoke target, aim-3 systemd timer ExecStart target), Python 3.11.0rc1, 153 packages.
 - `aim-1-3` (env extension) and `aim-1-4` (e2e smoke) command templates use `venv-aim1/bin/python` and `venv-aim1/bin/pip` exclusively. `kb-api.service.d/override.conf` is NOT touched.
@@ -318,9 +321,11 @@ User-directed (2026-05-22) after agent surfaced 4-of-6 keys already present:
 
 - Source: Hermes `~/.hermes/.env`, where `APIFY_TOKEN_BACKUP` was deployed 2026-05-08 as part of the dual-token rotation (quick `260508-ev2`, see `feedback_no_literal_secrets_in_prompts.md`). Hermes is the canonical source-of-truth for ingest secrets since aim-1 is migrating ingest from Hermes → Aliyun.
 - Channel: SSH-pipe pattern with value transiting the local SSH client process pipe between two `ssh` invocations:
+
   ```
   ssh hermes 'grep "^APIFY_TOKEN_BACKUP=" ~/.hermes/.env' | ssh aliyun-vitaclaw 'cat >> /root/.hermes/.env'
   ```
+
   The value flows directly from Hermes to Aliyun through the local pipe; the receiving `cat >> file` produces empty stdout, so the literal token never appears in agent stdout / context / artifacts. Honors both the agent-IS-operator mandate (`feedback_aim1_agent_is_operator.md`) AND the no-literal-secrets-in-context constraint (`feedback_no_literal_secrets_in_prompts.md`).
 - Pipe exit code 0; verified via post-extension audit (key shape match, length 47 bytes incl. trailing newline / 46 bytes content).
 
@@ -587,12 +592,14 @@ aim-1 (Code + Env Deploy) is now ✅ COMPLETE end-to-end on Aliyun:
 - aim-1-4: 3-run e2e smoke PASS — full ingest path (Layer 1 → scrape → Layer 2 → vision → LightRAG) validated against `/tmp/aim1-smoke/` with prod isolation confirmed
 
 aim-2 (systemd timer migration) can now proceed with confidence:
+
 - `venv-aim1/bin/python` is the canonical ingest interpreter; ExecStart pins to it
 - All 6 ingest provider keys accessible via `EnvironmentFile=/root/.hermes/.env`
 - `OMNIGRAPH_BASE_DIR` redirect cleanly isolates dev/test from prod
 - kb-api on `:8766` remains a parallel tenant — systemd timer is independent
 
 Open items for aim-2 / aim-3 (v3.5 future-work):
+
 - harness fix for environment-aware TLS bundle path (deviation 2)
 - forced-Apify runtime smoke or fail-injection harness (deviation 3)
 - Hermes ↔ Aliyun reciprocal SSH aliases for reciprocal pipe ops (deviation 4)

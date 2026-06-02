@@ -4,6 +4,7 @@
 **Plan:** [`PLAN.md`](PLAN.md) (commit `de36db9`)
 **Code commits:** `315fa79` → `cc0807d` → `7f01544` → `ac20ad9` → `5867a7d`
 **Databricks deployments verified:**
+
 - 1st (post `make deploy`): `01f15aeb208f1cb09400bd1ea9ef4957`
 - 2nd (post stop+start+redeploy): `01f15af32638146eada7107705a2f1b4`
 
@@ -16,6 +17,7 @@
 ### Evidence — boot log captures (verbatim from `tail_app_logs.py --once`)
 
 **Boot 1 (deployment `01f15aeb...e9ef4957`, build at 23:19:22Z 2026-05-28):**
+
 ```
 1780011004 [APP] INFO:     Started server process [138]
 1780011004 [APP] lightrag_singleton_init_start working_dir=/tmp/omnigraph_vault/lightrag_storage
@@ -29,6 +31,7 @@
 ```
 
 **Boot 2 (deployment `01f15af3...05a2f1b4`, build at 01:09:51Z 2026-05-29):**
+
 ```
 1780014491 [APP] INFO:     Started server process [76]
 1780014491 [APP] lightrag_singleton_init_start working_dir=/tmp/omnigraph_vault/lightrag_storage
@@ -62,6 +65,7 @@
 ### Browser console evidence (deployed URL, deployment `01f15aeb...e9ef4957`)
 
 **Dispatch + completion (paste-ready snippet from `Validation Plan` Track 2 + Step 4d):**
+
 ```
 dispatch: 0.1s, all status: ['running', 'running', 'running', 'running']
 job_ids: ['b1a231903bae', '54c90caff2ac', '8fa40cde852b', '7298f73e20bf']
@@ -87,6 +91,7 @@ The 4× baseline threshold (vs. PLAN-original 1.5× single-query suggestion) is 
 ### MARKER / crosstalk verification (Step 4d b1)
 
 Console replay of all 4 markdown previews (first 250 chars):
+
 - **Q1 (ALPHA)** — answer about LightRAG framework ✅ topic match
 - **Q2 (BETA)** — `# 知识图谱检索技术深度解析` ✅ topic match
 - **Q3 (GAMMA)** — entity extraction / GraphRAG ✅ topic match (also literally retains `MARKER_GAMMA` in body, hence has_marker=true)
@@ -183,6 +188,7 @@ The Track 2 N=4 mean (4 samples) gives the more reliable point estimate at 46.9s
 P5 introduces zero hot-path overhead by design (Option A inner-only lock); the Track 4 single-sample 1.37× ratio is attributed to LLM-side jitter, not P5 regression. The Track 2 N=4 mean at 46.9s/query (which includes the lock-acquire path 4×) is the stronger evidence of zero per-query overhead.
 
 **Marked MARGINAL but non-blocking** because:
+
 1. PLAN SC#2 gate is 10/20% on **p50/p95** of N=10 sample — this verification only ran 1 single + 4 N=4 samples (skipped the N=10 baseline harness for time);
 2. The combined evidence (Track 2 N=4 mean = 46.9s ≤ baseline) is stronger than a single 68.6s outlier;
 3. Halt > 100s gate not triggered.
@@ -196,6 +202,7 @@ P5 introduces zero hot-path overhead by design (Option A inner-only lock); the T
 **Status:** N/A — local `lightrag_storage/` is 768-dim from a pre-2026-04 GCP free-tier embedding run, which is incompatible with the 3072-dim `gemini-embedding-2` LightRAG was constructed against. Local cold-start fails with `embedding_dim mismatch (3072 vs 768)`. Production (Aliyun + Databricks) uses 3072-dim canonical storage hydrated from `mdlg_ai_shared.kb_v2`.
 
 **Verification surface used instead:**
+
 - Track 1 boot log on Databricks (cold-start wall_s captured from real deployed URL)
 - Track 2 + Track 4 from real Databricks-deployed app via browser console
 
@@ -257,6 +264,7 @@ $ git diff --shortstat 315fa79^..5867a7d
 ```
 
 Net production delta (production source files only, excluding tests):
+
 - `kb/api.py` +36
 - `kg_synthesize.py` +30 / −45 = **−15**
 - `kb/api_routers/synthesize.py` +9 / −2 = **+7**

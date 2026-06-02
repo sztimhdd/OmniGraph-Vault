@@ -204,6 +204,7 @@ Runs the five regression fixtures against the current pipeline and writes a stru
 ---
 
 *For architectural context on the Checkpoint Mechanism, Vision Cascade, and SiliconFlow balance semantics, see `CLAUDE.md`. For deployment and upgrade-path concerns (Vertex AI migration), see `Deploy.md` § Recommended Upgrade Path.*
+
 ```
 
 After writing, verify the file passes ALL acceptance_criteria grep/wc commands below. Do NOT create any other files.

@@ -91,6 +91,7 @@ Strict interpretation: 3/5 dimensions PASS, 2/5 FAIL. Per user directive: **PASS
 ## Files modified across Wave 2
 
 NEW:
+
 - `scripts/smoke_milestone.py` — TEST-05 driver (141 LOC + 7 LOC sys.path fix)
 - `lib/research/llm_adapter.py` — Option A JSON-mode shim (~210 LOC)
 - `tests/unit/research/test_llm_adapter.py` — 30 unit tests
@@ -98,12 +99,14 @@ NEW:
 - `.planning/phases/ar-4-telemetry-streaming-smoke/ar-4-02-SUMMARY.md` — this file
 
 MODIFIED:
+
 - `lib/research/config.py` — `from_env()` wraps underlying provider in adapter
 - `.planning/phases/ar-4-telemetry-streaming-smoke/ar-4-CONTEXT.md` — TEST-05 condition (c) calibration
 - `.planning/phases/ar-4-telemetry-streaming-smoke/ar-4-02-smoke-audit-PLAN.md` — condition (c) literal updates (~7 lines via `sed -i` batch)
 - `.planning/ROADMAP-Agentic-RAG-v1.md` — ar-4 § Success Criteria #3 condition (c) calibration
 
 NOT modified:
+
 - `lib/research/stages/{reasoner,verifier,synthesizer,web_baseline,retriever}.py` — locked, no cross-phase touches needed; the adapter at `from_env()` boundary is the only change
 - `lib/research/types.py` — locked across ar-N
 

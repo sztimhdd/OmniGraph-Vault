@@ -8,12 +8,14 @@
 ## Phase Boundary
 
 **Delivers:** 5 fixture profiles covering distinct article characteristics + `validate_regression_batch.py` script producing `batch_validation_report.json`. Core artifacts:
+
 1. **4 new fixture directories** under `test/fixtures/`: `sparse_image_article/`, `dense_image_article/`, `text_only_article/`, `mixed_quality_article/` (the 5th, `gpt55_article/`, already exists from Milestone A)
 2. **`scripts/validate_regression_batch.py`** — CLI that runs ingest on multiple fixtures + produces JSON report
 3. **`batch_validation_report.json` schema** matching PRD §B3.4 verbatim
 4. **Exit code contract**: 0 on all-pass, 1 on any failure (CI-ready)
 
 **Does NOT deliver:**
+
 - Changes to ingest logic itself (Phase 12 + 13 own that)
 - CI/CD pipeline configuration (this phase delivers the script; CI integration is operator/devops task)
 - New fixtures beyond the 5 specified (deferred)
@@ -37,6 +39,7 @@
 | `mixed_quality_article` | 15 | 5000 chars | Mix of JPEG/PNG, some corrupted (fallback) | Vision cascade coverage |
 
 **Fixture acquisition strategy:**
+
 - Source real WeChat articles matching each profile if available (avoid synthetic content that doesn't trigger real-world parse edge cases)
 - For `mixed_quality_article`: include 2-3 intentionally corrupted images (truncated JPEG, oversized PNG header) to exercise Phase 13 cascade error paths
 - For `dense_image_article`: seed with an article that has many 100×800 narrow banners (exercises v3.1 Phase 8 IMG-01 filter fix)
@@ -60,6 +63,7 @@ test/fixtures/{fixture_name}/
 ```
 
 **metadata.json schema (LOCKED from PRD §B3.2):**
+
 ```json
 {
   "title": "...",
@@ -83,6 +87,7 @@ test/fixtures/{fixture_name}/
 ### Validation Script (REGR-03) — LOCKED
 
 **CLI signature (LOCKED from PRD §B3.3):**
+
 ```bash
 python scripts/validate_regression_batch.py \
   --fixtures test/fixtures/gpt55_article \
@@ -93,6 +98,7 @@ python scripts/validate_regression_batch.py \
 ```
 
 **Behavior:**
+
 1. For each fixture: ingest via the batch pipeline (exercising Phase 12 checkpoint + Phase 13 cascade)
 2. Collect per-stage timings + counters + provider usage
 3. Compare against `metadata.json` expected values (tolerance ±10% for fuzzy counts, exact for total_images_raw)
@@ -100,6 +106,7 @@ python scripts/validate_regression_batch.py \
 5. Exit 0 if all `articles[].status == "PASS"`; exit 1 if any FAIL or TIMEOUT
 
 **Ingest mode:**
+
 - Use fixture-based ingest path (no live WeChat scrape); mirror v3.1 Phase 11 pattern (`scripts/benchmark_single_article.py`)
 - Reuse checkpoint directory for resume semantics; fresh-run per fixture (delete checkpoint before each fixture test)
 
@@ -145,6 +152,7 @@ python scripts/validate_regression_batch.py \
 ```
 
 **Status enum:**
+
 - `PASS` — all counters within ±10% of expected, all stages completed
 - `FAIL` — any counter outside tolerance OR any exception raised
 - `TIMEOUT` — `asyncio.wait_for` killed the article (bubbled from Phase 9 single-article timeout)
@@ -166,26 +174,31 @@ python scripts/validate_regression_batch.py \
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Source of Truth
+
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B3 — verbatim requirements
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §Acceptance Criteria Gate 3 — end-to-end acceptance
 
 ### Dependency Interfaces
+
 - Phase 12 `lib/checkpoint.py` + `scripts/checkpoint_reset.py` — reset fixture checkpoints before each test run
 - Phase 13 `lib/vision_cascade.py` — cascade provides `provider_usage` metrics for the report
 - v3.1 Phase 11 `scripts/benchmark_single_article.py` — reference pattern for fixture-based ingest + report emission
 - v3.1 Phase 11 `benchmark_result.json` schema — SINGLE-article schema; Phase 14 adds BATCH-level aggregation on top
 
 ### Existing Assets to Read
+
 - `test/fixtures/gpt55_article/` — baseline fixture (already complete from Milestone A)
 - `test/fixtures/gpt55_article/metadata.json` — schema reference
 - `scripts/benchmark_single_article.py` (if v3.1 Phase 11 delivered) — reuse CLI patterns, timing capture, error handling
 
 ### External Dependencies (planner researches)
+
 - WeChat article URLs matching each profile (or synthesize — planner's call)
 - Image corruption tools (e.g., `truncate` command or Python `struct.pack` to mangle JPEG headers for `mixed_quality_article`)
 
@@ -278,6 +291,7 @@ if __name__ == "__main__":
 ### Fixture Preparation Recipe
 
 For each NEW fixture:
+
 1. Identify source WeChat article URL matching profile
 2. Run existing `ingest_wechat.py <url>` once manually to scrape HTML + download images
 3. Copy output to `test/fixtures/{fixture_name}/`:

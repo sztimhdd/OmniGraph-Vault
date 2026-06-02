@@ -13,10 +13,12 @@ key-files:
 ## What was built
 
 **batch_ingest_from_spider.py** — two checkpoint-skip guards, one per ingestion loop:
+
 1. KOL spider loop (line ~656): skip article when `has_stage(ckpt_hash, "text_ingest")` is True; append `"status": "skipped_ingested"` to summary + log `checkpoint-skip: already-ingested`.
 2. DB-driven loop (line ~886): same guard + SQLite `ingestions` table status = `'skipped_ingested'`.
 
 **tests/integration/test_checkpoint_resume_e2e.py** — 7 failure-injection + invariant tests:
+
 - `test_gate1_fail_at_image_download_then_resume` — Gate-1 acceptance scenario (fail at stage 3, resume at stage 4, scrape/classify NOT re-run)
 - `test_fail_at_scrape_leaves_no_stage_checkpoints` — full scrape cascade failure produces zero stage markers
 - `test_fail_at_text_ingest_preserves_stages_1_to_3` — rag.ainsert raises, scrape/classify/image_download persist, second run writes text_ingest marker
@@ -28,14 +30,17 @@ key-files:
 ## Acceptance criteria
 
 All plan grep/exit-code checks pass:
+
 - `from lib.checkpoint import` + `has_stage(ckpt_hash, "text_ingest")` + `checkpoint-skip: already-ingested` all grep-present in batch_ingest_from_spider.py
 - 7 test functions (>=6 required); includes the Gate-1 test
 - `pytest tests/integration/test_checkpoint_resume_e2e.py` → 7/7 green
 
 Full Phase 12 matrix:
+
 - test_checkpoint.py (32) + test_checkpoint_cli.py (8) + test_checkpoint_ingest_integration.py (11) + test_checkpoint_resume_e2e.py (7) = **58/58 green**
 
 Plus no regression in Phase 10:
+
 - test_text_first_ingest.py + test_vision_worker.py + test_scrape_first_classify.py = untouched, still green per 12-02 subagent report.
 
 ## Deviations
@@ -45,6 +50,7 @@ Plus no regression in Phase 10:
 ## Gate-1 Acceptance
 
 The v3.2 Phase 12 Gate-1 scenario ("Single article with injected failure at stage 3 (image-download) resumes correctly at stage 4 (text-ingest)") is PROVEN by `test_gate1_fail_at_image_download_then_resume` — asserts:
+
 1. After injected RuntimeError in `download_images`, checkpoints for `scrape`/`classify` exist; `image_download`/`text_ingest` absent.
 2. After removing the injection and re-running, `scrape_wechat_ua` NOT called (scrape skipped), `rag.ainsert` called (text ingest runs), all 4 primary stage markers present.
 

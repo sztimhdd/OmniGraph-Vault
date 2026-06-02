@@ -103,6 +103,7 @@ Output: `kb/templates/_icons.html` with 2 new `{%- elif name == ... -%}` clauses
 </verification>
 
 <success_criteria>
+
 - TOPIC-05 enabled: topic page sidebar header can render `{{ icon('users', size=16) }}` per UI-SPEC §3.1
 - LINK-02 enabled: article.html related-topics chip can render `{{ icon('folder-tag', size=12) }}` per UI-SPEC §3.4
 - LINK-03 enabled: homepage Browse by Topic section header can render `{{ icon('folder-tag', size=20) }}` per UI-SPEC §3.3.1

@@ -53,6 +53,7 @@ Replace `image_pipeline._describe_one`'s cascade (wrong order: Gemini → Silico
 Purpose: CONTEXT.md flagged the current cascade as buggy (Gemini-first wastes free quota + causes 429 spillover). After this plan merges, the batch runs on SiliconFlow primary → OpenRouter fallback → Gemini last-resort as CASC-01 locked.
 
 Output:
+
 - `image_pipeline.py` — describe_images() refactored; old `_describe_one` and `_describe_via_*` helpers either removed (clean) or retained as deprecated (backward-compat). `get_last_describe_stats()` enriched with cascade metadata (circuit_opens, gemini_share).
 - `tests/unit/test_image_pipeline_cascade.py` — new test file specifically for the integration; does NOT replace `test_image_pipeline.py` (which tests download/filter/localize).
 </objective>
@@ -77,6 +78,7 @@ Output:
 <!-- Contracts from Plans 13-00 and 13-01 (already merged before this plan runs) -->
 
 From `lib/vision_cascade.py`:
+
 ```python
 from lib.vision_cascade import (
     VisionCascade,
@@ -99,6 +101,7 @@ cascade.total_usage()  # dict[provider, int]  — success counts
 ```
 
 From `lib/siliconflow_balance.py`:
+
 ```python
 from lib.siliconflow_balance import (
     check_siliconflow_balance,       # () -> Decimal (raises BalanceCheckError)
@@ -110,11 +113,13 @@ from lib.siliconflow_balance import (
 ```
 
 Existing `image_pipeline.py` public signature (MUST PRESERVE):
+
 ```python
 def describe_images(paths: list[Path]) -> dict[Path, str]: ...
 def get_last_describe_stats() -> dict | None: ...
 def emit_batch_complete(*, filter_stats, download_input_count, download_failed, describe_stats, total_ms) -> None: ...
 ```
+
 </interfaces>
 </context>
 
@@ -144,6 +149,7 @@ def emit_batch_complete(*, filter_stats, download_input_count, download_failed, 
 Refactor `image_pipeline.py`. Specifically:
 
 1. **Add imports** at top of file:
+
 ```python
 from decimal import Decimal
 from lib.vision_cascade import (
@@ -299,9 +305,11 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
 5. **Decide on `_describe_via_*`**:
    - RECOMMENDED: remove `_describe_one` entirely and remove `_describe_via_gemini/siliconflow/openrouter` from image_pipeline.py (they now live inside VisionCascade).
    - ALTERNATIVE: keep them as deprecated module-private helpers for any Phase 10 direct callers. Check if anything imports them:
+
      ```bash
      grep -rn "from image_pipeline import.*_describe" --include="*.py"
      ```
+
      If no external callers, remove.
    - Document choice in commit message.
 
@@ -373,12 +381,14 @@ def _ok_result(desc="stub desc", provider="siliconflow"):
 ```
 
 Patch strategy (IMPORTANT — patch at the import site in `image_pipeline`, not at the definition site in `lib.*`):
+
 ```python
 mocker.patch("image_pipeline.VisionCascade")
 mocker.patch("image_pipeline.check_siliconflow_balance", return_value=Decimal("5.43"))
 ```
 
 For Test 1, use `mocker.patch` to capture VisionCascade constructor calls:
+
 ```python
 mock_cls = mocker.patch("image_pipeline.VisionCascade")
 mock_instance = MagicMock()
@@ -391,12 +401,14 @@ mock_cls.return_value = mock_instance
 For Test 2, inspect `mock_cls.call_args.kwargs["providers"]` (or `call_args.args[0]` depending on how image_pipeline calls it).
 
 For Test 12 (mid-batch recheck), use `side_effect` to return different values on each call:
+
 ```python
 mock_check = mocker.patch("image_pipeline.check_siliconflow_balance")
 mock_check.side_effect = [Decimal("1.00"), Decimal("0.04"), Decimal("0.04"), Decimal("0.04")]  # one pre-batch, then every 10th image
 ```
 
 For caplog-based assertions (Tests 4, 9, 10), use pytest's `caplog` fixture:
+
 ```python
 def test_balance_warning(caplog, tmp_path, mocker, monkeypatch):
     caplog.set_level(logging.WARNING)
@@ -434,6 +446,7 @@ Create at least 12 tests covering the 12 behaviors. Each test should fit in ≤2
 </verification>
 
 <success_criteria>
+
 - [ ] `image_pipeline.describe_images` delegates to VisionCascade with providers=["siliconflow", "openrouter", "gemini"] by default
 - [ ] Pre-batch balance check runs once + emits warning if insufficient
 - [ ] Mid-batch balance check every 10 images + removes SiliconFlow from cascade if < ¥0.05

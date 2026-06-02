@@ -11,22 +11,26 @@
 ## 1. Databricks-claude-haiku-4-5 endpoint contract
 
 Verified via:
+
 - <https://docs.databricks.com/aws/en/machine-learning/foundation-model-apis/supported-models>
 - <https://www.anthropic.com/news/claude-haiku-4-5>
 - <https://inworld.ai/models/anthropic-claude-haiku-4-5-20251001>
 
 **Endpoint:**
+
 - **Name:** `databricks-claude-haiku-4-5` (Databricks Foundation Model APIs, hosted by Databricks per CLAUDE.md user-level instructions)
 - **Task:** `llm/v1/chat` (OpenAI-compatible, same SDK call shape as `databricks-claude-sonnet-4-6` already in production via `lightrag_databricks_provider.make_llm_func`)
 - **Inputs:** Text + image (vision optional; we don't use vision)
 - **Underlying model:** Anthropic Claude Haiku 4.5 (`claude-haiku-4-5-20251001`)
 
 **Capacity:**
+
 - **Context window:** 200K tokens (Anthropic upstream; Databricks endpoint preserves)
 - **Max output tokens:** 64K tokens (Anthropic upstream; pre-default 8192 in some clients — set explicitly via `max_tokens` kwarg)
 - **Pricing:** Pay-per-token model, ~$1/MTok input, ~$5/MTok output (Anthropic public). Databricks pass-through pricing per Foundation Model APIs.
 
 **Cost estimate per /api/synthesize rerank call:**
+
 - Top-K=30 chunks × ~1500 chars/chunk = ~45K chars ≈ ~13K tokens input prompt
 - JSON output ~30 score entries × ~25 chars each ≈ ~250 tokens output
 - Per call: 13K × $0.001/1K + 250 × $0.005/1K = **~$0.0143** input + **~$0.001** output ≈ **$0.015/query** ⚠️ (10× the orchestrator initial estimate of $0.003 — the cost was sized assuming top-K=30 × 200 chars summary, not full chunk content)
@@ -79,6 +83,7 @@ async def apply_rerank_if_enabled(
 ## 3. JSON Schema design + parse fail rate
 
 **Prompt structure (PLAN T1 spec):**
+
 ```
 SYSTEM: You are a relevance ranker. For each numbered passage, score how
 well it answers the user's QUERY on a 0.0-1.0 scale. Output ONLY JSON in
@@ -97,12 +102,14 @@ PASSAGES:
 ```
 
 **Why this shape:**
+
 - `i` + `s` short keys minimize output token count.
 - Asking for ALL passages (not sorted) guarantees deterministic length and lets parser detect "less than half scored" → retry.
 - `temperature=0.0` for reproducibility.
 - `max_tokens=2048` covers 30 score entries × ~30 tokens each ≈ 900 tokens, plus JSON syntax overhead.
 
 **Expected parse fail rate (literature-bounded):**
+
 - Haiku 4.5 strict-JSON output reliability: per Anthropic public benchmarks, structured-output mode (JSON schema enforced) achieves ~99% valid JSON on first try.
 - Without strict-mode (we don't use Databricks structured outputs feature for portability), expect ~95% valid JSON; markdown fences ````json...```` is common 5% failure mode (caught by our `.strip("`").lstrip("json")` fallback).
 - Our retry-1 + identity-fallback ladder targets ≤ 1% identity-fallback rate in production.
@@ -122,6 +129,7 @@ P2-3 RESEARCH §2 assumed N=20 chunks/query for BGE rerank (BSWEN 2026 benchmark
 - **6.5× miss** caused SC#2 230s+ FAIL → escape
 
 **This phase's mitigation:**
+
 1. Top-K=30 cap inside wrapper (Decision D3=B). 30 chunks input × Haiku throughput ≈ 5-15s wall (vs 160s BGE on 131).
 2. Eval harness instruments chunk count distribution (T4): captures and prints the actual N for each query, generating evidence for VERIFICATION.md.
 3. PLAN reports the corrected N (qa_seed-only N may differ from prod-trace N) so future phases plan with verified data, not RESEARCH §2 assumption.
@@ -133,17 +141,20 @@ P2-3 RESEARCH §2 assumed N=20 chunks/query for BGE rerank (BSWEN 2026 benchmark
 ## 5. LLM-as-reranker quality literature
 
 **Sources reviewed:**
+
 - fin.ai 2025 "Using LLMs as a Reranker for RAG: A Practical Guide" — shipped LLM rerank in production; reports "significantly improve quality compared to open-source cross-encoders"
 - zeroentropy.dev 2025 "Should You Use an LLM as a Reranker?" — listwise (batch) >> pointwise on cost-quality curve; pointwise is "almost never worth it"
 - LlamaIndex 2024 "LLM Retrieval and Reranking: Two-Stage RAG Guide" — endorses batch reranking pattern for two-stage RAG
 - arxiv 2501.09186 "Guiding Retrieval using LLM-based Listwise Rankers" — academic confirmation listwise LLM rerank achieves SOTA on multiple benchmarks
 
 **Implication for SC#3 +10% floor:**
+
 - Cross-encoder benchmark: BGE-v2-m3 reports +15-30% MRR on multilingual corpora (P2-3 RESEARCH §2)
 - LLM listwise: fin.ai reports OUTPERFORMS cross-encoder in their production (specific numbers not public)
 - Conservative SC#3 floor +10% should be EASIER to clear than P2-3's +10% floor (which it would have if it could run)
 
 **Halt-trigger HT-3 (eval shows < +10%):** Two failure modes:
+
 1. **+5-10% (under-perform):** prompt design suboptimal OR Haiku truncating low-scored passages (we ask for ALL, but it might shortcut). Mitigation: re-prompt asking for explicit "include all 30 passages even if score is 0.0".
 2. **<+5% (broken):** likely JSON parse fail dominates and identity-fallback is being hit (mode='hybrid' equivalent end state). Diagnostic: log retry rate + parse-fail counts in eval harness instrumentation.
 
@@ -178,12 +189,14 @@ Same as P2-3 RESEARCH §7. Reranker call sits inside `rag.aquery()` → `process
 ## 8. Dependency footprint
 
 **No new dependencies.** All required libs already in `databricks-deploy/requirements.txt`:
+
 - `databricks-sdk>=0.108.0` — for `WorkspaceClient` + `serving_endpoints.query`
 - Standard library: `asyncio`, `json`, `logging`, `os`
 
 **Removed dependencies (post-T2):** `sentence-transformers`, `torch` from BGE wrapper. **WAIT** — the dependency declarations in `requirements.txt` and `databricks-deploy/requirements.txt` were added in P2-3 T1 + the pre-T1 deploy fix. Removing them would shrink deploy size by ~1.2 GB.
 
 **Decision (RESEARCH §8):** **DO NOT remove** sentence-transformers + torch from requirements files in this phase. Reasons:
+
 1. Surgical Changes (Principle #3): only touch what we must. Removing deps is unrelated to LLM rerank wiring.
 2. Rollback option #4 (partial revert): keeps BGE wrapper restorable as legacy fallback.
 3. Their presence is a no-op runtime cost (lazy import only triggers if imported); deploy-time wheel install is one-time.
@@ -225,22 +238,27 @@ This deferral is documented as ISSUES.md follow-up: "Trim sentence-transformers 
 ## 11. Validation Architecture
 
 **Local cold-start (Track 1):**
+
 - `venv/Scripts/python.exe .scratch/local_serve.py` → localhost:8766
 - Measure boot-to-/health time. Expected ≤ baseline (no BGE 2.29 GB load).
 
 **Local steady-state (Track 4):**
+
 - 10-iter `/api/synthesize` long_form loop. P5 baseline 49.93s + Haiku rerank 5-15s = 55-65s expected.
 
 **Local fallback simulation (Track 3):**
+
 - `OMNIGRAPH_LLM_RERANK_FORCE_FAIL=1` → app.state.rerank_disabled=True → mode='hybrid' fallback. Verify via log grep + 200 OK response.
 - Same for legacy `BGE_FORCE_LOAD_FAIL=1` (SC#6 compat path).
 
 **Eval harness (Track 4 quality):**
+
 - N=15 paired comparison (LLM rerank on vs OFF via env toggle).
 - Token-overlap floor: ≥ +10%.
 - Side instrumentation: chunk count distribution (correcting RESEARCH §2 N=20 assumption).
 
 **Databricks deploy (Track 1+2+4 binding gates):**
+
 - Sync + deploy via PowerShell (Principle #7 Claude owns).
 - Tail logs: `llm_rerank_init_ok` line; `lightrag_singleton_ready wall_s=NN.NN`.
 - N=4 concurrent test (P5 contract preservation).
@@ -267,6 +285,7 @@ This deferral is documented as ISSUES.md follow-up: "Trim sentence-transformers 
 PLAN.md LoC estimate +201 net (above 150 plan-phase ceiling).
 
 **Decisions:**
+
 - LoC ceiling waived by user explicit choice (Z option) — justification: dispatcher full design + per-request graceful degrade contract requires multi-file coordination beyond quick scope; eval harness alone (T4 +50) is plan-phase mandate per Principle #8.
 - Out-of-scope work (Aliyun Vertex Gemini parity) split to follow-up phase B (~+65 LoC), keeping A focused on Databricks Apps unblock.
 

@@ -622,11 +622,13 @@ Phase-level verification (rolled up from per-task acceptance criteria):
 ### Track 1 — Cold-start (SC#1)
 
 **Databricks Apps (the binding gate):**
+
 - BGE first-deploy download = ~30s (2.29 GB at hub speed). Subsequent boots warm-cache = ~2-5s.
 - LightRAG hydrate stays at P5 baseline 28.88s on /tmp tmpfs.
 - **PASS:** first /api/synthesize wall ≤ 60s post-deploy. Server log shows `bge_loaded wall_s=NN.NN` exactly once per process.
 
 **Local NTFS (informational):**
+
 - BGE warm-cache adds ~5-10s on top of the 60-350s pre-P5 NTFS hydrate. We do NOT block on this — local is for development iteration; the Databricks gate is the contract.
 
 ### Track 2 — Async safety (SC#3 inherited from P5)
@@ -678,6 +680,7 @@ If post-deploy regression observed:
 
 1. `git log --grep="v1.1.P2-3" --format='%H %s'` — list 6 commits.
 2. **Full revert (default):**
+
    ```powershell
    git revert <T6-sha> <T5-sha> <T4-sha> <T3-sha> <T2-sha> <T1-sha>
    git push origin main
@@ -685,12 +688,14 @@ If post-deploy regression observed:
    databricks apps deploy omnigraph-kb --source-code-path /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy
    # mirror to Aliyun via Hermes prompt or direct SSH
    ```
+
 3. **Operational escape (no revert needed):** set env var `BGE_FORCE_LOAD_FAIL=1` on the deployed app; restart. Reranker disabled, `mode='hybrid'` for KG paths. Buys time for fix-forward without touching git history.
 4. **Partial revert (mode-only, keep reranker):** revert T2 + T3 + T4 (mode switches), keep T1 (BGE load). Reranker is loaded but unused — `mode='hybrid'` stays default. Hot-fix-friendly state if quality SC#3 regresses but BGE itself is fine.
 
 ## Success Criteria
 
 P2-3 is complete when:
+
 - [ ] **SC#1:** Cold-start ≤ 60s on Databricks; numeric in P2-3-VERIFICATION.md cites `bge_loaded wall_s=` + first /api/synthesize wall.
 - [ ] **SC#2:** Steady-state long_form `p50_post_p23 ≤ 65s` (1.3 × P5 baseline 49.93s).
 - [ ] **SC#3:** Token-overlap `mean_p23 ≥ mean_baseline + 0.10` on N=10 QA seed; eval harness stdout cited verbatim.
@@ -702,6 +707,7 @@ P2-3 is complete when:
 ## Output
 
 After T6 operator-approved, the phase closes with:
+
 - 6 commits on main (T1..T6)
 - Updated STATE-v1.1.md (P2-3 row → ✅ CLOSED)
 - P2-3-VERIFICATION.md with all 5 SC sections + Aliyun + Databricks deploy evidence

@@ -78,6 +78,7 @@ Closes 2 gaps from `kb-1-VERIFICATION.md` so the SSG export driver runs end-to-e
 **After:** Same command exits 0 and produces a 14-file output tree including 3 article HTML pages. KOL `update_time` values normalize from `1777249680` (INT epoch) to `'2026-05-07T10:15:32+00:00'` (ISO-8601 string).
 
 **Evidence:** `.scratch/kb-1-10-real-db-smoke-20260513-091713.log`
+
 - Lines 6-13: stdout (Rendering 3 article detail pages... → Done. Output: ...)
 - Line 15: `=== EXIT CODE: 0 ===`
 - Lines 18-31: 14-file output tree listing
@@ -85,6 +86,7 @@ Closes 2 gaps from `kb-1-VERIFICATION.md` so the SSG export driver runs end-to-e
 - Lines 47-49: KOL update_time normalization proof (str values starting `2026-05-07T...`)
 
 Final --limit 5 verification: `.scratch/kb-1-10-final-verification-20260513-092347.log`
+
 - Exit 0, 5 article HTMLs produced.
 
 ### Gap 2 — kb-1-VERIFICATION.md `truth: "detect_article_lang.py runs ... lang 100% non-NULL afterward"` (defensive-guard portion)
@@ -102,6 +104,7 @@ Both scripts are idempotent — safe to re-run.
 ```
 
 **Evidence:** `.scratch/kb-1-10-guard-smoke-20260513-092224.log`
+
 - Step 1: built DB without `lang` column on either table
 - Step 2: PRAGMA confirms `lang` absent (line shows `articles cols: ['id', 'title', 'url', 'body', 'content_hash', 'update_time']`)
 - Step 3: ran export driver → exit 1, full error message captured verbatim
@@ -112,11 +115,13 @@ Both scripts are idempotent — safe to re-run.
 ### `kb/data/article_query.py` (+22 LOC)
 
 **New imports** (after `import sqlite3`, `from dataclasses import dataclass`):
+
 ```python
 from datetime import datetime, timezone
 ```
 
 **New private helper** (above `_row_to_record_kol`):
+
 ```python
 def _normalize_update_time(raw) -> str:
     """Returns '' on None/empty/zero; converts int epoch -> ISO-8601 string;
@@ -131,6 +136,7 @@ def _normalize_update_time(raw) -> str:
 ```
 
 **Single 1-line change** in `_row_to_record_kol`:
+
 ```python
 # was:    update_time=row["update_time"] or "",
 # now:
@@ -142,6 +148,7 @@ update_time=_normalize_update_time(row["update_time"]),
 ### `kb/export_knowledge_base.py` (+28 LOC)
 
 **New private helper** (above `write_url_index`):
+
 ```python
 def _ensure_lang_column(db_path: Path) -> None:
     """Pre-flight check: fail fast if articles.lang or rss_articles.lang are absent."""
@@ -160,6 +167,7 @@ def _ensure_lang_column(db_path: Path) -> None:
 ```
 
 **Wired into `main()`** after `validate_key_parity()`, before `_build_env()` and any `list_articles` call:
+
 ```python
 # Pre-flight: fail fast with operator-actionable error if lang columns absent
 # (DATA-04 list_articles hard-depends on articles.lang + rss_articles.lang)
@@ -190,6 +198,7 @@ After  kb-1-10: 73 tests passing  (67 unit + 6 integration)
 ```
 
 Final run:
+
 ```
 $ venv/Scripts/python.exe -m pytest tests/unit/kb/ tests/integration/kb/ -q
 73 passed in 0.95s
@@ -200,6 +209,7 @@ $ venv/Scripts/python.exe -m pytest tests/unit/kb/ tests/integration/kb/ -q
 Per CLAUDE.md 2026-05-08 ir-1 anti-fabrication lesson — all claims cite log file paths verbatim, no fabricated stats.
 
 **Smoke 1: Gap 1 happy path**
+
 - File: `.scratch/kb-1-10-real-db-smoke-20260513-091713.log` (71 lines)
 - Command: `KB_DB_PATH=.dev-runtime/data/kol_scan.db venv/Scripts/python.exe kb/export_knowledge_base.py --limit 3 --output-dir .scratch/kb-1-10-output-20260513-091713`
 - Exit code: 0 (line 15)
@@ -207,17 +217,20 @@ Per CLAUDE.md 2026-05-08 ir-1 anti-fabrication lesson — all claims cite log fi
 - KOL update_time post-normalization: `'2026-05-07T10:15:32+00:00'` etc. (lines 47-49)
 
 **Smoke 2: Gap 2 negative branch**
+
 - File: `.scratch/kb-1-10-guard-smoke-20260513-092224.log`
 - Command (after building lang-less DB): `KB_DB_PATH=<lang-less-db> venv/Scripts/python.exe kb/export_knowledge_base.py --limit 1 --output-dir <out>`
 - Exit code: 1
 - Stderr captured the full operator-actionable message including both remediation script names
 
 **Smoke 3: Final verification --limit 5**
+
 - File: `.scratch/kb-1-10-final-verification-20260513-092347.log`
 - Exit code: 0
 - Article HTMLs: 5
 
 **Smoke 4: Task 1 RED state**
+
 - File: `.scratch/kb-1-10-task1-red-20260513-091423.log`
 - Unit: 2 failed in 0.31s (both `TypeError` at `kb/data/article_query.py:165`)
 - Integration: 6 failed in 0.45s (same TypeError leaks across all 6 tests after schema upgrade)
@@ -249,6 +262,7 @@ None. The plan ran exactly as written. The fix shape from `kb-1-VERIFICATION.md`
 ```
 
 Investigation showed `rss_articles.published_at` contains mixed format strings:
+
 - ISO-8601 (`'2026-05-02T17:26:40+00:00'`)
 - RFC 822 (`'Wed, 4 Sep 2024 04:31:00 +0000'`)
 

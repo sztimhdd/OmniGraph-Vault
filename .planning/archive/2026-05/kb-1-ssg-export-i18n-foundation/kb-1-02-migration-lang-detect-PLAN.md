@@ -75,15 +75,18 @@ def _ensure_rss_columns(conn: sqlite3.Connection) -> None:
 The migration script in this plan must use the same `PRAGMA table_info` pre-check + per-column ALTER style.
 
 **SQLite schema fact (from kb/docs/09-AGENT-QA-HANDBOOK.md verified against live data/kol_scan.db):**
+
 - Table `articles` exists with primary KOL article rows (~756 rows)
 - Table `rss_articles` exists (~1687 rows) with full md5 in `content_hash`
 - Neither currently has a `lang` column
 
 **Detector algorithm (from CONTEXT.md § "Lang detection algorithm (DATA-02)"):**
+
 - Chinese char range: `'一' <= c <= '鿿'` (CJK Unified Ideographs basic — covers 99% of zh corpus)
 - Threshold: ratio > 0.30 → `zh-CN`, else `en`
 - Insufficient sample: `len(text) < 200` → `unknown`
 </interfaces>
+
 </context>
 
 <tasks>
@@ -293,6 +296,7 @@ The migration script in this plan must use the same `PRAGMA table_info` pre-chec
 </verification>
 
 <success_criteria>
+
 - DATA-01 satisfied: idempotent migration script for both tables
 - DATA-02 satisfied (algorithm only — driver in kb-1-04): pure detector function with documented thresholds
 - 15 unit tests pass

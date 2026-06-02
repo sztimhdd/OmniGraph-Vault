@@ -206,6 +206,7 @@ consistent with the rest of the stage's degradation handling.
 ### 2. Test count delta vs plan target
 
 Plan asked for ≥5 new tests; delivered 10. Extras are:
+
 - Tests 6-7: cap + caption=None defensive (covers the `[:5]` invariant
   and the `or img.image_path.name` defense in one direct hit each)
 - Tests 8-9: extension + extension-gating (paired tests that cover both

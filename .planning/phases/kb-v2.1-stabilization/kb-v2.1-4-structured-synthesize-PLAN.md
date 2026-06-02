@@ -28,6 +28,7 @@ minimum-viable workaround:
 - Substring matching for entity chips
 
 This works but is:
+
 - Hardcoded (won't surface entities outside the 12-name list)
 - Heuristic (substring matching is brittle)
 - Architecturally wrong place long-term — wrapper backfilling because C1 output
@@ -208,6 +209,7 @@ Update FTS5 fallback path to use simpler query (just the question itself, not th
 Invoke `Skill(skill="writing-tests", args="Testing Trophy: integration > unit. Real DB + real FastAPI TestClient + MOCKED kg_synthesize.synthesize_response (because real LightRAG is slow + non-deterministic). Test: KG success with markdown containing 3 /article/{hash}.html refs → SynthesizeResult.sources has 3 entries with title+lang. Test: KG success with markdown lacking refs → sources=[], confidence='no_results'. Test: KG exception → fts5_fallback path. Test: KG timeout → fts5_fallback path. Test: FTS5 fallback returns valid SynthesizeResult shape. Cover edge cases: empty hashes list, non-existent hash, hash with NULL lang.")`.
 
 `tests/integration/kb/test_synthesize_structured.py`:
+
 - `test_kg_success_returns_structured_sources`
 - `test_kg_success_no_sources_returns_no_results_confidence`
 - `test_kg_exception_falls_back_to_fts5`
@@ -217,6 +219,7 @@ Invoke `Skill(skill="writing-tests", args="Testing Trophy: integration > unit. R
 - `test_data07_filter_applies_to_synthesize_sources`
 
 `tests/unit/kb/test_synthesize_hotfix.py` (UPDATE):
+
 - DROP tests for `_ENTITY_HINTS`, `_fallback_search_terms`, `_entity_candidates`, `_dedupe` (they're being removed)
 - ADD tests for `_resolve_sources_from_markdown` (pure function on markdown string)
 
@@ -262,6 +265,7 @@ Capture screenshots in `.playwright-mcp/`.
 ## Skill discipline
 
 SUMMARY.md MUST contain:
+
 - `Skill(skill="python-patterns"`
 - `Skill(skill="writing-tests"`
 

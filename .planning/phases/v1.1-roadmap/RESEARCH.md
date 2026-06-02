@@ -133,6 +133,7 @@ app = FastAPI(lifespan=lifespan)
 ## 9. Recommended Wave Ordering Adjustment Based on Findings
 
 **Original candidate order** (from orchestrator prompt):
+
 - Wave 1: P5 + P1 → Wave 2: P3 + P2 → Wave 3: P4 → Wave 4: P6
 
 **Research-informed adjustment:** keep order but **bind P2+P3 tightly** in Wave 2 — LightRAG upstream guidance is "rerank + mix mode together"; shipping P3 alone without reranker enabled gives marginal gain. Treat P2 and P3 as a single deployable unit where possible.

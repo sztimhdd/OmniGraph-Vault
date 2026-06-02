@@ -145,6 +145,7 @@ user-flow tests are identical:
 5. (Negative path 2 — kg_unavailable) Misconfigure Model Serving endpoint name → `kg_synthesize` short-circuits to `_fts5_fallback` BEFORE LightRAG init, NEVER 500 (kb-v2.1-1 KG hardening pattern preserved)
 
 **Pass conditions** (all must hold):
+
 - 3 smoke scenarios PASS
 - Re-index Job (kdb-2.5) completed successfully — UC Volume `/lightrag_storage/` populated with MosaicAI-Qwen3-indexed graphml + nano-vector-db json
 - Zero `kb/` source-tree edits in the kb-databricks-v1 commit history EXCEPT documented exemptions (`lib/llm_complete.py` + `kg_synthesize.py` — listed in `databricks-deploy/CONFIG-EXEMPTIONS.md`)
@@ -250,6 +251,7 @@ Databricks fully self-contained from Hermes (no ongoing sync; v1 = one-time seed
 LLM-DBX + SEED-DBX categories added in REQ rev 3; new conditional phase
 kdb-2.5 re-index Job; t-shirt S → M. Locked defaults #8 (LLM provider) and
 #9 (Hermes sync) updated. "Zero kb/ changes" rule relaxed for `lib/llm_complete.py`
+
 + `kg_synthesize.py` provider dispatcher (CONFIG-EXEMPTIONS.md). Removed
 "FM swap to Databricks" from future requirements (now v1 in-scope). Removed
 "DeepSeek secret scope" from acceptance criteria. Smoke 3 verifies MosaicAI

@@ -44,6 +44,7 @@ One-liner: Read-only post-release deep audit of `lib/scraper.py` (418 LOC) cover
 ## F-1 unlock verdict
 
 **`not-needed`** — Cascade divergence (CLAUDE.md 2026-05-08 #1, the original F-1 hypothesis) is already resolved by quick `260508-ev2` commit `fab60e0` (`feat(scraper): F1b cascade reorder ua-first + SCRAPE_CASCADE env var override`). Verified by reading current source:
+
 - `lib/scraper.py:227-232` — `_DEFAULT_CASCADE_ORDER = ('scrape_wechat_ua','scrape_wechat_apify','scrape_wechat_cdp','scrape_wechat_mcp')`
 - `ingest_wechat.py:1048-1073` — orchestrator order: UA(1050) → Apify(1054) → CDP(1070) / MCP(1073, mutually-exclusive on `_is_mcp_endpoint(CDP_URL)`)
 

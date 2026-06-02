@@ -2,6 +2,7 @@
 
 **Quick:** 260507-lai (V35-FOUND-04)
 **Origin commits (in order):**
+
   - `bd735ae` feat(filter): `lib/article_filter.py` with Layer 1/2 placeholders
   - `5d37232` test(filter): pin Layer 1/2 placeholder interface contract
   - `f1a963b` feat(ingest): bypass `_classify_full_body` — wire to placeholder Layer 1/2 (v3.5 foundation)

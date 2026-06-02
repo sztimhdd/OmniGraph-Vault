@@ -103,6 +103,7 @@ L1939: await _drain_layer2_queue()  # FINAL DRAIN (always runs)
 CAP CHECK 1 fires at the start of each iteration based on `processed`. But `processed` increments only **inside** `_drain_layer2_queue()`, which runs only when the queue hits `LAYER2_BATCH_SIZE=5` (or at end of loop). So between drains, `processed` is stale.
 
 Walk-through with `--max-articles=2` and 6 layer2-OK candidates:
+
 - Iter 1: processed=0, 0<2 ✓ pass cap check, enqueue (queue=1).
 - Iter 2: processed=0, enqueue (queue=2).
 - Iter 3: processed=0, enqueue (queue=3).
@@ -341,6 +342,7 @@ Inside `_drain_layer2_queue()` the increment at L1758 (and the symmetric path in
 </verification>
 
 <success_criteria>
+
 - `--max-articles N` is a strict hard cap on `ok+failed` ingestions; never exceeded across any pool composition.
 - Skipped statuses (skipped, skipped_ingested, skipped_graded) DO NOT consume cap budget — verified by Test 1 + Test 4.
 - Cap-reached log line emitted exactly once when cap fires (`processed=X + queued=Y >= N`).

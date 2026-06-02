@@ -80,6 +80,7 @@ CONTRACT-02 ok
 ```
 
 Verifier-specific grep checks:
+
 ```
 $ grep -cE "from omnigraph_search" lib/research/stages/verifier.py
 0

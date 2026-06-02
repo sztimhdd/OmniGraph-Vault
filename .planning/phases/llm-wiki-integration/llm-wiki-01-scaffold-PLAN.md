@@ -81,6 +81,7 @@ Output: Repository directory tree under `kb/wiki/` + 7 test stub files + 1 opera
 <!-- W0 creates contracts that W1-W4 consume. -->
 
 Frontmatter schema for every wiki page (per RESEARCH.md "Standard Stack"):
+
 ```yaml
 ---
 title: <page display name>
@@ -94,16 +95,19 @@ confidence_level: high | medium | low
 ```
 
 Citation format inside body (per RESEARCH.md):
+
 ```
 ^[article:<10-char-hex>]
 ```
 
 Cross-reference format (intra-wiki):
+
 ```
 [[entity-slug]]
 ```
 
 Test stub pattern (per VALIDATION.md Wave 0 Requirements):
+
 ```python
 import pytest
 
@@ -111,6 +115,7 @@ import pytest
 def test_placeholder():
     pass
 ```
+
 </interfaces>
 
 <tasks>
@@ -299,6 +304,7 @@ Phase-level verification for W0:
 </verification>
 
 <success_criteria>
+
 1. `kb/wiki/` directory tree exists in repo with all 5 subdirs and 4 top-level docs
 2. `kb/wiki/entities/openclaw.md` exists with valid frontmatter + at least one `^[article:<hex10>]` citation
 3. Hermes operator prompt for export + symlink at `.planning/phases/llm-wiki-integration/HERMES-PROMPT-W0-SYNC.md`

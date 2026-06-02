@@ -57,6 +57,7 @@ required_environment_variables:
 **Security model:** `execute_code` strips API keys/tokens by default. Only **explicitly declared** vars pass through. Reference: [Hermes Security docs](https://hermes-agent.nousresearch.com/docs/user-guide/security).
 
 **Known gaps** (from GitHub issues):
+
 - [#410](https://github.com/NousResearch/hermes-agent/issues/410): no per-skill scoping — all declared secrets available to all tools equally
 - [#3433](https://github.com/NousResearch/hermes-agent/issues/3433): declared vars not passed through correctly for remote-backed sessions (daytona, docker)
 

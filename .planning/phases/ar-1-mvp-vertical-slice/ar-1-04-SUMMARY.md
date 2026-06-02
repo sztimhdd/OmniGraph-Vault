@@ -66,23 +66,27 @@ Wraps the runnable lib + CLI (delivered by ar-1-01..03) as a single OpenClaw / H
 ## Task-by-Task Result
 
 ### Task 1: SKILL.md
+
 - **Result:** PASS
 - **Acceptance:** name=omnigraph_research (snake_case), 6 triggers including 2 Chinese (深度解析, 深度研究), `metadata.openclaw.requires.bins=["bash","python"]`, `config=["GEMINI_API_KEY"]`, decision tree distinguishing from omnigraph_query/_search/_ingest, explicit "DO NOT expose internal stages as separate skills" line referencing design § Skill exposure principle
 - **Verification:** `skill_runner.py skills/omnigraph_research --validate` returns `PASS omnigraph_research`
 - **Commit:** `962f995 feat(ar-1-04): SKILL.md for omnigraph_research`
 
 ### Task 2: scripts/research.sh
+
 - **Result:** PASS
 - **Acceptance:** 58 lines (≤60 cap), `#!/usr/bin/env bash` + `set -euo pipefail`, validates `$1`, BASH_SOURCE-resolved repo root, picks `venv/Scripts/python.exe` (Win) / `venv/bin/python` (POSIX), `exec` propagates exit code
 - **Verification:** `bash research.sh "test query"` produces non-empty markdown (≥570 chars), exits 0; `bash -n` syntax check clean
 - **Commit:** `e8ddc1a feat(ar-1-04): scripts/research.sh`
 
 ### Task 3: README.md
+
 - **Result:** PASS
 - **Acceptance:** 184 lines (≥50 floor), human-facing only (no agent triggers — those live in SKILL.md), cost/quality/latency table (ar-1 stub ~$0/<2s vs ar-4 target $0.10-0.30/≤120s), "What's deferred" table mapping to ar-2/ar-3/ar-4 (lifted from CONTEXT.md § "Out of Scope"), troubleshooting addresses port 8765 reuse + missing GEMINI_API_KEY + skipped notes + embedding-dim mismatch
 - **Commit:** `0a11a52 docs(ar-1-04): README.md`
 
 ### Task 4: tests/skills/test_omnigraph_research.json
+
 - **Result:** PARTIAL — JSON shipped + structurally validated; LLM-driven test execution gated by environmental expired GEMINI_API_KEY (sibling tests affected identically)
 - **Acceptance:** Valid JSON (`python -m json.tool` succeeds), 9 cases (≥2 floor), schema matches sibling tests, structural `--validate` PASSES
 - **Commit:** `3cfe940 test(ar-1-04): skill_runner harness`
@@ -102,6 +106,7 @@ Wraps the runnable lib + CLI (delivered by ar-1-01..03) as a single OpenClaw / H
 The skill_runner.py is an LLM simulator that calls Google Gemini API directly via `from google import genai; client = genai.Client(api_key=current_key())`. The `~/.hermes/.env` `GEMINI_API_KEY` is expired on this dev box, surfacing as `API_KEY_INVALID` for **every** test case.
 
 **Verification this is environmental, not artifact-related:**
+
 ```
 venv/Scripts/python.exe skill_runner.py skills/omnigraph_query --test-file tests/skills/test_omnigraph_query.json
 # Result: sibling skill exits 1 with the same "API key expired" error on every case
@@ -171,6 +176,7 @@ ar-1 phase deliverable: **ready-for-execution**
 | **3** | **ar-1-04 (skill packaging)** | **complete** | **`962f995`, `e8ddc1a`, `0a11a52`, `3cfe940`** |
 
 All three smoke layers from CONTEXT.md § "Smoke test for ar-1" satisfied:
+
 - L1 pytest 62/62 GREEN
 - L2 CLI exit 0 with non-empty Markdown (EN + ZH both verified)
 - L3 skill_runner `--validate` PASS; `--test-file` blocked by environmental key expiry only
@@ -178,6 +184,7 @@ All three smoke layers from CONTEXT.md § "Smoke test for ar-1" satisfied:
 ## Out-of-Scope Notes
 
 Per user prompt directives:
+
 - STATE-Agentic-RAG-v1.md and ROADMAP-Agentic-RAG-v1.md NOT touched (orchestrator updates after Wave 3)
 - gsd-tools.cjs NOT invoked (parallel-track milestone, sibling files unrecognized)
 - No `git commit --amend`, no `git reset --soft` — forward-only chain on main
@@ -185,12 +192,14 @@ Per user prompt directives:
 ## Self-Check: PASSED
 
 Files verified to exist on disk:
+
 - FOUND: `skills/omnigraph_research/SKILL.md`
 - FOUND: `skills/omnigraph_research/scripts/research.sh`
 - FOUND: `skills/omnigraph_research/README.md`
 - FOUND: `tests/skills/test_omnigraph_research.json`
 
 Commits verified in `git log --oneline -5`:
+
 - FOUND: `962f995` (SKILL.md)
 - FOUND: `e8ddc1a` (research.sh)
 - FOUND: `0a11a52` (README.md)

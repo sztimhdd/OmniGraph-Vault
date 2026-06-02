@@ -48,6 +48,7 @@ Investigation document locking the root cause of the 2026-05-10 09:00 ADT cron p
 Reuses the per-article wall-clock budget already plumbed at `batch_ingest_from_spider.py:1718` (`effective_timeout`); converts every silent corruption into an explicit `ingestions.status='failed'` row. No SDK monkey-patching, no throughput regression, composable with parallel quicks (T3 spike, Cognee retire).
 
 Three other patterns evaluated and rejected:
+
 - Pattern B (`apipeline_process_enqueue_documents` re-invoke) — does not solve cancellation case
 - Pattern C (serialize all ainsert via app lock) — collapses cron throughput 3–5×
 - Pattern D (parent-only Pattern A) — acceptable but +6 LOC of leverage gives Pattern A full sub-doc coverage

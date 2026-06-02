@@ -119,6 +119,7 @@ Hermes git pull succeeded (3 new commits pulled). `inspect.signature` confirms `
 ### Task 2: `_classify_topic_filter` normalization block omitted
 
 **Plan said:** Build a normalization block at top of `ingest_from_db`:
+
 ```python
 if isinstance(topic, str):
     _classify_topic_filter: list[str] | None = [topic] if topic else None

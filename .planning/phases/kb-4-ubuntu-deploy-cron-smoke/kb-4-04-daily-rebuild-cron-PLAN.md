@@ -40,6 +40,7 @@ must_haves:
 Ship `kb/scripts/daily_rebuild.sh` — the cron-invoked daily script that re-runs the full SSG + FTS5 pipeline and VACUUMs the SQLite DB. Cron entry fires at 12:00 server-local daily.
 
 Pipeline stages (in order):
+
 1. `detect_article_lang.py` — backfill any new `lang IS NULL` rows (DATA-03 idempotency)
 2. `export_knowledge_base.py` — re-render kb/output/ from latest DB state
 3. `rebuild_fts.py` — full FTS5 trigram index rebuild
@@ -280,6 +281,7 @@ print('order OK')
 </verification>
 
 <success_criteria>
+
 - DEPLOY-04: Daily cron script chains detect → export → rebuild_fts → VACUUM idempotently
 - database-reviewer findings (race conditions, atomicity, log rotation) addressed in script
 </success_criteria>

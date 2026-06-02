@@ -18,10 +18,12 @@ Three atomic surgical patches shipped to close out v1.0.y per audit `.planning/A
 ### Patch 1 — Bidirectional reconcile (`2a1d3ac`, 260517-rgd-1)
 
 **Files touched:**
+
 - `scripts/reconcile_ingestions.py` — extended `--auto-patch` block to track `mystery_ingestion_ids` alongside existing `ghost_ingestion_ids` and added a second UPDATE clause flipping `ok → failed` with `skip_reason_version = COALESCE(skip_reason_version, 0) + 1`. Updated --auto-patch help text to reflect bidirectional behavior. Combined `patched_count` = `ghost_patched_count + mystery_patched_count` for stdout summary. Exit code logic now checks `unresolved_mystery > 0 OR unresolved_ghost > 0`.
 - `tests/unit/test_reconcile_rss.py` — extended `tmp_db` fixture's `CREATE TABLE ingestions` to add `skip_reason_version INTEGER DEFAULT 0` (preserves all 20 existing tests' behavior identical via DEFAULT 0). Added 3 new tests with EXACT names per spec.
 
 **Tests added:**
+
 - `test_ghost_failure_ok_in_db_pending_in_kv_auto_patches` — ghost-failure detected and patched (`ok → failed` + `skip_reason_version=1`); exit 0
 - `test_ghost_failure_off_by_default_preserves_status` — without `--auto-patch`, mystery row stays `ok` (back-compat)
 - `test_bidirectional_both_directions_patched_same_run` — single auto-patch run handles both ghost-success AND ghost-failure; combined `patched 2`
@@ -31,10 +33,12 @@ Three atomic surgical patches shipped to close out v1.0.y per audit `.planning/A
 ### Patch 2 — DeepSeek 402 graceful degrade (`95bcbba`, 260517-rgd-2)
 
 **Files touched:**
+
 - `ingest_wechat.py` — added `from lib.checkpoint import ... get_checkpoint_dir`; added new helper `_write_degraded_marker(ckpt_hash, doc_id, *, reason)` writing JSON sidecar at `checkpoints/{ckpt_hash}/degraded.json`; added new async helper `_ainsert_with_402_fallback(rag, doc_id, content, ckpt_hash) -> bool` wrapping `rag.ainsert` with selective 402 detection (string-pattern match on `"402"` / `"insufficient"` for defensive matching across SDK versions); wired the helper into both ainsert call sites (cache-hit path :1118, main path :1380). On 402 returns `False` (degrade); on non-402 RuntimeError re-raises; on success returns `True`.
 - `tests/unit/test_ingest_402_degrade.py` — new test file with 3 tests using `OMNIGRAPH_CHECKPOINT_BASE_DIR` env override to redirect sidecar markers to `tmp_path` (no pollution of `~/.hermes/omonigraph-vault/checkpoints/`).
 
 **Tests added (verbatim names per spec):**
+
 - `test_402_falls_back_to_text_only` — 402 RuntimeError → returns False, sidecar marker written, payload contains doc_id + reason + timestamp
 - `test_non_402_runtime_error_still_propagates` — `Connection timed out` RuntimeError → propagates, no marker created
 - `test_402_marker_visible_to_reconcile` — marker payload validates as the distinguishing artifact (test reads marker directly to keep Patch 2 independent of Patch 1)
@@ -46,6 +50,7 @@ Three atomic surgical patches shipped to close out v1.0.y per audit `.planning/A
 ### Patch 3 — MAX_ARTICLES tri-governor doc (`fd7cc74`, 260517-rgd-3)
 
 **Files touched:**
+
 - `CLAUDE.md` — new "MAX_ARTICLES is a tri-governor" subsection inserted between "Batch Execution" and "Known Limitations". Documents 3 governors: throughput cap, SiliconFlow ¥-budget governor (~¥0.04/article × 30 imgs), Vertex AI embedding RPM governor (100-300 calls/article entity-rich). Cross-references existing "SiliconFlow Balance Management" and "Vertex AI Migration Path" sections.
 
 **Tests added:** None (doc-only patch).
@@ -60,6 +65,7 @@ Three atomic surgical patches shipped to close out v1.0.y per audit `.planning/A
 - MEMORY.md index: 1 link line appended
 
 Memory file mirrors the structure of `project_v1_0_x_closure_260516.md`. Contains:
+
 - 3-patch summary with commit hashes
 - Full v1.0.y commit list table (bd67f06 / 4eaef45 / 1b74fc1 / 9c4fc5e / 6c93d67 / 2a1d3ac / 95bcbba / fd7cc74)
 - Audit decision context (why 5-day rewrite rejected)
@@ -78,6 +84,7 @@ None encountered. The plan's out-of-scope guard list (batch_ingest_from_spider.p
 ## Self-Check: PASSED
 
 **Files exist:**
+
 - `scripts/reconcile_ingestions.py` (modified) — verified
 - `tests/unit/test_reconcile_rss.py` (modified, fixture extended + 3 tests added) — verified
 - `ingest_wechat.py` (modified, helper added + 2 call sites wired) — verified
@@ -88,6 +95,7 @@ None encountered. The plan's out-of-scope guard list (batch_ingest_from_spider.p
 - `.planning/STATE.md` (Last activity + new table row) — verified
 
 **Commits exist (`git log --oneline -5`):**
+
 - `fd7cc74 docs(claude): MAX_ARTICLES is tri-governor (260517-rgd-3)`
 - `95bcbba feat(ingest): 402 fallback to text-only ingest (260517-rgd-2)`
 - `2a1d3ac feat(reconcile): bidirectional ghost-failure detection (260517-rgd-1)`

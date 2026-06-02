@@ -180,6 +180,7 @@ Remaining: update `.planning/STATE.md` Wave-1-closed entry + annotate
 `.planning/ROADMAP.md` with `Wave 1 closed 2026-05-02 @ <hash>`.
 
 Next waves are out of scope for this autonomous run:
+
 - 05-04 orchestrate
 - 05-05 daily digest
 - 05-06 cron + observation

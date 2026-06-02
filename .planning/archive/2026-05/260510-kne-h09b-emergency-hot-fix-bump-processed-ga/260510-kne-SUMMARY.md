@@ -130,6 +130,7 @@ Only the 3 plan-allowed files appear in the commit range. No out-of-scope leak. 
 ## STOP gate / hard scope honored
 
 ZERO touches to:
+
 - `batch_ingest_from_spider.py` (Quick A scope, separate quick)
 - `_verify_doc_processed_or_raise` helper body (logic unchanged; only module-level defaults changed)
 - `tests/unit/test_ingest_article_processed_gate.py` (no test modifications — bump is config-level)

@@ -7,6 +7,7 @@
 **Entry criteria:** Phase 5 Wave 3 Task 6.2 passes (3-day observation with user sign-off) + Task 6.3 completes (Phase 5 Exit State written to STATE.md + ROADMAP.md).
 
 **Exit criteria:**
+
 - 6 Phase 18 plans shipped with SUMMARYs
 - Daily cron runs 14 consecutive days with ≥ 90% success rate
 - Any cron failure triggers Telegram alert with operator-actionable diagnostic
@@ -44,11 +45,13 @@ Three additional items were deferred from Wave 0 for scope-control and land here
 ## Scope boundaries
 
 **In scope:**
+
 - Hardening: probes, alerts, caps, smoke tests
 - Decisions inherited from Wave 0 Close-Out (DeepSeek LLM routing, pass-through `_resolve_model`, single regression fixture)
 - Operational ergonomics: operator-actionable Telegram messages, monitoring signals
 
 **Out of scope (explicit non-goals):**
+
 - New data sources (GitHub / Twitter / Substack / etc.) — v3.3 is hardening only
 - New Hermes skills (`omnigraph_query`, `omnigraph_synthesize`, `omnigraph_ingest`, etc. stay unchanged except for the HYG-04 prompt string)
 - UI / query-layer reshape beyond HYG-04

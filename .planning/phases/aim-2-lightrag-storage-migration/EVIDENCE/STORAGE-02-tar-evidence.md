@@ -61,20 +61,24 @@ Wave-3 (scp Hermes → Aliyun) + wave-4 (extract + count verify) must complete i
 ## Hand-off → Wave 3
 
 **Wave-3 source (on Hermes):**
+
 - Path: `/tmp/lightrag_storage_aim2_20260523T141829Z.tar.gz`
 - Size: 1,339,799,750 bytes
 - Retain-until: 2026-06-22
 
 **Expected sha256 round-trip target:**
+
 - `6408674f143fe84d4f3763b9fef900c0a46c53671eb0acf9a56226b873afdbe8`
 - Aliyun-side recompute MUST match byte-for-byte; mismatch → abort wave-3, do not extract.
 
 **Aliyun destination scope:**
+
 - Extraction holding dir: `/tmp/aim2-extract/` (NOT production path)
 - Production swap is wave-5 atomic mv, not wave-4
 - Wave-4 is read-only verification (count + sha256 round-trip)
 
 **STATE.md / pause status:**
+
 - Pause STILL ACTIVE per Step 3 re-check
 - STATE.md edit deferred to wave-5 (post-validation atomic swap)
 - Forward-only edits only

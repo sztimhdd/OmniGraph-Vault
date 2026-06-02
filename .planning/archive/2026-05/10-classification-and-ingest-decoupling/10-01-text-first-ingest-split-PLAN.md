@@ -73,6 +73,7 @@ in this plan mock describe_images to observe timing and call ordering.
 <!-- Contracts the executor needs. -->
 
 From `ingest_wechat.py` (Phase 9 state — what EXISTS now):
+
 ```python
 _PENDING_DOC_IDS: dict[str, str] = {}
 def _register_pending_doc_id(article_hash: str, doc_id: str) -> None: ...
@@ -96,6 +97,7 @@ async def ingest_article(url, rag=None):
 ```
 
 Current `full_content` shape (Phase 9, BEFORE Phase 10-01 split):
+
 ```
 # <title>
 
@@ -113,6 +115,7 @@ Time: <publish_time>
 ```
 
 Target `full_content` shape AFTER Phase 10-01 (parent doc only — descriptions move to sub-doc):
+
 ```
 # <title>
 
@@ -127,6 +130,7 @@ Time: <publish_time>
 ```
 
 Stub `_vision_worker_impl` signature (this plan creates, plan 10-02 implements):
+
 ```python
 async def _vision_worker_impl(
     *,
@@ -142,6 +146,7 @@ async def _vision_worker_impl(
 ```
 
 describe_images (from image_pipeline.py — UNCHANGED by this plan):
+
 ```python
 def describe_images(paths: list[Path]) -> dict[Path, str]: ...
 def get_last_describe_stats() -> dict | None: ...
@@ -149,6 +154,7 @@ def emit_batch_complete(*, filter_stats, download_input_count, download_failed, 
 ```
 
 D-10.05 return type contract:
+
 ```python
 async def ingest_article(url: str, rag=None) -> "asyncio.Task | None":
     # Returns:
@@ -317,6 +323,7 @@ Phase 8 + 9 + 10-00 regression stays GREEN.
 </verification>
 
 <success_criteria>
+
 - `ingest_article` returns `asyncio.Task | None` (timing test + return-type tests pass)
 - Parent doc body contains image references only; descriptions deferred to sub-doc (content-shape test passes)
 - Stub `_vision_worker_impl` exists — plan 10-02 fills in its body

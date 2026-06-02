@@ -43,6 +43,7 @@ Wave 0 TDD infrastructure for Phase 20 RSS full-body classify + multimodal inges
 ### tests/unit/test_rss_classify_fullbody.py (3 tests — RCL-01/02/03)
 
 All 3 RED. Reasons:
+
 - `test_classify_reads_body` (RCL-01): `call_count == 0` — production `run()` routes to `_call_deepseek` (blocked with AssertionError), never calls `_call_fullbody_llm` mock
 - `test_single_call_multi_topic` (RCL-02): same call_count failure + `FULLBODY_THROTTLE_SECONDS` attribute will fail with AttributeError once Plan 20-01 is partially done
 - `test_daily_cap_gates_article` (RCL-03): `classified_count == 0` (not 3) because legacy path is blocked
@@ -50,6 +51,7 @@ All 3 RED. Reasons:
 ### tests/unit/test_rss_ingest_5stage.py (6 tests — RIN-01..06)
 
 5 RED, 1 PASS:
+
 - `test_5_stage_checkpoints` (RIN-01): `ImportError: cannot import name '_ingest_one_article'`
 - `test_download_images_referer_svg` (RIN-02): `TypeError: download_images() got an unexpected keyword argument 'referer'`
 - `test_pending_doc_ids_isolated` (RIN-03): `ImportError: cannot import name '_pending_doc_ids'`
@@ -86,6 +88,7 @@ None — this plan only creates test files. No production code stubs.
 ## Baseline Regression Check
 
 Pre-existing failures before Plan 20-00: **15 failures** (2 more than the 13 documented in Phase 19 deferred-items.md). These 15 are unrelated to Phase 20 scope:
+
 - `test_cognee_vertex_model_name` (1)
 - `test_lightrag_embedding` + `test_lightrag_embedding_rotation` (6)
 - `test_llm_client` (1)

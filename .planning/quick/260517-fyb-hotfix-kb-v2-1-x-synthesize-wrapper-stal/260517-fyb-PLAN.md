@@ -426,6 +426,7 @@ Local KG path cannot run on the dev box (no GCP service-account credential local
 </verification>
 
 <success_criteria>
+
 1. `kb/services/synthesize.py` no longer reads `synthesis_output.md`; the LLM markdown comes from `synthesize_response`'s return value
 2. `_read_synthesis_output` function deleted; `import config as og_config` deleted; `from pathlib import Path` deleted (orphan cleanup)
 3. New regression test `test_kg_happy_path_uses_synthesize_response_return_value` exists and:

@@ -52,6 +52,7 @@ it instead of putting it behind an on-demand API. Hence partial revert
 (UX/API surface only) instead of full re-do.
 
 Cross-references:
+
 - 2026-05-19 user audit transcript locked all decisions A1-A9 below (A9 added in self-patch round after dual-deployment Aliyun/Databricks constraint surfaced)
 - `feedback_kb_local_uat_mandatory.md` — UAT discipline mandatory per CLAUDE.md PRINCIPLE #6
 - `feedback_skill_invocation_not_reference.md` — Skills declared inline are not
@@ -117,6 +118,7 @@ User's stated criterion: **"Would a senior engineer say this is overcomplicated?
 | `.planning/STATE-KB-v2.md` | **UPDATE** — append new "last_activity" row for kb-v2.2-7 only |
 
 **Out of scope** (do NOT touch):
+
 - Migration 006 itself (kb-v2.2-2 shipped — leave the SQL file alone; we only EXTEND via 007)
 - `lib/article_filter.py` verdict alphabet (verified `'ok'` / `'reject'` / NULL — unchanged)
 - `kb/api_routers/synthesize.py` and `_QA_PROMPT` (kb-v2.2-4 territory — citations not translations)
@@ -169,6 +171,7 @@ fields surfaced in API + records.
 **Tasks:**
 
 1. **migration 007** at `kb/data/migrations/007_rss_translation_columns.sql`:
+
    ```sql
    -- Mirror migration 006 onto rss_articles
    ALTER TABLE rss_articles ADD COLUMN body_translated TEXT;
@@ -176,6 +179,7 @@ fields surfaced in API + records.
    ALTER TABLE rss_articles ADD COLUMN translated_lang TEXT;
    ALTER TABLE rss_articles ADD COLUMN translated_at TEXT;
    ```
+
    Include rollback comment + version-bump per existing migration convention.
 
 2. **`kb/data/article_query.py`** (5 edits):
@@ -188,6 +192,7 @@ fields surfaced in API + records.
 3. **`kb/api_routers/articles.py`** (`_record_to_list_item` ~line 53+, `_record_to_dict` ~line 172+): emit the two new fields in API response payloads.
 
 4. **Tests**: extend fixtures + add cases per `writing-tests` skill above. Verify with:
+
    ```bash
    venv/Scripts/python.exe -m pytest tests/unit/kb/test_article_query.py tests/unit/kb/test_articles_api.py -v
    ```
@@ -195,6 +200,7 @@ fields surfaced in API + records.
 5. **Doc:** if `kb/docs/<...CONTENT-QUALITY-DECISIONS>.md` (or similar) documents the old looser rule, update the prose to match tightened semantics. Skip if no such doc exists for DATA-07 specifically.
 
 **Done when:**
+
 - migration 007 applied to local dev DB and `PRAGMA table_info(rss_articles)` shows the 4 new columns
 - `grep -n "layer2_verdict" kb/data/article_query.py` shows zero `IS NULL` clauses (only `= 'ok'`)
 - `ArticleRecord` exposes `title_translated` + `translated_lang`
@@ -264,6 +270,7 @@ fields surfaced in API + records.
 3. **No companion files.** No `merge_translations.py`. No `translate_log.jsonl`. No quality gate. No `len_ratio` flagging. User explicitly killed all of these.
 
 **Done when:**
+
 - `databricks-deploy/translate_kb.py` exists and reviewable as a single file
 - Notebook docstring (cell 0) documents the manual trigger workflow + the 1-line `sqlite3 .backup` pre-step user runs on Hermes
 - No bundle yaml additions, no scheduling configuration, no shell scripts
@@ -298,14 +305,17 @@ No design Skill needed — surgical deletion per CLAUDE.md PRINCIPLE 3 (touch on
    - Per `feedback_contract_shape_change_full_audit.md`: `grep -rn 'translation\\|translate_article\\|_load_translation' tests/` → review each match before deciding delete-vs-keep
 
 5. **Grep verification (must all return empty / zero matches):**
+
    ```bash
    grep -rn "translate_article\|_load_translation\|translate-toggle" kb/ tests/
    grep -rn "kb/services/translation\|from kb.services.translation" kb/ tests/
    grep -rn "/api/translate" kb/ tests/    # any remaining route reference
    ```
+
    (`_QA_PROMPT_TEMPLATE_ZH/EN` is unrelated kb-v2.2-4 territory — keep those.)
 
 **Done when:**
+
 - All grep checks above return empty
 - `pytest tests/unit/kb/ tests/integration/kb/ -v` PASSES (no broken imports)
 - `kb/services/translation.py` does not exist on disk
@@ -328,23 +338,29 @@ No design Skill needed — surgical deletion per CLAUDE.md PRINCIPLE 3 (touch on
 1. **`kb/templates/article.html`**:
    - Line 2: change `<html lang="{{ article.lang }}" data-fixed-lang="true">` → `<html lang="{{ article.lang }}">` (keep server-rendered initial lang; lang.js will override per cookie/browser on load — see Wave 5)
    - Line ~72: replace `<h1>{{ article.title }}</h1>` with:
+
      ```jinja
      <h1>
        <span data-lang="zh">{{ article.title }}</span><span data-lang="en">{{ article.title_translated or article.title }}</span>
      </h1>
      ```
+
    - Line ~124: replace single `<article class="article-body">{{ body_html | safe }}</article>` with two sibling articles:
+
      ```jinja
      <article class="article-body" data-lang="zh">{{ body_html | safe }}</article>
      <article class="article-body" data-lang="en">{{ translated_body_html or body_html | safe }}</article>
      ```
+
    - The `.article-detail-layout` wrapper + `.article-aside` block stay unchanged
    - Line 6 `<title>` already has dual-brand format — leave as-is
 
 2. **`kb/templates/articles_index.html`** (and any card include partial used by it): card title dual-span pattern (same shape as article.html h1):
+
    ```jinja
    <span data-lang="zh">{{ card.title }}</span><span data-lang="en">{{ card.title_translated or card.title }}</span>
    ```
+
    Card meta / breadcrumb chrome already uses the dual-span pattern, no changes there.
 
 3. **`kb/export_knowledge_base.py`**:
@@ -358,21 +374,25 @@ No design Skill needed — surgical deletion per CLAUDE.md PRINCIPLE 3 (touch on
 4. **`kb/templates/base.html`** (per A9 — KB_DEFAULT_LANG injection):
    - Locate the `<script src=".../static/lang.js">` tag (currently line 99-ish)
    - Insert a sibling `<script>` tag **immediately before** lang.js loads:
+
      ```jinja
      <script>window.KB_DEFAULT_LANG = "{{ kb_default_lang | default('zh-CN') }}";</script>
      <script src="{{ base_path }}/static/lang.js"></script>
      ```
+
    - The order matters: `window.KB_DEFAULT_LANG` must be set before lang.js IIFE runs
 
 5. **CSS:** NO changes. Existing `kb/static/style.css:330+` `[data-lang]` rules already drive visibility off `<html lang>`.
 
 **Tests:**
+
 - SSG output regression in `tests/integration/kb/test_export_*`: rendered HTML for at least 2 articles in fixture (1 with `title_translated` populated, 1 with NULL) → grep for `data-lang="en"` in output
 - Verify zh-only rendering still works for articles where `title_translated IS NULL` (the `or` fallback emits zh into the `data-lang="en"` span — existing CSS `[data-lang]` rules handle visibility)
 - Verify `data-fixed-lang="true"` no longer appears in any rendered article HTML
 - Verify `window.KB_DEFAULT_LANG = "..."` injection appears in rendered base template before `lang.js` script tag (parametrized test: env var unset → `"zh-CN"`; env var `en` → `"en"`; env var `bogus` → falls back to `"zh-CN"`)
 
 **Done when:**
+
 - SSG of fixture-DB renders article detail page with both `<span data-lang="zh">` and `<span data-lang="en">` blocks for h1 + body
 - `<html data-fixed-lang>` attribute does not appear in any rendered SSG output
 - Articles index card titles emit dual-span
@@ -391,12 +411,15 @@ No design Skill needed — surgical deletion per CLAUDE.md PRINCIPLE 3 (touch on
 
 1. **`kb/static/lang.js:67-69`** (`resolveLang()`):
    - Current:
+
      ```js
      var c = readCookie(COOKIE_NAME);
      if (c && SUPPORTED.indexOf(c) !== -1) return c;
      return detectFromBrowser();
      ```
+
    - New:
+
      ```js
      var c = readCookie(COOKIE_NAME);
      if (c && SUPPORTED.indexOf(c) !== -1) return c;
@@ -407,6 +430,7 @@ No design Skill needed — surgical deletion per CLAUDE.md PRINCIPLE 3 (touch on
 
 2. **`kb/static/lang.js:72-79`** (`applyLang()`):
    - Current:
+
      ```js
      function applyLang(lang) {
        var html = document.documentElement;
@@ -417,7 +441,9 @@ No design Skill needed — surgical deletion per CLAUDE.md PRINCIPLE 3 (touch on
        if (toggle) toggle.setAttribute('data-current', lang);
      }
      ```
+
    - New:
+
      ```js
      function applyLang(lang) {
        document.documentElement.setAttribute('lang', lang);
@@ -431,12 +457,14 @@ No design Skill needed — surgical deletion per CLAUDE.md PRINCIPLE 3 (touch on
 4. **`DEFAULT_LANG` (lang.js:25)** — per A9, replace hardcoded constant with deployment-injected fallback:
    - Current: `var DEFAULT_LANG = 'zh-CN';`
    - New (after the `SUPPORTED` declaration so validation works):
+
      ```js
      var DEFAULT_LANG = (typeof window !== 'undefined'
        && typeof window.KB_DEFAULT_LANG === 'string'
        && SUPPORTED.indexOf(window.KB_DEFAULT_LANG) !== -1)
        ? window.KB_DEFAULT_LANG : 'zh-CN';
      ```
+
    - This preserves ES5 syntax (no arrow / no const), validates against `SUPPORTED`, falls back to `'zh-CN'` if injection missing or invalid (graceful degradation if base.html ever forgets the inject script tag)
 
 5. **Comment block (lang.js:1-18):** update to reflect new behavior:
@@ -460,6 +488,7 @@ No design Skill needed — surgical deletion per CLAUDE.md PRINCIPLE 3 (touch on
 If jsdom unit tests are not feasible (no existing JS test infra), promote these to Playwright UAT cases in Wave 6 instead — note in PLAN execution that this is the chosen path and document in SUMMARY.
 
 **Done when:**
+
 - `grep -n "data-fixed-lang" kb/` returns zero matches across kb/ subtree
 - `applyLang()` always sets `<html lang>`
 - First-visit cookie write validated by test (jsdom or Playwright)
@@ -515,6 +544,7 @@ Capture the actual count + chosen action in `kb-v2.2-7-SUMMARY.md`
 `Skill(skill="frontend-design", args="UAT visual consistency: zh/en pair screenshots at desktop/tablet/mobile (3 viewports × 2 langs = 6 captures minimum). Verify no layout shift between languages, no broken images, no font fallback issues, no chrome misalignment. Verify untranslated-fallback-to-zh in EN site renders cleanly without visual flag (per locked decision A4). Output: pass/fail per scenario + any visual defects.")`
 
 **Launcher** (per `feedback_kb_local_uat_mandatory.md`):
+
 ```bash
 venv/Scripts/python.exe .scratch/local_serve.py
 # → port 8766: SSG + /api/* + /static/*
@@ -535,13 +565,16 @@ venv/Scripts/python.exe .scratch/local_serve.py
 | 9 | **Image inline-mix preservation** — open translated wechat article with ≥5 images zh+en side-by-side; visually compare image-to-paragraph relative positions | image positions in `body_translated` markdown match `body` original positions (no images batched at section/article end, no consecutive-image consolidation, no paragraph reordering) | `.playwright-mcp/kb-v2.2-7-uat-9a-zh.png` + `.playwright-mcp/kb-v2.2-7-uat-9b-en.png` |
 
 **Scenarios 7-8 launcher pattern:**
+
 ```bash
 KB_DEFAULT_LANG=zh-CN venv/Scripts/python.exe .scratch/local_serve.py    # scenario 7
 KB_DEFAULT_LANG=en    venv/Scripts/python.exe .scratch/local_serve.py    # scenario 8
 ```
+
 Browser locale simulation via Playwright MCP `browser_navigate` after `page.context.setExtraHTTPHeaders({'Accept-Language': 'ja-JP,ja'})` or DevTools sensor.
 
 **Scenario 9 verification protocol:**
+
 - Pick an article with `image_count >= 5` from prod data (Aliyun / Hermes have these)
 - After Databricks notebook translation, open `/article/<hash>.html` with cookie `kb_lang=zh` → screenshot 9a
 - Same URL with cookie `kb_lang=en` → screenshot 9b
@@ -549,16 +582,19 @@ Browser locale simulation via Playwright MCP `browser_navigate` after `page.cont
 - BLOCKER if any image relocates >1 paragraph or batches at end
 
 **Curl smoke (all return 2xx):**
+
 ```bash
 curl -i http://localhost:8766/api/articles | head -20
 curl -i http://localhost:8766/api/article/<known-hash> | head -20
 curl -i http://localhost:8766/api/translate/<any-hash>   # MUST 404 (route deleted in Wave 3)
 ```
+
 The 404 from `/api/translate/...` is the positive signal that Wave 3 deletion shipped correctly.
 
 **SUMMARY.md § "Local UAT" must cite all 9 screenshot paths + 3 curl outputs (status + key fields).** Phase MUST NOT be marked complete in STATE-KB-v2.md / VERIFICATION.md until all 9 screenshots captured + GATE 6a documented.
 
 **Done when:**
+
 - 6a query run on Hermes; count + decision documented in SUMMARY
 - 6b Local UAT executed; all 9 scenarios PASS; 9 screenshots (7-9b → 10 files because scenario 9 is a pair) captured + cited
 - 3 curl outputs captured (especially the `/api/translate` 404)
@@ -579,6 +615,7 @@ The 404 from `/api/translate/...` is the positive signal that Wave 3 deletion sh
 | 6 | none (UAT is human-verified, not pytest) | none | none |
 
 **Acceptance:** all updated pytest cases PASS in:
+
 ```bash
 venv/Scripts/python.exe -m pytest tests/unit/kb/ tests/integration/kb/ -v
 ```
@@ -586,43 +623,52 @@ venv/Scripts/python.exe -m pytest tests/unit/kb/ tests/integration/kb/ -v
 ## Acceptance criteria (grep-verifiable + UAT-anchored — combines must_haves)
 
 **Schema + data layer**
+
 - [ ] `kb/data/migrations/007_rss_translation_columns.sql` exists; applied migration shows 4 new columns on `rss_articles`
 - [ ] `grep -n "layer2_verdict" kb/data/article_query.py` shows zero `IS NULL` clauses inside DATA-07 fragments (only `= 'ok'`)
 - [ ] `ArticleRecord` exposes `title_translated` + `translated_lang` fields (`grep -n "title_translated\|translated_lang" kb/data/article_query.py`)
 - [ ] `_record_to_dict` API JSON includes both new fields (curl `/api/article/<hash>`)
 
 **Deletion surface (kb-v2.2-2 UX revert verified empty)**
+
 - [ ] `kb/services/translation.py` does NOT exist on disk (`ls kb/services/translation.py 2>&1 | grep -q "No such"`)
 - [ ] `grep -rn "translate_article\|_load_translation\|translate-toggle\|kb/services/translation" kb/ tests/` returns ZERO matches
 - [ ] `grep -rn "data-fixed-lang" kb/` returns ZERO matches
 - [ ] Curl smoke: `/api/translate/<hash>` returns HTTP 404 (positive signal of Wave 3 deletion)
 
 **Bilingual rendering**
+
 - [ ] `grep -n 'data-lang="en"' kb/templates/article.html` shows ≥2 matches (h1 + body)
 - [ ] `grep -n 'data-lang="en"' kb/templates/articles_index.html` shows ≥1 match (card title)
 
 **Per-deployment default lang (A9, both Aliyun + Databricks)**
+
 - [ ] `grep "KB_DEFAULT_LANG" kb/static/lang.js kb/templates/base.html kb/export_knowledge_base.py` shows ≥1 match in EACH file (3 files total)
 - [ ] Rendered `base.html` output contains `<script>window.KB_DEFAULT_LANG = "..."</script>` BEFORE the `lang.js` script tag (verified by Wave-4 SSG regression test)
 - [ ] UAT scenarios 7+8 PASS (KB_DEFAULT_LANG=zh-CN renders zh on ja-JP browser; KB_DEFAULT_LANG=en renders en on ja-JP browser)
 
 **Image inline-mix preservation (R7)**
+
 - [ ] Wave 2 notebook prompt contains the four explicit clauses (image positioning structural / no relocate to ends / no consolidate / no reorder paragraphs) — grep `databricks-deploy/translate_kb.py` for "structural" and "MUST"
 - [ ] UAT scenario 9 PASS: per-article image-paragraph-position diff ≤1 paragraph between zh/en versions (recorded in SUMMARY)
 - [ ] Notebook safety-check log captured: any rows where `orig_img_count != trans_img_count` flagged in `translate_kb_run.log` (manual spot-check before next batch)
 
 **Databricks notebook (manual-trigger only)**
+
 - [ ] `databricks-deploy/translate_kb.py` exists as single file; no `databricks.yml` job entry added; no companion shell script in `scripts/` subdir
 - [ ] Notebook reviewed by user before first prod run
 
 **Pre-deploy + UAT gates**
+
 - [ ] Pre-deploy GATE 6a: Hermes-side L2-pending count + decision documented in SUMMARY § "Pre-deploy verification gate"
 - [ ] Local UAT: 9 scenarios PASS, 10 screenshots captured under `.playwright-mcp/kb-v2.2-7-uat-*.png` (scenario 9 is a zh/en pair → 9a + 9b) + cited in SUMMARY § "Local UAT"
 
 **Tests**
+
 - [ ] All updated pytest cases PASS; no regressions vs baseline (`pytest tests/unit/kb/ tests/integration/kb/ -v`)
 
 **Skill discipline (per `feedback_skill_invocation_not_reference.md`)**
+
 - [ ] SUMMARY.md contains literal substrings:
   - `Skill(skill="python-patterns"` — Wave 1 + Wave 2 (2+ occurrences; Wave 3 deletion does NOT need skill invocation)
   - `Skill(skill="writing-tests"` — Wave 1
@@ -664,6 +710,7 @@ executor MUST emit each as an actual `Skill` tool call during execution.
 - Forward-only commits; if attribution drifts due to concurrent quick activity, document in STATE-KB-v2.md row, do NOT amend
 
 Possible concurrent territories during this phase's execute window:
+
 - kdb-2 / kdb-2.5 Databricks app activity (different files: `databricks-deploy/app.yaml`, `_wave0_probe.py`)
 - Sibling kb-v2.2 phases — none currently active that touch the same files
 

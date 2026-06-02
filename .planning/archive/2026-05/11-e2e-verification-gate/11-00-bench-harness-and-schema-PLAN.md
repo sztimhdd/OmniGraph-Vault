@@ -75,6 +75,7 @@ Output: a working CLI that produces a valid `benchmark_result.json` with stubbed
 <!-- Key contracts the executor needs. Extract from codebase rather than re-deriving. -->
 
 Fixture metadata.json shape (test/fixtures/gpt55_article/metadata.json):
+
 ```json
 {
   "title": "GPT-5.5来了！全榜第一碾压Opus 4.7，OpenAI今夜雪耻",
@@ -84,9 +85,11 @@ Fixture metadata.json shape (test/fixtures/gpt55_article/metadata.json):
   "images_after_filter": 28
 }
 ```
+
 Fixture article.md is 119 lines of markdown. Fixture images/ has 28 pre-filtered image files.
 
 Relevant existing imports from ingest_wechat.py (for helper reuse if needed):
+
 - `from lib import embedding_func` — current embedding func
 - `from lightrag_llm import deepseek_model_complete` — LLM
 - `from image_pipeline import describe_images, emit_batch_complete, get_last_describe_stats,
@@ -98,6 +101,7 @@ JSON log pattern from image_pipeline.py (lines 83-100 region — `emit_batch_com
 own warning lines.
 
 PRD JSON schema (EXACT — from 11-PRD.md lines 53-84):
+
 ```json
 {
   "article_hash": "...",
@@ -115,6 +119,7 @@ PRD JSON schema (EXACT — from 11-PRD.md lines 53-84):
   "errors": []
 }
 ```
+
 </interfaces>
 </context>
 
@@ -294,6 +299,7 @@ Phase-level checks for this plan:
 </verification>
 
 <success_criteria>
+
 - CLI entry point exists and is importable as a module (for unit testing `main(argv=None)` pattern)
 - Fixture reader produces a clean dict from `article.md` + `metadata.json` + `images/` WITHOUT network I/O
 - Stage timing scaffold produces all 5 stage keys with int millisecond values

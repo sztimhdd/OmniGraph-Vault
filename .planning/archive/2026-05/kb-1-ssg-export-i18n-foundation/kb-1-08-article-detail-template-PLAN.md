@@ -92,17 +92,20 @@ context = {
 ```
 
 CSS classes available (from style.css plan-04):
+
 - `.breadcrumb` — top crumb trail
 - `.lang-badge` — content lang indicator
 - `.article-body` — main content max-width 720px
 - Pygments `.codehilite` (Monokai) for code blocks
 
 The KEY axis distinction (CONTEXT.md "Content language vs UI language (two axes)"):
+
 - DETAIL pages: `<html lang>` = content lang (fixed at SSG time, server-set)
 - Detail pages set `<html data-fixed-lang="true">` so lang.js does NOT override
 - BUT: chrome elements (nav links, breadcrumb, footer) STILL emit dual-span — user can read article body in English while UI chrome is Chinese
 - Article BODY content displays in its original language regardless of UI chrome lang
 </interfaces>
+
 </context>
 
 <tasks>
@@ -289,6 +292,7 @@ print('OK')
 </verification>
 
 <success_criteria>
+
 - I18N-05 satisfied: `<html lang>` set per content lang (not chrome lang); `data-fixed-lang="true"` prevents JS override
 - I18N-06 satisfied: visible lang badge near article title
 - UI-06 satisfied: JSON-LD Article schema with inLanguage

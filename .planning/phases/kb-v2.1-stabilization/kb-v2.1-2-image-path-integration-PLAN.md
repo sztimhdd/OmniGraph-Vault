@@ -22,6 +22,7 @@ Browser-side: images render with `naturalWidth > 0`, not HTML fallback, not
 ## Why
 
 Aliyun production observation 2026-05-14:
+
 - Article body markdown still contains `/static/img/...` (bare prefix) in some
   paths — falls through Caddy `/kb/*` matcher → catch-all returns SPA HTML
 - `naturalWidth=0` for content images on multiple test articles
@@ -63,6 +64,7 @@ grep -rnE "localhost:8765|/static/img|http://localhost" kb/ tests/
 ```
 
 Map every call site. Expected:
+
 - `kb/data/article_query.py` `get_article_body()` — D-14 fallback + EXPORT-05 rewrite
 - `kb/templates/article.html` — image emission (Jinja2)
 - `kb/api.py` — JSON response shape
@@ -126,6 +128,7 @@ Image extraction: post-rewrite, `re.findall(r"!\[[^\]]*\]\(([^)]+)\)", body_md)`
 Invoke `Skill(skill="writing-tests", args="Testing Trophy: integration > unit. Real fixture article with body containing 3+ localhost:8765 image refs. Parametrize across KB_BASE_PATH='' (root deploy) and KB_BASE_PATH='/kb' (subdir). Assert body_md contains correctly-prefixed paths. Assert images field has expected count + format. Smoke against .dev-runtime live data: /api/article/{known-hash} for an article with N images returns body+images with /kb/static/img/ paths.")`.
 
 `tests/integration/kb/test_image_paths.py`:
+
 - `test_rewrite_localhost_8765_to_kb_static_img_with_base_path`
 - `test_rewrite_localhost_8765_to_static_img_without_base_path`
 - `test_rewrite_idempotent_when_paths_already_prefixed`
@@ -133,6 +136,7 @@ Invoke `Skill(skill="writing-tests", args="Testing Trophy: integration > unit. R
 - `test_export_driver_emits_prefixed_paths_when_kb_base_path_set`
 
 `tests/integration/kb/test_api_article_detail.py` (extend):
+
 - `test_api_article_detail_response_includes_images_field`
 - `test_api_article_detail_body_md_paths_match_kb_base_path`
 
@@ -174,6 +178,7 @@ Capture screenshots: `.playwright-mcp/kb-v2.1-2-images-{step}.png`.
 ## Skill discipline
 
 SUMMARY.md MUST contain:
+
 - `Skill(skill="python-patterns"`
 - `Skill(skill="writing-tests"`
 

@@ -7,6 +7,7 @@
 # Milestone v3.2 — Batch Reliability + Infra (Milestone B + C)
 
 **Revision history:** v1 (2026-04-30, initial plan commit 0bdec26) → **v2 (2026-05-01, post v3.1 closure alignment):** absorbed v3.1 closure findings + baseline. Specific changes:
+
 - Predecessor status: "must be gate-passing first" → "closed 2026-05-01 @ commit 2b38e98 (26/26 REQs delivered; E2E-02 gate revised <120s → <600s based on real baseline)"
 - Phase 17 default BATCH_TIMEOUT 3600s → 28800s (8h); worked example rewritten with 441s/article Hermes baseline
 - Phase 12: added locked decision D-SUBDOC — sub-doc lifecycle moves into checkpoint state machine (absorbs v3.1 closure Finding 1: `vision_worker_drain_timeout=120s` insufficient, only 2/7 sub-doc chunks completed in Hermes prod run)
@@ -20,6 +21,7 @@
 **Predecessor:** Milestone v3.1 (Single-Article Ingest Stability) — **closed 2026-05-01 @ commit 2b38e98** (see `docs/MILESTONE_v3.1_CLOSURE.md`). 26/26 REQs delivered on both dev and production stacks; E2E-02 gate revised to <600s based on real Hermes DeepSeek baseline of 441s/article.
 
 **Success Criteria:**
+
 - 56+ article batch completes with zero unhandled exceptions
 - Transient failures (Vision 503, network timeouts) are auto-recovered without re-scraping prior articles
 - 3–5 regression fixtures (multi-image, sparse-image, text-only profiles) all pass
@@ -32,12 +34,14 @@
 ## Context from Hermes Diagnostic
 
 **Phase 5 Wave 0b Current State:**
+
 - 56/282 KOL articles killed by embedding 429 quota exhaustion
 - Single article killed at 1882s, batch timeout at 1200s
 - Batch ingestion has no recovery path — one 503 kills entire batch
 - No staged checkpoint — re-running batch always re-scrapes and re-processes from scratch
 
 **Hermes Recommendation:**
+
 - Decouple Milestone A (single-article stability) from Milestone B (batch reliability)
 - Batch reliability depends on Milestone A being gate-passing first
 - Checkpoint/resume is the single highest-leverage feature for batch reliability
@@ -60,6 +64,7 @@
    - `vision_worker` → Per-image Vision descriptions cached at `05_vision/{image_id}.json` (no `.done` needed — async worker, fire-and-forget)
 
 2. **Checkpoint Format:**
+
    ```
    checkpoints/
    ├── {article_hash}/
@@ -102,6 +107,7 @@
 **Objective:** Intelligent fallback from SiliconFlow → OpenRouter → Gemini (last-resort) with per-provider failure tracking and circuit breaker logic.
 
 **Current State (Milestone A):**
+
 - Image pipeline cascades Gemini → SiliconFlow → OpenRouter (wrong order)
 - No failure tracking per provider
 - Single 503 from any provider propagates as exception, blocking entire article
@@ -114,6 +120,7 @@
    - **Fallback 2:** Gemini Vision (free tier with key rotation, 500 RPD; last resort when paid services fail/depleted)
 
 2. **Provider State Tracking:**
+
    ```python
    # Persist per-batch:
    provider_status = {
@@ -168,6 +175,7 @@
    | `mixed_quality` | 15 | 5000 chars | Mix of JPEG/PNG, some corrupted (fallback) | Vision cascade coverage |
 
 2. **Fixture Location & Schema:**
+
    ```
    test/fixtures/
    ├── gpt55_article/
@@ -193,6 +201,7 @@
    ```
 
 3. **Batch Validation Script:**
+
    ```bash
    python scripts/validate_regression_batch.py \
      --fixtures test/fixtures/gpt55_article \
@@ -203,6 +212,7 @@
    ```
 
 4. **Validation Report Schema:**
+
    ```json
    {
      "batch_id": "regression_2026-05-01_001",
@@ -254,6 +264,7 @@
 **Objective:** Design and document the migration path from Gemini API free tier (quota coupling risk) to Vertex AI OAuth2 with optional cross-project quota isolation, so 429 errors in one service don't cascade to another.
 
 **Context:**
+
 - **Current Problem:** Embedding + LLM share same GCP project quota pool → one service's 429 kills entire batch
 - **Long-term Solution:** Vertex AI paid tier with cross-project isolation
 - **Milestone B Scope:** Design & documentation only; code integration deferred to post-Milestone B
@@ -278,6 +289,7 @@
      - Backward-compat: `lib/api_keys.py` tries Vertex AI first, falls back to Gemini API key
 
 2. **Service Account Template** (`credentials/vertex_ai_service_account_example.json`):
+
    ```json
    {
      "type": "service_account",
@@ -292,6 +304,7 @@
      "client_x509_cert_url": "..."
    }
    ```
+
    Note: Template only (no real credentials).
 
 3. **Documentation Updates:**
@@ -306,6 +319,7 @@
      - Cost: estimate ¥/month for expected article volume
 
 4. **Cost Estimation Tool** (`scripts/estimate_vertex_ai_cost.py`):
+
    ```bash
    python scripts/estimate_vertex_ai_cost.py --articles 282 --avg-images-per-article 25
    # Output: Estimated cost for 282 articles with 25 images/article:
@@ -332,6 +346,7 @@
 
 2. **Operator Runbook** (`docs/OPERATOR_RUNBOOK.md`):
    - **Pre-Batch Checklist:**
+
      ```
      [ ] SiliconFlow balance >= ¥1.00 (budget for 20+ images)
      [ ] DEEPSEEK_API_KEY set and valid
@@ -343,6 +358,7 @@
      ```
 
    - **Batch Execution:**
+
      ```bash
      # Full batch from scratch
      python batch_ingest_from_spider.py --topics ai --depth 2 --reset-checkpoint
@@ -401,6 +417,7 @@
 ## Acceptance Criteria
 
 ### Gate 0: Vertex AI Infrastructure Design Complete
+
 - [ ] `docs/VERTEX_AI_MIGRATION_SPEC.md` documents GCP project setup, OAuth2 token management, pricing comparison
 - [ ] `credentials/vertex_ai_service_account_example.json` template provided
 - [ ] CLAUDE.md includes "Vertex AI Migration Path" section with problem statement + recommendation
@@ -409,12 +426,14 @@
 - [ ] **No code changes required;** design is complete and documented
 
 ### Gate 1: Checkpoint/Resume Works End-to-End
+
 - [ ] Single article with injected failure at stage 3 (image-download) resumes correctly at stage 4 (text-ingest)
 - [ ] Checkpoint files are atomically written (no corrupted `.tmp` left behind on crash)
 - [ ] `checkpoint_reset.py --hash` deletes checkpoint and full re-run succeeds
 - [ ] Manual inspection of `checkpoint/{article_hash}/` matches documented schema
 
 ### Gate 2: Vision Cascade with Circuit Breaker
+
 - [ ] SiliconFlow 503 → auto-cascade to OpenRouter without exception
 - [ ] After 3 consecutive SiliconFlow 503s, circuit opens and SiliconFlow skipped for remaining images in batch
 - [ ] Gemini is used only if both SiliconFlow and OpenRouter circuit-open
@@ -422,6 +441,7 @@
 - [ ] SiliconFlow balance warning triggers when balance < estimated remaining cost
 
 ### Gate 3: Regression Fixtures Pass
+
 - [ ] All 5 fixtures complete without exception
 - [ ] `batch_validation_report.json` shows `batch_pass: true`
 - [ ] `dense_image_article` (45 images) successfully filters to expected count and all survive Vision
@@ -429,6 +449,7 @@
 - [ ] `mixed_quality_article` handles both JPEG and PNG without errors
 
 ### Gate 4: Documentation Complete
+
 - [ ] CLAUDE.md contains Checkpoint Mechanism + Vision Cascade + SiliconFlow sections
 - [ ] `docs/OPERATOR_RUNBOOK.md` covers Pre-Batch Checklist, Batch Execution, Failure Scenarios, Manual Intervention
 - [ ] `docs/DEPLOY.md` updated with SiliconFlow paid tier notes and Vertex AI forward-looking section

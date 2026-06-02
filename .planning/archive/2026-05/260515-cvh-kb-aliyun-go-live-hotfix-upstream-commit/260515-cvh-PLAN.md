@@ -82,6 +82,7 @@ Purpose: Close 4 production-traceable defects (Q&A 404 on source chip click, CSS
 Output: Patched code + new tests + RUNBOOK + SUMMARY + STATE update + atomic commit pushed to origin/main.
 
 Out of scope (DO NOT implement):
+
 - Hero-image-strip template migration (deferred to v2.1 backlog `kb-templates-index-hero-strip-migration`)
 - Replacing _ENTITY_HINTS hardcoded list with proper LightRAG entity_canonical query (v2.1 backlog)
 - Changing C1 contract (kg_synthesize.synthesize_response signature read-only per KB-v2)
@@ -305,12 +306,14 @@ PATCH_END
 RUNBOOK.md must give the Aliyun operator BOTH paths with explicit warnings:
 
 **Path A — Hot-patch sync (preserves Aliyun's hero-strip):**
+
 - rsync only the 4 changed files (synthesize.py, qa.js, search.js, VitaClaw-Logo-v0.png) into the Aliyun deploy dir
 - DO NOT re-run `kb/export_knowledge_base.py` (would clobber hero-strip in index.html)
 - Restart uvicorn / kb service
 - Verify: visit /ask, submit a question, click a source chip → should land on /articles/{hash}.html (not /article/{hash}.html, not 404)
 
 **Path B — Full re-export (accepts hero-strip loss):**
+
 - Pull origin/main on Aliyun
 - Run `kb/export_knowledge_base.py` (regenerates kb/output/ from templates — hero-strip in index.html will be lost since templates don't have it)
 - Restart uvicorn / kb service
@@ -318,6 +321,7 @@ RUNBOOK.md must give the Aliyun operator BOTH paths with explicit warnings:
 - This path is the standard, lower-risk-of-drift option for ops who don't need hero-strip preserved
 
 **PNG sha256 note (both paths):**
+
 - The committed kb/static/VitaClaw-Logo-v0.png has sha256=2c71bdf438045ea6c3511cb3722c1ac4673d427032571a36971fa5d0c2fc6f54 (470KB, 2048x2048 RGBA)
 - This is NOT byte-identical to the Aliyun production blob (3c827d3...). It is a re-encoded but visually equivalent PNG.
 - If Aliyun ops cares about byte-identity, they should keep the existing Aliyun PNG and skip syncing the new one.
@@ -358,6 +362,7 @@ Notes:
 - _ENTITY_HINTS is a v2.0 minimum-viable hardcoded list. v2.1 backlog will
   replace with extracted_entities table join or LightRAG entity_canonical.
 ```
+
 </commit_message_spec>
 </context>
 
@@ -673,12 +678,14 @@ Notes:
 After all 5 tasks complete:
 
 1. **Discipline regex** — both Skill names appear verbatim in SUMMARY.md:
+
    ```
    grep -c "Skill(skill=\"python-patterns\"" .planning/quick/260515-cvh-kb-aliyun-go-live-hotfix-upstream-commit/260515-cvh-SUMMARY.md  # ≥1
    grep -c "Skill(skill=\"writing-tests\"" .planning/quick/260515-cvh-kb-aliyun-go-live-hotfix-upstream-commit/260515-cvh-SUMMARY.md   # ≥1
    ```
 
 2. **Test gate** — 10 new tests green:
+
    ```
    PYTHONIOENCODING=utf-8 venv/Scripts/python.exe -m pytest tests/integration/kb/test_qa_link_contract.py tests/unit/kb/test_synthesize_hotfix.py -v
    # expect: 10 passed
@@ -704,6 +711,7 @@ After all 5 tasks complete:
 </verification>
 
 <success_criteria>
+
 - All 5 tasks pass their automated verify commands
 - 10 new tests green (3 integration + 7 unit)
 - SSG re-renders cleanly in both KB_BASE_PATH modes

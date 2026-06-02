@@ -108,6 +108,7 @@ UAT script: `.scratch/kb-2-uat-screenshots.py` (Python Playwright headless Chrom
 All ROADMAP-KB-v2 success criteria met. kb-2 ready to be marked complete in tracking files.
 
 Recommended next steps:
+
 1. `/gsd:discuss-phase kb-3` — FastAPI Backend + Bilingual API + Search + Q&A
 2. Quick task: migrate `export_module` fixture to subprocess pattern (cross-test pollution fix)
 3. UI-SPEC §8 #35 source rebase to ≤ 2000

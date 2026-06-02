@@ -153,6 +153,7 @@ retried for free.
 **Safe execution window:** `adelete_by_doc_id` uses a pipeline lock
 (`pipeline_status_lock`) and rejects calls when the pipeline is busy with
 non-deletion tasks (source: `lightrag.py:3247`). The CLI tool must therefore:
+
 1. Check that no `ainsert` batch is running (check `pipeline_status` shared namespace).
 2. Run `adelete_by_doc_id` only after the batch exits.
 3. This is an operator-initiated operation — never automated.
@@ -166,6 +167,7 @@ handles all four; no manual file-level surgery is needed.
 ## MVP Recommendation (feature priority for Wave ordering)
 
 **Wave 1 must deliver:**
+
 1. Generic scraper module with cascade (Apify → CDP → MCP → UA → plain HTTP fallback) for non-WeChat URLs
 2. `rss_articles.body` SQLite column migration
 
@@ -182,6 +184,7 @@ handles all four; no manual file-level surgery is needed.
 10. Cron cutover
 
 **Defer to post-v3.4:**
+
 - trafilatura as optional fallback (add only if Wave 1 extraction quality fails on real RSS sources)
 - Option D RSS classifier batch refactor (already capped at 500 via env; performance optimization deferred)
 - DeepSeek 600s merge timeout (Phase 17 tracking issue)

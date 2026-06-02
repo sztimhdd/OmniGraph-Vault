@@ -336,6 +336,7 @@ Output: `kb-4-LOCAL-UAT.md` with curl + Playwright evidence + 15 screenshots + a
 </verification>
 
 <success_criteria>
+
 - Rule 3 mandatory artifact present + cited
 - All endpoints + pages exercised in real runtime, not just TestClient
 - Any visual gaps closed via proper ui-ux-pro-max + frontend-design Skill invocation (NOT band-aid CSS)

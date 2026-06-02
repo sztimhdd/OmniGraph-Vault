@@ -79,6 +79,7 @@ because the timer hasn't yet fired its first natural daily run).
 ### Task 1 — Author docs/runbooks/aim-4-aliyun-wiki-commit.md
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-4-daily-sync\aim-4-CONTEXT.md`
   lines 316-329 (Aliyun manual wiki commit pattern)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\PROJECT-Aliyun-Ingest-Migration-v1.md`
@@ -91,6 +92,7 @@ because the timer hasn't yet fired its first natural daily run).
   document both paths.
 
 **`<acceptance_criteria>`**
+
 - `docs/runbooks/aim-4-aliyun-wiki-commit.md` exists.
 - Contains: purpose / when to run / step-by-step / git auth fallback /
   cadence / Q4c context / pointer to LLM-Wiki-Integration-P2.
@@ -220,6 +222,7 @@ Aliyun-Ingest-Migration-v1.
 - `.planning/PROJECT-Aliyun-Ingest-Migration-v1.md` Q4c
 - `.planning/STATE-Aliyun-Ingest-Migration-v1.md` Decisions Q4c
 - LLM-Wiki-Integration-P2 milestone (separate scope, not yet chartered)
+
 ```
 
 ### Task 2 — Author docs/runbooks/aim-4-databricks-sync03-verify.md
@@ -338,6 +341,7 @@ trade-off, not a regression.
 - `.planning/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` SYNC-03
 - `.planning/phases/aim-4-daily-sync/aim-4-CONTEXT.md` FINDING 8
 - `docs/runbooks/aim-4-aliyun-wiki-commit.md` (sibling runbook)
+
 ```
 
 ### Task 3 — Author evidence + commit

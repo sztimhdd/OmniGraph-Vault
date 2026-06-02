@@ -81,6 +81,7 @@ Output: ~20 markdown files in `kb/wiki/entities/`, two helper CLI scripts, ranki
 <!-- Existing LightRAG + lib/ APIs that this plan consumes -->
 
 From `lib/lightrag_embedding.py` and `lib/llm_client.py`:
+
 ```python
 # Get a LightRAG instance configured for current environment
 from lib.lightrag_embedding import get_rag  # async; returns LightRAG instance
@@ -89,22 +90,26 @@ result = await rag.aquery(question, param=QueryParam(mode="hybrid"))
 ```
 
 From `config.py`:
+
 ```python
 RAG_WORKING_DIR  # absolute path to lightrag_storage/ — contains vdb_entities.json + vdb_relationships.json
 BASE_DIR          # absolute path to ~/.hermes/omonigraph-vault/ (or .dev-runtime/)
 ```
 
 LightRAG storage JSON files (read directly per RESEARCH.md "Don't Hand-Roll" — centrality is O(N) read):
+
 ```
 {RAG_WORKING_DIR}/vdb_entities.json        # list of {entity_name, entity_type, content, source_id, ...}
 {RAG_WORKING_DIR}/vdb_relationships.json   # list of {src_entity, tgt_entity, keywords, description, source_id, ...}
 ```
 
 Existing citation regex (per RESEARCH.md "Don't Hand-Roll"):
+
 ```python
 # kb/services/synthesize.py — _resolve_sources_from_markdown uses this regex
 r'\/article\/([a-f0-9]{10})'
 ```
+
 For wiki content we use the inline footnote form `^[article:<10hex>]` and resolve at consumer side.
 </interfaces>
 
@@ -290,6 +295,7 @@ Phase-level verification for W1:
 </verification>
 
 <success_criteria>
+
 1. Top 50 entities ranked by centrality, audit trail in RANKING.md
 2. User approved 20 (or smaller N) selection + cost estimate before any generation
 3. 20 wiki pages with multi-hop graph context + citations live in kb/wiki/entities/

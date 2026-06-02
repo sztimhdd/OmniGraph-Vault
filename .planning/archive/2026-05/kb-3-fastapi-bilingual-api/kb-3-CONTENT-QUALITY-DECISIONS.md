@@ -22,6 +22,7 @@ audience: gsd-planner (when /gsd:plan-phase kb-3 runs), kb-3 executor agents
 **Symmetric application:** both `articles` (KOL) and `rss_articles` have `body`, `layer1_verdict`, `layer2_verdict` columns since v3.5 ir-4. Filter SQL is identical modulo table name. No source-specific carve-out.
 
 **Affected query functions:** all of these MUST be updated:
+
 - `list_articles()` (kb-1 — REQ DATA-04)
 - `topic_articles_query()` (kb-2 — REQ TOPIC-02)
 - `entity_articles_query()` (kb-2 — REQ ENTITY-02)
@@ -30,6 +31,7 @@ audience: gsd-planner (when /gsd:plan-phase kb-3 runs), kb-3 executor agents
 - `related_topics_for_article()` (kb-2 — REQ LINK-02)
 
 **NOT affected (intentional carve-out):**
+
 - `get_article_by_hash()` — direct URL access by hash. A user clicking a search result, KG synthesize source link, or bookmark must still resolve to the rendered detail page even if the article wouldn't appear in a list. **The detail page reaches `kb/output/articles/{hash}.html` via static-file serve regardless.** Rationale: list curates discoverability; detail preserves direct-URL stability.
 - The SSG-rendered detail HTML files (`kb/output/articles/*.html`) — already on disk, served as static assets. The filter only changes which articles appear in *list* surfaces, not which detail pages exist.
 
@@ -74,6 +76,7 @@ QUALITY_FILTER_ENABLED = os.environ.get("KB_CONTENT_QUALITY_FILTER", "on").lower
 ```
 
 When `KB_CONTENT_QUALITY_FILTER=off`, the WHERE clauses (3 quality conditions) are skipped — list functions revert to pre-DATA-07 behavior. Used for:
+
 - Debugging "why doesn't this article show up" tickets
 - One-off audits of the unfiltered corpus
 - Migration verification (compare filtered vs unfiltered counts)
@@ -110,6 +113,7 @@ These percentages are **the intended quality bar**, not a bug. The 6% combined v
 | **kb-3** | `GET /api/search` | OPEN QUESTION (see below) | Plan task should resolve. |
 
 **Open question — search results filtering:** Should `/api/search?q=...` apply DATA-07 to FTS5 hits? Two camps:
+
 - **Apply filter** (consistent with list views) — search becomes a quality-curated discovery surface
 - **Skip filter** (search is keyword retrieval, not curation) — a user searching for a known term should find any matching article including pre-Layer-1 historical rows
 
@@ -118,6 +122,7 @@ These percentages are **the intended quality bar**, not a bug. The 6% combined v
 ## Fixture coordination (kb-2-01)
 
 `tests/integration/kb/conftest.py::build_kb2_fixture_db()` (kb-2-01 plan, already committed `977f13f`) must populate `layer1_verdict` and `layer2_verdict` columns on fixture article rows so the filter doesn't accidentally drop test data. Per kb-2-01 PLAN, the fixture currently inserts ~5 topics × 3 articles + 6 above-threshold entities. Each article row MUST have:
+
 - `body` — non-empty (already required for kb-1 fixture)
 - `layer1_verdict = 'candidate'`
 - `layer2_verdict` — either `'ok'` (positive case) or `NULL` (backwards-compat case)
@@ -129,20 +134,24 @@ If kb-2-01 has already shipped without these verdict columns, the kb-3 plan task
 ## Rollout plan (suggested for kb-3 planner)
 
 **Wave 0 (foundation, depends on nothing):**
+
 - Update `_NULL_VERDICT_GUARD` if needed in `kb/data/article_query.py` (defensive: handle case where DB has NULL verdict but env says filter on — current code may not have this guard).
 - Verify both tables have all 3 columns via `PRAGMA table_info()` at module import — fail loud if any missing (don't silently disable filter on schema drift).
 
 **Wave 1 (data layer):**
+
 - Modify all 6 affected query functions to apply DATA-07 SQL clauses.
 - Honor `KB_CONTENT_QUALITY_FILTER` env override.
 - Add unit tests covering positive + negative + NULL-verdict + missing-body cases.
 
 **Wave 2 (re-export verification):**
+
 - Re-run `python kb/export_knowledge_base.py` against fixture and against `.dev-runtime/data/kol_scan.db`.
 - Verify expected counts: ~127 KOL + ~33 RSS visible in articles list page (vs current 0+50).
 - Capture before/after screenshots — homepage Latest section now shows mixed KOL+RSS, not RSS-only.
 
 **Wave 3 (API surface):**
+
 - API-02 `GET /api/articles` honors filter (delegated by calling `list_articles()`).
 - API-04 `GET /api/search?mode=fts` honors filter unless `KB_SEARCH_BYPASS_QUALITY=on`.
 - API-03 `GET /api/article/{hash}` does NOT filter (carve-out).
@@ -188,6 +197,7 @@ PYTHONPATH=. python -c "import os; os.environ['KB_DB_PATH']='.dev-runtime/data/k
 ## Companion fix (separate quick task, NOT a kb-3 plan)
 
 The **cross-source merge-sort bug** discovered 2026-05-13 (KOL ISO timestamps + RSS RFC 822 strings sort lexicographically wrong, pushing all KOL articles past `limit`) is INDEPENDENT of DATA-07 and should ship as its own quick task BEFORE kb-3 begins. Once both ship:
+
 - DATA-07 reduces visible pool from 2501 → ~160
 - Sort fix ensures the ~160 are sorted correctly by actual time, mixing KOL and RSS chronologically
 
@@ -198,6 +208,7 @@ Suggested quick task slug: `260513-xxx-rss-update-time-iso-normalize` — adds R
 ## Reading list for the kb-3 planner
 
 When `/gsd:plan-phase kb-3` runs, the gsd-planner MUST read this file and:
+
 1. Allocate at least one plan task to implement the data-layer filter (estimate Wave 1 of kb-3)
 2. Update at least one plan task to verify the API layer honors filter (Wave 3)
 3. Reference this file in `<read_first>` of any plan task touching `kb/data/article_query.py`

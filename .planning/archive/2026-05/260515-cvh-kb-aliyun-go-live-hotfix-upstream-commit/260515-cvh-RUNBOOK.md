@@ -16,6 +16,7 @@
 | `kb/static/VitaClaw-Logo-v0.png` | UI-04 logo carry-forward |
 
 **NOT changed (deferred to v2.1 backlog `kb-templates-index-hero-strip-migration`):**
+
 - `kb/templates/index.html` — the hero-image-strip the go-live agent added directly to Aliyun's `index.html` is NOT in this commit. Template-side migration is a separate upcoming quick.
 
 ---

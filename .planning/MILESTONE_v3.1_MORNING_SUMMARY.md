@@ -13,6 +13,7 @@ The pipeline you asked for is **structurally complete**. Here's the hard proof:
 **GPT-5.5 fixture text ingest: 18.3 seconds** (gate was <120s → **6.5× margin**).
 
 This is the single most important number. It means:
+
 - Phase 8 image filter + logging works
 - Phase 9 timeout + rollback + `get_rag(flush)` works
 - Phase 10 scrape-first classifier + text-first decoupling + async Vision worker works
@@ -57,6 +58,7 @@ From `9ebad98` (Phase 9 start) through `4e88b7a` (Phase 11 close). Branch `main`
 The harness is proven working — just needs the real DeepSeek key.
 
 **Option A — Quick local retry (recommended):**
+
 ```bash
 # Windows PowerShell or Git Bash — add real DeepSeek key to ~/.hermes/.env
 echo "DEEPSEEK_API_KEY=sk-..." >> ~/.hermes/.env
@@ -77,6 +79,7 @@ cat test/fixtures/gpt55_article/benchmark_result.json
 ```
 
 **Option B — Kick it over to Hermes (where DeepSeek is already configured):**
+
 ```bash
 # On Hermes
 ssh -p 49221 sztimhdd@ohca.ddns.net
@@ -160,6 +163,7 @@ Then v3.1 is officially closed and v3.2 (batch reliability) can start.
 ## 🌅 If you want to kick off v3.2 immediately after v3.1 closes
 
 Scope already drafted in `REQUIREMENTS.md § Future Requirements (deferred to v3.2 Batch Reliability)`:
+
 - Checkpoint/resume per-article state machine
 - Vision cascade circuit breaker
 - Regression fixtures (3-5 articles, different image profiles)

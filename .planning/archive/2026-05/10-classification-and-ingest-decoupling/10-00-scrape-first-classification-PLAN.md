@@ -77,6 +77,7 @@ topics, rationale columns added idempotently), and 5+ unit tests gating all four
 <!-- Contracts the executor needs; no codebase exploration required. -->
 
 From `batch_ingest_from_spider.py` (current state):
+
 ```python
 # Existing helpers already in place — reuse, do not duplicate
 def _build_filter_prompt(titles: list[str], topic_filter, exclude_topics, digests) -> str: ...
@@ -90,6 +91,7 @@ from spiders.wechat_spider import RATE_LIMIT_SLEEP_ACCOUNTS, RATE_LIMIT_COOLDOWN
 ```
 
 From `ingest_wechat.py` (Phase 9 state — do not modify this file in this plan):
+
 ```python
 async def scrape_wechat_ua(url: str) -> dict | None:
     # Returns {"title", "content_html", "img_urls", "url", "publish_time", "method": "ua"}
@@ -97,6 +99,7 @@ async def scrape_wechat_ua(url: str) -> dict | None:
 ```
 
 From `batch_classify_kol.py` (current state — extend, don't break):
+
 ```python
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
@@ -106,6 +109,7 @@ def run(topic, min_depth, classifier, dry_run) -> None: ...  # KEEP
 ```
 
 Existing `classifications` table schema (from batch_classify_kol.init_db, lines 100-110):
+
 ```sql
 CREATE TABLE IF NOT EXISTS classifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,6 +125,7 @@ CREATE TABLE IF NOT EXISTS classifications (
 ```
 
 Additive migration (D-10.04 picks (a)) — execute once at the top of scrape-first flow:
+
 ```python
 # Add columns idempotently; old columns stay for batch-scan backward-compat
 conn.execute("ALTER TABLE classifications ADD COLUMN IF NOT EXISTS depth INTEGER")
@@ -131,6 +136,7 @@ conn.execute("ALTER TABLE classifications ADD COLUMN IF NOT EXISTS rationale TEX
 # "duplicate column" error. See _ensure_column pattern in batch_scan_kol.init_db.
 # The articles.body column needs the same treatment (D-10.01).
 ```
+
 </interfaces>
 </context>
 
@@ -313,6 +319,7 @@ Phase 8 + Phase 9 regression (22 + 12 tests) stays GREEN — no modifications to
 </verification>
 
 <success_criteria>
+
 - `ingest_from_db` scrapes body on-demand when articles.body is empty, writes body back, classifies on full body, persists to classifications, and gates ingest (D-10.01–04)
 - `_build_fullbody_prompt` + `_call_deepseek_fullbody` live in batch_classify_kol.py and return the new {depth, topics, rationale} shape (D-10.02)
 - No new rate-limit constants introduced (D-10.03 — source-grep test)

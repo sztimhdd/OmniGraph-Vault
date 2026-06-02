@@ -79,16 +79,19 @@ parser.add_argument("--min-depth", type=int, default=2)
 ```
 
 Target shape (chosen: comma-separated for composability with cron args):
+
 ```python
 # --topic-filter "openclaw,hermes,agent,harness"
 # parses to list: ["openclaw", "hermes", "agent", "harness"]
 ```
 
 Existing dedup (per RESEARCH.md Pitfall 4):
+
 ```sql
 -- batch_ingest_from_spider.py:562
 excludes article_id IN (SELECT article_id FROM ingestions WHERE status = 'ok')
 ```
+
 </interfaces>
 </context>
 
@@ -422,6 +425,7 @@ excludes article_id IN (SELECT article_id FROM ingestions WHERE status = 'ok')
 </verification>
 
 <success_criteria>
+
 - D-12 satisfied: all 302 articles classified.
 - D-10 + D-11 satisfied: keyword+depth filter produces a non-empty subset; CLI is re-runnable with new keywords.
 - D-14 satisfied: single Batch submission (if available) OR sync fallback completed.

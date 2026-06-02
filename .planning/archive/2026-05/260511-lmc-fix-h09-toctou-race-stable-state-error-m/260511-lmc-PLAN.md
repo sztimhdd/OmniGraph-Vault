@@ -42,6 +42,7 @@ LightRAG's doc_status shows 'processed' but is either (a) about to flip to 'fail
 or (b) already has error_msg set from a partial-failure DeepSeek 402.
 
 Phase 0 investigation (cited below) confirms:
+
 - lightrag/base.py:784 — DocProcessingStatus.error_msg: str | None = None; populated
   when status=FAILED (set to str(e) at lightrag/lightrag.py:2104 and :2236)
 - lightrag/base.py:752-759 — DocStatus enum: PENDING/PROCESSING/PREPROCESSED/PROCESSED/FAILED
@@ -77,6 +78,7 @@ Output: Updated ingest_wechat.py + 5 new tests in test_ingest_article_processed_
 <!-- Phase 0 findings: LightRAG SDK — cite for anti-fabrication -->
 
 From venv/Lib/site-packages/lightrag/base.py:752-759:
+
 ```python
 class DocStatus(str, Enum):
     """Document processing status"""
@@ -88,6 +90,7 @@ class DocStatus(str, Enum):
 ```
 
 From venv/Lib/site-packages/lightrag/base.py:762-787:
+
 ```python
 @dataclass
 class DocProcessingStatus:
@@ -97,6 +100,7 @@ class DocProcessingStatus:
 ```
 
 From venv/Lib/site-packages/lightrag/lightrag.py (state transition sequence):
+
 - Line 2000-2004: upsert(PROCESSING) — start of doc processing
 - Line 2043-2049: entity_relation_task (_process_extract_entities) — calls DeepSeek
 - Line 2051-2100: except block → upsert(FAILED, error_msg=str(e)) when entity extraction raises
@@ -108,6 +112,7 @@ set alongside FAILED status. If aget_docs_by_ids returns an entry with
 status='processed' AND error_msg non-empty, that entry is stale/corrupt.
 
 Existing _verify_doc_processed_or_raise (ingest_wechat.py:69-127):
+
 ```python
 async def _verify_doc_processed_or_raise(
     rag, doc_id: str, *,
@@ -154,9 +159,11 @@ async def _verify_doc_processed_or_raise(
 ```
 
 Constants to add (alongside existing PROCESSED_VERIFY_MAX_RETRIES / PROCESSED_VERIFY_BACKOFF_S):
+
 ```python
 STABLE_VERIFY_DELAY_S = float(os.getenv("OMNIGRAPH_STABLE_VERIFY_DELAY", "5.0"))
 ```
+
 </interfaces>
 </context>
 
@@ -181,6 +188,7 @@ kwarg (default = STABLE_VERIFY_DELAY_S) for test injection — add it alongside
 existing `max_retries` and `backoff_s`.
 
 Test naming:
+
 - `test_processed_with_error_msg_continues_retry` — Option B error_msg guard (Test A above)
 - `test_processed_stable_recheck_confirms_ok` — Option A stable-check happy path (Test B above)
 - `test_processed_stable_recheck_sees_failed` — Option A stable-check flips to failed (Test C above)
@@ -196,14 +204,17 @@ For Test E: use a MagicMock entry with `.status = DocStatus.PROCESSED` and
   `.error_msg = "Insufficient Balance"` (dataclass-like object path).
 
 **Step 2 — Run tests in RED state (should fail because guard not yet added):**
+
 ```bash
 cd /c/Users/huxxha/Desktop/OmniGraph-Vault && venv/Scripts/python -m pytest tests/unit/test_ingest_article_processed_gate.py -v 2>&1 | tee .scratch/h09race-pytest-red-$(date +%Y%m%d-%H%M%S).log
 ```
+
 Confirm 5 new tests FAIL, 6 existing tests PASS.
 
 **Step 3 — Update ingest_wechat.py:**
 
 3a. Add constant after PROCESSED_VERIFY_BACKOFF_S (around line 56):
+
 ```python
 # quick-260511-lmc: stable-state re-poll delay. After first 'processed' observation,
 # wait this many seconds and re-poll to confirm status is stable (not about to flip
@@ -212,6 +223,7 @@ STABLE_VERIFY_DELAY_S = float(os.getenv("OMNIGRAPH_STABLE_VERIFY_DELAY", "5.0"))
 ```
 
 3b. Add `stable_delay_s` parameter to `_verify_doc_processed_or_raise` signature:
+
 ```python
 async def _verify_doc_processed_or_raise(
     rag,
@@ -273,14 +285,17 @@ and error_msg guard in the diagnostic text. Keep doc_id, max_retries, last_statu
 last_exc in the message — just update the final explanation sentence.
 
 **Step 4 — Run tests GREEN:**
+
 ```bash
 cd /c/Users/huxxha/Desktop/OmniGraph-Vault && venv/Scripts/python -m pytest tests/unit/test_ingest_article_processed_gate.py -v 2>&1 | tee .scratch/h09race-pytest-green-$(date +%Y%m%d-%H%M%S).log
 ```
+
 All 11 tests (6 existing + 5 new) must PASS. If any existing test fails, the
 signature change broke something — check that `stable_delay_s=0.0` is not
 required (it has a default and callers don't pass it).
 
 **HARD STOPS (do NOT touch):**
+
 - Do NOT modify batch_ingest_from_spider.py
 - Do NOT modify tests/unit/test_ainsert_persistence_contract.py
 - Do NOT change PROCESSED_VERIFY_MAX_RETRIES or PROCESSED_VERIFY_BACKOFF_S defaults
@@ -298,6 +313,7 @@ required (it has a default and callers don't pass it).
     - Commit: "fix(ingest-260511-h09r): h09 TOCTOU race — verify processed is stable + error_msg empty before returning, eliminates 2026-05-11 mystery rows from DeepSeek 402 partial-failure"
     - pytest log saved to .scratch/h09race-pytest-green-*.log (cited in commit body)
   </done>
+
 </task>
 
 </tasks>
@@ -306,12 +322,15 @@ required (it has a default and callers don't pass it).
 After task completion:
 
 1. Full test suite regression check:
+
    ```bash
    cd /c/Users/huxxha/Desktop/OmniGraph-Vault && venv/Scripts/python -m pytest tests/unit/ -v --tb=short 2>&1 | tail -30
    ```
+
    All existing unit tests must still pass. No regressions.
 
 2. Confirm STABLE_VERIFY_DELAY_S is in ingest_wechat.py:
+
    ```bash
    grep -n "STABLE_VERIFY_DELAY_S\|stable_delay_s\|error_msg" /c/Users/huxxha/Desktop/OmniGraph-Vault/ingest_wechat.py | head -20
    ```
@@ -319,12 +338,15 @@ After task completion:
 3. Confirm OMNIGRAPH_STABLE_VERIFY_DELAY is env-overridable (present in grep above).
 
 4. Confirm git commit landed:
+
    ```bash
    git -C /c/Users/huxxha/Desktop/OmniGraph-Vault log --oneline -3
    ```
+
 </verification>
 
 <success_criteria>
+
 - 11/11 tests pass in test_ingest_article_processed_gate.py
 - No regression in tests/unit/ suite
 - _verify_doc_processed_or_raise performs two guards before returning True:

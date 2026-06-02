@@ -81,6 +81,7 @@ completed: 2026-05-04
 Added `_PHASE19_RSS_ARTICLES_ADDITIONS` tuple with 5 entries `(col_name, col_type)` and `_ensure_rss_columns(conn)` function that reads `PRAGMA table_info(rss_articles)`, issues `ALTER TABLE rss_articles ADD COLUMN {col} {type}` only for missing ones, and commits once. Wired into `init_rss_schema` AFTER the `_DDL` CREATE-TABLE loop so every caller of schema init gets the Phase-19 migration for free. Second invocation produces zero ALTER statements and zero errors.
 
 Columns added (all nullable):
+
 - `body TEXT` — full-body scrape result (Phase 20 RCL-03 prerequisite)
 - `body_scraped_at TEXT` — ISO-8601 scrape timestamp
 - `depth INTEGER` — full-body classify depth 1-3
@@ -105,6 +106,7 @@ Columns added (all nullable):
 **Root cause:** `ingest_wechat.py` at lines 823/828/1058/1065 was registering/clearing `_pending_doc_ids[article_hash]` using `article_hash = MD5[:10]`. `batch_ingest_from_spider.py:291` was calling `get_pending_doc_id(article_hash)` but `article_hash` is now `SHA-256[:16]` after SCH-02. The lookup would never match the registry key → `rag.adelete_by_doc_id()` never called on timeout → STATE-02 rollback silently broken.
 
 **Surgical fix:**
+
 - `ingest_wechat.py`: 4 tracker call sites switched from `article_hash` (MD5[:10]) to `ckpt_hash` (SHA-256[:16], already in scope via `_ckpt_hash_fn = get_article_hash` at line 64). The image-dir namespace (`BASE_IMAGE_DIR/{article_hash}`) and the stored `doc_id = f"wechat_{article_hash}"` (LightRAG doc_id namespace) both keep MD5[:10] — only the in-memory registry KEY changed.
 - `tests/unit/test_rollback_on_timeout.py`: 3 tests updated to compute `tracker_hash = get_article_hash(url)` (the new key) while keeping `doc_id = f"wechat_{md5_hash[:10]}"` (the value). All 4 rollback tests now GREEN.
 
@@ -145,12 +147,14 @@ $ DEEPSEEK_API_KEY=dummy venv/Scripts/python -m pytest tests/ -q --ignore=tests/
 ```
 
 **Pass delta vs Wave-1 baseline (463 passed, 14 failed):**
+
 - +3 Phase-19 Wave-2 tests GREEN (SCR-06, SCH-01, SCH-02)
 - -3 rollback tests temporarily RED after Task 2.1 → +3 GREEN after Rule 1 fix (net zero rollback churn)
 - +2 pre-existing cognee vertex tests RED (introduced by `74f7503` from origin/main, NOT by Phase 19-02 — logged in `deferred-items.md`)
 - Net: +1 pass over Wave-1 baseline
 
 **Failure attribution:**
+
 - **11 pre-existing out-of-scope failures** (documented in `deferred-items.md` from Plan 19-00 — Phase 5/10/11/13 legacy)
 - **2 new pre-existing failures** from `74f7503` (cognee LiteLLM routing fix from origin/main; added to `deferred-items.md`)
 - **0 Phase 19-02 regressions**
@@ -180,6 +184,7 @@ $ DEEPSEEK_API_KEY=dummy venv/Scripts/python -m pytest tests/ -q --ignore=tests/
 ### Rule 1 auto-fix (NOT documented as a deviation during plan execution — logged here for SUMMARY traceability)
 
 **1. [Rule 1 - Bug] Unified pending_doc_id tracker key to SHA-256[:16] across batch_ingest_from_spider.py and ingest_wechat.py**
+
 - **Found during:** Post-Task-2.3 full regression (3 pre-existing rollback tests went RED)
 - **Issue:** Task 2.1's SCH-02 change broke the cross-module tracker key contract. `batch_ingest_from_spider.py` now looks up the registry with SHA-256[:16]; `ingest_wechat.py` was still registering with MD5[:10]. Silent rollback failure on asyncio.TimeoutError.
 - **Fix:** 4 call sites in `ingest_wechat.py` (823, 828, 1058, 1065) switched from `article_hash` (MD5[:10]) to `ckpt_hash` (SHA-256[:16]) as the tracker key. Image-dir namespace + LightRAG doc_id namespace unchanged. 3 rollback tests updated to compute `tracker_hash = get_article_hash(url)` while keeping `doc_id = f"wechat_{md5_hash}"`.
@@ -212,6 +217,7 @@ None for dev-box verification. Hermes side requires Plan 19-03's deploy runbook 
 ## Self-Check: PASSED
 
 Files exist:
+
 - `batch_ingest_from_spider.py` — FOUND (patched per Task 2.1)
 - `enrichment/rss_schema.py` — FOUND (patched per Task 2.2)
 - `ingest_wechat.py` — FOUND (Rule 1 auto-fix applied)
@@ -220,12 +226,14 @@ Files exist:
 - `tests/unit/test_rollback_on_timeout.py` — FOUND (3 tests updated to new contract)
 
 Commits exist on `main`:
+
 - `87ec22c` — FOUND (fix: batch_ingest_from_spider SCR-06 + SCH-02)
 - `96ae21e` — FOUND (feat: _ensure_rss_columns idempotent ALTER)
 - `dfa98f3` — FOUND (test: 3 RED → 3 GREEN)
 - `bbb5591` — FOUND (fix: Rule 1 tracker key unification)
 
 Acceptance checks:
+
 - `grep -c "from lib.checkpoint import get_article_hash" batch_ingest_from_spider.py` → 1 — PASS (module scope, not duplicated)
 - `grep -c "from lib.scraper import scrape_url" batch_ingest_from_spider.py` → 1 — PASS
 - `grep -c "hashlib.md5(url.encode()).hexdigest()" batch_ingest_from_spider.py` → 0 — PASS

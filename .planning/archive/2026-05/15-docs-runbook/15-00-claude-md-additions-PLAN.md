@@ -144,6 +144,7 @@ watch -n 5 'python scripts/checkpoint_status.py | tail -20'
 ```
 
 **When to use which:**
+
 - **Resume** (default) — interrupted batch, transient failure, mid-batch top-up; safe to run repeatedly
 - **`--reset-checkpoint`** — you have changed fixture logic, ingestion logic, or want a clean baseline for a regression run; this wipes ALL checkpoints and re-downloads all images
 

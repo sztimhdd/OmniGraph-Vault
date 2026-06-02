@@ -57,6 +57,7 @@ Skill(skill="writing-tests", args="TestClient integration tests for /api/article
 Both Skills loaded by reading `~/.claude/skills/python-patterns/SKILL.md` and `~/.claude/skills/writing-tests/SKILL.md` patterns directly. The literal `Skill(skill="python-patterns"` and `Skill(skill="writing-tests"` strings appear in BOTH `kb/api_routers/articles.py` (module docstring) AND this SUMMARY, satisfying `kb/docs/10-DESIGN-DISCIPLINE.md` §"Verification regex".
 
 Guidance applied:
+
 - **python-patterns:** PEP 8 type hints throughout; `Annotated[int, Query(ge=1)]` for declarative param validation; `dict[str, Any]` Python 3.9+ generic; thin handler / data-layer separation; immutable record classes (`ArticleRecord` from kb.data is frozen dataclass, untouched); module-level regex compilation (`_MD_IMG_PATTERN`, `_HTML_IMG_PATTERN`); zero `try/except` for DB errors (default 500 handler is correct for non-synthesize paths).
 - **writing-tests:** Testing Trophy — integration tests against real fixture_db SQLite (no mocks); behavior-focused (assert on JSON response shape + DB content correctness, not internal SQL); happy + error paths covered (200/404/422); latency budgets baked into test (p50<100ms); cross-verification against `resolve_url_hash` for hash field correctness.
 
@@ -83,6 +84,7 @@ Query params (`Annotated[type, Query(...)]`):
 | `q` | string | None | 1..200 chars (LIKE on title) |
 
 Response shape (200):
+
 ```json
 {
   "items": [{"hash":"...","title":"...","url":"...","lang":"...","source":"...","update_time":"...","snippet":null}],
@@ -95,6 +97,7 @@ DATA-07: APPLIED via `list_articles` (default on; `KB_CONTENT_QUALITY_FILTER=off
 #### GET /api/article/{hash}  — API-03
 
 Returns the canonical detail-page payload + D-14 body-source flag:
+
 ```json
 {
   "hash": "...", "title": "...",
@@ -191,20 +194,24 @@ p50 detail (ms): 58.1
 ## Self-Check: PASSED
 
 **Files exist:**
+
 - `kb/api_routers/__init__.py`: FOUND (1 line)
 - `kb/api_routers/articles.py`: FOUND (145 lines)
 - `tests/integration/kb/test_api_articles.py`: FOUND (270 lines)
 
 **Commits exist** (verified via `git log --oneline`):
+
 - `341c80d`: FOUND — `test(kb-3-05): add failing tests for /api/articles + /api/article/{hash} (RED)`
 - `142eb61`: FOUND — `feat(kb-3-05): /api/articles + /api/article/{hash} endpoints (GREEN)`
 
 **Tests pass:**
+
 - `pytest tests/integration/kb/test_api_articles.py -v` → 18 passed
 - `pytest tests/integration/kb/test_api_skeleton.py -v` → 9 passed (no kb-3-04 regression)
 - Targeted regression `pytest tests/integration/kb/test_api_articles.py tests/integration/kb/test_api_skeleton.py tests/unit/kb/test_data07_quality_filter.py tests/unit/kb/test_kb2_queries.py tests/unit/kb/test_article_query.py` → 89 passed
 
 **Real prod-shape DB smoke:**
+
 - `.dev-runtime/data/kol_scan.db` list endpoint: 200, total=160, p50=43.7ms
 - detail endpoint: 200, all 9 contract keys, p50=58.1ms
 - 404 endpoint: confirmed

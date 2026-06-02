@@ -43,12 +43,14 @@ Two phases mirror the two tracks. Strictly serial because:
 **REQs delivered:** REQ-1.1-A-1, A-2, A-3, A-4, A-5, A-6, A-7 (7 REQs)
 
 **Key files:**
+
 - `lib/research/stages/retriever.py` — chunk decomposition + per-chunk hash grep + image globbing
 - `lib/research/stages/synthesizer.py` — URL pattern flip
 - `tests/unit/research/test_retriever.py` — new chunk-split + hash-extract + glob tests
 - `tests/unit/research/test_synthesizer.py` — URL pattern assertion update
 
 **Done when:**
+
 1. All new + existing unit tests green: `venv/Scripts/python -m pytest tests/unit/research/ -v`
 2. TEST-05 manual rerun shows condition (a) ≥3 images (was 0 in v1 close)
 3. Single forward-only commit `260524-arx-A-images` with explicit `git add <files>` (no `-A`)
@@ -65,6 +67,7 @@ Two phases mirror the two tracks. Strictly serial because:
 **REQs delivered:** REQ-1.1-B-1, B-2, B-3, B-4, B-5 (5 REQs)
 
 **Key files:**
+
 - `kb/api_routers/research.py` — NEW; SSE wrapper around `lib/research/orchestrator.research_stream()`
 - `kb/api.py` — add `app.include_router(research_router)`
 - `databricks-deploy/app.yaml` — confirm `OMNIGRAPH_LLM_PROVIDER=databricks_serving` + research deps in `requirements.txt`
@@ -98,6 +101,7 @@ Two phases mirror the two tracks. Strictly serial because:
 12. **Commit 2:** `260524-arx-B-databricks-deploy` (databricks-deploy/* edits if any + VERIFICATION evidence)
 
 **Done when:**
+
 1. All unit + integration tests green
 2. Local 5-step UAT all green with cited evidence
 3. Deployed URL passes Playwright UAT (post-deploy fix-loop allowed without second user checkpoint)

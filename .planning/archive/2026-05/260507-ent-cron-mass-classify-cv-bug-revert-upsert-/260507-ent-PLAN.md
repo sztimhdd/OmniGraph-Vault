@@ -17,6 +17,7 @@ single-column `ON CONFLICT(article_id) DO UPDATE SET topic=excluded.topic`.
 ### Task 1 — Code fix + tests + migration 005
 
 **Files:**
+
 - `batch_classify_kol.py` (modify INSERT at line 447)
 - `batch_ingest_from_spider.py` (modify INSERT at line 1028 — second call site)
 - `migrations/005_drop_article_id_unique_index.sql` (new)
@@ -34,6 +35,7 @@ multi-topic sequential INSERT produces N rows per article, not 1 row
 with the last topic.
 
 **Verify:**
+
 - `pytest tests/unit/test_classifications_multitopic.py -v` → 4/4 GREEN
 - `pytest tests/unit/test_classifications_upsert.py tests/unit/test_batch_ingest_hash.py tests/unit/test_classify_full_body_topic_hint.py` → all GREEN
 - `git status -sb` clean post-commit, in sync with origin
@@ -96,6 +98,7 @@ no `idx_classifications_article_id` exists.
 **Files:** `CLAUDE.md` (append "### 2026-05-07" subsection to Lessons Learned)
 
 **Action:** Two related lessons:
+
 1. Schema/SQL changes need production-shape cron-invocation simulation
    before push (mock-only unit tests miss cross-component bugs).
 2. Dropping a UNIQUE constraint must include grep + revert of every

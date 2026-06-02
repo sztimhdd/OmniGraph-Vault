@@ -20,10 +20,12 @@ All 3 pushed to `origin/main`. No amend, no reset, no force-push.
 ## Commit 1 — kb-v2.2-7 Phase 5 backfill closure (`bec8811`)
 
 **Files staged (explicit, no `-A`):**
+
 - `databricks-deploy/translate_kb.py` (+635/-91 substantive Tavily + apply.sql + SCP extension; recorded as +548/-91 because git diff folded blank-line moves)
 - `.planning/STATE-KB-v2.md` (forward-only addendum: Phase 5 closure as new "Last activity"; 2026-05-19 Wave 6 demoted to "Prior activity")
 
 **Phase 5 stats (cited from `.scratch/translate-backfill-260520.md`):**
+
 - 238 candidates loaded, **234 translated** (169 KOL + 65 RSS)
 - 4 RSS failures: `id=45,60,1394,5144` (JSON-parse failed after 4-call retry budget; `title_translated` left NULL for next backfill UNION-ALL pickup)
 - Model: `databricks-claude-opus-4-7` · Cost: **$0** (Databricks Foundation Model)
@@ -40,6 +42,7 @@ All 3 pushed to `origin/main`. No amend, no reset, no force-push.
 ### Audit verdict (real increment, not dev residue)
 
 3-step audit per user spec:
+
 1. `git log --oneline | grep -i llm-wiki` → 3 prior commits all docs-only or single-file
 2. `git show 58a4e18 --stat` → flips nyquist + close phase (VALIDATION.md only)
 3. `git show 3f65082 --stat` → VERIFICATION evidence (VALIDATION.md + VERIFICATION.md only)
@@ -79,6 +82,7 @@ Bilingual rendering preserved (KB_DEFAULT_LANG injected per-deploy: Aliyun=zh-CN
 ## Out-of-scope working-tree residue (per user redline, NOT staged)
 
 Verified untouched in all 3 commits:
+
 - `.planning/PROJECT.md` (M)
 - `.planning/phases/aim-0-readiness-aliyun-ecs/aim-0-01-spec-rtt-mem-dryrun-PLAN.md` (M)
 - `.planning/phases/kdb-2-databricks-app-deploy/kdb-2-SMOKE-EVIDENCE.md` (M)

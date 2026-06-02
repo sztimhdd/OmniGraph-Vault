@@ -71,6 +71,7 @@ commit: 4f3a47b
 ### Anti-Patterns Found
 
 None. All 6 file diffs are surgical and trace directly to the goal:
+
 - mig 011: 21 lines, only `ALTER TABLE` statements + comment header
 - backfill: 101 lines, single-purpose script with hash + count + UPDATE
 - ingest_wechat.py: +16 lines, single try/except UPDATE block
@@ -82,12 +83,14 @@ No TODO/FIXME, no `return null/[]/{}` placeholders, no console.log-only handlers
 ### Deviation Review
 
 **Deviation 1 — Single-line call site to satisfy `test_drain_layer2_queue_call_site_uses_dynamic_budget` regression guard:**
+
 - VERIFIED. The test exists at `tests/unit/test_timeout_budget.py:216` and asserts (line 244): `assert "_compute_article_budget_s(body" in drain_body`.
 - Call site at `batch_ingest_from_spider.py:1827`: `article_budget = _compute_article_budget_s(body or "", url=url_d, image_count=image_count_d)` — preserves the literal substring `_compute_article_budget_s(body` intact.
 - This is a sound deviation: the multiline form would have broken the regression guard. Reverting to single-line is the correct surgical move (CLAUDE.md PRINCIPLE 3 — match existing style) and the test was NOT modified (Task 3 done criteria preserved).
 - VERDICT: REASONABLE. Test asserts substring presence, and the substring IS present.
 
 **Deviation 2 — Python sqlite3 module substituted for sqlite3 CLI (CLI not on Windows dev box):**
+
 - VERIFIED. The plan's `<verify shell="bash">` blocks invoke `sqlite3 /tmp/test_mig011.db ".schema articles" | grep image_count`. On Windows dev, `sqlite3` CLI is not on PATH (`bash: sqlite3: command not found`).
 - Substitution: `python -c "import sqlite3; conn = sqlite3.connect(...)"` invocations driven via `executescript()` and `PRAGMA table_info()` queries. Both check the same end-state (column exists in schema; column has correct type/default).
 - Assertion strength: equivalent. `.schema` text-search and `PRAGMA table_info()` are different APIs but both reach the same source-of-truth (sqlite_master metadata).

@@ -88,20 +88,25 @@ RESEARCH.md §2 10-step flow (repeated here for direct reference):
 ||      | navigation, then capture `window.location.href`. |  |  |
 
 D-13 Telegram recovery (RESEARCH.md §6):
+
 - Screenshot QR element → save to `$ENRICHMENT_DIR/$HASH/$Q_IDX/zhihu_login_qr.png`
 - Call native Hermes tool `send_message` with body starting `MEDIA:<qr_path>\n\n<msg>`
 - Wait for user `/resume` (standard Hermes pause pattern, no custom code)
 - On resume, reload + retry from step 3
 
 D-03 output contract:
+
 - On success: write `$ENRICHMENT_DIR/$HASH/$Q_IDX/haowen.json`
+
   ```json
   {"question": "<input>", "summary": "<ai summary>", "best_source_url": "<url>", "timestamp": "<ISO>"}
   ```
+
 - On failure: write the same file with `{"question": "<input>", "error": "<reason>", "timestamp": "<ISO>"}`
 - Per D-02/D-03, the skill does NOT print JSON to stdout — the outer skill reads haowen.json from disk after the child skill returns.
 
 Frontmatter pattern (from skills/omnigraph_ingest/SKILL.md):
+
 ```yaml
 ---
 name: zhihu-haowen-enrich
@@ -605,6 +610,7 @@ invocation convention from RESEARCH.md §1).
 </verification>
 
 <success_criteria>
+
 - Skill directory has correct 3-file structure matching existing skills pattern
 - SKILL.md frontmatter valid; body covers all 10 steps + D-13 recovery
 - D-03 disk-output contract documented (haowen.json shape)

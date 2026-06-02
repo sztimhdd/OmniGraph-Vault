@@ -27,12 +27,14 @@
    - Log emission for monitoring metrics at batch end
 
 **Does NOT deliver:**
+
 - Changes to v3.1 Phase 9's single-article `max(120 + 30*chunk_count, 900)` formula — that stays as-is
 - Batch restart / recovery orchestration (Phase 12 checkpoint infra handles that)
 - Alerting on timeout metrics (runbook operator tasks; Phase 15 docs)
 - Distributed batch coordination across machines
 
 **Dependencies:**
+
 - v3.1 Phase 9 (`asyncio.wait_for` wrapping, single-article timeout formula) — MUST be stable
 - Phase 12 (`lib/checkpoint.py`) — checkpoint flush on timeout interaction is designed here
 - v3.1 Phase 11 `benchmark_result.json` schema — monitoring metrics in this phase mirror the stage_timings structure
@@ -51,11 +53,13 @@ This phase does NOT change this formula. It only COMPOSES with it.
 ### Batch-Level Budget (BTIMEOUT-01) — NEW DESIGN
 
 **Total batch budget:**
+
 - Configurable via CLI flag `--batch-timeout` on `batch_ingest_from_spider.py`, default `28800` (8 hours — covers a 56-article batch at the Hermes DeepSeek 441s/article baseline from v3.1 closure with safety margin)
 - Environment override: `OMNIGRAPH_BATCH_TIMEOUT_SEC` (same fallback pattern as `OMNIGRAPH_RPM_*` from Phase 7)
 - **Baseline context (v3.1 closure 2026-05-01):** 56 articles × 441s = 24,696s ≈ 6.86h on production DeepSeek. 28,800s default provides ~17% headroom. For smaller batches (e.g., 8-article smoke test) operators can set `--batch-timeout 3600`; for larger batches (100+) operators should scale proportionally (`N × 500s + 3600s` rule of thumb).
 
 **Remaining budget calculation:**
+
 ```python
 batch_start = time.time()
 def get_remaining_budget() -> float:
@@ -64,6 +68,7 @@ def get_remaining_budget() -> float:
 ```
 
 **Average article time tracking:**
+
 ```python
 avg_article_time = sum(completed_article_times) / len(completed_article_times)
 # Use this to predict whether remaining articles fit in remaining budget
@@ -89,6 +94,7 @@ def clamp_article_timeout(single_timeout: int, remaining_budget: float, safety_m
 ```
 
 **Semantics:**
+
 - Early in batch: article gets its full computed timeout (no clamp effect)
 - Late in batch: article timeout shrinks to fit; if article needs longer, it gets `TimeoutError` and checkpoint preserves state for next batch run
 - Safety margin (60s default) reserves time for checkpoint flush + final monitoring report
@@ -100,6 +106,7 @@ def clamp_article_timeout(single_timeout: int, remaining_budget: float, safety_m
 **Rationale:** If checkpoint flush counts against per-article timeout, a late-stage timeout could cascade into a second timeout during the flush itself (recursive failure). Design assumes checkpoint flush takes <5s (small JSON writes per Phase 12).
 
 **Implementation pattern:**
+
 ```python
 async def ingest_with_timeout(url: str, timeout_sec: int, rag) -> ArticleResult:
     try:
@@ -171,20 +178,24 @@ async def ingest_with_timeout(url: str, timeout_sec: int, rag) -> ArticleResult:
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Source of Truth
+
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` (ROADMAP Phase 17 block) — requirements (BTIMEOUT-01..04)
 - v3.1 Phase 9 plans — single-article timeout formula + `asyncio.wait_for` wrapping pattern
 
 ### Dependency Interfaces
+
 - v3.1 Phase 9: `max(120 + 30 * chunk_count, 900)` formula in `ingest_wechat.py` or similar
 - Phase 12 `lib/checkpoint.py` — checkpoint flush API used in timeout cleanup
 - Phase 14 `batch_validation_report.json` schema — monitoring metrics appended here
 
 ### Existing Files to Read
+
 - `batch_ingest_from_spider.py` — current batch entry point (to add budget tracking + metric emission)
 - `ingest_wechat.py` — current `ingest_article` with `asyncio.wait_for` wrapping (from Phase 9)
 - `lib/` package (for Phase 7-style env var patterns if adding `OMNIGRAPH_BATCH_TIMEOUT_SEC`)

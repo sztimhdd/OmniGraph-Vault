@@ -48,6 +48,7 @@ Total estimate: 3.5-4 days.
 ## Inheritance
 
 All phases inherit:
+
 - `kb-1-UI-SPEC.md` + `kb-2-UI-SPEC.md` + `kb-3-UI-SPEC.md` design tokens (ZERO new `:root` vars)
 - C1 contract (`kg_synthesize.synthesize_response`) read-only
 - C2 contract (`omnigraph_search.query.search`) read-only

@@ -63,6 +63,7 @@ Close the two gaps surfaced by `kb-1-VERIFICATION.md` so the phase kb-1 SSG expo
 Purpose: The 4 BLOCKED requirements (I18N-04, DATA-04, EXPORT-01, EXPORT-03) flip to SATISFIED once gap 1 closes and a real-DB export run is captured. Phase score moves from 1/8 fully VERIFIED to 7/8 VERIFIED (only the operational owe — gap 2 partial — remains, which this plan also closes via the defensive guard).
 
 Output:
+
 - 2 source files modified (`kb/data/article_query.py`, `kb/export_knowledge_base.py`)
 - 2 test files modified (`tests/unit/kb/test_article_query.py`, `tests/integration/kb/test_export.py`)
 - 1 SUMMARY.md created
@@ -98,6 +99,7 @@ Gap 1 is the same anti-pattern with a different surface: integration fixture dec
 <!-- Use these directly — no codebase exploration needed. -->
 
 From kb/data/article_query.py — current row mappers (the bug):
+
 ```python
 def _row_to_record_kol(row) -> ArticleRecord:
     return ArticleRecord(
@@ -112,6 +114,7 @@ def _row_to_record_rss(row) -> ArticleRecord:
 ```
 
 From kb/data/article_query.py — ArticleRecord dataclass annotation:
+
 ```python
 @dataclass(frozen=True)
 class ArticleRecord:
@@ -119,16 +122,19 @@ class ArticleRecord:
 ```
 
 From kb/data/article_query.py:165 — the failing sort:
+
 ```python
 results.sort(key=lambda r: r.update_time, reverse=True)  # TypeError when mixing int + str
 ```
 
 Production schema (verified 2026-05-13 against .dev-runtime/data/kol_scan.db):
+
 - articles.update_time: INTEGER (Unix epoch seconds, e.g. 1777249680, 1776990480)
 - rss_articles.published_at: TEXT (ISO-8601, e.g. '2026-05-02T17:26:40+00:00')
 - rss_articles.fetched_at: TEXT (ISO-8601)
 
 From kb/scripts/migrate_lang_column.py — the column-existence check pattern to mirror:
+
 ```python
 def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
@@ -136,6 +142,7 @@ def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
 ```
 
 From kb/export_knowledge_base.py:38-56 — module top, where _ensure_lang_column should be added:
+
 ```python
 import argparse  # noqa: E402
 ...
@@ -143,6 +150,7 @@ from kb import config  # noqa: E402
 from kb.data.article_query import (...)  # noqa: E402
 from kb.i18n import register_jinja2_filter, validate_key_parity  # noqa: E402
 ```
+
 The defensive guard should be a private module-level helper invoked from `main()` BEFORE any `list_articles()` call (which is the first thing that touches the DB).
 
 From CLAUDE.md "Lessons Learned 2026-05-07" — the canonical anti-pattern this plan addresses:
@@ -482,12 +490,15 @@ From CLAUDE.md "Lessons Learned 2026-05-07" — the canonical anti-pattern this 
 After all 3 tasks complete:
 
 1. **All tests pass:**
+
    ```
    venv/Scripts/python.exe -m pytest tests/unit/kb/ tests/integration/kb/ -v
    ```
+
    MUST show 73+ tests passed (71 prior + 2 new from Task 1; integration count unchanged at 6).
 
 2. **Real-DB end-to-end (the verification gold):**
+
    ```
    set "KB_DB_PATH=.dev-runtime/data/kol_scan.db"
    venv/Scripts/python.exe kb/export_knowledge_base.py --limit 5
@@ -498,16 +509,20 @@ After all 3 tasks complete:
 3. **Defensive guard fires on lang-less DB:** verified by Task 3 negative smoke log.
 
 4. **Read-only invariant preserved:**
+
    ```
    grep -E "(INSERT INTO|UPDATE.*SET|DELETE FROM|\.unlink\(|rmtree)" kb/data/article_query.py kb/export_knowledge_base.py
    # MUST be 0 hits
    ```
+
    This protects EXPORT-02 across the gap-closure delta.
 
 5. **No regressions in row mapper symmetry:**
+
    ```
    grep -nE "_row_to_record_rss" kb/data/article_query.py
    ```
+
    The function should be UNCHANGED relative to the kb-1-06 SUMMARY (verify by reading the function body — passes `row["published_at"] or row["fetched_at"] or ""` through unchanged; we only normalized the KOL side because only KOL has the INT problem).
 </verification>
 

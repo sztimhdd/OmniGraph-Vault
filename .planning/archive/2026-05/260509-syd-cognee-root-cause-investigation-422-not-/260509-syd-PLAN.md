@@ -25,6 +25,7 @@ diagnostic scripts + 2 markdown documents + evidence logs + a single doc-only co
 ### Task 1 — Diagnostic scripts (`scripts/cognee_diag/`)
 
 Create three scripts under `scripts/cognee_diag/`. Each script:
+
 - starts with a banner that prints the script name + start timestamp
 - routes all stdout+stderr to `.scratch/cognee-diag-<name>-<YYYYMMDD-HHMMSS>.log`
   (the script writes the log path to stdout so the operator can `tail -f`)
@@ -66,6 +67,7 @@ Scripts:
    from LiteLLM routing.
 
 **Done criteria for Task 1:**
+
 - Three scripts exist, executable via `.venv/Scripts/python scripts/cognee_diag/<name>.py`
 - Each script writes a log file path to stdout on start
 - Each script handles the case where the network is blocked (Vertex/AI Studio
@@ -117,15 +119,18 @@ Scripts:
    - Final commit SHA (filled in after commit)
 
 4. **Stop-gate verification before commit:**
+
    ```bash
    git status --short
    # Only paths under scripts/cognee_diag/ + .planning/quick/260509-syd-*/ allowed.
    ```
+
    If any other path is modified, ABORT, undo, investigate.
 
 5. `git pull --ff-only origin main` (race protection).
 
 6. Commit (canonical via gsd-tools):
+
    ```bash
    node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit \
      "docs(quick-260509-syd): root-cause investigation for Cognee 422 NOT_FOUND" \
@@ -135,6 +140,7 @@ Scripts:
 7. `git push origin main`.
 
 **Done criteria for Task 2:**
+
 - Stop-gate diff is empty (only `scripts/cognee_diag/` + `.planning/quick/260509-syd-*/`)
 - INVESTIGATION.md and 260509-syd-SUMMARY.md exist and pass anti-fabrication contract
 - Final commit SHA recorded in 260509-syd-SUMMARY.md

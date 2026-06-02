@@ -115,6 +115,7 @@
 ## Claude's Discretion
 
 The user explicitly opted not to discuss:
+
 - Deploy.md update depth — recommend full table of all OMNIGRAPH_* vars
 - cognee_bridge observer sync-vs-async — recommend sync (research doc's reference impl)
 - config.py refactor depth — keep file; delegate key/model concerns to lib/

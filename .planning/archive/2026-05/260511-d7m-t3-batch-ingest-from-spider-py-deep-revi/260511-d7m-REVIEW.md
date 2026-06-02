@@ -19,6 +19,7 @@
 **Estimated cleanup:** **2-4 h across 2 quicks** (one ~1-2h dead-code purge, one ~1h `config` import flatten — both low-risk).
 
 **Release verdict:** **CLEAR** ✅
+
 - HIGH = 0
 - MEDIUM = 3 — none are release blockers; all are hygiene / pollution-debt issues. Production cron path (`ingest_from_db` via `--from-db`) is healthy.
 - Recommendation: **ship release now**, file MEDIUMs as backlog quicks for post-release hygiene.
@@ -90,6 +91,7 @@
 #### M-1 — Dead-in-production code (~570 LOC, ~28% of file)
 
 **Evidence:**
+
 - `enrichment/orchestrate_daily.py:195-205` invokes `batch_ingest_from_spider.py --from-db ...` → routes to `ingest_from_db()` (`:1443`).
 - `main()` at `:1974-2031` only branches into `run()` (`:689`, legacy account-scan) when `--from-db` is **not** set. No production caller passes `--from-db=False`.
 - The following are reachable only via the legacy `run()` branch (or tests):
@@ -112,6 +114,7 @@
 #### M-2 — `run()` legacy path diverges from `ingest_from_db()` invariants
 
 **Evidence:**
+
 - `run()` at `:689-920` and `ingest_from_db()` at `:1443-1973` both contain duplicated state-setup blocks for the batch-budget interlock:
   - `:771-779` (run) ≈ `:1614-1622` (ingest_from_db) — `total_batch_budget`, `batch_start`, `completed_times`, `timeout_histogram`, `timed_out_count`, `clamped_count`, `safety_margin_triggered`.
   - `:863-868` (run) ≈ `:1945-1950` (ingest_from_db) — `finally: rag.finalize_storages()` + drain.
@@ -129,6 +132,7 @@
 #### M-3 — `lib/*` modules import from root-level `config.py` (lib→app inversion)
 
 **Evidence:** `from config import ...` appears in 4 `lib/` modules:
+
 - `lib/checkpoint.py:23` — `from config import BASE_DIR as _CONFIG_BASE_DIR`
 - `lib/cli_bootstrap.py:23` — `from config import load_env`
 - `lib/llm_deepseek.py:47` — `from config import load_env` (with comment "Defect C (quick 260510-l14): use the canonical loader from config.py")
@@ -254,12 +258,14 @@ Same as M-3. Listed here because it spans **4 lib files**, not just `batch_inges
 ### Coverage gap analysis
 
 **Well-covered functions:**
+
 - `_build_topic_filter_query` — 22+ tests in `test_batch_ingest_topic_filter.py`, `test_skip_reason_version.py`, `test_dual_source_dispatch.py`
 - `ingest_article` — `test_ingest_article_processed_gate.py`, `test_rollback_on_timeout.py`
 - `_compute_article_budget_s` — `test_timeout_budget.py`
 - `_persist_scraped_body` — `test_persist_body_pre_classify.py`
 
 **Under-covered functions** (no dedicated tests; relied on via integration only):
+
 - `run` (232 LOC, dead in production) — no direct tests; deletion would orphan zero coverage
 - `batch_classify_articles` (102 LOC, dead in production) — no direct tests
 - `_call_deepseek` / `_call_gemini` / `_build_filter_prompt` — no direct tests
@@ -269,6 +275,7 @@ Same as M-3. Listed here because it spans **4 lib files**, not just `batch_inges
 - `print_filter_summary` (35 LOC, dead) — no direct test
 
 **Tests targeting dead code** (would deletion-orphan):
+
 - `test_scrape_first_classify.py` (403 LOC) — entirely about `_classify_full_body`
 - `test_classify_full_body_topic_hint.py` (194 LOC) — same
 - `test_classifications_upsert.py` (176 LOC) — exercises `_classify_full_body`'s UPSERT
@@ -308,6 +315,7 @@ Q-CONFIG (M-3 + CC-1) — release-independent, parallel
 ### Pollution score: **MEDIUM**
 
 Reasoning:
+
 - **2035 LOC, 26 functions** — by absolute size, this is a god module.
 - **~28% (~570 LOC) is dead in production cron** — but actively maintained and tested. Genuine technical debt, not active rot.
 - **Zero correctness HIGHs.** All 8 CLAUDE.md "Lessons Learned" entries are properly defended. All 7 INSERT sites use the W2 cohort gate. Production cron has been healthy 24h since `260511-b3y` (14 ok / 0 failed per user briefing).

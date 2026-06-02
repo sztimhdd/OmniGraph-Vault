@@ -107,6 +107,7 @@ Each task committed atomically:
 ### Auto-fixed Issues
 
 **1. [Rule 3 - Blocking] chmod +x skipped on Windows**
+
 - **Found during:** Task 0.2
 - **Issue:** `chmod +x` is not functional on Windows NTFS/bash environment; the command would silently no-op or fail
 - **Fix:** Skipped chmod; shell scripts have correct shebang (`#!/usr/bin/env bash` and `#!/bin/bash`) and are syntactically valid. On the remote Linux machine, git checkout will preserve mode 644; a downstream plan or the orchestrator can set executable bit if needed on remote.
@@ -115,6 +116,7 @@ Each task committed atomically:
 - **Committed in:** e3e000a (Task 0.2 commit)
 
 **2. [Rule 1 - Bug] graphify.__version__ attribute absent**
+
 - **Found during:** Task 0.1 verification
 - **Issue:** `import graphify; print(graphify.__version__)` raises AttributeError — the package uses `__getattr__` lazy loading that raises AttributeError for unknown attributes
 - **Fix:** Used `importlib.metadata.version('graphifyy')` instead, which returns '0.5.3' correctly
@@ -122,6 +124,7 @@ Each task committed atomically:
 - **Verification:** `importlib.metadata.version('graphifyy')` returns '0.5.3'
 
 **3. [Rule 2 - Format] Key-link pattern mismatch: `claw_present:` vs `claw:`**
+
 - **Found during:** Task 0.3 (post-execution review)
 - **Issue:** Plan frontmatter `key_links` expected the probe file to contain `claw_present: true|false` (the pattern Plan 01 was told to grep). The orchestrator wrote `claw: present|absent` instead, following the template in the plan body (`<interfaces>` section).
 - **Fix:** Documented here and in key-decisions. Plan 01 must use `grep 'claw:.*absent'` rather than `grep 'claw_present: false'` to detect hermes-only scope.
@@ -161,6 +164,7 @@ These stubs do NOT prevent Plan 00's goal (scaffold creation + graphifyy install
 SSH probe executed by orchestrator. Results committed at `ed3edad`.
 
 **Probe summary:**
+
 - `hermes`: present at `~/.local/bin/hermes` (not in non-interactive SSH PATH)
 - `claw`: absent (not in `~/.local/bin`, `~/.nvm`, `/usr/local`, or anywhere on remote)
 - `~/.hermes/skills`: present

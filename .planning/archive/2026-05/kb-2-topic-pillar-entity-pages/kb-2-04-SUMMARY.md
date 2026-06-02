@@ -13,12 +13,15 @@ requirements: [TOPIC-02, TOPIC-03, TOPIC-05, ENTITY-02, LINK-01, LINK-02]
 # kb-2-04 — Query Functions Plan Summary
 
 ## Objective
+
 Add 5 read-only query functions to `kb/data/article_query.py` (`topic_articles_query`, `entity_articles_query`, `related_entities_for_article`, `related_topics_for_article`, `cooccurring_entities_in_topic`) + `slugify_entity_name` helper + `EntityCount` / `TopicSummary` dataclasses.
 
 ## Tasks
+
 2 tasks (TDD-driven). Mirror existing kb-1 module conventions: frozen dataclass returns, parameterized SQL, optional `conn=` injection, read-only enforcement.
 
 ## Skills (per kb/docs/10-DESIGN-DISCIPLINE.md)
+
 This plan invokes both required Skills literally in task `<action>` blocks:
 
 - **Skill(skill="python-patterns", args="...")** — idiomatic read-only sqlite3 query, frozen dataclass returns, parameterized SQL, type hints. Mirrors kb-1's `article_query.py` patterns: `_connect()` helper for ro URI, `sqlite3.Row` factory, `own_conn = conn is None` close-finally pattern. CTE-based cohort gate for `cooccurring_entities_in_topic`.
@@ -27,10 +30,12 @@ This plan invokes both required Skills literally in task `<action>` blocks:
 These literal `Skill(skill=...)` strings are embedded in `kb-2-04-query-functions-PLAN.md` Task 1 and Task 2 `<action>` blocks (regex-verifiable per kb/docs/10-DESIGN-DISCIPLINE.md Check 1).
 
 ## Dependency graph
+
 - **Depends on:** kb-2-01-fixture-extension (Wave 1) — provides shared `fixture_db` with classifications + extracted_entities + layer verdicts
 - **Consumed by:** kb-2-09-export-driver-extension (Wave 4) — driver imports all 5 new functions to drive topic + entity render loops + article-aside related-link injection
 
 ## Tech-stack notes
+
 - 5 new functions appended to existing 5 kb-1 functions (10 total exports)
 - 2 new frozen dataclasses (`EntityCount`, `TopicSummary`) + 1 helper (`slugify_entity_name`)
 - Cohort gate (depth_score >= 2 AND layer verdict ok) implemented as SQL CTE in `cooccurring_entities_in_topic`
@@ -39,6 +44,7 @@ These literal `Skill(skill=...)` strings are embedded in `kb-2-04-query-function
 - `_SLUG_TOPIC_MAP` keeps the 5 known topic slugs explicit (avoids fragile `.lower()` on every emission)
 
 ## Acceptance signal
+
 - `pytest tests/unit/kb/test_kb2_queries.py -v` returns 18+ passing tests
 - kb-1 baseline preserved: `pytest tests/unit/kb/test_article_query.py -v` ≥23 passing
 - Read-only grep returns 0 INSERT/UPDATE/DELETE in kb/data/article_query.py
@@ -48,9 +54,11 @@ These literal `Skill(skill=...)` strings are embedded in `kb-2-04-query-function
 # Execution Results — appended 2026-05-13
 
 ## Status
+
 COMPLETE — all acceptance criteria green.
 
 ## Commits
+
 - `0b73d76` feat(kb-2-04): add slugify_entity_name + topic_articles_query (Task 1)
 - `6ee6cd2` feat(kb-2-04): add 4 entity/link/cooccurring queries (Task 2)
 
@@ -90,6 +98,7 @@ kb-1 module preserved verbatim — all 5 kb-1 functions + ArticleRecord still ex
 - Combined: **45 passed in 0.82s**
 
 Test breakdown (19 total, exceeds plan target of ≥18):
+
 - 5 slugify_entity_name (ASCII / space / slash / CJK / whitespace strip)
 - 4 topic_articles_query (UNION + sorted DESC + depth filter + read-only)
 - 1 dataclass shapes smoke
@@ -124,6 +133,7 @@ Test breakdown (19 total, exceeds plan target of ≥18):
 ### Auto-fixed issues
 
 **1. [Rule 3 — Blocking issue] `monkeypatch.setattr(c, "execute", ...)` raises on Python 3.13.**
+
 - **Found during:** Task 1 first test run (post-implementation)
 - **Issue:** `sqlite3.Connection.execute` is a read-only built-in attribute on Python 3.13; pytest's `monkeypatch.setattr(conn, "execute", spy)` raises `AttributeError: 'sqlite3.Connection' object attribute 'execute' is read-only`. The plan's example code in Task 1 + Task 2 used direct monkeypatch, which would never have worked.
 - **Fix:** Introduced `_SpyConn` proxy class (mirrors the existing kb-1 SpyConn pattern at `tests/unit/kb/test_article_query.py:280-299`) — wraps the real connection, captures every SQL string passed to `.execute()`, delegates other attributes via `__getattr__`. Applied to both `test_topic_articles_read_only` and `test_kb2_queries_read_only`.
@@ -131,6 +141,7 @@ Test breakdown (19 total, exceeds plan target of ≥18):
 - **Commits:** `0b73d76` (Task 1, includes `_SpyConn`).
 
 **2. [Plan structure] Task 2 commit uses 19 tests instead of "≥18".**
+
 - The plan target was ≥18; final count is 19 because Task 1 added a `test_dataclass_shapes_importable` smoke test that was not in the plan's behavior list — it provides an early-warning if the EntityCount/TopicSummary frozen dataclass shape changes (the Task 2 functions return these). Net: more coverage, no regressions.
 
 ### Architectural changes
@@ -146,6 +157,7 @@ None — additive only; no kb-1 code modified.
 ## Foundation for downstream plans
 
 These 5 query functions + 2 dataclasses + slugify helper are imported by:
+
 - `kb-2-09-export-driver-extension` (driver loop iterates topics + entities, calls these functions)
 - `kb-2-05-topic-template` (topic.html consumes `topic_articles_query` + `cooccurring_entities_in_topic`)
 - `kb-2-06-entity-template` (entity.html consumes `entity_articles_query`)

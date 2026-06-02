@@ -500,6 +500,7 @@ ssh <remote> "cd ~/OmniGraph-Vault && source venv/bin/activate && pytest tests/u
 ```
 
 Expected: all tests PASSED, including:
+
 - `test_describe_images_batch_calls_sleep_between` (UPDATED — fixes pre-existing stale assertion; now asserts `mock_sleep.assert_not_called()` per default=0)
 - `test_describe_images_respects_vision_inter_image_sleep_env` (NEW)
 - `test_emit_log_writes_jsonlines_to_stderr` (NEW)

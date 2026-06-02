@@ -93,12 +93,14 @@ SSHes Aliyun via the `aliyun-vitaclaw` alias and writes outputs into
 ### Task 1 — Daily probe (run once per day, day 1..7) `[agent-runnable]`
 
 **`<read_first>`**
+
 - `aim-5-CONTEXT.md` lines 268-283 (STAB-01 daily probe pattern)
 - `aim-5-CONTEXT.md` FINDING 6 (3-timer narrow, NOT wildcard)
 - `aim-5-CONTEXT.md` FINDING 9 (read-only / agent-runnable boundary)
 - Memory `aliyun_vitaclaw_ssh.md` (Aliyun SSH alias)
 
 **`<acceptance_criteria>`**
+
 - Daily log file
   `aim-5-EVIDENCE/daily-checks-day-N.log` exists and contains:
   - `date -u` and `date` outputs (UTC + Aliyun host TZ)
@@ -158,10 +160,12 @@ OBSERVATION.md.
 ### Task 2 — Day-7 rollup verdict + aim-5-1-EVIDENCE.md `[agent-runnable]`
 
 **`<read_first>`**
+
 - All 7 daily logs in `aim-5-EVIDENCE/daily-checks-day-N.log`
 - `aim-5-CONTEXT.md` FINDING 1 (failure-day tolerance = 0)
 
 **`<acceptance_criteria>`**
+
 - `aim-5-1-EVIDENCE.md` exists with:
   - 7 daily verdicts table (Day N | timestamp | result)
   - 7-day rollup grep count line (`= 0` for PASS)
@@ -198,11 +202,13 @@ Author `aim-5-1-EVIDENCE.md`:
 ## 7-day rollup
 
 ```
+
 journalctl -u omnigraph-daily-ingest.service \
            -u omnigraph-afternoon-ingest.service \
            -u omnigraph-evening-ingest.service \
            --since "7 days ago" | grep -cE "Failed|exit-code"
 → 0
+
 ```
 
 ## Aggregate verdict

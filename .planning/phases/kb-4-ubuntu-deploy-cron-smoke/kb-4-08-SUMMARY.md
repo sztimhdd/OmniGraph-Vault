@@ -48,6 +48,7 @@ chmod +x /root/OmniGraph-Vault/kb/scripts/daily_rebuild.sh
 ```
 
 **Crontab after install:**
+
 ```
 30 9 * * * /root/OmniGraph-Vault/scripts/gen_agent_news.sh
 0 12 * * * /root/OmniGraph-Vault/kb/scripts/daily_rebuild.sh >> /var/log/kb-rebuild.log 2>&1

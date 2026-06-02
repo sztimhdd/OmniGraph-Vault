@@ -44,6 +44,7 @@ No change to `synthesizer.py` URL pattern (deferred to arx-2-http preflight; cur
 ## Evidence
 
 ### 1. Unit tests — local + Hermes
+
 - arx-1 scope: **172 passed** (was 169 before; +3 new tests in `test_omnigraph_search_query.py`).
 - Pre-existing 92 KB integration failures (sqlite3) unrelated to arx-1 scope and present on baseline.
 
@@ -62,6 +63,7 @@ IMAGES:  10        ← v1 baseline was 0
 Sample image candidate hash + filename pattern: `0552fb242d :: 1.jpg ~ 18.jpg`.
 
 ### 3. Commit lineage
+
 - `39c8f43` — feat(arx-1-images/A): only_context param ...
 - `dddaa38` — merge integrating origin's `ee172c0` (wechat-session-hardening) without rebase, preserving `39c8f43`.
 

@@ -50,6 +50,7 @@ render byte-identical (12 existing pages).
     [^N] warning, source count (legacy + new), template per-type markup.
 
 **Verify:**
+
 - `pytest tests/unit/kb/test_export_wiki_citations.py -v` — 11/11 pass
 - Wiki-only dry-run bake (`.scratch/bake_wiki_only.py`):
   - All 19 entity pages render
@@ -59,6 +60,7 @@ render byte-identical (12 existing pages).
     `article:<hash>` label, 32 `<sup>`, 0 literal `^[article:`
 
 **Files:**
+
 - `kb/export_knowledge_base.py` (modified)
 - `kb/templates/wiki_entity.html` (modified)
 - `tests/unit/kb/test_export_wiki_citations.py` (new)

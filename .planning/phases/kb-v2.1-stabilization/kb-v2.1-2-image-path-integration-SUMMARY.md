@@ -87,6 +87,7 @@ grep regex:
 Screenshot evidence: `.playwright-mcp/kb-v2-1-2-images-root-deploy.png`
 
 Curl + JSON evidence:
+
 - `.scratch/kb-v2.1-2-uat-root.json` (root deploy API response)
 - `.scratch/kb-v2.1-2-uat-kb.json` (subdir deploy API response)
 - `.scratch/kb-v2.1-2-uat-root.log` / `.scratch/kb-v2.1-2-uat-kb.log` /
@@ -115,6 +116,7 @@ $ venv/Scripts/python.exe -m pytest tests/integration/kb/ tests/unit/kb/ --tb=sh
 New file `tests/integration/kb/test_image_paths.py`: 13 / 13 PASS:
 
 Pure-function suite (7):
+
 - `test_rewrite_localhost_8765_to_static_img_without_base_path`
 - `test_rewrite_localhost_8765_to_kb_static_img_with_base_path`
 - `test_rewrite_bare_static_img_picks_up_base_path`
@@ -124,6 +126,7 @@ Pure-function suite (7):
 - `test_rewrite_does_not_double_prefix_existing_base_path`
 
 HTTP-level suite (6):
+
 - `test_api_article_body_md_uses_static_img_for_root_deploy`
 - `test_api_article_body_md_uses_kb_prefix_under_subdir_deploy`
 - `test_api_article_images_field_present_and_prefixed_for_root_deploy`
@@ -146,12 +149,14 @@ To pick up this phase on Aliyun:
 
 1. `ssh aliyun-vitaclaw 'cd /root/OmniGraph-Vault && git pull --ff-only origin main'`
 2. Re-export SSG (Aliyun deploys with `KB_BASE_PATH=/kb`):
+
    ```bash
    ssh aliyun-vitaclaw 'cd /root/OmniGraph-Vault && \
        KB_BASE_PATH=/kb KB_DB_PATH=/root/.hermes/data/kol_scan.db \
        KB_IMAGES_DIR=/root/.hermes/omonigraph-vault/images \
        venv/bin/python kb/export_knowledge_base.py'
    ```
+
 3. `ssh aliyun-vitaclaw 'rsync -a --delete /root/OmniGraph-Vault/kb/output/ /var/www/kb/'`
 4. `ssh aliyun-vitaclaw 'systemctl reload caddy'` (no kb-api restart needed — only SSG static changes)
 5. Verify via public probe: `curl http://101.133.154.49/kb/articles/4b7c022702.html | grep -oE 'src="/kb/static/img/[^"]+"' | head -3`

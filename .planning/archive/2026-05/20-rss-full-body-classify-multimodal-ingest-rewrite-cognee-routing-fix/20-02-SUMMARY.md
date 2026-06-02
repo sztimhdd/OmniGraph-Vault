@@ -50,6 +50,7 @@ metrics:
 ### Task 2.1: image_pipeline.download_images referer + SVG filter
 
 Added `referer: str | None = None` parameter to `image_pipeline.download_images`:
+
 - When set, sends `headers={"Referer": referer}` on every `requests.get` call (D-20.08 Substack/Medium hot-link prevention)
 - Skips responses with `Content-Type` starting with `image/svg` before disk write (D-20.09)
 - Backward-compatible: all existing 2-arg KOL callers unaffected
@@ -104,6 +105,7 @@ Complete rewrite replacing the old translation pipeline with a multimodal 5-stag
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Always call download_images regardless of extracted URL count**
+
 - **Found during:** Task 2.2 test_vision_subdoc_format failing
 - **Issue:** Test monkeypatches `image_pipeline.download_images` to always return a fake path. Plan sketch conditionally called `download_images` only when `image_urls` was non-empty. Test body had no `![]()` syntax so `_extract_image_urls` returned `[]`, bypassing the mock, giving empty `url_to_path`, skipping vision worker.
 - **Fix:** Always call `download_images(image_urls, dest_dir, referer=referer)` (empty list = production no-op; mock = returns fake path)
@@ -111,6 +113,7 @@ Complete rewrite replacing the old translation pipeline with a multimodal 5-stag
 - **Commit:** `0ebd191`
 
 **2. [Rule 1 - Bug] Add asyncio.sleep(0) to yield event loop before PROCESSED gate**
+
 - **Found during:** Task 2.2 test_vision_subdoc_format — vision worker ainsert not captured
 - **Issue:** `asyncio.create_task(_rss_vision_worker(...))` schedules the task but doesn't give it a chance to run before `_ingest_one_article` proceeds to the PROCESSED gate and returns.
 - **Fix:** Added `await asyncio.sleep(0)` after `asyncio.create_task(...)` to yield control to the event loop, allowing the vision worker to start executing before the PROCESSED gate check.
@@ -118,12 +121,14 @@ Complete rewrite replacing the old translation pipeline with a multimodal 5-stag
 - **Commit:** `0ebd191`
 
 **3. [Rule 2 - Design] Import image_pipeline as module, not from import**
+
 - **Found during:** Pre-implementation analysis of test monkeypatching
 - **Issue:** Plan sketch uses `from image_pipeline import download_images, localize_markdown, describe_images`. Tests use `monkeypatch.setattr("image_pipeline.download_images", ...)` which patches the source module attribute, NOT a `from`-imported local name.
 - **Fix:** Used `import image_pipeline` and call `image_pipeline.download_images(...)`, `image_pipeline.localize_markdown(...)`, `image_pipeline.describe_images(...)` throughout.
 - **Files modified:** enrichment/rss_ingest.py
 
 **4. [Rule 1 - Bug] Create 05_vision/ directory in _ingest_one_article, not in fire-and-forget worker**
+
 - **Found during:** Pre-implementation analysis of test_5_stage_checkpoints assertion
 - **Issue:** Test asserts `vision_dir.is_dir()` immediately after `_ingest_one_article` returns. `has_stage("vision_worker")` requires a `.json` file in `05_vision/`, but write_stage("vision_worker") raises ValueError. The fire-and-forget worker may not have had time to run.
 - **Fix:** Explicitly create `05_vision/` directory in `_ingest_one_article` using `get_checkpoint_dir(article_hash) / "05_vision"` before spawning the task.

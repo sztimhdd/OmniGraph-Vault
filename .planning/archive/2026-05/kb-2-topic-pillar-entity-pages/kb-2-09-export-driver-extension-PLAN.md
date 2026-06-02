@@ -118,9 +118,11 @@ ORDER BY freq DESC, name ASC
 ```
 
 KB_ENTITY_MIN_FREQ env override:
+
 ```python
 KB_ENTITY_MIN_FREQ = int(os.environ.get("KB_ENTITY_MIN_FREQ", "5"))
 ```
+
 </interfaces>
 </context>
 
@@ -408,6 +410,7 @@ KB_ENTITY_MIN_FREQ = int(os.environ.get("KB_ENTITY_MIN_FREQ", "5"))
 </verification>
 
 <success_criteria>
+
 - TOPIC-01 enabled: 5 topic HTMLs generated to kb/output/topics/{slug}.html
 - TOPIC-03 enabled: each topic page receives localized name + desc + article count + cooccurring_entities context
 - ENTITY-01 enabled: ~91 entity HTMLs generated (Hermes prod) at KB_ENTITY_MIN_FREQ=5 default

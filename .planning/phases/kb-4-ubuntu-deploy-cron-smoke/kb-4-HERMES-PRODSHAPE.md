@@ -23,6 +23,7 @@ Aliyun-retargeted.
 Goal: Verify production-shape kb-api on real prod traffic patterns.
 
 5 probe families:
+
 1. SSH + systemd surface
 2. DB integrity + schema (820-article scale)
 3. HTTP layer (Caddy reverse-proxy + localhost direct)
@@ -194,6 +195,7 @@ tenant, `MemoryHigh=infinity` (disable PSI) + `MemoryMax` (hard OOM
 guard) is the canonical pattern.
 
 Outcome:
+
 - Graph loaded successfully through transient peak (no soft cap to
   trigger reclaim)
 - 16-poll NEVER-500 probe: 0 × 5xx, terminal envelope captured

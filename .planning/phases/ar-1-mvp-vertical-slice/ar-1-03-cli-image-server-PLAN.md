@@ -45,10 +45,12 @@ must_haves:
 Land the CLI entrypoint (`python -m omnigraph.research "<query>"`) and the local image HTTP server auto-bring-up. This plan turns the importable lib (delivered by ar-1-01 + ar-1-02) into a runnable command-line tool.
 
 Purpose:
+
 - ORCH-08: When the orchestrator runs, the local image HTTP server on port 8765 must be listening so the synthesized markdown's `http://localhost:8765/...` image URLs resolve.
 - CLI-01: `python -m omnigraph.research "<query>"` is the single user-facing invocation surface. Skill scripts (ar-1-04) wrap this command. Future HTTP wrapper (post-milestone) reuses `research()` directly without going through CLI.
 
 Output:
+
 - `lib/research/__main__.py` — ~30-line argparse + asyncio.run wrapper
 - `lib/research/image_server.py` — `ensure_image_server()` function (idempotent, returns PID or None if already running)
 - 2 test files covering both modules
@@ -81,17 +83,20 @@ result = await research(query, cfg)
 ```
 
 The image server must be brought up BEFORE `research()` runs, because:
+
 - Synthesizer (ar-1-02) embeds image URLs of shape `http://localhost:8765/<article_hash>/<N>.jpg`
 - The user reads the printed markdown in a terminal/IDE that may render images via the markdown viewer
 - ar-1's smoke test (CONTEXT.md Layer 2) requires "port 8765 image server is brought up if not already running"
 
 BASE_IMAGE_DIR resolution (from config.py at root, mirrored in research config):
+
 ```python
 BASE_IMAGE_DIR = BASE_DIR / "images"
 # where BASE_DIR = ~/.hermes/omonigraph-vault by default
 ```
 
 In `lib/research/config.py` (ar-1-01), `cfg.rag_working_dir` is `BASE_DIR / "lightrag_storage"`. So:
+
 ```python
 base_image_dir = cfg.rag_working_dir.parent / "images"
 ```
@@ -367,6 +372,7 @@ This is the SAME path used by retriever stage in ar-1-02 for image globbing — 
 </verification>
 
 <success_criteria>
+
 - `lib/research/__main__.py` and `lib/research/image_server.py` both exist and are importable
 - CLI is a pure wrapper (≤ 50 LOC, no business logic)
 - Image server bring-up is idempotent on Windows + POSIX

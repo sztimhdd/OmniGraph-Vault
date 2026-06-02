@@ -87,6 +87,7 @@ i18n filter usage (from kb/i18n.py created in plan 03):
 ```
 
 CSS classes available (from kb/static/style.css):
+
 - `.container`, `.card`, `.btn`, `.btn-secondary`
 - `.nav`, `.nav-brand`, `.nav-links`, `.lang-toggle`
 - `.article-card`, `.article-card-title`, `.article-card-meta`, `.lang-badge`
@@ -96,12 +97,14 @@ CSS classes available (from kb/static/style.css):
 JS bootstrap (from kb/static/lang.js): expects `<button class="lang-toggle">` somewhere on the page. On detail pages, `<html data-fixed-lang="true">` prevents the JS from overwriting the server-set content lang.
 
 Render context variables expected (provided by export driver in plan kb-1-09):
+
 - `lang`: chrome lang for the page ('zh-CN' default; 'en' if generating English-default)
 - For now plan-09 will render both pages with `lang='zh-CN'` since the JS does the actual chrome switching client-side. The dual-span emission means the HTML carries both languages regardless of `lang` context.
 - `articles`: list of ArticleRecord-shaped dicts (for index + articles_index)
 - `og`: dict with og:title / og:description / og:image / og:type / og:locale per-page
 - `page_url`: canonical URL for og:url
 </interfaces>
+
 </context>
 
 <tasks>
@@ -471,6 +474,7 @@ Render context variables expected (provided by export driver in plan kb-1-09):
 </verification>
 
 <success_criteria>
+
 - I18N-03 satisfied across 4 templates: chrome strings emit via t() filter in dual-span pattern
 - I18N-08 satisfied: lang-toggle button present in base.html nav
 - UI-04 satisfied: VitaClaw-Logo-v0.png referenced in nav (with onerror graceful degrade)

@@ -38,6 +38,7 @@ Total post-release hygiene effort: **2-4 h**. Neither is a release blocker.
 ## Files modified
 
 Only planning artifacts:
+
 - `.planning/quick/260511-d7m-t3-batch-ingest-from-spider-py-deep-revi/260511-d7m-PLAN.md` (added)
 - `.planning/quick/260511-d7m-t3-batch-ingest-from-spider-py-deep-revi/260511-d7m-REVIEW.md` (added)
 - `.planning/quick/260511-d7m-t3-batch-ingest-from-spider-py-deep-revi/260511-d7m-SUMMARY.md` (added)

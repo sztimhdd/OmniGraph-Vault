@@ -136,6 +136,7 @@ grep -n "_register_pending_doc_id\|_clear_pending_doc_id\|get_pending_doc_id" in
 ## Stub risk assessment
 
 The stub causes image descriptions to be MISSING from the knowledge graph between plans 10-01 and 10-02. Queries against images will return no description text. Acceptable because:
+
 1. Plans 10-01 and 10-02 land sequentially in the same phase.
 2. Text body is unaffected — it's still queryable.
 3. The gap is covered by plan 10-02's 6+ new tests.
@@ -143,6 +144,7 @@ The stub causes image descriptions to be MISSING from the knowledge graph betwee
 ## Implications for Phase 10-02
 
 Plan 10-02 must:
+
 - Replace `_vision_worker_impl` body (signature fixed here — do not change kwargs).
 - Add sub-doc doc_id `f"wechat_{article_hash}_images"` (per D-10.07).
 - Wrap entire body in `try/except Exception` → swallow per D-10.08.

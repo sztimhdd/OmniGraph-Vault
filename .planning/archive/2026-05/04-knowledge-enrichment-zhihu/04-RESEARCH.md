@@ -9,6 +9,7 @@
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
+
 - **D-01** Top-level orchestration in a new Hermes skill (`enrich_article` / `omnigraph_enrich`). Python helpers are pure deterministic subprocesses; no Python→Hermes bridge.
 - **D-02** Per-question for-loop lives in the Hermes skill body (Markdown). For each question the skill invokes `zhihu-haowen-enrich` natively, then shells to `python enrichment/fetch_zhihu.py`, accumulates results, and calls `python enrichment/merge_and_ingest.py`.
 - **D-03** Contract = **one-line JSON on stdout** (small metadata + control flow, <50KB cap per Hermes `tool_output.max_bytes`) + large artifacts on disk at `~/.hermes/omonigraph-vault/enrichment/<article_hash>/<q_idx>/`. Non-zero exit + stderr on failure.
@@ -25,6 +26,7 @@
 - **D-16** Image-pipeline refactor regression gate = golden-file diffs **and** pytest unit tests. Both required before merge.
 
 ### Claude's Discretion
+
 - Exact CLI shapes for Python helpers
 - File names inside `~/.hermes/omonigraph-vault/enrichment/<hash>/<q_idx>/`
 - Migration sequencing (one ALTER per commit vs batched)
@@ -33,6 +35,7 @@
 - Where the Telegram QR screenshot code lives (new util vs existing module)
 
 ### Deferred Ideas (OUT OF SCOPE)
+
 - Per-question retry state table
 - Scheduled nightly re-enrichment
 - Sources beyond Zhihu (X/HN/blogs)
@@ -102,12 +105,14 @@ Direct evidence from remote (`~/.hermes/hermes-agent/` — Hermes agent core, no
 - `agent/skill_commands.py:332` — hard-coded template "IMPORTANT: The user has invoked the `{skill_name}` skill, indicating they want..." — this is how one skill's instructions can reference `/zhihu-haowen-enrich` and have the agent treat it as a user-style invocation.
 
 **Operational model for D-01/D-02:**
+
 1. User invokes the top-level `enrich_article` skill.
 2. The skill's Markdown body contains a for-loop in prose: "For each question in the JSON emitted by `enrichment/extract_questions.py`, invoke the `/zhihu-haowen-enrich` skill, passing the question text. Then run `enrichment/fetch_zhihu.py` with the resulting URL. Accumulate results on disk at `$ENRICHMENT_DIR/$ARTICLE_HASH/$Q_IDX/`."
 3. The agent reads this instruction, for each iteration calls `skill_view("zhihu-haowen-enrich")` to load that skill's CDP flow, executes it, records results on disk per D-03, then resumes the outer skill.
 4. Exit contract: the outer skill's final step is `python enrichment/merge_and_ingest.py $ARTICLE_HASH` which reads the disk artifacts, builds the enriched MD + 3 Zhihu docs, and calls LightRAG.
 
 **Implications for the planner:**
+
 - D-01/D-02 are viable exactly as specified. No redesign.
 - There is no programmatic "return value" from a skill — child skills communicate back via disk artifacts (aligns perfectly with D-03).
 - The top-level skill body should explicitly reference the child skill by its slash-name (`/zhihu-haowen-enrich`) inside the loop instruction, so the agent's command resolver routes correctly.
@@ -133,6 +138,7 @@ Source: PRD §7. Because `zhida.zhihu.com` is CN-gated and cannot be probed from
 | 10 | Click card → read `location.href` | Click → wait for nav → `window.location.href` | URL is a `zhihu.com/question/.../answer/...` or `zhuanlan.zhihu.com/p/...` | URL is ad/non-zhihu | Mark question failed |
 
 **Probes to run on first remote session (Phase-0):**
+
 1. Does the search entry show immediately on page load, or is it behind a "search" button click?
 2. Is the Draft.js editor's contenteditable div reachable via a stable role (`textbox` / `searchbox`)?
 3. What exact CSS/DOM pattern marks "AI summary generation complete"?
@@ -142,6 +148,7 @@ Source: PRD §7. Because `zhida.zhihu.com` is CN-gated and cannot be probed from
 Capture these as skill body comments + README notes; refine selectors iteratively.
 
 **Login wall detection heuristic (D-13):**
+
 ```
 Login wall detected IF (
     URL contains "/signin" OR "/login"
@@ -155,10 +162,12 @@ Login wall detected IF (
 **Confirmed from local install** (`venv/Lib/site-packages/lightrag/lightrag.py`):
 
 ### `adelete_by_doc_id(doc_id, delete_llm_cache=False) → DeletionResult`
+
 - Location: `lightrag.py:3223`
 - Behavior (per docstring): deletes document, chunks, and graph elements. Partially-affected entities/relationships are *rebuilt using LLM cache from remaining documents* — meaning **orphan cleanup is automatic** but is **LLM-cache-dependent**. If `delete_llm_cache=True` is passed, re-derivation must re-query the LLM.
 - Pipeline concurrency guard: blocks during busy pipeline unless the current job is itself a batch-delete ("Deleting {N} Documents").
 - Returns:
+
   ```python
   DeletionResult(
       status: "success" | "not_found" | "not_allowed" | "fail",
@@ -170,15 +179,18 @@ Login wall detected IF (
   ```
 
 ### `ainsert(input, ids=None, file_paths=None, track_id=None) → str (track_id)`
+
 - Location: `lightrag.py:1237`
 - **Critical for D-08:** `ids` parameter accepts a stable, deterministic doc ID — if omitted, LightRAG auto-generates MD5. For enrichment we should pass **synthetic IDs** like `f"zhihu_enrich_{wechat_hash}_{q_idx}"` so that `adelete_by_doc_id` can later target exactly those docs.
 - `file_paths` parameter is used for citation — encode the parent relationship here: `f"enriches:{wechat_article_hash}"` (or similar sentinel that downstream queries can filter on).
 
 ### Related APIs available
+
 - `adelete_by_entity(entity_name)` at `:4134` — **not needed** for Phase 4 happy path.
 - `adelete_by_relation(...)` at `:4164` — **not needed** for Phase 4 happy path.
 
 ### Phase-0 D-14 spike — explicit validation checklist
+
 - [ ] Insert one real WeChat article with an explicit `ids=["test_doc_1"]`.
 - [ ] Query LightRAG for entities derived from that article; record the list.
 - [ ] Call `adelete_by_doc_id("test_doc_1")`. Confirm `status == "success"`.
@@ -222,6 +234,7 @@ grounding = response.candidates[0].grounding_metadata
 ```
 
 **Response structure notes:**
+
 - `response.text` — the natural-language completion. Questions extraction should request a numbered list or fenced JSON in the prompt.
 - `response.candidates[0].grounding_metadata.grounding_chunks` — list of web sources the model consulted. These can be persisted alongside each question (useful for later audit), but are not *required* by any downstream step.
 - **Gotcha:** `response_mime_type="application/json"` cannot be combined with tool use in current SDK. Parse JSON manually from `response.text` (prompt should specify: "Reply with a JSON array of objects with fields `question` and `context`.").
@@ -236,6 +249,7 @@ grounding = response.candidates[0].grounding_metadata
 - Remote testing mode (MCP-over-SSE, `CDP_URL` ending in `/mcp`) is also supported but less relevant here.
 
 **Cookie persistence:**
+
 - Cookies are tied to Edge's `--user-data-dir`. As long as Edge is restarted with the same `--user-data-dir`, Zhihu login state survives.
 - The `zhihu-haowen-enrich` skill **shares the same Edge instance** as `ingest_wechat.py`'s CDP fallback — single browser, single user-data-dir, single cookie jar.
 - **Assumption flagged for Phase-0 confirmation:** The remote Edge instance is already running with Zhihu cookies present. If not, the first enrichment run triggers D-13 (QR to Telegram).
@@ -556,6 +570,7 @@ This is a small-budget probe (<30 min) runnable as a standalone Python script on
 ## Metadata
 
 **Confidence breakdown (post remote SSH probe 2026-04-27):**
+
 - Hermes skill orchestration: **HIGH** — `skill_view()` tool + `/skill-name` convention verified directly in `~/.hermes/hermes-agent/tools/skills_tool.py` and `agent/skill_commands.py` on remote.
 - Zhihu 好问 flow: LOW-MEDIUM — PRD §7 is the only source; selectors need empirical tuning on first run.
 - LightRAG API: HIGH — read directly from installed library code; version 1.4.15 confirmed on remote.

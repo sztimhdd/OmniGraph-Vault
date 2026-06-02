@@ -67,6 +67,7 @@ NONE. This plan modifies ZERO files under `kb/`, `lib/`, or top-level `*.py`. Pu
 ### Task 1.1 — Create the App (databricks apps create) and discover SP client_id
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q1 lines 92-112 — App created → SP auto-created with client_id pattern; precedent in kdb-1 SPIKE
 - `kdb-2-RESEARCH.md` Q8 lines 853-866 — sp-grants recipe shape
 
@@ -74,10 +75,12 @@ NONE. This plan modifies ZERO files under `kb/`, `lib/`, or top-level `*.py`. Pu
 
 1. Run `databricks --profile dev apps create omnigraph-kb` (idempotent — if App already exists from a prior partial run, the command surfaces a clean error and we proceed to step 2 to fetch the existing SP)
 2. Fetch the App's auto-created SP client_id:
+
    ```bash
    databricks --profile dev apps get omnigraph-kb -o json > .scratch/kdb-2-01-app-create.json
    jq -r '.service_principal_client_id' .scratch/kdb-2-01-app-create.json
    ```
+
 3. Capture the GUID into `.scratch/kdb-2-01-sp-client-id.txt` (single-line file, no whitespace) for the rest of this plan + plan kdb-2-04 to consume
 4. Invoke `Skill(skill="databricks-patterns")` with args `"Confirm 'databricks apps create' v0.260+ behavior: idempotency on existing app + service_principal_client_id field shape in apps get JSON output. Verify 'databricks apps get omnigraph-kb -o json' returns service_principal_client_id (not service_principal_id or principal_client_id)."` — record the skill output substring quote in SUMMARY.md
 5. Append to `kdb-2-01-AUTH-EVIDENCE.md`:
@@ -87,6 +90,7 @@ NONE. This plan modifies ZERO files under `kb/`, `lib/`, or top-level `*.py`. Pu
    - The `databricks apps get omnigraph-kb -o json` excerpt showing `name`, `state`, `service_principal_client_id`
 
 **Acceptance** (grep-verifiable):
+
 - `cat .scratch/kdb-2-01-sp-client-id.txt | wc -l` returns `1`
 - `cat .scratch/kdb-2-01-sp-client-id.txt | grep -cE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'` returns `1` (GUID shape)
 - `databricks --profile dev apps get omnigraph-kb -o json | jq -r '.name'` returns `omnigraph-kb`
@@ -99,6 +103,7 @@ NONE. This plan modifies ZERO files under `kb/`, `lib/`, or top-level `*.py`. Pu
 ### Task 1.2 — Apply USE CATALOG + USE SCHEMA + READ VOLUME grants (AUTH-DBX-01..03)
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q1(b) lines 114-132 — concrete grant SQL with backticked GUID principal
 - `kdb-2-RESEARCH.md` Q1(b) line 122 — explicit "DO NOT grant WRITE VOLUME — AUTH-DBX-03 forbids it"
 - CLAUDE.md "Databricks MCP — key tools" — `execute_sql` is the SQL execution channel; warehouse_id `eaa098820703bf5f` is the default
@@ -108,16 +113,19 @@ NONE. This plan modifies ZERO files under `kb/`, `lib/`, or top-level `*.py`. Pu
 1. Read `.scratch/kdb-2-01-sp-client-id.txt` into a shell variable `CLIENT_ID`
 2. Invoke `Skill(skill="security-review")` with args `"Audit the 3 grant statements about to be issued against UC for the App SP. Confirm: (a) READ VOLUME is granted, NOT WRITE VOLUME (AUTH-DBX-03 hard rule); (b) USE CATALOG and USE SCHEMA are minimal-privilege (read-side metadata only); (c) the principal is the App SP client_id GUID (backticked), not a friendly name."` — record output substring in evidence MD
 3. Issue 3 grant SQL statements via `mcp__databricks-mcp-server execute_sql` (warehouse_id `eaa098820703bf5f`):
+
    ```sql
    GRANT USE CATALOG ON CATALOG mdlg_ai_shared TO `<CLIENT_ID>`;
    GRANT USE SCHEMA ON SCHEMA mdlg_ai_shared.kb_v2 TO `<CLIENT_ID>`;
    GRANT READ VOLUME ON VOLUME mdlg_ai_shared.kb_v2.omnigraph_vault TO `<CLIENT_ID>`;
    ```
+
    (Each statement is a separate `execute_sql` call — MCP doesn't pipeline; substitute `<CLIENT_ID>` with the actual GUID literal in the SQL string before invoking.)
 4. **Defensive — confirm WRITE VOLUME was NOT granted.** Run `SHOW GRANTS ON VOLUME mdlg_ai_shared.kb_v2.omnigraph_vault` (no filter), capture output, grep that no row has `WRITE VOLUME` for the App SP client_id.
 5. Append all 3 grant SQL + outputs to `kdb-2-01-AUTH-EVIDENCE.md` "Section 2 — UC grants"
 
 **Acceptance** (grep-verifiable):
+
 - After all 3 grants, `SHOW GRANTS ON CATALOG mdlg_ai_shared` filtered to the SP client_id returns ≥1 row with privilege `USE CATALOG`
 - After all 3 grants, `SHOW GRANTS ON SCHEMA mdlg_ai_shared.kb_v2` filtered to the SP client_id returns ≥1 row with privilege `USE SCHEMA`
 - After all 3 grants, `SHOW GRANTS ON VOLUME mdlg_ai_shared.kb_v2.omnigraph_vault` filtered to the SP client_id returns ≥1 row with privilege `READ VOLUME`
@@ -131,16 +139,19 @@ NONE. This plan modifies ZERO files under `kb/`, `lib/`, or top-level `*.py`. Pu
 ### Task 1.3 — Verify CAN_QUERY on Foundation Model endpoints (AUTH-DBX-04)
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q1(c) lines 134-184 — Path A CLI + Path B in-app probe; kdb-1 SPIKE-FINDINGS line 23 punted on this; Path A grammar TBD
 - `.planning/STATE-kb-databricks-v1.md` lines 47-49 — locked endpoint names: `databricks-claude-sonnet-4-6` (LLM) + `databricks-qwen3-embedding-0-6b` (embedding)
 
 **Action:**
 
 1. Try Path A — `databricks --profile dev serving-endpoints get-permissions databricks-claude-sonnet-4-6 -o json` and capture output:
+
    ```bash
    databricks --profile dev serving-endpoints get-permissions databricks-claude-sonnet-4-6 -o json > .scratch/kdb-2-01-perms-llm.json 2>&1 || true
    databricks --profile dev serving-endpoints get-permissions databricks-qwen3-embedding-0-6b -o json > .scratch/kdb-2-01-perms-embed.json 2>&1 || true
    ```
+
    (`|| true` because per RESEARCH Q1(c) the CLI grammar is TBD; if it fails, we fall through to Path B)
 2. Examine each JSON file. **If Path A succeeds** AND each shows the App SP client_id with permission level containing `CAN_QUERY` (or any QUERY-equivalent grant): AUTH-DBX-04 satisfied via Path A. Capture the JSON excerpts to `kdb-2-01-AUTH-EVIDENCE.md`.
 3. **If Path A fails** (either CLI rejects "unknown command", or returns permissions with NO entry for the App SP, or returns a non-JSON error): document the Path A failure mode + reasoning in evidence MD, and explicitly state "AUTH-DBX-04 will be verified at runtime via in-app probe during kdb-2-04 Smoke 1 — see kdb-2-04 Wave 0 Step 0".
@@ -148,6 +159,7 @@ NONE. This plan modifies ZERO files under `kb/`, `lib/`, or top-level `*.py`. Pu
 5. Append the verification path taken (A or B-deferred) to `kdb-2-01-AUTH-EVIDENCE.md` "Section 3 — Foundation Model permissions".
 
 **Acceptance** (grep-verifiable):
+
 - `.scratch/kdb-2-01-perms-llm.json` exists (whether success or error capture)
 - `.scratch/kdb-2-01-perms-embed.json` exists
 - `kdb-2-01-AUTH-EVIDENCE.md` "Section 3" exists and explicitly states one of: `"Path A satisfied"` OR `"Path A inconclusive — deferred to kdb-2-04 Wave 0 Step 0 in-app probe"` (literal substring grep)
@@ -159,6 +171,7 @@ NONE. This plan modifies ZERO files under `kb/`, `lib/`, or top-level `*.py`. Pu
 ### Task 1.4 — Document AUTH-DBX-05 (SSO gating) + close evidence MD
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q5 lines 553-625 — Apps SSO + Private Link details
 - `.planning/PROJECT-kb-databricks-v1.md` line 70 — "App user authentication — workspace SSO, internal preview only"
 
@@ -172,6 +185,7 @@ NONE. This plan modifies ZERO files under `kb/`, `lib/`, or top-level `*.py`. Pu
 4. Commit-staging note (executor-side, NOT this plan): `git add .planning/phases/kdb-2-databricks-app-deploy/kdb-2-01-AUTH-EVIDENCE.md` (explicit; per `feedback_git_add_explicit_in_parallel_quicks.md`)
 
 **Acceptance** (grep-verifiable):
+
 - `kdb-2-01-AUTH-EVIDENCE.md` contains a top-level table with 5 rows — one per AUTH-DBX-01..05 — each with explicit `✅` or `deferred-runtime` status
 - File contains literal `AUTH-DBX-05` substring with verification narrative
 - File contains literal `Skill(skill="databricks-patterns"` AND `Skill(skill="security-review"` (each ≥1 occurrence — frontmatter skills baked)
@@ -204,6 +218,7 @@ This plan honors the following hard constraints from `kdb-2-CONTEXT.md`:
 ## Anti-patterns (block list)
 
 This plan MUST NOT:
+
 - Grant `WRITE VOLUME` to the App SP (AUTH-DBX-03 hard rule)
 - Grant `CAN_MANAGE` on any Foundation Model endpoint (AUTH-DBX-04 specifies `CAN_QUERY` only)
 - Modify `databricks-deploy/startup_adapter.py` or `databricks-deploy/lightrag_databricks_provider.py` (kdb-1.5 territory; frozen)

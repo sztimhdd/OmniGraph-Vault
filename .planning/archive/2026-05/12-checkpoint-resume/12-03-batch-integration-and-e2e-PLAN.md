@@ -64,11 +64,13 @@ def has_stage(article_hash: str, stage: str) -> bool: ...
 ```
 
 From batch_ingest_from_spider.py (current structure):
+
 - `list_articles` → yields articles with `url` field
 - `batch_classify_articles` → title-level classify filter
 - The main article iteration loop (find by `grep -n "for art in " batch_ingest_from_spider.py` or `grep -n "subprocess.run" batch_ingest_from_spider.py` — this is where each URL is handed off to `python ingest_wechat.py <url>` OR to an in-process `ingest_article` call). The loop body is the integration point.
 
 The batch-level skip lives BEFORE the per-article ingest call, AFTER the passing classification filter. Skip logic:
+
 ```python
 ckpt_hash = get_article_hash(art["url"])
 if has_stage(ckpt_hash, "text_ingest"):
@@ -79,9 +81,11 @@ if has_stage(ckpt_hash, "text_ingest"):
 ```
 
 Integration test strategy:
+
 - Use the Plan 12-02 mocking fixtures (reuse the `_checkpoint_base` and `mock_ingest_deps` fixtures — consider moving them to `tests/conftest.py` for reuse, or duplicate them in the integration test module).
 - Test is "integration" not because it talks to real services, but because it exercises the full call chain: batch_ingest_from_spider → ingest_wechat → lib.checkpoint.
 </interfaces>
+
 </context>
 
 <tasks>
@@ -467,6 +471,7 @@ If `pytest-asyncio` is NOT in requirements.txt, either add it (check with `grep 
 </verification>
 
 <success_criteria>
+
 - batch_ingest_from_spider.py wires `has_stage(..., "text_ingest")` skip guard in the main article loop
 - Log message `checkpoint-skip: already-ingested` printed for every skipped article
 - Gate-1 acceptance test (`test_gate1_fail_at_image_download_then_resume`) PASSES — proves the full v3.2 Gate 1 scenario

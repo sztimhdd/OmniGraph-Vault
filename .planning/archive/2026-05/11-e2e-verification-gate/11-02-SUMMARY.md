@@ -116,6 +116,7 @@ Replaced Plan 11-00's 4 stub stages (`asyncio.sleep(0)`) with real pipeline call
 ### Rule 3 auto-fixes (four blocking issues discovered during live gate run)
 
 **1. `[Rule 3 — Blocking]` Windows `os.rename` fails on target-exists; second run crashes.**
+
 - **Found during:** First live gate run (`test/fixtures/gpt55_article/benchmark_result.json` already existed from a prior invocation).
 - **Issue:** `os.rename(tmp_path, path)` on Windows raises `FileExistsError [WinError 183]` when `path` already exists. Atomic JSON write from Plan 11-00 worked only for the FIRST run against any output path.
 - **Fix:** Switched to `os.replace` (cross-platform atomic rename-with-overwrite). Updated existing `test_write_result_cleans_tmp_on_failure` to patch `os.replace`, added new `test_write_result_overwrites_existing_target` that writes over an existing file.
@@ -123,6 +124,7 @@ Replaced Plan 11-00's 4 stub stages (`asyncio.sleep(0)`) with real pipeline call
 - **Commit:** `f5c73a3`
 
 **2. `[Rule 3 — Blocking]` `ModuleNotFoundError: 'ingest_wechat'` when script run directly.**
+
 - **Found during:** First live gate run.
 - **Issue:** Python places the script's directory (`scripts/`) on `sys.path[0]`, not the project root. Late imports (`from ingest_wechat import get_rag`) fail with `ModuleNotFoundError`.
 - **Fix:** Inserted `_PROJECT_ROOT = Path(__file__).resolve().parent.parent` into `sys.path[0]` at module init (before any imports that need project-root resolution). Pytest invocations worked because pytest uses project root as cwd + `pyproject.toml` `pythonpath = ["."]`.
@@ -130,6 +132,7 @@ Replaced Plan 11-00's 4 stub stages (`asyncio.sleep(0)`) with real pipeline call
 - **Commit:** `f5c73a3`
 
 **3. `[Rule 3 — Blocking]` `config.py:load_env()` wiped Vertex AI env vars (wiped D-11.08 opt-in).**
+
 - **Found during:** Second live gate run (after sys.path fix).
 - **Issue:** `config.py` lines 42-45 unconditionally called `os.environ.pop("GOOGLE_CLOUD_PROJECT"/"GOOGLE_CLOUD_LOCATION"/"GOOGLE_GENAI_USE_VERTEXAI"/"GOOGLE_API_KEY")` to force the free-tier Gemini API mode. This ran BEFORE `lib.lightrag_embedding._is_vertex_mode()` evaluated the env vars → Vertex AI opt-in always returned False even when caller explicitly set SA credentials. `ingest_wechat.py` had the same issue with a hardcoded `os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"`.
 - **Fix:** Guarded both pop blocks on `if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")`. Explicit SA-JSON presence = honor the Vertex opt-in; free-tier default preserved when SA absent.
@@ -137,6 +140,7 @@ Replaced Plan 11-00's 4 stub stages (`asyncio.sleep(0)`) with real pipeline call
 - **Commit:** `f5c73a3`
 
 **4. `[Rule 3 — Blocking]` `RAG_WORKING_DIR` hardcoded → embedding-dim mismatch with legacy vdb.**
+
 - **Found during:** Third live gate run (after Vertex env fix).
 - **Issue:** The user's production `~/.hermes/omonigraph-vault/lightrag_storage/vdb_chunks.json` was written with the Phase 5 pre-upgrade 768-dim embedding. Current embedding (gemini-embedding-2, 3072-dim) collides: `AssertionError: Embedding dim mismatch, expected: 3072, but loaded: 768`. The benchmark CANNOT run against the production dir without destroying it.
 - **Fix:** Added `RAG_WORKING_DIR` env override to `config.py` — when set, benchmark routes state into an isolated path. Documented in the 11-02-PLAN's `test_live_gate_run` fixture pattern (`tmp_path / "rag"`).

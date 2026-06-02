@@ -33,12 +33,15 @@ the trackable artifact for the change.
 ## What changed (Aliyun)
 
 ### P1 — Remove ghost cron
+
 `gen_agent_news.sh` referenced in root crontab did not exist on disk.
 Removed via `crontab -l | grep -v gen_agent_news.sh | crontab -`.
 Remaining cron line: `0 12 * * * /root/OmniGraph-Vault/kb/scripts/daily_rebuild.sh`.
 
 ### P2 — Swap daily-digest ExecStart
+
 `/etc/systemd/system/omnigraph-daily-digest.service`
+
 - before: `ExecStart=…/python …/enrichment/daily_digest.py`
 - after:  `ExecStart=…/python …/scripts/export_vitaclaw_agent_news.py --output /opt/vitaclaw/control-plane/vitaclaw-site/dist/data/agent-news.json`
 - unit name preserved (no disable/enable churn). Backup `.bak-vnj` saved.
@@ -46,13 +49,17 @@ Remaining cron line: `0 12 * * * /root/OmniGraph-Vault/kb/scripts/daily_rebuild.
   `--output` flag in ExecStart bypasses the Hermes-rooted default.
 
 ### P4 — Bump --max-articles 5 → 10
+
 3 ingest services updated:
+
 - `omnigraph-daily-ingest.service`
 - `omnigraph-afternoon-ingest.service`
 - `omnigraph-evening-ingest.service`
 
 ### P5 — Reschedule afternoon-ingest timer
+
 `/etc/systemd/system/omnigraph-afternoon-ingest.timer`
+
 - `OnCalendar=*-*-* 17:00:00 UTC` → `*-*-* 06:00:00 UTC` (= 14:00 CST)
 - Description updated: "14:00 ADT (17:00 UTC)" → "14:00 CST (06:00 UTC)"
 
@@ -66,6 +73,7 @@ Tue 08:00 / 14:00 / 20:00 CST. daily-digest timer also enabled+active.
 ## P7 — Smoke + contract verification
 
 Manual run on Aliyun:
+
 ```
 systemctl start omnigraph-daily-digest.service
 # exit 0
@@ -73,6 +81,7 @@ systemctl start omnigraph-daily-digest.service
 
 JSON captured to `.scratch/260525-vnj-p7-evidence.json` (4107 bytes,
 gitignored). Contract verified:
+
 - `contractVersion = 1`
 - `items.length = 5`
 - `generatedAt = 2026-05-25T13:41:21.115712Z` (ISO 8601 UTC)

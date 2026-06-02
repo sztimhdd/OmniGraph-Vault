@@ -111,12 +111,14 @@ done
 ```
 
 Expected counts:
+
 - ui-ux-pro-max: ≥ 2 (kb-3-10 + kb-3-11)
 - frontend-design: ≥ 2 (kb-3-10 + kb-3-11)
 - api-design: ≥ 1 (kb-3-01)
 - python-patterns: ≥ 3 (kb-3-02 + kb-3-04 + kb-3-05 + kb-3-06 + kb-3-07 + kb-3-08 + kb-3-09 = 7 plans expected)
 - writing-tests: ≥ 2 (multiple — kb-3-02, 04, 05, 06, 07, 08, 09 = 7)
 </interfaces>
+
 </context>
 
 <tasks>
@@ -460,6 +462,7 @@ Expected counts:
 </verification>
 
 <success_criteria>
+
 - All 19 kb-3 REQs verified at integration level
 - Phase NOT-DONE → DONE gate per kb/docs/10-DESIGN-DISCIPLINE.md verification regex passes
 </success_criteria>

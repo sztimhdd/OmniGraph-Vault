@@ -119,6 +119,7 @@ human_verification:
 | 8   | `kb/config.py` reads `KB_DB_PATH`, `KB_IMAGES_DIR`, `KB_OUTPUT_DIR`, `KB_PORT`, `KB_DEFAULT_LANG`, `KB_SYNTHESIZE_TIMEOUT` from env with documented defaults; no path hardcoded outside config.py (CONFIG-01)                                                                    | ✓ VERIFIED | ✓ VERIFIED  | `kb/config.py` ships 6 env-driven constants; 8/8 unit tests pass; CONFIG-01 enforcement grep `grep -rE "/.hermes\|kol_scan\.db" kb/ --include='*.py' --exclude=config.py` returns 0 hits per kb-1-01 SUMMARY.                                                                                                                                                                                                  |
 
 **Score:**
+
 - 4/8 truths fully ✓ VERIFIED (1, 2, 7, 8) — was 1/8
 - 0/8 ⚠️ PARTIAL (was 2/8: truths 1 + 7 promoted)
 - 4/8 ? HUMAN (3, 4, 5, 6) — code-level + real-output now exist; only browser inspection remains
@@ -301,6 +302,7 @@ All 4 commits visible in `git log --oneline -10`. Re-verified 2026-05-13T13:30 a
 **Status: human_needed** — All automated checks pass, all 4 previously-BLOCKED REQs flipped to SATISFIED, all observable truths either ✓ VERIFIED or ready for human browser verification. Phase deliverable is complete; only browser-side visual + behavioral confirmation remains, which is normal for any SSG output.
 
 **Score breakdown:**
+
 - 4/8 truths ✓ VERIFIED (1, 2, 7, 8) — was 1/8
 - 4/8 truths ? HUMAN-VERIFIABLE (3, 4, 5, 6) — was 4/8 UNCERTAIN (now have real exported output to inspect)
 - 0/8 ✗ FAILED (was 1/8)

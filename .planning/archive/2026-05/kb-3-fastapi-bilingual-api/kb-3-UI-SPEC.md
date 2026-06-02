@@ -209,6 +209,7 @@ This is purely additive CSS (no new tokens) — the executor adds ~30 LOC at the
 - KG mode (`?mode=kg`) uses the same async-job-id flow as `/api/synthesize` — UI handles via the same state machine
 
 **Decision point: search results UI surface**
+
 - ❌ Rejected: new `kb/templates/search.html` page → adds template surface, splits SSG output, conflicts with PRD's homepage-centric design
 - ✅ Chosen: inline reveal → preserves kb-1 SSG output, additive JS only, search becomes a "magnifying glass" inside existing surfaces
 

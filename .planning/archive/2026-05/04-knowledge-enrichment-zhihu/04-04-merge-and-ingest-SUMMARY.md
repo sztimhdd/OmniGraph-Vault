@@ -39,6 +39,7 @@ metrics:
 ### `enrichment/merge_md.py` — Pure merger function (44 lines)
 
 `merge_wechat_with_haowen(wechat_md, haowen)` appends a `## 知识增厚` section to the WeChat MD tail:
+
 - Each successful question gets a `### 问题 N: <question>` subsection with summary + `来源:` URL
 - Question numbering uses the original list position (1-based), so None gaps are visible
 - All-fail (empty list or all-None): appends `(未找到相关的知乎问答)` footer
@@ -47,6 +48,7 @@ metrics:
 ### `enrichment/merge_and_ingest.py` — Runner (226 lines)
 
 Async orchestrator that reads disk artifacts, merges, ingests, and updates SQLite:
+
 - `_load_haowen_list`: reads `haowen.json` per q_idx, returns `None` for missing/unreadable
 - `_load_zhihu_mds`: reads `final_content.md` per q_idx
 - `_ingest_to_lightrag`: calls `rag.ainsert(enriched_wechat_md)` + per-Zhihu-doc `rag.ainsert(md, ids=[f"zhihu_{hash}_{q_idx}"], file_paths=[f"enriches:{hash}"])` (D-08)
@@ -62,6 +64,7 @@ Async orchestrator that reads disk artifacts, merges, ingests, and updates SQLit
 **GREEN commit:** `c75f23a` — implementation passes all 5 tests
 
 Files created:
+
 - `enrichment/merge_md.py` — 44 lines, pure function
 - `tests/unit/test_merge_md.py` — 5 unit tests
 
@@ -71,6 +74,7 @@ Files created:
 **GREEN commit:** `f64e407` — implementation passes all 4 tests
 
 Files created:
+
 - `enrichment/merge_and_ingest.py` — 226 lines, runner with full side effects
 - `tests/unit/test_merge_and_ingest.py` — 4 unit tests
 
@@ -103,6 +107,7 @@ Pre-existing warnings from Cognee/Pydantic libraries appear on the `test_zhihu_d
 ## Known Stubs
 
 None — all data flows are wired:
+
 - `_ingest_to_lightrag` calls `ingest_wechat.get_rag()` (real in production, monkeypatched in D-08 test)
 - `_update_sqlite_status` writes to real SQLite (skips gracefully if DB missing)
 - `merge_wechat_with_haowen` is fully implemented with no placeholders

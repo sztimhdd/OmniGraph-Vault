@@ -50,6 +50,7 @@ The original REQUIREMENTS doc scoped ir-4 with these 4 REQs:
   into a single dual-source invocation.
 
 Both retired files are direct duplicates of work now done by `lib.article_filter`
+
 + `batch_ingest_from_spider --from-db`. The original LF-5.1/5.2 deletions
 remain pending and may be picked up in a follow-up cleanup phase.
 

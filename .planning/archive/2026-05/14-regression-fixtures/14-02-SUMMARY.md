@@ -13,6 +13,7 @@ key-files:
 ## What was built
 
 `scripts/validate_regression_batch.py` (280 lines) — CLI regression harness with:
+
 - `--fixtures` (nargs+) + `--output` (default `batch_validation_report.json`) argparse CLI
 - Graceful Phase 12/13 import fallback: `lib.checkpoint` + `lib.vision_cascade` optional imports guarded by try/except ImportError, with typed stub implementations when the plans are not yet merged
 - Pure helpers: `within_tolerance` (±10% rule with zero-expected edge case), `evaluate_status` (PASS / FAIL / TIMEOUT per counters + meta + errors + timeout), `build_report` (PRD §B3.4 shape), `write_report` (atomic `.tmp` → `os.replace`)
@@ -21,6 +22,7 @@ key-files:
 - `main()` — exit 0 on `batch_pass`, exit 1 otherwise; top-level exception guard writes an `errors_top_level` field before exiting
 
 `tests/test_validate_regression_batch.py` (21 tests) — unit coverage:
+
 - 9 parametrized `within_tolerance` cases including boundaries (±exactly 10%) and zero-expected edges
 - 4 `build_report` shape + aggregate tests
 - 5 `evaluate_status` cases (PASS, FAIL on exact-miss, FAIL on tolerance-miss, TIMEOUT wins, errors-override-pass)
@@ -38,6 +40,7 @@ key-files:
 ## Deviations
 
 Task 2 of the plan (real ingest wiring) is deferred to Hermes — the full ingest chain requires real fixtures (Plan 14-01) + real DeepSeek/SiliconFlow access. Current `run_fixture` returns a metadata-mirroring counters report that always produces PASS for fixtures whose metadata matches expectations. This is sufficient for:
+
 - CI schema validation of `batch_validation_report.json`
 - Unit testing of tolerance / status / build_report helpers
 - Phase 12/13 stub-fallback testing

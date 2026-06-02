@@ -21,11 +21,13 @@ article instead of a short Q&A answer. Reuse the existing `/kb/ask/` page +
 ## Why minimum-viable
 
 The full long-form spec (vitaclaw-site agent's REQ 3) had:
+
 - new endpoint or page
 - preview behavior
 - save/export behavior
 
 We're shipping the **core feature only**: deep research markdown generation
+
 + structured sources/entities + inline images. Preview/save/export deferred to
 v2.2+ if user needs them. This is a 0.5d add-on, not a 1-2d expansion.
 
@@ -251,6 +253,7 @@ ZERO new `:root` vars — all existing kb-1/2/3 tokens.
 Invoke `Skill(skill="writing-tests", args="Testing Trophy: integration > unit. Real DB + FastAPI TestClient + MOCKED kg_synthesize.synthesize_response. Test mode='qa' is default → existing behavior unchanged. Test mode='long_form' → kg_synthesize called with prompt-template-wrapped question. Test mode='long_form' + lang='zh-CN' uses zh template; mode='long_form' + lang='en' uses en template. Test schema parity: SynthesizeResult fields identical for both modes. Test invalid mode value → 422. Smoke: qa.js mode toggle persists via localStorage across page reload.")`.
 
 `tests/integration/kb/test_long_form_synthesis.py`:
+
 - `test_default_mode_is_qa_when_unspecified`
 - `test_qa_mode_uses_existing_prompt`
 - `test_long_form_mode_wraps_question_with_zh_template`
@@ -260,6 +263,7 @@ Invoke `Skill(skill="writing-tests", args="Testing Trophy: integration > unit. R
 - `test_long_form_response_includes_image_refs_when_sources_have_images`
 
 `tests/integration/kb/test_qa_link_contract.py` (extend):
+
 - `test_mode_toggle_does_not_break_source_chip_rendering`
 
 ### Task 7 — Local UAT (Rule 3 mandatory)
@@ -314,6 +318,7 @@ mcp__playwright__browser_take_screenshot kb-v2.1-5-long-form-mobile.png
 ## Skill discipline
 
 SUMMARY.md MUST contain:
+
 - `Skill(skill="python-patterns"`
 - `Skill(skill="frontend-design"`
 - `Skill(skill="writing-tests"`

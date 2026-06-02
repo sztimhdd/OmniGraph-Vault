@@ -27,6 +27,7 @@ print(result)
 ```
 
 **Result:**
+
 ```
 hashes: ['9cbd555c68', '26b555ac6b', 'c94352c89c']
 result: {'suggestions_generated': 0, 'applied': 0, 'dropped': 0}
@@ -48,6 +49,7 @@ Corrupted a synthetic wiki page with unresolved `^[article:ffffffffff]` + invali
 | JSONL log persisted | YES — 2 entries written to `.planning/phases/llm-wiki-integration/wiki-lint-failures.jsonl` |
 
 JSONL evidence:
+
 ```json
 {"ts": "2026-05-20T01:45:58.169646+00:00", "lint_name": "citation_integrity", "page": "...\\bad.md", "failures": ["^[article:ffffffffff]"], "context": "uat-negative-path"}
 {"ts": "2026-05-20T01:45:58.171500+00:00", "lint_name": "backlink_validity", "page": "...\\bad.md", "failures": ["nonexistent-slug"], "context": "uat-negative-path"}

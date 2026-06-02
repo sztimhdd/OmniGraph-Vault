@@ -8,10 +8,12 @@
 ## Pre-flight
 
 - pytest green: 9/9 W4 unit + integration pass on local main HEAD
+
   ```
   tests/unit/kb/test_synthesize_wiki_fallthrough.py ........ 5 passed
   tests/integration/kb/test_synthesize_wiki_inject.py ...... 4 passed
   ```
+
 - W2 commit `0acbe46` landed locally; `kb/wiki/entities/openclaw.md` present (12.7 KB synthesis with 8 cited article hashes).
 - Pre-UAT mtime snapshot: `.scratch/wiki_mtimes_pre_w4uat.txt` (23 files in `kb/wiki/`).
 - Local serve on `:8766` healthy: `/wiki/openclaw.html` and `/wiki/index.html` both 200.

@@ -524,6 +524,7 @@ Note: `articles` table has `update_time` column; `rss_articles` table uses `fetc
 </verification>
 
 <success_criteria>
+
 - DATA-04 satisfied: list_articles paginated + filtered + sorted
 - DATA-05 satisfied: get_article_by_hash resolves both tables including NULL-hash KOL fallback
 - DATA-06 satisfied: resolve_url_hash 3-branch tree complete

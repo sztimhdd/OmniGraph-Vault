@@ -87,6 +87,7 @@ Hermes-pulled fixtures.
 # Background — h09 history (read-only, for orientation; do NOT modify)
 
 The h09 retry helper has shipped through three quicks already:
+
 - 260510-h09  — initial 3 × 2s budget (clearly too small, raised constantly)
 - 260510-h09b — bumped to 30 × 2s default + env override (current production: 150 × 2s = 300s)
 - 260511-lmc  — added Option C dual guard (error_msg check + stable re-poll) for TOCTOU race
@@ -119,6 +120,7 @@ The skill's "Connection" section gives the canonical SSH flag set:
 `ssh -p <PORT> -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new <USER>@<HOST> '<remote command>'`.
 
 Approach for the pull:
+
 1. Read `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/hermes_ssh.md` to get host/port/user.
 2. Run `ssh ... 'cat ~/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json'` and capture stdout.
 3. Save to `tests/fixtures/lightrag_doc_status/sample_busy.json` (the snapshot **as it is** — should have at least one `processing` doc; if not busy at pull time, retry during a known-busy window, or fall back to grabbing whatever the snapshot is and call it `sample_idle.json`).
@@ -152,6 +154,7 @@ The explicit files for this quick are listed in `files_modified` frontmatter abo
 `.scratch/` is git-ignored (see project root `.gitignore`). The spec doc at
 `.scratch/gqu-pa-spec.md` will NOT be committed — that's intentional (design
 artifacts live in `.scratch/`, code/tests live in tracked paths). The plan body
+
 + commit message body are sufficient for review traceability.
 </context>
 
@@ -542,6 +545,7 @@ Preserves Option B (error_msg guard) + Option A (stable-state re-poll) from
 quick 260511-lmc unchanged byte-for-byte. Only loop range() bound is dynamic.
 
 Files:
+
 - lib/lightrag_queue_probe.py (NEW)
 - tests/unit/test_lightrag_queue_probe.py (NEW, 6 tests, 5 named + 1 fixture-realism)
 - tests/fixtures/lightrag_doc_status/sample_busy.json (NEW, scp'd from Hermes prod)
@@ -614,6 +618,7 @@ EOF
 </verification>
 
 <success_criteria>
+
 - pytest tests/unit/test_lightrag_queue_probe.py -v: 5/5 named tests PASS
 - `python -c "from lib.lightrag_queue_probe import compute_dynamic_budget; ..."`: imports cleanly
 - `python -c "import ingest_wechat"` (with DEEPSEEK_API_KEY=dummy): imports cleanly

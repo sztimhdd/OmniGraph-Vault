@@ -25,6 +25,7 @@
 ## Test Results
 
 Full pytest run (venv/Scripts/python -m pytest tests/ -x -q):
+
 - **Exit code: 0** — all tests pass, 0 failures, 0 errors
 - kb-v2.2-3 integration tests: all green
   - `test_search_default_mode_is_kg` ✅
@@ -43,32 +44,39 @@ Full pytest run (venv/Scripts/python -m pytest tests/ -x -q):
 ### Curl smoke results
 
 **1. Default no-mode-param → KG path → HTTP 503 (dev has no GCP creds)**
+
 ```
 curl -s http://localhost:8766/api/search?q=AI
 → HTTP 503
 ← {"detail":{"mode":"kg","kg_unavailable":true,"reason":"kg_disabled"}}
 ← retry-after: 60
 ```
+
 Confirms: (a) default is now `kg`, (b) 503 + Retry-After fires when credentials absent.
 
 **2. Explicit `mode=fts` → HTTP 200 + items**
+
 ```
 curl -s "http://localhost:8766/api/search?q=AI&mode=fts"
 → HTTP 200
 ← {"items":[...],"total":N,"mode":"fts"}
 ```
+
 Confirms: FTS5 path still works; mode=fts is not affected by KG unavailability.
 
 **3. Explicit `mode=kg` → HTTP 503 + Retry-After**
+
 ```
 curl -s "http://localhost:8766/api/search?q=AI&mode=kg"
 → HTTP 503
 ← {"detail":{"mode":"kg","kg_unavailable":true,"reason":"kg_disabled"}}
 ← retry-after: 60
 ```
+
 Confirms: explicit mode=kg also returns 503 when unavailable.
 
 **4. Retry-After header confirmed** on all 503 responses:
+
 ```
 retry-after: 60
 ```

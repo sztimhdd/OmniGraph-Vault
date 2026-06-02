@@ -136,11 +136,13 @@ kb/output/
 ```
 
 CLI args (REVISION 1 — `--db-path` removed per Issue #3):
+
 - `--output-dir PATH` (override config.KB_OUTPUT_DIR)
 - `--limit N` (dev mode: render only first N articles for fast iteration)
 - DB path override: env var `KB_DB_PATH=/path` only — NOT a CLI flag (would be a no-op since config.KB_DB_PATH is read at import time)
 
 EXPORT-01 idempotency: same DB content → byte-identical output **for every file under `kb/output/`** including `sitemap.xml`, `robots.txt`, and `_url_index.json`. Achieve by:
+
 - Sorting articles deterministically (already DESC by update_time)
 - Using fixed Jinja2 autoescape settings
 - NOT including timestamps in HTML output
@@ -149,6 +151,7 @@ EXPORT-01 idempotency: same DB content → byte-identical output **for every fil
   - For article URLs: use `article.update_time[:10]` if non-empty, else the constant string `"1970-01-01"` (NOT `datetime.now()`) so missing-data rows stay stable across runs
   - If the article list is empty (edge case in tests), use `"1970-01-01"` for index URLs as well
 </interfaces>
+
 </context>
 
 <tasks>
@@ -656,6 +659,7 @@ EXPORT-01 idempotency: same DB content → byte-identical output **for every fil
 </verification>
 
 <success_criteria>
+
 - EXPORT-01 satisfied: idempotent across EVERY file in kb/output/ (test 4 recursive sha256 proof; sitemap.xml lastmod values derived deterministically from input data)
 - EXPORT-02 satisfied: read-only (test 2 md5 proof)
 - EXPORT-03 satisfied: index.html + articles/{hash}.html (one per article) + ask/index.html generated

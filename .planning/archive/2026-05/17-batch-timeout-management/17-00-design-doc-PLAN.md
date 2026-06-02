@@ -71,6 +71,7 @@ reference pseudocode sketch, and edge-case enumeration.
 Inherited formulas (DO NOT redesign — recap only):
 
 From v3.1 Phase 9 (implemented in `batch_ingest_from_spider.py` lines 134-157):
+
 ```python
 _CHUNK_SIZE_CHARS = 4800
 _BASE_BUDGET_S = 120
@@ -83,14 +84,17 @@ def _compute_article_budget_s(full_content: str) -> int:
 ```
 
 Phase 12 checkpoint interface (to reference in § Checkpoint-Flush Interaction):
+
 - Checkpoint flush writes `<5s` of JSON per stage (atomic `.tmp` + rename)
 - Stage files: `01_scrape.html`, `02_classify.json`, `03_images/manifest.json`,
   `04_text_ingest.done`, `05_vision/{id}.json`
 
 Phase 14 report schema (to reference in § Monitoring Metrics):
+
 - `batch_validation_report.json` is written by `scripts/validate_regression_batch.py`
 - Phase 17 ADDS a new top-level key `batch_timeout_metrics` to that same file
 </interfaces>
+
 </context>
 
 <tasks>
@@ -331,12 +335,14 @@ Phase 14 report schema (to reference in § Monitoring Metrics):
 test $(grep -c '^## ' docs/BATCH_TIMEOUT_DESIGN.md) -ge 8
 
 # Key content anchors
+
 grep -q 'def clamp_article_timeout' docs/BATCH_TIMEOUT_DESIGN.md
 grep -q 'batch_timeout_metrics' docs/BATCH_TIMEOUT_DESIGN.md
 grep -q 'max(120 + 30' docs/BATCH_TIMEOUT_DESIGN.md
 grep -q 'OMNIGRAPH_BATCH_TIMEOUT_SEC' docs/BATCH_TIMEOUT_DESIGN.md
 grep -q 'flush_partial_checkpoint' docs/BATCH_TIMEOUT_DESIGN.md
 grep -q 'safety_margin' docs/BATCH_TIMEOUT_DESIGN.md
+
 ```
 </verification>
 

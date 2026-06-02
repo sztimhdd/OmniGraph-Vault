@@ -9,12 +9,14 @@
 ## Phase Boundary
 
 **Delivers:** A resilient Vision pipeline that cascades through three providers (SiliconFlow → OpenRouter → Gemini) with per-provider state tracking, circuit breaker logic, and SiliconFlow balance monitoring. Core artifacts:
+
 1. **`lib/vision_cascade.py`** — cascade orchestrator, provider state machine, circuit breaker
 2. **`lib/siliconflow_balance.py`** (or similar) — balance check + estimation logic
 3. **Integration into `image_pipeline.py`** — replace current cascade with new logic
 4. **`provider_status` persistence** — piggy-backs on Phase 12 checkpoint dir (`~/.hermes/omonigraph-vault/checkpoints/_batch/provider_status.json`) so circuit state survives batch restarts
 
 **Does NOT deliver:**
+
 - Changes to single-image filtering logic (v3.1 Phase 8 IMG-01 — `min(w,h) >= 300`)
 - Checkpoint infrastructure itself (Phase 12)
 - Regression fixture to validate cascade (Phase 14)
@@ -22,11 +24,13 @@
 - OpenRouter or Gemini client changes beyond wiring them into the cascade
 
 **Dependencies:**
+
 - Phase 12 (checkpoint directory structure + atomic writes) — `provider_status.json` persists under the checkpoint dir.
 - v3.1 Phase 8 (`describe_images` / `filter_images` in `image_pipeline.py`) — **closed 2026-05-01 @ commit 2b38e98** (see `docs/MILESTONE_v3.1_CLOSURE.md` §4 Phase 8 scorecard: IMG-01..IMG-04 delivered).
 - v3.1 Phase 10 async `_vision_worker_impl` and text-first `ainsert()` — **closed 2026-05-01 @ commit 2b38e98** (ARCH-01..ARCH-04 delivered).
 
 **Current state (to be replaced):**
+
 - `image_pipeline.py` currently cascades Gemini → SiliconFlow → OpenRouter (wrong order, per PRD)
 - No per-provider failure tracking
 - Single 503 from any provider propagates as exception, blocking article
@@ -37,6 +41,7 @@
 **Problem:** `scripts/bench_ingest_fixture.py::_balance_precheck()` at line ~253 reads `os.environ.get("SILICONFLOW_API_KEY", "").strip()` directly. When bench runs without `~/.hermes/.env` pre-loaded into the process env (e.g., fresh shell invocation), this returns empty → precheck returns `balance_precheck_skipped` even though the key exists in `~/.hermes/.env`. Confirmed by Hermes 2026-05-01 E2E run: 28/28 SiliconFlow Vision succeeded (production code-path loads key correctly) while precheck skipped.
 
 **Locked decision:**
+
 - `lib/siliconflow_balance.check_siliconflow_balance()` (new in 13-01) is the SOURCE OF TRUTH for balance checks. It uses the same env-loading mechanism as `config.py` — import `config` at module load so `~/.hermes/.env` is auto-sourced into `os.environ` before any key reads.
 - `scripts/bench_ingest_fixture.py::_balance_precheck()` is refactored to DELEGATE to `lib.siliconflow_balance.check_siliconflow_balance()` — no direct `os.environ` reads, no re-implementation of the HTTP call, no duplication of error classification. The bench script keeps its four branches (`balance_precheck_skipped`, `balance_warning status=ok`, `balance_warning status=insufficient_for_batch`, `balance_precheck_failed`) as a thin mapper over the lib call.
 - Regression test: run `DEEPSEEK_API_KEY=dummy SILICONFLOW_API_KEY=<test> python scripts/bench_ingest_fixture.py --fixture test/fixtures/gpt55_article/` with `~/.hermes/.env` absent — precheck MUST return `balance_warning` (not `balance_precheck_skipped`). Without the env loaded, the process env fallback should still resolve the key passed on the command line.
@@ -45,6 +50,7 @@
 </domain>
 
 <pre_execution_checks>
+
 ## Pre-execution Checks (operational prerequisites — NOT code/plan constraints)
 
 These are operator responsibilities that must be satisfied before `/gsd:execute-phase 13` begins. They don't appear as plan tasks because they're account/billing state, not software.
@@ -54,11 +60,13 @@ These are operator responsibilities that must be satisfied before `/gsd:execute-
 **Current state (2026-05-01, pre-execute):** `chargeBalance = -¥56.07` (overdrawn). Verified via direct `curl https://api.siliconflow.cn/v1/user/info` in Hermes v3.1 E2E (see `docs/HERMES_E2E_VERIFICATION_v3.1_20260501.md` §5).
 
 **Why it matters for Phase 13:**
+
 - Circuit-breaker regression tests (13-03) deliberately exercise 503/429/timeout paths to validate cascade fallback. If SiliconFlow is in a real quota-exhaustion state due to negative balance, the test will hit the **billing** edge instead of the **circuit-breaker** edge, invalidating the test signal.
 - CASC-06 balance-monitoring code paths need a FUNCTIONING account to exercise — not a depleted one.
 - The fix-by-construction in D-BENCH-PRECHECK solves the env-read bug; it does NOT solve "account is overdrawn".
 
 **Required action before execute:**
+
 1. Top up SiliconFlow account to ≥ ¥100 (covers 5× full regression run at ¥0.0013/image × ~28 images/article × 5 fixtures ≈ ¥0.18 per dry run, with headroom for accidental batch triggers during integration testing).
 2. Verify: `curl -s https://api.siliconflow.cn/v1/user/info -H "Authorization: Bearer $SILICONFLOW_API_KEY" | jq '.data.chargeBalance'` returns positive float.
 3. Document the top-up date/amount in `.planning/phases/13-vision-cascade/13-VERIFICATION.md` (phase 13 verification log) at execute-phase kickoff.
@@ -81,6 +89,7 @@ These are operator responsibilities that must be satisfied before `/gsd:execute-
 ### Provider State Tracking (CASC-02) — LOCKED
 
 **Schema:**
+
 ```python
 provider_status = {
     "siliconflow": {
@@ -98,6 +107,7 @@ provider_status = {
 ```
 
 **Persistence:**
+
 - Saved to `~/.hermes/omonigraph-vault/checkpoints/_batch/provider_status.json` at batch start
 - Atomic writes (reuse `lib/checkpoint.py::_atomic_write` from Phase 12)
 - Reset to defaults on new batch run
@@ -126,12 +136,14 @@ provider_status = {
 ### Logging Format (CASC-05) — LOCKED
 
 **Per-image log (structured, one line):**
+
 ```
 image_id=img_007 provider=siliconflow attempt=1/3 result=503 latency_ms=2340 msg="upstream timeout"
 image_id=img_007 provider=openrouter attempt=2/3 result=200 latency_ms=1230 desc_chars=180
 ```
 
 **Per-batch aggregate (at batch end):**
+
 ```
 VISION CASCADE SUMMARY
   total_images: 282
@@ -145,6 +157,7 @@ VISION CASCADE SUMMARY
 ```
 
 **Alerts:**
+
 - If Gemini used for >5% of images → warn "upstream provider issues detected" (signal)
 - If any provider circuit still `open` at batch end → warn "transient or quota problem, review provider_status.json"
 
@@ -153,16 +166,19 @@ VISION CASCADE SUMMARY
 **Balance API:** `GET https://api.siliconflow.cn/v1/user/info` with `Authorization: Bearer $SILICONFLOW_API_KEY` → JSON with `data.balance` field (CNY)
 
 **Pre-batch check:**
+
 - Fetch balance at batch start
 - Estimate per-image cost: `estimated_cost = remaining_articles × avg_images_per_article × 0.0013`
 - If `balance < estimated_cost` → structured warning "SiliconFlow balance ¥X.XX insufficient for ¥Y.YY estimated spend; top up or expect fallback to OpenRouter"
 
 **Mid-batch monitoring:**
+
 - Every 10 images, re-fetch balance (light HTTP call)
 - If trajectory predicts depletion before batch end → warn
 - If `balance < ¥0.05` → switch ALL subsequent images to OpenRouter (avoid partial batch where half images have SiliconFlow descriptions and half have OpenRouter)
 
 **Quota exhaustion handling:**
+
 - If SiliconFlow returns 429 AND balance < ¥0.05 → mark circuit open for SiliconFlow; continue batch on OpenRouter only
 
 ### Integration into `image_pipeline.py` (Claude's Discretion on line-level edits)
@@ -170,6 +186,7 @@ VISION CASCADE SUMMARY
 **Current call signature (approximate):** `describe_image(url: str, image_bytes: bytes, providers: list[str]) -> str`
 
 **New signature (proposed):**
+
 ```python
 def describe_image_cascade(
     image_id: str,
@@ -183,6 +200,7 @@ def describe_image_cascade(
 ```
 
 Planner decides final signature; key constraints:
+
 - Cascade state is PASSED IN (not module-global); cascade instance is constructed per batch
 - Description returned along with metadata (provider used, attempt log) for per-image structured log
 - No exceptions escape the cascade — all errors caught, logged, and either resolved by fallback or reported as `failed=True`
@@ -198,25 +216,30 @@ Planner decides final signature; key constraints:
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Source of Truth
+
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B2 — verbatim requirements
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §Acceptance Criteria Gate 2 — end-to-end acceptance
 
 ### Dependency Interfaces
+
 - Phase 12 `lib/checkpoint.py` — `_atomic_write()` helper + checkpoint directory root
 - v3.1 Phase 8 `image_pipeline.describe_images()` / `filter_images()` — current cascade entry point (to be replaced)
 - v3.1 Phase 10 `_vision_worker()` — async worker that calls describe function
 
 ### External APIs (planner researches)
+
 - https://docs.siliconflow.cn/api — Vision endpoint + user/info endpoint
 - https://openrouter.ai/docs — GLM-4.5V model endpoint
 - Existing `lib/api_keys.py` + `lib/llm_client.py` — Gemini key rotation patterns (reuse for Gemini Vision as last-resort)
 
 ### Existing Files to Read
+
 - `image_pipeline.py` (full file — current cascade; flagged by CLAUDE.md as buggy order)
 - `lib/api_keys.py` — OMNIGRAPH_GEMINI_KEY + rotation patterns
 - `lib/llm_client.py` — existing Gemini client wrapping

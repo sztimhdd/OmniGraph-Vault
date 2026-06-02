@@ -115,6 +115,7 @@ if not layer2.passed:  # OLD shape
 # CHANGES: rewire to new sig — call as layer2_full_body_score([ArticleWithBody(...)])[0],
 #          treat verdict == "reject" as skip, anything else (candidate / ok) as pass
 ```
+
 </interfaces>
 
 <tasks>
@@ -175,6 +176,7 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
 
 3. **Audit all callers** of `_build_topic_filter_query`. Use grep to confirm caller(s) destructure `(sql, params)` correctly and pass `params` to `cursor.execute()`. Existing call site at line ~1376 already does `sql, params = _build_topic_filter_query(topics)` — no change needed downstream.
   </action>
+
   <verify>
     <automated>python -c "
 from batch_ingest_from_spider import _build_topic_filter_query
@@ -311,6 +313,7 @@ for chunk_idx, chunk in enumerate(chunks):
 3. **Remove** the inline Layer 1 call at lines ~1484-1506. The if-block that wrapped `layer1 = layer1_pre_filter(...)` and the per-article reject-write should be deleted; Layer 1 is now done at the chunk boundary above.
 
 4. **Rewrite** the inline Layer 2 call at lines ~1525-1541 to consume the new sig:
+
 ```python
 # v3.5 Layer 2 (placeholder always-pass; ir-2 ships real DeepSeek call).
 if not dry_run:
@@ -343,15 +346,18 @@ for row in candidate_rows_in_chunk:
 ```
 
 6. **Verify `ingestions.reason` column does not exist** (which is expected). Run:
+
 ```bash
 python -c "
 import sqlite3
 conn = sqlite3.connect('data/kol_scan.db' if __import__('os').path.exists('data/kol_scan.db') else ':memory:')
 print({row[1] for row in conn.execute('PRAGMA table_info(ingestions)')})"
 ```
+
 If `reason` is in the set, do NOT add it now — it is a v3.5 follow-up if operator visibility is needed. The verdict.reason value is recorded in articles.layer1_reason already, so the data is preserved.
 
 **HARD CONSTRAINTS:**
+
 - DO NOT change function signatures of `ingest_from_db`, `_build_topic_filter_query`, or `ingest_article` — orchestrate_daily and other callers depend on them
 - DO NOT add a `reason` column to `ingestions` schema in this plan
 - DO NOT remove the `--topic-filter` / `--min-depth` CLI flags or their argparse entries — they are silent no-ops per LF-3.4
@@ -414,6 +420,7 @@ OMNIGRAPH_BASE_DIR=$(pwd)/.dev-runtime \
   2>&1 | tee .scratch/ir-1-01-smoke-$(date +%s).log
 # Expect log lines: [layer1] batch ... candidate=N reject=M ...
 ```
+
 </verification>
 
 <commit_message>

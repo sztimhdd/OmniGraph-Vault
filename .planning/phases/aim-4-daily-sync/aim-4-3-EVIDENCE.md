@@ -58,6 +58,7 @@
 **Fix:** Append explicit `UTC` suffix to `OnCalendar` value — `OnCalendar=*-*-* 05:00:00 UTC`. Also updated `deploy/hermes/systemd/README.md` Schedule table + ADT/UTC narrative to document the actual host TZ (`America/Halifax`) and explain why the explicit `UTC` suffix is required regardless of host TZ drift / DST.
 
 **Files modified:**
+
 - `deploy/hermes/systemd/omnigraph-daily-pull.timer` (line 6: added ` UTC`)
 - `deploy/hermes/systemd/README.md` (Schedule §)
 

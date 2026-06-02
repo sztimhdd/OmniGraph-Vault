@@ -87,6 +87,7 @@ embed quota doesn't wall the <2min gate on local dev).
 <!-- Key contracts the executor needs. -->
 
 From ingest_wechat.py (post-Phase-10, current state):
+
 - `async def get_rag(flush: bool = True) -> LightRAG` — fresh instance per call; flush=True default
 - `async def ingest_article(url, rag=None) -> "asyncio.Task | None"` — returns Vision task handle
 - `async def _vision_worker_impl(*, rag, article_hash, url_to_path, title, filter_stats,
@@ -97,6 +98,7 @@ From ingest_wechat.py (post-Phase-10, current state):
   fixture provides article.md already)
 
 From batch_ingest_from_spider.py:
+
 - `_drain_pending_vision_tasks()` — 120s drain pattern; harness MAY reuse or explicitly await
   the single Vision task for cleaner test semantics. Recommend explicit `await vision_task`
   since benchmark spawns exactly one; avoids pulling in the whole batch orchestrator module.
@@ -108,6 +110,7 @@ From batch_ingest_from_spider.py:
   article data.
 
 From lightrag.QueryParam (external library):
+
 - `QueryParam(mode="hybrid", top_k=3)` — passes to `rag.aquery`
 
 Vision worker task handle behavior: `asyncio.create_task(_vision_worker_impl(...))` returns
@@ -116,12 +119,14 @@ immediately (sub-ms). Task completion depends on describe_images latency (~4s/im
 gate on Vision worker completion — `async_vision_start_ms` is spawn time only.
 
 Integration test environment:
+
 - `DEEPSEEK_API_KEY` must be set (real key; not 'dummy') for live classify test
 - `OMNIGRAPH_GEMINI_KEY` or `GEMINI_API_KEY` must be set for free-tier embedding path
 - `GOOGLE_APPLICATION_CREDENTIALS` + `GOOGLE_CLOUD_PROJECT` optionally set for Vertex path
 - `SILICONFLOW_API_KEY` optionally set for balance precheck
 - Integration test SKIPS if DEEPSEEK_API_KEY is 'dummy' or unset (pytest marker + skipif)
 </interfaces>
+
 </context>
 
 <tasks>
@@ -501,6 +506,7 @@ Phase-level checks for this plan:
 </verification>
 
 <success_criteria>
+
 - Harness runs end-to-end against the fixture with real LightRAG
 - `stage_timings_ms.text_ingest` is measured around `rag.ainsert` only, excludes Vision worker
 - `gate.aquery_returns_fixture_chunk` correctly evaluates via file_path OR signature-fragment match

@@ -101,6 +101,7 @@ public-facing host/port; planner: confirm via aim-3 cutover evidence).
 ### Task 1 — Day-0 baseline capture `[agent-runnable]`
 
 **`<read_first>`**
+
 - `aim-5-CONTEXT.md` lines 337-358 (STAB-04 baseline + day-7 probes)
 - `aim-5-CONTEXT.md` FINDING 5 (baseline anchor procedure)
 - Memory `aliyun_vitaclaw_ssh.md` (host details — note: kb-api may be
@@ -110,6 +111,7 @@ public-facing host/port; planner: confirm via aim-3 cutover evidence).
 - aim-3 cutover evidence (any file documenting kb-api endpoint URL)
 
 **`<acceptance_criteria>`**
+
 - `kb-api-baseline-day0.json` exists with the 5 fields specified above.
 - `article_count` is a positive integer.
 - `known_hashes` array has exactly 3 elements, each a non-empty string
@@ -192,6 +194,7 @@ git log -1 --name-only
 ### Task 2 — Day-7 verdict probe `[agent-runnable]`
 
 **`<read_first>`**
+
 - `kb-api-baseline-day0.json` (the frozen baseline from Task 1)
 - `aim-5-CONTEXT.md` lines 121-124 (Decision 4 / Q5c hard-fail
   discipline on `/api/synthesize`)
@@ -199,6 +202,7 @@ git log -1 --name-only
   = FAIL)
 
 **`<acceptance_criteria>`**
+
 - `kb-api-day7-verdict.md` exists at
   `.planning/phases/aim-5-stability-watch/aim-5-EVIDENCE/kb-api-day7-verdict.md`
   with:
@@ -291,10 +295,12 @@ cat "$VERDICT"
 ### Task 3 — aim-5-4-EVIDENCE.md `[agent-runnable]`
 
 **`<read_first>`**
+
 - `kb-api-baseline-day0.json` + `kb-api-day7-verdict.md` (sources)
 - `aim-5-CONTEXT.md` FINDING 1 + lines 121-124
 
 **`<acceptance_criteria>`**
+
 - `aim-5-4-EVIDENCE.md` summarizes:
   - Day-0 baseline path + key fields
   - Day-7 probe table

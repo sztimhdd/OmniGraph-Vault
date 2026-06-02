@@ -100,6 +100,7 @@ ignored.
 ### `tests/unit/test_article_filter.py` (new — 7 GREEN)
 
 Pins the placeholder interface contract:
+
 - 3 tests for Layer 1 (returns `FilterResult`, always passes, reason mentions
   "placeholder")
 - 3 mirror tests for Layer 2
@@ -109,6 +110,7 @@ Pins the placeholder interface contract:
 
 Pre-Quick: pinned the OLD topic-filter SQL (LIKE/JOIN/NULL). Rewritten to
 pin the v3.5 contract:
+
 - SQL selects v3.5 column shape (no `c.depth_score`)
 - SQL does NOT contain `classifications`, `c.depth_score`, `c.topic`, or `LIKE`
 - SQL JOINs `accounts`, anti-joins `ingestions WHERE status='ok'`,
@@ -142,6 +144,7 @@ Runbook at
 `.planning/quick/260507-lai-v3-5-foundation-bypass-classify-gate-wir/HERMES-DEPLOY.md`.
 
 6 steps for user-driven SSH execution:
+
 1. Pre-flight (`git pull --ff-only`, verify commit chain)
 2. Remove 3 obsolete crons (`daily-classify-kol`, `daily-enrich`, `rss-classify`)
 3. Edit `daily-ingest` cron to drop `--topic-filter`

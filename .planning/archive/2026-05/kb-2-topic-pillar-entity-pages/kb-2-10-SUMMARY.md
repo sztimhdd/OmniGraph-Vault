@@ -12,12 +12,15 @@ requirements: [TOPIC-01, TOPIC-02, TOPIC-03, TOPIC-04, TOPIC-05, ENTITY-01, ENTI
 # kb-2-10 — Integration Test Plan Summary
 
 ## Objective
+
 End-to-end integration test exercising the full kb-2 SSG pipeline against shared `fixture_db`. Verifies plans 04-09 wire correctly + UI-SPEC §8 acceptance regex pass against generated output.
 
 ## Tasks
+
 1 task — single test file with 12+ test cases. Mirror kb-1 `tests/integration/kb/test_export.py` invocation pattern.
 
 ## Skills (per kb/docs/10-DESIGN-DISCIPLINE.md)
+
 This plan invokes the required Test Skill literally in task `<action>` block:
 
 - **Skill(skill="writing-tests", args="...")** — Testing Trophy integration test (no mocks, real SQLite + real driver invocation), 12+ cases covering topic outputs, entity outputs, homepage extensions, article aside, JSON-LD, sitemap, read-only, LOC budget, locale keys, icons. Parametrized fixtures for the 37 UI-SPEC §8 grep patterns.
@@ -25,10 +28,12 @@ This plan invokes the required Test Skill literally in task `<action>` block:
 This literal `Skill(skill=...)` string is embedded in `kb-2-10-integration-test-PLAN.md` Task 1 `<action>` block for kb/docs/10-DESIGN-DISCIPLINE.md Check 1 regex match.
 
 ## Dependency graph
+
 - **Depends on:** ALL prior kb-2 plans (01-09) — this is the integrating gate
 - **Consumed by:** kb-2 phase declaration (gate to milestone-level signoff)
 
 ## Tech-stack notes
+
 - Pure pytest, no new deps
 - Driver invocation via `subprocess.run` with KB_DB_PATH + KB_OUTPUT_DIR + KB_ENTITY_MIN_FREQ env override
 - Read-only enforcement: md5 fixture_db before/after must match
@@ -37,6 +42,7 @@ This literal `Skill(skill=...)` string is embedded in `kb-2-10-integration-test-
 - Negative tests: below-threshold entities (ObscureLib, OneOffMention) MUST NOT produce pages
 
 ## Acceptance signal
+
 - `pytest tests/integration/kb/test_kb2_export.py -v` exits 0 with all parametrized cases passing
 - kb-1 regression: `pytest tests/integration/kb/test_export.py -v` still exits 0
 - Read-only fixture_db md5 check passes
@@ -82,6 +88,7 @@ icons into a small number of test functions with high coverage.
 | LOC budget (UI-SPEC §8 #35) | 1 | style.css ≤ 2000 (rebased) |
 
 **UI-SPEC §8 acceptance pattern coverage:** 37 patterns mapped:
+
 - #1-2 template existence → `test_template_file_exists` (2 cases)
 - #3-22 structural classes → `test_template_source_contains_pattern` (20 cases)
 - #23-27 locale parity → `test_locale_contains_key` (10 cases, 5 keys × 2 langs)

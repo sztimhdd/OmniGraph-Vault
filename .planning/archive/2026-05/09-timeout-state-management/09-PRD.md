@@ -19,14 +19,17 @@ Deliver two coupled capabilities that give the ingestion pipeline deterministic,
 ## Locked Decisions (from REQUIREMENTS.md — these ARE the acceptance criteria)
 
 ### TIMEOUT-01 — `LLM_TIMEOUT` env controls LightRAG health_check
+
 - LightRAG instance initialization reads `os.environ.get("LLM_TIMEOUT", "600")` and uses it as the health_check timeout ceiling
 - Default 600s (up from implicit 180s)
 
 ### TIMEOUT-02 — DeepSeek async client explicit timeout
+
 - `lib/llm_deepseek.py` `AsyncOpenAI` client configured with `timeout=120.0` (or pass `timeout=httpx.Timeout(120.0)` — inspect SDK version and pick the correct idiom)
 - Default 120s prevents single-chunk runaway
 
 ### TIMEOUT-03 — Outer `asyncio.wait_for` budget scales with chunk count
+
 - Formula: `budget_s = max(120 + 30 * chunk_count, 900)`
 - Applied in `batch_ingest_from_spider.py` (and/or wherever the per-article orchestrator lives)
 - `chunk_count` resolved from the article's text length divided by LightRAG's chunk size (best estimate pre-ingest) OR as a post-ingest observation fed back if unavailable
@@ -36,20 +39,24 @@ Deliver two coupled capabilities that give the ingestion pipeline deterministic,
 - Floor of 900s guarantees one slow 800s DeepSeek chunk still completes
 
 ### STATE-01 — Pre-batch buffer flush
+
 - At start of a `batch_ingest` run (or start of a single-article CLI run), any residual buffered-but-unprocessed entities from a prior crashed run are flushed before new work begins
 - Implementation: call an explicit `rag.flush_pending_buffer()` helper OR re-init the rag with a clean slate — whichever is idiomatic to LightRAG's internals (planner to investigate)
 - Quota NOT consumed on replay of old buffer
 
 ### STATE-02 — Rollback on `asyncio.wait_for` timeout
+
 - When `asyncio.wait_for` kills an in-progress article task, any partially inserted chunks + entities + edges + vectors for that article are removed
 - Graph stays consistent: no orphan entity nodes, no chunks without a parent doc, no dangling vectors
 - Embed quota NOT wasted on partial doc (this is the single biggest user-visible benefit)
 
 ### STATE-03 — Idempotent re-ingest after rollback
+
 - Re-running the same article after a rollback-on-timeout succeeds without orphans or duplicate primary keys
 - Covered by a unit test: ingest → force timeout → rollback → re-ingest same article → assert graph state matches a clean single-ingest baseline
 
 ### STATE-04 — `get_rag()` contract change
+
 - `get_rag()` either returns a fresh LightRAG instance on each call OR accepts `flush: bool = False` parameter
 - Current global-singleton-with-state is the root cause of STATE-01's "history debt" replay
 - Callers that want the historical behavior (test reuse) pass `flush=False`; production default is `flush=True` (or simply "always fresh")

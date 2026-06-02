@@ -84,10 +84,12 @@ must_haves:
 Wave 1 of ar-4 wires the **observability surfaces** that close out Agentic-RAG-v1's API contract: the streaming peer (`research_stream`) gets a real body, the telemetry sink (`cfg.telemetry_jsonl`) is honored for the first time since ar-1, and the CLI gets a `--dump-state <path>` flag for offline ResearchState inspection. All three pieces share one JSONL serialization layer in a new `lib/research/telemetry.py` module — no duplicate serializers, no skew between `research()` and `research_stream()`.
 
 Purpose:
+
 - **LIB-08** — `research_stream(query, config) -> AsyncIterator[dict]` body lands. The streaming peer rule (Axis 5) becomes real, not just a signature stub. Telemetry events flow through the iterator AND optionally append to `cfg.telemetry_jsonl` when configured (Axis 4 opt-in side effect). `research()` is refactored so both surfaces share the same emit sequence.
 - **CLI-02** — `--dump-state <path>` CLI flag dumps the final `ResearchState` as JSONL (one header line + one line per non-None stage). The flag is additive: stdout markdown is preserved unchanged. The serializer helper `_write_dump_state` lives in `__main__.py` so `lib/research/` retains its pure-async no-CLI-side-effects character.
 
 Output:
+
 - One new module: `lib/research/telemetry.py` (~80-120 LOC: event-type constants + 2 functions + 1 helper).
 - One new file: `lib/research/__main__.py` gains an argparse argument + a 10-15 LOC helper; `_amain` body grows by exactly one if-branch (≤ 18 LOC cap preserved).
 - One file rewritten: `lib/research/orchestrator.py` — `research_stream()` body filled; `research()` refactored to consume the same emission generator.

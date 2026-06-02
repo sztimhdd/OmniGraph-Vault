@@ -64,6 +64,7 @@ Implement the kdb-1.5 storage adapter — `hydrate_lightrag_storage_from_volume(
 Purpose: Defends against the documentary-inferred SPIKE-DBX-01b failure (`os.makedirs` raises `OSError [Errno 30] Read-only file system` on FUSE-mounted UC Volume). Logs copy-elapsed-time + bytes so kdb-2 first deploy has data to calibrate cold-start budget.
 
 Output:
+
 - `databricks-deploy/startup_adapter.py` (idempotent, FUSE-primary + SDK-fallback, structured logging)
 - `databricks-deploy/tests/test_startup_adapter.py` (unit tests using tmp_path; mocks for SDK fallback)
 - `databricks-deploy/CONFIG-EXEMPTIONS.md` (initial empty exemption list — kdb-2 will populate when it adds `lib/llm_complete.py` + `kg_synthesize.py`)
@@ -106,6 +107,7 @@ Source: VOLUME_ROOT + "/lightrag_storage"  (read-only, may be empty pre-kdb-2.5)
 Dest:   TMP_ROOT + "/lightrag_storage"     (writable, query-time cache lives here)
 
 Files to copy (post-kdb-2.5 — measured against Hermes prod 2026-05-15):
+
   - vdb_chunks.json, vdb_entities.json, vdb_relationships.json (1024-dim, ~400 MB total post-Qwen3)
   - graph_chunk_entity_relation.graphml
   - kv_store_full_docs.json, kv_store_text_chunks.json,
@@ -449,6 +451,7 @@ Phase-level verification anchors (this plan's contribution):
 </verification>
 
 <success_criteria>
+
 - All 5 unit tests pass: `pytest databricks-deploy/tests/test_startup_adapter.py -v` → `5 passed`
 - File presence: `ls databricks-deploy/{startup_adapter.py,CONFIG-EXEMPTIONS.md,requirements.txt}` returns all three
 - Frontmatter requirement (STORAGE-DBX-05) maps to deliverable: adapter implements alt-path copy mechanism

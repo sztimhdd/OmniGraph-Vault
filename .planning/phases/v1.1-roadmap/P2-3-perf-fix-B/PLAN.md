@@ -936,16 +936,19 @@ Seven tasks, dependency-ordered. Wave assignments within B (note: phase-level Wa
 ## Verification (per SC + 4-Track adapted from A)
 
 ### Track 1 — Cold-start (SC#1-Aliyun, binding gate)
+
 - Aliyun kb-api restart → first /api/synthesize 200. Vertex client construction is metadata-only (no model load).
 - **PASS:** HEALTH_OK_AT - RESTART_START ≤ 60s. Journalctl shows `llm_rerank_init_ok provider=vertex_gemini wall_s=NN.NN` exactly once.
 
 ### Track 2 — Async safety (P5 contract preserved on Aliyun)
+
 - Vertex rerank introduces no new lock; relies on P5's `app.state.lightrag_lock`.
 - Vertex SDK is async-native (`client.aio.models.generate_content`) — no executor bridge.
 - Smoke evidence: 3 sequential synthesize queries succeed with consistent mode='mix' + non-zero wall_s.
 - (No N=4 concurrent test on Aliyun — single-worker uvicorn, identical to A's contract.)
 
 ### Track 3 — Graceful degrade (SC#4-Aliyun + SC#6 + SC#7)
+
 - (a) Provider-init fail → dispatcher returns `(None, False)`; app boots with `rerank_disabled=True`; mode='hybrid'.
 - (b) Per-request Vertex 503 / timeout / parse fail → wrapper returns identity-order list; LightRAG uses original chunks.
 - (c) `OMNIGRAPH_LLM_RERANK_FORCE_FAIL=1` shorts dispatcher regardless of provider — A's existing test still passes (covers vertex_gemini implicitly).
@@ -953,14 +956,17 @@ Seven tasks, dependency-ordered. Wave assignments within B (note: phase-level Wa
 - All four mechanisms verified via T5 integration test + T6 step 11 backwards-compat smoke.
 
 ### Track 4 — Steady-state quality (SC#2-Aliyun + SC#3-Aliyun)
+
 - **SC#2-Aliyun:** 3 zh-CN smoke queries on Aliyun, each wall_s ≤ 65s + mode='mix'.
 - **SC#3-Aliyun:** cite A's eval harness output (provider-agnostic LLM-as-judge property; do NOT re-run on Aliyun per CONTEXT.md decision).
 
 ### SC#5 — Principle #9 file-touch invariant
+
 - `git diff --name-only main..HEAD | Select-String 'kb/(static|templates)/'` returns empty.
 - Sync-only deploy permissible (Aliyun does not use Makefile / SSG bake; deploy is `git pull` + `systemctl restart`).
 
 ### Aliyun parity gate (HC-6) — CLOSED in B
+
 - Aliyun + Databricks both running LLM-as-reranker. v1.1 LLM-rerank parity complete.
 
 ## Halt Triggers
@@ -1002,11 +1008,13 @@ P2-3-perf-fix-B is a **paired-component change** spanning 1 NEW helper + 1 MODIF
 3. **Force-fail at runtime:** set `Environment=OMNIGRAPH_LLM_RERANK_FORCE_FAIL=1`, daemon-reload, restart. Short-circuits before dispatcher even runs. Same end state.
 
 4. **Full revert (if architectural):**
+
    ```bash
    git revert <T7-sha> <T6-sha> <T5-sha> <T4-sha> <T3-sha> <T2-sha> <T1-sha>
    git push origin main
    ssh aliyun-vitaclaw "cd /root/OmniGraph-Vault && git pull --ff-only origin main && cp /root/OmniGraph-Vault/kb/deploy/kb-api.service /etc/systemd/system/kb-api.service && systemctl daemon-reload && systemctl restart kb-api.service"
    ```
+
    Restores pre-B Aliyun state (Environment= lines absent → graceful degrade → mode='hybrid'). A's Databricks-side rerank UNAFFECTED.
 
 5. **Partial revert (Vertex helper only):** revert T1 commit only; T2 dispatcher's vertex_gemini branch then surfaces ImportError, which the except branch catches as graceful degrade. Effectively forces rerank_disabled until Vertex helper is restored. Hot-fix-friendly state.
@@ -1024,6 +1032,7 @@ P2-3-perf-fix-B is a **paired-component change** spanning 1 NEW helper + 1 MODIF
 ## Success Criteria
 
 P2-3-perf-fix-B is complete when:
+
 - [ ] **SC#1-Aliyun:** Cold-start ≤ 60s on Aliyun; numeric in VERIFICATION.md cites RESTART_START + HEALTH_OK_AT + delta.
 - [ ] **SC#2-Aliyun:** Steady-state long_form `wall_s ≤ 65s` for ≥3 zh-CN smoke queries; mode='mix' in each response.
 - [ ] **SC#3-Aliyun:** A's eval harness output cited verbatim in VERIFICATION.md SC#3 section (no re-run).
@@ -1039,6 +1048,7 @@ P2-3-perf-fix-B is complete when:
 ## Output
 
 After T7 operator-approved, the phase closes with:
+
 - 6 commits on main (T1..T6; T7 commits VERIFICATION.md)
 - Updated `STATE-v1.1.md` (P2-3-perf-fix-B row added → ✅ CLOSED post-approval)
 - `P2-3-perf-fix-B-VERIFICATION.md` with all 7 SC sections + Aliyun deploy evidence + Local UAT screenshot
@@ -1046,4 +1056,5 @@ After T7 operator-approved, the phase closes with:
 - Wave 2 P2-3 line in STATE-v1.1.md updated: "Aliyun side cited as deferred" → "Aliyun + Databricks parity ✅ via perf-fix-A + perf-fix-B"
 - v1.1 LLM-as-reranker parity gate (HC-6) CLOSED for both deploy targets
 </content>
+
 </invoke>

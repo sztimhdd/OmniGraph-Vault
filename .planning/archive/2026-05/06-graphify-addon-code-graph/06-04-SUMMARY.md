@@ -76,6 +76,7 @@ The script (`scripts/graphify-refresh.sh`) does:
 6. **Log completion**: `=== $(date -Is) refresh complete (nodes=N) ===` to `graphify-refresh.log`
 
 Key correctness properties:
+
 - `set -euo pipefail` — halts on any error, preserves existing graph
 - No custom `tmp → rename` — Graphify's shrink guard handles atomic swap
 - No hardcoded credentials or hostnames — uses `$HOME` and relative paths only
@@ -152,6 +153,7 @@ All acceptance criteria satisfied:
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Comment contained forbidden substring "graphify refresh"**
+
 - **Found during:** Task 4.1 verification
 - **Issue:** Plan acceptance criteria `! grep -q "graphify refresh"` failed because the comment "Why `graphify update` (not `graphify build` or `graphify refresh`)" contained the forbidden substring as an illustrative "do not use" example.
 - **Fix:** Rephrased comment to "not the non-existent `build` or `refresh` subcommands" — avoids the substring while preserving the warning intent. Same fix applied to the second mention "graphify build / refresh".

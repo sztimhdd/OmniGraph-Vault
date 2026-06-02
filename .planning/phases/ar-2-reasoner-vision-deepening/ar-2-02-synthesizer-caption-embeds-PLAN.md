@@ -44,10 +44,12 @@ must_haves:
 Modify `lib/research/stages/synthesizer.py` to source image alt text from `state.reasoned.analyzed_images[i].caption` (delivered by ar-2-01's Reasoner agent loop) instead of the ar-1 filename-placeholder. Preserve the ar-1 fallback behavior when Reasoner produced no analyzed_images (skipped, failed, or empty result) — fall back to `state.retrieved.image_candidates` with `img.name` as alt text.
 
 Purpose:
+
 - ORCH-05: Synthesizer's emitted markdown must contain inline `![desc](http://localhost:8765/...)` references where `desc` is the vision-generated caption from `ReasonerOutput.analyzed_images`. After ar-2-02 lands, `desc` is no longer a filename placeholder.
 - TEST-03 (Synthesizer half): assert that a fixture `ResearchState` with a `reasoned.analyzed_images` entry whose `caption == "<MOCK_CAPTION>"` produces a `SynthesizerOutput.markdown` containing the literal substring `![<MOCK_CAPTION>](http://localhost:8765/.../5.jpg)`. This closes TEST-03 begun in ar-2-01.
 
 Output:
+
 - One file modified: `lib/research/stages/synthesizer.py` (signature unchanged: `async def run(query, cfg, state) -> SynthesizerOutput`).
 - One new test file: `tests/unit/research/test_synthesizer_caption_embeds.py` (≥5 tests: caption path, fallback path, URL format, terminal-no-status, ar-1 regression).
 - ar-1 regression suite still green; total `tests/unit/research/` count after ar-2-02 ≥ 47 (ar-1 baseline ≥35 + ar-2-01 ≥7 + this plan ≥5).
@@ -135,6 +137,7 @@ if image_entries:
 ```
 
 Key invariants:
+
 1. The URL format is **byte-for-byte identical** to ar-1: `http://localhost:8765/<path.parent.name>/<path.name>`. Only the alt text changes.
 2. The `embedded_images: list[Path]` field on `SynthesizerOutput` contains the same `Path` objects as before — only the alt-text source has changed. (Captions live in `ReasonerOutput.analyzed_images[i].caption`, NOT in `SynthesizerOutput`. The Synthesizer threads them into the markdown body string but does NOT add a new field to its output dataclass.)
 3. The `[:5]` cap is preserved in BOTH paths — preserves the ar-1 image-count behavior under both branches.
@@ -276,6 +279,7 @@ def _make_minimal_cfg() -> ResearchConfig:
         web_search=lambda q: [],
     )
 ```
+
 </interfaces>
 </context>
 
@@ -487,6 +491,7 @@ ar-2 Layer 2 smoke test (manual, documented step — same as ar-2-01):
 After ar-2-03 lands, the upgraded smoke command becomes available; this plan does NOT exercise it (CLI flags don't exist yet). Layer 2 smoke is the responsibility of ar-2-03.
 
 End-to-end programmatic smoke (this plan's contribution to verification):
+
 ```bash
 cd c:/Users/huxxha/Desktop/OmniGraph-Vault && \
 venv/Scripts/python.exe -c "
@@ -518,9 +523,11 @@ assert '![SMOKE_CAP](http://localhost:8765/deadbeef00/5.jpg)' in r.markdown
 print('synth smoke ok')
 "
 ```
+
 </verification>
 
 <success_criteria>
+
 - ROADMAP § "Phase ar-2: Reasoner + vision deepening" Success Criterion #2: Synthesizer's emitted markdown contains inline `![desc](http://localhost:8765/...)` image references where `desc` is anchored to a vision-generated caption from `ReasonerOutput.analyzed_images`, not a placeholder. ✓ delivered by Task 1; verified by Task 2 Test 1.
 - ROADMAP Success Criterion #5 (Synthesizer half): the data-flow test asserts the caption from `analyzed_images` is embedded in Synthesizer's output. ✓ delivered by Task 2 Test 1; together with ar-2-01 Test 1, this closes TEST-03's full data-flow assertion (Reasoner → state.reasoned → Synthesizer prompt input).
 - REQ ORCH-05 (Synthesizer caption-anchored image embeds) ✓ delivered.

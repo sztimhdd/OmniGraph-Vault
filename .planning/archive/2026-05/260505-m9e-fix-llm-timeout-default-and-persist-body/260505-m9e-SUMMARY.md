@@ -97,6 +97,7 @@ No other deviations from the plan. No deferred items, no auto-fixes (Rules 1-3) 
 `pytest tests/unit/` (full suite) hangs at `tests/unit/test_scrape_first_classify.py::test_scrape_on_demand_when_body_empty` after 5 passes + 2 unrelated failures (FF). **Verified pre-existing on baseline (commit `54baa64` reverted) — NOT caused by these changes.** The hanging test patches `ingest_wechat.scrape_wechat_ua`, but the production code path in `_classify_full_body` (line 945) imports `lib.scraper.scrape_url` instead — the mock target is no longer covering the actual call site. This is a pre-existing test-stability issue from Phase 19 SCR-06 hotfix and is **out of scope per CLAUDE.md "scope boundary" rule**. Did not attempt to fix; not introduced by this quick task.
 
 Per the plan's verification target (`pytest tests/unit/test_persist_body_pre_classify.py -x -q`), the new tests are 100% green:
+
 - `tests/unit/test_persist_body_pre_classify.py`: **3/3 PASS**
 - `tests/unit/test_vertex_gemini_complete.py`: **11/11 PASS** (10 prior + 1 new)
 - Combined: **14/14 PASS in 3.79s**

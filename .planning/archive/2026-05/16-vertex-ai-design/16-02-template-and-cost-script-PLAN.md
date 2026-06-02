@@ -47,6 +47,7 @@ Create three small artifacts: (1) the SA JSON template with placeholders, (2) th
 Purpose: Operator has a copy-paste SA template to fill in after `gcloud iam service-accounts keys create`, and a budget-planning CLI that works without any API credentials or network access.
 
 Output:
+
 - `credentials/vertex_ai_service_account_example.json` (placeholder values only)
 - `scripts/estimate_vertex_ai_cost.py` (argparse CLI, hardcoded pricing constants)
 - `.gitignore` updated with `credentials/` + negation for the example file
@@ -128,6 +129,7 @@ git check-ignore credentials/vertex_ai_service_account_example.json ; [ $? -eq 1
 echo '{}' > credentials/test_real_key.json
 git check-ignore credentials/test_real_key.json ; RC=$? ; rm credentials/test_real_key.json ; [ $RC -eq 0 ]  # exit 0 = ignored ✓
 ```
+
   </action>
   <verify>
     <automated>python -c "import json; d = json.load(open('credentials/vertex_ai_service_account_example.json')); required = {'type','project_id','private_key_id','private_key','client_email','client_id','auth_uri','token_uri','auth_provider_x509_cert_url','client_x509_cert_url'}; assert required.issubset(d.keys())" && grep -q 'YOUR_PROJECT_ID' credentials/vertex_ai_service_account_example.json && grep -q 'PLACEHOLDER' credentials/vertex_ai_service_account_example.json && grep -q '^credentials/$' .gitignore && grep -q '^!credentials/vertex_ai_service_account_example\.json$' .gitignore</automated>
@@ -275,6 +277,7 @@ Confirm no network calls (no requests/httpx/urllib/socket):
 ```bash
 grep -E '^(from|import) (requests|httpx|urllib|socket|aiohttp)' scripts/estimate_vertex_ai_cost.py  # must return NOTHING
 ```
+
   </action>
   <verify>
     <automated>python scripts/estimate_vertex_ai_cost.py --articles 282 --avg-images-per-article 25 | grep -q 'Total: ¥' && python scripts/estimate_vertex_ai_cost.py --articles 282 --avg-images-per-article 25 | grep -q 'Estimated cost for 282 articles with 25 images/article:' && python scripts/estimate_vertex_ai_cost.py --articles 282 --avg-images-per-article 25 | grep -q 'Embedding (Vertex AI): ¥' && python scripts/estimate_vertex_ai_cost.py --articles 282 --avg-images-per-article 25 | grep -q 'Vision (SiliconFlow): ¥' && python scripts/estimate_vertex_ai_cost.py --articles 282 --avg-images-per-article 25 | grep -q 'LLM (DeepSeek): ¥'</automated>
@@ -302,6 +305,7 @@ Both tasks can run in parallel within this plan (no shared files). Final smoke t
 </verification>
 
 <success_criteria>
+
 - [ ] SA template JSON exists, valid, placeholders only
 - [ ] `.gitignore` excludes `credentials/` except the example file
 - [ ] Cost script runs standalone offline and prints PRD §B5.4 verbatim format

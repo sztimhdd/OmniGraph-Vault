@@ -124,12 +124,14 @@ The fix at `kb/services/synthesize.py:128-200` is a **template-wrap with doubled
 ### Exact directive string the LLM is told to emit (verbatim, after str.format substitution)
 
 EN:
+>
 > ```
 > 2. Cite specific sources for key claims, format [/article/{hash}.html]
 >    (hash is the 10-char article hash in the knowledge base)
 > ```
 
 ZH:
+>
 > ```
 > 2. 每个关键结论引用具体来源,链接格式 [/article/{hash}.html]
 >    (hash 是文章在知识库中的 10 字符哈希)

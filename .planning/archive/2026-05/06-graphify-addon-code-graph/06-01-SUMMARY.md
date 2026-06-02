@@ -15,6 +15,7 @@ All three tasks completed inline in main session (SSH checkpoint tasks).
 ## Task 1.1 — graphify skill install on Hermes
 
 **Commands run on remote:**
+
 ```
 source ~/OmniGraph-Vault/venv/bin/activate
 graphify install --platform hermes
@@ -22,6 +23,7 @@ cd ~/OmniGraph-Vault && graphify hermes install
 ```
 
 **Results:**
+
 - `graphify install --platform hermes` → skill installed at `/home/sztimhdd/.hermes/skills/graphify/SKILL.md` (47359 bytes)
 - `graphify hermes install` → section written to `/home/sztimhdd/OmniGraph-Vault/AGENTS.md`
 - `hermes skills list | grep -i graphify` → `│ graphify │ │ local │ local │ enabled │`
@@ -33,6 +35,7 @@ cd ~/OmniGraph-Vault && graphify hermes install
 ## Task 1.2 — Clone T1 repos on remote
 
 **Commands run on remote:**
+
 ```
 graphify clone https://github.com/openclaw/openclaw \
   --out ~/.hermes/omonigraph-vault/graphify/repos/openclaw/openclaw
@@ -41,6 +44,7 @@ graphify clone https://github.com/anthropics/claude-code \
 ```
 
 **Results:**
+
 - `~/.hermes/omonigraph-vault/graphify/repos/openclaw/openclaw` — cloned (AGENTS.md, CHANGELOG.md, CLAUDE.md, CONTRIBUTING.md, Dockerfile, ... present)
 - `~/.hermes/omonigraph-vault/graphify/repos/anthropics/claude-code` — cloned (CHANGELOG.md, LICENSE.md, README.md, SECURITY.md, Script, ... present)
 
@@ -51,6 +55,7 @@ Both T1 repos ready for Plan 06-02 graph seed.
 **Commit:** `f46a962` — `feat(06-01): add AGENTS.md with graphify rules for Hermes`
 
 AGENTS.md content (from remote via SCP):
+
 ```
 ## graphify
 

@@ -98,6 +98,7 @@ Total: 219 lines across 4 templates.
 ## Acceptance Criteria — All Met
 
 ### Task 1 — base.html
+
 - [x] Line count 54 ≥ 40
 - [x] All 5 Jinja2 blocks present: title, og, extra_head, content, extra_scripts
 - [x] `<html lang="{{ lang|default('zh-CN') }}">` present
@@ -108,6 +109,7 @@ Total: 219 lines across 4 templates.
 - [x] Renders cleanly with `lang='zh-CN'` and `page_url='/'` via Jinja2 + kb.i18n filter — len=1853
 
 ### Task 2 — index.html
+
 - [x] Renders without Jinja2 error (len=2998)
 - [x] `{% extends "base.html" %}` present
 - [x] `{% block content %}` present
@@ -118,6 +120,7 @@ Total: 219 lines across 4 templates.
 - [x] 4 dual-span chrome pairs (≥ 3 required)
 
 ### Task 3 — articles_index.html
+
 - [x] Renders without Jinja2 error (len=3912)
 - [x] `{% extends "base.html" %}` present
 - [x] `id="filter-lang"` AND `id="filter-source"` (two filter controls)
@@ -128,6 +131,7 @@ Total: 219 lines across 4 templates.
 - [x] Sample render output contains `data-source="rss"` and `data-lang="en"` — filter metadata round-trips
 
 ### Task 4 — ask.html
+
 - [x] Renders without Jinja2 error (len=2956)
 - [x] `{% extends "base.html" %}` present
 - [x] `id="ask-form"` AND `id="ask-input"` AND `id="ask-result"`

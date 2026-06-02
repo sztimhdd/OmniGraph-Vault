@@ -72,6 +72,7 @@ This plan does NOT touch Wave 1 deliverables (`lib/research/telemetry.py`, `lib/
 **Failure handling within Wave 2:** if any of the 5 smoke conditions or any of the 5 audit dimensions fails on first run, ar-4 is allowed to iterate inside the phase. Diagnose → minimal surgical patch → re-run. Max 3 smoke iterations + 1 audit re-run before user escalation. Milestone close is gated on simultaneous smoke pass + audit PASS.
 
 Output:
+
 - One new file: `scripts/smoke_milestone.py` (~80-120 LOC).
 - One new file: `.planning/MILESTONE_Agentic-RAG-v1_AUDIT.md` (authored DURING the audit run, NOT during planning execution; not a code artifact).
 - Conditional touch: `lib/research/stages/synthesizer.py` (only if smoke fails condition (a) or (e); minimal prompt-only diff).
@@ -212,6 +213,7 @@ OR
 - Date: <YYYY-MM-DD>
 - Agent identifier: <Claude Code session id or model+timestamp>
 - User review: <pending / approved on YYYY-MM-DD>
+
 ```
 
 **Layer 2b live-key requirement (the milestone smoke runs on Hermes, NOT local-dev workstation):**
@@ -821,6 +823,7 @@ User holds the final say on the audit verdict. If user disagrees with any dimens
 </verification>
 
 <success_criteria>
+
 - ROADMAP Phase ar-4 Success Criterion #1 (`research_stream()` body emits stage events; same emit sequence shared with `research()`): ✓ delivered by Wave 1 (ar-4-01).
 - ROADMAP Phase ar-4 Success Criterion #2 (`cfg.telemetry_jsonl` honored — JSONL append on each stage event when sink set): ✓ delivered by Wave 1.
 - ROADMAP Phase ar-4 Success Criterion #3 (`--dump-state <path>` CLI flag dumps `ResearchState` as JSONL; `_amain` ≤ 18 LOC): ✓ delivered by Wave 1.
@@ -856,6 +859,7 @@ After completion, create `.planning/phases/ar-4-telemetry-streaming-smoke/ar-4-0
 - Any deviations from plan with one-line rationale.
 
 The SUMMARY.md is the formal closure document for the milestone — link from it back to:
+
 - `.planning/MILESTONE_Agentic-RAG-v1_AUDIT.md` (the human-readable audit verdict)
 - `.planning/STATE-Agentic-RAG-v1.md` (final state snapshot)
 - `.planning/ROADMAP-Agentic-RAG-v1.md` (final roadmap with all 4 phases ✓)

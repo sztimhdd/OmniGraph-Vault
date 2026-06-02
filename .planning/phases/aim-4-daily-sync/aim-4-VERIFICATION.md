@@ -42,10 +42,12 @@ must_haves_source: REQUIREMENTS-Aliyun-Ingest-Migration-v1.md (SYNC-01..04)
 ### Truth 4 — All script output is captured in journald (SYNC-04 contract)
 
 - ✓ VERIFIED — `deploy/hermes/systemd/omnigraph-daily-pull.service` L11-12 read by this verifier:
+
   ```
   StandardOutput=journal
   StandardError=journal
   ```
+
   G9 (`aim-4-3-EVIDENCE.md` L33) confirms 4 rsync log lines + 1 success summary visible via `journalctl -u omnigraph-daily-pull.service`.
 
 ### Truth 5 — Aliyun → Hermes SSH path is non-interactive, key-based, no password prompts

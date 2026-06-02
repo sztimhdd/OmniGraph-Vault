@@ -257,6 +257,7 @@ Output: 2 deploy files + SUMMARY.md with literal `Skill(skill="security-reviewer
 </verification>
 
 <success_criteria>
+
 - DEPLOY-01: systemd unit `kb-api.service` ships with `Restart=always`, `Environment=PYTHONPATH=/opt/OmniGraph-Vault`, runs uvicorn on 127.0.0.1:8766 with `--workers 1`
 - DEPLOY-02: Caddy snippet routes `/api/*` and `/static/img/*` to 127.0.0.1:8766, serves rest from `kb/output/`
 - security-reviewer discipline floor: ≥1 SUMMARY contains `Skill(skill="security-reviewer"`

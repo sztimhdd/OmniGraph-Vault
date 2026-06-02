@@ -51,6 +51,7 @@ Mon 2026-06-01 19:00:00 CST 1 week 0 days left n/a                         n/a  
 **13 of 13 timers listed** with valid NEXT schedules. ✓
 
 LAST column status:
+
 - `omnigraph-afternoon-ingest.timer` LAST = `Mon 2026-05-25 01:00:03 CST` = `2026-05-24T17:00:03Z` — this was the **pre-cutover** Persistent=true deployment fire (from aim-3-2 Wave 2 timer enable); happened 4h28m before cutover.
 - All other 12 timers: LAST = `n/a` — no natural fire yet at 22:20 UTC (only 51 min post-cutover; first natural fire is evening-ingest at 00:00 UTC = 1h40m away).
 - kol-classify, reconcile, rss-fetch, kol-enrich: also fired from Persistent=true deployment (documented in Section 3 below) — but their LAST shows `n/a` in the table because systemctl list-timers already reset NEXT to tomorrow's slot.
@@ -111,6 +112,7 @@ May 24 22:58:51 CST  systemd[1]: omnigraph-kol-classify.service: Failed with res
 **Fix — removed `--days-back 1` (commit `d95242c`)**: Deployed before final E2E ingest run.
 
 After fix:
+
 ```
 May 25 05:49:02 CST  systemd[1]: Started OmniGraph daily KOL Layer-1 classify (5 topics).
 May 25 05:49:07 CST  INFO Loaded 1 unclassified articles for topic 'CV'
@@ -127,6 +129,7 @@ layer2_at advanced to `2026-05-24T22:05:07Z` (> Hermes baseline 2026-05-22 17:02
 ### 3c. omnigraph-daily-ingest.service (manual run at UTC 22:03-22:15)
 
 Key journald entries:
+
 ```
 May 25 06:15:25 CST  INFO: [] Writing graph with 27821 nodes, 39852 edges
 May 25 06:15:27 CST  INFO: In memory DB persist to disk
@@ -209,6 +212,7 @@ corrupting `vdb_entities.json`. Affected: `omnigraph-afternoon-ingest.service`.
 Verified: `systemctl show omnigraph-daily-ingest.service -p TimeoutStartUSec` = `5min` ✓
 
 Files changed:
+
 - `deploy/aliyun/systemd/omnigraph-daily-ingest.service`
 - `deploy/aliyun/systemd/omnigraph-afternoon-ingest.service`
 - `deploy/aliyun/systemd/omnigraph-evening-ingest.service`
@@ -222,6 +226,7 @@ Service failed with exit 2/INVALIDARGUMENT on every fire.
 Verified: Service ran successfully at UTC 21:49, classified 1 article (off-topic, filtered). ✓
 
 Files changed:
+
 - `deploy/aliyun/systemd/omnigraph-kol-classify.service`
 
 ---
@@ -253,6 +258,7 @@ as above, non-critical. Wiki hook gracefully degraded.
 ### D. Persistent=true Fired Before Cutover — kol-classify Failures Count
 
 3 kol-classify failures occurred BEFORE the --days-back fix:
+
 - 2 from Persistent=true deploy fires at UTC 14:58 + 15:01 (pre-cutover, aim-3-2 Wave 2)
 - 1 from the manual E2E run at UTC 21:48 (post-cutover, before fix was deployed)
 

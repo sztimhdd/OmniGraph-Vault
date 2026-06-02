@@ -138,6 +138,7 @@ Headline decisions:
 ## Cognee Binding Decision
 
 **KEEP ON GEMINI** — documented in:
+
 - `.planning/phases/05-pipeline-automation/05-00c-audit.md` §3 (full rationale)
 - `cognee_wrapper.py` docstring (references the audit)
 
@@ -148,6 +149,7 @@ Justification in one sentence: Cognee's LLM volume is a rounding error compared 
 **result: pass** — see `docs/spikes/wave0c_smoke_log.md` for the machine-readable log.
 
 Key evidence:
+
 - LightRAG log: `Chunk 1 of 1 extracted 22 Ent + 22 Rel` — entity extraction succeeded via DeepSeek (would have 429'd on Gemini).
 - `vdb_chunks.json embedding_dim: 3072` — 3072-dim Gemini embedding contract preserved.
 - `gemini_llm_invoked: false` — no `generativelanguage.googleapis.com` calls observed in LightRAG's LLM path.

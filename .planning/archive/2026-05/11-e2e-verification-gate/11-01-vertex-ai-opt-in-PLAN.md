@@ -73,6 +73,7 @@ This plan is INDEPENDENT of 11-00 (different files, no shared code). Can execute
 <!-- Key contracts the executor needs. Extract from codebase. -->
 
 Current `_embed_once` signature (lib/lightrag_embedding.py:148-171):
+
 ```python
 async def _embed_once(contents: list, model: str) -> np.ndarray:
     api_key = current_embedding_key()
@@ -88,6 +89,7 @@ async def _embed_once(contents: list, model: str) -> np.ndarray:
 ```
 
 Current `embedding_func` decorator (line 174-180):
+
 ```python
 @wrap_embedding_func_with_attrs(
     embedding_dim=EMBEDDING_DIM,
@@ -101,6 +103,7 @@ async def embedding_func(texts: list[str], **kwargs: Any) -> np.ndarray:
 ```
 
 From memory `vertex_ai_smoke_validated.md`:
+
 - Vertex AI model name: `gemini-embedding-2-preview` (REQUIRED — `gemini-embedding-2` returns 404)
 - SA JSON path: `C:\Users\huxxha\.gemini\project-df08084f-6db8-4f04-be8-f5b08217a21a.json` (for
   manual local testing; NOT committed)
@@ -323,6 +326,7 @@ Phase-level checks for this plan:
 </verification>
 
 <success_criteria>
+
 - Free-tier path preserved — no regressions in existing embedding tests
 - Vertex AI path activated only when BOTH env vars set (not either alone)
 - Model name correctly resolves to `gemini-embedding-2-preview` in Vertex mode

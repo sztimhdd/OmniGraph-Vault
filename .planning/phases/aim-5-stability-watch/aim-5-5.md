@@ -49,6 +49,7 @@ filtered by Service = "Vertex AI API"; Metric = "Generate content
 requests" + "Embed content requests".
 
 Per FINDING 1 (tolerance asymmetry): STAB-05 is "threshold (≤ baseline
+
 + 20%)". Threshold bust > 20% over linear projection → OPERATOR-REVIEW
 (NOT auto-RESTART; per FINDING 1 row 5).
 
@@ -111,6 +112,7 @@ saves screenshots into `aim-5-EVIDENCE/vertex-quota-day-N.png`.
 ### Task 1 — Day-0 Hermes baseline capture `[operator-only]`
 
 **`<read_first>`**
+
 - `aim-5-CONTEXT.md` lines 360-371 (STAB-05 dashboard pattern)
 - `aim-5-CONTEXT.md` FINDING 4 (baseline procedure — Hermes-side
   pre-migration monthly spend)
@@ -118,6 +120,7 @@ saves screenshots into `aim-5-EVIDENCE/vertex-quota-day-N.png`.
   (cost-up alarm threshold)
 
 **`<acceptance_criteria>`**
+
 - `vertex-baseline.md` exists with Hermes baseline summary.
 - `vertex-quota-day-0.png` exists at correct path; image shows
   Hermes-project Vertex spend for the reference month.
@@ -205,10 +208,12 @@ git log -1 --name-only
 ### Task 2 — Daily Aliyun snapshot (day 1..7) `[operator-only]`
 
 **`<read_first>`**
+
 - `vertex-baseline.md` (table to update)
 - `aim-5-CONTEXT.md` lines 360-371 (dashboard URL pattern)
 
 **`<acceptance_criteria>`**
+
 - For each day N in 1..7, `vertex-quota-day-N.png` exists at correct
   path.
 - `vertex-baseline.md` table is updated with that day's spend +
@@ -262,11 +267,13 @@ If a spike is flagged, document the spike + investigation in
 ### Task 3 — Day-7 verdict + aim-5-5-EVIDENCE.md `[agent-runnable]`
 
 **`<read_first>`**
+
 - `vertex-baseline.md` (full populated table day-1..7)
 - `aim-5-CONTEXT.md` FINDING 1 (threshold-based: > 20% → OPERATOR-REVIEW)
 - `.planning/PROJECT-Aliyun-Ingest-Migration-v1.md` §6 Risk row 6
 
 **`<acceptance_criteria>`**
+
 - `vertex-baseline.md` "Day-7 projection" section is fully populated.
 - `aim-5-5-EVIDENCE.md` exists with summary table + projection +
   aggregate verdict.

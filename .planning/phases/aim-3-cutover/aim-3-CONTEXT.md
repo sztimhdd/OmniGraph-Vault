@@ -101,6 +101,7 @@ current before Hermes jobs are disabled. After disable, Aliyun timers take over 
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 - `.planning/ROADMAP-Aliyun-Ingest-Migration-v1.md` — Phase aim-3 goal + 5 REQs (CUTOVER-01..05)
@@ -123,6 +124,7 @@ current before Hermes jobs are disabled. After disable, Aliyun timers take over 
 ## Specific Implementation Notes
 
 ### systemd Unit Template (service)
+
 ```ini
 [Unit]
 Description=OmniGraph <job-name>
@@ -143,6 +145,7 @@ WantedBy=multi-user.target
 ```
 
 ### systemd Unit Template (timer)
+
 ```ini
 [Unit]
 Description=OmniGraph <job-name> timer
@@ -159,6 +162,7 @@ WantedBy=timers.target
 **ADT → UTC conversion:** ADT = UTC-3. 09:00 ADT = 12:00 UTC. Apply +3h to all schedules.
 
 ### All 13 timers + UTC schedules
+
 | Unit name | OnCalendar (UTC) |
 |---|---|
 | omnigraph-kol-zombie-cleanup | `*-*-* 10:55:00` |
@@ -176,11 +180,13 @@ WantedBy=timers.target
 | omnigraph-vertex-probe | `*-*-1 11:00:00` |
 
 ### ExecStartPre for ingest units
+
 ```ini
 ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed
 ```
 
 ### Hermes job-disable operator prompt structure
+
 ```
 Hermes, disable ALL 13 omnigraph ingest jobs in your cron scheduler:
 [list of job IDs with disable command]

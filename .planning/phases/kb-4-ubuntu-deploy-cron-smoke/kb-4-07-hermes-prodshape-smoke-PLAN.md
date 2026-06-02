@@ -314,6 +314,7 @@ else:
 </verification>
 
 <success_criteria>
+
 - Production-shape verification complete via one of three paths (option-a/b/c)
 - kb-4-HERMES-PRODSHAPE.md is the artifact the milestone-close uses to assert "kb-3 deferred item closed"
 </success_criteria>

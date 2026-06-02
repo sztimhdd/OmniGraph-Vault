@@ -6,6 +6,7 @@ Per `<deviation_rules>` SCOPE BOUNDARY: log here, do NOT auto-fix.
 ---
 
 ## DEFERRED-1: Test pollution — kb-1 `export_module` fixture's `importlib.reload`
+
 breaks kb-2 unit tests
 
 **Discovered during:** kb-2-10 execution (2026-05-13)
@@ -51,6 +52,7 @@ follow-up. Recommend a quick task to refactor `export_module` away from
 `importlib.reload` after kb-2 phase ratification.
 
 **Workaround for kb-2 phase verifier:** Run the two suites separately:
+
 ```bash
 pytest tests/integration/kb/  # all integration tests pass together
 pytest tests/unit/kb/         # all unit tests pass together

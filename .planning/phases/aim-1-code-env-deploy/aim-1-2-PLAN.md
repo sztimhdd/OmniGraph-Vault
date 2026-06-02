@@ -39,12 +39,14 @@ must_haves:
 Stand up (or verify-and-reuse) a Python 3.11+ virtual environment at `/root/OmniGraph-Vault/venv/` on Aliyun, install ingest dependencies via `pip install -r requirements.txt`, and prove the install by running an import smoke (`python -c "import lightrag, google.genai, deepseek; print('OK')"`).
 
 Two scenarios are explicitly handled:
+
 - **(a) Fresh venv** — kb-api has no venv at this path; create with `python3.11 -m venv venv`
 - **(b) Reuse kb-api venv** — kb-api's venv already lives at `/root/OmniGraph-Vault/venv/`; verify Python 3.11+, run `pip install -r requirements.txt` to converge to ingest deps without breaking kb-api imports
 
 Purpose: DEPLOY-04 smoke (`scripts/local_e2e.sh layer1 5` + `wechat <url>`) needs a working Python environment with lightrag + provider SDKs. Without this, every smoke run fails at import time.
 
 Output:
+
 - Aliyun: working venv at `/root/OmniGraph-Vault/venv/` with all `requirements.txt` deps installed and import smoke passing
 - Local: `.planning/phases/aim-1-code-env-deploy/DEPLOY-NOTES.md` extended with §DEPLOY-02 section
 </objective>
@@ -68,6 +70,7 @@ Output:
 </context>
 
 <pre_conditions>
+
 - aim-1-1 complete: working tree clean at known HEAD on Aliyun
 - DEPLOY-NOTES.md §DEPLOY-01 populated with HEAD hash
 - Operator has SSH access via alias `aliyun-vitaclaw`
@@ -293,6 +296,7 @@ Output:
 **ROADMAP SC2 (line 79):** "Python venv at `/root/OmniGraph-Vault/venv/` with Python 3.11+; `pip install -r requirements.txt` succeeds zero errors; `python -c \"import lightrag, google.genai, deepseek; print('OK')\"` prints OK (DEPLOY-02)"
 
 Mapped:
+
 - ✅ Venv at `/root/OmniGraph-Vault/venv/`: Tasks 1, 3 explicitly target this path
 - ✅ Python 3.11+: Task 1 probes; Task 2 (C) blocks &lt;3.11; Task 3a confirms post-setup
 - ✅ `pip install -r requirements.txt` zero errors: Task 3a executes; Task 3c records tail; verification step 2 checks for `ERROR:`

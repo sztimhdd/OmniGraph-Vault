@@ -21,6 +21,7 @@ CREATE SCHEMA IF NOT EXISTS mdlg_ai_shared.kb_v2
 ```
 
 **`DESCRIBE SCHEMA EXTENDED`:**
+
 - Catalog: `mdlg_ai_shared`
 - Namespace: `kb_v2`
 - Owner: `hhu@edc.ca`
@@ -36,6 +37,7 @@ CREATE VOLUME IF NOT EXISTS mdlg_ai_shared.kb_v2.omnigraph_vault
 ```
 
 **`DESCRIBE VOLUME`:**
+
 - Name: `omnigraph_vault`
 - Catalog/Schema: `mdlg_ai_shared.kb_v2`
 - Owner: `hhu@edc.ca`
@@ -56,6 +58,7 @@ done
 ```
 
 **`databricks fs ls dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/`:**
+
 ```
 data
 images
@@ -121,30 +124,37 @@ tar -xf images.tar -C /c/Users/huxxha/Desktop/hermes-snapshot-kdb-1/
 **Volume upload (3 phases):**
 
 Phase A — bulk recursive upload (foreground command, ran in background):
+
 ```bash
 databricks --profile dev fs cp -r --overwrite \
   /c/Users/huxxha/Desktop/hermes-snapshot-kdb-1/images/ \
   dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/images/
 ```
+
 Result: **partial success** — 210/254 dirs landed, then aborted at 3841s with `oidc: token refresh: fetching OAuth endpoints: databricks OAuth is not supported for this host`. The dir-in-progress (`d9b95bd172`) had 16/32 files when the token refresh failed mid-flight.
 
 Phase B — delta upload of 44 missing dirs (sequential per-dir loop):
+
 ```bash
 while read -r dir; do
   databricks --profile dev fs cp -r --overwrite "${LOCAL}/${dir}" "${VOL}/images/${dir}"
 done < /tmp/missing-dirs.txt
 ```
+
 Result: 40/44 succeeded; 4 transient failures (last few in the loop also hit OAuth refresh).
 
 Phase C — retry of 3 transient failures + manual patch of `d9b95bd172` (the Phase A mid-flight victim):
+
 ```bash
 for d in fa11ded615 fbf62ba7ab fdc4cff583 d9b95bd172; do
   databricks --profile dev fs cp -r --overwrite "${LOCAL}/${d}" "${VOL}/images/${d}"
 done
 ```
+
 Result: all 4 succeeded.
 
 **Final state:**
+
 - Total upload time: ~80 min wallclock across 3 phases (Phase A 64m + B 14.5m + C ~30s)
 - Volume image dirs: **254** (matches local snapshot)
 - Volume image files: **4127** (matches local: `find ${LOCAL} -type f | wc -l = 4127`)

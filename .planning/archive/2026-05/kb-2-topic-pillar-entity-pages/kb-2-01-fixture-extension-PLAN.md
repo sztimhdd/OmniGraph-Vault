@@ -89,11 +89,13 @@ ALTER TABLE rss_articles ADD COLUMN layer2_verdict TEXT;
 ```
 
 Fixture target shape (per UI-SPEC §3.3.1 + ENTITY-01 threshold):
+
 - 8 articles total (5 KOL + 3 RSS) — keeps existing 3 + adds 5 more for entity-frequency math
 - classifications: 5 topics × 3-5 articles each = ~20 rows (some articles classified in multiple topics)
 - extracted_entities: 6 entity names where each appears in ≥5 articles (crosses KB_ENTITY_MIN_FREQ=5 default), plus 2 noise entities at freq=2-3 (below threshold) for negative tests
 - Articles have layer1_verdict='candidate' OR layer2_verdict='ok' to satisfy TOPIC-02 cohort gate
 </interfaces>
+
 </context>
 
 <tasks>
@@ -340,6 +342,7 @@ Fixture target shape (per UI-SPEC §3.3.1 + ENTITY-01 threshold):
 </verification>
 
 <success_criteria>
+
 - TOPIC-02 cohort filter testable: fixture has rows where `depth_score >= 2 AND (layer1='candidate' OR layer2='ok')`
 - ENTITY-01 threshold testable: 6 entities above 5-article threshold, 2 below
 - ENTITY-03 article-list testable: each above-threshold entity has ≥5 distinct article references

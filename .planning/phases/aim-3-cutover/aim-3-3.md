@@ -51,11 +51,13 @@ The last task writes the consolidated `CUTOVER-EVIDENCE.md` file referenced by �
 ### Task 1 — Operator scp's data/kol_scan.db from Hermes to Aliyun
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` line 62 (CUTOVER-02 wording — the DB lives at repo root `data/kol_scan.db`, NOT under `~/.hermes/omonigraph-vault/`)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-3-cutover\aim-3-CONTEXT.md` FINDING 10 (final sync from Hermes is needed to capture rows written between aim-2 close and aim-3-3 cutover)
 - Memory `aliyun_vitaclaw_ssh.md` (Aliyun connection details — operator uses SSH alias on Hermes side)
 
 **`<acceptance_criteria>`**
+
 - Operator returns: Hermes-side `~/OmniGraph-Vault/data/kol_scan.db` row count and MAX(layer2_at), captured BEFORE scp.
 - Operator returns: scp wallclock duration (file is small — ~tens of MB — should be seconds).
 - Operator returns: Aliyun-side `stat` and `sqlite3 SELECT COUNT(*)` post-scp.
@@ -111,6 +113,7 @@ diff <(cat /tmp/aim3-3-hermes-db.sha256) <(sha256sum data/kol_scan.db) && echo "
 ```
 
 Paste the FULL output of all four steps. Do NOT abbreviate. The agent needs the row counts + ISO timestamps + scp wallclock duration verbatim.
+
 ```
 
 After receiving operator output, the agent moves to Task 2.
@@ -151,10 +154,12 @@ Compare line-by-line with Hermes-side output from Task 1. If anything mismatches
 ### Task 3 — Operator disables all 13 omnigraph jobs in Hermes jobs.json
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-3-cutover\aim-3-CONTEXT.md` lines 25-44 (the 13 Hermes job names — agent must list them in the operator prompt verbatim)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-3-cutover\aim-3-CONTEXT.md` line 184-188 (jobs.json verify command)
 
 **`<acceptance_criteria>`**
+
 - Operator returns: Hermes-side jobs.json post-disable showing all 13 omnigraph-related jobs with `enabled: false`.
 - Operator returns: Hermes-side `crontab -l` post-disable (FINDING 2 — should already be clean of ingest entries; captured for §7 SC #2 invariant evidence).
 - Operator returns: Hermes-side `pgrep -af batch_ingest_from_spider | batch_scan_kol | rss_*` after the next scheduled fire window passes — should remain empty (proves disable took effect).
@@ -238,6 +243,7 @@ pgrep -af reconcile_ingestions; echo "exit=$?"
 ```
 
 Paste the FULL output of all three steps. The agent needs the verbatim jobs.json mapping AND the disable-confirmed ISO timestamp.
+
 ```
 
 After receiving operator output, the agent records the disable-confirmed timestamp as `cutover_window_start` (the moment Hermes is no longer authoritative).
@@ -295,11 +301,13 @@ Compute `estimated_missed_articles = average_articles_per_24h × (missed_window_
 ### Task 5 — Write CUTOVER-EVIDENCE.md and commit
 
 **`<read_first>`**
+
 - All operator outputs from Tasks 1 + 3
 - All `.scratch/aim-3-3-*.log` from Tasks 2 + 4
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-3-cutover\aim-3-CONTEXT.md` FINDING 6 (kol-enrich gap — must be documented in CUTOVER-EVIDENCE.md)
 
 **`<acceptance_criteria>`**
+
 - File `.planning/phases/aim-3-cutover/EVIDENCE/CUTOVER-EVIDENCE.md` exists.
 - Sections (all required): "kol_scan.db sync evidence" (CUTOVER-02), "Hermes jobs.json post-disable" (CUTOVER-03), "Hermes crontab post-disable" (CUTOVER-03 §7 SC #2 invariant), "Cutover window + missed-window estimate" (CUTOVER-05), "FINDING 6 kol-enrich gap" (carried over from CONTEXT — visible in cutover ledger), "13-row Hermes-job → Aliyun-timer cross-reference table".
 - Single forward-only commit on `main` via explicit `git add`.
@@ -344,7 +352,9 @@ Disable-confirmed ISO: [paste from /tmp/aim3-3-disable-confirmed.iso]
 ### Hermes jobs.json — omnigraph-related entries AFTER disable
 
 ```
+
 [paste verbatim Step 3 jobs.json python output — 13 lines, all enabled=false]
+
 ```
 
 ### 13-row Hermes-job → Aliyun-timer cross-reference
@@ -370,7 +380,9 @@ Disable-confirmed ISO: [paste from /tmp/aim3-3-disable-confirmed.iso]
 ## 3. Hermes crontab AFTER disable (§7 SC #2 invariant)
 
 ```
+
 [paste verbatim crontab -l output from Task 3 Step 3]
+
 ```
 
 `crontab -l | grep -E "ingest|kol_scan|rss" | wc -l` = `[N]` (required: 0)

@@ -100,6 +100,7 @@ Expected output: a list of indexes that does NOT include
 schemas should remain.
 
 If the migration fails or the index is still present, **stop and rollback**:
+
 ```bash
 cp data/kol_scan.db.backup-pre-mig005-<timestamp> data/kol_scan.db
 ```
@@ -160,6 +161,7 @@ print(c.execute('SELECT COUNT(*) FROM (SELECT article_id FROM classifications GR
 ```
 
 **Expected outcome:**
+
 - `topic='CV'` count is no longer overwhelming (was 653 / 100% pre-fix).
 - Several topics each have hundreds of rows (Agent, LLM, RAG, NLP all
   populated).
@@ -194,6 +196,7 @@ venv/bin/python batch_ingest_from_spider.py \
 ```
 
 Expected: ≥ 1 candidate found, attempts ingest. If 0 candidates, either:
+
 - The repair didn't surface enough non-CV topics to match the filter — go
   back to Step 4 and broaden the topic re-classify pass; OR
 - The topic filter literals don't match the LLM's actual topic strings

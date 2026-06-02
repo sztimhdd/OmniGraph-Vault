@@ -275,6 +275,7 @@ Position rule (UI-SPEC §3.4): aside is SIBLING to .article-body inside `.articl
 </verification>
 
 <success_criteria>
+
 - LINK-01 enabled: related-entities chip row in sidebar/footer
 - LINK-02 enabled: related-topics chip row in sidebar/footer
 </success_criteria>

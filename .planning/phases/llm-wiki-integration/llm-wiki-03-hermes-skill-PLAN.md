@@ -57,6 +57,7 @@ Output: Two paste-ready artifacts (operator prompt + authoritative diff) + a che
 <!-- Existing Hermes skill conventions (from CLAUDE.md "OpenClaw / Hermes Skill Writing Standards") -->
 
 SKILL.md frontmatter (existing):
+
 ```yaml
 ---
 name: omnigraph_query
@@ -68,15 +69,18 @@ triggers:
 ```
 
 Existing skill body (per RESEARCH.md Code Example 4 reference):
+
 ```bash
 ### Fallback (existing)
 Run `python kg_synthesize.py "$query" hybrid` ...
 ```
 
 Reference template available on Hermes:
+
 - `~/.hermes/skills/research/llm-wiki/SKILL.md` — has wiki ingest/query/lint patterns we partially borrow
 
 Wiki page resolution path (Hermes side, after symlink from W0):
+
 - `~/wiki-omnigraph/entities/<slug>.md` (= `~/OmniGraph-Vault/kb/wiki/entities/<slug>.md` via symlink)
 </interfaces>
 
@@ -255,6 +259,7 @@ Phase-level verification for W2:
 </verification>
 
 <success_criteria>
+
 1. SKILL.md diff artifact exists with the exact ~20 LOC addition documented
 2. Hermes operator prompt is paste-ready, contains pre-flight + pause + apply + smoke + rollback
 3. User has forwarded prompt to Hermes; Hermes has applied edit; user pasted verification back

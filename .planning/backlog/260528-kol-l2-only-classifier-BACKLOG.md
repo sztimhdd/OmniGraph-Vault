@@ -10,6 +10,7 @@
 
 `articles.layer2_verdict` for ~57 KOL rows on Aliyun prod is `NULL`. These
 rows have:
+
 - `layer1_verdict = 'candidate'`
 - `body IS NOT NULL` (already scraped)
 - `body_translated IS NULL` (translate cron's WHERE excludes them — needs L2='ok')
@@ -21,6 +22,7 @@ ZH/EN toggle UX.
 ## Why no quick-fix path exists today
 
 `articles.layer2_verdict` is **only** written by:
+
 1. `batch_ingest_from_spider.py` via `lib/article_filter.py:persist_layer2_verdicts`
    — but this also runs scrape + LightRAG `ainsert()`, mutating the graph
    and contending for LightRAG locks with the production ingest timers
@@ -36,6 +38,7 @@ the original v1.0 design assumed L2 always co-runs with scrape.
 New script: `scripts/kol_layer2_classify_only.py` (~80 LoC)
 
 Mirrors `batch_classify_rss_layer2.py` shape:
+
 - SELECT `id, title, body, url` from `articles` WHERE
     `layer1_verdict='candidate' AND layer2_verdict IS NULL AND body IS NOT NULL`
 - Reuse existing `lib/article_filter.run_layer2` + `persist_layer2_verdicts`
@@ -44,6 +47,7 @@ Mirrors `batch_classify_rss_layer2.py` shape:
 - Idempotent (predicate excludes existing 'ok'/'reject' rows)
 
 New systemd unit: `omnigraph-kol-layer2-classify.service` + `.timer`
+
 - Schedule: `*-*-* 11:18:00 UTC` (between kol-classify @ 11:15 and rss-l2 @ 11:20)
 - `EnvironmentFile=/root/.hermes/.env`
 - `Persistent=true`

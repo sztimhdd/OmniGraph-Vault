@@ -297,6 +297,7 @@ OAuth-format token. This is a **deploy-side fix**, not a code fix.
 **Pros:** ~1 LOC change. No new infra dependency.
 
 **Cons:**
+
 - Requires a separate working AI Studio API key (the OAuth token in the .env
   cannot be reused). Operator needs to mint a fresh key from
   https://aistudio.google.com/.
@@ -310,6 +311,7 @@ OAuth-format token. This is a **deploy-side fix**, not a code fix.
   any existing Cognee data).
 
 **Counted blast radius (`git grep`):**
+
 - `gemini/gemini-embedding-2` literal string: 1 occurrence in
   `cognee_wrapper.py:50`. (Confirmed via `grep -rn "gemini/gemini-
   embedding-2" .` — only this file.)
@@ -339,6 +341,7 @@ Plus pass-through of vertex auth: LiteLLM honors
 `GOOGLE_CLOUD_LOCATION`. Production already has all three.
 
 **Pros:**
+
 - **Verified working in this investigation** — Vertex `vertex_ai/gemini-
   embedding-2` returned 3072-dim vector in 0.47 s
   (`.scratch/cognee-diag-litellm-20260509-211126.log:254`).
@@ -352,6 +355,7 @@ Plus pass-through of vertex auth: LiteLLM honors
   Cognee's classify_documents / extract_graph_from_data internal calls.
 
 **Cons:**
+
 - Requires SA JSON on every Cognee-using deploy. Hermes already has
   `~/.hermes/gcp-paid-sa.json` from the v3.3 migration prep; local dev has
   `.dev-runtime/gcp-paid-sa.json`. Anyone who only has an AI Studio key
@@ -363,6 +367,7 @@ Plus pass-through of vertex auth: LiteLLM honors
   `GOOGLE_CLOUD_LOCATION=global` explicitly.
 
 **Counted blast radius (`git grep`):**
+
 - `gemini/gemini-embedding-2`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`,
   `LLM_PROVIDER`, `LLM_MODEL` literals in `cognee_wrapper.py`: 5 lines
   (47-51).
@@ -378,11 +383,13 @@ Plus pass-through of vertex auth: LiteLLM honors
 `get_embedding_engine` monkey-patch at `cognee_wrapper.py` import time.
 
 **Pros:**
+
 - Removes LiteLLM from the embedding hot path entirely — fewer moving parts,
   no tenacity surprises, no model-name registry concerns.
 - Reuses the proven `_embed_once` logic from production LightRAG.
 
 **Cons:**
+
 - Highest LOC. Need a new file `lib/cognee_embedding_engine.py` (~80 LOC),
   monkey-patch hook in `cognee_wrapper.py` (~10 LOC), tests for the patch.
 - Cognee's internal `factory.py` returns `lru_cache`'d engine — the
@@ -393,6 +400,7 @@ Plus pass-through of vertex auth: LiteLLM honors
 - T-shirt: **L** (1-2 days investigation + impl + tests).
 
 **Counted blast radius (`git grep`):**
+
 - New file `lib/cognee_embedding_engine.py` (~80 LOC).
 - Patch in `cognee_wrapper.py` (~10 LOC inside try/except guarding the
   cognee import).

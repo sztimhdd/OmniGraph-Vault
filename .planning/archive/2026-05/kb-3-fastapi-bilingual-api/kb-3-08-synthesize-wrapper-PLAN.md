@@ -680,6 +680,7 @@ For v2.0 minimum-viable: result.sources = list of distinct article hashes found 
 </verification>
 
 <success_criteria>
+
 - API-06: POST /api/synthesize 202 + job_id
 - API-07: GET /api/synthesize/{job_id} returns job state
 - I18N-07: lang directive prepended verbatim

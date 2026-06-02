@@ -70,6 +70,7 @@ Wave 3 of ar-3 closes the phase with three deliverables:
 3. **TEST-04 consolidation** — Single `test_caps_consolidated.py` file containing both the Reasoner-half cap test (NEW in Wave 3) and the Verifier-half cap test (absorbed from Wave 2's `test_verifier_cap.py`). Wave 2's standalone file is REMOVED so the consolidated file is the single source of cap tests.
 
 Output:
+
 - One file modified: `lib/research/tools/web_search.py` (~30 LOC added: `vertex_gemini_grounding` callable + helper imports). Wave 1's existing Tavily/Brave/cascade code is UNCHANGED.
 - One file modified: `lib/research/config.py` (~15 LOC added: two-signal auto-detect block; replaces the `google_search_grounding = None` placeholder).
 - One new test file: `tests/unit/research/test_grounding_autodetect.py` (≥5 tests).
@@ -485,6 +486,7 @@ async def test_verifier_cap_enforcement_consolidated():
     assert result.iter_count == cfg.max_iter_verifier
     assert result.status == "ok"
 ```
+
 </interfaces>
 </context>
 
@@ -980,6 +982,7 @@ async def test_verifier_cap_enforcement_consolidated():
 </verification>
 
 <success_criteria>
+
 - ROADMAP § "Phase ar-3" Success Criterion #1 (Verifier real bounded loop): ✓ delivered (Wave 2 + Wave 3 honors conditional grounding via auto-detect).
 - ROADMAP Success Criterion #2 (cfg.web_search live Tavily): ✓ delivered (Wave 1).
 - ROADMAP Success Criterion #3 (Brave fallback exactly once): ✓ delivered (Wave 1).
@@ -993,10 +996,13 @@ async def test_verifier_cap_enforcement_consolidated():
 - CONTRACT-01 + CONTRACT-02 still clean.
 
 After Wave 3 lands, the orchestrator can:
+
 1. Run the Layer 2b live-key smoke against Hermes (with `TAVILY_API_KEY` + `BRAVE_SEARCH_API_KEY` + Vertex creds in `~/.hermes/.env`):
+
    ```bash
    venv/Scripts/python.exe -m omnigraph.research "什么是 Hermes Harness 深度解析"
    ```
+
 2. Mark ar-3 complete in `STATE-Agentic-RAG-v1.md` and `ROADMAP-Agentic-RAG-v1.md` with the verbatim per-criterion checklist.
 </success_criteria>
 

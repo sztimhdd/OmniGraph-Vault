@@ -69,6 +69,7 @@ escalate to orchestrator with concrete alternative — do NOT silently override.
 | `.planning/STATE-KB-v2.md` | **UPDATE** — last_activity row for kb-v2.2-1 only (no other rows touched) |
 
 **Out of scope for this phase** (do NOT touch):
+
 - `kb/{services,data,api,templates}` — sync is pure ops; nothing user-facing changes
 - `kb/deploy/kb-api.service` — locked decision D4 just calls `systemctl stop/start` via SSH; no unit-file mutation
 - Aliyun production directly — phase output is script + RUNBOOK; user runs it
@@ -302,6 +303,7 @@ python kb/scripts/check_aliyun_kg_memory.py --target aliyun-vitaclaw [--json]
 ```
 
 Output (default human-readable):
+
 ```
 kb-api.service memory:
   MemoryCurrent: 1.42 GiB
@@ -477,6 +479,7 @@ UAT procedure:
 7. Capture transcript into `kb-v2.2-1-SUMMARY.md` § "User UAT" with state file content + memory report
 
 If UAT fails (smoke regression, memory ceiling exceeded, etc.):
+
 - Auto-rollback should restore service
 - File issue in SUMMARY § "Defects found" with concrete next-step
 - Do NOT mark phase complete until UAT passes
@@ -519,6 +522,7 @@ prediction. ADD-only — does not replace any existing acceptance criterion.
 ## Skill discipline (regex check)
 
 After execution, SUMMARY.md MUST contain:
+
 - `Skill(skill="python-patterns"` — Task 1 sync script
 - `Skill(skill="writing-tests"` — Task 2 test suite
 - `Skill(skill="search-first"` — Task 3 rsync/POSIX-mv/systemd-show verification
@@ -535,6 +539,7 @@ Per `feedback_skill_invocation_not_reference.md`: these are tool-call invocation
 - ONLY explicit-file `git add` per Task 3 commit block
 
 Possible concurrent territories during this phase's execute window:
+
 - kdb-2 Wave 3 deploy + UAT (different files: `databricks-deploy/*`, `.planning/phases/kdb-*`)
 - kdb-2.5 re-index Job (executing in parallel; different Volume + different host)
 - Sibling Wave 1 phases: kb-v2.2-5 (F5 test-isolation; touches `tests/conftest.py` and friends) and kb-v2.2-6 (F6 data-lang; touches SSG templates) — territory disjoint from kb/scripts/

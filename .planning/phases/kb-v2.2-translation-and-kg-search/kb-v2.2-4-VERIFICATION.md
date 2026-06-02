@@ -16,6 +16,7 @@ LightRAG returned Chinese `(来源:Entity X)` citations.
 ## Fix Applied
 
 `kb/services/synthesize.py`:
+
 - Added `_QA_PROMPT_TEMPLATE_ZH` and `_QA_PROMPT_TEMPLATE_EN` module-level constants
   - Both instruct C1 to emit `[/article/{hash}.html]` citation format
   - Both include image instruction (`![alt](URL)`) and no-fabrication clause
@@ -64,17 +65,21 @@ Launcher: `venv/Scripts/python.exe .scratch/local_serve.py` → port 8766
 
 **ZH ask page** (`/ask/` + zh question entered):
 Screenshot: `.playwright-mcp/-playwright-mcp-fu1-uat-01.png`
+
 - Ask page renders: Quick answer / Deep research modes visible ✅
 - ZH question "Agent 框架有哪些主流选择？" accepted in textarea ✅
 
 **EN ask page** (`/ask/?lang=en` + en question entered):
 Screenshot: `.playwright-mcp/-playwright-mcp-fu1-uat-02.png`
+
 - EN question "What are the main LLM agent frameworks?" accepted ✅
 
 **API smoke** (`POST /api/synthesize` with `mode=qa`, `lang=zh`):
+
 ```json
 {"job_id":"1c236352a01e","status":"done","confidence":"no_results","fallback_used":true}
 ```
+
 - Status `done` (not 500) ✅ — NEVER-500 invariant preserved
 - `kg_disabled` expected locally (DeepSeek blocked by corp proxy; LightRAG unavailable) ✅
 - FTS5 `?` syntax error is pre-existing, unrelated to this fix ✅

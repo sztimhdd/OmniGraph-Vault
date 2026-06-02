@@ -51,11 +51,13 @@ Evidence: direct file read at L988-997 shows guard placed BEFORE the `try:` at L
 ### T4: pytest passes — zero NEW regressions vs siw baseline; 3 new tests added & all pass — VERIFIED
 
 **Pytest summary (verbatim from `.scratch/uai-pytest-20260510-220439.log`):**
+
 ```
 ====== 22 failed, 630 passed, 5 skipped, 9 warnings in 211.76s (0:03:31) ======
 ```
 
 **3 new uai tests — all PASSING:**
+
 - `tests/unit/test_text_first_ingest.py::test_inner_ingest_article_rss_source_yields_rss_doc_id` — PASSED
 - `tests/unit/test_text_first_ingest.py::test_inner_ingest_article_default_source_yields_wechat_doc_id` — PASSED
 - `tests/unit/test_text_first_ingest.py::test_inner_ingest_article_rejects_short_body` — PASSED
@@ -79,6 +81,7 @@ Evidence: `grep -E "test_inner_ingest_article" .scratch/uai-pytest-20260510-2204
 | test_vision_worker (×3) | TypeError multiple values for argument 'effective_timeout' | **Same set was failing pre-uai with `ValueError: too many values to unpack (expected 3, got 2)`** — SAME failing test set, different error message | Pre-existing failing set (siw mock returned 2-tuple while production unpacks 3-tuple); post-uai mock signature `(url, dry_run, rag, ...)` no longer matches new outer signature `(source, url, dry_run, rag, ...)`. Same 3 tests stayed failing across siw → uai. NOT a new regression in the failing-set sense, though error MESSAGE changed. |
 
 **Key uai-modifications to test_rollback_on_timeout.py (verified via `git show a66622c -- tests/unit/test_rollback_on_timeout.py`):**
+
 - 5 outer callsites at L63, L91, L124, L162, L170 — added `source='wechat'` kwarg (correct per plan)
 - 4 inner mock signatures updated to `(_url, *, source="wechat", rag=None)` (correct per plan)
 - The 4 rollback test failures use 2-tuple unpack `ok, _wall = ...` — this is siw-introduced pre-existing failure pattern (not uai's fault; uai correctly added source param but plan scope_guards didn't include fixing siw's tuple-unpack)
@@ -130,6 +133,7 @@ Diff stat: 9 files changed, 1088 insertions(+), 25 deletions(-).
 ### Diff Stat Constraint — VERIFIED
 
 `git show --stat a66622c` lists exactly:
+
 - `.planning/STATE.md` (+7/-1)
 - `.planning/quick/260510-uai-source-aware-ingest-dispatch-rss-uses-rs/260510-uai-PLAN.md` (new, +697)
 - `.planning/quick/260510-uai-source-aware-ingest-dispatch-rss-uses-rs/260510-uai-SUMMARY.md` (new, +186)
@@ -145,6 +149,7 @@ Total: 9 files. `tests/unit/test_ainsert_persistence_contract.py` NOT in commit 
 ### gkw WIP Guard — VERIFIED
 
 sha256 byte-equality of `tests/unit/test_ainsert_persistence_contract.py` pre-task vs post-task:
+
 - PRE  `.scratch/uai-pre-sha-20260510-220439.txt`: `4451fe467adf326af552f1849aef3f987b1fb894e7ed5b5d16a5630f1a1fe6f4`
 - POST `.scratch/uai-post-sha-20260510-220439.txt`: `4451fe467adf326af552f1849aef3f987b1fb894e7ed5b5d16a5630f1a1fe6f4`
 - Equal — gkw WIP preserved untouched by uai.

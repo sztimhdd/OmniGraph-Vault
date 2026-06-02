@@ -62,6 +62,7 @@ This plan IMPORTS the kdb-1.5 frozen artifacts (`startup_adapter.py` + `lightrag
 
 - **Wave-0 minimal-deploy validation (NEW step before main deploy)** — per RESEARCH.md Q7 + Decision 5: deploy a minimal `app.yaml` with no-op `command:` (just `python -c "import sys; print(sys.path)"` + sleep) to confirm `--source-code-path /Workspace/.../omnigraph-kb/databricks-deploy` correctly mounts `databricks-deploy/` files at `/app/databricks-deploy/` AND that `/app/` ALSO contains the synced `kb/` tree (so uvicorn `kb.api.app:app` will resolve). If layout assumption fails, surface to user before doing the real deploy.
 - Author `databricks-deploy/app.yaml` (NEW file) per Decision 5 locked `command:` shape:
+
   ```yaml
   command:
     - bash
@@ -82,6 +83,7 @@ This plan IMPORTS the kdb-1.5 frozen artifacts (`startup_adapter.py` + `lightrag
     - name: DEEPSEEK_API_KEY
       value: "dummy"
   ```
+
   (The trailing `DEEPSEEK_API_KEY=dummy` defends against the documented `lib/__init__.py:35` Phase-5 cross-coupling per CLAUDE.md; this is NOT a DeepSeek dep — DeepSeek-DBX is fully retired in v1; the dispatcher routes to `databricks_serving` so no real DeepSeek call ever fires.)
 - Author `databricks-deploy/Makefile` (NEW file) with recipes: `deploy`, `logs`, `stop` (with `search-first`-skill verified subcommand), `smoke` (manual checklist echo), `sp-grants` (informational; kdb-2-01 already executed grants but the recipe documents the audit pattern)
 - Verify + extend `databricks-deploy/requirements.txt` if FastAPI/uvicorn/jinja2/markdown baseline needs additions to support the deployed `kb/` runtime (current baseline already lists FastAPI, uvicorn, jinja2, markdown, pygments — likely sufficient)
@@ -121,6 +123,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 ### Task 4.0 — Wave-0 minimal-deploy validation (RESEARCH.md Q7 layout uncertainty)
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q7 lines 762-781 — Risk: `app.yaml` location + `--source-code-path` semantics; recommended Wave 0 minimal-deploy validation
 - `kdb-2-RESEARCH.md` Risk #5 lines 1001-1007 — concrete mitigation: deploy minimal `app.yaml` with no-op `command:` first
 - CLAUDE.md "Windows / Git Bash Notes" — `MSYS_NO_PATHCONV=1` for path-bearing CLI on Windows
@@ -129,18 +132,22 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 
 1. Invoke `Skill(skill="databricks-patterns")` with args `"Confirm: 'databricks --profile dev apps deploy <app-name> --source-code-path <workspace-path>' v0.260+ semantics. Specifically: when --source-code-path points at /Workspace/.../omnigraph-kb/databricks-deploy, does the Apps runtime mount the directory contents at /app/, or at /app/databricks-deploy/? Confirm whether sibling kb/ tree (synced via 'workspace import-dir' to a parent path /Workspace/.../omnigraph-kb) is also reachable from the App's filesystem at /app/kb/. Provide concrete app.yaml command: layout that resolves both relative imports of startup_adapter (top-level under databricks-deploy/) AND uvicorn-style imports of kb.api.app (top-level under kb/)."` — record skill output in `kdb-2-SMOKE-EVIDENCE.md` "Wave 0 layout discovery" section
 2. Author a minimal `databricks-deploy/app.yaml` for the validation deploy:
+
    ```yaml
    command:
      - bash
      - -c
      - "echo 'WAVE0-PROBE-START'; pwd; ls -la; echo '---'; ls -la /app/ 2>&1; echo '---'; python -c 'import sys; print(\"WAVE0-SYS-PATH:\", sys.path)'; echo 'WAVE0-PROBE-END'; sleep 30"
    ```
+
    (no `env:` block needed yet — pure layout probe)
 3. Sync repo + deploy minimal app.yaml:
+
    ```bash
    MSYS_NO_PATHCONV=1 databricks --profile dev workspace import-dir . /Workspace/Users/hhu@edc.ca/omnigraph-kb --overwrite
    databricks --profile dev apps deploy omnigraph-kb --source-code-path /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy --timeout 5m
    ```
+
 4. After deploy, navigate to workspace UI Apps tab → omnigraph-kb → Logs tab; capture the WAVE0-PROBE-START → WAVE0-PROBE-END log block; specifically look for:
    - Working directory at `command:` invocation
    - Whether `/app/` shows `databricks-deploy/` AND `kb/` as sibling subdirectories OR whether `/app/` IS `databricks-deploy/` directly
@@ -165,6 +172,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 6. Capture the chosen layout + `sys.path` contents into `kdb-2-SMOKE-EVIDENCE.md` "Wave 0 layout discovery" section. If escalation triggered, also populate "Wave 0 layout escalation" subsection per step 5 above.
 
 **Acceptance** (grep-verifiable):
+
 - `kdb-2-SMOKE-EVIDENCE.md` "Wave 0 layout discovery" section exists
 - The section contains literal `WAVE0-PROBE-START` and `WAVE0-PROBE-END` markers from the captured log
 - The section contains literal `Skill(skill="databricks-patterns"` (≥1 occurrence)
@@ -177,6 +185,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 ### Task 4.1 — Author `databricks-deploy/app.yaml` (production)
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q7 Decision 5 (lines 916-925) — locked production `command:` shape
 - `kdb-2-RESEARCH.md` lines 710-756 — full app.yaml `env:` block sketch
 - Wave-0 layout findings from Task 4.0 in `kdb-2-SMOKE-EVIDENCE.md`
@@ -185,6 +194,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 **Action:**
 
 1. Replace the Wave-0 minimal `databricks-deploy/app.yaml` with the production version:
+
    ```yaml
    # databricks-deploy/app.yaml — kdb-2-04 production deploy artifact.
    # Wires the kdb-1.5 storage adapter (databricks-deploy/startup_adapter.py)
@@ -245,7 +255,9 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
      # NOTE: KB_KG_GCP_SA_KEY_PATH and GOOGLE_APPLICATION_CREDENTIALS are
      # deliberately UNSET (DEPLOY-DBX-09). Vertex Gemini path retired in v1.
    ```
+
 2. Run all 6 hard-constraint grep audits and capture results:
+
    ```bash
    echo "C1: app.yaml at databricks-deploy/ root"
    find databricks-deploy -maxdepth 1 -name app.yaml | wc -l
@@ -262,6 +274,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
    echo "C6: KB_KG_GCP_SA_KEY_PATH and GOOGLE_APPLICATION_CREDENTIALS UNSET"
    grep -cE "KB_KG_GCP_SA_KEY_PATH|GOOGLE_APPLICATION_CREDENTIALS" databricks-deploy/app.yaml
    ```
+
 3. Append the grep audit results to `kdb-2-SMOKE-EVIDENCE.md` "Hard-constraint grep audit" section. Expected results:
    - C1: 1
    - C2: ≥1, 0
@@ -271,6 +284,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
    - C6: 0
 
 **Acceptance** (grep-verifiable):
+
 - All 6 grep audits return the expected values listed above
 - `kdb-2-SMOKE-EVIDENCE.md` "Hard-constraint grep audit" section contains all 6 results verbatim
 - `databricks-deploy/app.yaml` exists and is YAML-parseable (`python -c "import yaml; yaml.safe_load(open('databricks-deploy/app.yaml'))"` returns no error)
@@ -282,6 +296,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 ### Task 4.2 — Author `databricks-deploy/Makefile`
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q8 (lines 785-911) — full Makefile recipe sketch
 - `kdb-2-RESEARCH.md` Q8 line 826 — `databricks apps stop` TBD; verify with `search-first` skill before adding
 - CLAUDE.md "Windows / Git Bash Notes" — `MSYS_NO_PATHCONV=1` for `workspace import-dir`
@@ -290,12 +305,15 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 
 1. Invoke `Skill(skill="search-first")` with args `"Verify subcommand existence in Databricks CLI v0.260+: (a) does 'databricks apps stop <app-name>' exist? (b) does 'databricks apps logs <app-name>' exist? (c) does 'databricks serving-endpoints get-permissions <endpoint-name>' accept the endpoint name without --id flag? Search Databricks CLI release notes / GitHub repo for v0.260+ apps subcommand surface. Goal: Makefile recipes must reference real subcommands or fall back gracefully (e.g., 'apps logs' returns 'unknown command' → recipe echoes UI URL instead)."` — record skill output in `kdb-2-SMOKE-EVIDENCE.md` "Makefile subcommand discovery" section
 2. Run hands-on probes locally:
+
    ```bash
    databricks --profile dev apps stop --help 2>&1 || echo "apps stop SUBCOMMAND-MISSING"
    databricks --profile dev apps logs --help 2>&1 || echo "apps logs SUBCOMMAND-MISSING"
    ```
+
    Capture results to `.scratch/kdb-2-04-cli-probe.log`. RESEARCH.md Q8 already confirmed `apps logs` is missing in v0.260.0.
 3. Author `databricks-deploy/Makefile`:
+
    ```makefile
    # databricks-deploy/Makefile — kdb-2-04 deploy + ops recipes.
    # Targets: deploy / logs / stop / smoke / sp-grants
@@ -353,12 +371,15 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
    	  databricks --profile dev serving-endpoints get-permissions databricks-claude-sonnet-4-6 || true; \
    	  databricks --profile dev serving-endpoints get-permissions databricks-qwen3-embedding-0-6b || true
    ```
+
 4. Verify Makefile shape:
+
    ```bash
    make -n deploy 2>&1 | head -10
    ```
 
 **Acceptance** (grep-verifiable):
+
 - `databricks-deploy/Makefile` exists
 - `grep -c '^\.PHONY:' databricks-deploy/Makefile` returns 1
 - `grep -cE "^(deploy|logs|stop|smoke|sp-grants):" databricks-deploy/Makefile` returns 5 (5 targets)
@@ -374,21 +395,25 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 ### Task 4.3 — Verify + extend `databricks-deploy/requirements.txt` if needed
 
 **Read-first:**
+
 - `databricks-deploy/requirements.txt` (current 13 lines) — kdb-1.5 baseline
 - `kb/api/app.py` (if it exists) or whichever module uvicorn loads — to enumerate runtime deps
 
 **Action:**
 
 1. Probe `kb/`-level imports the deployed app needs:
+
    ```bash
    grep -rh "^from \|^import " kb/api/ kb/services/ kb/data/ 2>/dev/null | sort -u | head -40
    ```
+
    Compare against current `databricks-deploy/requirements.txt`. Look for any non-standard import not covered (e.g., `pydantic`, `starlette` — likely transitively pulled by `fastapi`; explicit pin only if production-test reveals a missing module).
 2. **If gaps found:** extend `databricks-deploy/requirements.txt` with the missing pins. **If no gaps:** leave file unchanged.
 3. Verify DEPLOY-DBX-07 contract: `grep -ci "deepseek" databricks-deploy/requirements.txt` returns 0.
 4. Document in `kdb-2-SMOKE-EVIDENCE.md` "requirements.txt verification" section either: "No extension needed — kdb-1.5 baseline covers production deps" OR list any added pins with rationale.
 
 **Acceptance** (grep-verifiable):
+
 - `grep -ci "deepseek" databricks-deploy/requirements.txt` returns 0
 - `databricks-deploy/requirements.txt` lists at minimum: `fastapi`, `uvicorn`, `jinja2`, `markdown`, `pygments`, `lightrag-hku`, `databricks-sdk`, `numpy`
 - `kdb-2-SMOKE-EVIDENCE.md` "requirements.txt verification" section exists with explicit "No extension needed" OR list of additions
@@ -400,6 +425,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 ### Task 4.4 — Production deploy + verify RUNNING + cold-start measurement
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q6 lines 657-678 — concrete deploy + poll loop + log-excerpt-capture pattern
 - Wave-0 layout findings from Task 4.0
 - Production app.yaml from Task 4.1
@@ -407,6 +433,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 **Action:**
 
 1. Sync repo + deploy:
+
    ```bash
    START=$(date +%s)
    MSYS_NO_PATHCONV=1 databricks --profile dev workspace import-dir . /Workspace/Users/hhu@edc.ca/omnigraph-kb --overwrite
@@ -414,7 +441,9 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
      --source-code-path /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy \
      --timeout 20m 2>&1 | tee .scratch/kdb-2-04-deploy.log
    ```
+
 2. Poll for RUNNING/ACTIVE state:
+
    ```bash
    for i in $(seq 1 30); do
      STATE=$(databricks --profile dev apps get omnigraph-kb -o json | jq -r '.compute_status.state')
@@ -427,6 +456,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
      sleep 10
    done
    ```
+
    Capture `.scratch/kdb-2-04-poll.log`.
 3. From the workspace UI Apps tab, capture:
    - Deploy timeline (deploy time + boot time + first-200 time)
@@ -440,6 +470,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 5. **DEPLOY-DBX-05 check:** elapsed time < 1200s (20min budget). Anything > 60s realistic should be investigated but is not a hard fail (budget is 20min).
 
 **Acceptance** (grep-verifiable):
+
 - `databricks --profile dev apps get omnigraph-kb -o json | jq -r '.compute_status.state'` returns `ACTIVE` or `RUNNING`
 - `databricks --profile dev apps get omnigraph-kb -o json | jq -r '.url'` returns a non-null URL ending in `azure.databricksapps.com`
 - `kdb-2-SMOKE-EVIDENCE.md` "Production deploy" section contains:
@@ -455,6 +486,7 @@ NONE in this plan. CONFIG-EXEMPTIONS was fully updated by kdb-2-02 + kdb-2-03 (b
 ### Task 4.5 — Smoke 1: browser-SSO UAT (OPS-DBX-01 + DEPLOY-DBX-06 + AUTH-DBX-05 runtime confirmation)
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q5 lines 582-624 — browser-SSO UAT methodology + 4-step user checklist
 - `.planning/REQUIREMENTS-kb-databricks-v1.md` lines 151-156 — OPS-DBX-01 verbatim Smoke 1
 - `.planning/PROJECT-kb-databricks-v1.md` lines 124-130 — Smoke 1 acceptance criterion
@@ -477,6 +509,7 @@ This task is USER-IN-LOOP per Decision 4. The plan emits a paste-ready checklist
 9. Append all 5 screenshot paths + verification narrative to `kdb-2-SMOKE-EVIDENCE.md` "Smoke 1" section.
 
 **Acceptance** (grep-verifiable + image-evidence):
+
 - `kdb-2-SMOKE-EVIDENCE.md` "Smoke 1" section exists
 - Section contains at minimum 5 screenshot paths (1 per checklist step 3-7) with `.png` extensions
 - Section explicitly states: "Smoke 1 PASS — bilingual UI toggle works; cookie persistence works; ?lang=zh hard-switch works; Apps Logs tab shows zero ERROR during cold start"
@@ -489,6 +522,7 @@ This task is USER-IN-LOOP per Decision 4. The plan emits a paste-ready checklist
 ### Task 4.6 — Smoke 2: browser-SSO UAT (OPS-DBX-02)
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q5 + Decision 5 — browser UAT methodology
 - `.planning/REQUIREMENTS-kb-databricks-v1.md` lines 158-163 — OPS-DBX-02 verbatim Smoke 2 (zh + en search + detail-page + image rendering)
 
@@ -512,6 +546,7 @@ Continue the same browser session from Smoke 1 (no need to re-SSO).
 7. Append all 5 screenshot paths + verification narrative + the FTS5-fallback note to `kdb-2-SMOKE-EVIDENCE.md` "Smoke 2" section.
 
 **Acceptance** (grep-verifiable + image-evidence):
+
 - `kdb-2-SMOKE-EVIDENCE.md` "Smoke 2" section exists
 - Section contains at minimum 5 screenshot paths (`.png`)
 - Section explicitly states: "Smoke 2 PASS — bilingual search works (≥3 hits each); detail pages render with correct lang attr + badge + image rendering via /static/img/..."
@@ -525,6 +560,7 @@ Continue the same browser session from Smoke 1 (no need to re-SSO).
 ### Task 4.7 — Finalize `kdb-2-SMOKE-EVIDENCE.md` + commit
 
 **Read-first:**
+
 - All sections of `kdb-2-SMOKE-EVIDENCE.md` accumulated through Tasks 4.0-4.6
 - `feedback_no_amend_in_concurrent_quicks.md` + `feedback_git_add_explicit_in_parallel_quicks.md`
 
@@ -557,6 +593,7 @@ Continue the same browser session from Smoke 1 (no need to re-SSO).
 3. Add a "Skill invocations" section listing the literal `Skill(skill="...")` substrings invoked during this plan (Task 4.0: databricks-patterns; Task 4.2: search-first; …) — each substring at least once for plan-checker grep
 4. Stage explicitly: `git add databricks-deploy/app.yaml databricks-deploy/Makefile .planning/phases/kdb-2-databricks-app-deploy/kdb-2-SMOKE-EVIDENCE.md` (plus `databricks-deploy/requirements.txt` if extended in Task 4.3)
 5. Commit forward-only:
+
    ```
    feat(kdb-2-04): app.yaml + Makefile + production deploy + Smoke 1+2 evidence
 
@@ -576,6 +613,7 @@ Continue the same browser session from Smoke 1 (no need to re-SSO).
    ```
 
 **Acceptance** (grep-verifiable):
+
 - `kdb-2-SMOKE-EVIDENCE.md` contains the 12-row top-level REQ summary table
 - Section "Decision-fidelity self-check" exists with all 6 decisions explicitly addressed
 - Section "Skill invocations" contains literal `Skill(skill="databricks-patterns"` AND `Skill(skill="search-first"` (each ≥1 occurrence — frontmatter ↔ task invocation 1:1)
@@ -623,6 +661,7 @@ This plan honors all 11 hard constraints from `kdb-2-CONTEXT.md`:
 ## Anti-patterns (block list)
 
 This plan MUST NOT:
+
 - Run Smoke 3 (Decision 6 — kdb-3 territory)
 - Grant `WRITE_VOLUME` to App SP (kdb-2-01 territory + AUTH-DBX-03 hard rule)
 - Modify `kb/services/synthesize.py` (Decision 1)

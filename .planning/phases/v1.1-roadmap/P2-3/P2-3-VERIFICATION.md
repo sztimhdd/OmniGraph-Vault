@@ -30,22 +30,26 @@
 ## 3. Track 1–4 Detail
 
 ### Track 1 — Cold-start
+
 - Lifespan boot: LightRAG hydrate + init `wall_s=29.00` (1780189524)
 - BGE skipped via escape (`bge_load_force_fail` short-circuit)
 - ✅ Within 60s SC#1 ceiling
 - Note: BGE-enabled cold-start (escape removed) would be ~58s = 29s LightRAG + 28.64s BGE load (measured pre-escape on 1st deployment). Still within 60s budget if optimised; perf fix follow-up will re-measure.
 
 ### Track 2 — N=4 concurrent
+
 - Initial run: not executed — first-attempt 230s+ wall on N=1 made N=4 meaningless
 - Post-escape: not re-run — mode='hybrid' + asyncio.Lock topology unchanged from P5 (verified in P5-VERIFICATION.md). N=4 SC equivalent to P5 baseline by construction.
 - Defer N=4 verification to `260531-bge-rerank-perf-fix` follow-up when mix mode is re-enabled
 
 ### Track 3 — Graceful degrade
+
 - ✅ Verified via escape itself
 - Path: env `BGE_FORCE_LOAD_FAIL=1` → `kb/api.py:_build_bge_rerank` returns `(None, False)` → `app.state.reranker=None` + `app.state.rerank_disabled=True` → `kb/services/synthesize.py` ternary `effective_mode = "mix" if not rerank_disabled else "hybrid"` → mode='hybrid' dispatch
 - Production smoke: 62.59s, confidence=kg, fallback_used=False — confirms graceful-degrade path WORKS as designed
 
 ### Track 4 — Steady-state latency
+
 - **Pre-escape:** 230s+ wall, c1_timeout=240s outer fired, `kg_synthesize:Query attempt 1 failed:` at +150s (KB_LIGHTRAG_INNER_TIMEOUT), retry attempt=2 also stalled. SC#2 FAIL → HT-4 trigger.
 - **Post-escape:** 62.59s wall, status=done, fallback_used=False, confidence=kg, markdown 8508 chars (job_id `645c8ef0c398`).
 - **Root cause** (RESEARCH §2 mismatch):
@@ -57,6 +61,7 @@
 ## 4. LoC Waive Log
 
 ### Waive T1 (+91% LoC vs PLAN)
+
 - **PLAN T1 estimate:** +32 LoC. **Actual:** +62 LoC (commit `f65a789` + adjacent pre-T1 commits)
 - **Substance:**
   - Docstrings + comments (BGE_FORCE_LOAD_FAIL env honor docstring, `# noqa: BLE001 — graceful degrade`)
@@ -66,6 +71,7 @@
 - **Waive granted by orchestrator** 2026-05-30 03:55 UTC.
 
 ### Waive T5 (+110% LoC vs PLAN)
+
 - **PLAN T5 estimate:** +100 LoC. **Actual:** +210 LoC (commit `64cbdb5` mixed)
 - **Substance:**
   - `_start_or_skip()` helper + `try/finally client.__exit__` pattern in `test_p2_p3_lifespan_reranker.py` for local NTFS storage 768/3072 dim mismatch (P5 known drift, PLAN didn't anticipate)
@@ -75,6 +81,7 @@
 - **Waive granted by orchestrator** 2026-05-30 04:30 UTC.
 
 ### LoC Summary
+
 - T1 +62 (waived)
 - T2 +1
 - T3 +14 (signature + ternary + dispatch + 1 test assertion update)
@@ -146,6 +153,7 @@ Defer to follow-up quick. Re-run `tests/eval/test_p2_p3_quality.py` + browser co
 ## 9. ISSUES.md Transcribe (orchestrator action — not in this commit)
 
 New issues to add:
+
 - **#NN P0** `260531-bge-rerank-perf-fix` — P2-3 deployed-disabled; perf fix to ship runtime activation. SC#3 token-overlap NOT MEASURABLE until fixed.
 - **#NN P2** N=4 concurrent verification deferred to perf-fix ship
 - **#NN P3** zh-test asymmetry (T3 note §5)

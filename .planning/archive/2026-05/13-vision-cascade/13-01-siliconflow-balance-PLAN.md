@@ -61,6 +61,7 @@ Build `lib/siliconflow_balance.py` — balance API wrapper, cost estimation, and
 Purpose: Before each batch + every 10 images during a batch, we need to know whether SiliconFlow has enough balance to continue or whether we should switch to OpenRouter early. Avoids the failure mode where batch runs halfway on SiliconFlow then silently flips to OpenRouter with no operator warning.
 
 Output:
+
 - `lib/siliconflow_balance.py` — 4 public functions: `check_siliconflow_balance`, `estimate_cost`, `should_warn`, `should_switch_to_openrouter`; 1 exception class
 - `tests/unit/test_siliconflow_balance.py` — ≥6 unit tests
 </objective>
@@ -82,6 +83,7 @@ Output:
 <!-- No prior art to import; this is a new module. Standard patterns from config.py + image_pipeline.py apply. -->
 
 External API contract (SiliconFlow docs):
+
 ```
 GET https://api.siliconflow.cn/v1/user/info
 Headers: Authorization: Bearer <SILICONFLOW_API_KEY>
@@ -101,9 +103,11 @@ Response (200): {
 Price constant (from CONTEXT §decisions): SiliconFlow Qwen3-VL-32B costs **¥0.0013 per image**.
 
 Thresholds (from CONTEXT §decisions §CASC-06):
+
 - Mid-batch hard cutoff: balance < ¥0.05 → switch to OpenRouter
 - Pre-batch warning: balance < estimated remaining cost
 </interfaces>
+
 </context>
 
 <tasks>
@@ -277,6 +281,7 @@ Do NOT add this module to `lib/__init__.py` exports. Callers import as `from lib
 Create `tests/unit/test_siliconflow_balance.py`. Use `pytest.mark.unit` marker (matches repo convention from test_image_pipeline.py). Use `mocker.patch("lib.siliconflow_balance.requests.get")` to mock. Use `monkeypatch.setenv("SILICONFLOW_API_KEY", "test-key-xxx")` for happy-path tests and `monkeypatch.delenv("SILICONFLOW_API_KEY", raising=False)` for missing-key test.
 
 Helper for mock response:
+
 ```python
 def _mock_resp(status_code=200, json_body=None, raise_exc=None):
     if raise_exc is not None:
@@ -512,6 +517,7 @@ class MissingKeyError(BalanceCheckError):
 </verification>
 
 <success_criteria>
+
 - [ ] `lib/siliconflow_balance.py` provides `check_siliconflow_balance`, `estimate_cost`, `should_warn`, `should_switch_to_openrouter`, `BalanceCheckError`
 - [ ] Price constant `¥0.0013/image` locked (CASC-06)
 - [ ] OpenRouter switch threshold `¥0.05` locked (CASC-06)

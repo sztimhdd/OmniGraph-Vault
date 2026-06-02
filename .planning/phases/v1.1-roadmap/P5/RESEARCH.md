@@ -62,12 +62,14 @@ Read `kb/api.py` (91 LoC):
 **Branch A observation (P5-verify quick 260527-swt):** server log showed TWO distinct `LightRAG(...)` constructions for two consecutive POST requests, each loading 2625 nodes / 3412 edges. Two hypotheses:
 
 - **H1: Lazy-Lock TOCTOU race** — `kg_synthesize.py:87-89`
+
   ```python
   if _rag_init_lock is None:
       _rag_init_lock = asyncio.Lock()
   async with _rag_init_lock:
       ...
   ```
+
   Two concurrent first-callers both pass the `is None` check, each instantiates its own `asyncio.Lock()`, each acquires its own (different) lock instance, both proceed to construct LightRAG. Module-global `_rag_singleton` is overwritten by whichever finishes second; first wasted ~30s of work.
 
 - **H2: Silent constructor failure on Databricks SDK metadata probe** — `LightRAG(...)` line 94 internally instantiates embedding/LLM clients, which may probe `WorkspaceClient()` without `auth_type='pat'`. On EDC corp network the probe hangs ~5 min; the lock-acquire branch never reaches `_rag_singleton = rag` (line 106), so the next request still finds `_rag_singleton is None` and starts over. **This is a local-only confound** (deployed Databricks App injects M2M credentials via platform; no metadata probe).
@@ -77,16 +79,19 @@ Read `kb/api.py` (91 LoC):
 ## 4. asyncio.Lock vs per-call clone-on-write — LoC delta
 
 **Option A: asyncio.Lock around aquery()** (serialize all KG queries on this worker)
+
 ```python
 async def kb_synthesize(question, lang, job_id, mode, lightrag, lightrag_lock):
     async with lightrag_lock:
         result = await synthesize_response(question, mode="hybrid", rag=lightrag)
 ```
+
 - LoC delta: +1 lock attribute on `app.state` + 1 `async with` per call site (~3-4 sites)
 - Throughput: serializes; with `--workers 1` and current 60-180s per-query latency this is acceptable (no parallel hot path today)
 - Correctness: provably safe — concurrent cache writes impossible
 
 **Option B: per-call clone-on-write snapshot** (parallel queries against immutable graph snapshot)
+
 - Requires LightRAG-internal API to clone storages — does NOT exist in v1.4.16
 - Would need wrapping each storage object with copy-on-write semantics — significant LoC
 - Out of scope for ~80 LoC phase; defer to v1.2+ if throughput becomes a constraint
@@ -136,11 +141,13 @@ Used by `databricks-deploy/lightrag_databricks_provider.py:69, 121` (factory bod
 ## Validation Architecture
 
 **Local (cold-start <30s):**
+
 - `venv/Scripts/python.exe .scratch/local_serve.py` → `localhost:8766`
 - First `curl POST /api/synthesize` after fresh start → measure wall-clock to first 200/202 response
 - Pass: <30s on local NTFS
 
 **Databricks (N=4 concurrent):**
+
 - `make deploy` (Pass 0+1+2+3 — see Principle #9; only `kb/api.py` + `kg_synthesize.py` + `kb/services/` + `kb/api_routers/` touched, so Pass 0 SSG bake NOT required → sync-only Pass 1+2+3 acceptable IF no `kb/static/` or `kb/templates/` in commit)
 - `httpx.AsyncClient` + `asyncio.gather()` 4 distinct queries against deployed `/api/synthesize`
 - Server-side log inspection: confirm exactly ONE `LightRAG(...)` construction (no double-init)

@@ -84,6 +84,7 @@ Output: 2 new modules in `kb/`, 1 hot-path change in `batch_ingest_from_spider.p
 <!-- Existing batch_ingest_from_spider.py orchestration patterns we extend -->
 
 End-of-cron sequence (existing — find via grep before editing):
+
 ```python
 # batch_ingest_from_spider.py — end of ingest_from_db()
 # After main per-article loop:
@@ -92,6 +93,7 @@ await _drain_layer2_queue(...)   # existing call
 ```
 
 Atomic write pattern (per RESEARCH Example 5):
+
 ```python
 import os, tempfile
 from pathlib import Path
@@ -107,6 +109,7 @@ def atomic_write(path: Path, content: str) -> None:
 ```
 
 Citation regex (per RESEARCH "Don't Hand-Roll"):
+
 ```python
 import re
 CITATION_RE = re.compile(r"\^\[article:([a-f0-9]{10})\]")
@@ -114,6 +117,7 @@ BACKLINK_RE = re.compile(r"\[\[([a-z0-9-]+)\]\]")
 ```
 
 Frontmatter parsing (per RESEARCH "Don't Hand-Roll"):
+
 ```python
 import frontmatter   # python-frontmatter; added to requirements in W1
 post = frontmatter.load(path)
@@ -121,9 +125,11 @@ post.metadata["last_updated"]  # ISO date string
 ```
 
 JSONL logging path:
+
 ```
 .planning/phases/llm-wiki-integration/wiki-lint-failures.jsonl   # append-only, one JSON object per line
 ```
+
 </interfaces>
 
 <tasks>
@@ -451,6 +457,7 @@ Phase-level verification for W3:
 </verification>
 
 <success_criteria>
+
 1. kb/wiki_lint.py with 4 lint functions + JSONL logger; 4 unit tests PASS
 2. kb/wiki_update.py with suggestion generator + atomic apply + lint guard; 2 integration tests PASS
 3. batch_ingest_from_spider.py has _wiki_update_check() function + post-drain call site with asyncio.wait_for(120) wrap

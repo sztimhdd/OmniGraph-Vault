@@ -132,6 +132,7 @@ None — no external service configuration required for Wave 0.
 ## Self-Check: PASSED
 
 Files exist:
+
 - `requirements.txt` — FOUND (appended trafilatura + lxml lines)
 - `tests/unit/test_scraper.py` — FOUND (5 stubs)
 - `tests/unit/test_batch_ingest_hash.py` — FOUND (2 stubs)
@@ -139,11 +140,13 @@ Files exist:
 - `.planning/phases/19-generic-scraper-schema-kol-hotfix/deferred-items.md` — FOUND
 
 Commits exist on `main`:
+
 - `784f740` — FOUND (chore: pin trafilatura + lxml)
 - `88c2e3e` — FOUND (test: scraper stubs)
 - `6f56d93` — FOUND (test: batch_ingest + schema stubs)
 
 Acceptance checks:
+
 - `grep -n "^trafilatura" requirements.txt` → line 27 — PASS
 - `grep -n "^lxml" requirements.txt` → line 28 — PASS
 - `venv/Scripts/python -c "import trafilatura, lxml.etree"` → exit 0 — PASS

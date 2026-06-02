@@ -82,10 +82,12 @@
 ### Phase Details
 
 ### Phase 8: Image Pipeline Correctness
+
 **Goal**: Image download + filter phase produces deterministic, well-logged output on the gpt55 fixture (28 images) with correct filter semantics
 **Depends on**: Nothing (self-contained module changes in `image_pipeline.py`)
 **Requirements**: IMG-01, IMG-02, IMG-03, IMG-04
 **Success Criteria** (what must be TRUE):
+
   1. Running image filter on gpt55 fixture keeps only images where `min(w,h) >= 300`; a synthetic 100×800 banner is filtered out (previously kept by `w<300 AND h<300` bug)
   2. Inter-image Vision sleep is configurable via a module-level constant with default `0` seconds; sleep=5 still works when set
   3. Each image processed emits a single structured log line containing URL, dimensions, provider name, wall-clock ms, and outcome tag (`success` | `error:<type>`)
@@ -93,10 +95,12 @@
 **Plans**: 3 plans — 11-00 (bench harness + schema + balance precheck), 11-01 (Vertex AI opt-in conditional enabler for <2min gate), 11-02 (integration run + aquery validation + milestone gate closure)
 
 ### Phase 9: Timeout Control + LightRAG State Management
+
 **Goal**: LightRAG state is reset cleanly per run, per-article work is budget-bounded, and timeouts leave the graph consistent (no orphan nodes, no replayed embed quota waste)
 **Depends on**: Phase 8 (not strictly required, but logically first since state+timeout underpin later phases)
 **Requirements**: TIMEOUT-01, TIMEOUT-02, TIMEOUT-03, STATE-01, STATE-02, STATE-03, STATE-04
 **Success Criteria** (what must be TRUE):
+
   1. `LLM_TIMEOUT` env var (default 600s) is read by LightRAG's health_check and propagates to per-chunk LLM calls; DeepSeek async client has an explicit 120s request timeout
   2. Per-article outer `asyncio.wait_for` budget is computed as `max(120 + 30 × chunk_count, 900)` and is independent of image count
   3. `get_rag()` either returns a fresh instance per call or accepts a `flush=True` parameter; a unit test demonstrates the old singleton-with-buffered-state replay bug no longer occurs
@@ -105,10 +109,12 @@
 **Plans**: 3 plans — 11-00 (bench harness + schema + balance precheck), 11-01 (Vertex AI opt-in conditional enabler for <2min gate), 11-02 (integration run + aquery validation + milestone gate closure)
 
 ### Phase 10: Scrape-First Classification + Text-First Ingest Decoupling
+
 **Goal**: The ingestion pipeline scrapes full article body first, classifies on full text via DeepSeek with SQLite persistence, ingests text into LightRAG immediately, and defers Vision work to an async worker that appends image sub-docs — failure of Vision never blocks or invalidates text ingest
 **Depends on**: Phase 9 (rollback + timeout infrastructure; async Vision sub-doc append depends on clean state contract)
 **Requirements**: CLASS-01, CLASS-02, CLASS-03, CLASS-04, ARCH-01, ARCH-02, ARCH-03, ARCH-04
 **Success Criteria** (what must be TRUE):
+
   1. `batch_ingest_from_spider.py --from-db` scrapes the full article body before classification; the unreliable WeChat `digest` field is no longer consulted for classification input
   2. DeepSeek classifier returns `{depth: 1-3, topics: [...], rationale: "..."}` on full article body and the result is persisted to a `classifications` SQLite table with `article_id`, `depth`, `topics`, `rationale`, `classified_at` BEFORE any ingest decision
   3. Scrape phase reuses the existing `spiders/wechat_spider.py` anti-abuse parameters (`SESSION_LIMIT=54`, `RATE_LIMIT_SLEEP_ACCOUNTS=5.0`, `RATE_LIMIT_COOLDOWN=60.0`, rotating UA pool, `_ua_cooldown()`); the batch-path spec is preserved even though v3.1 gate runs on local fixture
@@ -118,10 +124,12 @@
 **Plans**: 10-00 (scrape-first classifier), 10-01 (text-first ingest split), 10-02 (async Vision worker + sub-doc + drain) — all complete 2026-04-29
 
 ### Phase 11: E2E Verification Gate
+
 **Goal**: Full-pipeline local benchmark against `test/fixtures/gpt55_article/` completes in <2 min text-ingest wall-clock with zero crashes, a semantically queryable graph, and a machine-readable result file suitable for CI regression — milestone v3.1 closes when `gate_pass: true` is observed
 **Depends on**: Phase 8, Phase 9, Phase 10 (composes their work into the end-to-end gate)
 **Requirements**: E2E-01, E2E-02, E2E-03, E2E-04, E2E-05, E2E-06, E2E-07
 **Success Criteria** (what must be TRUE):
+
   1. A local CLI invocation ingests `test/fixtures/gpt55_article/` as a single article from disk with no network WeChat scrape required; `metadata.json` (url, title) is the input source
   2. Text-ingest phase (scrape → classify → image-filter → LightRAG `ainsert` return, excluding async Vision wait) completes in <2 minutes wall-clock on the dev machine; benchmark fails loud if exceeded
   3. The benchmark emits a stage-level timing report with exactly five labelled wall-clock sections: `scrape`, `classify`, `image-download`, `text-ingest`, `async-vision-start` (the last is annotated and NOT counted toward the <2min gate)
@@ -155,26 +163,31 @@
 ### Phase Details
 
 ### Phase 12: Checkpoint/Resume Mechanism
+
 **Goal**: Persist article ingestion state at 5 stage boundaries so transient failures resume without re-scraping or re-processing prior stages; support manual reset per-hash or batch-wide
 **Depends on**: v3.1 Phase 9 (`get_rag(flush=True)` contract, rollback semantics), v3.1 Phase 10 (`ainsert` decoupled from Vision)
 **Requirements**: CKPT-01 (stage boundaries), CKPT-02 (format), CKPT-03 (resume logic), CKPT-04 (atomicity), CKPT-05 (manual reset scripts)
 **Success Criteria** (what must be TRUE):
+
   1. Single article with injected failure at stage 3 (image-download) resumes correctly at stage 4 (text-ingest) without re-running scrape/classify/image-download
   2. Checkpoint files are written atomically (`.tmp` then `os.rename()`); a crash mid-write leaves no corrupted partial files
   3. `python scripts/checkpoint_reset.py --hash {article_hash}` removes checkpoint dir; full re-run succeeds cleanly
   4. `python scripts/checkpoint_status.py` lists all in-flight checkpoints with current stage annotation
   5. Checkpoint directory schema matches MILESTONE_v3.2_REQUIREMENTS.md §B1.2 exactly (5 files/dirs + metadata.json)
 **Plans**: 4 plans
+
   - [ ] 12-00-checkpoint-lib-PLAN.md — Wave 1: lib/checkpoint.py public API + unit tests (CKPT-01, CKPT-02, CKPT-04)
   - [ ] 12-01-cli-tools-PLAN.md — Wave 2: scripts/checkpoint_reset.py (+ --confirm guard) and scripts/checkpoint_status.py + CLI tests (CKPT-05)
   - [ ] 12-02-ingest-integration-PLAN.md — Wave 2: wrap ingest_wechat.py::ingest_article 5 stages with checkpoint read/write + stage-skip integration tests (CKPT-01, CKPT-03)
   - [ ] 12-03-batch-integration-and-e2e-PLAN.md — Wave 3: batch_ingest_from_spider.py skip guard + end-to-end failure-injection tests (Gate 1 acceptance) (CKPT-03, CKPT-05)
 
 ### Phase 13: Vision Cascade with Circuit Breaker
+
 **Goal**: Image description cascades SiliconFlow→OpenRouter→Gemini with per-provider state tracking and automatic circuit breaker; a single provider 503 never kills the article
 **Depends on**: Phase 12 (uses checkpoint dir to persist `provider_status` across batch restarts)
 **Requirements**: CASC-01 (cascade order), CASC-02 (state tracking), CASC-03 (circuit breaker), CASC-04 (error code classification), CASC-05 (logging), CASC-06 (SiliconFlow balance management)
 **Success Criteria** (what must be TRUE):
+
   1. SiliconFlow 503 → auto-cascade to OpenRouter without exception propagation
   2. After 3 consecutive SiliconFlow failures within a batch, `circuit_open = True` and SiliconFlow is skipped for subsequent images until recovery retry succeeds
   3. `batch_validation_report.json` `provider_usage` reflects actual cascade attempts per provider
@@ -182,16 +195,19 @@
   5. Gemini is used only as last resort when both SiliconFlow and OpenRouter circuits are open
   6. 429 on SiliconFlow immediately cascades to OpenRouter; 4xx auth errors do NOT count toward circuit breaker
 **Plans**: 4 plans (planned 2026-04-30)
+
   - [ ] 13-00-vision-cascade-core-PLAN.md — Wave 1: lib/vision_cascade.py (VisionCascade class, CascadeResult, AttemptRecord, AllProvidersExhausted429Error) + unit tests for state machine, error classification, circuit breaker, atomic persist
   - [ ] 13-01-siliconflow-balance-PLAN.md — Wave 1 (parallel): lib/siliconflow_balance.py (check_siliconflow_balance, estimate_cost, should_warn, should_switch_to_openrouter) + unit tests for HTTP paths + threshold math
   - [ ] 13-02-image-pipeline-integration-PLAN.md — Wave 2: rewire image_pipeline.describe_images() to use VisionCascade; pre-batch + mid-batch balance checks; batch-end alerts; preserves public signature + unit tests
   - [ ] 13-03-integration-tests-PLAN.md — Wave 3: tests/integration/test_vision_cascade_e2e.py simulating 503/429/timeout/recovery/balance sequences with HTTP-layer mocks only (no real API keys)
 
 ### Phase 14: Regression Test Fixtures
+
 **Goal**: 5 fixture profiles covering distinct article characteristics (image density, text length, image quality) validate the batch pipeline end-to-end; JSON report schema supports CI regression tracking
 **Depends on**: Phase 12 (checkpoint infra), Phase 13 (cascade), v3.1 Phase 11 (bench harness pattern)
 **Requirements**: REGR-01 (5 fixtures), REGR-02 (schema), REGR-03 (validation script), REGR-04 (report schema), REGR-05 (CI integration)
 **Success Criteria** (what must be TRUE):
+
   1. `test/fixtures/sparse_image_article/`, `dense_image_article/`, `text_only_article/`, `mixed_quality_article/` exist with matching `metadata.json` + content
   2. `python scripts/validate_regression_batch.py --fixtures ... --output batch_validation_report.json` completes on all 5 fixtures
   3. `batch_validation_report.json` matches MILESTONE_v3.2_REQUIREMENTS.md §B3.4 schema exactly
@@ -201,24 +217,29 @@
 **Plans**: TBD
 
 ### Phase 15: Documentation & Operator Runbook
+
 **Goal**: Humans can operate the batch pipeline without reading code; CLAUDE.md + OPERATOR_RUNBOOK.md + DEPLOY.md cover deployment, monitoring, recovery, and upgrade paths
 **Depends on**: Nothing for drafting (can run in parallel with Phase 12-14); facts documented must reflect Phase 12-13 final APIs before merge
 **Requirements**: DOC-01 (CLAUDE.md additions), DOC-02 (OPERATOR_RUNBOOK.md), DOC-03 (DEPLOY.md updates)
 **Success Criteria** (what must be TRUE):
+
   1. CLAUDE.md contains Checkpoint Mechanism + Vision Cascade + SiliconFlow Balance Management + Batch Execution + Known Limitations sections
   2. `docs/OPERATOR_RUNBOOK.md` contains Pre-Batch Checklist + Batch Execution commands + Failure Scenarios table + Manual Intervention + Monitoring Points
   3. `Deploy.md` updated with SiliconFlow vs Gemini trade-off table and "Recommended Upgrade Path" pointing to Vertex AI spec
   4. Runbook walkthrough with at least one failure scenario passes human review (no questions remaining)
 **Plans**: 3 plans
+
   - [ ] 15-00-claude-md-additions-PLAN.md — Insert 5 new sections (Checkpoint, Vision Cascade, Balance, Batch Execution, Known Limitations) into CLAUDE.md after Lessons Learned
   - [ ] 15-01-operator-runbook-PLAN.md — Create docs/OPERATOR_RUNBOOK.md with Pre-Batch Checklist, Batch Execution, Failure Scenarios table, Manual Intervention, Monitoring Points
   - [ ] 15-02-deploy-md-updates-PLAN.md — Append SiliconFlow-vs-Gemini trade-off, Vertex AI Infrastructure Plan, Recommended Upgrade Path sections to Deploy.md
 
 ### Phase 16: Vertex AI Infrastructure Preparation
+
 **Goal**: Design and document the migration path from Gemini API free tier to Vertex AI OAuth2 with cross-project quota isolation; no code changes required in this milestone
 **Depends on**: Nothing (fully parallel with all other v3.2 phases)
 **Requirements**: VERT-01 (migration spec), VERT-02 (SA template), VERT-03 (CLAUDE.md + Deploy.md updates), VERT-04 (cost estimation script)
 **Success Criteria** (what must be TRUE):
+
   1. `docs/VERTEX_AI_MIGRATION_SPEC.md` documents GCP project setup, service account naming, OAuth2 token refresh pattern, pricing comparison, and backward-compat design
   2. `credentials/vertex_ai_service_account_example.json` provided as a template (no real credentials)
   3. CLAUDE.md § "Vertex AI Migration Path" explains the free-tier quota coupling problem and upgrade criteria
@@ -227,16 +248,19 @@
 **Plans**: TBD
 
 ### Phase 17: Batch Timeout Management
+
 **Goal**: Extend v3.1 Phase 9's per-article `asyncio.wait_for` budget to batch-level: batch tracks dynamic remaining budget, single-article timeout interacts gracefully with checkpoint flush, monitoring metrics published
 **Depends on**: Phase 12 (checkpoint flush interaction), v3.1 Phase 9 (single-article timeout formula `max(120 + 30 × chunk_count, 900)`)
 **Requirements**: BTIMEOUT-01 (batch time tracking), BTIMEOUT-02 (single/batch interlock), BTIMEOUT-03 (checkpoint-flush timeout interaction), BTIMEOUT-04 (monitoring metrics)
 **Success Criteria** (what must be TRUE):
+
   1. Batch run emits per-article timing: `avg_article_time`, `batch_progress_vs_budget`, `timeout_histogram` (e.g., buckets 0–60s / 60–300s / 300–900s / 900s+)
   2. Remaining batch budget is computed dynamically: `budget = total_batch_budget − elapsed`; per-article timeout clamped to `min(single_article_timeout, remaining_budget − safety_margin)`
   3. Checkpoint flush on timeout is NOT counted toward single-article budget (flush is post-timeout bookkeeping)
   4. Batch reports final summary with budget utilization, per-stage wall-clock breakdown
   5. Spec-level design delivered in this milestone; implementation may defer to post-v3.2 if needed — phase definition explicitly marks implementation scope vs design scope
 **Plans**: 3 plans (planned 2026-04-30)
+
   - [ ] 17-00-design-doc-PLAN.md — Wave 1 (independent): docs/BATCH_TIMEOUT_DESIGN.md with 8 mandatory sections (BTIMEOUT-01..04 design)
   - [ ] 17-01-clamp-helper-PLAN.md — Wave 1 (parallel): lib/batch_timeout.py `clamp_article_timeout()` + `get_remaining_budget()` + `BATCH_SAFETY_MARGIN_S` + 11 unit tests (BTIMEOUT-02)
   - [ ] 17-02-batch-instrumentation-PLAN.md — Wave 2 (depends on 17-01): batch_ingest_from_spider.py instrumentation (env var + CLI flag + clamp call + metric emission) + 18 unit tests (BTIMEOUT-01, BTIMEOUT-03, BTIMEOUT-04)
@@ -268,6 +292,7 @@
 **Execute gate (HARD):** All v3.4 phase execution is BLOCKED until Day-1/2/3 KOL cron baseline observation completes (~2026-05-04 → 2026-05-06 ADT). Research and planning proceed now. No code changes until baseline confirmed stable. Reason: tuning decisions (subprocess timeout, max-articles cap, concurrency) require real cron data; must verify Day-1 KOL pipeline is stable on the new Vertex-corrected code path before RSS alignment amplifies any instability.
 
 **Locked D-level decisions:**
+
 - D-RSS-SCRAPER-SCOPE = Option A (unified `lib/scraper.py` for both KOL and RSS arms; patches `batch_ingest_from_spider.py:940`)
 - D-STUCK-DOC-IDEMPOTENCY = CLI tool (`scripts/cleanup_stuck_docs.py`); Wave 3 Task 1 is a 30-min NanoVectorDB spike before building the full CLI
 
@@ -283,18 +308,21 @@
 ### Phases
 
 - [x] **Phase 19: Generic Scraper + Schema + KOL Hotfix (2026-05-04)** — `lib/scraper.py` with 4-layer cascade, KOL line-940 hotfix (SCR-06), `rss_articles` schema ALTER (SCH-01), hash migration to SHA-256 (SCH-02). 8/8 new unit tests GREEN; full regression 464 passed / 13 pre-existing failed / 0 new regressions. **Operator verification: COMPLETE 2026-05-06 via 5-article reliability test on Hermes — 5/5 OK in 22 min, 0 regressions on Phase 19 deliverables OR the 5 v3.4-prep follow-up fixes (8ac3cb1 body persist / 5c602a3 timeout / 359058b DocStatus / ecaa2df cascade / af01315 UA img merge).** Snapshot: `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/reliability_5_check_2026_05_06_1612.md`.
-- [x] **Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite** — `rss_classify.py` full-body prompt port, `rss_ingest.py` rewrite with 5-stage KOL-identical path, timeout + drain guards (completed 2026-05-07)
+- [x] **Phase 20: RSS Full-Body Classify + Multimodal Ingest Rewrite** — `rss_classify.py` full-body prompt port, `rss_ingest.py` rewrite with 5-stage KOL-identical path, timeout + drain guards
+ (completed 2026-05-07)
 - [⊘] **Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness (2026-05-09)** — STK-01..03 SHIPPED via quicks `260506-pa7` (NanoVectorDB cleanup spike) + `260506-rjs` (`scripts/cleanup_stuck_docs.py` CLI + 13/13 unit tests). E2R-01/02 (RSS E2E fixture + bench harness) **SUPERSEDED-BY-ir4** — RSS pipeline retired (`enrichment/rss_ingest.py` deleted at commit `9ff330d`); fixture + bench for retired code is not useful.
 - [⊘] **Phase 22: Backlog Re-Ingest + Cross-Arm Regression + Cron Cutover (2026-05-09)** — **SUPERSEDED-BY-ir4** — RSS pipeline retired in ir-4 workstream; 1020-article RSS backlog has no consumer; cross-arm smoke + cron cutover landed inside the ir-4 deploy.
 
 ## Phase Details
 
 ### Phase 19: Generic Scraper + Schema + KOL Hotfix
+
 **Goal**: A single reusable scraper module (`lib/scraper.py`) exists with 4-layer cascade and serves both KOL and RSS arms; the Day-1 KOL regression bug at `batch_ingest_from_spider.py:940` is closed; `rss_articles` schema has the 5 new columns needed by Wave 2; checkpoint hash is unified to SHA-256
 **Depends on**: Nothing (Wave 1 blocker — all Wave 2 work depends on `scrape_url()` existing)
 **Requirements**: SCR-01, SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCH-01, SCH-02
 **Execute gate**: UNBLOCKED 2026-05-03 as urgent KOL hotfix (UA-only line-940 bottleneck confirmed in Day-1 preview round 1; SCR-06 hotfix needed before 06:00 ADT cron). Phase 20/21/22 retain the baseline gate.
 **Success Criteria** (what must be TRUE):
+
   1. `from lib.scraper import scrape_url, ScrapeResult` imports cleanly; `scrape_url("https://example.com", site_hint="generic")` returns a `ScrapeResult` with non-empty `markdown` for any reachable public URL
   2. Running `batch_ingest_from_spider.py` against a KOL article that previously triggered UA-only failure returns `method: apify` or `method: cdp` (not `method: ua`) in the scrape log — confirms line-940 hotfix active (D-RSS-SCRAPER-SCOPE = Option A)
   3. `SELECT body, depth, topics, classify_rationale, body_scraped_at FROM rss_articles LIMIT 1` executes without error on the live `data/kol_scan.db` — confirms 5-column ALTER landed
@@ -302,6 +330,7 @@
   5. HTTP 429 from any scrape layer triggers exponential backoff (30s / 60s / 120s) visible in logs before cascading; a login-wall keyword in response body triggers cascade to next layer without hanging
 **Plans**: 4 plans
 Plans:
+
 - [x] 19-00-PLAN.md — Wave 0 scaffolding: pin trafilatura + lxml, create 3 RED test stub files
 - [x] 19-01-PLAN.md — Wave 1: lib/scraper.py (ScrapeResult + 4-layer cascade + 429 backoff + quality gate), 5 GREEN tests for SCR-01..05
 - [x] 19-02-PLAN.md — Wave 2: SCR-06 line-940 hotfix + SCH-02 SHA-256 hash unification + SCH-01 rss_articles ALTER, 3 GREEN tests
@@ -316,6 +345,7 @@ Plans:
 **Execute gate**: BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT); additionally depends on Phase 19
 **Note on COG**: COG-01 research spike first (LiteLLM `EMBEDDING_PROVIDER=vertex_ai` pathway validation), then COG-02 `asyncio.create_task` wrap of `cognee.remember`, then COG-03 retirement of the env gate. All 3 must land before Phase 22 cutover to avoid shipping the 2026-05-03 hotfix permanently.
 **Success Criteria** (what must be TRUE):
+
   1. After running `python enrichment/rss_ingest.py --max-articles 3` against live RSS feeds, 3 articles in `rss_articles` have `body` column populated (length ≥ 500 chars) and `depth` / `topics` columns populated (full-body classify completed before ingest decision)
   2. For those 3 articles, LightRAG contains docs with `doc_id = f"rss-{article_id}"` at status PROCESSED (verified via `aget_docs_by_ids`); `enriched = 2` is set in SQLite only after PROCESSED confirmed
   3. Image URLs in the ingested markdown contain `http://localhost:8765/` prefix (localize_markdown applied); at least 1 article with images has a Vision sub-doc in LightRAG (`rss-{id}_images` doc_id)
@@ -324,6 +354,7 @@ Plans:
   6. Cognee embedding path fixed: calling `cognee_wrapper.remember_article(...)` returns within 100ms when mocked `cognee.remember` coroutine sleeps 10s (verifies `asyncio.create_task` wrap works, COG-02); inline call in `ingest_wechat.py:1099-1108` no longer gated by `OMNIGRAPH_COGNEE_INLINE` env var (verifies COG-03 retirement); Cognee episodic memory accumulates entries without 422 errors visible in logs (verifies COG-01 routing fix)
 **Plans**: 4 plans
 Plans:
+
 - [x] 20-00-PLAN.md — Wave 0 RED test stubs (3 files: test_rss_classify_fullbody.py, test_rss_ingest_5stage.py, test_cognee_remember_detaches.py)
 - [x] 20-01-PLAN.md — Wave 1 RCL: rss_classify.py upgrade — import _build_fullbody_prompt + _call_fullbody_llm from batch_classify_kol; FULLBODY_THROTTLE_SECONDS=4.5; writes 5 columns to rss_articles
 - [x] 20-02-PLAN.md — Wave 2 RIN: rss_ingest.py 5-stage rewrite + image_pipeline.download_images referer/SVG; per-module _pending_doc_ids; D-20.06 dual-doc-id rollback; PROCESSED gate preserved; translation removed
@@ -331,12 +362,14 @@ Plans:
 **UI hint**: no
 
 ### Phase 21: Stuck-Doc Spike + CLI Tool + RSS E2E Fixture + Bench Harness
+
 **Goal**: The NanoVectorDB cleanup confidence gap (Delta 2) is resolved by a 30-min spike before any CLI code is written; `scripts/cleanup_stuck_docs.py` is delivered with validated cleanup coverage; the RSS E2E fixture and bench harness exist and can run offline — matching the gpt55 fixture pattern
 **Depends on**: Phase 20 (RSS ingest must be functional to create meaningful fixtures; spike uses the live LightRAG install that Wave 2 exercises)
 **Requirements**: STK-01, STK-02, STK-03, E2R-01, E2R-02
 **Execute gate**: BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT); additionally depends on Phase 20
 **Note on STK-01**: The 30-min diagnostic spike (STK-01) MUST be the first task executed in this phase. Its outcome — specifically whether NanoVectorDB vectors are fully cleaned by `adelete_by_doc_id` — may adjust the implementation approach for STK-02/STK-03. Do not begin CLI implementation until the spike writes its findings.
 **Success Criteria** (what must be TRUE):
+
   1. A spike script creates a test doc, force-sets it to FAILED/PROCESSING in `kv_store_doc_status.json`, calls `adelete_by_doc_id`, and then asserts zero residue across all 4 storage layers (`kv_store_doc_status.json`, `kv_store_full_docs.json`, `vdb_entities.json`, Kuzu graph) — spike results written to a findings file before any CLI code is written (resolves Delta 2)
   2. `python scripts/cleanup_stuck_docs.py --dry-run` lists FAILED/PROCESSING doc IDs in the live LightRAG store without modifying any data; exit code 0
   3. `python scripts/cleanup_stuck_docs.py --all-failed` deletes all FAILED docs and outputs a structured JSON report `{docs_identified, docs_deleted, docs_skipped, skipped_reasons, elapsed_ms}` to stdout; exit code 0 on success, non-zero on unexpected error
@@ -346,12 +379,14 @@ Plans:
 **UI hint**: no
 
 ### Phase 22: Backlog Re-Ingest + Cross-Arm Regression + Cron Cutover
+
 **Goal**: The 1020 legacy summary-only RSS articles are re-ingested with full-body content (delete-before-reinsert pattern for legacy doc IDs); joint KOL+RSS cross-arm smoke validates the combined pipeline; stuck-doc isolation test validates SC-6; cron body is cut over to `orchestrate_daily.step_7_ingest_all` with a kill-switch for fast rollback
 **Depends on**: Phase 21 (stuck-doc CLI must exist before backlog run; E2R fixture must pass before cutover)
 **Requirements**: BKF-01, BKF-02, BKF-03, E2R-03, E2R-04, CUT-01, CUT-02, CUT-03
 **Execute gate**: BLOCKED until Day-1/2/3 KOL baseline complete (~2026-05-06 ADT); additionally depends on Phase 21; SCR-06 KOL regression must be verified (E2R-04 cross-arm smoke) before cutover
 **Note on SCR-06 regression**: E2R-04 is the designated KOL regression test for the line-940 hotfix delivered in Phase 19. Both KOL and RSS arms must pass the cross-arm smoke before CUT-01 cron cutover proceeds.
 **Success Criteria** (what must be TRUE):
+
   1. `python enrichment/rss_ingest.py --backlog --max-articles 100` completes a 100-article chunk; for articles that previously had `enriched > 0` with summary-only docs, `adelete_by_doc_id` is called before re-insert (verify via log: `"delete-before-reinsert: rss-{id}"`); ≥80 of 100 articles reach `enriched = 2`
   2. After full 1020-article backlog run (10 × 100-article chunks), `SELECT COUNT(*) FROM rss_articles WHERE enriched = 2` is ≥ `OMNIGRAPH_BACKLOG_SUCCESS_FLOOR × 1020` (default floor `0.8`, i.e. ≥ 800). **Empirical calibration note**: 2026-05-03 Day-1 preview rounds 1 + 2 showed UA scrape-only success rate ~50% at small sample (HTTP 200 + `js_content` div missing is a common failure mode beyond 403/429 blocks). SCR-02 cascade fallback + SCR-04 content-quality gate should raise this substantially, but the floor is env-parameterizable so Day-1/2/3 real baseline can adjust it without code change; if empirical post-cutover success rate is below 0.65, revisit SCR-02 / SCR-04 tuning in a follow-up quick instead of forcing the threshold down
   3. A deliberately-failed ingest (mid-Vision crash simulated) leaves no stuck-doc residue after `cleanup_stuck_docs.py` is run; the subsequent batch `benchmark_result.json.gate_pass == true` with zero stuck-doc entries in `kv_store_doc_status.json` (validates SC-6)

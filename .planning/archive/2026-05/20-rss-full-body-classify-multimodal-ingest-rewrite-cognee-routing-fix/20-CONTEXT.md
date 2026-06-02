@@ -86,17 +86,20 @@ The following are left for the planner to decide based on existing code patterns
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Phase 20 requirements + roadmap context
+
 - `.planning/PROJECT.md` — v3.4 milestone goal + 6 success criteria + carve-outs
 - `.planning/REQUIREMENTS.md` §"Wave 2 — RSS Full-Body Classify + Multimodal Ingest" (RCL-01..03 / RIN-01..06 / COG-02..03 + the COG-01 superseded-fix history)
 - `.planning/ROADMAP.md` Phase 20 section — 6 success criteria + dependency on Phase 19
 - `.planning/STATE.md` — Phase 19 closeout state + execute gate lift rationale (user override 2026-05-06 evening)
 
 ### Patterns to port verbatim (KOL arm)
+
 - `batch_classify_kol.py:223-263` — `FULLBODY_TRUNCATION_CHARS` constant + `_build_fullbody_prompt(title, body, topic_filter)` (D-20.01 imports this directly)
 - `batch_classify_kol.py:266-368` — `_call_fullbody_llm` provider dispatch (D-20.01 imports this)
 - `batch_ingest_from_spider.py:950-1010` — `_classify_full_body` (caller-side reference for how to wire `topic_filter` through; D-20.02 mirrors)
@@ -106,32 +109,38 @@ The following are left for the planner to decide based on existing code patterns
 - `ingest_wechat.py:797-810, 1163-1172` — `OMNIGRAPH_COGNEE_INLINE` env gate (D-20.14 retires this)
 
 ### Existing RSS code to rewrite
+
 - `enrichment/rss_ingest.py` — current 324-line summary-only impl; D-20.05/D-20.10/D-20.11/D-20.12 rewrite preserves doc_id `f"rss-{id}"` + PROCESSED gate (lines 184-207)
 - `enrichment/rss_classify.py` — current 236-line summary-string classify; D-20.01..04 replace with full-body
 - `enrichment/rss_schema.py` — Phase 19 added `body, body_scraped_at, depth, topics, classify_rationale` columns (RCL-03 writes them)
 
 ### Multimodal + LightRAG infra (already shipped, reuse only)
+
 - `image_pipeline.py:149-200, 271-289, 388` — `download_images` / `localize_markdown` / `describe_images` (D-20.07/08/09 reuse + minor RIN-03/04 additions)
 - `lib/vision_cascade.py` — provider cascade with circuit breaker; reused implicitly via `image_pipeline.describe_images` (D-20.07)
 - `lib/lightrag_embedding.py::_build_contents` — multimodal regex `http://localhost:8765/<hash>/<n>.jpg` (D-20.07 explanation: localize_markdown output must match this regex)
 - `lib/checkpoint.py` — 5-stage checkpoint markers (D-20.16 reuses)
 
 ### Cognee fix (already landed; reference only)
+
 - `cognee_wrapper.py:109-150` — `remember_article` current shape with `run_in_background=True` (D-20.13 mock-tests this, D-20.15 wraps if needed)
 - Commit `74f7503` — LiteLLM `gemini/gemini-embedding-2` routing fix (already in main)
 - Commit `e2d16e4` — `OMNIGRAPH_COGNEE_INLINE` hotfix env gate (Phase 20 retires)
 
 ### Project guidance (always-on)
+
 - `CLAUDE.md` — typo'd data dir `~/.hermes/omonigraph-vault/`, Vision Cascade, checkpoint, Lessons Learned (especially 2026-05-05 entries on cascade + body persistence)
 - `CLAUDE.md` "Vertex AI Migration Path" — explains why LLM/Vision stays DeepSeek/SiliconFlow in Phase 20 (only embedding migrated)
 
 ### Hermes operator handoff
+
 - `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/hermes_ssh.md` — SSH details for COG-03 live smoke (D-20.14)
 - `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/hermes_agent_cron_timeout.md` — `HERMES_CRON_TIMEOUT=28800` workaround context
 
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets (drop-in imports)
@@ -182,16 +191,19 @@ Concrete commitments captured in decisions:
 Surfaced during scout/analysis but explicitly NOT in Phase 20 scope:
 
 ### To Phase 21
+
 - `scripts/cleanup_stuck_docs.py` CLI (STK-02/03) — Phase 20 leaves stuck docs to LightRAG self-healing on next `ainsert` (per Phase 19 architecture finding); CLI is operational tooling, not Phase 20 correctness.
 - 30-min NanoVectorDB cleanup spike (STK-01) — first task of Phase 21.
 - RSS E2E fixture `test/fixtures/rss_sample_article/` (E2R-01) + `scripts/bench_rss_ingest.py` (E2R-02) — needs working Phase 20 RSS ingest to capture meaningful fixture; sequencing constraint per ROADMAP.
 
 ### To Phase 22
+
 - 1020-article backlog re-ingest with delete-before-reinsert (BKF-01..03)
 - `orchestrate_daily.step_7_ingest_all` cutover (CUT-01..03)
 - Cross-arm smoke + stuck-doc isolation tests (E2R-03/04)
 
 ### To v3.5 (post-cutover)
+
 - Async-drain D-10.09 hang root-cause fix — Phase 20 works around it via `_drain_pending_vision_tasks(cap_seconds=120)`; not architectural fix.
 - 60s embed worker timeout vs 1800s LLM timeout asymmetry — image-heavy RSS articles (e.g., Arxiv with 30+ figures) may surface this; Phase 20 acknowledges, does not fix.
 - Hermes cron systemd migration — Phase 20 inherits `HERMES_CRON_TIMEOUT=28800` env-var workaround.
@@ -199,10 +211,12 @@ Surfaced during scout/analysis but explicitly NOT in Phase 20 scope:
 - Reject-reason versioning — re-class permanent-fail rows on every cron iteration; deferred.
 
 ### Out of milestone v3.4 entirely
+
 - Vertex AI for LLM/Vision (only embedding stays on Vertex) — design frozen in Phase 16 spec, code migration post-v3.4.
 - Vertex AI Cognee path (Cognee uses LiteLLM AI Studio routing; Phase 20 verifies this works post-`74f7503` for RSS, no migration to Vertex SDK).
 
 ### Reviewed Todos (not folded)
+
 None — `todo match-phase 20` returned 0 matches.
 
 </deferred>

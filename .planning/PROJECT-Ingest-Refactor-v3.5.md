@@ -91,6 +91,7 @@ INGEST   | 1 LLM call       | LightRAG ainsert (entity extract inside LightRAG)
 **Production-Shape Local Snapshot**: 今天 rollback 后的生产 DB 备份（`data/kol_scan.db.backup-pre-rollback-20260506-104420`，13.6 MB）做为本地 test fixture。保留了 ~768 行历史 classifications + 全量 articles/st accounts。
 
 **Cron Loop Simulator**: 新的 `test_cron_loop_equivalence.py` 在 snapshot 上跑：
+
 1. 建 5 个 topic 的列表
 2. 对每个 topic 单独调用 `run()`（模拟旧 cron）
 3. 记录每条 article 最终 topic（应该是最后一个 topic = CV）
@@ -174,6 +175,7 @@ Migration 005 动作：`DROP INDEX IF EXISTS idx_classifications_article_id` —
 **NOT a milestone charter.** Does NOT enter ROADMAP "Next" yet.
 
 **Next actions**:
+
 1. Phase A (schema audit + migration 005) — 可立刻起 quick 任务
 2. Phase D (production-shape local test) — 等 Phase A 完成后
 3. Phase B+C (classify + candidate query refactor) — 等 v3.4 Phase 22 cutover 完成（~2.5 周）

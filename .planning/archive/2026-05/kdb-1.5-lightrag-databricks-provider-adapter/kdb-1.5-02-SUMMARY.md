@@ -267,12 +267,14 @@ $ git log cfe47b4..HEAD --grep '(kdb-1.5)' --name-only -- kb/ lib/
 Per the `feedback_no_amend_in_concurrent_quicks.md` rule, the STATE update is a forward-only follow-up commit (no `--amend`). The follow-up commit updates `.planning/STATE-kb-databricks-v1.md` "Last activity" line with both plan-01 + plan-02 commit hashes:
 
 **Wave 1 (Plan 01) commits:**
+
 - `545e726` test(kdb-1.5): add 5 unit tests for startup_adapter (RED)
 - `bd96e1b` feat(kdb-1.5): implement startup_adapter hydrate function (GREEN)
 - `dad2e85` docs(kdb-1.5): CONFIG-EXEMPTIONS + requirements + STATE + VERIFICATION (Task 1.3)
 - `7af1164` docs(kdb-1.5-01): SUMMARY for storage adapter plan
 
 **Wave 2 (Plan 02) commits:**
+
 - `bb56562` feat(kdb-1.5): factory file + 5 fixtures + pytest deps (Task 2.2)
 - `9edc3c0` test(kdb-1.5): dry-run e2e + ChatMessageRole fix + dim contract walk (Task 2.3)
 

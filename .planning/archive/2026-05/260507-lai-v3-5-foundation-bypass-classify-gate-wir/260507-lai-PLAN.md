@@ -60,6 +60,7 @@ morning's UPSERT-vs-multi-topic-loop disaster (commit `c786a83` reverted in
 `428b16f`).
 
 Purpose:
+
 - The `classifications` table mass-corruption (all 653 rows → topic='CV') has
   already been rolled back, but the structural risk remains: any future
   classify-gate change can re-block ingest. Permanently bypassing the gate +
@@ -69,6 +70,7 @@ Purpose:
   pass. Real filter logic is deferred to follow-up quicks.
 
 Output:
+
 - `lib/article_filter.py` — new module with `FilterResult` dataclass + two
   placeholder functions
 - `tests/unit/test_article_filter.py` — 7 contract tests
@@ -139,6 +141,7 @@ min_depth gate, this is safe.
 ## Existing call site — `_classify_full_body` invocation
 
 Located in `ingest_from_db` (around lines 1325+). The current pattern:
+
 1. Call `_classify_full_body(...)` which writes a classifications row and
    returns `{"depth": int, "topics": list, "rationale": str}` or `None`.
 2. If `None` → skip (fail-closed per D-10.04).
@@ -148,6 +151,7 @@ Located in `ingest_from_db` (around lines 1325+). The current pattern:
 5. Proceed to LightRAG `ainsert`.
 
 After this quick:
+
 - Step 1 is replaced by `layer1_pre_filter(title, summary=digest, content_length=None)`
   BEFORE the scrape.
 - After scrape returns `body`, step 1.5 is `layer2_full_body_score(article_id, title, body)`.
@@ -164,14 +168,17 @@ log-only via `logger.info`.
 ## Hermes deployment context
 
 Three obsolete cron jobs to remove (per spec):
+
 - `daily-classify-kol` (id: b50ec39b889f)
 - `daily-enrich` (id: fc768319e0c1)
 - `rss-classify` (id: c7ded378de8f)
 
 One cron to optionally edit:
+
 - `daily-ingest` (id: 2b7a8bee53e0) — drop `--topic-filter` from command since
   it's now silently ignored.
 </interfaces>
+
 </context>
 
 <tasks>
@@ -479,9 +486,11 @@ grep -c "layer1_pre_filter\|layer2_full_body_score" batch_ingest_from_spider.py
 git diff HEAD~4 -- batch_ingest_from_spider.py | grep -E "^\+.*CREATE TABLE|ALTER TABLE|DROP TABLE"
 # Expect: empty (no schema changes)
 ```
+
 </verification>
 
 <success_criteria>
+
 - [ ] `lib/article_filter.py` exists with `FilterResult`, `layer1_pre_filter`, `layer2_full_body_score`
 - [ ] `tests/unit/test_article_filter.py` — 7 tests pass
 - [ ] `_build_topic_filter_query` SQL no longer joins `classifications`

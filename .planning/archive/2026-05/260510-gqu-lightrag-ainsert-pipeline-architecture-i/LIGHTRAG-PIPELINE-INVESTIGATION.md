@@ -5,6 +5,7 @@
 **Scope:** investigation only — zero production-code changes
 **Parallel quicks:** 260510-gkw (T3 spike, untouched), 260510-gfg (Cognee retire, untouched), 260509-t4i (T1+T2 contract test, locked)
 **Evidence:**
+
 - Source-trace dump → `.scratch/lightrag-ainsert-trace-20260510T120848.md`
 - Mock timing run → `.scratch/lightrag-pipeline-mock-timing-20260510T1207.log`
 - Diagnostic scripts → `scripts/lightrag_diag/probe_ainsert_timing.py`, `scripts/lightrag_diag/dump_ainsert_source_trace.py`
@@ -273,6 +274,7 @@ conn.commit()
 6. `await rag.finalize_storages()` runs; `doc_status` is flushed in whatever state it had. Process exits.
 
 This explains 100% of the 2026-05-10 09:00 ADT cron observation:
+
 - `ingestions(status='ok' AND source='wechat') = 4` (the application's view — every ainsert returned without raising)
 - `kv_store_doc_status[*].status='processed' = 0` (LightRAG's view — only the first ainsert's doc could have reached PROCESSED, and even that one races with cancellation)
 - `4/4` stuck at `pending`/`processing` — exactly matches what the cancellation path leaves.

@@ -83,6 +83,7 @@ grep regex:
 | 5 | Browser mobile (375×667) | Playwright resize | strip renders in 5-col responsive grid; all 5 images visible | ✅ |
 
 Screenshot evidence:
+
 - `.playwright-mcp/kb-v2-1-3-hero-strip-desktop.png` (initial viewport, hero only)
 - `.playwright-mcp/kb-v2-1-3-hero-strip-desktop-scrolled.png` (strip in viewport, 5 imgs visible)
 - `.playwright-mcp/kb-v2-1-3-hero-strip-mobile.png` (375px viewport, 5-col strip)
@@ -120,15 +121,18 @@ To pick up this phase on Aliyun:
 
 1. `ssh aliyun-vitaclaw 'cd /root/OmniGraph-Vault && git pull --ff-only origin main'`
 2. Re-export SSG (Aliyun deploys with `KB_BASE_PATH=/kb`):
+
    ```bash
    ssh aliyun-vitaclaw 'cd /root/OmniGraph-Vault && \
        KB_BASE_PATH=/kb KB_DB_PATH=/root/.hermes/data/kol_scan.db \
        KB_IMAGES_DIR=/root/.hermes/omonigraph-vault/images \
        venv/bin/python kb/export_knowledge_base.py'
    ```
+
 3. `ssh aliyun-vitaclaw 'rsync -a --delete /root/OmniGraph-Vault/kb/output/ /var/www/kb/'`
 4. `ssh aliyun-vitaclaw 'systemctl reload caddy'` (no kb-api restart needed — only SSG static changes)
 5. Verify via public probe:
+
    ```bash
    curl http://101.133.154.49/kb/ | grep -oE 'class="hero-image-strip"' | wc -l   # ≥1
    curl http://101.133.154.49/kb/ | grep -oE '/kb/static/img/009b932a7d/[0-9]+\.jpg' | sort -u  # 5 lines

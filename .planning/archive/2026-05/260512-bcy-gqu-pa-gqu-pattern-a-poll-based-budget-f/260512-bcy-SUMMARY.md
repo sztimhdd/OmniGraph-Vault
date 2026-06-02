@@ -36,6 +36,7 @@ This quick adds a two-function module (`read_queue_depth`, `compute_dynamic_budg
 ### 1. Production h09 Fixed-Budget Actual Value
 
 Confirmed via read-only SSH to Hermes (`~/.hermes/.env`):
+
 - `OMNIGRAPH_PROCESSED_RETRY=150`
 - `OMNIGRAPH_PROCESSED_BACKOFF=2.0`
 - **Effective production floor: 300s** (150 × 2.0s)
@@ -48,6 +49,7 @@ Hermes pull timestamp: 2026-05-12 (UTC), idle window.
 - **Queue depth (processing): 0** — Hermes was idle at pull time
 
 Fixture disposition:
+
 - `sample_idle.json`: 10-entry subset of the real Hermes snapshot (all `processed`), scp'd as-is
 - `sample_busy.json`: same 10 real doc IDs/schema, 3 entries overridden to `status=processing` (synthetic busy fixture; real Hermes doc IDs and field layout, status manually set for test coverage)
 
@@ -76,6 +78,7 @@ ingest_wechat.py | 17 ++++++++++++++---
 ```
 
 3 change sites:
+
 1. Import line (+1)
 2. Budget computation block + range() bound (+10 lines, -1 line)
 3. RuntimeError message extended (+3 lines, -2 lines)

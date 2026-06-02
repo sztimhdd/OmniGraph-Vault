@@ -12,6 +12,7 @@ Read-only audit of CDP, MCP, UA scraper-layer return shapes against the `lib/scr
 ## Method
 
 Static-source analysis only:
+
 - Traced every `return {...}` literal in 4 layer functions in `ingest_wechat.py` (apify, cdp, mcp, ua)
 - Mapped each layer's dict shape (key names, value types, possible None/empty)
 - Cross-compared against `lib/scraper.py:_scrape_wechat` consumer reads (lines 157-213)

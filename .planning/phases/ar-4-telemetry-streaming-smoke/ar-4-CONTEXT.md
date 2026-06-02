@@ -244,6 +244,7 @@ The design doc was authored 2026-05-06. ar-1 closed 2026-05-22, ar-2 closed
 | Pytest baseline | 88 (post-ar-2) | 113 (post-ar-3); **1 known flake**: `test_subprocess_smoke_with_max_iter_zero` passes in isolation but occasionally fails in full suite (sub-process spawn / env state pollution; not a regression introduced by ar-3) | ar-4 L1 pytest target is "all green modulo the known flake"; new tests for telemetry + dump-state add ≥10 cases |
 
 **None of these deltas invalidate any locked decision.** ar-4 is a behavior
+
 + observability phase — no shape changes, no new contracts. New env vars are
 already declared (`OMNIGRAPH_RESEARCH_TELEMETRY_JSONL` since ar-1).
 
@@ -605,6 +606,7 @@ applies to library code only).
 ### Cross-milestone contract: `omnigraph_search.query.search` is read-only
 
 ar-4 introduces zero new touchpoints to the KG side. Telemetry + dump-state
+
 + smoke all observe state shaped by ar-1..ar-3 stages; they do not query KG.
 
 ## Smoke test for ar-4

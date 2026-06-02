@@ -13,6 +13,7 @@ Two surgical tracks closing the v1.0 → v1.1 gap:
 2. **Track 2 (v1.1-B) — HTTP API + Databricks deployment:** Wrap `lib/research/orchestrator.research_stream()` in an SSE FastAPI endpoint at `POST /api/research`. First Databricks Apps deployment of the agentic-RAG pipeline — primary serving target. Local UAT via `scripts/smoke_databricks_serving_local.py` + `scripts/run_local_uvicorn.py` + Playwright MCP (main session only). Triple verification (Network + Log + Content) before deploy gate.
 
 **Out of scope (deferred to v1.2 or operator-side):**
+
 - v1.1-C (Native function-calling adapter, Option B) — Option A JSON-mode shim from v1 keeps working
 - v1.1-D (Per-tool-call telemetry) — current stage-level telemetry sufficient
 - v1.1-E (LightRAG cache write-perms) — operator-side, not lib work
@@ -21,6 +22,7 @@ Two surgical tracks closing the v1.0 → v1.1 gap:
 ## Goal
 
 After v1.1:
+
 - `omnigraph_research` skill returns markdown with ≥3 images on TEST-05 query (was 0)
 - `kb/api` exposes `POST /api/research` SSE endpoint locally + on Databricks Apps
 - Same skill / CLI / HTTP three-surfaces backed by single `lib/research/orchestrator.research()` — no fork
@@ -28,6 +30,7 @@ After v1.1:
 ## Locked Architectural Choices (do NOT re-discuss)
 
 Inherits from Agentic-RAG-v1 PROJECT.md unchanged:
+
 - 5-stage pipeline + 7 frozen `@dataclass(frozen=True)` types in `lib/research/types.py` (LOCKED)
 - Best-effort failure (Axis 3); Synthesizer terminal-stage no-status rule (Axis 8)
 - Cap = budget (cap-hit returns ok); LLM provider env-only via `OMNIGRAPH_LLM_PROVIDER`
@@ -35,6 +38,7 @@ Inherits from Agentic-RAG-v1 PROJECT.md unchanged:
 - Three providers: DeepSeek (Aliyun), Mosaic AI (Databricks), Vertex Gemini
 
 **New for v1.1:**
+
 - Track 2 prioritizes Databricks Apps as primary HTTP serving target (not Aliyun, not Hermes)
 - HTTP endpoint streaming format: `text/event-stream` with one event per stage + terminal `done` event
 - Image URL pattern flips lib-wide: `http://localhost:8765/{parent}/{name}` → `/static/img/{parent}/{name}`
@@ -42,6 +46,7 @@ Inherits from Agentic-RAG-v1 PROJECT.md unchanged:
 ## Cross-Milestone Contract
 
 Same single dependency on KG side:
+
 ```python
 async def search(query_text: str, mode: str = "hybrid") -> str: ...
 ```
@@ -51,6 +56,7 @@ async def search(query_text: str, mode: str = "hybrid") -> str: ...
 ## Cadence
 
 Hybrid:
+
 - Plan scaffold (this 4-file set) — manual write
 - Track 1 — single `/gsd:quick 260524-arx-A-images` invocation
 - Track 2 — `/gsd:quick 260524-arx-B-http-databricks` (may split into 2 commits: API endpoint, then Databricks deploy)

@@ -111,6 +111,7 @@ min_rerank_score: float = field(default=get_env_value("MIN_RERANK_SCORE", DEFAUL
 Read from env var `BGE_CACHE_DIR` (Aliyun deploy can set it; defaults to HF default). On first cold start the lifespan reports `bge_load_start` → `bge_loaded wall_s=NN.NN`. Subsequent boots hit the cache (~2-5 s load).
 
 **Aliyun network reachability:** Aliyun ECS may have `huggingface.co` slow or restricted (境内 → 境外). Mitigation:
+
 1. Pre-download the model on the Aliyun host: `python -c "from sentence_transformers import CrossEncoder; CrossEncoder('BAAI/bge-reranker-v2-m3', max_length=1024)"` once (Hermes prompt or manual).
 2. If HF unreachable: HF mirror endpoint via `HF_ENDPOINT=https://hf-mirror.com` env var. Documented in PLAN T1 as Aliyun deploy step.
 
@@ -146,6 +147,7 @@ P5 lock is at `kg_synthesize.synthesize_response` line 221-226 wrapping `await a
 ## 8. Dependency footprint
 
 `sentence-transformers` (latest 3.x) pulls:
+
 - `transformers` (already present transitively via `lightrag-hku==1.4.16`? **No** — verified `pip show transformers` not present in current `requirements.txt`; `lightrag-hku` declares `transformers` as optional)
 - `torch` (CPU build; ~750 MB wheel)
 - `tokenizers`, `huggingface-hub`, `safetensors`, `regex`, `tqdm`, `numpy`, `scikit-learn`
@@ -188,23 +190,29 @@ torch>=2.1,<3.0
 ## 11. Validation Architecture
 
 **Local cold-start measurement (Track 1):**
+
 - `venv/Scripts/python.exe .scratch/local_serve.py` → `localhost:8766`
 - Measure boot-to-/health time. Pass: BGE warm-cache load + LightRAG hydrate < 60s on local NTFS (P5 baseline 28.88s on Databricks tmpfs; local NTFS pre-P5 60-350s; we accept the larger floor on local because tmpfs masks the gain).
 
 **Local steady-state (Track 4):**
+
 - 10-query `/api/synthesize` loop p50/p95 against pre-P2-3 baseline (49.93s long_form mean, P5-VERIFICATION.md). Accept ≤ 1.3× baseline (≈65s).
 
 **Local fallback simulation (Track 3):**
+
 - Set `BGE_FORCE_LOAD_FAIL=1` env var → lifespan branch raises in `try:` → `app.state.reranker = None`, `app.state.rerank_disabled = True` → `_kg_worker` falls back to `mode="hybrid"`. Verify via log grep + a query that returns 200 OK with hybrid response.
 
 **Quality eval harness (Track 4 quality):**
+
 - `pytest tests/eval/test_p2_p3_quality.py -v` — runs both branches (reranker on / disabled) against N=10 QA seed; fails if reranker-on token-overlap is not ≥ baseline + 10% (averaged).
 
 **Databricks N=4 concurrent + log inspection (Track 2):**
+
 - Existing `tests/integration/kb/test_async_safety.py::test_singleton_async_safety_n4` — re-run against deployed Databricks app. Pass criterion unchanged from P5.
 - `make logs` → grep `bge_loaded` should appear once per process boot; grep `rerank_disabled` should NOT appear (BGE load should succeed in normal path).
 
 **Principle #9 file-touch check (SC#5):**
+
 - `git diff --name-only main..HEAD | Select-String 'kb/(static|templates)/'` MUST return empty.
 
 ---

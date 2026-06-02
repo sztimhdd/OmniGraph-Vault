@@ -121,6 +121,7 @@ def save_markdown_with_images(md: str, dest_dir: Path, metadata: dict) -> tuple[
     """Atomic write of final_content.md + metadata.json (tmp → rename).
     Returns (md_path, metadata_path)."""
 ```
+
 </interfaces>
 </context>
 
@@ -534,6 +535,7 @@ def save_markdown_with_images(md: str, dest_dir: Path, metadata: dict) -> tuple[
 </verification>
 
 <success_criteria>
+
 - `image_pipeline.py` exposes the 4 functions from D-15
 - `describe_images` batch-rate-limits internally (4s sleep between images)
 - `ingest_wechat.py` no longer contains `def describe_image` — uses the shared module

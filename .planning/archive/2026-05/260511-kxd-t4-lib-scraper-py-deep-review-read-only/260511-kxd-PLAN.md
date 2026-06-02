@@ -79,19 +79,23 @@ This is a single-task plan because the deliverable is a single document.
 
 **T2 review note — IMPORTANT for the executor:**
 The task brief asks to "self-find the T2 (ingest_wechat) review directory by globbing for `*t2-*` or `*ingest-wechat*`". Planner ran `Glob` for both patterns and found:
+
 - `.planning/quick/260510-rl2-f-4-ingest-wechat-py-trivial-cleanups-3-/` — this is the **F-4 cleanup quick**, NOT a T2 deep-review. PLAN/SUMMARY exist; no REVIEW.md.
 - No directory matching `*t2*` or otherwise containing a deep-review of `ingest_wechat.py` exists locally.
 
 Conclusion: there is **no T2 review document to import findings from**. The executor should:
+
 1. Note this fact in §1 or §10 of REVIEW.md (so future readers know F-1 audit is grounded directly on `ingest_wechat.py` source, not on a prior peer-review).
 2. Read `ingest_wechat.py` directly (specifically the cascade dispatcher around lines 920-942 per CLAUDE.md anchor 2026-05-08 #1) to extract its real cascade order — this is unavoidable for §3.
 3. NOT block planning/execution waiting for T2 — just rely on the source file.
 
 **Cascade entry-points to inspect (per CLAUDE.md anchor 2026-05-08 #1):**
+
 - `lib/scraper.py:_scrape_wechat()` — search for `_scrape_wechat` function definition; document order in which Apify / CDP / MCP / UA helpers are called.
 - `ingest_wechat.py:920-942` — read ±20 lines around this range; document order found.
 
 **Tests in scope for A7:**
+
 - `tests/unit/test_scraper.py`
 - `tests/unit/test_scraper_ua_img_merge.py`
 - `tests/unit/test_apify_rotation.py` — added by quick 260509-elc per task brief (verify dual-token rotation coverage)
@@ -130,6 +134,7 @@ For 260508-ev2, "verify only" = note from `git log --grep=260508-ev2 --oneline` 
 ```
 
 **ScrapeResult shape (lib/scraper.py:65-77):**
+
 ```python
 @dataclass(frozen=True)
 class ScrapeResult:
@@ -157,6 +162,7 @@ This shape is the consumer contract for §A3. Already-known dual-key consumer (`
 
 5. **2026-05-08 ev2** — `APIFY_TOKEN_BACKUP` rotation + `SCRAPE_CASCADE` env override deployment. Look for half-finished migration debris: TODOs referencing this rollout, dead branches gated on env vars that are always-on or always-off in prod, code paths that read deprecated env names. (→ §A1)
 </lessons>
+
 </context>
 
 <tasks>
@@ -168,12 +174,14 @@ This shape is the consumer contract for §A3. Already-known dual-key consumer (`
 **Read-only deep review of lib/scraper.py.** Produce a single output: `260511-kxd-REVIEW.md`.
 
 **Step 1 — Anchor & verify (~15 min):**
+
 1. Read `CLAUDE.md` "Lessons Learned" — confirm the 5 anchor lessons summarized in `<lessons>` above. Quote relevant lines (file:line in CLAUDE.md if needed).
 2. Read `.planning/quick/260511-d7m-t3-batch-ingest-from-spider-py-deep-revi/260511-d7m-REVIEW.md` — extract any T3 finding that touches `lib/scraper.py` (T3 found F-2 lib→app `config` import inversion; cite that finding by ID and decide whether `lib/scraper.py` is one of the affected lib files).
 3. `git log --oneline --grep="260508-ev2" --all` and `git log --oneline --grep="260508-dep" --all` — record the SHAs of the cascade-reorder commits and confirm whether each touched `lib/scraper.py` (use `git show --stat <sha>`). This is the single decisive evidence for §3.
 4. Confirm there is NO prior T2 review (`.planning/quick/*t2*` and `*ingest-wechat*` globs already returned empty in planning; only `260510-rl2` F-4 cleanup exists). Note this in §1.
 
 **Step 2 — Read source (~30 min):**
+
 1. `wc -l lib/scraper.py` (already known: 418) — `git log -1 --oneline -- lib/scraper.py` to record last-commit SHA for the §0 file header.
 2. Read `lib/scraper.py` end-to-end. Build the §1 sectional map (function name + first-line + LOC + one-line purpose). Use the T3 §1 table format as a template.
 3. Read `ingest_wechat.py` lines 880-980 (cascade dispatcher around the anchor 920-942) to extract the *actual* cascade order present today. Document with explicit file:line citations.
@@ -202,6 +210,7 @@ This shape is the consumer contract for §A3. Already-known dual-key consumer (`
 **Step 4 — Write REVIEW.md (~30 min):** match the exact 10-section schema from the task brief. Use the T3 REVIEW.md formatting (severity tables, citation style with file:line, evidence-first prose) as a model. Skip nothing — explicit "no findings in A_X" if so.
 
 **Step 5 — Verdict & sanity-check (~10 min):**
+
 - Compute severity counts (HIGH/MEDIUM/LOW). Apply task-brief decision rule for §9:
   - HIGH = 0 AND MEDIUM ≤ 3 → F-1 = `ready-now` (backlog, no T5)
   - HIGH ≥ 1 → F-1 = `needs-T5` (ship fix quick)
@@ -211,6 +220,7 @@ This shape is the consumer contract for §A3. Already-known dual-key consumer (`
 - `git status --short` — final check: only `.planning/quick/260511-kxd-*/PLAN.md` and `260511-kxd-REVIEW.md` should appear. If anything else is dirty, STOP and report.
 
 **Anti-fabrication discipline (HARD):**
+
 - Every finding: cite file:line, commit SHA, or `.scratch/...log` path. No bare assertions.
 - No "looks fine" — write "no findings in A_X" explicitly if so.
 - If a 7-angle question can't be answered confidently, list it in §10 (Open questions for user). Don't guess.
@@ -224,6 +234,7 @@ This shape is the consumer contract for §A3. Already-known dual-key consumer (`
     <automated>node -e "const fs=require('fs');const p='.planning/quick/260511-kxd-t4-lib-scraper-py-deep-review-read-only/260511-kxd-REVIEW.md';const c=fs.readFileSync(p,'utf8');const required=['## TL;DR','## 1. File sectional map','## 2. CLAUDE.md','## 3. Cascade divergence','## 4. Findings by severity','## 5. Cross-cutting','## 6. Async','## 7. Test coverage','## 8. Recommended fix-quick','## 9. Module verdict','## 10. Open questions'];const missing=required.filter(s=>!c.includes(s));if(missing.length){console.error('MISSING SECTIONS:',missing);process.exit(1)};const hasVerdict=/ready-now|needs-T5|blocked-on|not-needed/.test(c);if(!hasVerdict){console.error('MISSING F-1 verdict token');process.exit(1)};console.log('OK '+c.length+' chars, all 11 schema markers present, verdict token found.')"</automated>
   </verify>
   <done>
+
 - `260511-kxd-REVIEW.md` exists at the configured path.
 - All 10 schema sections (plus TL;DR) present in correct order.
 - All 7 audit angles A1..A7 addressed (substantive findings or explicit "no findings").
@@ -243,9 +254,11 @@ This shape is the consumer contract for §A3. Already-known dual-key consumer (`
 
 1. **Schema completeness:** the verify command above must pass.
 2. **Read-only discipline:**
+
    ```bash
    git status --short
    ```
+
    Expected output: ONLY two lines, both under `.planning/quick/260511-kxd-*/`. Anything else → STOP and report (do NOT auto-revert; surface to user).
 3. **Evidence density spot-check:** REVIEW.md should contain at least 15 distinct `file:line` citations (grep `:[0-9]\+`) and at least 2 commit SHAs (grep `[0-9a-f]\{7,40\}`). Low evidence density = fabrication risk.
 4. **Verdict consistency:** TL;DR verdict token (one of `ready-now` / `needs-T5` / `blocked-on-X` / `not-needed`) must match §9 verdict.
@@ -253,6 +266,7 @@ This shape is the consumer contract for §A3. Already-known dual-key consumer (`
 </verification>
 
 <success_criteria>
+
 - REVIEW.md exists, all 10 schema sections present, F-1 verdict explicit and consistent across TL;DR + §9.
 - All 7 audit angles addressed; all 5 anchor lessons cross-referenced.
 - All findings cite raw evidence; no fabrication.

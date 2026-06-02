@@ -72,6 +72,7 @@ in the spec:
 **Files:** `databricks-deploy/_db_bootstrap.py`
 
 **Action:**
+
 1. Add `import concurrent.futures` to the imports.
 2. Add a new function `hydrate_images_dir(src_dir: str, dst_dir: str) -> int` that:
    - Lists `src_dir` via `w.files.list_directory_contents(src_dir)` to get hash subdirectories.
@@ -87,6 +88,7 @@ in the spec:
    never abort boot (image-only failure should not block /api/articles or /api/search).
 
 **Verify:**
+
 - `grep -n 'def hydrate_images_dir' databricks-deploy/_db_bootstrap.py` returns 1 line.
 - `grep -n 'KB_VOLUME_IMAGES_DIR' databricks-deploy/_db_bootstrap.py` returns ≥1 line in main().
 - `python -c "import ast; ast.parse(open('databricks-deploy/_db_bootstrap.py').read())"` succeeds.
@@ -98,6 +100,7 @@ in the spec:
 ### Task 3 — Atomic local commit
 
 **Action:**
+
 ```bash
 git add databricks-deploy/app.yaml databricks-deploy/_db_bootstrap.py
 git commit -m "fix(databricks): hydrate UC volume images on boot to fix /static/img 404s"
@@ -111,6 +114,7 @@ git commit -m "fix(databricks): hydrate UC volume images on boot to fix /static/
 **Run from main session, NOT executor (Databricks CLI through workspace path requires PowerShell, no path conversion).**
 
 **Action:** Run Makefile-equivalent deploy steps directly with `databricks` CLI:
+
 - Pass 0: refresh databricks-deploy/_ssg/ from kb/output/ (kb-v2.2-7 SSG snapshot, already automated in Makefile but Makefile may not exist as `make` binary on Windows — replicate the steps inline)
 - Pass 1: `databricks --profile dev sync --full ./databricks-deploy /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy`
 - Pass 2: `databricks --profile dev sync --full ./kb /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy/kb`
@@ -122,6 +126,7 @@ git commit -m "fix(databricks): hydrate UC volume images on boot to fix /static/
 ### Task 5 — Verify boot logs
 
 **Action:** Run `databricks-deploy/scripts/tail_app_logs.py --once --max-seconds 30` (or equivalent) and grep boot stream for:
+
 - `"Hydrating images: /Volumes/.../images -> /tmp/omnigraph_vault/images"`
 - `"Image hydration complete: N files, M bytes"` where N≈2500 and M≈47MB
 - No `Traceback` mentioning `hydrate_images_dir`
@@ -133,6 +138,7 @@ git commit -m "fix(databricks): hydrate UC volume images on boot to fix /static/
 **Files:** `databricks-deploy/_kdb_images_fix_VERIFICATION.md` (new file)
 
 **Action:** Capture:
+
 - Files changed + diff stat
 - Local commit hash
 - Deployment_id + SUCCEEDED timestamp

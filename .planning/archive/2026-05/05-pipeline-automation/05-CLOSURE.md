@@ -72,6 +72,7 @@ closure_basis: indirect-validation-via-v3.4-track
 This closeout was authored by direct surgical edit (no `/gsd:quick` wrapper) on 2026-05-06 19:30 ADT after user explicitly approved skipping the 3-day observation gate given that pipeline correctness had already been established via the v3.4 hardening track.
 
 Sibling administrative updates:
+
 - `.planning/STATE.md` — new `## Phase 5 Exit State` block
 - `.planning/ROADMAP.md` — Phase 5 entry moved from `## Next` to `## Done`
 - `.planning/phases/05-pipeline-automation/05-VALIDATION.md` frontmatter flip

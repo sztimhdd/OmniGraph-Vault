@@ -11,6 +11,7 @@ kdb-2 is the deploy-and-prove-it phase. Its mission: stand up the production Dat
 Critically, kdb-2 builds DIRECTLY on kdb-1.5's two shipped artifacts. `databricks-deploy/startup_adapter.py` and `databricks-deploy/lightrag_databricks_provider.py` are already on disk, tested (9/9 green, 4/4 against REAL Model Serving), and frozen — kdb-2 IMPORTS them, never modifies them. The phase's only NEW Python code is the `databricks_serving` provider branch in `lib/llm_complete.py` (LLM-DBX-01, ~10 lines) and a possible `kg_serving_unavailable` reason-code addition in `kb/services/synthesize.py` (LLM-DBX-04). The biggest risk is that the kg_synthesize.py LLM-DBX-02 "1-import + 1-call-site" requirement specified by the REQ doc is **already substantially done** by quick-260509-s29 (line 19 + line 106 already use the dispatcher), but the embedding side (kg_synthesize.py:106 still wires `embedding_func` from `lib.lightrag_embedding` which is Vertex/Gemini dim=3072) needs special handling — see Q3 for the resolution.
 
 <user_constraints>
+
 ## User Constraints (from PROJECT-kb-databricks-v1.md, REQUIREMENTS-kb-databricks-v1.md rev 3, ROADMAP-kb-databricks-v1.md rev 3, scope_constraints from orchestrator prompt)
 
 > No phase-level CONTEXT.md exists. Constraints distilled from milestone-level PROJECT/REQ/ROADMAP rev 3 + the orchestrator prompt's `<scope_constraints>` block.
@@ -55,6 +56,7 @@ Critically, kdb-2 builds DIRECTLY on kdb-1.5's two shipped artifacts. `databrick
 </user_constraints>
 
 <phase_requirements>
+
 ## Phase Requirements
 
 | ID | Description | Research Support |
@@ -177,9 +179,11 @@ GRANT USE CATALOG ON CATALOG mdlg_ai_shared TO `<APP_SP_CLIENT_ID>`;
 GRANT USE SCHEMA ON SCHEMA mdlg_ai_shared.kb_v2 TO `<APP_SP_CLIENT_ID>`;
 GRANT READ VOLUME ON VOLUME mdlg_ai_shared.kb_v2.omnigraph_vault TO `<APP_SP_CLIENT_ID>`;
 ```
+
 ```bash
 databricks --profile dev serving-endpoints get-permissions databricks-claude-sonnet-4-6
 ```
+
 (if CLI rejects, fall through to Path B in-app probe).
 
 ---
@@ -424,6 +428,7 @@ CONFIG-EXEMPTIONS update — add:
 **Yes.** `kb/services/synthesize.py:428`: `from kg_synthesize import synthesize_response` (lazy import, deferred to avoid heavy LightRAG init at module import time). Line 442: `await asyncio.wait_for(synthesize_response(query_text, mode="hybrid"), timeout=KB_SYNTHESIZE_TIMEOUT)`.
 
 So the call path is:
+
 ```
 HTTP POST /api/synthesize
   → kb.services.synthesize.kb_synthesize(question, lang, job_id)        [line 392]
@@ -452,6 +457,7 @@ ConfidenceLevel = Literal["kg", "fts5_fallback", "kg_unavailable", "no_results",
 Wait — `kg_unavailable` exists in the enum but is unused. The REQ at line 95 says LLM-DBX-04 *adds* a 4th reason code (the existing 3 being `kg_disabled`, `kg_credentials_missing`, `kg_credentials_unreadable`, all in the `available, reason` tuple but routed through the `confidence` field as `fts5_fallback`). The enum's `kg_unavailable` is a leftover from kb-v2.1-1 hardening and is currently unused.
 
 **Recommended naming reconciliation**:
+
 - Rename existing unused enum entry `kg_unavailable` → `kg_serving_unavailable` (matches REQ wording exactly).
 - Add detection in the `except Exception as e:` branch: when the exception type is from `databricks.sdk.errors.*` OR an HTTP 503/429/timeout/connection-error pattern, set `reason="kg_serving_unavailable"` instead of the generic `f"{type(e).__name__}: {e}"`.
 

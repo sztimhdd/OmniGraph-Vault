@@ -45,6 +45,7 @@ Purpose: Small, pure, well-tested helper. No side effects, no I/O. Sits alongsid
 `lib/*` modules (Phase 7 pattern).
 
 Output:
+
 1. `lib/batch_timeout.py` — 3 public symbols (`clamp_article_timeout`,
    `get_remaining_budget`, `BATCH_SAFETY_MARGIN_S`)
 2. `tests/unit/test_batch_timeout.py` — pytest unit tests covering all branches
@@ -70,15 +71,18 @@ From `lib/__init__.py` (Phase 7 pattern — 13-symbol public API):
 ```
 
 From existing Phase 9 test `tests/unit/test_timeout_budget.py` (reference pytest style):
+
 - Uses plain `def test_*` functions (no test classes)
 - Uses direct import: `from batch_ingest_from_spider import _compute_article_budget_s`
 - Uses simple `assert x == y` with explanatory failure messages
 - No mocks needed (pure functions)
 
 Phase 7 env var idiom from `CLAUDE.md`:
+
 - Namespaced prefix: `OMNIGRAPH_*` (e.g., `OMNIGRAPH_GEMINI_KEY`, `OMNIGRAPH_RPM_*`)
 - Phase 17 introduces `OMNIGRAPH_BATCH_TIMEOUT_SEC` — owned by plan 17-02 (consumer site)
 </interfaces>
+
 </context>
 
 <tasks>
@@ -321,10 +325,13 @@ Phase 7 env var idiom from `CLAUDE.md`:
 python -c "from lib.batch_timeout import clamp_article_timeout, get_remaining_budget, BATCH_SAFETY_MARGIN_S; assert BATCH_SAFETY_MARGIN_S == 60; assert clamp_article_timeout(900, 500, 60) == 440; assert clamp_article_timeout(900, 30, 60) == 450"
 
 # Unit tests
+
 DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -m pytest tests/unit/test_batch_timeout.py -v
 
 # No existing tests broken (Phase 8 regression gate + Phase 9 timeout tests)
+
 DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -m pytest tests/unit/test_image_pipeline.py tests/unit/test_timeout_budget.py tests/unit/test_lightrag_llm.py tests/unit/test_lightrag_timeout.py -v
+
 ```
 </verification>
 

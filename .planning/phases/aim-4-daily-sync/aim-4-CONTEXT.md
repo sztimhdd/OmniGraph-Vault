@@ -4,6 +4,7 @@
 **Status:** Ready for planning
 **Source:** ROADMAP-Aliyun-Ingest-Migration-v1.md §"Phase aim-4" (lines 148-170) +
 REQUIREMENTS-Aliyun-Ingest-Migration-v1.md SYNC-01..04 + STATE-Aliyun-Ingest-Migration-v1.md
+
 + aliyun_vitaclaw_ssh.md memory + hermes_ssh.md memory
 
 ---
@@ -17,12 +18,14 @@ Hermes net cron count is 11 → 1 (one new daily-pull job replacing the 11 inges
 retired at aim-3); Databricks pulls wiki + DB via existing `git pull` workflow.
 
 **In scope:**
+
 - `scripts/sync-from-aliyun.sh` — rsync-over-SSH puller (runs on Hermes)
 - Hermes `omnigraph-daily-pull.{service,timer}` — systemd timer @ 02:00 ADT
 - Retry policy: ≤ 3 retries, exp backoff 60s / 300s / 1800s, journald log, 48h marker file
 - Databricks `git pull` verification (no new code — existing workflow)
 
 **Not in scope:**
+
 - Wiki write-back automation from Aliyun (Q4c — manual `git commit` from Aliyun is acceptable
   during aim-4..aim-5; auto-hook deferred to LLM-Wiki-Integration-P2 milestone)
 - Incremental / `--partial` rsync optimization (deferred to `Aliyun-Sync-v2` derivative milestone, PROJECT §8)
@@ -75,6 +78,7 @@ finishing + buffer. Pulling at 02:00 ADT captures the freshest snapshot.
 ### FINDING 5 — Sync targets (rsync source paths on Aliyun)
 
 Per SYNC-01:
+
 1. `articles JSON` — Aliyun source: TBD (verify which dir; likely `/root/OmniGraph-Vault/articles/`
    or `/root/.hermes/omonigraph-vault/articles/`). **Planner must SSH-probe Aliyun**
    to find the canonical articles JSON location at planning time.
@@ -85,6 +89,7 @@ Per SYNC-01:
    commit per Q4c)
 
 Targets on Hermes:
+
 - All four → `~/.hermes/omonigraph-vault/` (typo is canonical) overwriting Hermes's
   retired storage with Aliyun's snapshot
 
@@ -100,6 +105,7 @@ state. Exit code 0 on success, non-zero on any rsync failure."
 
 Idempotency comes free from rsync (delta sync). The script's own exit handling
 must:
+
 - Aggregate exit codes across all 4 rsync invocations
 - Exit 0 only if all 4 succeeded
 - Exit non-zero (e.g., the last failed rsync's exit code) on any failure
@@ -111,6 +117,7 @@ Systemd has `Restart=on-failure` + `RestartSec=...` but does NOT support exp bac
 logic — fragile). Cleaner: implement the 3-retry loop inside `sync-from-aliyun.sh`.
 
 Pseudo:
+
 ```bash
 delays=(60 300 1800)
 for attempt in 0 1 2; do
@@ -163,9 +170,11 @@ script if all rsyncs succeed) — otherwise stale markers from a transient failu
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 ### Planning artifacts (read first)
+
 - `.planning/ROADMAP-Aliyun-Ingest-Migration-v1.md` (lines 148-170) — Phase aim-4 goal + 4 SYNC REQs success criteria
 - `.planning/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` (line 71-74) — SYNC-01..04 verbatim
 - `.planning/STATE-Aliyun-Ingest-Migration-v1.md` (line 41, 76, 90, 122-126) — milestone state, Decision 5
@@ -173,11 +182,13 @@ script if all rsyncs succeed) — otherwise stale markers from a transient failu
 - `.planning/phases/aim-3-cutover/aim-3-CONTEXT.md` — systemd unit template (reuse for aim-4-2 Hermes timer)
 
 ### Memory pointers (do NOT cite verbatim — verify before asserting)
+
 - `aliyun_vitaclaw_ssh.md` — Aliyun host 101.133.154.49 port 22, root, key on dev box
 - `hermes_ssh.md` — Hermes ohca.ddns.net port 49221 user sztimhdd, WSL2 Linux,
   runtime dir `~/.hermes/omonigraph-vault/` (typo canonical)
 
 ### Reference patterns
+
 - `scripts/cron_daily_ingest.sh` — Hermes-side cron wrapper (do NOT copy structure;
   aim-4 uses systemd directly without tmux)
 - `aim-3-CONTEXT.md` §"systemd Unit Template" — copy template, change ExecStart and OnCalendar
@@ -253,6 +264,7 @@ main "$@"
 ### Hermes systemd units
 
 `/etc/systemd/system/omnigraph-daily-pull.service`:
+
 ```ini
 [Unit]
 Description=OmniGraph daily pull from Aliyun
@@ -272,6 +284,7 @@ WantedBy=multi-user.target
 ```
 
 `/etc/systemd/system/omnigraph-daily-pull.timer`:
+
 ```ini
 [Unit]
 Description=OmniGraph daily pull from Aliyun timer
@@ -316,6 +329,7 @@ git log -1 kb/wiki/ --format='%H %ai %s'
 ### Aliyun manual wiki commit guide (Q4c during aim-4..5)
 
 Document for operator:
+
 ```bash
 ssh aliyun-vitaclaw '
   cd /root/OmniGraph-Vault
@@ -351,6 +365,7 @@ This is operator-driven during aim-4..5; auto-hook is LLM-Wiki-Integration-P2 sc
 </deferred>
 
 <plan_skeleton_hint>
+
 ## Suggested Plan Decomposition (planner is free to adjust)
 
 Suggested 4 plans, all Wave-1 dependencies forming a chain:
@@ -377,6 +392,7 @@ Suggested 4 plans, all Wave-1 dependencies forming a chain:
    - REQs: SYNC-03
 
 Wave structure:
+
 - Wave 1: aim-4-1 (SSH key bootstrap) — no deps
 - Wave 2: aim-4-2 (script) — depends on aim-4-1
 - Wave 3: aim-4-3 (systemd unit) — depends on aim-4-2 (script must exist before unit installed)

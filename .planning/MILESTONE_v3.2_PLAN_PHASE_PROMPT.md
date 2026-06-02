@@ -21,6 +21,7 @@
 ### 决策锁定（不需要重新讨论，直接进入 plan 工作流）
 
 #### 1. Milestone 组成
+
 Milestone v3.2 = 批量可靠性 + 基础设施，共 **6 个 phase**，按顺序编号 **Phase 12–17**：
 
 | Phase | 代号 | 目录名 | 内容 | 预估工时 |
@@ -44,6 +45,7 @@ Milestone v3.1 — **已关闭 2026-05-01 @ commit `2b38e98`**（26/26 REQs deli
 - **来自 Phase 11**：`scripts/bench_ingest_fixture.py` 验证脚本 + `benchmark_result.json` schema
 
 **v3.1 closure 带来的两个非阻塞 findings（已吸收到 v3.2 计划）：**
+
 - Finding 1 → Phase 12: sub-doc lifecycle 移入 checkpoint state machine（D-SUBDOC, 12-CONTEXT.md + 12-02 PLAN + 12-00 PLAN）
 - Finding 2 → Phase 13: bench `_balance_precheck()` 委托到 `lib.siliconflow_balance`（D-BENCH-PRECHECK, 13-CONTEXT.md + 13-01 Task 3）
 

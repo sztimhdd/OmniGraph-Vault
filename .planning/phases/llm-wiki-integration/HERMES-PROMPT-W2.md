@@ -95,11 +95,14 @@ If no wiki page exists, fall through to the standard graph synthesis path below.
 WIKI_FIRST_SUBSECTION_END
 
 # 2) After saving the edit, verify insertion:
+
 grep -A 25 'Wiki-first lookup' ~/.hermes/skills/omnigraph_query/SKILL.md
 
 # 3) Confirm the file is ~20 lines longer than before:
+
 wc -l ~/.hermes/skills/omnigraph_query/SKILL.md
 wc -l ~/.hermes/skills/omnigraph_query/SKILL.md.bak-260519
+
 ```
 
 The `cat <<'WIKI_FIRST_SUBSECTION_END' ... END` heredoc is a **printer**, not an in-place edit — it shows Hermes the exact verbatim text to paste, so the operator can copy from terminal output into their editor without losing whitespace or accidentally mangling backticks. The actual file mutation happens in the editor between the `cp` (step 0) and the `grep` (step 2).

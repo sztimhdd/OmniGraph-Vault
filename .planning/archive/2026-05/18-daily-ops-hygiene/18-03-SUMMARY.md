@@ -84,6 +84,7 @@ Today, `skills/omnigraph_synthesize/` does NOT exist (confirmed by `ls skills/`)
 **Plan 18-03 complete. Wave 1 of Phase 18 complete.**
 
 Remaining Phase 18 work:
+
 - 18-04 (regression smoke, HYG-05) — **BLOCKED** on Phase 5 Task 6.3 (Phase 5 Exit State)
 - 18-05 (source-site alerts, HYG-06) — **BLOCKED** on Phase 5 Task 6.3
 

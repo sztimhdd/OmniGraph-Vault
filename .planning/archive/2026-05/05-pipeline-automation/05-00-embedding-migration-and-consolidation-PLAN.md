@@ -123,6 +123,7 @@ async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
 ```
 
 From google-genai v1.73.1 (installed):
+
 ```python
 # Multimodal embed: contents can be a list of mixed text + Part.from_bytes for ONE aggregated vector
 response = await client.aio.models.embed_content(
@@ -135,6 +136,7 @@ response = await client.aio.models.embed_content(
 # Batch API (experimental on free tier — spike must confirm):
 client.batches.create_embeddings(model=..., src=types.EmbeddingsBatchJobSource(...), config=...)
 ```
+
 </interfaces>
 </context>
 
@@ -823,6 +825,7 @@ client.batches.create_embeddings(model=..., src=types.EmbeddingsBatchJobSource(.
 </verification>
 
 <success_criteria>
+
 - Spike report recommends "proceed".
 - All 6 duplicate embedding_func sites consolidated into 1 shared module + 1 env-var change in `cognee_wrapper.py`.
 - `_build_contents` handles ALL image URLs per chunk (findall, capped at 6), not just the first one.

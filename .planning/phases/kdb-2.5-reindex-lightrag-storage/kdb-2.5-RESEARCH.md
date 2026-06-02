@@ -13,6 +13,7 @@ This phase IMPORTS — never modifies — kdb-1.5's two frozen artifacts (`datab
 **Primary recommendation:** Single Job script `databricks-deploy/jobs/reindex_lightrag.py` with `--mode {smallbatch,fullreindex,postcheck}` flag. Serverless `spark_python_task` Bundle resource. **Single LightRAG instance, single thread, NO ThreadPoolExecutor** — rely entirely on LightRAG's internal `embedding_func_max_async × llm_model_max_async` for the 12-way HTTP concurrency (per Q1 + Q6 detailed analysis below — ainsert is single-writer to one working_dir; multiple LightRAG instances would corrupt the graphml/vdb_*.json files). Default `MAX_ASYNC=4` matches sonnet-4.6 OTPM (20K/min binding constraint per Q6); Step 1 measures 429 rate; Step 2 ramps DOWN if hot, NEVER UP without Step 1 evidence. **(NOTE — supersedes earlier draft text: Decision 2 below explicitly REJECTS ThreadPoolExecutor; this summary line was self-corrected post-Q1-deep-dive.)** Per-article exception isolation — single `await rag.ainsert(content, ids=[content_hash])` failure logs + skips, never fail-fast. **Plus mandatory doc-status post-check** (`await rag.doc_status.get_docs_by_ids([content_hash])` reads `status == "PROCESSED"`; ainsert can SILENTLY succeed but leave doc_status=FAILED — `try/except` alone is INSUFFICIENT, see Q1). Empty-target safety check at startup: `if mode in {smallbatch, fullreindex}` and `lightrag_storage/` is non-empty → require explicit `--force-overwrite` flag with timestamps of existing artifacts in error message. Per-article checkpoint ledger written to `/Volumes/.../output/kdb-2.5-progress.csv` so a Job retry resumes instead of restarting. Plan decomposition: split into kdb-2.5-01 (script + YAML + Step 1 small-batch) and kdb-2.5-02 (Step 2 full re-index + Step 3 post-check) — see Plan Decomposition section for argued rationale.
 
 <user_constraints>
+
 ## User Constraints (from PROJECT-kb-databricks-v1.md, REQUIREMENTS-kb-databricks-v1.md rev 3, ROADMAP-kb-databricks-v1.md rev 3, scope_constraints from orchestrator prompt)
 
 > No phase-level CONTEXT.md exists. Constraints distilled from milestone-level PROJECT/REQ/ROADMAP rev 3 + orchestrator prompt's `<scope_constraints>` block.
@@ -59,6 +60,7 @@ This phase IMPORTS — never modifies — kdb-1.5's two frozen artifacts (`datab
 </user_constraints>
 
 <phase_requirements>
+
 ## Phase Requirements
 
 | ID | Description | Research Support |
@@ -105,6 +107,7 @@ async def ainsert(
 **Returns:** `str` (track_id). Not the article hash, not entities, not None. Track ID is mostly used for status monitoring within LightRAG's `pipeline_status` namespace (`lightrag.py:1758-1762`); the Job will not consume it for control flow but should log it for debugging.
 
 **Raises on failure:** depends on stage:
+
 - Enqueue stage (`apipeline_enqueue_documents`) — raises on duplicate-content, malformed inputs, doc_status filter errors.
 - Process stage (`apipeline_process_enqueue_documents`) — runs entity extraction in semaphore-bounded `asyncio.gather`; **single-chunk LLM failures are caught and logged inside `process_document` at `:1899`+, marking that doc as FAILED in `doc_status` but NOT raising to the caller**. The Job's outer `try/except` around `await rag.ainsert(article_text)` catches catastrophic failures (network drop, OOM); per-chunk LLM hiccups don't surface.
 - This is significant: the Job's per-article success/failure record needs to consult `doc_status` after `ainsert` returns, not just check whether `ainsert` raised. See "Resilience pattern" in Q4.
@@ -154,6 +157,7 @@ Source-traced from kdb-1.5 RESEARCH Q2 (Hermes prod measurement) + LightRAG v1.4
 `ainsert` makes **synchronous-from-await-perspective** LLM calls inside its async body (entity extraction is in-line during `apipeline_process_enqueue_documents`). The `embedding_func_max_async=8` (LightRAG default) and `llm_model_max_async=4` semaphores rate-limit concurrent calls within the LightRAG instance.
 
 Inner LLM/embedding calls flow through:
+
 - `make_llm_func()` (kdb-1.5 factory) → `loop.run_in_executor` wrapping `WorkspaceClient.serving_endpoints.query()` (synchronous SDK call hidden behind asyncio executor).
 - `make_embedding_func()` similarly wraps SDK call.
 
@@ -241,6 +245,7 @@ TOTAL:       ~170 candidates (NOT 2598 raw rows)
 Both tables have a `content_hash` column (`articles.content_hash` and `rss_articles.content_hash`). It's a 32-char MD5 hex string used as the canonical article identifier across the pipeline (per CLAUDE.md "Atomic writes" + checkpoint dir naming `checkpoints/{article_hash}/`).
 
 **Use in Job:** when calling `lightrag.ainsert(article_body, ids=[content_hash])` — pass the kol_scan content_hash explicitly as the `ids` parameter so:
+
 1. Failure CSV row maps cleanly back to source DB row.
 2. Re-runs detect duplicates by content_hash regardless of body whitespace fluctuations.
 
@@ -320,12 +325,14 @@ LightRAG's entity-extraction loop (`lightrag/operate.py` `_process_extract_entit
 **Per-article token estimate (anchor — refine in Step 1):**
 
 For a typical 10,000-char article (KOL avg per Q2):
+
 - Chunks: ~10,000 chars / ~4 chars/token ≈ 2,500 tokens / 1200 tokens-per-chunk ≈ **3 chunks**.
 - Sonnet input tokens / article: 3 chunks × (1,000 prompt + 1,200 chunk) + 2 merge calls × 800 ≈ **~8,200 tokens**.
 - Sonnet output tokens / article: 3 chunks × 1,200 output + 2 merge × 600 ≈ **~4,800 tokens**.
 - Qwen3 input tokens / article: 3 chunks × 1,200 + ~15 entities × 50 + ~10 relations × 80 ≈ **~5,150 tokens**.
 
 **Per-article cost (anchor):**
+
 ```
 cost_per_article ≈ (8,200 × $3 / 1M) + (4,800 × $15 / 1M) + (5,150 × $0.15 / 1M)
                  ≈ $0.0246 + $0.072  + $0.00077
@@ -333,6 +340,7 @@ cost_per_article ≈ (8,200 × $3 / 1M) + (4,800 × $15 / 1M) + (5,150 × $0.15 
 ```
 
 **Per-article wallclock (anchor — refine in Step 1):**
+
 - Sonnet: 3 entity-extract calls × ~3-5s each + 2 merge × ~2s ≈ **15-20s of LLM-time per article**.
 - Qwen3 embedding: ~50 calls @ 1.0s but batched + concurrent (`embedding_batch_num=10` × `embedding_func_max_async=8` = 80-batch concurrency) ≈ **5-10s**.
 - LightRAG overhead: chunking, status writes, graph upserts ≈ **2-5s**.
@@ -341,24 +349,30 @@ cost_per_article ≈ (8,200 × $3 / 1M) + (4,800 × $15 / 1M) + (5,150 × $0.15 
 ### Full-corpus extrapolation
 
 **Scenario 1 (filtered candidates, ~170 articles):**
+
 ```
 total_cost ≈ 170 × $0.097 = $16.5
 total_time (1× concurrency) ≈ 170 × 30s = 5,100s ≈ 1.4h
 ```
+
 **Below the $200 / 30h gate by an order of magnitude.** Pass.
 
 **Scenario 2 (all-non-empty-body, ~975 articles):**
+
 ```
 total_cost ≈ 975 × $0.097 = $94.6
 total_time (1× concurrency) ≈ 975 × 30s = 29,250s ≈ 8.1h
 ```
+
 **Below the gate, but with little headroom on cost** (~50% of $200 budget).
 
 **Scenario 3 (raw 2598 — naïve assumption):**
+
 ```
 total_cost ≈ 2598 × $0.097 = $252
 total_time (1× concurrency) ≈ 2598 × 30s = 77,940s ≈ 21.7h
 ```
+
 **Cost over $200 gate — would trigger STOP and require scope-down.** This is exactly why Q2's filter recommendation (Scenario 1) is critical: re-indexing layer1=reject articles is wasteful and tips the cost gate.
 
 ### Step 1 measurement framework (drives extrapolation)
@@ -374,9 +388,11 @@ Step 1 small-batch produces 4 measurements per article and aggregate stats:
 | `failure_rate` | `num_failed / 50` |
 
 Plus **stratified sampling** to defend against article-length skew:
+
 - Sample 50 articles from the candidate pool with stratification: `ntile(5) OVER (ORDER BY LENGTH(body))` → take 10 from each ntile. Forces representation of short, medium, and long articles.
 
 Then plug into:
+
 ```python
 total_cost = num_articles_total × (
     avg(sonnet_input_tokens) × 3.00e-6 +
@@ -387,6 +403,7 @@ total_time = num_articles_total × avg(wallclock_per_article) / effective_concur
 ```
 
 **Gate decision** (ROADMAP line 162):
+
 - `total_cost > 200` OR `total_time > 30h` → STOP, escalate
 - `failure_rate > 0.05` (i.e. >5%) → investigate failure mode before Step 2
 - Pass → proceed to Step 2
@@ -1090,6 +1107,7 @@ resources:
 ### Saturation analysis
 
 **Sonnet 4.6 — input-token bottleneck:**
+
 - Per-article: ~8,200 Sonnet input tokens (Q3 anchor).
 - 200,000 ITPM / 8,200 tokens-per-article = ~24 articles/min token-budget.
 - At ~30s wallclock per article (Q3 anchor), 24 articles/min implies **12 articles in flight simultaneously** to saturate.
@@ -1097,27 +1115,32 @@ resources:
 - Headroom: we're at ~33% of token budget by default. Safe.
 
 **Sonnet 4.6 — output-token bottleneck:**
+
 - Per-article: ~4,800 Sonnet output tokens.
 - 20,000 OTPM / 4,800 = ~4.2 articles/min output-budget.
 - This is the **tighter** binding constraint than input tokens.
 - At 30s wallclock + 4.2 articles/min output budget → equilibrium with LightRAG default `llm_model_max_async=4`. **Defaults are matched to the rate limit by design.**
 
 **Qwen3 embedding — QPH bottleneck:**
+
 - Per-article: ~50 embedding calls / `embedding_batch_num=10` ≈ 5 batched queries.
 - 2,160,000 QPH / 5 queries-per-article × 60 = 36,000 articles/min budget. **Effectively unconstrained for our scale.**
 
 **QPS workspace cap (200/sec):**
+
 - LightRAG with `embedding_func_max_async=8` + `llm_model_max_async=4` peaks at ~12 in-flight HTTP calls. Latency ~1-3s per call → ~6 QPS sustained. Far under 200 QPS limit.
 
 ### Concurrency recommendation
 
 **Default LightRAG settings are appropriate for kdb-2.5:**
+
 - `llm_model_max_async = 4` (matches Sonnet OTPM headroom)
 - `embedding_func_max_async = 8` (matches Qwen3 QPH; even doubled would be safe)
 - `embedding_batch_num = 10` (matches HTTP batching efficiency)
 - `max_parallel_insert = 2` (LightRAG default — controls how many docs are in the chunk-extraction pipeline simultaneously; with 2 we get 2 articles' worth of in-flight chunks → consistent with Sonnet headroom)
 
 **No environment-variable overrides needed at Step 1.** Step 1 measures actual:
+
 - 429 errors (count from logs; the kdb-1.5 SDK lazy-imports `databricks.sdk.errors.RateLimitError` ≈ HTTP 429)
 - p50 + p95 latency per article
 - Average tokens per article
@@ -1148,6 +1171,7 @@ Two failure modes to guard:
 **(1) is solved by `_verify_target_empty(force_overwrite)` (Q4 sketch).** Operator must explicitly pass `--force-overwrite` to overwrite. The error message includes file paths + mtimes so the operator decides knowingly.
 
 **(2) is solved by progress CSV (`/Volumes/.../output/kdb-2.5-progress.csv`)** + LightRAG's content-hash dedup. The Job at `_run_fullreindex` start:
+
 - Reads progress CSV → set of OK content_hashes.
 - Filters candidates list: `[r for r in candidates if r.content_hash not in done_hashes]`.
 - LightRAG's content-hash dedup is the second line of defense (if progress CSV is missing, articles still get correctly skipped by the duplicate-hash check at `lightrag.py:1463`).
@@ -1155,6 +1179,7 @@ Two failure modes to guard:
 ### Volume access pattern
 
 Job reads from `/Volumes/...` via FUSE mount (verified working from Apps runtime in kdb-1.5 RESEARCH; also works from Jobs containers per Databricks docs). FUSE-on-UC-Volume:
+
 - `Path("/Volumes/...").exists()` → returns true if Volume is mounted, false if not (or if SP lacks access).
 - `Path("/Volumes/...").iterdir()` → lists files; raises `PermissionError` on no-access, `FileNotFoundError` on missing.
 - Writing to FUSE: `Path("/Volumes/...").write_bytes(...)` works IFF Job principal has `WRITE_VOLUME` grant.
@@ -1171,6 +1196,7 @@ This is **distinct** from the App SP grants (AUTH-DBX-03 is `READ_VOLUME` only f
 ### SDK Files API as fallback?
 
 `databricks-sdk WorkspaceClient.files.upload` / `.download_directory` works as an alternative to FUSE. kdb-1.5 startup_adapter uses Files API as a fallback path for the App. For the Job, FUSE is preferred because:
+
 - Job containers reliably have FUSE mounts (per docs + kdb-1 evidence).
 - Files API would require more code (chunked upload of LightRAG state files; the Job writes 12 files, some up to ~225MB).
 - FUSE writes are append-friendly: LightRAG's `index_done_callback` writes the full dict each time; with FUSE, each write completes atomically at the syscall level.
@@ -1193,6 +1219,7 @@ ghi789abc123def456ghi789abc123de,articles,sqlite3.OperationalError: database is 
 ```
 
 Constraints:
+
 - 32-char content_hash (MD5 hex).
 - `source_table` ∈ {`articles`, `rss_articles`}.
 - `error_truncated`: 200-char trimmed `repr(exception)`. Stripped of: file paths, hostnames, secrets. The Job's `_ingest_one` does `repr(e)[:200]` — ensure this is true at code-review time (e.g., add a sanity assertion that the error string contains no `/`, no `\\`, no `@` patterns).
@@ -1329,6 +1356,7 @@ PASSED — proceed to kdb-3 (UAT close).
 ## Cost extrapolation
 
 ```
+
 total_cost = num_articles_total × (
     avg_sonnet_input × $3.00e-6 +
     avg_sonnet_output × $15.00e-6 +
@@ -1341,15 +1369,18 @@ total_cost = num_articles_total × (
     <Z> × $0.15e-6
 )
 = $<TOTAL>
+
 ```
 
 ## Time extrapolation
 
 ```
+
 total_time = num_articles_total × avg_wallclock / effective_concurrency
            = <full_corpus_size> × <wallclock>s / 1
            = <X>s
            = <Y>h
+
 ```
 
 ## Gate decision
@@ -1426,6 +1457,7 @@ PROCEED to Step 2 / STOP and escalate / NEEDS-INVESTIGATION.
 **Impact:** Step 1 says "$50 total"; Step 2 actually costs $300. Burn-rate alarm catches at ~25 articles in (per Q4 burn-rate monitor), but $X already spent.
 
 **Mitigation:**
+
 - Stratified sampling in Step 1 (5 ntiles × 10) — captures p99 long articles.
 - Real-time burn-rate alert in Step 2 every 25 articles (warn at 1.5× Step-1 extrapolation).
 - Hard cost ceiling (`timeout_seconds: 108000`) caps Step 2 at 30h regardless.
@@ -1438,6 +1470,7 @@ PROCEED to Step 2 / STOP and escalate / NEEDS-INVESTIGATION.
 **Impact:** Articles fail with 429; resume CSV catches them on next run, but Step 2 wallclock balloons.
 
 **Mitigation:**
+
 - Step 1 measures 429 rate. If >1% during Step 1, **reduce** `MAX_ASYNC` env var to 2 BEFORE Step 2 (don't increase blindly).
 - Out-of-scope (DEFERRED): wrap factory calls in retry-with-backoff. Would modify kdb-1.5 frozen file.
 
@@ -1448,6 +1481,7 @@ PROCEED to Step 2 / STOP and escalate / NEEDS-INVESTIGATION.
 **Impact:** `vdb_*.json` parse error on Step 3 postcheck → postcheck fails, phase REOPENED.
 
 **Mitigation:**
+
 - Per-article ainsert + post-check verifies dim + roughly-balanced entity counts (Q1 + Q4 + Q8).
 - Operator runbook (kdb-3 deliverable; not this phase): "if `vdb_entities.json` parse fails, restore from `kol_scan.db.backup-*` snapshot + re-run with `--force-overwrite` and reduced `MAX_ASYNC`".
 - Independent verification: Step 3 runs `aquery` round-trip — if it succeeds, the storage is in a queryable state.
@@ -1459,6 +1493,7 @@ PROCEED to Step 2 / STOP and escalate / NEEDS-INVESTIGATION.
 **Impact:** Re-running Step 2 on populated `lightrag_storage/` silently overwrites prior good state. Loss of ~$20-100 of indexing work.
 
 **Mitigation:**
+
 - `_verify_target_empty` lists existing artifact paths + mtimes in error message. Operator must explicitly `--force-overwrite` after reading.
 - Bundle YAML's smallbatch + fullrun Jobs do NOT include `--force-overwrite` in default `parameters`; operator passes via `databricks bundle run kdb_2_5_reindex_fullrun -t dev --params force-overwrite=true` only when actually intended.
 - Procedural: kdb-2.5 plan documents that the first Step 2 run on the prod Volume is the ONLY run that should not need `--force-overwrite`. Subsequent retries / re-runs require explicit operator decision.
@@ -1470,6 +1505,7 @@ PROCEED to Step 2 / STOP and escalate / NEEDS-INVESTIGATION.
 **Impact:** Cost-gate extrapolation is wrong if Step 1's stratified sample misses the p99. Step 2 wallclock balloons by single-article share.
 
 **Mitigation:**
+
 - Stratified sampling MUST include the top ntile (longest 20% of bodies).
 - Step 1 SMALLBATCH-FINDINGS.md should report longest-article wallclock + body-length explicitly so operator sees the long-tail risk before triggering Step 2.
 - Optional plan-time hardening: cap article-body to 50K chars in the Job (`row.body[:50000]`); rare longer articles get truncated. This is a CONTENT MUTATION — surface to user before adopting; default OFF.
@@ -1481,6 +1517,7 @@ PROCEED to Step 2 / STOP and escalate / NEEDS-INVESTIGATION.
 > Per `.planning/config.json` workflow.nyquist_validation default (treat as enabled).
 
 ### Test framework
+
 | Property | Value |
 |----------|-------|
 | Framework | pytest 7+ (existing project venv; pinned in `databricks-deploy/requirements.txt`) |
@@ -1650,6 +1687,7 @@ See Q5 above. Key shape: `spark_python_task` + `environment_key: default` + `env
 | LightRAG instance constructed at App startup | LightRAG instance constructed in Job process | kdb-2.5 (this phase) | App imports kdb-1.5 factory + reads pre-built lightrag_storage; Job constructs full LightRAG and writes lightrag_storage. |
 
 **Deprecated/outdated:**
+
 - DeepSeek as entity-extract LLM — fully retired in v1 deploy.
 - Vertex Gemini as embedding — retired (3072-dim incompatible with Qwen3 1024-dim).
 
@@ -1745,6 +1783,7 @@ See Q5 above. Key shape: `spark_python_task` + `environment_key: default` + `env
 ### kdb-2.5-01 — Job script + Step 1 smallbatch validation
 
 **Scope:**
+
 - Author `databricks-deploy/jobs/reindex_lightrag.py` (Q4)
 - Author `databricks-deploy/jobs/reindex_lightrag.yml` (Q5)
 - Author 6 unit tests + 1 integration test (Validation Architecture)
@@ -1762,6 +1801,7 @@ See Q5 above. Key shape: `spark_python_task` + `environment_key: default` + `env
 ### kdb-2.5-02 — Step 2 full re-index + Step 3 post-check + Verification
 
 **Scope:**
+
 - Pre-flight: verify WRITE_VOLUME grant on the Job principal (Q7)
 - Trigger Step 2: `databricks bundle run kdb_2_5_reindex_fullrun -t dev`
 - Monitor: `databricks jobs runs get <run-id>` + watch `/Volumes/.../output/kdb-2.5-progress.csv` updates
@@ -1778,15 +1818,18 @@ See Q5 above. Key shape: `spark_python_task` + `environment_key: default` + `env
 ### Why 2 plans, not 1 or 3
 
 **Argument for 2 plans:**
+
 - Cost gate is the natural seam. Plan 01's deliverable is "is it safe to run Step 2?"; Plan 02's deliverable is "Step 2 ran + verification PASS".
 - Step 2 operator-trigger between the two plans is a hard gate — cannot be automated cleanly within one plan because the operator REVIEWS SMALLBATCH-FINDINGS before deciding.
 - Plan 01 produces evidence Plan 02 consumes (SMALLBATCH baseline drives burn-rate alert in Plan 02).
 
 **Argument against 1 plan:**
+
 - Bundling creates pressure to skip the gate — "we already wrote the code, let's just run Step 2 too". The 30h / $200 gate becomes performative.
 - Skill invocation discipline: `Skill(skill="databricks-patterns")` for Plan 01 (Bundle authoring) is different from `Skill(skill="writing-tests")` for Plan 02 (verification). 1-plan blends the focus.
 
 **Argument against 3 plans (Step1 / Step2 / Step3 separately):**
+
 - Step 3 is short (~30 min) and tightly coupled to Step 2 (postcheck reads the just-written Volume state). Splitting Step 3 into its own plan adds ceremony without payoff.
 - The operator-trigger gate at Step 2 → Step 3 is auto-pass-IF Step-2-SUCCEEDED. No human decision needed between them.
 
@@ -1871,6 +1914,7 @@ See Q5 above. Key shape: `spark_python_task` + `environment_key: default` + `env
 **Valid until:** 2026-06-17 (30 days; LightRAG 1.4.x stable; Databricks SDK + Bundle CLI no announced breaking changes; MosaicAI endpoints stable).
 
 Sources:
+
 - [Foundation Model APIs limits and quotas (Databricks AWS docs)](https://docs.databricks.com/aws/en/machine-learning/foundation-model-apis/limits)
 - [Foundation Model overview (supported endpoints)](https://docs.databricks.com/aws/en/machine-learning/model-serving/foundation-model-overview)
 - [Databricks Asset Bundle resources reference](https://docs.databricks.com/aws/en/dev-tools/bundles/resources)

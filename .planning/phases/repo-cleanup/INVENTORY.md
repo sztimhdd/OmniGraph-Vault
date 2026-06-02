@@ -14,6 +14,7 @@
 Confirmed present on filesystem; cross-checked against every "stale" candidate in this document:
 
 **Phases (`.planning/phases/`)**
+
 - `aim-4-daily-sync/` — 10 files (May 24 21:23, modified May 24 22:03 youngest)
 - `aim-5-stability-watch/` — 9 files (May 24 22:03)
 - `ar-1-mvp-vertical-slice/` (May 23 19:48)
@@ -23,6 +24,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 - `repo-cleanup/` (this phase, May 26)
 
 **Quicks (`.planning/quick/`)**
+
 - `20260525-200047-synthesize-audit/` (May 25 20:08, untracked per `git status`)
 - `260525-c1-no-content-at-64s/` (May 26 12:44 — youngest)
 - `260524-tk5-kb-longform-c1-hang/` (May 24 21:22)
@@ -32,10 +34,12 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 - `260524-tk5b-databricks-sdk-deterministic-llm-hang/` (May 25 09:47 — within 48h)
 
 **Working-tree uncommitted (other agents' lanes — must NOT touch)**
+
 - `databricks-deploy/requirements.txt` (modified, per `git status`)
 - *(historical: `databricks-deploy/app.yaml`, `kb/api.py`, `lib/research/__init__.py`, `lib/research/orchestrator.py`, `kb/services/synthesize.py` — none currently appear in `git status`, but treat all `databricks-deploy/`, `kb/`, `lib/research/` paths as agent-owned)*
 
 **Hard-do-not-touch (load-bearing strings/paths)**
+
 - The literal string `omonigraph` (typo is canonical; deployed)
 - `~/.hermes/omonigraph-vault/` — Hermes runtime data root
 - LightRAG storage paths (`lightrag_storage/`, `RAG_WORKING_DIR`, `vdb_*.json`, `kv_store_*.json`, `graph_chunk_entity_relation.graphml`)
@@ -183,10 +187,12 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 **HOLD (in-flight, ≤ 48h or in user's explicit list):** `260525-c1-no-content-at-64s` (May 26 12:44), `20260525-200047-synthesize-audit` (May 25 20:08, untracked), `260525-vnj-vitaclaw-news-3shot-ingest` (May 25 10:44), `260524-tk5b-databricks-sdk-deterministic-llm-hang` (May 25 09:47), `260524-arx-A-images` (May 25 09:34, see Q(a)), `260524-tk5-kb-longform-c1-hang` (May 24 21:22), `260524-tvg-wechat-session-hardening` (May 24 21:33). **= 7 HOLD.**
 
 **CANDIDATE ARCHIVE (closed quicks, dated 2026-04-29 → 2026-05-22):** ~79 dirs (86 total – 7 HOLD). Date span:
+
 - Pre-v1.0 (Apr 29 – May 13): ~60 dirs — bulk archival candidates
 - v1.0.x window (May 14 – May 22): ~19 dirs — many cited by closed memory entries
 
 **Examples of "definitely closed" quicks (sample, full list to be enumerated in TRIAGE.md per user adjudication):**
+
 - `260429-got-...`, `260430-...`, `260501-...` — first-week post-v3.x stabilization
 - `260504-g7a-enablement-local-testing-blockers-infras` (cited in CLAUDE.md A6 — keep referenced or convert ref to archive path)
 - `260505-ee5-repo-cleanup` (a previous repo-cleanup quick! — probably has reusable triage logic)
@@ -216,6 +222,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 **Cross-ref concern:** committed files (commit messages, REPORT.md, SUMMARY.md, AUDIT.md) cite `.scratch/<filename>` as evidence (e.g. v1.0.x bug reports). **Citations are dangling pointers regardless of cleanup** — the citation format implies a temporary local-only artifact. Hard-delete does not break correctness; users who want to revisit must re-run.
 
 **Surfaced for triage:**
+
 - D.1 — Hard-delete every `.scratch/*` entry except `.scratch/wiki-rebuild-probe-claude-code-global.md` (the one tracked file). 94 MB recovered. Safe.
 - D.2 — Optional: also hard-delete the tracked `wiki-rebuild-probe-claude-code-global.md` if user confirms it's spike output.
 
@@ -247,6 +254,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 **No mutations attempted.** Vulture not run yet (DRAFT promised). Phase 2 will request vulture run with confidence ≥ 80, then per-finding adjudication.
 
 **Pre-vulture observations:**
+
 - `lib/llm_complete.py` is the live dispatcher; legacy hardcoded-DeepSeek paths (`enrichment/rss_classify.py:129`, `enrichment/rss_ingest.py:367`) flagged in CLAUDE.md A5 as ir-4 retire candidates — partially executed (ir-4 phase exists, May 9). Confirm whether retire happened.
 - `cognee_*.py` — Cognee retired 2026-05-10 (`[[feedback_lightrag_is_core_asset_no_bypass]]`). Any remaining `cognee_*` modules at root or in `lib/` are CANDIDATE STALE.
 
@@ -347,6 +355,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 ### Q(a) — `arx-2-*` vs `ar-1..ar-4` naming
 
 **Filesystem ground truth (`ls .planning/phases/`):**
+
 - ✅ `ar-1-mvp-vertical-slice/` (May 23)
 - ✅ `ar-2-reasoner-vision-deepening/` (May 23)
 - ✅ `ar-3-verifier-web-tools/` (May 23)
@@ -354,6 +363,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 - ❌ NO `arx-2-*/` exists at any phase path
 
 **Filesystem ground truth (`ls .planning/quick/`):**
+
 - ✅ `260524-arx-A-images/` (May 25 09:34) — uses `arx-A` naming, dated post-ar-4
 - ❌ NO `arx-2-*/` exists at any quick path
 
@@ -370,12 +380,14 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 **Observation:** quick directory date span is **2026-04-29 → 2026-05-26** (28 days). Mode of activity is dense (3–6 quicks per active day). No natural breakpoint visible by mtime alone.
 
 **Reference points usable for cutoff:**
+
 - v1.0 declared: 2026-05-13 (61 of 86 quicks pre-date this)
 - v1.0.y closure: 2026-05-17 (70 of 86 quicks pre-date)
 - aim-3 cutover (production fully-live on Aliyun): 2026-05-24 (79 of 86 quicks pre-date)
 - 48h-from-now: 2026-05-24 (matches user's HOLD list of 7)
 
 **Decision needed (user):** which date cutoff defines ARCHIVE candidate for quicks? Surface 4 options:
+
 - **Aggressive:** archive everything pre-2026-05-24 (79 dirs)
 - **Medium:** archive everything pre-2026-05-17 (v1.0.y closure, 70 dirs)
 - **Conservative:** archive everything pre-2026-05-13 (v1.0 declaration, 61 dirs)
@@ -384,6 +396,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 ### Q(c) — Memory file inbound-reference graph
 
 **Findings:**
+
 - 53 entries in `MEMORY.md` (all referenced)
 - 2 orphan files in memory dir (NOT in `MEMORY.md`): `feedback_kwarg_zero_ambiguity.md`, `project_kol_scan_db_path.md`
 - 1 backup: `MEMORY.original.md`
@@ -392,6 +405,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 **Cross-ref (`grep '\[\[' MEMORY.md`):** index file itself does NOT use `[[`; cross-refs live inside individual memory files. Per-file cross-link audit deferred to Phase 2.
 
 **Decision needed (user):**
+
 - Are the 2 orphans usable (un-index them was intentional?), or stale (delete safe)?
 - Is the `MEMORY.original.md` backup needed, or stale (delete safe)?
 
@@ -410,6 +424,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 **Finding:** vulture not run in Phase 1 (per user instruction "treat vulture confidence 80 output as DRAFT, not verdict").
 
 **Plan for Phase 2:**
+
 - Run `vulture lib/ kb/ scripts/ --min-confidence 80` (high signal, high false-negative)
 - Run `vulture lib/ kb/ scripts/ --min-confidence 60` (medium, manual triage)
 - Per-finding adjudication: each candidate cross-checked against `tests/`, `skills/`, `kb/api_routers/`, in-flight phase plans (`aim-4`, `aim-5`, `ar-*`)
@@ -435,6 +450,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 | **TOTALS** | ~1119 | ~417 | 13 | ~136 | ~628 | 14 |
 
 **Disk-recovery estimate (rough):**
+
 - `.scratch/` hard-delete: ~94 MB
 - `__pycache__/` hard-delete: ~5–10 MB (gitignored already; tooling impact only)
 - `omnigraph_vault.egg-info/`: ~50 KB
@@ -461,6 +477,7 @@ Confirmed present on filesystem; cross-checked against every "stale" candidate i
 **This is the end of Phase 1. No further action will be taken until user replies `go triage`.**
 
 **On `go triage`, Phase 2 will produce `TRIAGE.md` containing:**
+
 - Per-row proposed action (`ARCHIVE → archive/2026-05-26/<path>` | `COMPACT → CLAUDE.md inline rewrite` | `EXTRACT → docs/<new_path>` | `HARD-DELETE` | `LEAVE`)
 - Per-row reversibility floor: `git mv` preferred; `git rm` only for unambiguously regenerable artifacts
 - Decision points for Q(a)–Q(e)

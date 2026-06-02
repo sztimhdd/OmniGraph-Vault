@@ -36,6 +36,7 @@ Lesson 2026-05-06 #5), all 3 mechanical fixes shipped as one atomic commit on
 **Diff snippets (3-5 line context, before → after):**
 
 Site 1 (lines 143-148, before → after):
+
 ```diff
  # 05-00c Task 0c.3 — DeepSeek release of Gemini generate_content pool
  # preserved as the dispatcher's default).
@@ -45,6 +46,7 @@ Site 1 (lines 143-148, before → after):
 ```
 
 Site 2 (lines 314-320, before → after):
+
 ```diff
      rag = LightRAG(
          working_dir=RAG_WORKING_DIR,
@@ -55,6 +57,7 @@ Site 2 (lines 314-320, before → after):
 ```
 
 Site 3 (lines 1089-1095, before → after):
+
 ```diff
      full_content = f"# {title}\n\nURL: {url}\nTime: {publish_time}\n\n{markdown}"
 
@@ -77,6 +80,7 @@ no unrelated reformatting, no orphaned imports introduced (`hashlib` and `os` an
 ## Pattern references
 
 **Defect B canonical — T1.5 commit `b181edc`** (`ingest_github.py:58`, et al.):
+
 ```python
 async def ingest_one(url):
     rag = LightRAG(
@@ -91,6 +95,7 @@ T1.5 closed POLLUTION-#2 on 4 of 5 audit-flagged sites; this quick closes the fi
 
 **Mechanical-deletion pattern — T1.5 commit `b181edc`** (atomic forward-only single commit
 mirroring T1 W2 `03eee42`):
+
 - All edits via `Edit` tool with line-context-anchored `old_string` (≥3 lines context).
 - Pytest baseline preserved exactly (pre-fix == post-fix failure sets).
 - Single commit message body cites pre/post-grep evidence + pytest log path.
@@ -152,6 +157,7 @@ the original line numbering).
 ## Pytest result vs baselines
 
 Full pytest logs:
+
 - Pre-fix: `.scratch/quick-260510-rl2-pytest-pre.log` (435.13s wall, BEFORE any edit)
 - Post-fix: `.scratch/quick-260510-rl2-pytest.log` (415.87s wall, AFTER 3 edits)
 

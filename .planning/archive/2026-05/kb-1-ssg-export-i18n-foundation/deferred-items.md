@@ -8,6 +8,7 @@ their originating plan; tracked here for future planning.
 **Surfaced during:** kb-1-10 real-DB smoke (`KB_DB_PATH=.dev-runtime/data/kol_scan.db ... export --limit 3`)
 
 **Finding:** `rss_articles.published_at` column contains mixed format strings:
+
 - ISO-8601: `'2026-05-02T17:26:40+00:00'`
 - RFC 822: `'Wed, 4 Sep 2024 04:31:00 +0000'`
 
@@ -23,6 +24,7 @@ heterogeneity is a pre-existing data shape issue independent of the row
 mapper bug; the KOL-side normalization in this plan does not affect RSS rows.
 
 **Suggested future fix (NOT in this plan):**
+
 1. Add ISO-8601 normalization for `_row_to_record_rss` (mirror `_normalize_update_time`
    but parse RFC 822 → ISO; use `email.utils.parsedate_to_datetime`).
 2. OR: one-shot migration sweep on `rss_articles.published_at` to backfill ISO format.

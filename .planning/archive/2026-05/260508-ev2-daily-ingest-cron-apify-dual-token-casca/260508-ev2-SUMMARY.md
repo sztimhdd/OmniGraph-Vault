@@ -22,6 +22,7 @@ R4/R5 (vision worker timing, QR fallback) are out of scope.
 ## Commits
 
 ### F1a — Apify dual-token rotation
+
 - **Commit:** `f6d6abe177202273272a00fc4f5d2cfaf98d86f2`
 - **What:** Extracts `_apify_call(token, url)` helper from `scrape_wechat_apify`.
   Public function tries `APIFY_TOKEN` first; on **any** Exception falls through
@@ -34,6 +35,7 @@ R4/R5 (vision worker timing, QR fallback) are out of scope.
   shot before falling through to UA.
 
 ### F1b — Cascade reorder UA-first + `SCRAPE_CASCADE` env override
+
 - **Commit:** `80bdcd34f618205b5341108f5fd85c67df8ea7f5`
 - **What:** `lib/scraper.py` default cascade tuple changed from
   `(apify, cdp, mcp, ua)` to `(ua, apify, cdp, mcp)`. New
@@ -49,6 +51,7 @@ R4/R5 (vision worker timing, QR fallback) are out of scope.
   broken without redeploying code.
 
 ### F2 — `cron_daily_ingest.sh` tmux helper
+
 - **Commit:** `36ab63e34ee5ebb584afd41ba347815662534c15`
 - **What:** New `scripts/cron_daily_ingest.sh` (executable, mode `100755`)
   detects same-day alive sessions (refuses double-launch), reaps dead panes,
@@ -64,6 +67,7 @@ R4/R5 (vision worker timing, QR fallback) are out of scope.
   the long-running batch.
 
 ### Docs commit (this file)
+
 - **Commit:** _(this commit, hash assigned at landing)_
 - **What:** PLAN.md + this SUMMARY.md + `HERMES-DEPLOY-260508-ev2.md`
   operator runbook.

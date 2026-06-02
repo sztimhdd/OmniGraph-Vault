@@ -83,9 +83,11 @@ KB_DB_PATH: Path  # default: ~/.hermes/data/kol_scan.db
 ```
 
 Schema (verified live in data/kol_scan.db):
+
 - `articles` table: columns include `id INTEGER PRIMARY KEY`, `body TEXT`, `lang TEXT` (added by migration)
 - `rss_articles` table: columns include `id INTEGER PRIMARY KEY`, `body TEXT`, `lang TEXT` (added by migration)
 </interfaces>
+
 </context>
 
 <tasks>
@@ -232,6 +234,7 @@ Schema (verified live in data/kol_scan.db):
 </verification>
 
 <success_criteria>
+
 - DATA-02 driver complete: walks both tables, populates lang column based on Chinese char ratio
 - DATA-03 satisfied: incremental + idempotent (WHERE lang IS NULL filter)
 - Auto-migration: script self-heals if column was never added

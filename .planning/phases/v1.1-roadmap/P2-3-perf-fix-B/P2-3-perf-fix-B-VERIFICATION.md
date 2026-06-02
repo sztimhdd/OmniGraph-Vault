@@ -90,6 +90,7 @@ tests/unit/test_vertex_gemini_rerank_parse_scores.py
 **Status:** PARTIAL — code path validated, deploy verification deferred.
 
 Code-path correctness:
+
 - `_VALID = ("databricks_serving", "vertex_gemini", "disabled")` — adding `vertex_gemini` does NOT change the default in `os.environ.get("OMNIGRAPH_LLM_RERANK_PROVIDER", "databricks_serving")`.
 - UNSET env on Aliyun → dispatcher reads default `"databricks_serving"` → on Aliyun (no Databricks PAT) `make_rerank_func()` raises during `WorkspaceClient` construction → except branch returns `(None, False)` → graceful degrade to mode='hybrid' (current pre-B baseline preserved).
 
@@ -108,10 +109,12 @@ Aliyun smoke verification (commenting out the 4 new `Environment=` lines + resta
 - Launcher: `venv/Scripts/python.exe .scratch/local_serve.py`
 - Env: `OMNIGRAPH_LLM_RERANK_PROVIDER=vertex_gemini`, `OMNIGRAPH_LLM_RERANK_MODEL=gemini-2.5-flash-lite`, `OMNIGRAPH_LLM_RERANK_TOP_K=30`, `OMNIGRAPH_LLM_RERANK_TIMEOUT=20`
 - Lifespan log lines (`.uvicorn-p23B.log`):
+
   ```
   llm_rerank_init_start
   llm_rerank_init_disabled (provider returned no-op)
   ```
+
 - Result: dispatcher correctly routed to `vertex_gemini` branch, factory correctly raised `RuntimeError` on missing local `GOOGLE_CLOUD_PROJECT`, except clause correctly returned `(None, False)`, kb/api.py correctly logged `llm_rerank_init_disabled` — **graceful-degrade contract validated end-to-end on the lifespan layer**.
 - Downstream: LightRAG ctor failed at tiktoken o200k_base download (`SSLCertVerificationError` against `openaipublic.blob.core.windows.net` — EDC corp Cisco Umbrella interception). This is the **pre-existing env-only block** documented in `tests/integration/kb/test_p2_p3_llm_reranker.py:_start_or_skip`. Identical pre-B; not introduced by this phase.
 - Browser screenshot: NOT CAPTURED (app startup failed at LightRAG ctor before serving). Per `_start_or_skip` contract, deferred to Aliyun (binding gate).
@@ -226,6 +229,7 @@ The drift falls into HT-4 outcome (c) **substantive non-rerank, non-path drift**
 **An additional surface discovered:** Aliyun already has a systemd drop-in at `/etc/systemd/system/kb-api.service.d/override.conf` used for host-specific overrides (MemoryMax=12G, KB_DEFAULT_LANG=zh-CN, KB_SYNTHESIZE_TIMEOUT=240, KB_LIGHTRAG_INNER_TIMEOUT=150, LIGHTRAG_EMBEDDING_TIMEOUT=90). This is the systemd-recommended pattern for adding Environment= lines without touching the base unit, and would be a clean surface for the 4 rerank `Environment=` lines.
 
 **User decision:** halt T6 entirely (Option 3 of the HT-4 escalation), defer Aliyun deploy to a follow-up phase that will:
+
 1. Reconcile the live base unit with the repo template (or split into base + drop-in cleanly), AND
 2. Apply the 4 rerank `Environment=` lines (whether to override.conf or the reconciled base unit is a follow-up planning decision).
 

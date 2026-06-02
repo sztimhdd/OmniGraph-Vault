@@ -172,6 +172,7 @@ Output: 2 JSON files extended with exact keys per UI-SPEC §5 table.
 </verification>
 
 <success_criteria>
+
 - TOPIC-03 enabled: topic page header can render via `{{ 'topic.{slug}.name' | t(...) }}` + `{{ 'topic.{slug}.desc' | t(...) }}`
 - ENTITY-03 enabled: entity page header can render lang-distribution aria via `{{ 'entity.lang_distribution_aria' | t(...) }}`
 - LINK-03 enabled: homepage section headers can render via `{{ 'home.section.topics_title' | t(...) }}` + `{{ 'home.section.entities_title' | t(...) }}`

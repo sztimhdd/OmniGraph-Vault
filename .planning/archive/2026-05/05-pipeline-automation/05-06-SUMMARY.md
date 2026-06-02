@@ -42,6 +42,7 @@ subprocess invocation.
 | 6 | `daily-digest`        | `30 9 * * *` | `run enrichment/daily_digest.py` |
 
 **Not touched** (preserved from earlier phases):
+
 - `health-check` @ 07:55 (id `e7afccd9931b`)
 - `scan-kol` @ 08:00 (id `df7dc3fa0390`)
 
@@ -55,12 +56,14 @@ resolver uses the wording to decide which DB table to enumerate:
 > "run the enrich_article skill for all KOL articles **(WeChat source only; RSS excluded per D-07 REVISED 2026-05-02 + D-19)** with depth_score >= 2 **fetched today**"
 
 Two gates encoded in natural language:
+
 - "KOL articles (WeChat source only; RSS excluded …)" — D-07 REVISED
   enforced at prompt level, mirroring `run_enrich_for_id.py --source kol`
   and `orchestrate_daily.step_6_enrich_deep`'s SQL scope.
 - "fetched today" — D-19 forward-only guard.
 
 Alternate wording that would break D-07 REVISED (must NEVER land):
+
 - "all articles with depth_score >= 2" (would include RSS)
 - "all KOL articles …" without "(WeChat source only)" qualifier (risks
   the resolver aliasing rss_articles under "KOL")
@@ -122,6 +125,7 @@ digests (cron goes live the day after registration — first digest at
 09:30 local).
 
 Signal options when observation completes:
+
 - `approved` — all 3 daily digests delivered, no cron failures.
 - `approved-with-notes: <details>` — digests delivered with caveats.
 - `rejected: <reason>` — pipeline broke; needs debug.
@@ -129,6 +133,7 @@ Signal options when observation completes:
 ## 9. Task 6.3 — STATE + ROADMAP + VALIDATION finalization (pending)
 
 Runs AFTER Task 6.2 user signal:
+
 - `.planning/STATE.md` `## Current Position` → Phase 5 closed.
 - `.planning/STATE.md` insert `## Phase 5 Exit State` block after
   `## Phase 4 Exit State`.

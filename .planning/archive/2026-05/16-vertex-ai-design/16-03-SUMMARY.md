@@ -18,6 +18,7 @@ key-files:
 ## Acceptance criteria
 
 All Task 1 CLAUDE.md checks pass:
+
 - `## Vertex AI Migration Path` header present
 - `docs/VERTEX_AI_MIGRATION_SPEC.md` link present
 - `scripts/estimate_vertex_ai_cost.py` command template present
@@ -25,6 +26,7 @@ All Task 1 CLAUDE.md checks pass:
 - All 5 key phrases found (quota coupling / SiliconFlow / DeepSeek / 100 RPM / 500 RPD)
 
 Task 2 Deploy.md acceptance (inherited from Plan 15-02):
+
 - `## Recommended Upgrade Path` present
 - Cost script + spec file both referenced
 - `Recommended Upgrade Path` is the last `##` heading

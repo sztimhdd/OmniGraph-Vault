@@ -103,6 +103,7 @@ Article-card structure (REUSE — copy from kb-1 articles_index.html — DO NOT 
 The kb-1 `.article-card` has: meta (lang chip + source chip + date), title (h3 truncated), snippet (p clamped), readmore (span with arrow). Copy this structure verbatim into the article-list inside `topic-pillar-articles`.
 
 Sidebar entity chip (.chip--entity) — UI-SPEC §3.1:
+
 ```html
 <a class="chip chip--entity" href="/entities/{{ e.slug }}.html">
   {{ icon('tag', size=12) }}
@@ -110,6 +111,7 @@ Sidebar entity chip (.chip--entity) — UI-SPEC §3.1:
   <span class="chip-count">{{ e.article_count }}</span>
 </a>
 ```
+
 </interfaces>
 </context>
 
@@ -432,6 +434,7 @@ Sidebar entity chip (.chip--entity) — UI-SPEC §3.1:
 </verification>
 
 <success_criteria>
+
 - TOPIC-01 enabled: template ready for plan 09 driver to render `/topics/{slug}.html` × 5
 - TOPIC-04 enabled: CollectionPage JSON-LD emitted in extra_head
 - TOPIC-05 enabled: cooccurring entities sidebar wired

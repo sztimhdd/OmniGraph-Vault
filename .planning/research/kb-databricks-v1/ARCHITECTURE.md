@@ -59,21 +59,25 @@ databricks fs cp -r --overwrite "$LOCAL_SNAPSHOT/lightrag_storage" "$VOLUME/ligh
 ```
 
 **Pros:**
+
 - Zero infrastructure to build / maintain in v1
 - User controls timing — refresh KB on demand, no surprise mid-day
 - Easy rollback: keep last 3 local snapshot dirs, `databricks fs cp` whichever
 - Idempotent — `--overwrite` makes it safe to re-run
 
 **Cons:**
+
 - ~Manual. Forgettable. KB will go stale if user travels / busy
 - Network bandwidth from Windows dev box → workspace; could be slow on large `/images/` directory (94 articles → not a problem yet; 5000 articles → maybe)
 - No history / change log — overwrites in place
 - App must be restarted (or at least re-loaded) after sync to pick up new state if using copy-to-/tmp pattern (kdb-1.5)
 
 **Failure modes:**
+
 - Partial sync: `databricks fs cp -r` is not transactional. If interrupted mid-dir, App reads inconsistent state. Mitigation: sync to staging path first, then atomic rename — but `databricks fs` lacks an atomic-rename primitive. Alternative: use `--overwrite` + accept that "overwrite during App reads" may surface stale-but-consistent reads, since each file is overwritten atomically by the underlying storage.
 
 **Pre-sync checklist (v1 runbook):**
+
 1. SSH to Hermes, snapshot to local: `scp -r hermes:~/.hermes/omonigraph-vault/ ~/Desktop/hermes-snapshot/`
 2. WAL-checkpoint SQLite: `sqlite3 ~/Desktop/hermes-snapshot/data/kol_scan.db "PRAGMA wal_checkpoint(TRUNCATE);"`
 3. Delete `-wal`/`-shm` sidecars: `rm -f ~/Desktop/hermes-snapshot/data/kol_scan.db-{wal,shm}`

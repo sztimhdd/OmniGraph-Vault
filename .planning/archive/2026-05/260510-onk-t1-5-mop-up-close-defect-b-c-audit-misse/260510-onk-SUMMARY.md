@@ -38,6 +38,7 @@ used in both `batch_*` files — verified via grep before commit; no removal nee
 ## Pattern references
 
 **Defect B — T1 W2 commit `03eee42` canonical** (`query_lightrag.py:18-24`):
+
 ```python
 async def query_and_synthesize(query_text: str):
     rag = LightRAG(
@@ -49,11 +50,13 @@ async def query_and_synthesize(query_text: str):
 ```
 
 **Defect C — T1 W3 commit `14f1136` canonical** (`lib/llm_deepseek.py:43-49`):
+
 ```python
 from config import load_env
 
 load_env()
 ```
+
 (For T1.5 the function-form variant retains the lazy invocation in `run()` rather than at
 module import — preserving the existing call-site contract.)
 
@@ -106,6 +109,7 @@ files; quicks `260510-h09` / `260510-h09b` (ainsert-async-pipeline race emergenc
 hotfix) added the integration test corpus that produces the new failures.
 
 **+7 failure count breakdown:**
+
 - 16 of 23 = same pre-existing set as T1 SUMMARY lines 167-181 (verified by visual diff
   of T1 list vs T1.5 short-summary).
 - **+6 NEW failures observed but NOT T1.5-induced:**
@@ -205,11 +209,13 @@ was unnecessary in T1.5).
 ## No-fabrication compliance
 
 Every claim in this SUMMARY traces to:
+
 - A `.scratch/quick-260510-onk-*.log` file with executor-captured content, OR
 - The `b181edc` commit hash for committed changes, OR
 - A specific `file:line` reference in the working tree.
 
 Claim-level traceability:
+
 - Pytest pass/fail counts → `.scratch/quick-260510-onk-pytest.log` (line "665 passed, 5 skipped, 9 warnings in 439.96s")
 - Stash-baseline result → `.scratch/quick-260510-onk-baseline-targeted.log` (line "6 failed, 7 passed in 238.34s")
 - Final greps → `.scratch/quick-260510-onk-final-grep-{b,c}.log` (1-line content each, T2/T3-only residuals)

@@ -54,12 +54,14 @@ metric collection. Design doc (17-00) is the contract; helper (17-01) does the m
 plan adds the instrumentation call-site and output side.
 
 Output:
+
 1. `batch_ingest_from_spider.py` — modified to import + call `clamp_article_timeout`,
    track metrics, emit `batch_timeout_metrics` at batch end
 2. `tests/unit/test_batch_timeout_instrumentation.py` — unit tests for the new pure
    helpers (bucket function, env-var read, metric dict shape)
 
 **Scope boundary (DO NOT expand):**
+
 - No refactor of existing batch loop structure
 - No changes to scraping, classification, or ingest_wechat.py
 - Checkpoint flush wiring assumes Phase 12 `flush_partial_checkpoint` signature — if
@@ -89,6 +91,7 @@ def get_remaining_budget(batch_start: float, total_batch_budget: int) -> float
 ```
 
 From `batch_ingest_from_spider.py` (existing Phase 9 / 10 code — do NOT modify signatures):
+
 ```python
 # Lines 134-157: existing budget helper (keep as-is)
 _SINGLE_CHUNK_FLOOR_S = 900
@@ -106,14 +109,17 @@ await asyncio.wait_for(
 ```
 
 From Phase 12 `lib/checkpoint.py` (may or may not exist at merge time):
+
 - `get_article_hash(url: str) -> str`
 - `flush_partial_checkpoint(article_hash: str) -> None` (hypothetical; may be `finalize_stage` or similar)
 
 Env var pattern from Phase 7 (from CLAUDE.md):
+
 - `os.environ.get("OMNIGRAPH_BATCH_TIMEOUT_SEC", str(args.batch_timeout or 28800))`
 - Namespaced `OMNIGRAPH_*`; env wins if both env and CLI set.
 - Default 28800s (8h) covers 56-article batch at 441s/article Hermes baseline (v3.1 closure §3).
 </interfaces>
+
 </context>
 
 <tasks>
@@ -685,9 +691,11 @@ Env var pattern from Phase 7 (from CLAUDE.md):
 DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -m pytest tests/unit/test_batch_timeout_instrumentation.py -v
 
 # 17-01 helper tests still pass (regression guard)
+
 DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -m pytest tests/unit/test_batch_timeout.py -v
 
 # Phase 8/9 regression gates
+
 DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -m pytest \
     tests/unit/test_image_pipeline.py \
     tests/unit/test_timeout_budget.py \
@@ -695,10 +703,13 @@ DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -m pytest \
     tests/unit/test_lightrag_llm.py -v
 
 # Batch module still imports cleanly
+
 DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -c "import batch_ingest_from_spider; print('OK')"
 
 # CLI flag parses
+
 DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe batch_ingest_from_spider.py --help 2>&1 | grep -- '--batch-timeout'
+
 ```
 </verification>
 

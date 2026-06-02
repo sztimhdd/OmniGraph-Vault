@@ -68,6 +68,7 @@ PHASE_HAS_UI=$(echo "$PHASE_SECTION" | grep -qi "UI hint.*yes" && echo "true" ||
 ### 🔴 #2 [SKILL] `ui-ux-pro-max` and `frontend-design` Skills never invoked
 
 **Evidence:**
+
 - `kb/docs/02-DECISIONS.md` D-10 line 124-130: "采纳ui-ux-pro-max FAQ/Documentation Landing"
 - `kb/docs/03-ARCHITECTURE.md` line 325-333: "ui-ux-pro-max 设计系统推荐: Pattern: FAQ/Documentation Landing"
 - Grep across all 11 PLAN.md + 11 SUMMARY.md + CONTEXT.md + VERIFICATION.md for "ui-ux-pro-max" returns ONLY ONE hit (`kb-1-04-PLAN.md:107`) and that's a `<read_first>` text reference (i.e., "go read this section of `kb/docs/03-ARCHITECTURE.md`"), NOT a `Skill(skill="ui-ux-pro-max", ...)` tool call
@@ -76,6 +77,7 @@ PHASE_HAS_UI=$(echo "$PHASE_SECTION" | grep -qi "UI hint.*yes" && echo "true" ||
 **Impact:** No designer-quality components, no Bento grid evaluation, no glassmorphism / brutalism / claymorphism style consideration, no proper color palette derivation beyond the 5 vitaclaw tokens, no font-pairing validation, no UX guideline cross-check.
 
 **Fix:** kb-1 redesign quick MUST invoke both Skills explicitly:
+
 ```python
 Skill(skill="ui-ux-pro-max", args="audit kb-1 templates against FAQ/Documentation Landing pattern + Swiss Style; output component spec for hero/cards/lang-chip/breadcrumb/CTA/code-block/Q&A-form")
 Skill(skill="frontend-design", args="iterate kb/templates/*.html and kb/static/style.css to match the spec; preserve i18n + content lang axis")
@@ -97,6 +99,7 @@ D-12 lock spec (kb/docs/02-DECISIONS.md line 174-198):
 **Impact:** Visual identity diverges from sibling vitaclaw-site. Hover states are flat. CTAs lack the shimmer/glow that signal interactivity.
 
 **Fix:** Add to style.css:
+
 - `.card { border-radius: 16px; }` (rounded-2xl = 1rem)
 - `.card:hover { background: #2a3a4a; border-color: rgba(59, 130, 246, 0.3); }` (hover bg + 30% accent opacity)
 - `.glow { box-shadow: 0 0 24px -4px rgba(59, 130, 246, 0.6); }`
@@ -108,6 +111,7 @@ D-12 lock spec (kb/docs/02-DECISIONS.md line 174-198):
 **Evidence:** `kb/templates/index.html:6-11` — hero is just `<h1>` + `<p>`. No search bar, no hot topics chips, no CTA emphasis, no gradient text accent, no decorative element.
 
 `kb/docs/03-ARCHITECTURE.md` § "ui-ux-pro-max 设计系统推荐" + `kb/docs/01-PRD.md` §5.2 mockup explicitly specify:
+
 - 大字号 + gradient 强调词 hero h1
 - 副标题层次 (h2/p hierarchy)
 - 主搜索框 prominent in hero
@@ -127,6 +131,7 @@ D-12 lock spec (kb/docs/02-DECISIONS.md line 174-198):
 **Impact:** Cards reveal no content preview. Users must click through to learn anything. Source labels are unstyled raw text (`rss` / `wechat`). Lang badge for `unknown` (1660 articles, 73% of corpus) shows literal `—` em-dash on green pill — visually broken.
 
 **Fix:**
+
 - Add `.article-card-snippet` with body-derived 200-char excerpt (export driver provides; template renders)
 - Replace lang-badge logic: `zh-CN` → blue pill, `en` → green pill, `unknown` → grey pill (or hide)
 - Source: `rss` → 🌐 RSS icon, `wechat` → 💬 WeChat icon (or proper SVG icons)
@@ -139,6 +144,7 @@ D-12 lock spec (kb/docs/02-DECISIONS.md line 174-198):
 **Impact:** Raw machine-readable strings instead of human-friendly relative or formatted dates.
 
 **Fix:** Add a `humanize_date` Jinja2 filter in `kb/i18n.py`:
+
 - `2024-09-04T04:31:00Z` → `2024 年 9 月 4 日` (zh-CN) / `Sep 4, 2024` (en)
 - For recent (<7 days): `2 天前` / `2 days ago`
 
@@ -147,6 +153,7 @@ D-12 lock spec (kb/docs/02-DECISIONS.md line 174-198):
 **Evidence:** `kb/templates/ask.html:9-22` — form posts to nothing, JS submission shows literal text "Q&A backend will be wired in kb-3".
 
 `kb/docs/03-ARCHITECTURE.md` §入口2 mockup specifies:
+
 - Hero with input + 深度问答 button (large, glow-styled)
 - 🔥 热门问题 list (5-6 hardcoded for v2.0)
 - 回答区域 (Markdown render placeholder)
@@ -168,6 +175,7 @@ D-12 lock spec (kb/docs/02-DECISIONS.md line 174-198):
 **Impact:** Keyboard navigation has no visible focus indicator (a11y violation). Hovers are abrupt. No micro-interactions on language toggle, card focus, button press.
 
 **Fix:**
+
 - Global `*:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }`
 - Card hover: `transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1)`
 - Lang toggle: subtle bounce on click
@@ -323,6 +331,7 @@ All 12 audit findings resolved via single quick task that invoked the `ui-ux-pro
 ### Visual verification (Playwright UAT — `.playwright-mcp/`)
 
 15 screenshots captured (5 page types × 3 viewports):
+
 - `kb-1-redesign-home-{mobile,tablet,desktop}.png`
 - `kb-1-redesign-articles-{mobile,tablet,desktop}.png`
 - `kb-1-redesign-ask-{mobile,tablet,desktop}.png`

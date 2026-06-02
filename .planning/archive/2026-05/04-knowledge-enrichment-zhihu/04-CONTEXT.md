@@ -15,6 +15,7 @@ handling is refactored out of `ingest_wechat.py` into a shared `image_pipeline.p
 used by both paths.
 
 **In scope:**
+
 - `enrichment/` package: extract_questions, fetch_zhihu, merge_md, orchestrate helpers
 - `image_pipeline.py` refactor (shared by WeChat + Zhihu paths)
 - `skills/zhihu-haowen-enrich/` Hermes skill (CDP-driven Zhihu AI search)
@@ -24,6 +25,7 @@ used by both paths.
 - Telegram-based Zhihu login recovery UX
 
 **Out of scope (belongs elsewhere):**
+
 - Sources other than Zhihu (e.g., X/Twitter, HN, blogs)
 - Review UI for enriched articles
 - Scheduled re-enrichment of already-enriched articles
@@ -152,22 +154,26 @@ used by both paths.
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Product spec
+
 - `docs/enrichment-prd.md` — full PRD, the source of truth. Note the
   supersessions called out in D-07 (mandatory enrichment, no `--enrich` flag)
   and D-12 (Gemini Flash Lite not DeepSeek).
 
 ### Project context
+
 - `CLAUDE.md` — project rules, typo'd data dir, highest-priority principles
 - `specs/PRD_TDD.md` v1.3 — current product state (FR-20 Telegram delivery,
   FR-5 LightRAG indexing, FR-4 Gemini Vision)
 - `.planning/PROJECT.md` — phase constraints, privacy posture
 
 ### Code touch points
+
 - `ingest_wechat.py` lines 125-135 (`describe_image`), 614-651 (image loop),
   704-716 (SQLite update after ingest) — refactor targets
 - `config.py` — new config keys land here
@@ -180,6 +186,7 @@ used by both paths.
   reverse direction of what we're doing)
 
 ### Hermes docs (read during planning)
+
 - `https://hermes-agent.nousresearch.com/docs/developer-guide/creating-skills`
   — skill structure, `required_environment_variables`, template vars like
   `${HERMES_SKILL_DIR}`, inline `` !`cmd` `` snippets, no-external-deps guideline
@@ -193,6 +200,7 @@ used by both paths.
   `$HOME/OmniGraph-Vault/skills` on the remote WSL host)
 
 ### Deferred docs to locate/create during research
+
 - Zhihu 好问 UI structure reference — no canonical doc exists; skill body
   must capture the 10-step flow empirically (PRD section 7)
 - LightRAG delete-by-id API reference — confirm in `venv/Lib/site-packages/lightrag`
@@ -200,9 +208,11 @@ used by both paths.
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets
+
 - **`describe_image(path)`** at `ingest_wechat.py:125-135` — move into
   `image_pipeline.describe_images` as batch form
 - **Per-image download+describe loop** at `ingest_wechat.py:614-651` —
@@ -224,6 +234,7 @@ used by both paths.
   project root); enrichment scripts follow this pattern
 
 ### Established Patterns
+
 - **Async fast-path discipline** (NFR-1, NFR-2): ingestion must stay under
   200ms for the synchronous portion. Enrichment is NOT in the fast path —
   it's a pre-ingest synchronous step that precedes LightRAG `ainsert`.
@@ -240,6 +251,7 @@ used by both paths.
   Zhihu login QR delivery. Bot credentials already in `~/.hermes/.env`.
 
 ### Integration Points
+
 - **SQLite `articles` + `ingestions` tables** — migration adds `enriched`
   and `enrichment_id` columns. `batch_scan_kol.py` owns the CREATE TABLE;
   migration script goes into a new `migrations/` dir or inline in
@@ -275,6 +287,7 @@ used by both paths.
 ## Deferred Ideas
 
 ### Not this phase
+
 - **Per-question retry state table** (SQLite `enrichment_questions`) —
   considered and rejected for Phase 4 (D-11). If retry granularity becomes
   necessary, a follow-up phase can add the table and a retry batch job.
@@ -295,6 +308,7 @@ used by both paths.
   over weeks) but rejected for brittleness when Zhihu rotates session format.
 
 ### PRD inconsistencies surfaced during discussion
+
 - PRD section 5.3 test file #14 references `ingest_enriched.py` as a test
   target, but section 5.1 deliverables doesn't list `ingest_enriched.py` as
   a new file to create. Section 12 Phase 4 lists it. The planner should

@@ -5,6 +5,7 @@
 **Source:** ROADMAP-Aliyun-Ingest-Migration-v1.md §"Phase aim-5" (lines 174-198) +
 REQUIREMENTS-Aliyun-Ingest-Migration-v1.md STAB-01..05 (lines 76-84) +
 PROJECT-Aliyun-Ingest-Migration-v1.md §7 SC #1/#4/#5/#6/#8 + STATE-Aliyun-Ingest-Migration-v1.md
+
 + aim-4-CONTEXT.md (template) + memory pointers (aliyun_vitaclaw_ssh.md, hermes_ssh.md)
 
 ---
@@ -21,6 +22,7 @@ stays within projected envelope. Milestone Aliyun-Ingest-Migration-v1 closes onl
 after aim-5 passes.
 
 **In scope:**
+
 - Daily checklist runs against 5 STAB REQs (STAB-01..05)
 - `OBSERVATION.md` scaffold the operator updates day-by-day for 7 days
 - Closure of the 4-item TODO checklist deferred from aim-4-4-EVIDENCE PARTIAL
@@ -32,6 +34,7 @@ after aim-5 passes.
   lands as a new fix, 7-day window restarts from the day the fix lands
 
 **Not in scope:**
+
 - ANY code changes (a code change becomes a regression on aim-1..4, not part of aim-5)
 - kb-api `/api/synthesize` introduction (Decision 4 / Q5c — owned by Agentic-RAG-v1)
 - Wiki write-back automation (Q4c — owned by LLM-Wiki-Integration-P2)
@@ -81,6 +84,7 @@ STAB-02 fail-criterion is "any single day ≥ 1% AND root cause is migration-rel
 — ambiguous "is it migration?" judgments default to operator review, not auto-restart.
 
 Planner: include a column in OBSERVATION.md daily entries for `ghost_success_count`
+
 + a comment field for root-cause hypothesis (e.g., "1 ghost on aim-N article-id=XXX,
 LightRAG ainsert finished after `OMNIGRAPH_PROCESSED_RETRY=300` budget exhausted —
 NOT migration-related, classify as v1.0.x noise floor"). Decision rule documented
@@ -90,6 +94,7 @@ inline: `if migration_related: restart; else: log + continue`.
 
 Per REQUIREMENTS:84, the pass criterion is "7-day Aliyun spend × ~4.3 ≤ Hermes
 prior monthly Vertex spend". This requires:
+
 1. Pre-aim-5 capture: pull Hermes-side Vertex spend from GCP "Quotas & System Limits"
    dashboard for a representative pre-migration month (e.g., 2026-04 Hermes-only
    month) — record in OBSERVATION.md baseline section
@@ -104,6 +109,7 @@ discipline (one screenshot per day under `aim-5-EVIDENCE/vertex-quota-day-N.png`
 ### FINDING 5 — STAB-04 baseline = pre-migration kb-api responses; capture once at aim-5 day-0
 
 Per REQUIREMENTS:83, the verification probes are:
+
 - `curl -s http://<aliyun>/api/articles | jq '. | length'` → matches pre-migration
   count (or grows monotonically as Aliyun ingest adds articles)
 - `curl -s http://<aliyun>/api/article/<known-hash>` → 200 with same body shape
@@ -142,6 +148,7 @@ specifically, NOT `omnigraph-*.service` wildcard.
 ### FINDING 7 — STAB-03 = Hermes daily-pull (SYNC-02) AND Databricks `git pull` BOTH must pass
 
 Per REQUIREMENTS:82, STAB-03 covers two consumers:
+
 - Hermes-side `omnigraph-daily-pull.service` (systemd, fires 02:00 ADT = 05:00 UTC)
   — verified via `journalctl -u omnigraph-daily-pull.service` showing `sync OK on
   attempt N` daily, no 48h marker file `/tmp/aliyun-sync-failed-*` aged > 48h
@@ -190,6 +197,7 @@ that operator updates daily." This is the closure artifact for aim-5 — without
 7 days of OBSERVATION.md entries, aim-5 does not close.
 
 Schema:
+
 ```markdown
 # Aliyun-Ingest-Migration-v1 / aim-5 / OBSERVATION
 
@@ -238,9 +246,11 @@ Schema:
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 ### Planning artifacts (read first)
+
 - `.planning/ROADMAP-Aliyun-Ingest-Migration-v1.md` (lines 174-198) — Phase aim-5 goal + 5 STAB REQs success criteria + open notes
 - `.planning/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` (lines 76-84) — STAB-01..05 verbatim
 - `.planning/STATE-Aliyun-Ingest-Migration-v1.md` (lines 41-43, 108, 122-126, 143-144) — milestone state, agent boundary, decisions, aim-4-4 TODO carry-over, retention deadline
@@ -249,12 +259,14 @@ Schema:
 - `.planning/phases/aim-4-daily-sync/aim-4-4-EVIDENCE.md` — for the 4-item TODO carry-over enumeration (PLANNER: read at plan time)
 
 ### Memory pointers (do NOT cite verbatim — verify before asserting)
+
 - `aliyun_vitaclaw_ssh.md` — Aliyun host (read-only diagnostics OK)
 - `hermes_ssh.md` — Hermes host (read-only diagnostics OK)
 - `feedback_contract_shape_change_full_audit.md` — STAB-02 reconcile scope lineage
 - `feedback_aim1_agent_is_operator.md` — agent-as-operator override for aim-N phases (read-only ops)
 
 ### Reference patterns
+
 - `aim-4-CONTEXT.md` — structural template (this file mirrors its `<domain>` / `<decisions>` / `<canonical_refs>` / `<specifics>` / `<deferred>` / `<plan_skeleton_hint>` shape)
 - aim-3 systemd timer + journald evidence patterns — STAB-01 borrows the journal grep recipe verbatim
 
@@ -378,6 +390,7 @@ sections); reviewed at day-7 to compute milestone close verdict.
 ### Evidence directory
 
 `.planning/phases/aim-5-stability-watch/aim-5-EVIDENCE/`
+
 - `kb-api-baseline-day0.json` (STAB-04 frozen baseline)
 - `vertex-quota-day-1.png` ... `vertex-quota-day-7.png` (STAB-05 daily screenshots)
 - `daily-checks-day-N.log` (concatenated stdout from STAB-01/02/03 ssh probes per day)
@@ -385,6 +398,7 @@ sections); reviewed at day-7 to compute milestone close verdict.
 ### aim-4-4 TODO carry-over closure procedure
 
 At planning time, planner must:
+
 1. `Read .planning/phases/aim-4-daily-sync/aim-4-4-EVIDENCE.md`
 2. Locate the 4-item TODO checklist (deferred to aim-5 per STATE:143)
 3. Reproduce the 4 items verbatim in `aim-5-CONTEXT.md` Findings OR in a dedicated
@@ -422,6 +436,7 @@ to schedule cleanup post-milestone."
 </deferred>
 
 <plan_skeleton_hint>
+
 ## Suggested Plan Decomposition (planner is free to adjust)
 
 Suggested 5 plans + 1 scaffolding plan, all parallel (no inter-plan dependencies
@@ -483,6 +498,7 @@ since they observe independent subsystems):
    - REQs: (cross-cutting — closes aim-5)
 
 Wave structure:
+
 - Wave 1 (day-0): aim-5-4 baseline capture, aim-5-5 baseline capture, aim-5-6
   OBSERVATION.md scaffold instantiation — ALL parallel
 - Wave 2 (day-1..7): aim-5-1, aim-5-2, aim-5-3, aim-5-5 daily probes — ALL parallel

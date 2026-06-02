@@ -76,6 +76,7 @@ fi
 ```
 
 If no wiki page exists, fall through to the standard graph synthesis path below.
+
 ```
 
 The fenced bash block inside the new subsection is exactly 11 lines of
@@ -165,6 +166,7 @@ appended under `## Applied (audit trail)` below:
 **Original DIFF assumption:** insert under `## Behavior` header.
 **Actual repo state:** `skills/omnigraph_query/SKILL.md` has NO `## Behavior` header — it uses `## Quick Reference / When to Use / When NOT to Use / Image Server Note / Decision Tree (### Case 1..5) / Query Modes / Output Format / Error Handling / Related Skills`.
 **Resolution (researched precedent in repo):**
+
 - Surveyed sibling skills via `grep -nE '^(##|###)' skills/*/SKILL.md`.
 - `skills/omnigraph_ingest/SKILL.md:30` has `## Pre-flight Checks (always run FIRST)` BEFORE `## Decision Tree` at line 72 — exact semantic match for wiki-first lookup ("check X — if processed, skip").
 - Inserted as top-level `## Pre-flight: Wiki-first Lookup` (not `### Case 0` inside Decision Tree, not unnumbered preamble) — preserves existing Cases 1–5 line numbers, matches established repo convention, gives H2 TOC visibility.

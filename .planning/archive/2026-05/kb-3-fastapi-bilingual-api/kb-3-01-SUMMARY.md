@@ -54,6 +54,7 @@ Skill(skill="api-design", args="Lock the REST API contract for kb-3 (FastAPI on 
 ```
 
 **How the discipline was applied:** Read `~/.claude/skills/api-design/SKILL.md` (524 lines covering URL structure, status codes, response envelopes, pagination, filtering, auth, rate limiting, versioning, implementation patterns, design checklist) and applied each section to the kb-3 endpoint inventory:
+
 - §"Resource Design" → kebab-case nouns, no verbs in URLs (`/api/articles`, not `/api/getArticles`)
 - §"Status Code Reference" → 200 success, 202 async-accepted, 404 missing, 422 validation, NEVER 500 on synthesize polling per QA-05
 - §"Response Format" → flat envelope (`{items, page, limit, total, has_more}`) for collection; resource shape (`{detail, code}`) for errors
@@ -180,6 +181,7 @@ All `<acceptance_criteria>` from PLAN Task 1 satisfied.
 ## Self-Check: PASSED
 
 **Created files exist:**
+
 - `.planning/phases/kb-3-fastapi-bilingual-api/kb-3-API-CONTRACT.md` — FOUND (937 lines)
 - `.planning/phases/kb-3-fastapi-bilingual-api/kb-3-01-SUMMARY.md` — FOUND (this file)
 
@@ -195,6 +197,7 @@ grep -lE 'Skill\(skill="api-design"' .planning/phases/kb-3-fastapi-bilingual-api
 ## Deviations from plan
 
 **None.** Plan executed exactly as written:
+
 - Single Task 1 (Invoke api-design Skill + author kb-3-API-CONTRACT.md)
 - Single artifact at the spec'd path
 - All 12 mandated sections present (§1 header → §15 versioning, with §3-§8 covering each endpoint as enumerated, plus §9-§14 cross-cuttings)

@@ -82,6 +82,7 @@ Output: `lib/article_filter.py` carries real Layer 1 + new contract; `migrations
 <!-- Existing symbols this plan REUSES (read-only). -->
 
 From `lib/vertex_gemini_complete.py`:
+
 ```python
 async def vertex_gemini_model_complete(
     prompt: str,
@@ -91,16 +92,19 @@ async def vertex_gemini_model_complete(
     **kwargs: Any,
 ) -> str: ...
 ```
+
 - Reads `OMNIGRAPH_LLM_MODEL` (default `gemini-3.1-flash-lite-preview` per `_DEFAULT_MODEL`)
 - Reads `OMNIGRAPH_LLM_TIMEOUT_SEC` (default 600)
 - Built-in 503 retry × 4 with backoff; non-503 ServerError propagates immediately
 - Returns plain string — caller parses JSON
 
 From `lib.gemini_model_complete` (legacy path; symbol path `from lib import gemini_model_complete`):
+
 - Same signature shape (LightRAG-compatible) — used when `OMNIGRAPH_LLM_PROVIDER` is not `vertex_gemini`
 - Wired through Gemini API key (`OMNIGRAPH_GEMINI_KEY` / `GEMINI_API_KEY`)
 
 From SQLite (data/kol_scan.db):
+
 - `articles` table: existing columns include `id, account_id, title, url, body, digest, ...`
 - `rss_articles` table: existing columns include `id, feed_id, title, url, body, summary, fetched_at, depth, topics, classify_rationale, body_scraped_at, ...`
 - Migration runner pattern: `migrations/002_*.py` and `003_*.py` — PRAGMA-guarded, idempotent, CLI takes optional `[db_path]` arg defaulting to `data/kol_scan.db`
@@ -179,6 +183,7 @@ def persist_layer1_verdicts(
     helper is NOT called — caller skips persistence so rows stay NULL.
     """
 ```
+
 </interfaces>
 
 <tasks>
@@ -215,6 +220,7 @@ def persist_layer1_verdicts(
 1. **REWRITE** the entire module (it is 117 lines; the new shape is incompatible with the old). Preserve the module-level docstring header but UPDATE its body to describe the new ir-1 contract (mention ir-2 will replace layer2 placeholder).
 
 2. **NEW imports:**
+
 ```python
 from __future__ import annotations
 
@@ -230,6 +236,7 @@ from typing import Iterator, Literal
 ```
 
 3. **Module-level constants:**
+
 ```python
 PROMPT_VERSION_LAYER1: str = "layer1_v0_20260507"
 PROMPT_VERSION_LAYER2: str = "layer2_placeholder_20260507"  # ir-2 bumps to layer2_v0_<ts>
@@ -241,6 +248,7 @@ logger = logging.getLogger(__name__)
 ```
 
 4. **Define dataclasses** (frozen, exact field order):
+
 ```python
 @dataclass(frozen=True)
 class ArticleMeta:
@@ -267,6 +275,7 @@ class FilterResult:
 5. **Define the verbatim Layer 1 v0 prompt** as a module-level string constant `_LAYER1_V0_PROMPT_BODY`. Copy the exact text from PROJECT-v3.5-Ingest-Refactor.md § "Layer 1 v0 Prompt" — character-for-character. Triple-quoted Python raw string, preserve all CJK and emoji.
 
 6. **Define a context manager for timeout override:**
+
 ```python
 @contextmanager
 def _layer1_timeout_env() -> Iterator[None]:
@@ -367,6 +376,7 @@ async def layer1_pre_filter(
 ```
 
 8. **Define `layer2_full_body_score` (sync placeholder, new shape):**
+
 ```python
 def layer2_full_body_score(
     articles: list[ArticleWithBody],
@@ -383,6 +393,7 @@ def layer2_full_body_score(
 ```
 
 9. **Define `persist_layer1_verdicts`:**
+
 ```python
 def persist_layer1_verdicts(
     conn: sqlite3.Connection,
@@ -426,6 +437,7 @@ def persist_layer1_verdicts(
 ```
 
 10. **Verify** locally:
+
 ```bash
 python -c "from lib.article_filter import (
     ArticleMeta, ArticleWithBody, FilterResult,
@@ -434,9 +446,11 @@ python -c "from lib.article_filter import (
 )
 print('OK', PROMPT_VERSION_LAYER1, LAYER1_BATCH_SIZE)"
 ```
+
 Expect `OK layer1_v0_20260507 30`.
 
 **HARD CONSTRAINTS:**
+
 - DO NOT keep the old `passed: bool` FilterResult shape — it must be fully replaced. If you find yourself adding a back-compat property, stop: ir-1-01 will fix the only two callers
 - DO NOT edit Layer 1 prompt text — character-for-character verbatim from PROJECT § "Layer 1 v0 Prompt"
 - DO NOT add LLM-call retry logic at the Layer 1 layer — `vertex_gemini_model_complete` already retries 503 × 4; LF-1.5 + D-LF-4 forbid Layer-1-level retry
@@ -511,6 +525,7 @@ ALTER TABLE rss_articles  ADD COLUMN layer1_reason         TEXT NULL;
 ALTER TABLE rss_articles  ADD COLUMN layer1_at             TEXT NULL;
 ALTER TABLE rss_articles  ADD COLUMN layer1_prompt_version TEXT NULL;
 ```
+
   </action>
   <verify>
     <automated>test -f migrations/006_layer1_columns.sql && grep -c "ALTER TABLE" migrations/006_layer1_columns.sql | grep -q "^8$" && echo OK</automated>
@@ -608,6 +623,7 @@ if __name__ == "__main__":
     ok = migrate(DB_PATH)
     sys.exit(0 if ok else 1)
 ```
+
   </action>
   <verify>
     <automated>python migrations/006_layer1_columns.py "$(mktemp -t test-006-XXXX.db)" 2>&1 | grep -q "ERROR: db not found"</automated>
@@ -662,6 +678,7 @@ sqlite3 /tmp/test_mig006.db < migrations/006_layer1_columns.sql 2>&1 | head
 ```
 
 Plan-level OUT-OF-SCOPE verification:
+
 - Ingest loop call sites (`batch_ingest_from_spider.py:1491,1526`) are NOT updated by this plan; they will produce ImportError at runtime (broken FilterResult shape). **This is expected** — ir-1-01 fixes them. Do NOT run `python batch_ingest_from_spider.py` between this plan and ir-1-01.
 </verification>
 

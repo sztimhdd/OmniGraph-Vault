@@ -37,10 +37,12 @@ This plan is the FIRST plan in the phase where the agent SSHes Aliyun directly (
 ### Task 1 — Operator pushes tar from Hermes to Aliyun via scp
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` line 53 (STORAGE-03 wording — scp not rsync, hash compare, abort on mismatch, holding-dir not production path)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-2-lightrag-storage-migration\EVIDENCE\STORAGE-02-tar-evidence.md` (source of TS suffix and Hermes-side hash hex — used for byte-compare)
 
 **`<acceptance_criteria>`**
+
 - Hermes-side `scp` exits 0.
 - Aliyun-side: `ls -la /tmp/lightrag_storage_aim2_<TS>.tar.gz /tmp/lightrag_storage_aim2_<TS>.tar.gz.sha256` shows both files with sizes matching Hermes-side.
 - Network transfer wallclock recorded (for evidence + future aim-4 sync planning baseline).
@@ -84,6 +86,7 @@ ls -la "$TAR" "$SHA"
 ```
 
 Paste FULL output of all 3 steps back, including the `time` reports for each scp (wallclock measurement). Replace any literal user@host values in your output with `<aliyun>` before pasting back if you used a literal instead of the alias.
+
 ```
 
 After receiving operator output, the agent moves to Task 2.
@@ -158,9 +161,11 @@ If MISMATCH, follow Abort/rollback protocol below — do NOT proceed to Task 3.
 ### Task 3 — Agent writes STORAGE-03 evidence and commits
 
 **`<read_first>`**
+
 - All output from Task 1 (operator) + Task 2 (agent ssh).
 
 **`<acceptance_criteria>`**
+
 - File `EVIDENCE/STORAGE-03-transfer-evidence.md` exists with: TS literal, Hermes-side hex, Aliyun-side hex, MATCH verdict, transfer wallclock, holding-dir size + ls -la head, production-path-empty proof.
 - File committed locally.
 
@@ -189,7 +194,9 @@ REQ: STORAGE-03
 ## Aliyun-side `sha256sum -c` self-verify
 
 ```
+
 [paste verbatim Aliyun output of `sha256sum -c $SHA`]
+
 ```
 
 Expected: ends with `OK`.
@@ -203,7 +210,9 @@ Expected: ends with `OK`.
 ## Holding directory contents (Aliyun)
 
 ```
+
 [paste verbatim ls -la /tmp/aim2-extract/lightrag_storage/ head -20]
+
 ```
 
 - du -sh /tmp/aim2-extract/lightrag_storage/: `[literal size]`
@@ -211,7 +220,9 @@ Expected: ends with `OK`.
 ## Production path empty check (ROLLBACK BREAKPOINT)
 
 ```
+
 [paste verbatim ls /root/.hermes/omonigraph-vault/lightrag_storage/ 2>&1]
+
 ```
 
 - Production path entry count: `[N]` (REQUIRED == 0 — the production path MUST still be empty here. STORAGE-05 is the only plan that writes to it.)

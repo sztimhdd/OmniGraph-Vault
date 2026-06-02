@@ -55,6 +55,7 @@ Output: 3 files changed (~20 LOC diff total); pytest tests/unit/ GREEN.
 <!-- Key interfaces the executor needs — no codebase exploration required. -->
 
 From lib/llm_deepseek.py (current state, lines 68-97):
+
 ```python
 # D-09.02 (TIMEOUT-02): 120s request timeout prevents single-chunk runaway.
 _DEEPSEEK_TIMEOUT_S = 120.0
@@ -74,6 +75,7 @@ def _get_client() -> AsyncOpenAI:
 ```
 
 From tests/unit/test_llm_deepseek_lazy.py (current — 4 tests, all pass):
+
 - test_import_lib_without_deepseek_key_succeeds
 - test_calling_deepseek_without_key_raises
 - test_calling_deepseek_with_key_uses_env_key  ← patches AsyncOpenAI via patch.object(ld, "AsyncOpenAI")
@@ -191,6 +193,7 @@ Grep proof (timeout wired):
 </verification>
 
 <success_criteria>
+
 - lib/llm_deepseek.py: `_DEEPSEEK_TIMEOUT_S` reads from `OMNIGRAPH_DEEPSEEK_TIMEOUT` env var, defaults to 300.0
 - tests/unit/test_llm_deepseek_lazy.py: 6 tests pass (4 existing + 2 new timeout tests)
 - CLAUDE.md: OMNIGRAPH_DEEPSEEK_TIMEOUT documented in Local dev env vars table

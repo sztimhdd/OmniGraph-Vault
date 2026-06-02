@@ -54,6 +54,7 @@ Build the core Vision cascade state machine in `lib/vision_cascade.py`: a `Visio
 Purpose: Today `image_pipeline._describe_one` cascades Gemini → SiliconFlow → OpenRouter (wrong order per PRD) and has no failure tracking — a single 503 kills the article. This plan produces the replacement module. Integration into `image_pipeline.py` is deferred to 13-02.
 
 Output:
+
 - `lib/vision_cascade.py` — public `VisionCascade` class + `CascadeResult` dataclass + `AttemptRecord` dataclass
 - `tests/unit/test_vision_cascade.py` — ≥10 unit tests with mocked providers
 </objective>
@@ -80,6 +81,7 @@ Output:
 <!-- Key types and contracts the executor needs. Use directly — no codebase exploration required. -->
 
 From `lib/__init__.py` (public exports already available):
+
 ```python
 from lib import current_key, rotate_key, VISION_LLM, generate_sync
 # current_key() -> str  (Gemini API key, auto-rotated by tenacity retry)
@@ -88,6 +90,7 @@ from lib import current_key, rotate_key, VISION_LLM, generate_sync
 ```
 
 From `image_pipeline.py` (patterns to reuse — do NOT re-import from image_pipeline; copy/adapt):
+
 ```python
 def _describe_via_siliconflow(image_bytes: bytes, mime: str = "image/jpeg") -> str:
     """POST https://api.siliconflow.cn/v1/chat/completions, model=Qwen/Qwen3-VL-32B-Instruct,
@@ -103,6 +106,7 @@ def _describe_via_gemini(image_bytes: bytes, mime: str = "image/jpeg") -> str:
 ```
 
 From Phase 12 `lib/checkpoint.py` (dependency — will exist at integration time):
+
 ```python
 from pathlib import Path
 def _atomic_write(path: Path, content: str | bytes, mode: str = "w") -> None:
@@ -113,11 +117,13 @@ Phase 13 MUST use `lib.checkpoint._atomic_write` for `provider_status.json` pers
 If Phase 12 is not yet merged, executor may inline a copy of the helper with a TODO + import guard.
 
 From `config.py`:
+
 ```python
 BASE_DIR = Path.home() / ".hermes" / "omonigraph-vault"
 # Checkpoint root (Phase 12 convention): BASE_DIR / "checkpoints"
 # provider_status.json path: BASE_DIR / "checkpoints" / "_batch" / "provider_status.json"
 ```
+
 </interfaces>
 </context>
 
@@ -576,6 +582,7 @@ Use `pytest.raises(AllProvidersExhausted429Error)` for Test 13.
 </verification>
 
 <success_criteria>
+
 - [ ] `lib/vision_cascade.py` exports `VisionCascade`, `CascadeResult`, `AttemptRecord`, `AllProvidersExhausted429Error`
 - [ ] Cascade order in code is SiliconFlow → OpenRouter → Gemini (CASC-01)
 - [ ] `provider_status` dict schema matches CASC-02 exactly (failures, last_error, circuit_open, next_retry_at, total_attempts, total_successes, total_failures)

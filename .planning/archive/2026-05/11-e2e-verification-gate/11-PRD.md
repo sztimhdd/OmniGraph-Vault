@@ -24,12 +24,15 @@ Milestone v3.1 closes when the benchmark writes `{"gate_pass": true}`.
 ## Locked Decisions (acceptance criteria)
 
 ### E2E-01 — Local CLI that reads from disk fixture
+
 New script (suggested location: `scripts/bench_ingest_fixture.py`) accepts a fixture path (default `test/fixtures/gpt55_article/`) and runs the full ingest pipeline WITHOUT WeChat network scrape. Reads `article.md` + `metadata.json` + `images/` directly from disk.
 
 ### E2E-02 — <2 min wall-clock for text ingest
+
 Measured from the moment the script starts the `ingest_article` call to the moment `ainsert(full_content)` returns (text-first ingest). Does NOT include async Vision worker completion. Script fails loud (exit 1 + `gate_pass: false`) if exceeded.
 
 ### E2E-03 — Five stage timings
+
 - `scrape_ms`: fixture read + metadata parse (should be negligible, <100ms)
 - `classify_ms`: DeepSeek full-body classify call
 - `image_download_ms`: copying fixture images to runtime image dir (or file existence check if already there)
@@ -37,20 +40,27 @@ Measured from the moment the script starts the `ingest_article` call to the mome
 - `async_vision_start_ms`: time to spawn the background Vision task (should be milliseconds — just task creation)
 
 ### E2E-04 — Semantic query validation
+
 After text ingest returns, call `await rag.aquery(query="GPT-5.5 benchmark results", param=QueryParam(mode="hybrid", top_k=3))`. Parse response; assert at least 1 chunk's `file_path` matches the ingested doc OR chunk text contains signature fragments from the fixture article.
 
 ### E2E-05 — SiliconFlow balance precheck
+
 Call `GET https://api.siliconflow.cn/v1/user/info` with `Authorization: Bearer $SILICONFLOW_API_KEY`. Parse `balance`. If below estimated cost (default: 1 × ¥0.036/article = ¥0.036), emit structured warning line:
+
 ```json
 {"event": "balance_warning", "provider": "siliconflow", "balance_cny": 5.43, "estimated_cost_cny": 0.036, "status": "ok"}
 ```
+
 OR if below: `"status": "insufficient_for_batch"`. Non-fatal for single-article v3.1 gate (this single article costs ~¥0.04 which is within the ¥5.43 balance).
 
 ### E2E-06 — Zero crashes
+
 No unhandled exceptions from start to finish. Final exit status 0 on success, 1 on gate fail.
 
 ### E2E-07 — benchmark_result.json schema
+
 Written to `test/fixtures/gpt55_article/benchmark_result.json` (or `benchmark_results/<timestamp>.json` — planner's call) with exact schema:
+
 ```json
 {
   "article_hash": "...",
@@ -96,6 +106,7 @@ Written to `test/fixtures/gpt55_article/benchmark_result.json` (or `benchmark_re
 **Lines of code:** ~8-12 lines conditional in `_embed_once`.
 
 **Scope justification (to prevent v3.3 encroachment):**
+
 - This is an ENABLER for the benchmark, not the v3.3 migration
 - Production code path default unchanged (without env vars, uses free tier as before)
 - v3.3 will do the REAL migration: remove all Gemini Developer API code paths, standardize on Vertex AI, add billing monitoring, etc.
@@ -143,6 +154,7 @@ Written to `test/fixtures/gpt55_article/benchmark_result.json` (or `benchmark_re
 - Fixture ingest path: read `article.md` directly, use its content + metadata.json URL/title as the "ingested article". Use `scripts/bench_ingest_fixture.py` as the new CLI entry. It should instantiate `rag = await get_rag(flush=True)`, then call a version of `ingest_article` that takes article content directly (maybe extract a helper `_ingest_from_text(rag, url, title, markdown, images)` from ingest_wechat for this).
 
 - Vertex AI conditional pattern:
+
   ```python
   _USE_VERTEX = bool(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")) and bool(os.environ.get("GOOGLE_CLOUD_PROJECT"))
   

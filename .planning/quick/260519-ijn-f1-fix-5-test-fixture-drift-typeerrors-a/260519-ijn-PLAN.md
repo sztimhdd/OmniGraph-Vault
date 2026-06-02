@@ -20,6 +20,7 @@ failure). 5 failures total.
 **Files**: `tests/unit/test_max_articles_hard_cap.py`
 
 **Action**:
+
 - Replace all 4 occurrences of `topic="ai", min_depth=2, dry_run=False,`
   with `topic="ai", dry_run=False,`
 - All 4 sites are identical literal `await bi.ingest_from_db(...)` calls
@@ -32,6 +33,7 @@ failure). 5 failures total.
 **Files**: `tests/unit/test_vision_worker.py`
 
 **Action**:
+
 - Replace `topic=["AI agents"], min_depth=1, dry_run=False` (L544)
   with `topic=["AI agents"], dry_run=False`
 

@@ -119,6 +119,7 @@ Per `07-VALIDATION.md § Manual-Only Verifications`, the following items cannot 
 **Status: passed** — Phase 07 goal achieved. Recommend proceeding to phase completion (ROADMAP.md flip to complete + STATE.md update + commit + push).
 
 Two non-blocking follow-ups for future phases (NOT Phase 7 gaps):
+
 - **Phase 5 follow-up:** soft-fail the `lib.llm_deepseek` import when `DEEPSEEK_API_KEY` is unset (Hermes FLAG 2 recommendation)
 - **Phase 5 Wave 0 replan:** sweep `scripts/phase5_wave0_spike.py` + `tests/verify_wave0_*.py` to use `lib.current_key()` (per 07-CONTEXT.md D-01)
 

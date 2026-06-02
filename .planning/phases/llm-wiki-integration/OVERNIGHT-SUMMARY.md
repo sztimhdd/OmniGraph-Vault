@@ -29,17 +29,20 @@
 ## ⏸ Stop checkpoints — awaiting Hai
 
 ### 1. W1 entity selection — pick top 20 from 50 candidates
+
 - **Artifact:** `.scratch/llm-wiki-50-candidates-260519.md`
 - **What it has:** 50 entities ranked by LightRAG centrality (Decision D lock — no other ranking allowed) with relation counts + sample article hashes
 - **Hai's action:** Review the 50, pick 20 entities to seed `kb/wiki/entities/` pages with
 - **Resume command after picking:** continue W1 Task 3 from llm-wiki-02-entity-content-PLAN.md (page generation against the chosen 20)
 
 ### 2. W2 Hermes skill apply — forward operator prompt
+
 - **Artifact:** `.planning/phases/llm-wiki-integration/HERMES-PROMPT-W2.md`
 - **Why stopped:** Hard Constraint #2 — never SSH-mutate Hermes; all changes go via paste-ready operator prompt
 - **Hai's action:** Forward the prompt content into Hermes operator channel; Hermes applies the SKILL.md diff against its skill-store and confirms back
 
 ### 3. W4 real-LLM UAT — manual trigger only (cost-guard)
+
 - **Why stopped:** "避免烧钱" — Hard Constraint #8 caps cumulative LLM cost at $5; we deliberately did NOT auto-trigger a real Vertex AI / DeepSeek call
 - **Prepared command (Hai runs after wake):**
 
@@ -72,6 +75,7 @@ curl http://127.0.0.1:8766/api/synthesize/<job_id>
 **None.** All 5 PLANs (W0 / W1 / W2 / W3 / W4) executed exactly per their `task / read_first / action / acceptance_criteria` blocks. No improvisation. No scope creep.
 
 One observation worth flagging (NOT a deviation, just a note for Hai's review):
+
 - W3 lint regex `^[article:<10-char-hex>]` and SQL UNION (substr to 10 chars) deliberately use a 10-char prefix display form, while the canonical hash from `lib.checkpoint.get_article_hash` is 16-char SHA256. The `_wiki_update_check` hook contract pins the 16-char form (per llm-wiki-04 PLAN read_first); the lint module does prefix matching. Both behaviors are tested. If Hai prefers a single canonical width, that's a small follow-up — not blocking.
 
 ---
@@ -104,6 +108,7 @@ Hard Constraint #8 ($5 cap) untouched. All real-LLM spend deferred to Hai's manu
 | 💥 errored | 0 | Zero |
 
 **Critical regression checks (manually inspected):**
+
 - 44 existing synthesize integration tests: ALL pass (zh directive, NEVER-500 contract, timeout, long_form, qa-mode all green)
 - batch_ingest orchestration behavior-anchor tests: ALL pass (T1-T5 contract pins hold)
 - LightRAG embedding/storage tests: ALL pass

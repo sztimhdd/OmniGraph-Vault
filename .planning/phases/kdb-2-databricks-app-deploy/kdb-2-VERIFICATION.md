@@ -17,11 +17,13 @@ verdict: BLOCKED_DEPLOYMENT_CRASH (environmental/infrastructure issue)
 Last successful deployment: `01f1544755221d14b662d3cbb78bb671` at 12:27:57 ADT (app_minimal.py, minimal health endpoint).
 
 All subsequent deployments (15 attempts) have failed with identical error:
+
 ```
 Error: app crashed unexpectedly. Please check /logz for more details
 ```
 
 **Diagnostic findings**:
+
 - ✓ Basic FastAPI test app (3-line health endpoint) deployed successfully at 12:27 ADT
 - ✓ Same app_test_basic.py deployed successfully later (confirmed working)
 - ✓ Code changes verified locally (kb imports, startup_adapter logic both work)
@@ -32,12 +34,14 @@ Error: app crashed unexpectedly. Please check /logz for more details
 
 **Root cause determination**:
 The crash is **environmental, not code-related**. Evidence:
+
 1. Same simple 3-line app works at 12:27 but crashes in 14:15 attempts
 2. No code differences explain this (fastapi + health endpoint unchanged)
 3. Compute is ACTIVE → not a container startup issue
 4. 15+ deployments all fail identically → not transient
 
 Possible causes:
+
 - Container environment state changed between 12:27 and 14:15 (kernel, Python path, etc.)
 - Databricks Apps platform issue or quota limit (unlikely, but possible)
 - Database schema or UC Volume access state (startup_adapter tried to access /Volumes, may have cascading effect)
@@ -46,28 +50,33 @@ Possible causes:
 ### Work Completed
 
 **Code changes prepared**:
+
 - ✓ `startup_adapter.py`: hydrate_db_from_volume() function ensures FTS table creation + population from articles/rss_articles
 - ✓ `app_minimal.py`: Restored with startup_adapter call + search API endpoint (`/api/search?q=...`)
 - ✓ `app.yaml`: PYTHONPATH includes databricks-deploy/ subdirectory
 - ✓ All commits synced to workspace
 
 **Deployments executed**:
+
 1. 12:27 ADT - test_basic.py: SUCCEEDED ✓
 2. 12:35-14:15 - 14+ attempts with various code configurations: ALL FAILED
 
 ### Recommended Next Steps
 
 **Priority 1 (immediate)**:
+
 - Check Databricks workspace UI → Apps → omnigraph-kb → Deployment Logs
 - Look for Python errors, import failures, or container state changes
 - If logs are empty/unavailable, check Databricks status page for platform incidents
 
 **Priority 2 (if P1 unresolved)**:
+
 - Revert to last successful app image (01f1544755221d14b662d3cbb78bb671)
 - Test if basic deployment still works (confirms platform stability)
 - If it works: apply code changes incrementally with smoke tests between each
 
 **Priority 3 (fallback)**:
+
 - Create new Databricks App instance (fresh container)
 - Deploy to verify if issue is specific to this app or platform-wide
 - If fresh app works: migrate code and data from old instance

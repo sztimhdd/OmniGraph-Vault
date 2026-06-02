@@ -21,6 +21,7 @@ progress:
 
 See: parent project `.planning/PROJECT.md` (v1.0 Knowledge Collection + Ingestion subsystem)
 Predecessor milestones (closed):
+
 - `.planning/STATE-Aliyun-Ingest-Migration-v1.md` — closed 2026-05-25 (6/6 phases)
 - `.planning/STATE-Agentic-RAG-v1.md` — closed 2026-05-24 (41/41 REQs)
 - v1.0.x stable closed 2026-05-16 (two-layer timeout fix; see memory `project_v1_0_x_closure_260516.md`)
@@ -48,10 +49,12 @@ Last activity: 2026-05-25 (late) — v1.0.y-3 SUPERSEDED (scope misdiagnosis: pr
 Total: 7 phases (1 superseded). P0 + 3xP1 = 4 phases gate "v1.0.y closeable"; P2x2 spillable to v1.0.z if scope creeps (per Q5 default assumption). v1.0.y-3 SUPERSEDED does not count toward closeable; v1.0.y-3-synth-img replaces it as the P1 closeable.
 
 P3 parked (overview only, NOT phase-allocated):
+
 - `lightrag-cache-write-perms` — Aliyun LightRAG cache dir write perms (V1.1-E follow-up; not P0 since aim-3 already live)
 - `tavily-key-rotation` — periodic Tavily API key rotation discipline
 
 P4 observation only (NOT phase-allocated):
+
 - `aliyun-cron-first-unattended` — 2026-05-26 06:00 / 12:00 / 14:00 UTC first unattended cron post aim-3 cutover. Watch via journalctl; nothing to plan unless it fails.
 
 ### Immediate next step
@@ -86,12 +89,14 @@ PRINCIPLE 5 OVERRIDE (aim-N pattern; carried forward as awareness): for any phas
 ## Operator Channel
 
 User runs main session locally (Windows). Agent owns:
+
 - All file edits under `c:\Users\huxxha\Desktop\OmniGraph-Vault`
 - All `databricks sync` / `databricks apps deploy` / `databricks apps logs` calls (Principle #7 — autonomous Databricks deploy)
 - All read-only diagnostic SSH to Aliyun via `aliyun-vitaclaw` alias when needed
 - All `git add <explicit>` + `git commit` + `git push` per HARD CONSTRAINT #5
 
 User retains decision authority over:
+
 - Phase ordering / prioritization shifts
 - Scope expansion (e.g., promoting P3 parked to a phase)
 - Milestone close decision
@@ -140,6 +145,7 @@ Open follow-ups outside this milestone (carried from predecessor closures):
 (populated as phases complete)
 
 Expected outcomes after v1.0.y close:
+
 - Long_form `POST /api/synthesize` returns `markdown_len > 0` on Databricks deploy (was 0 pre v1.0.y-0)
 - zh-CN short-query (≥27 char) FTS5 fallback hit rate > 0 (was 0 pre v1.0.y-2)
 - `POST /api/synthesize` (kb-3 Q&A) preserves `![alt](url)` markdown image refs end-to-end — final `result.markdown` contains `/static/img/<hash>/<file>` URL form for retrieved chunks bearing image markdown (was missing pre v1.0.y-3-synth-img); ARAG Reasoner left untouched (proven defect-free by probe)

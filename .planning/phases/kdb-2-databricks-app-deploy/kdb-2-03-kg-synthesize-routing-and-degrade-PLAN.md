@@ -21,6 +21,7 @@ skills:
 Verify that `kg_synthesize.synthesize_response()` actually exercises the kdb-2-02 `databricks_serving` dispatcher branch when `OMNIGRAPH_LLM_PROVIDER=databricks_serving` is set in the process environment, and verify that LLM-DBX-04 (Model Serving 503/429/timeout → graceful FTS5 fallback) works end-to-end through `kb_synthesize` thanks to the Decision-1 translation shim added in kdb-2-02.
 
 **Decision 3 reduction:** `kg_synthesize.py` ALREADY has the dispatcher integration (line 19 import + line 106 call site, both shipped in quick-260509-s29 W3). LLM-DBX-02 work in this plan is therefore:
+
 - (a) Add an integration test that proves env-var path actually runs through the dispatcher
 - (b) Add an integration test that proves LLM-DBX-04 translation (Decision 1) routes a 503 from the `databricks_serving` branch through `kb_synthesize`'s existing `except Exception as e` handler to the existing `kg_unavailable` reason-code bucket
 - (c) Flip `databricks-deploy/CONFIG-EXEMPTIONS.md` row for `kg_synthesize.py` from `NOT YET MODIFIED` → `MODIFIED (quick-260509-s29 W3 — dispatcher route already in place; kdb-2-03 confirms via test)`
@@ -80,29 +81,37 @@ The actual file modification (line 19 import + line 106 call site) was historica
 ### Task 3.1 — Defensive grep on `kg_synthesize.py` for residual hardcoded LLM call sites
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q3 lines 290-302 — researcher's grep + 13-file dispatcher-pattern audit
 - `kg_synthesize.py` lines 1-110 — current shape (line 19 + line 106 are the dispatcher integration)
 
 **Action:**
 
 1. Run defensive grep on `kg_synthesize.py`:
+
    ```bash
    grep -nE "deepseek_model_complete|vertex_gemini_model_complete|chat\.completions|api\.deepseek\.com|client = OpenAI|from lib\.llm_deepseek|from lib\.vertex_gemini_complete" kg_synthesize.py
    ```
+
    Expected output: empty (zero matches). If any match: STOP plan, surface to user — Decision 3's "ZERO new lines" assumption is invalid and the scope must be re-litigated.
 2. Run positive grep confirming the dispatcher integration is intact:
+
    ```bash
    grep -nE "from lib\.llm_complete import get_llm_func|llm_model_func=get_llm_func\(\)" kg_synthesize.py
    ```
+
    Expected: 2 matches (line 19 import, line 106 call site).
 3. Capture both grep outputs to `.scratch/kdb-2-03-grep-audit.log`.
 4. Run a complementary repo-wide grep to confirm no other production module is bypassing the dispatcher (purely informational; non-blocking):
+
    ```bash
    grep -rnE "deepseek_model_complete|vertex_gemini_model_complete" --include="*.py" -- . | grep -v "tests/" | grep -v "lib/llm_deepseek.py" | grep -v "lib/vertex_gemini_complete.py" | grep -v "lib/llm_complete.py"
    ```
+
    Capture output as informational reference for kdb-3 audit.
 
 **Acceptance** (grep-verifiable):
+
 - `.scratch/kdb-2-03-grep-audit.log` exists
 - Defensive grep (step 1) returns ZERO matches in `kg_synthesize.py`
 - Positive grep (step 2) returns exactly 2 matches in `kg_synthesize.py`
@@ -114,6 +123,7 @@ The actual file modification (line 19 import + line 106 call site) was historica
 ### Task 3.2 — Write 2 integration tests for `tests/integration/test_kg_synthesize_dispatcher.py`
 
 **Read-first:**
+
 - `kdb-2-RESEARCH.md` Q3 lines 305-308 — what LLM-DBX-02 still owes (env-var exercise test)
 - `kdb-2-RESEARCH.md` Q4 lines 528-547 — concrete LLM-DBX-04 fallback test sketch (modified per Decision 1: existing `kg_unavailable` not new `kg_serving_unavailable`)
 - `kg_synthesize.py:105-110` — `synthesize_response` signature: `async def synthesize_response(query_text: str, mode: str = "hybrid")`
@@ -125,6 +135,7 @@ The actual file modification (line 19 import + line 106 call site) was historica
 1. Invoke `Skill(skill="writing-tests")` with args `"Scaffold 2 integration tests for tests/integration/test_kg_synthesize_dispatcher.py: (1) test_dispatcher_path_databricks_serving — confirm OMNIGRAPH_LLM_PROVIDER=databricks_serving routes through the dispatcher when synthesize_response is called; mock make_llm_func to return a sentinel async callable that records invocation; (2) test_llm_dbx_04_serving_unavailable_falls_back_to_fts5 — Decision 1 verification: mock make_llm_func to return a callable that raises RuntimeError('HTTP 503'); call kb_synthesize (FastAPI service entry point); assert job.status==done, job.confidence=='fts5_fallback', job.error indicates the failure (existing kg_unavailable bucket — NOT a new kg_serving_unavailable literal). Use sys.modules monkeypatching for the lightrag_databricks_provider mock since databricks-deploy/ has a hyphen. LightRAG instantiation is real — let it fail-soft via the existing kg-mode probe if needed, OR mock LightRAG construction if too heavy."` — record output substring in SUMMARY.md
 2. Create `tests/integration/__init__.py` if it doesn't already exist (empty file).
 3. Create `tests/integration/test_kg_synthesize_dispatcher.py` (NEW file) with the 2 test bodies. Concrete sketch:
+
    ```python
    """Integration tests for kg_synthesize / kb_synthesize → dispatcher path.
 
@@ -230,10 +241,12 @@ The actual file modification (line 19 import + line 106 call site) was historica
        # 'fts5_fallback' confidence + the existing reason-code bucket.
        # No new reason code was introduced (Decision 1).
    ```
+
 4. Run `pytest tests/integration/test_kg_synthesize_dispatcher.py -v` and confirm both PASS (GREEN since kdb-2-02 already shipped the implementation). Capture stdout to `.scratch/kdb-2-03-green.log`.
 5. If full-stack `kb_synthesize` integration is desirable for stronger LLM-DBX-04 coverage, document explicitly in SUMMARY.md that the deeper integration test (mocking LightRAG + invoking `kb_synthesize` + asserting `job.confidence=='fts5_fallback'`) is **deferred to kdb-3 UAT** because: (a) heavyweight LightRAG mocking inflates test time/maintenance; (b) the dispatcher-layer contract is the actual delta that this milestone owns; (c) the existing kb-v2.1-1 hardening tests already cover the `except Exception` fallback path for any underlying exception type. Decision 1's contract is "re-raise unchanged into existing handler" — this test pins exactly that boundary.
 
 **Acceptance** (grep-verifiable):
+
 - `tests/integration/test_kg_synthesize_dispatcher.py` exists
 - `grep -c "^async def test_" tests/integration/test_kg_synthesize_dispatcher.py` returns 2
 - `grep -c "test_dispatcher_path_databricks_serving\|test_llm_dbx_04_serving_unavailable_falls_back_to_fts5" tests/integration/test_kg_synthesize_dispatcher.py` returns 2
@@ -247,6 +260,7 @@ The actual file modification (line 19 import + line 106 call site) was historica
 ### Task 3.3 — Apply python-patterns audit to test design + commit forward-only
 
 **Read-first:**
+
 - `~/.claude/skills/python-patterns/SKILL.md` — Protocol idioms, monkeypatch idioms, integration-test layering
 - `databricks-deploy/CONFIG-EXEMPTIONS.md` (post kdb-2-02) — current ledger
 - `feedback_no_amend_in_concurrent_quicks.md` — forward-only commit rule
@@ -257,14 +271,19 @@ The actual file modification (line 19 import + line 106 call site) was historica
 1. Invoke `Skill(skill="python-patterns")` with args `"Audit the integration test design in tests/integration/test_kg_synthesize_dispatcher.py: confirm idiomatic use of (a) sys.modules monkeypatching to inject a fake module for the hyphenated databricks-deploy/ path; (b) pytest.MonkeyPatch.setenv for env-var scoping; (c) re-import via _purge helper to ensure the dispatcher's lazy-import resolves freshly each test; (d) async test pattern with pytest-asyncio. Confirm the test surface accurately reflects Decision 1's translation-in-dispatcher contract (re-raise unchanged into existing kg_unavailable bucket) without adding a new kg_serving_unavailable literal anywhere."` — record output substring in SUMMARY.md
 2. Edit `databricks-deploy/CONFIG-EXEMPTIONS.md`:
    - Change line 12 row from:
+
      ```
      | `kg_synthesize.py` | LLM-DBX-02 | kdb-2 | NOT YET MODIFIED |
      ```
+
      to (placeholder commit hash filled in step 5):
+
      ```
      | `kg_synthesize.py` | LLM-DBX-02 | kdb-2 | MODIFIED (quick-260509-s29 W3 — dispatcher route already in place; kdb-2-03 confirms via test in commit <FILL_AT_COMMIT>) |
      ```
+
    - Add a paragraph titled "Phase kdb-2-03 contribution":
+
      ```
      ## Phase kdb-2-03 contribution
 
@@ -288,9 +307,11 @@ The actual file modification (line 19 import + line 106 call site) was historica
      --name-only -- kb/ lib/`) cleanly excludes the historical change via the
      CONFIG-EXEMPTIONS allowed-edit list.
      ```
+
 3. Stage explicitly: `git add tests/integration/__init__.py tests/integration/test_kg_synthesize_dispatcher.py databricks-deploy/CONFIG-EXEMPTIONS.md`
    (only include `tests/integration/__init__.py` if NEW — if it already exists from prior work, omit)
 4. Commit forward-only:
+
    ```
    test(kdb-2-03): integration tests confirm dispatcher path + LLM-DBX-04 translation
 
@@ -307,9 +328,11 @@ The actual file modification (line 19 import + line 106 call site) was historica
    REQs: LLM-DBX-02 (verification + ledger flip); LLM-DBX-04 (verification of
    kdb-2-02 implementation per Decision 1)
    ```
+
 5. Capture commit hash; backfill `<FILL_AT_COMMIT>` in CONFIG-EXEMPTIONS.md; commit forward-only as `docs(kdb-2-03): backfill commit hash into CONFIG-EXEMPTIONS row`.
 
 **Acceptance** (grep-verifiable):
+
 - `grep -E "kg_synthesize\.py.*MODIFIED \(quick-260509-s29.*kdb-2-03" databricks-deploy/CONFIG-EXEMPTIONS.md` returns ≥1 row
 - `grep -c "Phase kdb-2-03 contribution" databricks-deploy/CONFIG-EXEMPTIONS.md` returns 1
 - `git log --oneline | head -3` shows BOTH the test commit AND the docs backfill commit (forward-only)
@@ -348,6 +371,7 @@ The actual file modification (line 19 import + line 106 call site) was historica
 ## Anti-patterns (block list)
 
 This plan MUST NOT:
+
 - Modify `kg_synthesize.py` (Decision 3 — zero net change; if defensive grep at Task 3.1 surfaces unexpected legacy code, plan STOPS and surfaces to user)
 - Modify `kb/services/synthesize.py` or extend CONFIG-EXEMPTIONS to it (Decision 1)
 - Modify `lib/llm_complete.py` (kdb-2-02 territory; already shipped)

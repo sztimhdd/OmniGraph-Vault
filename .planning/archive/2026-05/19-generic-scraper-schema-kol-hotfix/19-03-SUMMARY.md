@@ -96,6 +96,7 @@ Created `.planning/phases/19-generic-scraper-schema-kol-hotfix/19-DEPLOY.md` wit
 - 8-item operator success-criteria checklist
 
 Acceptance criteria all pass:
+
 - `grep -c "checkpoint_reset.py --all --confirm" 19-DEPLOY.md` → 3 (≥ 2 required)
 - `method: apify/cdp/mcp/ua` refs → 6 lines (≥ 4 required)
 - `pip install -r requirements.txt` → 3 matches
@@ -120,12 +121,14 @@ Operator action items (run post-merge, before 2026-05-04 06:00 ADT Day-1 KOL cro
 8. `python batch_ingest_from_spider.py --from-db --topic-filter Agent --min-depth 2 --max-articles 1 --dry-run` (expect CLI parse, exit 0)
 
 Verdict reported by operator (expected):
+
 - **approved** — all 6 steps pass, SCR-06 hotfix verified live → Phase 19 fully closed; proceed to Phase 20 after Day-1/2/3 baseline lifts
 - **issues: \<description\>** — any step failed → open `/gsd:quick` follow-up; do NOT advance to Phase 20
 
 ### Task 3.4 — STATE.md + ROADMAP.md close-out
 
 **STATE.md frontmatter:**
+
 - `status`: `executing` → `phase-complete`
 - `stopped_at`: updated to record Phase 19 closure with pending-operator note
 - `last_updated`: `2026-05-04T02:37:44.967Z` → `2026-05-04T02:43:16Z`
@@ -135,6 +138,7 @@ Verdict reported by operator (expected):
 - `progress.completed_plans`: `9` → `4`
 
 **STATE.md Current Position block:**
+
 - Phase line: "Phase: 19 (...) — EXECUTING" → "Phase: 20 (...) — NEXT; Phase 19 complete"
 - Plan line: "Plan: 4 of 4" → "Plan: — (Phase 19 shipped 4 plans; next is `/gsd:plan-phase 20`)"
 - Status line: "Ready to execute" → "Phase 19 shipped (pending operator Hermes SSH verify per 19-DEPLOY.md)"
@@ -147,6 +151,7 @@ Verdict reported by operator (expected):
 **STATE.md Session Continuity block:** updated Last session timestamp, stopped-at line, and Next command to point to operator runbook + Phase 20 path.
 
 **ROADMAP.md:**
+
 - Phase 19 Milestone v3.4 checkbox: `[ ]` → `[x]` with 2026-05-04 date and 1-line summary
 - 19-03-PLAN checkbox: `[ ]` → `[x]` with regression count + pending-operator note
 - Progress table row: `3/4 | In Progress|` → `4/4 | Complete (operator SSH verify pending) | 2026-05-04`
@@ -184,6 +189,7 @@ $ DEEPSEEK_API_KEY=dummy venv/Scripts/python -m pytest tests/ -q --ignore=tests/
 ```
 
 **Failure attribution (all pre-existing, documented in `deferred-items.md`):**
+
 - `test_bench_integration.py::test_text_ingest_over_threshold_fails_gate` — phase 11, pre-existing
 - `test_cognee_vertex_model_name.py` — 2 failures, introduced by 74f7503 cognee LiteLLM routing fix (NOT Phase 19)
 - `test_lightrag_embedding.py::test_embedding_func_reads_current_key` — phase 7, pre-existing
@@ -237,16 +243,19 @@ The regression output contained some Chinese character glyph replacement artifac
 ## Self-Check: PASSED
 
 Files exist:
+
 - `.planning/phases/19-generic-scraper-schema-kol-hotfix/19-DEPLOY.md` — FOUND
 - `.planning/phases/19-generic-scraper-schema-kol-hotfix/19-03-SUMMARY.md` — FOUND
 - `.planning/STATE.md` — FOUND (modified)
 - `.planning/ROADMAP.md` — FOUND (modified)
 
 Commits exist on `main`:
+
 - `c7884d3` — FOUND (docs(phase-19-03): write 19-DEPLOY.md operator runbook)
 - Final close-out commit — pending (next step)
 
 Acceptance checks:
+
 - `grep -c "checkpoint_reset.py --all --confirm" 19-DEPLOY.md` → 3 (≥2) — PASS
 - `grep -cE "method: apify|method: cdp|method: mcp|method: ua" 19-DEPLOY.md` → 6 (≥4) — PASS
 - `grep -c "pip install -r requirements.txt" 19-DEPLOY.md` → 3 (≥1) — PASS

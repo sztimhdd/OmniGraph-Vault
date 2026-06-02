@@ -48,6 +48,7 @@ Total new LOC: 612.
 | `tests/unit/research/` (full)                | 113    | 135   | +22   |
 
 All 135 tests pass:
+
 ```
 $ venv/Scripts/python.exe -m pytest tests/unit/research/ --tb=short
 135 passed in 70.20s (0:01:10)
@@ -72,11 +73,13 @@ EXIT=0
 ```
 
 `.scratch/ar-4-l2a-dumpstate.jsonl`:
+
 - 59125 bytes, 6 lines (1 header + 5 stage lines) — valid JSONL
 - Header: `{"kind":"header", "query":"什么是 Hermes Harness 深度解析", "timestamp_start":1779579336.79, "schema_version":"ar-4"}`
 - Stage lines in order: `web_baseline`, `retrieved`, `reasoned`, `verified`, `synthesized` — each with `kind="stage"` and the dataclass-asdict payload
 
 Stdout markdown contains:
+
 - `# 关于「什么是 Hermes Harness 深度解析」的研究答复` (Chinese header survives the Windows console UTF-8 reconfigure)
 - `## 知识图谱检索结果`
 - Degradation note: `❌ Retriever failed: Embedding dim mismatch, expected: 3072, but loaded: 768` (pre-existing local-KG dim mismatch — documented in CONTEXT § Reality-State Deltas; not a Wave 1 concern, surfaced as `Retriever status="failed"` and the orchestrator's note-line plumbing carried it through)
@@ -108,6 +111,7 @@ _amain body line span: 129..145 = 17 lines
 ### 1. Lazy imports in `_write_dump_state` to preserve LIB-04 pure-wrapper rule
 
 **Why:** First implementation imported `json`, `from dataclasses import asdict`, and `from pathlib import Path` at module top of `lib/research/__main__.py` (plus `from .types import ResearchState` for type annotation). This broke `tests/unit/research/test_main_cli.py::test_main_imports_only_allowed_modules` — a pre-existing LIB-04 invariant test that pins:
+
 - Relative imports MUST be one of `{config, image_server, orchestrator}`
 - Top-level `import X` MUST be one of `{argparse, asyncio, dataclasses, sys}`
 
@@ -120,11 +124,13 @@ _amain body line span: 129..145 = 17 lines
 ### 2. `tests/unit/research/test_orchestrator.py` modified (+14 / −7) — NOT in plan's `files_modified` whitelist
 
 **Why:** The pre-existing `test_research_stream_raises_not_implemented` (test 5 in `test_orchestrator.py`) pinned the ar-1 stub:
+
 ```python
 async def research_stream(...) -> AsyncIterator[dict]:
     raise NotImplementedError("ar-4")
     yield {}  # unreachable
 ```
+
 Wave 1's whole point is to fill this body, so the test was guaranteed to break the moment the orchestrator refactor landed. Letting it fail would have masked any genuine regressions in the regression suite.
 
 **Fix applied (Rule 3 — auto-fix blocking issues):** Surgically rewrote the test body to pin the new positive contract instead — the iterator now yields events, with `pipeline_start` first and `pipeline_end` last. Detailed iterator-order coverage (5 stage pairs in order, sink behavior, equivalence) lives in the new `test_research_stream.py`. The renamed test `test_research_stream_yields_events_after_ar4` keeps the same role: a 1-test smoke at the orchestrator level that the streaming peer is alive.
@@ -157,6 +163,7 @@ The PLAN referenced an existing `stub_cfg` fixture in `tests/unit/research/conft
 ## Wave 2 readiness
 
 Wave 2 (ar-4-02 — TEST-05 milestone smoke + TEST-06 manual audit) can launch immediately. Wave 1 delivered:
+
 - `cfg.telemetry_jsonl` honored at every stage boundary → smoke driver can read events from a JSONL file
 - `--dump-state <path>` flag available → audit can replay a `ResearchState` without re-running the pipeline
 - `research_stream()` body real → HTTP-readiness preserved for post-milestone HTTP-01..03

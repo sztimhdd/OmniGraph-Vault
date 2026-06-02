@@ -46,6 +46,7 @@ Both required skill invocations were applied before writing code:
 ### New unit tests (tests/unit/kb/test_lang_detect.py)
 
 17/17 PASS in 0.08s:
+
 - `test_has_cjk_with_chinese_char` — Han ideograph triggers True
 - `test_has_cjk_with_kana_returns_false` — pure katakana → False
 - `test_has_cjk_with_hangul_returns_false` — pure Hangul → False
@@ -67,6 +68,7 @@ Both required skill invocations were applied before writing code:
 ### New integration tests (tests/integration/kb/test_lang_backfill.py)
 
 2/2 PASS in 0.10s:
+
 - `test_detect_article_lang_script_idempotent_on_tmp_db` — 3 rows (CN-title, EN-title, kana-title); first run classifies all 3; second run returns empty Counter (idempotent); kana title classified `en` not `zh-CN`
 - `test_backfill_does_not_change_already_correct_lang` — pre-classified row (lang=`zh-CN`) not overwritten; NULL row classified correctly
 
@@ -94,6 +96,7 @@ Both required skill invocations were applied before writing code:
 | rss_articles (1712 total) | 0 | 522 | 1190 |
 
 **Net change:**
+
 - articles: 789 reclassified to zh-CN (all 789 KOL WeChat articles have Chinese titles — expected)
 - rss_articles: 522 → en (title + body both EN), 1190 → unknown (body < 50 chars RSS summaries)
 - No NULL rows remain in either table
@@ -105,6 +108,7 @@ Both required skill invocations were applied before writing code:
 ## Local UAT (Rule 3 — CLAUDE.md Mandatory)
 
 **Port 8766 lockfile timeline:**
+
 - Pre-check: `cat .scratch/.uat-port-8766.lock` → `45246 rqk-kb-v2.1-6 2026-05-16T23:03:40Z`
 - PID 45246 verified gone via `ps -p 45246` → NOT_RUNNING
 - Server PID 47496 (v2.1-6's server) was still LISTENING — waited until port cleared
@@ -119,6 +123,7 @@ Both required skill invocations were applied before writing code:
 **Curl UAT evidence:**
 
 `GET /api/articles?lang=en&limit=10` — first 10 EN-tagged articles:
+
 ```
 lang=en, title='Using Claude Code: The Unreasonable Effectiveness of HTML'
 lang=en, title='Behind the Scenes Hardening Firefox with Claude Mythos Preview'
@@ -135,6 +140,7 @@ lang=en, title="No, it doesn't cost Anthropic $5k per Claude Code user"
 All 10 titles are English — ZERO CJK-titled articles in the English filter. EN-tagged cards with CJK in title: **0 out of 31** (verified by script checking all data-lang="en" cards).
 
 `GET /api/articles?lang=zh-CN&limit=10` — first 10 zh-CN-tagged articles:
+
 ```
 lang=zh-CN, title='Cloudflare 推出 Agent Memory：面向 AI 智能体的持久记忆托管服务'
 lang=zh-CN, title='Anthropic的Harness工程白做了？Claude Code被曝不遵守CLAUDE.md...'
@@ -147,6 +153,7 @@ lang=zh-CN, title='三个工具，让 agent 在一次对话里完成研究、写
 All zh-CN articles have Chinese (CJK) titles.
 
 `GET /articles/` HTML — data-lang distribution across all rendered cards:
+
 - `data-lang="en"`: 694 occurrences (nav labels + article cards)
 - `data-lang="zh-CN"`: 254 occurrences (article cards)
 - `data-lang="zh"`: 632 occurrences (nav labels)
@@ -163,12 +170,14 @@ All zh-CN articles have Chinese (CJK) titles.
 This quick touches `.dev-runtime/data/kol_scan.db` (Aliyun dev DB) only. Hermes-side `~/.hermes/data/kol_scan.db` is NOT in scope for this quick. Hermes production still runs the old 30%-CJK-ratio rule.
 
 The drift is acceptable because:
+
 1. The Hermes DB powers the ingest pipeline (KOL scanning, classification) — lang detection is not on the critical path there
 2. The Aliyun KB API (`/api/articles?lang=en`) now returns correct results
 3. The Aliyun SSG `/articles/` page filter now works correctly
 4. When Hermes and Aliyun next sync (a separate operator step), Hermes will run `detect_article_lang.py` with the new rule which will re-classify all rows
 
 **Hermes deploy steps (separate operator action, not part of this quick):**
+
 ```bash
 git pull --ff-only
 # On Hermes prod DB:
@@ -187,6 +196,7 @@ KB_DB_PATH=~/.hermes/data/kol_scan.db python -m kb.scripts.rebuild_fts
 ## Files Committed
 
 Staged explicitly (per feedback_git_add_explicit_in_parallel_quicks):
+
 ```
 git add kb/data/lang_detect.py
 git add kb/scripts/detect_article_lang.py

@@ -40,6 +40,7 @@ assumption from kb-4 design 2026-05-14). Production reality is
 `KB_INSTALL_PREFIX` env var pattern in downstream scripts. No discrepancy.
 
 This canonical path divergence is documented in:
+
 - Memory `aliyun_vitaclaw_ssh.md` (canonical = `/root/...`)
 - `kb/deploy/RUNBOOK-aliyun-deploy.md` (lines 17-20: explicit warning that
   the older `/home/kb/...` paths in `RUNBOOK-aliyun-systemd-refresh.md` are

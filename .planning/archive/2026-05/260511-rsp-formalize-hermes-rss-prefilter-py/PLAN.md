@@ -37,11 +37,13 @@ Evidence: `.scratch/g1-phase0-20260511-173639.log`
 ## Scope
 
 **Files touched (3):**
+
 - `enrichment/rss_prefilter.py` (new, +189 LOC, byte-equal from prod)
 - `.planning/STATE.md` (1 row added to "Quick Tasks Completed", `stopped_at` + `last_activity` updated)
 - `.planning/quick/260511-rsp-formalize-hermes-rss-prefilter-py/PLAN.md` + `SUMMARY.md` (planning artifacts, this directory)
 
 **Out of scope (HARD):**
+
 - ❌ NOT touching `rss_rescrape_bodies.py` (already in `e422615`)
 - ❌ NOT touching `scripts/register_phase5_cron.sh` (no cron to register — would be speculative)
 - ❌ NOT touching other untracked `enrichment/` files

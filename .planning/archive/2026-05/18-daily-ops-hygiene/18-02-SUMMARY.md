@@ -33,6 +33,7 @@ Tests: **7/7 pass**. Includes a static regression guard asserting `import cognee
 **Do NOT restore Cognee in `kg_synthesize.py`.** Replace with lightweight local JSONL history.
 
 Rationale (carried from 18-02-PLAN `<objective>`):
+
 - Wave 0 commit `0109c02` removed Cognee because (a) its LiteLLM→Vertex chain hit model-name 404s and (b) its module-level import blocked the asyncio loop. Even with GSD:quick's `_resolve_model()` fix for (a), (b) remains a latent risk.
 - Cognee was providing ONE feature to `kg_synthesize.py`: recall past queries to add context. That feature is recoverable with ~30 lines of file I/O.
 - Ingestion-side Cognee (`remember_article`, `cognee_batch_processor`) stays untouched per 05-00-SUMMARY § D.

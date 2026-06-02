@@ -99,6 +99,7 @@ Retire Cognee from the OmniGraph-Vault repository as dead code. Path A per quick
 Purpose: Eliminate ~600 LOC + 1 unused dependency (`cognee` package), close COG-01/02/03 as RETIRED, and unblock the Agentic-RAG-v1 milestone (memory layer, if needed, will be designed inside ar-* phase, not bolted on via dead Cognee path).
 
 Output:
+
 - 3 atomic commits with bodies citing real .scratch/ log paths (anti-fabrication contract)
 - `.scratch/cognee-retire-{pre-grep,post-grep,import-smoke,pytest-pre,pytest-post,dryrun}.log` evidence trail
 - Production `*.py` files free of all functional Cognee refs (only kept: `scripts/cognee_diag/` audit-trail + `.planning/quick/260509-syd-*` investigation + planning-history references in committed `.planning/quick/260503-v9z-*` / `260504-lt2-*` PLANs/SUMMARYs which document past states and must not be edited)
@@ -318,6 +319,7 @@ already removed Cognee from synthesis path (kg_synthesize.py:41-44); this commit
 removes the dead writers + the wrapper module + the standalone batch processor.
 
 Deleted (11 files):
+
 - cognee_wrapper.py, cognee_batch_processor.py, init_cognee.py, setup_cognee.py
 - tests/integration/test_cognee_rotation.py
 - tests/unit/test_cognee_{remember_detaches,vertex_model_name}.py
@@ -325,6 +327,7 @@ Deleted (11 files):
 - tests/verify_gate_{a,b,c}.py
 
 Edited (production):
+
 - ingest_wechat.py: drop import + _cognee_inline_enabled() + gated inline block
 - query_lightrag.py: drop import + log_query_pattern() call (dead write)
 - lib/api_keys.py: drop refresh_cognee() function + cognee docstring refs
@@ -334,10 +337,12 @@ Edited (production):
 - requirements.txt: drop cognee package
 
 Edited (tests, cognee assertions/imports stripped only):
+
 - tests/integration/test_checkpoint_resume_e2e.py
 - tests/unit/test_{api_keys,checkpoint_ingest_integration,kol_scan_db_path_override,query_history,text_first_ingest}.py
 
 Validation evidence:
+
 - pre-grep: .scratch/cognee-retire-pre-grep.log (309 lines, locked the edit list)
 - post-grep: .scratch/cognee-retire-post-grep.log (0 functional refs in production *.py)
 - import smoke: .scratch/cognee-retire-import-smoke.log (import smoke: all OK)
@@ -472,10 +477,12 @@ Updates project documentation to reflect Cognee Path A full retirement landed
 in the prior commit. Three traceability transitions:
 
 REQUIREMENTS.md:
+
 - COG-01/02/03 → RETIRED with retirement-commit SHA cited
 - AGNT-MEM-01 placeholder added (memory layer if needed = ar-* phase decision)
 
 CLAUDE.md (35 line edits per pre-grep inventory):
+
 - Project summary, tech stack, env-vars table, architecture sections,
   ingestion/query flow diagrams, Lessons Learned, conventions all freed of
   Cognee references
@@ -552,6 +559,7 @@ full Cognee Path A retirement: 11 files deleted + 14 files edited + 5 doc files
 updated across two prior atomic commits (refactor + docs).
 
 Companion to:
+
 - refactor(cognee-260510-gfg) — code retirement
 - docs(cognee-260510-gfg) — REQUIREMENTS/PROJECT/CLAUDE updates
 
@@ -584,53 +592,63 @@ EOF
 **End-of-quick verification (run after all 3 commits land)**:
 
 1. **Three commits on origin/main**:
+
    ```bash
    git log --oneline -5 | grep 'cognee-260510-gfg' | wc -l    # MUST output 3
    ```
 
 2. **Zero functional cognee refs in production *.py** (outside the audit trail):
+
    ```bash
    git ls-files '*.py' | grep -v '^scripts/cognee_diag/' | grep -v '^\\.planning/quick/260509-syd' | grep -v '^tests/' | xargs grep -l 'import cognee\\|cognee_wrapper\\|refresh_cognee\\|cognee\\.[a-z]' 2>/dev/null | wc -l    # MUST output 0
    ```
 
 3. **No deleted-file references survive**:
+
    ```bash
    git ls-files | xargs grep -l 'cognee_wrapper\\|cognee_batch_processor\\|init_cognee\\.py\\|setup_cognee\\.py\\|verify_gate_[abc]' 2>/dev/null | grep -v '^\\.planning/quick/260' | grep -v '^scripts/cognee_diag/' | wc -l    # SHOULD be 0 or only docs in past-tense form (Lessons Learned, Deploy.md retirement note)
    ```
 
 4. **Pytest baseline preserved (no regressions)**:
+
    ```bash
    DEEPSEEK_API_KEY=dummy GEMINI_API_KEY=dummy .venv/Scripts/python -m pytest tests/ -q --no-header 2>&1 | tail -3
    # Last line must say "X passed in Y.Ys" with X == pre-baseline minus deleted-cognee-tests, NO unexpected fails
    ```
 
 5. **Import smoke clean**:
+
    ```bash
    DEEPSEEK_API_KEY=dummy GEMINI_API_KEY=dummy .venv/Scripts/python -c "import ingest_wechat, query_lightrag, lib, lib.api_keys, batch_ingest_github; print('OK')"
    # MUST output: OK
    ```
 
 6. **REQUIREMENTS.md status transitions confirmed**:
+
    ```bash
    grep -E 'COG-0[123].*Phase 20.*RETIRED' .planning/REQUIREMENTS.md | wc -l    # MUST output 3
    grep -E 'AGNT-MEM-01.*Pending' .planning/REQUIREMENTS.md | wc -l    # MUST output 1
    ```
 
 7. **STATE.md row present**:
+
    ```bash
    grep -c '^| 260510-gfg' .planning/STATE.md    # MUST output 1
    ```
 
 8. **Anti-fabrication evidence trail intact**:
+
    ```bash
    ls -la .scratch/cognee-retire-{pre-grep,post-grep,import-smoke,pytest-pre,pytest-post,dryrun}.log
    # All 6 files MUST exist
    ```
 
 9. **No SSH artifacts** (this is a local-only quick):
+
    ```bash
    git log --oneline -3 | grep -i 'hermes\\|ssh\\|deploy' | wc -l    # MUST output 0
    ```
+
 </verification>
 
 <success_criteria>

@@ -59,6 +59,7 @@ Hard Constraint #8 ($5 USD cumulative cap across run) is far above this estimate
 ## Approval
 
 Approved by Hai 2026-05-20 morning via terse session decisions:
+
 - "A 18 / B 剔除 / C 不加" (filter contract)
 - "不需要 就14个" (final count: 14)
 - "重写吧 本来原来版本也没有充分利用我们已经超级丰富的LightRAG知识库" (OpenClaw regenerate OK)

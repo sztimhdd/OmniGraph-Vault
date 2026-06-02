@@ -79,6 +79,7 @@ Output: 3 separate commits (260517-rgd-1/2/3) + memory file + MEMORY.md index up
 <!-- Key contracts the executor needs. Extracted from codebase 2026-05-17. -->
 
 From scripts/reconcile_ingestions.py (current --auto-patch logic, 260517-acp commit 9c4fc5e):
+
 - Line 89-112: _query_failed_rows(db_path, date_start, date_end) — reverse scan for ghost-success
 - Line 209-235: ghost loop — emits {"kind": "ghost", ...} JSON lines; collects ghost_ingestion_ids
 - Line 240-257: --auto-patch block — currently UPDATE ingestions SET status='ok' WHERE id=? for ghost-success rows
@@ -91,6 +92,7 @@ This patch extends --auto-patch to also flip `ok → failed` for mystery rows AN
 skip_reason_version so the candidate pool re-selects them next cron.
 
 From tests/unit/test_reconcile_rss.py (existing fixtures, lines 33-141):
+
 - tmp_db (fixture): SQLite with articles, rss_articles, ingestions tables — no skip_reason_version column yet
 - tmp_storage (fixture): tmp_path/lightrag_storage with kv_store_doc_status.json
 - _add_article(db, art_id, url) — WeChat row
@@ -113,6 +115,7 @@ This is the "feedback_contract_shape_change_full_audit.md" pattern (CLAUDE.md le
 fixture must track schema additions or downstream tests silently mask bugs.
 
 From ingest_wechat.py (LightRAG ainsert call sites):
+
 - Line 1118: rag.ainsert in CACHE-HIT path (skip scrape, jump to entity extraction); already wrapped
   in try/except Exception (line 1105-1124) but currently swallows ALL exceptions silently with just
   a print. Patch 2 should narrow this to differentiate 402 from other errors.
@@ -121,6 +124,7 @@ From ingest_wechat.py (LightRAG ainsert call sites):
   add try/except around the await with selective 402 handling, while preserving the finally cleanup.
 
 From lib/llm_deepseek.py (lines 56-63, 103-126):
+
 - _require_api_key() raises RuntimeError("DEEPSEEK_API_KEY is not set...") for missing key only
 - The 402 error path: AsyncOpenAI raises openai.APIStatusError or openai.BadRequestError with
   HTTP 402 status. The exception message typically contains "402" and/or "insufficient balance".
@@ -527,6 +531,7 @@ EOF
 docs(claude): MAX_ARTICLES is tri-governor (260517-rgd-3)
 
 明确 MAX_ARTICLES 不只是 throughput cap,而是 throughput + SiliconFlow ¥
+
 + Vertex AI RPM 三重 governor。未来 ingest 扩量讨论需引用本节。
 
 Closes audit ARCHITECTURE-AUDIT §3 Patch 3。
@@ -655,6 +660,7 @@ After all 3 tasks complete:
 </verification>
 
 <success_criteria>
+
 - 3 commits land atomically with verbatim messages from spec (260517-rgd-1, -2, -3)
 - 3 + 26 = 29 patch-related tests pass; full unit suite has no NEW failures
 - CLAUDE.md documents MAX_ARTICLES as tri-governor with cross-references

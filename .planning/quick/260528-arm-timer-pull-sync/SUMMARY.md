@@ -9,6 +9,7 @@
 ## Phase 0 — Recon (read-only)
 
 ### Aliyun git state pre-pull
+
 - HEAD: `56037de` (fix migration 008 SQL semicolon)
 - Behind origin/main: 8 commits
 - Working tree: only `venv-aim1/` untracked (non-blocking for ff)
@@ -36,6 +37,7 @@ All timers `Persistent=true`. `daily-ingest.timer` is the only one needing armin
 ### translate pipeline — gap discovered
 
 **translate has never been automated on Aliyun.** Verified by:
+
 - `ls /etc/systemd/system/ | grep translate` → no match
 - `crontab -l | grep translate` → no match
 - `/etc/cron.d/` only contains `e2scrub_all`, `sysstat`
@@ -75,6 +77,7 @@ $ grep -n translate_title_with_deepseek_tavily scripts/translate_body_cron.py
 ## Phase 3 — Timer arm (Lesson 1 workaround applied)
 
 ### Step 1 — stamp workaround
+
 ```
 sudo mkdir -p /var/lib/systemd/timers
 sudo touch -m -d 'now' /var/lib/systemd/timers/stamp-omnigraph-daily-ingest.timer
@@ -83,6 +86,7 @@ sudo touch -m -d 'now' /var/lib/systemd/timers/stamp-omnigraph-daily-ingest.time
 ```
 
 ### Step 2 — enable --now (⚠️ triggered Lesson 1 v2)
+
 ```
 sudo systemctl enable --now omnigraph-daily-ingest.timer
 ```
@@ -90,6 +94,7 @@ sudo systemctl enable --now omnigraph-daily-ingest.timer
 **Result:** service immediately entered `activating (start-pre)` running `cleanup_stuck_docs.py --all-failed`. The stamp gate did **not** prevent fire because `--now` in `enable --now` is equivalent to an explicit `start`, which bypasses the timer's catch-up logic entirely.
 
 ### Step 3 — verify timer state
+
 ```
 $ systemctl status omnigraph-daily-ingest.timer
 ● omnigraph-daily-ingest.timer
@@ -105,12 +110,14 @@ NEXT: Fri 2026-05-29 20:00:00 CST = 12:00 UTC ✅
 ### Step 4 — catch-up fire decision
 
 User decision: **let catch-up complete** (recorded in chat). Rationale:
+
 - No in-flight translate worker (translate not automated → no SQLite lock conflict, unlike Lesson 1 original incident)
 - No in-flight reconcile (reconcile timer NEXT = 12:30 UTC tomorrow)
 - Catch-up effectively back-fills the missed 2026-05-28 12:00 UTC slot
 - NEXT remains correct (2026-05-29 12:00 UTC)
 
 ### Other timers (per user instruction "全部保持原状")
+
 - 12 active-waiting timers untouched
 - 3 failed services (evening-ingest / afternoon-ingest / kol-scan) left as-is — does not block timer NEXT slot fire
 - `kol-classify.timer` NEXT 2026-05-29 11:15 UTC ✅
@@ -125,6 +132,7 @@ Memory file `aliyun_drift_recovery_260528_lessons.md` Lesson 1 was extended with
 > `--now` in `enable --now` is equivalent to `start`, which forces immediate activation regardless of the stamp file. The stamp gate only governs the timer's own catch-up firing path, not an explicit `start`.
 
 **Correct procedure going forward:**
+
 ```bash
 sudo touch -m -d 'now' /var/lib/systemd/timers/stamp-<timer>
 sudo systemctl enable <timer>          # NO --now flag
@@ -220,6 +228,7 @@ The re-arm immediately fired the service again because at the time (UTC 11:56:54
 When `<service>.timer` declares `Requires=<service>`, stopping the service also deactivates the timer (systemd dependency resolution). Recovery requires explicitly `start <timer>` after the service is stopped, NOT just relying on the timer's own active-waiting state.
 
 **Verification command before/after stop:**
+
 ```bash
 systemctl status <unit>.timer  # before stop, expect active (waiting)
 sudo systemctl stop <unit>.service
@@ -247,6 +256,7 @@ Memory `aliyun_drift_recovery_260528_lessons.md` to be updated post-commit with 
 ---
 
 ## Halt triggers — none reached
+
 - Pull was clean fast-forward ✅
 - Timer NEXT correctly = tomorrow 12:00 UTC ✅
 - Catch-up fire was Lesson 1 v2 (documented, user authorized to let complete)

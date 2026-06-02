@@ -85,12 +85,15 @@ download via `image_pipeline.download_images()`. CDN requires no
 authentication or Referer header — direct HTTP GET works.
 
 D-03 stdout contract for fetch_zhihu:
+
 ```
 {"hash": "<wechat_hash>", "q_idx": <N>, "status": "ok", "md_path": "...", "image_count": N}
 ```
+
 or error / skipped variants matching plan 02.
 
 Zhihu URL shapes:
+
 - `zhihu.com/question/<qid>/answer/<aid>`
 - `zhuanlan.zhihu.com/p/<pid>`
 
@@ -456,6 +459,7 @@ in the integration tier and the Hermes skill body, not here.
 </verification>
 
 <success_criteria>
+
 - fetch_zhihu reuses image_pipeline (no duplicated image logic)
 - Small-image filter enforces PRD §6.2 threshold
 - D-03 stdout contract respected (single-line JSON, <50KB)

@@ -131,12 +131,14 @@ Each task was committed atomically:
 ### Human-Action Checkpoint Resolved by Orchestrator
 
 **1. [Orchestrator action] Golden fixture capture performed by orchestrator, not user**
+
 - **Found during:** Task 0.5 (Remote golden-file fixture capture)
 - **Deviation:** Task 0.5 was designed as a `checkpoint:human-action` requiring the user to SSH manually. The orchestrator performed the SSH+tar capture directly using project-memory SSH credentials and committed the result as `6312861`.
 - **Impact:** No functional impact. The captured fixtures are identical to what the user would have captured. Acceptance criteria met with margin (3 fixtures, all with both files).
 - **Commit:** `6312861`
 
 **2. [Data deviation] metadata.images == 2 on all 3 remote articles (plan expected >= 3)**
+
 - **Found during:** Task 0.5 remote capture
 - **Deviation:** The plan's filter heuristic recommended articles with >= 3 images for richer regression coverage. At capture time, the remote `~/.hermes/omonigraph-vault/images/` cache contained only 3 articles and all had exactly 2 images.
 - **Fix:** All 3 were captured anyway. The binding acceptance criterion (`>= 2 complete fixtures`) is satisfied by 3. Noted in `golden_articles.txt` header and the commit message for `6312861`.
@@ -159,12 +161,14 @@ None — no new external service configuration required. The `deploy.sh` uses en
 ## Handoff Notes for Wave 1
 
 **04-01 image-pipeline-refactor (next plan):**
+
 - Depends directly on golden fixtures in `tests/fixtures/golden/`. The 3 captured articles each have `final_content.md` + `metadata.json` with `"images": [...]` array of 2 entries.
 - When writing golden-file regression tests, use `len(metadata["images"]) >= 1` as the threshold (not >= 3).
 - The `mock_lightrag` and `mock_requests_get` fixtures in `conftest.py` are ready for image pipeline unit tests.
 - `_ensure_column` pattern is now established — if 04-01 adds any new SQLite columns, follow the same PRAGMA guard.
 
 **04-05 zhihu-haowen-enrich-skill (independent, Wave 2):**
+
 - No dependency on golden fixtures; can proceed in parallel with 04-01 through 04-04.
 - deploy.sh is available for remote sync during skill development/testing.
 
@@ -189,6 +193,7 @@ None — no new external service configuration required. The `deploy.sh` uses en
 ## Self-Check: PASSED
 
 Verified:
+
 - `find tests/fixtures/golden -name "final_content.md" | wc -l` → 3 (>= 2)
 - `find tests/fixtures/golden -name "metadata.json" | wc -l` → 3 (>= 2)
 - `grep -vE "^#|^$" tests/fixtures/golden_articles.txt | wc -l` → 3 (>= 2)

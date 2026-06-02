@@ -168,6 +168,7 @@ sqlite3 data/kol_scan.db "
 > wiring + Vertex auth + JSON parse + persist all succeeded.
 
 If `null != 0` on the first batch:
+
 - Check `GOOGLE_APPLICATION_CREDENTIALS` resolves to a valid SA JSON
 - Check the SA has `roles/aiplatform.user` (or equivalent including
   `aiplatform.endpoints.predict`) on the GCP project
@@ -210,6 +211,7 @@ hermes cron list | grep daily-ingest
 > ⚠ **Day-1 backlog warning** (per ROADMAP § ir-1 Notes): the first cron run
 > after this deploy will see Layer-1-NULL on the entire post-charter accumulated
 > backlog (since 2026-05-07 ~14:33 ADT). Expect 5–15 batches × ~5–8s wall-clock
+>
 > + extra Gemini Flash Lite quota draw on day 1. Subsequent runs settle to
 > 2–3 batches/day in steady state.
 >

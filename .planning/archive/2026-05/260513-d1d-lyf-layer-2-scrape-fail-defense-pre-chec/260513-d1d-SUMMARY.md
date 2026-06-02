@@ -65,6 +65,7 @@ Full SHA: `a7a8ab68500e487292dbb4eb4bb5bd2a915e50d8`
 - **Delta:** approximately **+28 LOC** (within the +15/-5 expected range, slightly higher due to inline `_fill_in` helper added for the LLM-error fill-in pattern)
 
 Refactor shape:
+
 - Empty-batch + over-max-batch checks UNCHANGED at top
 - NEW: partition pass over `articles` → `results: list[FilterResult | None]` pre-allocated
 - NEW: short-circuit early return if `real_payload_articles` is empty
@@ -151,6 +152,7 @@ All 16 prior tests still PASS — no regressions on `None` / `'ok'` / `'reject'`
 ### Marker migration
 
 Created `migrations/010_layer2_scrape_fail_marker.sql` (33 LOC). Documents verdict alphabet expansion:
+
 - `'ok'` — Layer 2 LLM kept (relevant=true AND depth_score>=2)
 - `'reject'` — Layer 2 LLM rejected
 - `'scrape_fail'` — NEW: short-circuited before LLM
@@ -175,6 +177,7 @@ Order-preservation invariant verified — interleaving of pre-LLM `scrape_fail` 
 ### Additional edge case E2Es (run inline)
 
 1. **All scrape_fail (no LLM call):**
+
    ```
    arts = [body=100/content=11000, body=200/content=12000]
    LLM mock raises AssertionError if invoked → never raises
@@ -183,6 +186,7 @@ Order-preservation invariant verified — interleaving of pre-LLM `scrape_fail` 
    ```
 
 2. **All real (no scrape_fail, full LLM path):**
+
    ```
    arts = [body=5000/content=8000, body=5000/content=9000]
    Verdicts: ['ok', 'ok']
@@ -232,6 +236,7 @@ Order-preservation invariant verified — interleaving of pre-LLM `scrape_fail` 
 ## Side effects
 
 None unintended. Changes are surgical:
+
 - 2 new module-level constants
 - 1 new private helper function
 - 1 entry-function refactor (partition + fill-in pattern)

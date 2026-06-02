@@ -58,6 +58,7 @@ def _canonical_lang(lang: str | None) -> str:
 ```
 
 Mapping:
+
 - `'zh'` → `'zh-CN'` (legacy short → canonical)
 - `'zh-CN'` → `'zh-CN'` (idempotent)
 - `'en'` → `'en'`
@@ -67,6 +68,7 @@ Mapping:
   rewrite future codes)
 
 Applied at 3 SSG emission sites:
+
 1. `_record_to_dict` line 240 — article-card data dict (the main fix)
 2. Article-detail page `ctx["lang"]` line 340 — page-level html lang attr
 3. URL-index sidecar `lang` field line 351 — internal hash index
@@ -80,6 +82,7 @@ long form `zh-CN`. API request schema (`Literal['zh','en']`) is unaffected
 `tests/integration/kb/test_ssg_export_data_lang.py` — 8 cases, all PASS:
 
 ### Unit tests (6 cases — pure helper)
+
 - `test_canonical_lang_maps_legacy_zh_to_canonical_zh_cn`
 - `test_canonical_lang_idempotent_on_zh_cn`
 - `test_canonical_lang_passes_through_en`
@@ -88,6 +91,7 @@ long form `zh-CN`. API request schema (`Literal['zh','en']`) is unaffected
 - `test_canonical_lang_passes_through_unrecognized_codes` (defensive)
 
 ### Integration tests (2 cases — full SSG render with synthetic fixture)
+
 - `test_ssg_export_normalizes_legacy_zh_to_zh_cn_in_articles_index` —
   builds a fixture DB with 1 legacy `zh` + 1 canonical `zh-CN` + 1 `en`
   article; runs `python -m kb.export_knowledge_base` as subprocess;

@@ -102,17 +102,20 @@ uvicorn / streamlit / gunicorn all bind 0.0.0.0:8080.
 ### UC Volume access from Apps Python — two patterns
 
 **Pattern A — POSIX path (FUSE mount):**
+
 - App code reads `/Volumes/catalog/schema/volume/path/file` as a regular file
 - Works for read-heavy / static file serving
 - Subject to FUSE mount semantics — relevant for SQLite WAL, LightRAG state
 
 **Pattern B — Files API via SDK / REST:**
+
 ```python
 from databricks.sdk import WorkspaceClient
 w = WorkspaceClient()
 response = w.files.download("/Volumes/catalog/schema/volume_name/file.csv")
 file_data = response.contents.read()
 ```
+
 - Or HTTP: `GET /api/2.0/fs/files{path}` with OAuth bearer
 
 ### Required UC privileges for App SP
@@ -147,6 +150,7 @@ matches the existing project CLAUDE.md pattern.
 
 See `tavily-app-runtime-secrets-envvars.json` (59KB) for the verbatim
 `learn.microsoft.com` extracts of:
+
 - `dev-tools/databricks-apps/app-runtime` (full `app.yaml` reference)
 - `dev-tools/databricks-apps/secrets` (secret resource walkthrough)
 - `dev-tools/databricks-apps/environment-variables` (env var precedence rules)

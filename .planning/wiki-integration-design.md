@@ -15,6 +15,7 @@
 > 不做 RAG，做 **compounding artifact**。知识编译一次，持续更新，不每次都重新推导。
 
 **三层架构**：
+
 ```
 raw/        ← 不可变原始来源
 wiki/       ← LLM 维护的合成页面（实体、概念、对比、查询结果）
@@ -22,6 +23,7 @@ SCHEMA.md   ← 约定 LLM 的行为规范
 ```
 
 **三个操作**：
+
 - **Ingest**：读源 → 提取关键信息 → 更新 10-15 个 wiki 页面
 - **Query**：查 wiki → 合成答案 → **答案也存回 wiki**
 - **Lint**：定期查矛盾、断链、过期、gap
@@ -127,6 +129,7 @@ GitHub: https://github.com/nashsu/llm_wiki
 **问题**：用户没有 Obsidian，wiki 页面无法直接消费。
 
 **方案**：
+
 1. `kb/services/wiki.py` — 读/搜索 wiki 页面（~100 LOC）
 2. `kb/api_routers/wiki.py` — REST API（~60 LOC）
 3. 模板改造：entity.html / topic.html 改为 **wiki-first 渲染**
@@ -136,6 +139,7 @@ GitHub: https://github.com/nashsu/llm_wiki
 5. Hermes 侧：omnigraph_query 先查 wiki 后查 graph
 
 **用户效果**：
+
 ```
 现在 /entities/OpenClaw        改造后
   实体名                         ┌──────────────┐
@@ -150,6 +154,7 @@ GitHub: https://github.com/nashsu/llm_wiki
 **问题**：kg_synthesize 每次从零推导，已有知识不沉淀。
 
 **方案**：
+
 1. **查前注入**：synthesize 前检查 wiki → 注入 wiki 上下文 → LLM 在已有知识上深化
 2. **查后存回**：高质量合成结果 → `queries/` 存为 wiki 页（"答案不消失在 chat history"）
 3. **wiki lint**：cron 扫描 wiki → 发现 gap → 自动触发 synthesize 生成草稿
@@ -162,6 +167,7 @@ GitHub: https://github.com/nashsu/llm_wiki
 **问题**：cron 入库后只存 graph，wiki 不感知。
 
 **方案**：
+
 1. `batch_ingest_from_spider.py` 末尾加 `_wiki_update_check()` hook
 2. Hook 逻辑：提取实体/主题 → 查 wiki → 
    - 已有相关 page → 生成更新建议（存入 `_suggestions/`）

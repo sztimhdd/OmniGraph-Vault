@@ -18,6 +18,7 @@ updated: 2026-05-23T00:00:00Z
 ## Tests
 
 ### 1. Working tree reconciled on Aliyun (DEPLOY-01)
+
 expected: |
   /root/OmniGraph-Vault/ HEAD reconciled to a known commit; `git status` reports clean
   working tree; HEAD hash recorded in DEPLOY-NOTES.md §DEPLOY-01 with reconcile rationale;
@@ -30,6 +31,7 @@ evidence: |
   (Pre-reconcile / Decision / Execution / Post-reconcile). Commit 96502da.
 
 ### 2. Ingest venv operational on Aliyun (DEPLOY-02)
+
 expected: |
   Python 3.11+ venv at /root/OmniGraph-Vault/venv/ with pip install -r requirements.txt
   EXITCODE=0 and `python -c "import lightrag, google.genai, deepseek; print('OK')"` passing.
@@ -49,6 +51,7 @@ evidence: |
   unchanged; kb-api PID 3512216 still serving uvicorn 127.0.0.1:8766.
 
 ### 3. 6 ingest provider keys in /root/.hermes/.env (DEPLOY-03)
+
 expected: |
   DEEPSEEK_API_KEY, SILICONFLOW_API_KEY, OMNIGRAPH_VERTEX_SA_JSON_PATH, GEMINI_API_KEY,
   APIFY_TOKEN, APIFY_TOKEN_BACKUP all count=1 in /root/.hermes/.env; file mode 600
@@ -65,6 +68,7 @@ evidence: |
   venv-aim1 env-presence smoke: all 6 keys present-ok (sk-/AIza/apify_ap prefix shapes).
 
 ### 4. Layer 1 smoke passed on Aliyun (DEPLOY-04 pre-flight)
+
 expected: |
   `scripts/local_e2e.sh layer1 5` reaches completion on Aliyun with EXIT=0; Vertex AI
   Gemini Layer 1 LLM reachable from cn-east-mainland; log in .scratch/local-e2e-layer1-*.log.
@@ -80,6 +84,7 @@ evidence: |
   Vertex AI Gemini Layer 1 reachable from Aliyun via OMNIGRAPH_VERTEX_SA_JSON_PATH. ✅
 
 ### 5. WeChat E2E smoke passed on Aliyun (DEPLOY-04)
+
 expected: |
   `scripts/local_e2e.sh wechat <url>` reaches completion on Aliyun with EXIT=0; scrape
   → Layer 2 → vision cascade → LightRAG ainsert all exercised; scratch lightrag_storage/
@@ -97,6 +102,7 @@ evidence: |
   Scratch lightrag_storage populated (non-empty). Production path unchanged.
 
 ### 6. KOL batch E2E smoke passed on Aliyun (DEPLOY-04 extended — exceeds PLAN scope)
+
 expected: |
   Full batch_ingest_from_spider.py --from-db path exercised: candidate-pool SQL → Layer 1
   batches → scrape → Layer 2 → vision cascade → LightRAG ainsert → reconcile gate;
@@ -114,6 +120,7 @@ evidence: |
   batch_elapsed=778.44s / budget=28800s (2.7%). EXIT=0.
 
 ### 7. Production isolation maintained throughout aim-1 (DEPLOY-04 audit)
+
 expected: |
   /root/.hermes/omonigraph-vault/lightrag_storage/graph_chunk_entity_relation.graphml
   size and mtime unchanged across all smoke runs; entity_buffer/ count=0; kb-api PID

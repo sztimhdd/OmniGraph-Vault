@@ -64,11 +64,13 @@ Output: 2-line constant change (now env-overridable) + 2 new CLAUDE.md doc rows 
 <!-- Executor uses these directly — no further codebase exploration needed. -->
 
 From ingest_wechat.py:1 (already present):
+
 ```python
 import os
 ```
 
 From ingest_wechat.py:47-53 (TARGET — current state to be replaced):
+
 ```python
 # 2026-05-10 hot-fix (quick 260510-h09): retry budget for the post-ainsert
 # PROCESSED verification helper. Three attempts × 2s backoff covers the
@@ -80,6 +82,7 @@ PROCESSED_VERIFY_BACKOFF_S = 2.0
 ```
 
 From ingest_wechat.py:60-66 (downstream consumer — unchanged):
+
 ```python
 async def _verify_doc_processed_or_raise(
     rag,
@@ -89,9 +92,11 @@ async def _verify_doc_processed_or_raise(
     backoff_s: float = PROCESSED_VERIFY_BACKOFF_S,
 ) -> None:
 ```
+
 The helper reads constants as kwarg defaults at function-definition time. Bumping the constants flows through to all callers that omit the kwargs. Existing 6 unit tests pass kwargs explicitly (`max_retries=3, backoff_s=0.0`) so they are insulated from the default change and MUST still pass byte-for-byte.
 
 From CLAUDE.md:213-217 (TARGET — table to extend):
+
 ```markdown
 | Var | Required | Default | Purpose |
 |-----|----------|---------|---------|
@@ -101,6 +106,7 @@ From CLAUDE.md:213-217 (TARGET — table to extend):
 | `OMNIGRAPH_BASE_DIR` | Yes for local dev | `~/.hermes/omonigraph-vault` | Absolute path to runtime data root. Empty string treated as unset. |
 | `OMNIGRAPH_LLM_TIMEOUT_SEC` | No | `600` | Int seconds; applies to Vertex Gemini LLM calls only. DeepSeek path unaffected. |
 ```
+
 Append two new rows AFTER `OMNIGRAPH_LLM_TIMEOUT_SEC` — same column ordering (Var | Required | Default | Purpose).
 </interfaces>
 </context>
@@ -234,6 +240,7 @@ Overall quick-task acceptance (one-shot, no checker phase):
 </verification>
 
 <success_criteria>
+
 - 6/6 GREEN on `tests/unit/test_ingest_article_processed_gate.py` (no test modifications)
 - Default budget moved from 6s (3 × 2.0s) → 60s (30 × 2.0s)
 - Env override `OMNIGRAPH_PROCESSED_RETRY` + `OMNIGRAPH_PROCESSED_BACKOFF` both functional

@@ -88,6 +88,7 @@ grounding = response.candidates[0].grounding_metadata  # may have grounding_chun
 ```
 
 From RESEARCH.md §9 — config.py additions:
+
 - `ENRICHMENT_MIN_LENGTH = 2000`
 - `ENRICHMENT_MAX_QUESTIONS = 3`
 - `ENRICHMENT_LLM_MODEL = "gemini-2.5-flash-lite"`
@@ -96,23 +97,30 @@ From RESEARCH.md §9 — config.py additions:
 
 These keys are ADDED in Plan 07 (integration). For this plan, read env-var
 fallbacks directly so the helper is standalone:
+
 - `ENRICHMENT_MIN_LENGTH` from env with default `2000`
 - `ENRICHMENT_MAX_QUESTIONS` from env with default `3`
 - `ENRICHMENT_LLM_MODEL` from env with default `"gemini-2.5-flash-lete"`
 - `ENRICHMENT_BASE_DIR` from env `ENRICHMENT_DIR` with default `~/.hermes/omonigraph-vault/enrichment`
 
 D-03 stdout contract:
+
 ```
 {"hash": "<hash>", "status": "ok", "question_count": 2, "artifact": "/path/to/questions.json"}
 ```
+
 Or on skip:
+
 ```
 {"hash": "<hash>", "status": "skipped", "reason": "too_short", "char_count": 1200}
 ```
+
 Or on fail:
+
 ```
 {"hash": "<hash>", "status": "error", "error": "<message>"}
 ```
+
 (exit code 0 for ok/skipped, 1 for error)
 </interfaces>
 </context>
@@ -422,6 +430,7 @@ Or on fail:
 </verification>
 
 <success_criteria>
+
 - Gemini + `google_search` grounding wired per D-12
 - Single-line JSON stdout contract per D-03
 - Short-article skip (<2000 chars) returns `status: skipped`, exits 0

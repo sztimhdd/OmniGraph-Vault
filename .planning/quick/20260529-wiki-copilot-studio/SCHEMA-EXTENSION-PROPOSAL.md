@@ -127,6 +127,7 @@ Cost estimate: 1 quick task (~30–45 min total).
 ## Decision pending
 
 User decides whether to:
+
 - **A.** Accept and schedule a `/gsd:quick "260530-schema-add-type-local"` follow-up.
 - **B.** Reject — keep `type=builtin` as the catch-all and document the semantic looseness.
 - **C.** Defer — revisit when a third independent quick task hits the same problem.

@@ -63,7 +63,9 @@ async def layer1_pre_filter(articles: list[ArticleMeta]) -> list[FilterResult]
 def persist_layer1_verdicts(conn, articles, results) -> None
 
 # batch_ingest_from_spider.py (ir-1-01 output):
+
 def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]
+
 ```
 
 <!-- Test fixture pattern: monkeypatch the LLM dependency at the import site
@@ -371,6 +373,7 @@ async def test_layer1_over_max_raises() -> None:
 ```
 
 **HARD CONSTRAINTS:**
+
 - Tests MUST NOT make real LLM calls — every test that hits `layer1_pre_filter` monkeypatches the LLM symbol
 - Tests MUST NOT require any environment credential (`DEEPSEEK_API_KEY` / `OMNIGRAPH_GEMINI_KEY` / `OMNIGRAPH_LLM_PROVIDER`)
 - Tests MUST run on the existing pytest config — do NOT add `pytest.ini` entries; do NOT add new dependencies
@@ -407,6 +410,7 @@ python -m pytest tests/unit/ -q 2>&1 | tail -5
 python -m pytest tests/unit/test_article_filter.py --cov=lib.article_filter --cov-report=term-missing 2>&1 | tail -15
 # Expect coverage ≥ 80% on lib/article_filter.py
 ```
+
 </verification>
 
 <commit_message>

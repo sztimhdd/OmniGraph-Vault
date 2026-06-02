@@ -28,6 +28,7 @@ The Project decision (D-RSS-SCRAPER-SCOPE) is explicitly open: A (cascade for bo
 Lock D-RSS-SCRAPER-SCOPE = A in the Wave 1 CONTEXT.md before writing a single line. The generic `scrape_url(url) -> ScrapeResult` function must be called from BOTH `rss_ingest.py` (Wave 2 rewrite) AND the `batch_ingest_from_spider.py:940` scrape-on-demand block. Add a `body_chars_count` field to the `ScrapeResult` dataclass and assert `body_chars_count > 200` before calling the classifier — reject articles where scrape returns fewer characters.
 
 **Warning signs:**
+
 - `batch_ingest_from_spider.py` log line: `"Scraping successful using method: ua"` (not `apify` or `cdp`) during KOL classification
 - `classifications.body` in SQLite contains rows where `LENGTH(body) < 200` after a batch run
 - `batch_validation_report.json` shows `scrape_method_distribution.ua > 0` for KOL articles
@@ -35,6 +36,7 @@ Lock D-RSS-SCRAPER-SCOPE = A in the Wave 1 CONTEXT.md before writing a single li
 **Wave ownership:** Wave 1 prevention. If missed, Wave 3 regression will detect it (E2E fixture must assert non-empty body scrape).
 
 **Recovery if already fired:**
+
 1. `SELECT id, url, LENGTH(body) FROM articles WHERE LENGTH(body) < 200 AND enriched IS NOT NULL ORDER BY scanned_at DESC` — find affected articles.
 2. `python scripts/checkpoint_reset.py --hash {hash}` for each — forces full re-scrape on next batch.
 3. Re-run `batch_ingest_from_spider.py --from-db` with fixed cascade wired to KOL path.
@@ -54,6 +56,7 @@ The current `rss_classify.py` has `THROTTLE_SECONDS = 0.3` and classifies summar
 In Wave 2 CONTEXT.md, set `FULLBODY_THROTTLE_SECONDS = 4.5` (60s / 15 RPM + 10% margin = 4.4s). Add exponential backoff on HTTP 429 (cap at 60s, max 3 retries) inside `_call_deepseek`. For the 1020-article backlog, run with `--max-articles 100` per batch invocation and space runs across the observation window. Do NOT run all 1020 in a single `rss_classify.py` invocation.
 
 **Warning signs:**
+
 - `rss_classify.py` log: `"classify failed"` appearing more than twice in the first 10 articles
 - DeepSeek HTTP 429 responses in the classify log within the first 2 minutes
 - `SELECT COUNT(*) FROM rss_classifications WHERE depth_score IS NULL` shows > 5% of processed articles after classify completes
@@ -61,6 +64,7 @@ In Wave 2 CONTEXT.md, set `FULLBODY_THROTTLE_SECONDS = 4.5` (60s / 15 RPM + 10% 
 **Wave ownership:** Wave 2 prevention (full-body prompt porting). Backlog execution is Wave 3.
 
 **Recovery if already fired:**
+
 1. `SELECT article_id FROM rss_classifications WHERE depth_score IS NULL` — identify unclassified articles.
 2. `UPDATE rss_classifications SET depth_score = NULL WHERE article_id IN (...)` is NOT needed — NULL is already the indicator.
 3. Fix `FULLBODY_THROTTLE_SECONDS` and backoff logic.
@@ -81,6 +85,7 @@ The existing `rss_ingest.py` (pre-v3.4) inserts docs with `doc_id = f"rss-{artic
 Before the Wave 3 backlog re-ingest, run `aget_docs_by_ids([f"rss-{article_id}"])` for a sample of 10 legacy articles and verify whether they exist in LightRAG and what their chunk count is. If chunk count is 1 and text length < 500 chars, the doc is summary-only. For the backlog run: call `rag.adelete_by_doc_id(f"rss-{article_id}")` BEFORE re-inserting. Wrap this delete-then-insert as an atomic pair in the rewritten `rss_ingest.py` when `UPDATE_MODE=true` env var is set.
 
 **Warning signs:**
+
 - After backlog re-ingest: `aget_docs_by_ids` for any article returns a single chunk < 300 chars
 - `rss_articles.enriched = 2` but `SELECT chunk_count FROM ...` (via LightRAG query) shows 1 chunk per doc
 - Synthesis query on an RSS topic returns 3-sentence answer despite full-body ingest supposedly completing
@@ -88,6 +93,7 @@ Before the Wave 3 backlog re-ingest, run `aget_docs_by_ids([f"rss-{article_id}"]
 **Wave ownership:** Wave 3 prevention. Discovery check in Wave 2 (verify doc ID collision before writing the rewriter).
 
 **Recovery if already fired:**
+
 1. `SELECT id FROM rss_articles WHERE enriched = 2` — get all articles that reported success.
 2. For each: call `rag.adelete_by_doc_id(f"rss-{id}")` via a one-off script.
 3. `UPDATE rss_articles SET enriched = 0 WHERE id IN (...)` — reset the enriched flag.
@@ -110,6 +116,7 @@ LightRAG's NanoVectorDB flush is synchronous and happens inside `ainsert` as a s
 (1) In the rewritten `rss_ingest.py` (Wave 2), wrap `ainsert` in `asyncio.wait_for` with a budget computed by `_compute_article_budget_s(full_content)` — same formula used by `batch_ingest_from_spider.py`. Register the doc ID before `ainsert` via the same `get_pending_doc_id` / `_clear_pending_doc_id` pattern (STATE-02). (2) The stuck-doc cleanup tool (Wave 3 deliverable) must compare doc IDs present in NanoVectorDB's `vdb_entities.json` against doc IDs present in LightRAG's KV store — any vector-only entry (in VDB but not KV) is a stuck fragment. (3) Cleanup tool must run ONLY when the LightRAG process is not active (no concurrent `ainsert`); document this in the tool's `--help`.
 
 **Warning signs:**
+
 - `rag.adelete_by_doc_id` log: `"Rollback FAILED for doc_id=..."` — graph may be inconsistent
 - `rss_ingest.py` exits with an unhandled `asyncio.TimeoutError` stack trace (no wrapper yet)
 - After a batch: `python scripts/checkpoint_status.py` shows articles stuck at `text_ingest` stage indefinitely
@@ -118,6 +125,7 @@ LightRAG's NanoVectorDB flush is synchronous and happens inside `ainsert` as a s
 **Wave ownership:** Wave 2 (add timeout + rollback to rss_ingest.py). Wave 3 (stuck-doc cleanup tool as CLI, not cron pre-hook, per D-STUCK-DOC-IDEMPOTENCY open question).
 
 **Recovery if already fired:**
+
 1. Stop all ingest processes. Do not run `rss_ingest.py` or `batch_ingest_from_spider.py` until cleanup completes.
 2. Run stuck-doc cleanup tool: `python scripts/stuck_doc_cleanup.py --dry-run` to list candidates.
 3. Compare output against `rss_articles` table: IDs that appear in VDB but NOT in `rss_articles.enriched = 2` are safe to purge.
@@ -139,6 +147,7 @@ LightRAG's NanoVectorDB flush is synchronous and happens inside `ainsert` as a s
 In the rewritten `rss_ingest.py`, mirror the `_drain_pending_vision_tasks()` pattern from `batch_ingest_from_spider.py:94-138`. Call it in the `finally:` block before `rag.finalize_storages()`. Add an E2E assertion in the Wave 3 fixture: after `rss_ingest.py` exits, run `rag.aquery()` and verify that `provider_mix` from `get_last_describe_stats()` matches the image count in `rss_content/{hash}/`.
 
 **Warning signs:**
+
 - Step_8 digest contains article titles with missing image descriptions (description field shows `"Error describing image:"` or is absent entirely)
 - `orchestrate_daily.py` step_7 log: no `"Vision tasks drained cleanly"` line before subprocess exit
 - `daily_digest.py` runs but digest markdown contains fewer bullet points than expected for the day's ingest count
@@ -146,6 +155,7 @@ In the rewritten `rss_ingest.py`, mirror the `_drain_pending_vision_tasks()` pat
 **Wave ownership:** Wave 2 (add drain to rss_ingest.py). Day-1/2/3 observation for residual leaks.
 
 **Recovery if already fired:**
+
 1. Do not re-run the digest for the affected day — it will query stale state.
 2. Wait 10 minutes for Vision workers to have completed (they are still running in the background process table — check with `ps aux | grep rss_ingest`).
 3. Run `python enrichment/daily_digest.py --date YYYY-MM-DD` directly to regenerate.
@@ -164,6 +174,7 @@ In the rewritten `rss_ingest.py`, mirror the `_drain_pending_vision_tasks()` pat
 In the Wave 1 generic scraper, extract the article's base domain alongside the image URLs. Pass `source_domain` to a new `download_images(urls, dest_dir, source_domain=None)` signature. When `source_domain` is set, add `"Referer": f"https://{source_domain}"` to the request headers. This is the correct fix: forge Referer to match the article's origin.
 
 **Warning signs:**
+
 - `image_batch_complete` JSON-lines event: `counts.download_failed > counts.input * 0.2` (more than 20% of images failing for a single article)
 - Log line: `"Image N download failed: HTTP 403"` appearing for articles from Substack or Medium
 - `checkpoint_status.py` shows articles completing `image_download` stage with 0 kept images despite the source article visibly containing images
@@ -183,6 +194,7 @@ Some RSS sources (particularly GitHub-hosted documentation and certain personal 
 In `download_images()` (or the pre-processing step in the generic scraper), add a filter: if URL starts with `data:image/`, decode the base64, write to a temp file in `dest_dir`, and return the local path directly — bypassing the HTTP GET entirely. Strip the `data:...` blob from the Markdown before inserting into LightRAG. Add a `base64_images_decoded` counter to `FilterStats`.
 
 **Warning signs:**
+
 - `requests.get(url)` raises `requests.exceptions.MissingSchema` — appears as `"Image N error: Invalid URL..."` in pipeline logs
 - `final_content.md` files containing `data:image/` substrings (visible via `grep -l "data:image" ~/.hermes/omonigraph-vault/rss_content/*/final_content.md`)
 - `ainsert` timeout on an article that should be < 5KB of meaningful text (chunk count unexpectedly high)
@@ -202,6 +214,7 @@ Arxiv papers and GitHub READMEs frequently use SVG for diagrams. `filter_small_i
 Before calling `requests.get(url)`, check if the URL ends in `.svg` or the response `Content-Type` is `image/svg+xml`. Skip SVG downloads entirely (log as `outcome=filtered_svg`) or, if the svg2png conversion library is available (`cairosvg`), convert before saving. The simpler approach is to add `.svg` to a blocked-extension list in `download_images`.
 
 **Warning signs:**
+
 - `describe_images` log: `"SiliconFlow HTTP 400"` appearing 3+ times in rapid succession
 - `cascade.status["siliconflow"]["circuit_open"] == True` after processing an Arxiv article
 - `batch_validation_report.json`: `circuit_opens: ["siliconflow"]` present after a short batch that should not have triggered the circuit
@@ -221,6 +234,7 @@ Before calling `requests.get(url)`, check if the URL ends in `.svg` or the respo
 Add a `max_dim` downscale step in `filter_small_images` (or as a separate `resize_images` step): if `max(w, h) > 1920`, resize to `max_dim=1920` using `PIL.Image.thumbnail((1920, 1920))` before saving. This is a lossy operation but acceptable for a knowledge graph (description quality is nearly identical for diagrams at 1920 vs. 4K). Add `resized_count` to `FilterStats`.
 
 **Warning signs:**
+
 - `image_pipeline.py` logs: `"SiliconFlow HTTP 429"` appearing mid-batch despite adequate balance
 - `get_last_describe_stats()["gemini_share"] > 0.05` after a batch with only 5-10 images
 - Per-image `ms` in `image_processed` JSON-lines events > 8,000ms for some images (high-res processing time)
@@ -240,6 +254,7 @@ Add a `max_dim` downscale step in `filter_small_images` (or as a separate `resiz
 `rss_classify.py` already writes per-article (no batch transaction). The real guard is: `orchestrate_daily.py`'s cron bodies must be serialized. Check `scripts/register_phase5_cron.sh` cron schedules — `rss-classify` and `daily-ingest` jobs must have non-overlapping windows with at least 30 minutes between them. Add a lock file (`/tmp/omnigraph_pipeline.lock`) in `orchestrate_daily.py` step_2 and step_7 using `fcntl.flock` (Linux) or equivalent.
 
 **Warning signs:**
+
 - `orchestrate_daily.py` logs: step_2 and step_7 subprocess start times overlap (step_7 start < step_2 finish)
 - `SELECT COUNT(*) FROM rss_classifications WHERE date(created_at) = date('now') AND depth_score IS NULL` is non-zero after step_7 reports "ingest complete"
 
@@ -258,6 +273,7 @@ After `register_phase5_cron.sh` body cutover to `orchestrate_daily.py step_7`, i
 In `register_phase5_cron.sh`, add a flag check at the TOP of the cron body: `if [ -f ~/.hermes/omnigraph_rss_pause ]; then echo "RSS ingest paused via flag file"; exit 0; fi`. This creates a kill-switch: `touch ~/.hermes/omnigraph_rss_pause` instantly pauses RSS ingest without touching the cron schedule. Document this kill-switch in `docs/OPERATOR_RUNBOOK.md`.
 
 **Warning signs:**
+
 - Any of the Critical Pitfalls above have fired in production
 - `daily_digest.py` Telegram message quality drops (query returns fragments)
 - Step_7 exit code != 0 on two consecutive cron fires
@@ -280,6 +296,7 @@ Each subprocess creates its own Python process with its own `get_rag()` call. Si
 Ensure `rss_ingest.py` calls `get_rag(flush=True)` AFTER its `main()` starts (not at module import) so it loads the post-KOL state. The subprocess model already ensures sequential execution — the guard is: `rss_ingest.py` must NOT cache the `rag` instance at module scope. Verify with `grep -n "get_rag" enrichment/rss_ingest.py` — it must appear only inside `async def main()` or the ingest loop, not at module top level.
 
 **Warning signs:**
+
 - KOL entity count in LightRAG DECREASES after a day when both KOL and RSS ran
 - `rag.aquery("recent KOL article topic")` returns empty or reduced results after RSS ingest ran
 - `vdb_entities.json` file modification time is AFTER `batch_ingest_from_spider.py` exit but the file size is SMALLER than after the KOL run
@@ -302,6 +319,7 @@ Two separate hash functions for the same conceptual "article identity." The MD5 
 During Wave 1 or the start of Wave 3, audit `batch_ingest_from_spider.py` line 275 and migrate to `from lib.checkpoint import get_article_hash`. Make the change in ONE commit with a `# MIGRATION: was hashlib.md5` comment. Update the corresponding test in `tests/unit/test_batch_ingest.py`. This must happen BEFORE the backlog re-ingest so all 1020 articles use consistent hash paths.
 
 **Warning signs:**
+
 - `checkpoint_reset.py --hash {hash}` returns exit 1 "no checkpoint dir found" even though the article failed and should have a checkpoint
 - `ls ~/.hermes/omonigraph-vault/checkpoints/` shows 10-char dirs (MD5) alongside 16-char dirs (SHA256) — mixed lengths are the indicator
 - `checkpoint_status.py` shows fewer articles than the actual `batch_ingest_from_spider.py` log indicated were processed
@@ -323,6 +341,7 @@ During Wave 1 or the start of Wave 3, audit `batch_ingest_from_spider.py` line 2
 Add a `len(body) < 100` check before `langdetect.detect()`. For articles with body below this threshold, default to translation (DeepSeek translate call) — a spurious translate-to-Chinese of an already-Chinese article is harmless; a missed article is not.
 
 **Warning signs:**
+
 - `rss_ingest.py` log: `"language detection failed"` or `"unexpected language: es"` for articles from English-language AI newsletters
 
 **Wave ownership:** Wave 2 (rss_ingest.py rewrite).
@@ -338,6 +357,7 @@ The current `rss_classify.py` passes `content = {content}` with no truncation. W
 Truncate at character (not byte) level: `content[:8000]` in Python operates on Unicode codepoints, not bytes, so this is safe as long as the variable holds a Python `str` (not `bytes`). Confirm the `body` column read from SQLite is decoded as `str` before truncation. Add `assert isinstance(body, str)` before the truncation call.
 
 **Warning signs:**
+
 - `rss_classifications.rationale` contains `�` replacement characters
 - DeepSeek API logs show prompts with `?` clusters in the content field
 
@@ -354,6 +374,7 @@ Some embedded images in technical blog posts (embedded via Notion, Confluence, o
 In `download_images()`, check `resp.headers.get("Content-Type", "")` before writing. If Content-Type is `text/html`, treat as a download failure and log `outcome=blocked_auth_redirect`. Do not write the file. This adds one line to the existing download loop.
 
 **Warning signs:**
+
 - Vision descriptions containing "login page", "sign in", or "authentication required"
 - `filter_small_images` showing high `size_read_failed` counts for articles from Notion-hosted blogs
 

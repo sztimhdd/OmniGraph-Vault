@@ -39,6 +39,7 @@ Domain restriction (per user spec "*.org / *.gov / 维基 / 大厂官网"): pass
 ### DeepSeek model ID — TODO placeholder, default to env-var-controlled model
 
 User spec says "DeepSeek V4 Pro" but the exact model ID is not yet known. The existing `lib/llm_deepseek.py` reads `DEEPSEEK_MODEL` env var (default `deepseek-v4-flash`). The translate helper will:
+
 - Use the existing `deepseek_model_complete` wrapper (no new wrapper needed — it already has 300s timeout, lazy client, error handling).
 - Add a code comment: `# TODO(user): DeepSeek V4 Pro model ID confirmed by user — currently uses DEEPSEEK_MODEL env var (default deepseek-v4-flash). Override via env: DEEPSEEK_MODEL=<v4-pro-id>`
 
@@ -54,6 +55,7 @@ Per-call timeout is enforced via `asyncio.wait_for`: 15s for title (cheap), 60s 
 ### Body cron — overwrite `translated_at` on body update, but NOT `title_translated`
 
 When the nightly body cron runs, an article may already have `title_translated` set by the inline path. The body cron must:
+
 - UPDATE `body_translated`, `translated_lang`, `translated_at` (most-recent translation timestamp wins)
 - Do NOT touch `title_translated` (preserve the inline-translated title)
 
@@ -70,6 +72,7 @@ The repo deliverable is the script `scripts/translate_body_cron.py` and a runboo
 kb-v2.2-7 Wave 2 (locked decision A2) ships translation production via `databricks-deploy/translate_kb.py` (manual Databricks notebook, paid budget, "Run all" trigger). The PLAN's "Hard don'ts" forbid scheduled translation jobs and bundle yaml.
 
 This trans-inc quick adds **incremental** translation on Hermes for new articles (~10/day cron + inline). It does NOT remove or replace the Databricks notebook. Functions:
+
 - **Databricks notebook (kb-v2.2-7 A2):** one-shot backfill of historical untranslated rows, paid LLM
 - **Hermes inline + cron (this quick):** ongoing daily translation of newly-ingested articles, DeepSeek
 
@@ -80,6 +83,7 @@ The kb-v2.2-7 PLAN's "Hard don'ts" anti-pattern of "scheduled translation job" w
 ### Claude's Discretion
 
 Areas not explicitly directed by user spec that I'll decide during execution:
+
 - Exact DeepSeek prompt wording for title vs body (mirror kb-v2.2-7 Wave 2's image-position-preserving discipline for body; minimal terminology-focused for title)
 - Logging structure: per-row log line in `.scratch/translate-body-cron-<YYYYMMDD>.log` for body cron; reuse standard `logger` for inline path
 - Test mock structure: use `unittest.mock.AsyncMock` for `deepseek_model_complete` and `_tavily_search`; pinned-DB-row tests use a tmp_path SQLite + the existing `_ingest_fixtures` schema (extended)
@@ -101,15 +105,18 @@ Areas not explicitly directed by user spec that I'll decide during execution:
 | `.planning/STATE.md` (NOT STATE-KB-v2.md — quick task table lives in main STATE) | UPDATE | append "Quick Tasks Completed" row |
 
 **Translation columns to add (already in migrations 006 + 007 — fixture parity needed):**
+
 ```sql
 body_translated TEXT,
 title_translated TEXT,
 translated_lang VARCHAR(5),
 translated_at DATETIME
 ```
+
 </specifics>
 
 <canonical_refs>
+
 ## Canonical References
 
 - `kb/data/migrations/006_add_translation_columns.sql` — schema for `articles` translation columns (already shipped kb-v2.2-2)
@@ -125,4 +132,5 @@ translated_at DATETIME
 - Memory `feedback_kb_local_uat_mandatory.md` — Local UAT discipline (PRINCIPLE #6)
 </canonical_refs>
 </content>
+
 </invoke>

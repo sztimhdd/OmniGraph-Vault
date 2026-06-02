@@ -101,6 +101,7 @@ and `rollback()` before any path construction.
 ## OOM Empirical Context (2026-05-18)
 
 Manual pre-F12 test exposed the OOM risk this phase addresses:
+
 - **Hermes vdb size:** 1.5 GB (`lightrag_storage/`), 22,412 nodes
 - **Aliyun MemoryMax:** 2,560 MB (2.5 GB)
 - **Outcome:** OOM-kill on graph load immediately after swap

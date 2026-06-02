@@ -22,6 +22,7 @@ ssh aliyun-vitaclaw "ls /etc/cron.d/ | grep -i translate"           → empty
 ⚠️  `/root/OmniGraph-Vault/.env` 不存在 (daily-ingest 也只用 `/root/.hermes/.env`, 一致)
 
 `--dry-run --limit 3` 跑通:
+
 ```
 INFO translate_body_cron starting (limit=3 dry_run=True db=/root/.hermes/omonigraph-vault/kol_scan.db)
 INFO selected 3 candidate(s) for translation
@@ -46,6 +47,7 @@ INFO summary attempted=3 ok=0 fail=0 dry_run=3 elapsed=0.0s
 ## Phase 2 Unit Files
 
 `omnigraph-translate.service`:
+
 ```ini
 [Unit]
 Description=OmniGraph translate body cron 11:00 ADT (14:00 UTC)
@@ -67,6 +69,7 @@ WantedBy=multi-user.target
 ```
 
 `omnigraph-translate.timer`:
+
 ```ini
 [Unit]
 Description=OmniGraph translate body 11:00 ADT (14:00 UTC) timer
@@ -86,14 +89,17 @@ WantedBy=timers.target
 ## Phase 3 Install + Arm + Halt-Recovery
 
 ### Install (clean)
+
 ```
 scp omnigraph-translate.service aliyun-vitaclaw:/tmp/
 scp omnigraph-translate.timer aliyun-vitaclaw:/tmp/
 ssh aliyun-vitaclaw "sudo mv /tmp/*.{service,timer} /etc/systemd/system/ && sudo systemctl daemon-reload"
 ```
+
 ✅ install ok
 
 ### Arm (Lesson 1 v2 v3 safe-arm)
+
 ```
 sudo touch -m -d 'now' /var/lib/systemd/timers/stamp-omnigraph-translate.timer
 sudo systemctl enable omnigraph-translate.timer    # 不带 --now
@@ -111,24 +117,29 @@ daily-ingest 同模板有同样 trap, 但 daily-ingest 从未被 manual start (�
 **user 决策:** 接受 fire (8 行 title backfill 是有效数据), 让两次 fire 都跑完, 验 timer 之后稳定到 14:00 UTC.
 
 ### Run 1 (SIGTERM 时停: 8 title backfill)
+
 ```
 20:34:41  Started service (Requires= chain)
 20:34:42  selected 16 candidate(s)
 20:34:48  title ok id=60 lang=zh-CN  ...
 20:35:28  systemd[1]: Stopping (SIGTERM)
 ```
+
 8 行 title backfill (id 60/1394/45/5144/1196/31619/31920/32670, all rss_articles + articles)
 
 ### Run 2 (clean exit 0)
+
 ```
 20:37:34  Started service (manual restart timer 又触发 Requires=)
 20:37:34  selected 8 candidate(s)
 ...
 20:53:18  summary attempted=8 ok=8 fail=0 dry_run=0 elapsed=944.4s
 ```
+
 8 行 title + body backfill, exit 0/SUCCESS
 
 ### Final State (verified)
+
 ```
 === TIMER ===
 Active: active (waiting) since 20:37:34 CST
@@ -144,6 +155,7 @@ Fri 2026-05-29 22:00:00 CST  1h 6min left omnigraph-translate.timer omnigraph-tr
 ```
 
 ### BL-1 Reduction (post 2 runs, 16 backfill total)
+
 | Table | title NULL | Δ | body NULL | Δ |
 |---|---|---|---|---|
 | articles | 12 → 11 | -1 | 12 → 11 | -1 |

@@ -53,6 +53,7 @@ created: 2026-05-06
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
 **Wave assignment rationale:**
+
 - **Wave 0 (prerequisite):** Plan 20-00 RED stubs — drive TDD for all downstream plans; no production code touched
 - **Wave 1 (parallel):** Plan 20-01 (RCL — pure-classify changes) + Plan 20-03 Tasks 3.1+3.2 (COG-01 verify + COG-02 cognee_wrapper refactor — independent file)
 - **Wave 2 (sequential after Wave 1):** Plan 20-02 (RIN — depends on RCL because rewritten `rss_ingest.py` calls upgraded classify)

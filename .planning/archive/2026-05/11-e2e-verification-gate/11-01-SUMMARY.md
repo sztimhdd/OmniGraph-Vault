@@ -92,12 +92,15 @@ Three helpers added to `lib/lightrag_embedding.py`:
 The following 10 tests were already failing before this plan (documented in the execution prompt as "the 10 broken tests" and "Phase 5/7 legacy out of v3.1 scope"). They remain failing with **identical failure signatures**, confirming zero new regressions:
 
 **test_lightrag_embedding.py (1):**
+
 - `test_embedding_func_reads_current_key` — mock client mock does not accept `vertexai` kwarg (`TypeError: got an unexpected keyword argument 'vertexai'`); same signature as pre-plan baseline.
 
 **test_lightrag_embedding_rotation.py (6):**
+
 - `test_single_key_fallback`, `test_round_robin_two_keys`, `test_429_failover_within_single_call`, `test_both_keys_429_raises`, `test_non_429_error_does_not_rotate`, `test_empty_backup_env_var_treated_as_no_backup` — same `vertexai` kwarg issue in `_mock_client_cls` signatures.
 
 **test_models.py (3):**
+
 - `test_ingestion_llm_is_pure_constant`, `test_vision_llm_is_pure_constant`, `test_no_model_env_override` — unrelated Phase 5/7 model-constant enforcement tests.
 
 Per the execution prompt, these are out of scope for Plan 11-01 and MUST NOT be "fixed" here. v3.1 gate does not depend on them.

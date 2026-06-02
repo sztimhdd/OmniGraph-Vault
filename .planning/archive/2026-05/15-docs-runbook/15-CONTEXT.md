@@ -8,11 +8,13 @@
 ## Phase Boundary
 
 **Delivers:** Three documentation artifacts that let a human operate the batch pipeline without reading code:
+
 1. **CLAUDE.md additions** — project-level memory for future Claude Code sessions (Checkpoint Mechanism, Vision Cascade, SiliconFlow Balance, Batch Execution, Known Limitations)
 2. **`docs/OPERATOR_RUNBOOK.md`** — operator-facing runbook (Pre-Batch Checklist, Batch Execution commands, Failure Scenarios table, Manual Intervention, Monitoring Points)
 3. **`Deploy.md` updates** — SiliconFlow vs Gemini trade-off table + "Recommended Upgrade Path" section linking to Vertex AI spec
 
 **Does NOT deliver:**
+
 - Any code changes (this is pure docs)
 - The CLAUDE.md sections for features that don't exist yet — docs must be drafted in parallel with Phase 12-13 implementation BUT final merge into CLAUDE.md waits on stable APIs from those phases
 - SKILL.md updates (those live under `skills/` and follow OpenClaw/Hermes skill conventions — out of scope)
@@ -26,6 +28,7 @@
 ## Implementation Decisions (from PRD §B4)
 
 ### CLAUDE.md Additions (DOC-01)
+
 - **Checkpoint Mechanism** section: stage boundaries, checkpoint dir layout, resume semantics, manual reset commands
 - **Vision Cascade** section: fallback order (SiliconFlow→OpenRouter→Gemini), circuit breaker thresholds (3 consecutive failures), per-provider balance alerts
 - **SiliconFlow Balance Management** section: pre-batch check + mid-batch monitoring + depletion scenario
@@ -35,6 +38,7 @@
 ### OPERATOR_RUNBOOK.md (DOC-02) — new file at `docs/OPERATOR_RUNBOOK.md`
 
 **Sections (MANDATORY):**
+
 1. **Pre-Batch Checklist** — verbatim bullet list from PRD §B4.2:
    - SiliconFlow balance ≥ ¥1.00
    - DEEPSEEK_API_KEY set and valid
@@ -54,6 +58,7 @@
 ### Deploy.md Updates (DOC-03)
 
 Add sections:
+
 - **SiliconFlow Paid Tier vs Gemini Free** — trade-off table: cost, reliability, error mode, balance handling
 - **Vertex AI Infrastructure Plan (Milestone B.5)** — current state (Gemini API key free tier), problem (quota coupling), solution design (Vertex AI migration), timeline (deferred to post-B5)
 - **Recommended Upgrade Path** — production deployments should use Vertex AI OAuth2 + cross-project quota isolation; dev/test current API key is fine; links to `docs/VERTEX_AI_MIGRATION_SPEC.md`
@@ -68,25 +73,30 @@ Add sections:
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Source of Truth
+
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B4 — verbatim requirements for all three docs
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B1 — Checkpoint mechanism (to document in CLAUDE.md + OPERATOR_RUNBOOK)
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B2 — Vision Cascade (to document in CLAUDE.md + OPERATOR_RUNBOOK)
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B5 — Vertex AI design (linked from Deploy.md)
 
 ### Existing Files to Modify
+
 - `CLAUDE.md` (project root) — follow existing section style; insertion point after "Lessons Learned" section
 - `Deploy.md` (project root) — append new sections at end; follow existing Markdown style
 
 ### Existing Files to Read for Style
+
 - `.planning/phases/07-model-key-management/07-CONTEXT.md` — recent phase context example
 - `.planning/phases/04-knowledge-enrichment-zhihu/04-CONTEXT.md` — another recent phase example
 
 ### Cross-Phase Dependency Signals (wait for stable API before final merge)
+
 - `lib/checkpoint.py` (to be created by Phase 12) — checkpoint reset/status scripts
 - `lib/vision_cascade.py` or similar (to be created by Phase 13) — cascade provider state tracking
 - `scripts/checkpoint_reset.py`, `scripts/checkpoint_status.py` (Phase 12)
@@ -100,6 +110,7 @@ Add sections:
 ### CLAUDE.md Section Templates (copy verbatim from PRD §B4.1)
 
 Every section should include:
+
 - **One-paragraph summary** of what this mechanism does
 - **Code reference** (file:line) where the logic lives (populate after Phase 12/13 implementations merge)
 - **Operator-facing commands** (checkpoint reset, balance check)
@@ -108,6 +119,7 @@ Every section should include:
 ### OPERATOR_RUNBOOK.md Boilerplate
 
 Start with:
+
 ```markdown
 # OmniGraph-Vault Batch Operator Runbook
 

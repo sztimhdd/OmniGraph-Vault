@@ -79,6 +79,7 @@ cron_daily_ingest.sh 5
 **Manifestation:** A single Python process (`batch_ingest_from_spider.py`, 47 commits in 16 days) handles the entire pipeline from SQL query to graph write.
 
 **Architectural problem:** The process bundles responsibilities across 4 distinct domains:
+
 - **Fetch/Scrape** — network I/O, WeChat rate limits, Apify credits
 - **Classify** — DeepSeek LLM calls, prompt engineering, topic scoring
 - **Extract** — DeepSeek LLM calls, entity/relation extraction
@@ -110,6 +111,7 @@ The 402 should only block Classify and Extract. Image Vision and Merge do not us
 **What a pull model would do:** Each stage consumes work as capacity allows. When the Extract worker is saturated, the Classify worker slows down. When DeepSeek is unavailable, Classify and Extract drain their queues and pause — Image Vision and Merge continue.
 
 **Structural issue:** The MAX_ARTICLES cap conflates two independent concerns:
+
 1. **Rate limiting** (how many DeepSeek calls can I afford per day?)
 2. **Throughput capping** (how many articles can I process before the 900s terminal timeout?)
 
@@ -129,6 +131,7 @@ id=5530, status='ok'               wechat_38cd26912b: {'status': 'processed'}
 ```
 
 The write sequence is:
+
 1. `ingest_wechat.py` calls LightRAG `ainsert(doc)` — this is async
 2. Immediately writes `status='ok'` to `ingestions` table
 3. LightRAG's async `ainsert` may fail later (402, timeout, race condition)
@@ -163,6 +166,7 @@ The write sequence is:
 | WeChat MP | 200013 rate limit, auth expiry | Pause scrape, retry later | Fail entire batch |
 
 The 402 pattern is the clearest example of this defect. When DeepSeek returns 402:
+
 - **What happens:** Entire batch aborts. All queued work lost.
 - **What should happen:** Classify and Extract stages pause. Image Vision and Merge continue. Scanner keeps fetching new articles. When DeepSeek recovers, queued items are processed.
 - **Why it doesn't:** All stages share the same process. One API failure → one process crash → all stages dead.
@@ -180,6 +184,7 @@ DAY N+1: Load 219 articles → Classify 219 → Ingest 5 → Discard 214
 ```
 
 This wastes:
+
 - **DeepSeek API calls**: 219 classifications/day × 5 days = 1095 calls. An incremental model would classify each article once, then only process new arrivals (~10–20/day).
 - **LightRAG initialization**: Loading 12138 nodes + 16435 edges from GraphML on every run.
 - **Human attention**: Every run produces the same checkpoint-skip noise in logs.
@@ -221,12 +226,14 @@ Articles already classified stay classified. Articles already ingested stay inge
 ### 3.2 Stage Definitions
 
 #### Stage 0: Scanner (unchanged)
+
 - **Input:** RSS feeds, WeChat KOL accounts
 - **Output:** `articles` rows in SQLite with `stage = 'discovered'`
 - **Isolation:** Runs independently of all other stages. No LLM dependency.
 - **Schedule:** Multiple times/day for RSS, daily for KOL scan.
 
 #### Stage 1: Classify Worker
+
 - **Input:** Articles with `stage = 'discovered'` or `stage_status = 'pending'`
 - **Processing:** Layer1 topic filter → Layer2 depth scoring (single DeepSeek call)
 - **Output:** `stage = 'classified', stage_status = 'ok' | 'rejected'`
@@ -235,6 +242,7 @@ Articles already classified stay classified. Articles already ingested stay inge
 - **Recovery:** Failed classifications retry on next tick. Already-classified articles not re-processed.
 
 #### Stage 2: Extract Worker
+
 - **Input:** Articles with `stage = 'classified', stage_status = 'ok'`
 - **Processing:** Scrape body → LightRAG entity extraction (DeepSeek LLM) → buffer entities
 - **Output:** `stage = 'extracted', stage_status = 'ok' | 'failed'`
@@ -243,6 +251,7 @@ Articles already classified stay classified. Articles already ingested stay inge
 - **Recovery:** Failed extractions retry with checkpoint clearing.
 
 #### Stage 3: Image Worker (NEW — extracted from Extract)
+
 - **Input:** Images from extracted articles
 - **Processing:** SiliconFlow Vision API → image entities
 - **Output:** Image entities written to buffer, `image_status = 'ok' | 'skipped'`
@@ -251,6 +260,7 @@ Articles already classified stay classified. Articles already ingested stay inge
 - **Parallelism:** Can run concurrently with Stage 2 (article extract) and Stage 4 (merge).
 
 #### Stage 4: Merge Worker
+
 - **Input:** Extracted entities + image entities
 - **Processing:** Vertex AI embedding → LightRAG merge → graph write
 - **Output:** `stage = 'merged', stage_status = 'ok'`
@@ -291,6 +301,7 @@ Articles already classified stay classified. Articles already ingested stay inge
 ```
 
 **What changes for `ingestions` table:**
+
 - No longer written by ingest workers.
 - Becomes a derived view: `SELECT article_id, MAX(doc_status.status) FROM lightrag_doc_status GROUP BY article_id`.
 - Or: a materialized view refreshed after each Merge batch completes.
@@ -322,6 +333,7 @@ Articles already classified stay classified. Articles already ingested stay inge
 ```
 
 When DeepSeek 402 fires:
+
 1. Classify Worker and Extract Worker go to `paused` state.
 2. Image Worker continues processing queued images (SiliconFlow is independent).
 3. Merge Worker continues merging entities already extracted (Vertex AI is independent).
@@ -347,6 +359,7 @@ def tick():
 ```
 
 Backpressure emerges naturally:
+
 - If Classify Worker is fast: queue drains quickly, no articles back up.
 - If Extract Worker is slow: classified queue grows, Classify Worker stays capped at 10 pull.
 - If no Worker is running: articles sit in their queues, no work lost.
@@ -376,11 +389,13 @@ No MAX_ARTICLES cap needed. No batch_budget needed. Each article gets its own pe
 ```
 
 **Why 10-minute ticks?** 
+
 - Small enough to react quickly to 402 recovery.
 - Large enough to avoid overlapping worker instances.
 - With 5 articles/tick × 6 ticks/hour × 24 hours = 720 articles/day capacity (far exceeding current 1–7/day).
 
 **Worker lifecycle:**
+
 - Launch as subprocess (or thread if lightweight).
 - Process up to 5 articles, then exit.
 - If article-level timeout fires: mark that article failed, continue to next.
@@ -395,6 +410,7 @@ No MAX_ARTICLES cap needed. No batch_budget needed. Each article gets its own pe
 **Goal:** Split the monolith into 4 independent worker scripts. No logic changes — only separation of concerns.
 
 **Output:**
+
 ```
 scripts/
   ingest_classify_worker.py   ← Layer1 + Layer2 logic extracted
@@ -413,6 +429,7 @@ scripts/
 **Goal:** LightRAG `doc_status` becomes single source of truth. `ingestions` table becomes derived view. Add `stage` and `stage_status` columns to `articles` table.
 
 **Migration script:**
+
 ```sql
 ALTER TABLE articles ADD COLUMN stage TEXT DEFAULT 'discovered';
 ALTER TABLE articles ADD COLUMN stage_status TEXT DEFAULT 'pending';
@@ -428,12 +445,14 @@ ALTER TABLE articles ADD COLUMN stage_status TEXT DEFAULT 'pending';
 **Goal:** Replace single 09:00 cron with 10-minute scheduler ticks. Workers launch on demand.
 
 **Cron changes:**
+
 ```
 # REMOVE:  0 9 * * * cron_daily_ingest.sh 5
 # ADD:     */10 * * * * scripts/ingest_scheduler.py
 ```
 
 **Scheduler logic:**
+
 1. Query `articles` for pending per stage.
 2. Check API health (ping DeepSeek, Vertex AI).
 3. Launch workers if work pending + API healthy.
@@ -456,6 +475,7 @@ ALTER TABLE articles ADD COLUMN stage_status TEXT DEFAULT 'pending';
 | Merge | 120s/batch | Mark failed, retry next tick |
 
 **402 auto-detection:**
+
 ```python
 def check_deepseek_health():
     resp = deepseek.chat("ping")

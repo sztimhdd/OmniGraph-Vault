@@ -116,6 +116,7 @@ Difference: this plan also handles the "table doesn't exist" case (returns `tabl
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Plan Test 1 spec inconsistent with algorithm output**
+
 - **Found during:** Task 1 (RED → GREEN cycle)
 - **Issue:** Plan asserted `chinese_char_ratio("人工智能 Agent 框架对比 LangChain CrewAI")` returns `(0.3, 0.6)`. Hand-computed: 8 CJK chars / 32 total chars = 0.25 — below the lower bound.
 - **Fix:** Renamed test to `test_ratio_mixed_text_hand_computed`; pinned to exact value `pytest.approx(8/32)`. Honors lesson 2026-05-06: tests should pin to independently-verifiable values, not mirror impl.
@@ -123,6 +124,7 @@ Difference: this plan also handles the "table doesn't exist" case (returns `tabl
 - **Commit:** 946492c
 
 **2. [Rule 3 - Blocking] sqlite3.Connection.execute is read-only in CPython 3.13**
+
 - **Found during:** Task 2 (running idempotency test)
 - **Issue:** Plan suggested spying via `conn.execute = spy_execute` direct attribute assignment, which raises `AttributeError: 'sqlite3.Connection' object attribute 'execute' is read-only` on CPython 3.13.
 - **Fix:** Wrapped with a `SpyConn` proxy class that owns its own `execute` method delegating to the real `conn._c.execute`. Functions accept duck-typed connections, so this works cleanly.

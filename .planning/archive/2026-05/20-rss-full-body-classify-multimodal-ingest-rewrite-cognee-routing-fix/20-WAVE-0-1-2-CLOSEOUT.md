@@ -20,10 +20,12 @@ session: yolo_discuss_plan_execute
 ## Final state
 
 **Test status (post-Wave-2):**
+
 - 21 PASS / 1 FAIL on Phase-20-relevant + Phase 19 baseline tests
 - The 1 failure (`test_classify_full_body_uses_scraper`) is from concurrent commit `c786a83` (UPSERT migration) — **pre-existing, out of Phase 20 scope**
 
 **Phase 20 internal coverage:**
+
 - RCL: 3/3 GREEN (Plan 20-01)
 - RIN: 6/6 GREEN (Plan 20-02 — includes the 1 always-passing image-URL contract test)
 - COG-02: 1/1 GREEN (Plan 20-03 Task 3.2)
@@ -38,6 +40,7 @@ session: yolo_discuss_plan_execute
 **Commit:** `8cc4141` test(phase-20-00): RED stubs + plan completion artifacts
 
 **Files created:**
+
 - `tests/unit/test_rss_classify_fullbody.py` (3 tests for RCL-01..03)
 - `tests/unit/test_rss_ingest_5stage.py` (6 tests for RIN-01..06; one passes immediately to pin the localhost-URL regex contract)
 - `tests/unit/test_cognee_remember_detaches.py` (1 test for COG-02 — recorded actual block at **5011ms** vs assertion `<100ms` → confirmed D-20.15 mandatory)
@@ -47,12 +50,14 @@ session: yolo_discuss_plan_execute
 ### Wave 1 — RCL + COG-02 (parallel)
 
 **Plan 20-01 (RCL) — commits `882e322` + `82bbeb3`:**
+
 - `enrichment/rss_classify.py` upgraded: 236 lines summary-string → full-body via `from batch_classify_kol import _build_fullbody_prompt, _call_fullbody_llm, FULLBODY_TRUNCATION_CHARS`
 - `THROTTLE_SECONDS = 0.3` deleted; `FULLBODY_THROTTLE_SECONDS = 4.5` introduced
 - Writes to columns `body, body_scraped_at, depth, topics, classify_rationale` on `rss_articles` (D-20.04 + Lessons Learned 2026-05-05 #2 atomic body persist)
 - All 3 RED tests turned GREEN
 
 **Plan 20-03 Tasks 3.1+3.2 — commits `c6bd91c` + `20d7ea8`:**
+
 - Task 3.1 (COG-01 verify): documented-only — confirmed `cognee_wrapper.py:50` already has `gemini/gemini-embedding-2` per `74f7503`; no code change
 - Task 3.2 (COG-02 refactor): `remember_article` switched from `asyncio.wait_for(timeout=5.0)` to `asyncio.create_task(_inner())` fire-and-forget per D-20.15
 - COG-02 mock test `test_remember_returns_fast` turned GREEN
@@ -66,11 +71,13 @@ session: yolo_discuss_plan_execute
 **Commits:** `ce8127a` + `0ebd191` + `ca63e08` + `1ef2b13`
 
 **Task 2.1 — `image_pipeline.download_images` (commit `ce8127a`):**
+
 - Added `referer: str | None = None` parameter (D-20.08)
 - Added Content-Type `image/svg*` filter before disk write (D-20.09)
 - Backward-compatible (default `referer=None` → no header sent → KOL callers unchanged)
 
 **Task 2.2 — `enrichment/rss_ingest.py` rewrite (commit `0ebd191`):**
+
 - 324-line translation pipeline → 335-line 5-stage multimodal pipeline
 - Translation removed: `_translate_to_chinese`, `_TRANSLATE_PROMPT`, `_detect_lang`, `from langdetect` ALL deleted (per REQUIREMENTS.md "Out of Scope")
 - 5 stages via `lib/checkpoint.py` with short keys: `scrape, classify, image_download, text_ingest, vision_worker` (D-20.16)
@@ -81,6 +88,7 @@ session: yolo_discuss_plan_execute
 - PROCESSED gate (RIN-06) preserved verbatim from old impl lines 184-207
 
 **Cleanup (commit `1ef2b13`):**
+
 - `tests/unit/test_rss_ingest.py` deleted — all 8 tests patched the deleted `_translate_to_chinese`; 100% orphaned by Phase 20 RIN rewrite per CLAUDE.md "Remove imports/variables/functions that YOUR changes made unused". Coverage preserved by `test_rss_ingest_5stage.py`.
 
 **6/6 RIN tests turned GREEN.**
@@ -155,10 +163,12 @@ While Phase 20 Wave 0/1/2 was running, the user's parallel session committed:
 1. SSH to Hermes per `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/hermes_ssh.md`
 2. `cd ~/OmniGraph-Vault && git pull --ff-only` (pulls Phase 20 commits 8cc4141 → 1ef2b13)
 3. Enable Cognee inline call for the smoke run:
+
    ```
    OMNIGRAPH_COGNEE_INLINE=1 venv/bin/python batch_ingest_from_spider.py \
      --from-db --topic-filter agent --min-depth 2 --max-articles 3
    ```
+
 4. Verify ALL of:
    - All 3 articles complete in <30 min total wall-clock
    - `cognee_wrapper.remember_article` does NOT regress ingest fast-path latency vs `OMNIGRAPH_COGNEE_INLINE=0` baseline

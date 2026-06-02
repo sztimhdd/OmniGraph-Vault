@@ -262,6 +262,7 @@ These are implementation decisions the planner / executor can make freely as lon
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**

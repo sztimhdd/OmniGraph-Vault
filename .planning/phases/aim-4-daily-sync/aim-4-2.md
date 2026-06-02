@@ -92,6 +92,7 @@ authoring; only repo-local file write + commit. Smoke validation
 ### Task 1 — Author scripts/sync-from-aliyun.sh
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-4-daily-sync\aim-4-CONTEXT.md`
   lines 192-251 (script skeleton + retry loop + marker cleanup)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-4-daily-sync\aim-4-CONTEXT.md`
@@ -104,6 +105,7 @@ authoring; only repo-local file write + commit. Smoke validation
   lines 71, 74 (SYNC-01 and SYNC-04 verbatim)
 
 **`<acceptance_criteria>`**
+
 - `scripts/sync-from-aliyun.sh` exists with content matching the
   template in `<action>` (sections may be adjusted for clarity but the
   4 targets, retry timings 60/300/1800, and marker logic are bit-exact).
@@ -255,11 +257,13 @@ with `bash -n scripts/sync-from-aliyun.sh`.
 ### Task 2 — Smoke validation on Hermes
 
 **`<read_first>`**
+
 - aim-4-1-EVIDENCE.md (must show validation 1 + 2 PASS — bootstrap
   prereq for this smoke to succeed)
 - Memory `hermes_ssh.md` (Hermes user `sztimhdd`, port 49221)
 
 **`<acceptance_criteria>`**
+
 - The script committed in Task 1 is copied to Hermes (via `scp` or
   `rsync` from Hermes pulling repo `git` — not yet possible since
   commit hasn't happened. Plan: stage the file via temporary scp from
@@ -318,11 +322,13 @@ hung vs. progressing (check Aliyun `iftop` or Hermes `ifstat`).
 ### Task 3 — Author evidence markdown + commit
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\CLAUDE.md` Lessons Learned
   2026-05-06 #5 + 2026-05-15 #1 (forward-only, explicit `git add`)
 - Memory `feedback_git_add_explicit_in_parallel_quicks.md`
 
 **`<acceptance_criteria>`**
+
 - `.planning/phases/aim-4-daily-sync/aim-4-2-EVIDENCE.md` exists.
 - File contains: timestamp; first-run wallclock + RC=0; second-run RC=0
   + transfer size near 0; post-sync inventory (article count, DB size,

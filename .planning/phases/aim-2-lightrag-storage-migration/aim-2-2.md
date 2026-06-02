@@ -34,10 +34,12 @@ The pause from aim-2-1 MUST still be in effect during this plan; the storage on 
 ### Task 1 — Operator creates tar.gz and sha256 on Hermes
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` line 52 (STORAGE-02 wording — exact tar command, sha256 method, retention requirement)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-2-lightrag-storage-migration\EVIDENCE\STORAGE-01-pause-evidence.md` (confirms pause is in effect — do not proceed if pause not confirmed)
 
 **`<acceptance_criteria>`**
+
 - File `/tmp/lightrag_storage_aim2_<ts>.tar.gz` exists on Hermes with `stat -c %s` ≥ 1073741824 (1 GiB).
 - File `/tmp/lightrag_storage_aim2_<ts>.tar.gz.sha256` exists with content matching `<sha256hex>  /tmp/lightrag_storage_aim2_<ts>.tar.gz` shape.
 - `sha256sum -c /tmp/lightrag_storage_aim2_<ts>.tar.gz.sha256` returns `OK` exit 0.
@@ -110,6 +112,7 @@ pgrep -f batch_ingest_from_spider; echo "exit=$?"
 ```
 
 Paste FULL output of all 3 steps back. Include the `TS=` line literally — the local agent needs the timestamp suffix to write the next plan's scp command.
+
 ```
 
 After receiving operator output, the agent moves to Task 2.
@@ -147,13 +150,17 @@ REQ: STORAGE-02
 ## Sha256 (Hermes-side, source of truth for STORAGE-03)
 
 ```
+
 [paste verbatim contents of `cat $SHA`]
+
 ```
 
 ## Sha256 self-verify
 
 ```
+
 [paste verbatim output of `sha256sum -c $SHA`]
+
 ```
 
 Expected: ends with `OK`.
@@ -161,13 +168,17 @@ Expected: ends with `OK`.
 ## Source size before tar
 
 ```
+
 [paste verbatim output of `du -sh ~/.hermes/omonigraph-vault/lightrag_storage/`]
+
 ```
 
 ## Top-5 tar entries
 
 ```
+
 [paste verbatim output of `tar -tzf "$TAR" | head -5`]
+
 ```
 
 Expected: first line begins with `lightrag_storage/`.

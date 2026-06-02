@@ -461,6 +461,7 @@ Note: `research()` itself does NOT try/except — every stage is best-effort int
 </verification>
 
 <success_criteria>
+
 - 5 stage modules under `lib/research/stages/` with uniform `async def run(...)` signature
 - Retriever wires live `omnigraph_search.query.search()` (CONTRACT-01 enforced)
 - Synthesizer terminal stage with CJK heuristic + degradation note_lines (Axis 8/10)

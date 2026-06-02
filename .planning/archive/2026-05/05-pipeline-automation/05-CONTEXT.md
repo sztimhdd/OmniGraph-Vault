@@ -97,6 +97,7 @@ None — `gsd-tools todo match-phase 5` returned zero matches.
 </decisions>
 
 <infra_composition>
+
 ## v3.1 / v3.2 Infrastructure Composition (added 2026-05-01)
 
 Between Phase 5 planning (2026-04-28) and Phase 5 execution, milestones **v3.1** (single-article ingest stability) and **v3.2** (batch reliability + infra) landed. Phase 5 plans MUST compose with the delivered libraries rather than reimplement equivalent logic. This section lists what exists on `main` at commit `40cba44` and how each Phase 5 plan should use it. **Original 18 decisions (D-01..D-18) are unchanged** — this section only adds composition guidance, not new locked decisions.
@@ -138,6 +139,7 @@ Between Phase 5 planning (2026-04-28) and Phase 5 execution, milestones **v3.1**
 ### Pre-execution checklist for Phase 5
 
 Before `/gsd:execute-phase 5`:
+
 1. `lib/checkpoint.py`, `lib/vision_cascade.py`, `lib/batch_timeout.py`, `lib/siliconflow_balance.py` importable — `python -c "from lib import checkpoint, vision_cascade, batch_timeout, siliconflow_balance"` exits 0.
 2. `docs/OPERATOR_RUNBOOK.md` exists on main.
 3. **v3.2 E2E regression complete** — P0 fixture scrape + P1 Gate 3 + P2 cascade smoke + P3 unit tests all shipped (commits `2a8bde2` through `3c338f8`). 4-probe UAT harness at `scripts/probe_e2e_v3_2.py` validates checkpoint/resume + cascade + full 6-stage E2E.
@@ -164,6 +166,7 @@ checkpoint drift. See `docs/UAT_v3_2.md` for full documentation.
 </infra_composition>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
@@ -229,6 +232,7 @@ Existing pipeline:
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets

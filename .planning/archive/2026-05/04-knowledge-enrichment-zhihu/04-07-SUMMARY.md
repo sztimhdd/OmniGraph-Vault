@@ -145,12 +145,14 @@ gemini-2.5-flash
 ## Self-Check
 
 **Commits present:**
+
 - `924ee6b` feat(04-07): add Phase 4 enrichment config keys — FOUND
 - `9e2a0c1` fix(04-07): swap flash-lite→INGEST_LLM_MODEL, add SQLite auto-migrate — FOUND
 - `1315566` fix(04-07): pop GOOGLE_GENAI_USE_VERTEXAI in fetch_zhihu + merge_and_ingest — FOUND
 - `17ee797` docs(04-07): cross-reference enrich_article in omnigraph_ingest SKILL.md — FOUND
 
 **Files modified:**
+
 - `config.py` — FOUND (contains `ENRICHMENT_LLM_MODEL`, `INGEST_LLM_MODEL`, no `flash-lite`)
 - `ingest_wechat.py` — FOUND (4 `INGEST_LLM_MODEL` refs, `from batch_scan_kol import init_db`, `UPDATE articles SET enriched` block)
 - `enrichment/fetch_zhihu.py` — FOUND (VERTEXAI pop present)

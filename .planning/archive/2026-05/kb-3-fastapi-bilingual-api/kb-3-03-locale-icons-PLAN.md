@@ -334,6 +334,7 @@ Pattern: `{%- elif name == 'chat-bubble-question' -%}` block with `<path d="..."
 </verification>
 
 <success_criteria>
+
 - I18N foundation ready for kb-3-10 (ask.html state matrix consumes qa.* keys + chat-bubble-question + lightning-bolt icons)
 - Search foundation ready for kb-3-11 (homepage / articles_index inline reveal consumes search.results.* keys)
 - I18N-07 cross-reference: kb-3-08 will inject `qa.state.*` strings during streaming/done state transitions on the client

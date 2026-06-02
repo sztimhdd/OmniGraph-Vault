@@ -224,6 +224,7 @@ Component HTML structure (paste-ready, verbatim from UI-SPEC §3.1):
   </div>
 </section>
 ```
+
 </interfaces>
 </context>
 
@@ -790,6 +791,7 @@ Component HTML structure (paste-ready, verbatim from UI-SPEC §3.1):
 </verification>
 
 <success_criteria>
+
 - I18N-07 + QA-01..05 satisfied at the UI consumer surface
 - Result-reveal animation is the ONE signature moment per page (UI-SPEC §1)
 - Restraint principle: fts5_fallback hides entities + feedback (D-9 + D-10)

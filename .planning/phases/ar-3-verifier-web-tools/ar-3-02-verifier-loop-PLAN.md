@@ -70,10 +70,12 @@ Wave 2 of ar-3 replaces the ar-1 stub body in `lib/research/stages/verifier.py` 
 Loop terminates when the LLM emits a final answer OR when `iter_count` reaches `cfg.max_iter_verifier` (default 3). Any exception inside the loop is caught and surfaces as `status="failed"` per Axis 3.
 
 Purpose:
+
 - **ORCH-04** — Verifier agent loop deferred from ar-1/ar-2. Structure mirrors the Reasoner loop from ar-2-01 (same `_LLMDecision` / `_ToolCall` protocol, same parallel `asyncio.gather` dispatch, same outer try/except, same cap semantics).
 - **TEST-04 Verifier-half** — mock-based test asserting the loop terminates at `iter_count == cfg.max_iter_verifier` when the LLM never finalizes, with `status="ok"`. Wave 3 mirrors this for the Reasoner and consolidates both into `test_caps_consolidated.py`.
 
 Output:
+
 - One file rewritten: `lib/research/stages/verifier.py` (signature unchanged: `async def run(query, cfg, reasoned) -> VerifierOutput`).
 - One new test file: `tests/unit/research/test_verifier_agent_loop.py` (≥8 tests).
 - One new test file: `tests/unit/research/test_verifier_cap.py` (1 test — Wave 3 may absorb).
@@ -689,6 +691,7 @@ Wave 2 does NOT exercise the upgraded Layer 2 smoke (cap=0 LLM-free CLI smoke is
 </verification>
 
 <success_criteria>
+
 - ROADMAP § "Phase ar-3" Success Criterion #1 (Verifier real bounded loop with web_search + web_extract + conditional grounding, terminating at iter_count <= max_iter_verifier, returning iter_count + confidence): ✓ delivered by Tasks 1+2.
 - ROADMAP Success Criterion #2 (cfg.web_search live Tavily): NOT this wave (Wave 1).
 - ROADMAP Success Criterion #3 (Brave fallback exactly once): NOT this wave (Wave 1).

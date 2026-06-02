@@ -46,6 +46,7 @@ REQ STAB-02 verbatim
 Per `aim-5-CONTEXT.md` FINDING 3 (migration-related vs. v1.0.x noise
 floor distinction): historical v1.0 production day-1 noise floor was
 1/188 = 0.5%. Decision rule for any ghost observation:
+
 - if `migration_related` → RESTART
 - else (classify as v1.0.x noise floor) → log + continue
 
@@ -93,6 +94,7 @@ Per FINDING 9, all probes are read-only diagnostics — labeled
 ### Task 1 — Daily probe (run once per day, day 1..7) `[agent-runnable]`
 
 **`<read_first>`**
+
 - `aim-5-CONTEXT.md` lines 288-309 (STAB-02 daily probe pattern)
 - `aim-5-CONTEXT.md` FINDING 3 (migration-related vs. v1.0.x noise
   floor classification rules)
@@ -101,6 +103,7 @@ Per FINDING 9, all probes are read-only diagnostics — labeled
 - Memory `aliyun_vitaclaw_ssh.md`
 
 **`<acceptance_criteria>`**
+
 - Daily log file
   `aim-5-EVIDENCE/daily-checks-day-N.log` contains a `=== STAB-02 day N ===`
   section with: `total_24h`, `ghost_24h`, `rate`, classification (if
@@ -208,6 +211,7 @@ verdict: RESTART (if Y) / OPERATOR-REVIEW (if N + ≥1%) / PASS (if <1%)
 ### Task 2 — Day-7 rollup verdict + aim-5-2-EVIDENCE.md `[agent-runnable]`
 
 **`<read_first>`**
+
 - All 7 daily logs (STAB-02 sections)
 - `aim-5-CONTEXT.md` FINDING 1 (threshold-based handling) + FINDING 3
   (classification rules)
@@ -215,6 +219,7 @@ verdict: RESTART (if Y) / OPERATOR-REVIEW (if N + ≥1%) / PASS (if <1%)
   baseline reference)
 
 **`<acceptance_criteria>`**
+
 - `aim-5-2-EVIDENCE.md` exists with:
   - 7 daily rates table (Day | total | ghost | rate | classification | verdict)
   - 7-day rolling rate computation

@@ -102,6 +102,7 @@ Single atomic commit, single push.
 Current contracts (extracted from working tree before fix — executor uses these as the baseline diff target):
 
 batch_ingest_from_spider.py:237-242 (CURRENT — outer wrapper, post-siw):
+
 ```python
 async def ingest_article(
     url: str,
@@ -113,6 +114,7 @@ async def ingest_article(
 ```
 
 batch_ingest_from_spider.py:285-288 (CURRENT — inner dispatch site, THE bug):
+
 ```python
 await asyncio.wait_for(
     ingest_wechat.ingest_article(url, rag=rag),
@@ -129,6 +131,7 @@ batch_ingest_from_spider.py — TWO outer call sites (BOTH need updating):
   Verification: `grep -nE "await ingest_article\(" batch_ingest_from_spider.py` MUST return ≥2 sites, ALL with `source=` literal-or-variable as first positional arg.
 
 ingest_wechat.py:916 (CURRENT — inner signature):
+
 ```python
 async def ingest_article(url, rag=None) -> "asyncio.Task | None":
 ```
@@ -142,6 +145,7 @@ ingest_wechat.py — THREE `f"wechat_..."` doc_id sites:
   `grep -nE 'f"wechat_[^"]*"' ingest_wechat.py | grep -v "_images"` should return 0 matches after the fix (only L450 _images line + parameterized `f"{source or 'wechat'}_{article_hash}"` form remain).
 
 Outer signature target (NEW — after fix):
+
 ```python
 async def ingest_article(
     source: str,
@@ -153,16 +157,19 @@ async def ingest_article(
 ```
 
 Inner signature target (NEW — after fix):
+
 ```python
 async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.Task | None":
 ```
 
 doc_id construction (NEW — both main-article sites; L450 sub-doc unchanged):
+
 ```python
 doc_id = f"{source or 'wechat'}_{article_hash}"
 ```
 
 Body fail-fast (NEW — top-level constant + guard inside inner ingest_article):
+
 ```python
 MIN_INGEST_BODY_LEN = 500  # defends against short-body bypass of RSS_SCRAPE_THRESHOLD=100
 
@@ -173,10 +180,12 @@ if len(full_content) < MIN_INGEST_BODY_LEN:
         f"Body too short for ingest: len={len(full_content)} < MIN_INGEST_BODY_LEN={MIN_INGEST_BODY_LEN} (url={url[:80]})"
     )
 ```
+
 </interfaces>
 
 <scope_guards>
 HARD STOPS — anti-pattern callouts. The executor MUST NOT:
+
 - ❌ Rename `ingest_wechat.py` file or function (cosmetic, deferred to ar-1 milestone)
 - ❌ Touch `_verify_doc_processed_or_raise` (h09 quick preserved)
 - ❌ Touch `lib/article_filter.py` (already source-aware per t1o §1, working)
@@ -188,6 +197,7 @@ HARD STOPS — anti-pattern callouts. The executor MUST NOT:
 - ❌ Use `git reset --soft` / `--mixed` / `--hard` / `git commit --amend` (per 2026-05-06 lesson — concurrent agent worktree corruption)
 
 CONFLICT AWARENESS:
+
 - siw landed earlier today on the same files: outer signature is now `(success, wall, doc_confirmed)`. PRESERVE — just add `source` param at front of outer wrapper.
 - gkw WIP on `tests/unit/test_ainsert_persistence_contract.py` (locally modified, M shown in `git status`). Excluded from this scope.
 - N=10 smoke running on Hermes tmux — does not touch local code.
@@ -598,6 +608,7 @@ CONFLICT AWARENESS:
 End-to-end phase verification (executor runs after Task 3 commit + push):
 
 1. **Source threading verified at all sites:**
+
    ```bash
    grep -nE "ingest_wechat\.ingest_article\(.+source=" batch_ingest_from_spider.py
    # Expect: 1 match (the L286 inner dispatch)
@@ -610,6 +621,7 @@ End-to-end phase verification (executor runs after Task 3 commit + push):
    ```
 
 2. **doc_id parameterized at main-article sites; L450 sub-doc preserved:**
+
    ```bash
    grep -nE 'f"wechat_[^"]*"' ingest_wechat.py | grep -v "_images"
    # Expect: 0 matches (main-article hardcoded form gone)
@@ -620,12 +632,14 @@ End-to-end phase verification (executor runs after Task 3 commit + push):
    ```
 
 3. **Body fail-fast guard present:**
+
    ```bash
    grep -cE "MIN_INGEST_BODY_LEN" ingest_wechat.py
    # Expect: >=3 (1 constant + 2 guards)
    ```
 
 4. **Test scope correct (gkw WIP guard via sha256):**
+
    ```bash
    git show --stat HEAD | grep "test_ainsert_persistence_contract"
    # Expect: empty output (file NOT modified by uai commit)
@@ -634,6 +648,7 @@ End-to-end phase verification (executor runs after Task 3 commit + push):
    ```
 
 5. **All 4 test files updated, including module-alias callsites:**
+
    ```bash
    grep -rnE "\.ingest_article\(" tests/unit/
    # Verify each callsite has source= kwarg or 'wechat' literal as first positional
@@ -645,10 +660,12 @@ End-to-end phase verification (executor runs after Task 3 commit + push):
    - Compare last-50-line pytest summary in `.scratch/uai-pytest-<ts>.log` vs siw baseline pre-task. New failure count must be ≤ baseline failure count. New test count = baseline + 3.
 
 7. **Push succeeded:**
+
    ```bash
    git log origin/main -1 --format='%H %s'
    # Expect: <new-sha> fix(ingest-260510-uai): source-aware dispatch — ...
    ```
+
 </verification>
 
 <success_criteria>
@@ -678,6 +695,7 @@ After completion, write `.planning/quick/260510-uai-source-aware-ingest-dispatch
 3. **Artifacts list:** with file paths.
 
 4. **Test result citation (verbatim, no paraphrase):**
+
    ```
    Pytest output: .scratch/uai-pytest-<ts>.log (last 50 lines)
    Pytest summary line: ==== N passed, M failed in T.TTs ==== (paste literal line from log)

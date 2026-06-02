@@ -167,6 +167,7 @@ The user-supplied phase plan (0 research → 1 inventory → 2 triage → 3 exec
 User plan says: "scratch debris → .original.md backups → archived phase plans → memory pruning → CLAUDE.md compact → code dead weight LAST".
 
 **Literature note (BP-5)**: code dead weight is the highest-risk category, so executing it last is correct. Two adjustments worth surfacing:
+
 - `.original.md` backups (caveman-compress artifacts) are the **safest** category — they are tooling-generated and exactly regeneratable. Suggest moving these to position #1.
 - Memory pruning is *invisible* to runtime code but VERY visible to future Claude Code sessions. Suggest treating it as middle-priority (between archive moves and CLAUDE.md compact).
 

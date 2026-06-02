@@ -33,6 +33,7 @@ The 5 pre-existing baseline failures (kb-v2.2-4 QA-template territory) were
 fixed in Wave 6 by aligning assertions to the FU-1 `_QA_PROMPT_TEMPLATE_*`
 shape (test files only — kb/services/synthesize.py was NOT modified per
 orchestrator scope-lock):
+
 - `tests/integration/kb/test_api_synthesize.py::test_synthesize_zh_lang_directive_used`
 - `tests/integration/kb/test_kb3_e2e.py::test_e2e_synthesize_zh_directive_prepended`
 - `tests/integration/kb/test_long_form_synthesis.py::test_default_mode_is_qa_when_unspecified`
@@ -45,6 +46,7 @@ UAT discovered 2 real regressions Wave 4 introduced. Both were 2-line
 surgical fixes inside the orchestrator-expanded scope:
 
 ### Bug A — `article.html` was standalone, missing KB_DEFAULT_LANG injection
+
 - **Symptom:** `typeof window.KB_DEFAULT_LANG === 'undefined'` on every
   `/articles/<hash>.html` page → Databricks deployment with `KB_DEFAULT_LANG=en`
   silently degraded to `'zh-CN'` (Wave 5 safe-default).
@@ -60,6 +62,7 @@ surgical fixes inside the orchestrator-expanded scope:
   change. Surgical injection preserves kb-v2 PLAN minimum-diff principle.
 
 ### Bug B — pre-existing `.nav-links a span` CSS override blocked i18n flip
+
 - **Symptom:** at desktop viewport (≥640px), nav-links showed BOTH
   `<span data-lang="zh">` AND `<span data-lang="en">` simultaneously
   regardless of `<html lang>`. Verified via `getComputedStyle()`:
@@ -158,23 +161,27 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8766/articles/5a3
 ## Acceptance criteria (PLAN §Acceptance) — all MET
 
 **Schema + data layer** — Wave 1 ✓
+
 - migration 007 applied (4 cols on `rss_articles`)
 - DATA-07 tightened to `layer2_verdict='ok'`
 - ArticleRecord exposes `title_translated` + `translated_lang`
 - `_record_to_list_item` JSON includes both new fields
 
 **Deletion surface** — Wave 3 ✓
+
 - `kb/services/translation.py` does NOT exist
 - grep returns 0 active matches for `translate_article|_load_translation|translate-toggle`
 - grep returns 0 matches for `data-fixed-lang` runtime references in `kb/static/lang.js`
 - `/api/translate/<hash>` returns 404 (route deleted)
 
 **Bilingual rendering** — Wave 4 + Wave 6 fixes ✓
+
 - `kb/templates/article.html` h1 + body emit dual-span / dual-`<article lang-block>`
 - `kb/templates/articles_index.html` + `kb/templates/index.html` card titles dual-span
 - Bug B post-fix: nav-links chrome flips correctly per `<html lang>`
 
 **Per-deployment default lang (A9)** — Wave 4 + Wave 6 Bug A fix ✓
+
 - `KB_DEFAULT_LANG` env var read by `_resolve_kb_default_lang()` in
   `kb/export_knowledge_base.py`; validated against `{zh-CN, en}` whitelist
 - Injected via `env.globals['kb_default_lang']` → all base.html-extending
@@ -183,6 +190,7 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8766/articles/5a3
   HTML across page types
 
 **Image inline-mix preservation (R7)** — Wave 2 ✓
+
 - `databricks-deploy/translate_kb.py` body prompt has 4 explicit clauses
   (verified by Wave 2 commit grep: "structural" + "MUST")
 - Post-LLM image-count safety check in cell 3 (warn-only, log to summary)
@@ -191,21 +199,25 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8766/articles/5a3
   notebook only; first prod-translation run is operator territory.
 
 **Databricks notebook** — Wave 2 ✓
+
 - Single file at `databricks-deploy/translate_kb.py`; no bundle yaml
   entry; no companion files
 - Operator review pending before first prod run (cost gate)
 
 **Pre-deploy + UAT gates** — Wave 6 ✓
+
 - 6a Pre-deploy GATE: orchestrator already ACCEPTED 712 L2-pending count
   before Wave 1 (recorded in pre-flight briefing — see Wave 1 commit body)
 - 6b Local UAT: 9/9 scenarios PASS, 10 evidence artifacts captured + cited
 
 **Tests** — Wave 6 ✓
+
 - 568/568 pytest PASS in `tests/unit/kb/` + `tests/integration/kb/`
 - 0 regressions vs Wave 1 baseline; 5 baseline tests aligned to FU-1
   QA-template shape
 
 **Skill discipline** — present in commit bodies (Waves 1-6)
+
 - `Skill(skill="python-patterns"` — Wave 1 + Wave 2 (data layer + notebook)
 - `Skill(skill="writing-tests"` — Wave 1 + Wave 5 (fixture extension + lang.js behavior tests)
 - `Skill(skill="ui-ux-pro-max"` — Wave 4 + Wave 6 (style validation + Bug B review)
@@ -229,6 +241,7 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8766/articles/5a3
 ## Operator handoff
 
 Pending operator actions (out of phase scope):
+
 1. Set `KB_DEFAULT_LANG=en` on Databricks app config before first prod
    browser session (Aliyun stays default zh-CN or unset)
 2. Run `databricks-deploy/translate_kb.py` notebook "Run all" once on prod

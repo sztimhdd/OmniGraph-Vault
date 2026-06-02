@@ -104,6 +104,7 @@ Inputs (env vars, NOT CLI flags):
 ```
 
 From `enrichment/merge_and_ingest.py` (pattern for setting articles.enriched=2):
+
 ```python
 # After successful LightRAG ainsert:
 conn.execute(
@@ -111,9 +112,11 @@ conn.execute(
     (2, article_url),
 )
 ```
+
 RSS must follow the same pattern but target `rss_articles` by id.
 
 From Phase 4 D-11 state-machine (inherited):
+
 ```
   0  = pending
   2  = full or partial enrichment success
@@ -121,6 +124,7 @@ From Phase 4 D-11 state-machine (inherited):
 ```
 
 From CLAUDE.md atomic-write convention:
+
 ```python
 tmp = target.with_suffix(target.suffix + ".tmp")
 tmp.write_text(content, encoding="utf-8")
@@ -128,12 +132,14 @@ os.replace(tmp, target)
 ```
 
 From `ingest_wechat.py:704-716` (update pattern for articles table):
+
 ```python
 conn.execute(
     "UPDATE articles SET enriched = 2 WHERE content_hash = ?",
     (content_hash,),
 )
 ```
+
 </interfaces>
 </context>
 
@@ -612,6 +618,7 @@ conn.execute(
 </verification>
 
 <success_criteria>
+
 - D-09 satisfied: English RSS body is translated to Chinese via DeepSeek before LightRAG ingest.
 - D-07 REVISED 2026-05-02 + D-19 satisfied: RSS does NOT invoke enrich_article. `rss_ingest.py` takes the direct path translate → ainsert → verify. `run_enrich_for_id.py --source rss` is a guarded no-op for backwards-compat.
 - D-16 satisfied: KOL enrichment (out of scope for this plan, handled by Plan 05-04 step_6) is driven by Hermes via the `run_enrich_for_id.py` bridge with the env-var contract.

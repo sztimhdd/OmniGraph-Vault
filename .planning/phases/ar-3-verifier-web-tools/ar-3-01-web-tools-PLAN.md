@@ -68,12 +68,14 @@ must_haves:
 Wave 1 of ar-3 builds the **web-tool primitives**: three live HTTP callables (Tavily search, Tavily extract, Brave search) plus a cascade wrapper that gives the Verifier a single `cfg.web_search(query)` callable transparently backed by Tavily-primary + Brave-fallback. Wave 1 also touches `from_env()` — the Wave-1 half of CONFIG-03 — so the new env vars (`TAVILY_API_KEY`, `BRAVE_SEARCH_API_KEY`) are actually read and the cascade is wired into `ResearchConfig.web_search` / `web_search_fallback` / `web_extract`.
 
 Purpose:
+
 - **TOOL-01** — Tavily REST integration: two callables (`tavily_search` for query results, `tavily_extract` for full-page extraction). Both async, both raise on any failure (the cascade wrapper handles retry).
 - **TOOL-02** — Brave fallback: one callable (`brave_search`) plus the cascade factory `make_web_search_with_fallback` that pairs primary + fallback into a single async callable with strict "exactly-once-per-primary-failure" semantics and per-call independence.
 - **TEST-02** — Mock-based fallback test (no live HTTP): Tavily mock raises, Brave mock returns results, cascade returns Brave's output exactly; per-call independence verified by a second invocation that calls Tavily again.
 - **CONFIG-03 (Wave-1 half)** — `from_env()` reads two new env vars and wires the cascade. The Vertex Grounding auto-detect half lands in Wave 3 (ar-3-03).
 
 Output:
+
 - One new submodule: `lib/research/tools/__init__.py` (~15 LOC re-export shim) + `lib/research/tools/web_search.py` (~150 LOC: 3 HTTP callables + cascade factory).
 - One file modified: `lib/research/config.py` (~25 LOC added: imports + key-conditional binding for `cfg.web_search`, `web_search_fallback`, `web_extract`).
 - One new test file: `tests/unit/research/test_web_tools.py` (≥9 tests — 3 callable-shape, 3 cascade-behavior, 3 from_env-integration).
@@ -934,6 +936,7 @@ The tests use `monkeypatch.setenv` / `monkeypatch.delenv` for env isolation and 
 </verification>
 
 <success_criteria>
+
 - ROADMAP § "Phase ar-3: Verifier + web tools" Success Criterion #1 (Verifier real loop): NOT delivered by Wave 1 — that's Wave 2's job.
 - ROADMAP Success Criterion #2 (cfg.web_search live Tavily callable when TAVILY_API_KEY set): ✓ delivered by Tasks 1+2 (`functools.partial(tavily_search, api_key=...)` is the live callable).
 - ROADMAP Success Criterion #3 (cfg.web_search_fallback live Brave callable invoked exactly once per primary failure, verified by mock test): ✓ delivered by Tasks 1+2+3 (cascade factory + TEST-02 mock test).

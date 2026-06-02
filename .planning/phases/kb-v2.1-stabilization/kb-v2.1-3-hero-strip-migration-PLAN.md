@@ -21,6 +21,7 @@ losing the strip.
 ## Why
 
 Aliyun production observation 2026-05-15:
+
 - Hero-strip exists in `/var/www/kb/index.html` (deploy artifact) AND
   `kb/output/index.html` (build output)
 - NOT in `kb/templates/index.html` source
@@ -28,6 +29,7 @@ Aliyun production observation 2026-05-15:
 
 Upstream-hotfix quick (260515-xxx) explicitly DEFERRED this migration to v2.1
 because:
+
 1. Migration needs the hero-strip HTML extracted from Aliyun first
 2. Should be Jinja2-templatized + KB_BASE_PATH-respecting, not raw paste
 3. Belongs in template work, not the urgent ops-drift quick
@@ -75,6 +77,7 @@ that path separately and don't proceed without explicit user OK.
 Invoke `Skill(skill="frontend-design", args="Convert raw HTML hero-strip snippet (provided as input) into Jinja2-templatized form for kb/templates/index.html. Image URLs use {{ base_path }}/static/img/{hash}/{file}. Reuse kb-1 + kb-2 + kb-3 token classes verbatim — ZERO new :root vars. Position semantically between hero and 'Latest Articles' section. Output: revised index.html block + locale keys if needed.")`.
 
 Specifically:
+
 - Replace any hardcoded `/kb/static/img/...` paths with `{{ base_path }}/static/img/...`
 - Replace hardcoded text with `{{ "key" | t(lang) }}` Jinja2 i18n calls if section has user-visible labels
 - Preserve image hash references (image filenames stay literal)
@@ -98,6 +101,7 @@ Add to BOTH `zh-CN.json` and `en.json`. If snippet has no user-visible text (jus
 Invoke `Skill(skill="writing-tests", args="Testing Trophy. Render kb/templates/index.html via export driver with KB_BASE_PATH='' and KB_BASE_PATH='/kb'. Parse output. Assert hero-strip section present. Assert image src attributes contain correct prefix. Browser smoke via Playwright: homepage shows ≥N images visible (naturalWidth>0).")`.
 
 `tests/integration/kb/test_homepage_hero_strip.py`:
+
 - `test_hero_strip_present_in_rendered_index_html`
 - `test_hero_strip_image_paths_use_kb_base_path_when_set`
 - `test_hero_strip_image_paths_bare_when_kb_base_path_unset`
@@ -146,6 +150,7 @@ Capture screenshots in `.playwright-mcp/`.
 ## Skill discipline
 
 SUMMARY.md MUST contain:
+
 - `Skill(skill="frontend-design"`
 - `Skill(skill="writing-tests"`
 

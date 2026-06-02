@@ -5,10 +5,12 @@
 **Audit budget:** 2-3 h target — completed under budget (single-pass read-only).
 **Auditor scope:** read-only / no business code edits / no Hermes SSH / no pytest / no live SF/OR/Gemini API calls / no `.env` touch.
 **Cross-reference T3/T4 reviews:**
+
 - `.planning/quick/260511-d7m-t3-batch-ingest-from-spider-py-deep-revi/260511-d7m-REVIEW.md` (`8832e95`).
 - `.planning/quick/260511-kxd-t4-lib-scraper-py-deep-review-read-only/260511-kxd-REVIEW.md` (`6a284a3`).
 
 **Trusted regions (NOT re-audited):**
+
 - p1n (`f715f06`) — `lib/vision_tracking.py` drain refactor + `ingest_wechat.py:1336` spawn site wrap. Verified call-site shape only (see §4.B).
 - b3y (`b1e7fc8`) — `lib/lightrag_embedding.py` `GOOGLE_CLOUD_LOCATION` default `global`. Did NOT touch image_pipeline; verified b3y-context claim (`image_pipeline.py:327` already defaults `global`) — see F-2 for the broader Vertex-routing finding.
 - gqu / d7m T3 / kxd T4 / s29 W3 — schema-reference only.
@@ -29,6 +31,7 @@
 **Cost-leak verdict: `soft-leak`.** M-3 (silent SF empty body counted as success → ¥0.0013 charged for empty description) is a real cost-leak path with measurable production impact (each occurrence: 1 image worth of ¥0.0013 + downstream LightRAG bloat with empty entity sub-doc). Not a hemorrhage; not zero. M-2 (no `batch_validation_report.json` writer) means there is no per-batch evidence file to detect cost anomalies — operational blindness, not a leak per se.
 
 **Estimated cleanup:** ~3-5 h across 2-3 quicks:
+
 1. F-1 dead-code purge (`_describe_via_*` removal) — ~0.5 h, atomic, no test impact (no callers).
 2. F-2 location-default fix in `lib/llm_client.py:51` — ~0.5 h (1 line + 1 test, mirror b3y).
 3. M-1 + M-3 cascade-contract patch (429-doesn't-count + empty-body validation) — ~1.5 h (touches `lib/vision_cascade.py` + 2 new tests).
@@ -102,6 +105,7 @@
 ### A. Cascade order — actual vs. documented
 
 **Actual production order** (from `image_pipeline.py:472-476`):
+
 - Default: `list(DEFAULT_PROVIDERS)` = `["siliconflow", "openrouter", "gemini"]` (matches CLAUDE.md L582-584).
 - On low SF balance (`should_switch_to_openrouter(balance)` — `balance < ¥0.05`): `["openrouter", "gemini"]` (SF dropped). `image_pipeline.py:472-474`.
 - On `OMNIGRAPH_VISION_SKIP_PROVIDERS` env: any subset is dropped, preserving order. `image_pipeline.py:481-486`. **This is a deviation from CLAUDE.md "hard-coded, not env-overridable"** — env CAN drop providers (it can't reorder, but it can shrink the list). LDEV-06 added this for local-dev parity; documented at line 477-486 with rationale.
@@ -120,6 +124,7 @@
 | Counter reset on success | `pstate["failures"] = 0; pstate["circuit_open"] = False` | `lib/vision_cascade.py:253-254` |
 
 **Hidden-state issues:**
+
 - **Cross-batch state carry-over** — `provider_status.json` is loaded on `__init__` (`lib/vision_cascade.py:141-157`). If a previous batch left `circuit_open=True` for SF and the operator topped up balance + restarted, the new batch starts with SF circuit OPEN and only opens after `RECOVERY_PROBE_INTERVAL` skipped images. Counter is NOT reset on batch start. **This is intentional per the test `test_circuit_open_recovery_probe_after_10_skipped` but operationally surprising.**
 - **Counter reset on intermediate success** (`lib/vision_cascade.py:253`) — if the pattern is `503, 503, 200, 503, 503`, counter is reset to 0 at the 200 success and only re-counts from there. So 5 503s in a row would not necessarily open the circuit if interleaved with even one success. **CLAUDE.md says "3 consecutive failures" — code matches.**
 
@@ -135,6 +140,7 @@
 | Other (network, 5xx) | RESULT_OTHER | NO | YES | `lib/vision_cascade.py:43, 305-307` |
 
 **M-1 detail:** CLAUDE.md L586 says "A 429 cascades immediately to the next provider." Two interpretations:
+
 - (a) "moves on" — what code does (counts toward 3-strike, then continues to next provider).
 - (b) "doesn't count toward 3-strike" — symmetric with the 4xx auth rule documented immediately after.
 
@@ -178,10 +184,12 @@ The 4xx-auth rule has explicit "do NOT count" wording; 429 has only "cascades im
 ### B. Silent-leak audit (M-3)
 
 **Critical finding (M-3):** `lib/vision_cascade.py:381-382` — on SiliconFlow HTTP 200, the code reads:
+
 ```python
 content = resp.json()["choices"][0]["message"]["content"] or ""
 return content.strip()
 ```
+
 If SF returns 200 with empty `content` (model failed to produce description, or returned `null`), the function returns an empty string. Upstream `lib/vision_cascade.py:243-265` records this as `RESULT_SUCCESS` with `desc_chars=0`, increments `total_successes`, and `image_pipeline.py:573-578` records `provider_mix["siliconflow"] += 1`. **The image is billed (¥0.0013) but the description is empty.** Empty description flows into the markdown sub-doc (`ingest_wechat._vision_worker_impl`), into LightRAG, and into the entity extractor — wasted compute on a no-op image.
 
 Same shape at `lib/vision_cascade.py:428-429` for OpenRouter (no billing impact since OR is free-tier, but adds noise to `provider_mix`).
@@ -200,6 +208,7 @@ Same shape at `lib/vision_cascade.py:428-429` for OpenRouter (no billing impact 
 ### D. `batch_validation_report.json` writer (M-2)
 
 CLAUDE.md L590 documents `batch_validation_report.json` as the cascade-evidence file. Grep across the repo finds **no production writer**:
+
 - `lib/vision_cascade.py:190-195` — `total_usage()` exposes the data.
 - `image_pipeline.py:617-626` — populates `_last_describe_stats` (in-memory only).
 - All references to `batch_validation_report.json` live in `.planning/phases/14-regression-fixtures/14-CONTEXT.md` (Phase 14, not implemented) or `.planning/MILESTONE_v3.2_REQUIREMENTS.md` (deferred).
@@ -333,6 +342,7 @@ CLAUDE.md describes the file at L590; `lib/vision_cascade.py:190-195` exposes `t
 | `tests/integration/test_image_pipeline_golden.py` | (not enumerated) | Golden-file localize / save-with-images. |
 
 **Gaps identified:**
+
 - **No test asserts "429 should NOT count toward circuit-breaker"** (M-1 contract gap) — `test_401_auth_not_counted_as_circuit_failure` (line 216) handles 4xx; no symmetric 429 test. If interpretation (b) is correct, this is uncovered. If (a) is correct, the existing `test_three_consecutive_503_opens_circuit` (line 169) tests 503 only — there is no `test_three_consecutive_429_opens_circuit` to lock in current behavior either.
 - **No test asserts SF empty-body 200 → cascades to next provider** (M-3 cost-leak) — current behavior counts as success; no test exists.
 - **No test asserts `batch_validation_report.json` schema** (M-2) — file is never written; phase 14 plan unbuilt.

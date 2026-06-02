@@ -262,12 +262,14 @@ Per CONTEXT.md "Output verification at end of phase" — every Phase kb-1 ROADMA
 ## Acceptance Criteria — All Met
 
 Task 1:
+
 - [x] `requirements-kb.txt` exists with `jinja2>=3.1`, `markdown>=3.5`, `pygments>=2.17`
 - [x] `pip install -r requirements-kb.txt` exits 0
 - [x] `python -c "import jinja2, markdown, pygments; print('OK')"` outputs `OK`
 - [x] Root `requirements.txt` UNCHANGED (`git diff --name-only requirements.txt` empty)
 
 Task 2:
+
 - [x] `kb/export_knowledge_base.py` exists, line count 360 (≥200)
 - [x] Parses as valid Python (1564 AST nodes)
 - [x] All required imports present (config + article_query + i18n + markdown + jinja2)
@@ -281,6 +283,7 @@ Task 2:
 - [x] CLI: `--help` exits 0; shows `--output-dir` + `--limit`; only those 2 flags
 
 Task 3:
+
 - [x] `pytest tests/integration/kb/test_export.py -v` exits 0 with 6 passing
 - [x] File contains `pytest.mark.integration` marker
 - [x] Test 2 explicitly asserts DB md5 unchanged (EXPORT-02 proof)
@@ -290,6 +293,7 @@ Task 3:
 - [x] No `--db-path` arg appears in test invocations (Issue #3 surfaced in tests)
 
 Plan-level success criteria:
+
 - [x] All 8 EXPORT/I18N-04/UI-04 requirements satisfied
 - [x] All 6 integration tests pass (and earlier 65 unit tests still passing) → 71/71
 - [x] REVISION 1 hygiene: no `--db-path` CLI flag, no `datetime.now()` source-level calls, og:description never empty, KB_HOME_LATEST_LIMIT TODO documented

@@ -132,6 +132,7 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 python-multipart>=0.0.6
 ```
+
 </interfaces>
 </context>
 
@@ -334,6 +335,7 @@ python-multipart>=0.0.6
 </verification>
 
 <success_criteria>
+
 - API-01: app boots, KB_PORT env honored
 - API-08: /static/img replaces :8765 standalone server
 - CONFIG-02: zero new LLM provider env vars

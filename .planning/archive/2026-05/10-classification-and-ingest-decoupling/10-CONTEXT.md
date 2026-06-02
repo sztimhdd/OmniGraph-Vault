@@ -175,6 +175,7 @@ All plans MUST cross-reference these files when implementing decisions:
 - **Parent `doc_id`:** `f"wechat_{article_hash}"` (established Phase 9 — D-09.05 / STATE-02,
   already in place in `ingest_wechat.py:626, 751`).
 - **Sub-doc content shape (PRD-specified, copy verbatim):**
+
   ```
   # Images for <title>
 
@@ -182,6 +183,7 @@ All plans MUST cross-reference these files when implementing decisions:
   - [image 1]: <description>
   ...
   ```
+
   where `<title>` is the article title (D-09.05 `article_hash` already provides identity) and
   `[image N]: <description>` is a markdown list item per successfully-described image.
 - **Failed images in sub-doc:** images where `describe_images` returned empty string or raised
@@ -232,6 +234,7 @@ All plans MUST cross-reference these files when implementing decisions:
   `finalize_storages` runs while a Vision worker is mid-`ainsert` for a sub-doc, the sub-doc
   insertion may be lost or corrupt.
 - **Implementation sketch:**
+
   ```python
   # In batch_ingest_from_spider, after the for-loop, before finalize_storages:
   pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
@@ -241,6 +244,7 @@ All plans MUST cross-reference these files when implementing decisions:
       except asyncio.TimeoutError:
           logger.warning("Vision worker drain timeout — %d tasks still pending", len(pending))
   ```
+
 - **Test implications:** tests using a module-level mocked `rag` MUST await the returned task
   from `ingest_article` before asserting on `rag.ainsert.call_args_list`. Pattern goes in each
   test — no global fixture needed.

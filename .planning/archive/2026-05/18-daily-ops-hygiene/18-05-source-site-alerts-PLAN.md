@@ -95,6 +95,7 @@ Emit ONE Telegram message per anomaly — 🔴 for critical, 🟡 for warning, c
 </threshold_math>
 
 <pipeline_health_script_shape>
+
 ```python
 """scripts/pipeline_health.py — 7-day rolling stats for operator triage.
 
@@ -109,6 +110,7 @@ No alerting; side-effect-free read-only.
 #  ingest      3       3              1.00  OK
 #  digest      1       1              1.00  OK
 ```
+
 </pipeline_health_script_shape>
 </context>
 
@@ -144,6 +146,7 @@ Filled at execution time.
 </verification>
 
 <success_criteria>
+
 - HYG-06 satisfied: when a source site changes behavior, the operator gets a Telegram ping inside 24h of the first affected daily run.
 - `pipeline_health.py` gives the operator a single-command triage view without DB spelunking.
 - No database schema changes (thresholds computed on existing tables).

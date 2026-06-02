@@ -87,11 +87,13 @@ per D-03):
    - Error: `{"hash":"...","status":"error","error":"..."}`
 
 Child skill (plan 05): `/zhihu-haowen-enrich`
+
 - Inputs via env: ARTICLE_HASH, Q_IDX, QUESTION
 - Output: writes haowen.json to $ENRICHMENT_DIR/<ARTICLE_HASH>/<Q_IDX>/haowen.json
 - Skill does NOT return JSON — outer skill reads haowen.json from disk
 
 Questions file shape (from extract_questions):
+
 ```json
 {
   "hash": "abc123",
@@ -102,6 +104,7 @@ Questions file shape (from extract_questions):
   ]
 }
 ```
+
 </interfaces>
 </context>
 
@@ -435,6 +438,7 @@ Questions file shape (from extract_questions):
 </verification>
 
 <success_criteria>
+
 - Top-level orchestrator exists as pure Markdown (D-01)
 - Per-question for-loop lives in skill body (D-02)
 - D-03 stdout contracts documented for each shell command

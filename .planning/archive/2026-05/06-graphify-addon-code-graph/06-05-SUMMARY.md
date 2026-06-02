@@ -17,6 +17,7 @@ All 8 requirements evaluated. 7 PASS, 1 PARTIAL (REQ-02 — environmental constr
 **Prompt:** "Implement OpenClaw-style streaming tool output in the Rust fork. Look up both the design rationale (why OpenClaw chose this pattern) and the call-chain / function signatures needed to wire it in."
 
 Hermes routing:
+
 - `omnigraph_search` → "OpenClaw streaming tool output design rationale pattern choice" (Why)
 - `graphify` → `get_neighbors("stream_query")` + call-chain traversal (How)
 
@@ -27,6 +28,7 @@ Disambiguation: correctly excluded `omnigraph_query` (no long report requested) 
 **Prompt:** "Add Hermes-style self-evolution to the Rust fork. Look up how Hermes discovers, creates, and registers skills at runtime (design intent + code structure) and propose an equivalent mechanism in the Rust fork's tool registry."
 
 Hermes routing:
+
 - `omnigraph_search` → "Hermes self-evolution skill discovery registration runtime mechanism" (design intent)
 - `graphify` → OpenClaw tool registry (T1 reference for Rust fork, since Hermes-agent not in T1)
 - Capability boundary declared: "graphify 无法回答 Hermes 代码结构——D-G04 锁定"
@@ -55,6 +57,7 @@ Demo 2 showed the strongest architectural consistency signal: Hermes applied the
 Phase 6 is eligible for merge/close. Merge to main and update STATE.md + ROADMAP.md to mark Phase 6 complete.
 
 Deferred items for future phases:
+
 - REQ-02 full verification (claw install on remote)
 - Bridge nodes (D-G07)
 - Hermes-agent in T1 (would complete Demo 2 code-layer gap)

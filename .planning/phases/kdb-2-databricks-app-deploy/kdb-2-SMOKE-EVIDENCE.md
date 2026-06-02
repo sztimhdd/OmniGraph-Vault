@@ -98,6 +98,7 @@ These are intentionally uncommitted so we can revert + delete `_wave0_probe.py` 
 **Skill invocation evidence (file-authoring side, partial):**
 
 `Skill(skill="databricks-patterns")` invoked during kdb-2-04 Task 4.0 setup — confirmed:
+
 - `databricks apps create / delete / deploy / get / get-deployment / list / list-deployments / run-local / start / stop / update` all exist in v0.260+ (`apps --help` Available Commands list)
 - `apps logs` SUBCOMMAND DOES NOT EXIST (matches RESEARCH.md Q8 + kdb-1.5 SPIKE-FINDINGS line 52)
 - `apps stop --help` returned full help with `--no-wait`, `--timeout` flags — confirmed for Makefile `stop:` recipe
@@ -121,6 +122,7 @@ Note: The production `app.yaml` (in backup) is authored against the Decision-5 d
 **Skill invocation evidence (file-authoring side, partial):**
 
 `Skill(skill="databricks-patterns")` invoked during kdb-2-04 Task 4.0 setup — confirmed:
+
 - `databricks apps create / delete / deploy / get / get-deployment / list / list-deployments / run-local / start / stop / update` all exist in v0.260+ (`apps --help` Available Commands list)
 - `apps logs` SUBCOMMAND DOES NOT EXIST (matches RESEARCH.md Q8 + kdb-1.5 SPIKE-FINDINGS line 52)
 - `apps stop --help` returned full help with `--no-wait`, `--timeout` flags — confirmed for Makefile `stop:` recipe
@@ -149,6 +151,7 @@ Note: The production `app.yaml` is authored against the Decision-5 default assum
 **Status:** ⏳ deferred. Will execute via `make deploy` (verified syntactically valid) once Wave 0 layout is confirmed.
 
 DEPLOY-DBX-01..09 + LLM-DBX-05 all have grep-verifiable acceptance based on the deployed `app.yaml`:
+
 - DEPLOY-DBX-01: `databricks apps get omnigraph-kb` already shows `name: omnigraph-kb` ✓ (kdb-2-01 created the App)
 - DEPLOY-DBX-02..09 + LLM-DBX-05: 6 hard-constraint audits in Section 1 above ✅ all clean
 

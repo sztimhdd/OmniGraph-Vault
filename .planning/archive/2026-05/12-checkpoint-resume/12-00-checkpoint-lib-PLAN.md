@@ -66,6 +66,7 @@ Output: `lib/checkpoint.py` module + `tests/unit/test_checkpoint.py`.
 <!-- Key types and path constants the executor needs. Do NOT re-read CONTEXT.md; everything needed is here. -->
 
 From config.py:
+
 ```python
 from pathlib import Path
 BASE_DIR: Path  # = Path.home() / ".hermes" / "omonigraph-vault"   (typo canonical)
@@ -73,6 +74,7 @@ BASE_DIR: Path  # = Path.home() / ".hermes" / "omonigraph-vault"   (typo canonic
 ```
 
 From cognee_batch_processor.py (atomic write reference, lines 87-90):
+
 ```python
 tmp_file = MAP_FILE + ".tmp"
 with open(tmp_file, 'w') as f:
@@ -81,6 +83,7 @@ os.rename(tmp_file, MAP_FILE)
 ```
 
 Public API contract for lib/checkpoint.py (MANDATORY signatures):
+
 ```python
 from pathlib import Path
 
@@ -139,6 +142,7 @@ def list_vision_markers(article_hash: str) -> list[dict]: ...
     # (image_pipeline provider usage aggregation).
     # Each dict shape: {"image_id", "provider", "description", "latency_ms", "timestamp"}.
 ```
+
 </interfaces>
 </context>
 
@@ -513,6 +517,7 @@ def list_vision_markers(article_hash: str) -> list[dict]: ...
 </verification>
 
 <success_criteria>
+
 - lib/checkpoint.py exports the 10 mandatory public functions + STAGE_FILES constant
 - Every checkpoint write uses the tmp → os.rename atomic pattern (grep confirms)
 - Every stage file/dir name matches the locked schema verbatim (verified in test_has_stage_matrix)

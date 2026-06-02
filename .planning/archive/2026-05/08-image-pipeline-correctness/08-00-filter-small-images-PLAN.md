@@ -26,6 +26,7 @@ Extract the inline dimension-filter currently at `ingest_wechat.py:627-649` into
 
 - **Change** (IMG-01, D-08.01, D-08.06):
   1. Add a frozen dataclass near top of `image_pipeline.py` (after existing module-level constants, before `download_images`). **Shape MUST match CONTEXT D-08.01 literal wire format** — `timings_ms` is a nested dict, not a flat field:
+
      ```python
      from dataclasses import dataclass, field
 
@@ -37,7 +38,9 @@ Extract the inline dimension-filter currently at `ingest_wechat.py:627-649` into
          size_read_failed: int
          timings_ms: dict  # {"total_read": <int ms>} — nested per D-08.01 wire format
      ```
+
   2. Add the new function immediately after `download_images`:
+
      ```python
      def filter_small_images(
          url_to_path: dict[str, Path],
@@ -77,6 +80,7 @@ Extract the inline dimension-filter currently at `ingest_wechat.py:627-649` into
          )
          return kept, stats
      ```
+
   3. **Exact filter math:** `min(w, h) < min_dim` (D-08.01 return contract). Code comment must cite: `# Phase 8 IMG-01: min(w,h)<min_dim matches current or-logic; see CONTEXT §Specifics for pre-fix history`.
   4. PIL import is kept lazy inside the function (matches existing pattern in `ingest_wechat.py:635`) to avoid forcing Pillow on callers that don't filter.
   5. **Why nested `timings_ms: dict`:** conforms to CONTEXT D-08.01 literal wire format (`FilterStats: {input, kept, filtered_too_small, size_read_failed, timings_ms: {total_read: int}}`). Future stages may add `timings_ms.total_unlink_ms` / `timings_ms.total_stat_ms` without changing the dataclass shape. If a flatter ergonomic shape becomes desirable downstream, update CONTEXT.md first to avoid spec drift.
@@ -88,6 +92,7 @@ Extract the inline dimension-filter currently at `ingest_wechat.py:627-649` into
 - **Change** (IMG-01, D-08.01, D-08.03):
   1. At the top of `ingest_wechat.py`, ensure `filter_small_images` is added to the existing import from `image_pipeline`. Current import is `from image_pipeline import download_images, describe_images, localize_markdown` (or similar — confirm the exact line with grep before editing). Add `filter_small_images` to it.
   2. Replace lines `627-649` (the current inline PIL filter block starting with `# Phase 5-00b: filter small images...` and ending with the `if filtered_out: print(...)` line) with:
+
      ```python
      # Phase 8 IMG-01: filter small images via shared pipeline (D-08.01, D-08.03).
      min_dim = int(os.environ.get("IMAGE_FILTER_MIN_DIM", 300))
@@ -97,6 +102,7 @@ Extract the inline dimension-filter currently at `ingest_wechat.py:627-649` into
          f"(<{min_dim}px) — {filter_stats.kept} remaining"
      )
      ```
+
   3. Do not change the surrounding code (`download_images(...)` call before, `describe_images(...)` call after). This is a surgical extraction.
   4. The `from PIL import Image as PILImage` and `_MIN_IMG_DIM = 300` local statements inside the block must be deleted (they become orphans).
 - **Test:**
@@ -110,6 +116,7 @@ Extract the inline dimension-filter currently at `ingest_wechat.py:627-649` into
 - **Change** (IMG-01, D-08.07 §1):
   1. Add import: `from image_pipeline import filter_small_images, FilterStats` (extend existing import tuple).
   2. Add a helper fixture that writes N fake JPEG-like files with controllable dims by monkey-patching `PIL.Image.open`. Pattern:
+
      ```python
      def _fake_open(dims_by_name: dict[str, tuple[int, int]]):
          """Returns a context manager that yields an object with .size set per file name."""
@@ -121,6 +128,7 @@ Extract the inline dimension-filter currently at `ingest_wechat.py:627-649` into
              return _Ctx(*dims_by_name[Path(path).name])
          return _open
      ```
+
   3. Add these seven tests (all `@pytest.mark.unit`):
      - `test_filter_keeps_800x600(tmp_path, mocker)` → one file, dims (800,600), min_dim=300 → `kept == 1`, `filtered_too_small == 0`
      - `test_filter_drops_100x800_narrow_banner(tmp_path, mocker)` → one file, dims (100,800), min_dim=300 → `kept == 0`, `filtered_too_small == 1`, file unlinked from disk
@@ -169,6 +177,7 @@ ssh <remote> "cd ~/OmniGraph-Vault && source venv/bin/activate && pytest tests/u
 ```
 
 Expected output:
+
 - `test_filter_keeps_800x600 PASSED`
 - `test_filter_drops_100x800_narrow_banner PASSED`
 - `test_filter_drops_300x299_just_below PASSED`
@@ -180,6 +189,7 @@ Expected output:
 - Pre-existing 5 tests — same pass/fail state as baseline (any pre-existing failure is an 08-01 concern, not a 08-00 regression)
 
 Plus a static check:
+
 ```bash
 grep -n "PILImage" ingest_wechat.py  # MUST return empty
 grep -c "filter_small_images" image_pipeline.py  # MUST return >= 2 (def + export surface)

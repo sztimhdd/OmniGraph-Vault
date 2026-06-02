@@ -99,10 +99,12 @@ Topic taxonomy (from `batch_classify_kol.py --topic` CLI usage in Phase 4 / Plan
 `{Agent, LLM, RAG, NLP, CV}` — RSS uses the SAME taxonomy per PRD §3.1.5 "分类 topic 与 KOL 共用同一套标签体系".
 
 Depth score definition (PRD §3.1.5):
+
 - 1 = 资讯/快讯 (news/quick post)
 - 2 = 技术教程/分析 (tutorial/analysis)
 - 3 = 深度研究/架构拆解 (deep research/architecture breakdown)
 </interfaces>
+
 </context>
 
 <tasks>
@@ -167,6 +169,7 @@ Depth score definition (PRD §3.1.5):
 你是技术文章分类器。给定一篇文章的标题和正文（可能是英文或中文），请对它在主题 "{topic}" 上做分类。
 
 **规则**：
+
 - 必须用中文回答 reason（无论原文语言）。
 - depth_score: 1=资讯/快讯，2=技术教程/分析，3=深度研究/架构拆解。
 - relevant: 0 或 1（是否与主题相关）。
@@ -337,6 +340,7 @@ content: {content}
 </verification>
 
 <success_criteria>
+
 - D-08 satisfied: EN→CN handled via prompt, not separate step.
 - Topic taxonomy shared with KOL (Agent, LLM, RAG, NLP, CV).
 - UNIQUE constraint deduplicates re-classifications.

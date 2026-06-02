@@ -132,6 +132,7 @@ This milestone runs alongside v3.4 (RSS-KOL) Phases 20-22:
 This document evolves at phase transitions and milestone boundaries.
 
 **After each phase transition** (via `/gsd:transition`):
+
 1. Requirements invalidated? → Move to Out of Scope with reason
 2. Requirements validated? → Move to Validated with phase reference
 3. New requirements emerged? → Add to Active
@@ -139,6 +140,7 @@ This document evolves at phase transitions and milestone boundaries.
 5. "Goal" still accurate? → Update if drifted
 
 **After milestone close** (via `/gsd:complete-milestone`):
+
 1. Full review of all sections
 2. Smoke test pass-or-not — captured in closure doc
 3. Audit Out of Scope — reasons still valid?

@@ -113,10 +113,12 @@ fires) — fts5_fallback path exercised.
 | 5 | Mobile viewport (375×667) | Playwright resize + screenshot | source chips render on narrow viewport without overflow | ✅ |
 
 Screenshot evidence:
+
 - `.playwright-mcp/kb-v2-1-4-qa-structured-desktop.png`
 - `.playwright-mcp/kb-v2-1-4-qa-structured-mobile.png`
 
 Curl evidence:
+
 - `.scratch/kb-v2.1-4-uat-fallback.json` (fts5_fallback shape verification)
 
 ## Defense-in-depth notes
@@ -166,6 +168,7 @@ To pick up this phase on Aliyun:
 1. `ssh aliyun-vitaclaw 'cd /root/OmniGraph-Vault && git pull --ff-only origin main'`
 2. `ssh aliyun-vitaclaw 'systemctl restart kb-api.service'` (kb-api needs reload to pick up new `kb/services/synthesize.py` + `kb/data/article_query.py`; SSG static is unaffected)
 3. Verify via public probe:
+
    ```bash
    curl -X POST -H 'content-type: application/json' \
      -d '{"question":"OpenClaw","lang":"en"}' \
@@ -175,6 +178,7 @@ To pick up this phase on Aliyun:
    curl http://101.133.154.49/kb/api/synthesize/{job_id} | jq .result.sources[0]
    # Should return {hash, title, lang} dict, not a bare string.
    ```
+
 4. KG happy-path verification requires Aliyun's GCP service-account at
    `/root/.hermes/gcp-paid-sa.json` (or `KB_KG_GCP_SA_KEY_PATH` env var per
    kb-v2.1-1) to be readable. If KG mode unavailable, the same fts5_fallback

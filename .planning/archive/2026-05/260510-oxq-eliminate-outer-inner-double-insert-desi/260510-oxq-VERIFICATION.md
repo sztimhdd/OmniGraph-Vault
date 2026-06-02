@@ -48,6 +48,7 @@ re_verification: false
 **Refactor commit:** `7e91235 refactor(ingest-260510-siw): eliminate outer/inner double-INSERT — outer is sole writer for ingestions, gates on doc_confirmed bool from inner`
 
 **Diff stat (HEAD~2 → HEAD~1, i.e. the refactor commit):**
+
 ```
  .planning/STATE.md                                 |   3 +-
  .planning/quick/260510-oxq-.../260510-oxq-PLAN.md  | 404 +++++++++++++++++++++
@@ -72,6 +73,7 @@ Only the 6 allowed paths appear. Zero matches for `ainsert_persistence_contract`
 ### Pre-existing Test Failures (not regressions)
 
 The SUMMARY documents 2 failures in `test_text_first_ingest.py`:
+
 - `test_parent_ainsert_content_has_references_not_descriptions`
 - `test_vision_worker_spawn_order_after_parent_ainsert`
 

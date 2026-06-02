@@ -95,11 +95,13 @@ Step 9: deliver()            → Telegram delivery (D-18)
 ```
 
 Phase 4 `enrich_article` skill invocation pattern (from `skills/enrich_article/SKILL.md`):
+
 ```
 hermes skill run enrich_article --article-id <id>
 # OR
 hermes skill run enrich_article --url <wechat_or_rss_url>
 ```
+
 Exact invocation shape: verify by reading skills/enrich_article/SKILL.md before writing the orchestrator.
 </interfaces>
 </context>
@@ -361,6 +363,7 @@ Exact invocation shape: verify by reading skills/enrich_article/SKILL.md before 
 </verification>
 
 <success_criteria>
+
 - All 9 steps defined per PRD §3.2.
 - Non-critical vs critical failure handling correct.
 - D-07: enrichment invoked per depth≥2 article regardless of source.

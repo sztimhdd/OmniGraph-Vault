@@ -176,6 +176,7 @@ Called from `finally:` of BOTH `run()` and `ingest_from_db()` BEFORE `rag.finali
 ### 4. Test file: `tests/unit/test_vision_worker.py` (10 tests)
 
 Worker behavior (7):
+
 - `test_worker_calls_describe_then_subdoc_ainsert` — D-10.06
 - `test_subdoc_content_header_and_format` — D-10.07
 - `test_subdoc_omits_empty_descriptions` — D-10.07 omit-empty rule
@@ -185,6 +186,7 @@ Worker behavior (7):
 - `test_worker_emits_batch_complete` — Phase 8 IMG-04 preservation
 
 Orchestrator drain (3):
+
 - `test_run_drains_pending_vision_tasks` — D-10.09 (batch run)
 - `test_ingest_from_db_drains_pending_vision_tasks` — D-10.09 (db-replay path)
 - `test_drain_timeout_cancels_stragglers` — D-10.09 timeout-cancel semantics

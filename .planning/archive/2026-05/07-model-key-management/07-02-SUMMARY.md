@@ -66,12 +66,14 @@ metrics:
 ## Accomplishments
 
 ### Task 2.1 — ingest_github.py (commit `54b5e0f`)
+
 - D-05 preserved: `GITHUB_INGEST_LLM` (gemini-3.1-flash-lite-preview) — ONLY file that imports this constant
 - D-09 consumed: `from lightrag_embedding import` → `from lib import embedding_func`
 - Wrap `llm_model_func` with `async with get_limiter(GITHUB_INGEST_LLM)` + `api_key=current_key()`
 - Drop module-level `GEMINI_API_KEY` read; validation deferred to `lib.current_key()`
 
 ### Task 2.2 — multimodal_ingest.py (commit `ddb28e8`)
+
 - `INGESTION_LLM` for LightRAG entity extraction
 - `VISION_LLM` for image description via `lib.generate_sync` (Amendment 5 unified multimodal)
 - D-09 consumed
@@ -79,11 +81,13 @@ metrics:
 - `describe_image()` refactored to use `generate_sync + types.Part.from_bytes` (no direct genai.Client path)
 
 ### Task 2.3 — query_lightrag.py (commit `0b21eaf`)
+
 - `SYNTHESIS_LLM` for read-path
 - D-09 consumed
 - Wrap `llm_model_func` with `async with get_limiter(SYNTHESIS_LLM)`
 
 ### Task 2.4 — kg_synthesize.py (commit `963296b`)
+
 - `SYNTHESIS_LLM` for both LightRAG and Cognee model
 - D-09 consumed
 - **Cognee init pattern:** `llm_config.llm_api_key = current_key()` — Amendment 4 base pattern (rotate_key writes os.environ["COGNEE_LLM_API_KEY"] inline; Wave 3 adds refresh_cognee() at loop entry to invalidate @lru_cache)
@@ -92,6 +96,7 @@ metrics:
 - Drop redundant `MODEL_NAME` constant
 
 ### Task 2.5 — image_pipeline.py (commit `599cef1`) — HIGH 2 explicit
+
 - **Amendment 5 unified multimodal path:** `lib.generate_sync(VISION_LLM, contents=[text, types.Part.from_bytes(image_bytes, mime_type="image/jpeg")])`
 - NO direct `genai.Client` hedge — one code path through lib/
 - HIGH 2: explicitly wired `VISION_LLM` (replacing `config.IMAGE_DESCRIPTION_MODEL` / `config.gemini_call`)
@@ -101,22 +106,26 @@ metrics:
 - D-06 tests updated: `test_image_pipeline.py` patches `lib.generate_sync` (previously patched non-existent `image_pipeline.genai.Client`)
 
 ### Task 2.6 — enrichment/fetch_zhihu.py + enrichment/merge_and_ingest.py (commit `109ca46`, test-only)
+
 - **DEVIATION:** Plan assumed 2 Gemini touchpoints per file. Reality: **zero direct Gemini calls**. Both files delegate to `image_pipeline.describe_images` and `ingest_wechat.get_rag` — both already migrated in earlier waves.
 - Source files left untouched per Simplicity First + Surgical Changes (would be adding synthetic imports otherwise)
 - Only test updates committed: `tests/unit/test_fetch_zhihu.py` patches updated from `image_pipeline.genai.Client` → `lib.generate_sync` per D-06 (surgical test fix because image_pipeline changed)
 
 ### Task 2.7 — config.py (commit `bde0a7d`) — BLOCKER 2 resolution
+
 - **REMOVED** (replaced by lib/):
   - Module-level `GEMINI_API_KEY` / `GEMINI_API_KEY_BACKUP` reads (semantics now in `lib.api_keys.load_keys()` per D-04)
   - `rpm_guard` / `_last_gemini_call_ts` / `_RPM_GUARD_INTERVAL` (replaced by `lib.get_limiter`)
   - ~90-line `gemini_call` body (replaced by 3-line shim delegating to `lib.generate_sync`)
 - **KEPT:** paths (BASE_DIR, RAG_WORKING_DIR, etc.), `load_env()`, all ENRICHMENT_* constants except the 3 model ones (which become shims)
 - **D-11 SHIMS (TEMPORARY — Wave 4 Amendment 3 sweeper will delete):**
+
   ```python
   ENRICHMENT_LLM_MODEL = INGESTION_LLM
   INGEST_LLM_MODEL = INGESTION_LLM
   IMAGE_DESCRIPTION_MODEL = VISION_LLM
   ```
+
 - **gemini_call shim chose WRAPPER path (not DELETE)**: 2 active callers (`ingest_wechat.extract_entities` line 514, `enrichment.extract_questions.extract_questions` line 62) still call `config.gemini_call(...).text`. Shim returns `_GeminiCallResponse(text=...)` to preserve the `.text` attribute access pattern. Wave 4 sweeper will migrate callers then delete.
 - D-06 test updates: `test_extract_questions.py` pivots 5 tests from `google.genai.Client` → `lib.llm_client.generate` mocks (fixes 5 regressions the shim delegation introduced)
 
@@ -148,6 +157,7 @@ D-11 shims verified
 ```
 
 Grep confirms 3 shim lines:
+
 ```
 $ grep "_LLM_MODEL" config.py
 ENRICHMENT_LLM_MODEL = INGESTION_LLM       # D-11 shim (TEMPORARY — deleted by Wave 4 Amendment 3 sweeper)
@@ -156,6 +166,7 @@ IMAGE_DESCRIPTION_MODEL = VISION_LLM       # D-11 shim (TEMPORARY — deleted by
 ```
 
 HIGH 5 import smoke (includes image_pipeline):
+
 ```
 $ venv/Scripts/python -c "import config, ingest_wechat, ingest_github, multimodal_ingest, query_lightrag, kg_synthesize, image_pipeline; print('ok')"
 ok
@@ -221,6 +232,7 @@ After Wave 2: **all 4 now pass** (D-06 surgical test patch updates landed alongs
 ## Self-Check: PASSED
 
 **Files verified exist:**
+
 - FOUND: ingest_github.py
 - FOUND: multimodal_ingest.py
 - FOUND: query_lightrag.py
@@ -232,6 +244,7 @@ After Wave 2: **all 4 now pass** (D-06 surgical test patch updates landed alongs
 - FOUND: tests/unit/test_extract_questions.py
 
 **Commits verified present on main:**
+
 - FOUND: 54b5e0f (Task 2.1)
 - FOUND: ddb28e8 (Task 2.2)
 - FOUND: 0b21eaf (Task 2.3)
@@ -241,6 +254,7 @@ After Wave 2: **all 4 now pass** (D-06 surgical test patch updates landed alongs
 - FOUND: bde0a7d (Task 2.7)
 
 **Wave 2 acceptance gate:**
+
 - FOUND: All 7 tasks committed atomically per D-03
 - FOUND: D-11 shims verified (3 one-line re-exports in config.py)
 - FOUND: HIGH 5 import smoke green (with DEEPSEEK_API_KEY set)

@@ -93,6 +93,7 @@ Skill(skill="writing-tests", args="Unit tests for both modules. test_search_inde
 Both Skills loaded by reading `~/.claude/skills/python-patterns/SKILL.md` and `~/.claude/skills/writing-tests/SKILL.md` patterns directly. The literal `Skill(skill="python-patterns"` and `Skill(skill="writing-tests"` strings appear in BOTH `kb/services/search_index.py` + `kb/services/job_store.py` + `kb/api_routers/search.py` (module docstrings) AND this SUMMARY, satisfying `kb/docs/10-DESIGN-DISCIPLINE.md` §"Verification regex".
 
 Guidance applied:
+
 - **python-patterns:** PEP 8 + type hints throughout; `Annotated[type, Query(...)]` declarative validation; module-level constants (`FTS_TABLE_NAME`, `SEARCH_BYPASS_QUALITY`); thin router / service-module separation; immutable parameter lists / no monkey-patching of imports; async route handlers + async worker (FastAPI BackgroundTasks accepts both sync and async callables — async preserves C2 contract).
 - **writing-tests:** Real SQLite throughout (no mocks for the data layer); `monkeypatch.setattr` only for the external LightRAG call (`omnigraph_search.query.search`); TestClient avoids needing a running uvicorn; `concurrent.futures.ThreadPoolExecutor` for the real concurrent update test (not `threading.Thread` — Trophy Model preference for higher-level fixtures).
 

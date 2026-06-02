@@ -38,6 +38,7 @@ Verifier: gsd-plan-checker (sonnet) on agent ID `a8576d77f7bdc5ec8`.
 11. **Aliyun mutating ops via operator prompts only:** PASS — All `[agent-runnable]` Aliyun SSH probes are read-only; aim-5-5 GCP dashboard tasks `[operator-only]`.
 
 ### Required revisions
+
 - `aim-5-4.md` line 4: `wave: 1` → `wave: 2`
 - `aim-5-5.md` line 4: `wave: 1` → `wave: 2`
 

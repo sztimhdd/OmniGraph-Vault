@@ -189,6 +189,7 @@ python -m omnigraph_search.query "<question>"
 </verification>
 
 <success_criteria>
+
 - skill_runner validate + tests all green
 - Remote live smoke returns a non-empty response (local smoke is PASS or SKIPPED with reason)
 - omnigraph_query.SKILL.md edit is surgical (git diff shows only additions)

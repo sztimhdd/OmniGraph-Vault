@@ -185,6 +185,7 @@ Run acceptance_criteria grep commands. Open `Deploy.md`, scroll to end, confirm 
 </verification>
 
 <success_criteria>
+
 - Three new sections appended at end of Deploy.md
 - No edits to existing sections 1–9
 - Forward link to `docs/VERTEX_AI_MIGRATION_SPEC.md` present

@@ -57,6 +57,7 @@ From CLAUDE.md § "Phase 7 scoped env vars":
 - Fallback retained: `GEMINI_API_KEY`
 
 From lib/api_keys.py (current fallback chain precedence):
+
 1. OMNIGRAPH_GEMINI_KEYS (comma-separated pool)
 2. OMNIGRAPH_GEMINI_KEY and/or GEMINI_API_KEY_BACKUP combined
 3. GEMINI_API_KEY (single-key fallback)
@@ -307,9 +308,11 @@ Run `scripts/estimate_vertex_ai_cost.py` with projected volume to decide whether
 ### Rollback Plan
 
 If Vertex AI migration fails post-flip:
+
 - Set `OMNIGRAPH_VERTEX_SA_PATH=` (empty) to force fallback to Gemini API key chain.
 - Observe logs for `Vertex AI refresh failed; falling back` — if sustained, investigate SA key, IAM roles, API enablement.
 - Full rollback: revert the `lib/api_keys.py` change; code reverts to pre-migration behavior transparently.
+
 ```
 
 After writing the file, verify structure:
@@ -350,6 +353,7 @@ Manually skim the spec once to confirm readability. Spot-check that `gcloud` com
 </verification>
 
 <success_criteria>
+
 - [ ] `docs/VERTEX_AI_MIGRATION_SPEC.md` exists with exactly 5 `##` sections
 - [ ] All five mandated section names present (grep-verified)
 - [ ] References to `lib/api_keys.py` and future `lib/vertex_ai_client.py` included

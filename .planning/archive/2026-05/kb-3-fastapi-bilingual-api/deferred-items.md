@@ -64,11 +64,13 @@ fixture only reloads `kb.config`, `kb.services.search_index`,
 
 **No additional fix needed for kb-3-06.** Same scope/timing as the kb-3-05
 entry above.
+
 # Deferred items — kb-3 phase
 
 ## 2026-05-14 (kb-3-08 executor)
 
 **Pre-existing test-isolation bug** (NOT caused by kb-3-08):
+
 - `tests/unit/kb/test_kb2_queries.py::test_related_entities_for_article` FAILS in batch with the full kb test suite
 - `tests/unit/kb/test_kb2_queries.py::test_cooccurring_entities_in_topic` FAILS in batch with the full kb test suite
 - Both tests PASS in isolation (`pytest tests/unit/kb/test_kb2_queries.py`)

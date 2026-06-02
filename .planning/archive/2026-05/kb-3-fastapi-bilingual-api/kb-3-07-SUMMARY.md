@@ -104,12 +104,14 @@ Daily cron CLI `kb/scripts/rebuild_fts.py` that idempotently DROPs + CREATEs the
 ## What Was Built
 
 **`kb/scripts/rebuild_fts.py`** (87 lines):
+
 - argparse CLI: `--db <path>` (default `kb.config.KB_DB_PATH`), `--quiet` (suppress summary)
 - `_rebuild(db_path)` worker: opens RW conn, `DROP TABLE IF EXISTS articles_fts`, `ensure_fts_table(conn)`, iterates `list_articles(limit=100000, conn=conn)`, INSERTs `(hash, title, body, lang, source)` per row, commits, returns row count
 - `main(argv)` entry: parses args, calls `_rebuild`, prints `[rebuild_fts] indexed N rows in M.MMs` unless `--quiet`, returns 0
 - `if __name__ == "__main__": sys.exit(main())`
 
 **`tests/unit/kb/test_rebuild_fts.py`** (150 lines, 9 tests):
+
 1. `test_rebuild_returns_zero_exit_code` — main returns 0
 2. `test_rebuild_populates_fts` — fixture has 8 DATA-07-passing rows; index has 8
 3. `test_rebuild_row_count_matches_list_articles` — strict equality with `list_articles` output length
@@ -171,14 +173,17 @@ None — plan executed exactly as written. The paste-ready code in `<interfaces>
 ## Self-Check: PASSED
 
 Files exist:
+
 - `kb/scripts/rebuild_fts.py` ✓ (87 lines, ≥80 required)
 - `tests/unit/kb/test_rebuild_fts.py` ✓ (150 lines, ≥100 required)
 
 Commits exist:
+
 - `f17ae99` — test(kb-3-07): RED ✓
 - `2268d88` — feat(kb-3-07): GREEN ✓
 
 Acceptance criteria all green:
+
 - `def main` ✓
 - `from kb.services import search_index` ✓
 - `from kb.data import article_query` ✓

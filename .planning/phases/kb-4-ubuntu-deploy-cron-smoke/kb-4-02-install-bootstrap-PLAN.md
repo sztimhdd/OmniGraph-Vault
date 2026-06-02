@@ -284,6 +284,7 @@ Output: 1 shell script + SUMMARY.md with shellcheck evidence.
 </verification>
 
 <success_criteria>
+
 - DEPLOY-03: `bash kb/deploy/install.sh` runs idempotently; second run does not error; final state has `systemctl is-active kb-api.service` = active
 </success_criteria>
 

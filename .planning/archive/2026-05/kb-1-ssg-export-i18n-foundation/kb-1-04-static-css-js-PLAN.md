@@ -88,6 +88,7 @@ python -c "from pygments.formatters import HtmlFormatter; print(HtmlFormatter(st
 ```
 
 JS bootstrap resolution order (CONTEXT.md "Bilingual switching strategy"):
+
 1. ?lang=zh|en|zh-CN query param (hard switch — sets cookie)
 2. kb_lang cookie (persisted choice)
 3. navigator.languages (Accept-Language equivalent)
@@ -304,6 +305,7 @@ Cookie format: `kb_lang=zh-CN` or `kb_lang=en`, max-age=31536000, path=/, SameSi
 </verification>
 
 <success_criteria>
+
 - UI-01 satisfied: 5 design-token CSS variables present
 - UI-02 satisfied: Inter + Noto Sans SC font stack, no external font requests
 - UI-03 satisfied: mobile-first @media queries at 768px and 1024px, body overflow-x hidden

@@ -40,11 +40,13 @@ The timers fire at their scheduled UTC times after enable. We do NOT manually `s
 ### Task 1 — SCP unit files to Aliyun /etc/systemd/system/
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-3-cutover\aim-3-1.md` (confirm aim-3-1 acceptance criteria all met — 26 unit files + README in `deploy/aliyun/systemd/`)
 - Memory `aliyun_vitaclaw_ssh.md` (SSH alias + connection details)
 - Memory `feedback_aim1_agent_is_operator.md` (agent IS operator on Aliyun; SSH directly)
 
 **`<acceptance_criteria>`**
+
 - All 26 unit files copied to Aliyun `/etc/systemd/system/`. README.md is NOT copied (it's repo-side documentation only).
 - File permissions: `0644` (default for `cp` of plain files; systemd does not require executable bit).
 - Owner: `root:root` (already, since SSH is as root).
@@ -90,9 +92,11 @@ Capture all SSH output to `.scratch/aim-3-2-scp-<TS>.log`.
 ### Task 2 — daemon-reload and enable --now all 13 timers
 
 **`<read_first>`**
+
 - systemd.unit(5) man page on `enable --now` semantics: enables the unit (creates symlink in `multi-user.target.wants/` or `timers.target.wants/`) AND starts it. For timers, this means the timer becomes active immediately and waits for its next OnCalendar fire.
 
 **`<acceptance_criteria>`**
+
 - `systemctl daemon-reload` exits 0.
 - `systemctl enable --now omnigraph-*.timer` exits 0 for all 13 (or use a bash loop and capture per-unit exit codes).
 - After enable, `systemctl is-enabled` returns `enabled` for all 13 timers.
@@ -141,9 +145,11 @@ If any single timer fails to enable (`exit != 0`), do NOT abort the loop — let
 ### Task 3 — Verify ExecStart / EnvironmentFile / WorkingDirectory of representative units
 
 **`<read_first>`**
+
 - aim-3-1 plan ExecStart matrix (sanity check the deployed values match the authored values byte-for-byte)
 
 **`<acceptance_criteria>`**
+
 - For each of `omnigraph-daily-ingest.service`, `omnigraph-kol-scan.service`, `omnigraph-vertex-probe.service`:
   - `systemctl cat <name>` shows `ExecStart=` matching the matrix in aim-3-1 exactly.
   - `EnvironmentFile=/root/.hermes/.env` is present.
@@ -172,10 +178,12 @@ Capture output to `.scratch/aim-3-2-verify-<TS>.log`.
 ### Task 4 — Write CUTOVER-01-deploy-evidence.md and commit
 
 **`<read_first>`**
+
 - All `.scratch/aim-3-2-*.log` outputs from Tasks 1-3
 - Memory `feedback_git_add_explicit_in_parallel_quicks.md` (explicit add, no `-A`)
 
 **`<acceptance_criteria>`**
+
 - File `.planning/phases/aim-3-cutover/EVIDENCE/CUTOVER-01-deploy-evidence.md` exists.
 - File contains: deploy-start ISO timestamp, file count check (13 .service + 13 .timer), full `systemctl list-timers` table, full `is-enabled` and `is-active` listings, the 4 `systemctl cat` outputs from Task 3, any per-timer enable failures (or "all 13 enabled successfully").
 - Committed locally to `main` via explicit `git add`, single commit.
@@ -222,7 +230,9 @@ REQ: CUTOVER-01
 ## list-timers (next-fire schedule confirmation)
 
 ```
+
 [paste verbatim systemctl list-timers --all omnigraph-* output]
+
 ```
 
 ## Sample unit verification (3 services + kol-enrich stub)
@@ -230,25 +240,33 @@ REQ: CUTOVER-01
 ### omnigraph-daily-ingest.service
 
 ```
+
 [paste verbatim systemctl cat output]
+
 ```
 
 ### omnigraph-kol-scan.service
 
 ```
+
 [paste systemctl cat output]
+
 ```
 
 ### omnigraph-vertex-probe.service
 
 ```
+
 [paste systemctl cat output]
+
 ```
 
 ### omnigraph-kol-enrich.service (STUB — FINDING 6)
 
 ```
+
 [paste systemctl cat output — confirms ExecStart=/bin/true]
+
 ```
 
 ## Verdict

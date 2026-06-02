@@ -71,6 +71,7 @@ server on port 8765 is auto-brought-up before `research()` runs (ORCH-08).
 
 `pip install -e .` makes the `omnigraph.research` namespace alias resolvable
 for `runpy`-style `-m` invocation. 16 new unit tests across 2 files; 58 fast
+
 + 4 slow-gated integration tests pass; both CONTRACT grep hooks clean.
 
 ## Files Created (4) + Modified (2)
@@ -118,6 +119,7 @@ CONTRACT-02 ok
 ## Layer 2 Smoke Test (CONTEXT.md acceptance)
 
 Command:
+
 ```
 venv/Scripts/python.exe -m omnigraph.research "什么是 Hermes Harness 深度解析" \
   > .scratch/ar-1-03-smoke-260522.log 2>&1
@@ -134,6 +136,7 @@ venv/Scripts/python.exe -m omnigraph.research "什么是 Hermes Harness 深度�
 | No stage raises | True — Retriever caught the embedding-dim-mismatch and surfaced via `status="failed"` (Axis 3) |
 
 Excerpt of the log (utf-8 decoded):
+
 ```
 # 关于「什么是 Hermes Harness 深度解析」的研究答复
 ## 知识图谱检索结果
@@ -218,9 +221,11 @@ All claimed files exist (verified via `Read`/`ls`):
 - `.scratch/ar-1-03-smoke-260522.log` — present, 638 bytes
 
 All claimed commits exist in `git log --oneline`:
+
 - `17afeaa`, `756e71c`, `6070071` — verified
 
 All claimed verifications pass:
+
 - `pytest tests/unit/research/ -m "not slow"` → 58 passed, 4 deselected
 - `pytest tests/unit/research/test_main_cli.py -m slow` → 4 passed
 - `bash scripts/check_contract.sh` → exit 0, both CONTRACT-01 + CONTRACT-02 ok

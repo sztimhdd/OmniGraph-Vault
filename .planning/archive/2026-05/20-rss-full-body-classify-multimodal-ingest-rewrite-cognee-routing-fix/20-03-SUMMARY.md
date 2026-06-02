@@ -52,6 +52,7 @@ This plan is INCOMPLETE pending Task 3.3.
 ### Task 3.1: COG-01 Verification (no code change)
 
 **COG-01 verification (2026-05-06):**
+
 - `cognee_wrapper.py:50` → `EMBEDDING_MODEL = "gemini/gemini-embedding-2"` (with `gemini/` LiteLLM prefix) ✓
 - `cognee_wrapper.py:51` → `EMBEDDING_DIMENSIONS = "3072"` ✓
 - `git log --oneline -- cognee_wrapper.py` top entry: `74f7503 fix(cognee): route LiteLLM embedding via Gemini API, not Vertex AI` ✓
@@ -64,6 +65,7 @@ This plan is INCOMPLETE pending Task 3.3.
 Replaced the `asyncio.wait_for(timeout=5.0)` blocking wrapper around `cognee.remember(...)` in `remember_article` with a true fire-and-forget `asyncio.create_task(_bg_remember())` pattern.
 
 Before (blocks ~5s):
+
 ```python
 await asyncio.wait_for(
     cognee.remember(text, dataset_name=_ARTICLE_DATASET, ...),
@@ -72,6 +74,7 @@ await asyncio.wait_for(
 ```
 
 After (returns in <1ms):
+
 ```python
 async def _bg_remember() -> None:
     try:
@@ -85,6 +88,7 @@ return True
 ```
 
 **Functions NOT touched (different semantics — callers DO want bounded results):**
+
 - `remember_synthesis` — keeps `asyncio.wait_for(_COGNEE_TIMEOUT=30s)` 
 - `recall_previous_context` — keeps `asyncio.wait_for(_COGNEE_TIMEOUT=30s)`
 - `disambiguate_entities` — keeps `asyncio.wait_for(timeout=2.0)`
@@ -126,6 +130,7 @@ All 4 test files (test_cognee_remember_detaches, test_scraper, test_batch_ingest
 5. On 3/3 pass: proceed to Step 6 retirement edits in plan
 
 **Retirement scope (when COG-03 smoke passes):**
+
 - Delete `_cognee_inline_enabled()` helper at `ingest_wechat.py:796-809`
 - Replace `if _cognee_inline_enabled():` block at `ingest_wechat.py:1163-1172` with unconditional call
 - Remove `OMNIGRAPH_COGNEE_INLINE` row from CLAUDE.md Environment Variables table

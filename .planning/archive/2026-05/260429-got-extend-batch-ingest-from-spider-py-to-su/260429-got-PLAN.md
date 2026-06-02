@@ -76,6 +76,7 @@ def ingest_from_db(topic: str, min_depth: int, dry_run: bool) -> None:
 parser.add_argument("--topic-filter", type=str, default=None, ...)
 # Keep type=str; split in main() after parsing
 ```
+
 </interfaces>
 </context>
 
@@ -110,12 +111,14 @@ Then pass `topic_keywords` (not `args.topic_filter`) to both `ingest_from_db` an
 Change signature: `def ingest_from_db(topic: str | list[str], min_depth: int, dry_run: bool) -> None:`
 
 Normalise at the top of the function:
+
 ```python
 topics = [topic] if isinstance(topic, str) else topic
 ```
 
 Replace the single-topic SQL with a multi-topic OR query. Build the WHERE fragment
 dynamically:
+
 ```python
 placeholders = ",".join("?" for _ in topics)
 rows = conn.execute(f"""
@@ -136,6 +139,7 @@ Update the log line to show the list: `logger.info("%d articles to ingest for to
 Change type annotation: `topic_filter: list[str] | None`
 
 Change the prompt string for topic_filter (line 191):
+
 ```python
 if topic_filter:
     keywords_quoted = ", ".join(f'"{k}"' for k in topic_filter)
@@ -160,6 +164,7 @@ with a list. Add inline comment: `# list[str] | None after main() split`
 change needed.
 
 For the filter reason message (line 362):
+
 ```python
 if topic_filter and not relevant:
     keywords_str = ", ".join(topic_filter)
@@ -175,6 +180,7 @@ cd "C:/Users/huxxha/Desktop/OmniGraph-Vault" && python batch_ingest_from_spider.
     </automated>
   </verify>
   <done>
+
 - `--topic-filter "openclaw,hermes,agent,harness" --dry-run` runs without error and
   logs "articles to ingest for topics ['openclaw', 'hermes', 'agent', 'harness']"
 - `--topic-filter "openclaw" --dry-run` (single keyword) still works (back-compat)
@@ -200,9 +206,11 @@ python batch_ingest_from_spider.py --from-db --topic-filter "agent" --min-depth 
 # 4. Whitespace/trailing-comma edge cases (inspect source only — not runnable without DB)
 # Confirm in code: "a, b, " splits to ["a", "b"] (strip + filter)
 ```
+
 </verification>
 
 <success_criteria>
+
 - Multi-keyword invocation executes without error; DB query runs with `IN (...)` OR semantics
 - Single-keyword invocation unchanged in output/behaviour
 - No files other than `batch_ingest_from_spider.py` modified

@@ -32,6 +32,7 @@ must_haves:
 Formalize the 4 utility scripts + 2 unit tests + 1 fixture that Hermes E (production) authored on the home dev/prod box during recent quicks, but never committed. Single byte-for-byte sweep, single atomic feat commit. In parallel: clean up 8 DEAD WIP files lingering on Hermes via SSH `rm` (untracked -> no repo commit needed; recorded in STATE.md instead).
 
 Phase 0 evidence:
+
 - All 7 TRACK files: sha256 match between local pulled copy and Hermes (`.scratch/g3-pull-track-260511-173748.log`, `.scratch/g3-phase0-track-verify-260511-173748.log`).
 - All 8 DEAD candidates verified safe: kol_scan.db = 0 bytes; .env.bak* / .env.pre-delete.bak* = 161 bytes each; test_filter_prompt.py / test_prefilter_30.py confirmed plain scratchpads (no @pytest decorators, just `if __name__` style); graphify-out/ = 8.7MB throwaway artifacts; data/kol_scan_spec.md is the historical spec the audit marked DEAD (`.scratch/g3-phase0-dead-verify-260511-173748.log`).
 

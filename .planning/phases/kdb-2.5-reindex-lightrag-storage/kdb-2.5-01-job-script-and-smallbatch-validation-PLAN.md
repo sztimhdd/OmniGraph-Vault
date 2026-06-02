@@ -69,6 +69,7 @@ Purpose: Validate the re-index Job at small scale before committing to the hours
 $17-100 Step 2. The gate decision is the primary deliverable of this plan.
 
 Output:
+
 - `databricks-deploy/jobs/reindex_lightrag.py` (~400 LOC)
 - `databricks-deploy/jobs/reindex_lightrag.yml`
 - 6 unit tests + 1 integration test + fixture DB + conftest
@@ -90,6 +91,7 @@ Output:
 <!-- Key contracts the executor must use. Extracted from kdb-1.5 frozen files. DO NOT MODIFY. -->
 
 From databricks-deploy/lightrag_databricks_provider.py (kdb-1.5 FROZEN):
+
 ```python
 KB_LLM_MODEL = os.environ.get("KB_LLM_MODEL", "databricks-claude-sonnet-4-6")
 KB_EMBEDDING_MODEL = os.environ.get("KB_EMBEDDING_MODEL", "databricks-qwen3-embedding-0-6b")
@@ -100,6 +102,7 @@ def make_embedding_func() -> EmbeddingFunc  # @wrap_embedding_func_with_attrs(di
 ```
 
 From kb/data/article_query.py lines 71-85 (DATA-07 filter — Job WHERE must match):
+
 ```python
 _DATA07_BARE = (
     "body IS NOT NULL AND body != '' "
@@ -113,6 +116,7 @@ _DATA07_BARE = (
 ```
 
 From venv/Lib/site-packages/lightrag/lightrag.py v1.4.15:
+
 ```python
 async def ainsert(
     self,
@@ -128,6 +132,7 @@ doc_status = status_records[0].status.value  # "PROCESSED" | "FAILED" | "PENDING
 ```
 
 Volume layout (locked per STATE rev 3):
+
 ```
 /Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/
   data/kol_scan.db          # source DB (READ_VOLUME)
@@ -136,6 +141,7 @@ Volume layout (locked per STATE rev 3):
   output/kdb-2.5-FAILURES.csv
   output/kdb-2.5-smallbatch-stats.json
 ```
+
 </interfaces>
 </context>
 
@@ -171,6 +177,7 @@ Create `databricks-deploy/jobs/__init__.py` as empty file (package marker).
 Create `databricks-deploy/jobs/reindex_lightrag.py` implementing the full Q4 sketch from RESEARCH.md. Key implementation rules:
 
 **Imports + path setup (Pitfall 6):**
+
 ```python
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))  # databricks-deploy/
@@ -180,6 +187,7 @@ from lightrag_databricks_provider import (
 ```
 
 **VOLUME_ROOT and paths:**
+
 ```python
 VOLUME_ROOT = "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault"
 DB_PATH     = f"{VOLUME_ROOT}/data/kol_scan.db"
@@ -189,22 +197,26 @@ FAILURES_CSV = f"{VOLUME_ROOT}/output/kdb-2.5-FAILURES.csv"
 ```
 
 **CandidateRow and IngestResult:** frozen dataclasses exactly as in RESEARCH Q4.
+
 - CandidateRow: source_table, content_hash, title, body, lang
 - IngestResult: content_hash, source_table, status: Literal["ok","failed","skipped"], elapsed_s, error_truncated, track_id
 
 **_load_candidates(db_path, *, filter_mode="strict", sample_n=None):**
+
 - filter_mode MUST be "strict" (per D-01: hardcoded scope, --filter-mode flag preserved for testing but defaulted to strict)
 - SQL: UNION ALL of articles + rss_articles with WHERE: body IS NOT NULL AND body != '' AND content_hash IS NOT NULL AND DATA-07 filter
 - ORDER BY content_hash for deterministic ordering
 - Stratified sampling: sort by len(body), 5 ntiles, sample_n//5 per bucket, random.seed(42)
 
 **_verify_target_empty(*, lightrag_dir, force_overwrite) (D-07):**
+
 - On non-empty + not force_overwrite: raise RuntimeError listing up to 10 artifacts with mtime strings
 - On force_overwrite: logger.warning listing count of existing artifacts
 - On empty or missing dir: return silently
 - DO NOT include --force-overwrite in the default YAML parameters (Pitfall 7)
 
 **_ingest_one(rag, row) → IngestResult (D-05 + D-06):**
+
 - `await rag.ainsert(row.body, ids=[row.content_hash], file_paths=[f"{row.source_table}/{row.content_hash}"])`
 - Post-ainsert: `await rag.doc_status.get_docs_by_ids([f"doc-{row.content_hash}"])`
 - Only status=="PROCESSED" → ok; "FAILED" or unknown → failed
@@ -212,6 +224,7 @@ FAILURES_CSV = f"{VOLUME_ROOT}/output/kdb-2.5-FAILURES.csv"
 - error_truncated MUST be 200-char trimmed repr(e) — no file paths, no hostnames
 
 **_run_smallbatch(args):**
+
 - Load candidates with sample_n=args.max_articles (default 50), filter_mode=args.filter_mode
 - _verify_target_empty before first ainsert
 - Sequential loop: await _ingest_one per article, _append_progress after each
@@ -220,6 +233,7 @@ FAILURES_CSV = f"{VOLUME_ROOT}/output/kdb-2.5-FAILURES.csv"
 - Return 0 if failure_rate <= 0.05 else 2
 
 **_run_fullreindex(args):**
+
 - Load all candidates (no sample_n)
 - _verify_target_empty before first ainsert
 - Resume: _load_progress_hashes(status_filter={'ok'}) → filter candidates
@@ -228,6 +242,7 @@ FAILURES_CSV = f"{VOLUME_ROOT}/output/kdb-2.5-FAILURES.csv"
 - Return 0 if failure_rate <= 0.05 else 2
 
 **_run_postcheck(args):**
+
 - Read vdb_entities.json → verify embedding_dim == 1024
 - Sample up to 200 entity names → count zh chars (一-鿿) vs non-zh; warn if either < 10
 - Two aquery calls: zh "LangGraph 与 CrewAI 的对比" + en "compare LangGraph and CrewAI frameworks", both mode="hybrid"
@@ -235,6 +250,7 @@ FAILURES_CSV = f"{VOLUME_ROOT}/output/kdb-2.5-FAILURES.csv"
 - _write_postcheck_findings with embedding_dim, n_zh, n_en, first-400-char excerpts
 
 **_instantiate_lightrag(working_dir):**
+
 - LightRAG(working_dir=..., llm_model_func=make_llm_func(), embedding_func=make_embedding_func())
 - if hasattr(rag, "initialize_storages"): await rag.initialize_storages()
 
@@ -246,6 +262,7 @@ NO --init-empty flag in argparse — use _verify_target_empty(force_overwrite=Fa
   <automated>cd C:\Users\huxxha\Desktop\OmniGraph-Vault && .venv/Scripts/python -c "import ast, pathlib; ast.parse(pathlib.Path('databricks-deploy/jobs/reindex_lightrag.py').read_text())" && echo SYNTAX_OK</automated>
 </verify>
 <done>
+
 - databricks-deploy/jobs/reindex_lightrag.py exists with >= 350 lines
 - Passes ast.parse (syntax valid)
 - Contains: _load_candidates, _verify_target_empty, _ingest_one, _run_smallbatch, _run_fullreindex, _run_postcheck, _instantiate_lightrag, main
@@ -254,6 +271,7 @@ NO --init-empty flag in argparse — use _verify_target_empty(force_overwrite=Fa
 - _verify_target_empty raises RuntimeError with mtime strings on non-empty without force
 - databricks-deploy/jobs/__init__.py exists (empty)
 </done>
+
 </task>
 
 <!-- ================================================================
@@ -281,14 +299,17 @@ databricks-deploy/jobs/tests/fixtures/kol_scan_fixture.db
   - test_failures_csv_schema_no_path_leak: simulate failure with error repr containing a path; _append_failures_csv writes 200-char truncated error; error string contains no '/' and no '\\'
 
   Integration test (requires Model Serving auth — mark with @pytest.mark.dryrun):
+
   - test_smallbatch_against_fixture_db: run asyncio.run(_run_smallbatch(args)) with fixture DB (5 articles), tmp lightrag_dir; expect return 0 or 2, NEVER unhandled exception; check smallbatch-stats.json exists on tmp dir output path
 </behavior>
+
 <action>
 Skill(skill="writing-tests", args="pytest fixtures with tmp_path and monkeypatch. sqlite3.connect(':memory:') or tmp .db creation for fixture DB. AsyncMock for rag.ainsert and rag.doc_status.get_docs_by_ids. @pytest.mark.dryrun marker for integration test gated behind Model Serving auth. conftest.py shared fixtures for tmp_working_dir and mock_rag_factory.")
 
 Skill(skill="search-first", args="Before writing conftest, verify pytest-asyncio version in databricks-deploy/requirements.txt (>=0.23.0) and confirm asyncio_mode=auto is set in pytest.ini — reuse existing config from kdb-1.5, do not duplicate.")
 
 **conftest.py:**
+
 - `@pytest.fixture` `tmp_working_dir(tmp_path)` → creates `tmp_path/lightrag_storage/` and `tmp_path/output/` dirs; returns tmp_path
 - `@pytest.fixture` `fixture_db_path(tmp_path)` → creates a SQLite DB at `tmp_path/kol_scan_fixture.db` with articles + rss_articles tables containing 5 rows (3 candidate+body, 1 reject, 1 null-body) matching the production schema (content_hash, title, body, lang, layer1_verdict, layer2_verdict)
 - `@pytest.fixture` `mock_rag` → MagicMock with async .ainsert returning "track-123" and async .doc_status.get_docs_by_ids returning [MagicMock(status=MagicMock(value="PROCESSED"))]
@@ -297,10 +318,12 @@ Skill(skill="search-first", args="Before writing conftest, verify pytest-asyncio
 **test_reindex_unit.py:** import only from `databricks.jobs.reindex_lightrag` (adjust sys.path as needed). All 8 unit tests described in behavior. No network calls.
 
 **test_reindex_integration.py:** single test `test_smallbatch_against_fixture_db` marked `@pytest.mark.dryrun`. Creates tiny 5-article fixture DB (bodies 100-5000 chars). Calls `asyncio.run(_run_smallbatch(args))` with `--lightrag-dir` pointing to tmp path. Verifies:
+
 - Return value is 0 or 2 (never unhandled exception)
 - `tmp_lightrag_dir/output/kdb-2.5-smallbatch-stats.json` created (path adjusted per PROGRESS_CSV constant overriding in conftest)
 
 **kol_scan_fixture.db:** Pre-built SQLite fixture file with 5 articles:
+
 - 2 articles table rows: (hash 'aaaa...', 'candidate', None, body='short article body ~100 chars') + (hash 'bbbb...', 'candidate', None, body='medium body' × 500 chars)
 - 1 articles reject row: (hash 'cccc...', 'reject', None, body='rejected')
 - 2 rss_articles rows: (hash 'dddd...', 'candidate', None, body='rss article' × 200 chars) + (hash 'eeee...', 'candidate', 'reject', body='rss reject')
@@ -311,11 +334,13 @@ Build via conftest fixture or ship as binary created by a helper script. Prefer 
   <automated>cd C:\Users\huxxha\Desktop\OmniGraph-Vault && .venv/Scripts/pytest databricks-deploy/jobs/tests/test_reindex_unit.py -v -m "not dryrun" 2>&amp;1 | tail -30</automated>
 </verify>
 <done>
+
 - All 8 unit tests PASS (no network calls needed)
 - test_reindex_integration.py exists with @pytest.mark.dryrun test
 - kol_scan_fixture.db exists under tests/fixtures/
 - `pytest databricks-deploy/jobs/tests/test_reindex_unit.py -v -m "not dryrun"` exits 0 with 8 passed
 </done>
+
 </task>
 
 <!-- ================================================================
@@ -335,6 +360,7 @@ Skill(skill="search-first", args="Verify current databricks bundle CLI version (
 Create `databricks-deploy/jobs/reindex_lightrag.yml` with three Job resources:
 
 **kdb_2_5_reindex_smallbatch:**
+
 - name: "[kdb-2.5] Re-index LightRAG — Step 1 smallbatch (50 articles)"
 - queue.enabled: true; max_concurrent_runs: 1
 - timeout_seconds: 7200 (2h ceiling for Step 1)
@@ -344,6 +370,7 @@ Create `databricks-deploy/jobs/reindex_lightrag.yml` with three Job resources:
 - environment_key: default with environment_version: "2" + dependencies: ["lightrag-hku==1.4.15", "databricks-sdk>=0.30.0", "numpy>=1.26.0"]
 
 **kdb_2_5_reindex_fullrun:**
+
 - name: "[kdb-2.5] Re-index LightRAG — Step 2 fullreindex (all candidates)"
 - timeout_seconds: 108000 (30h ceiling matching ROADMAP cost gate)
 - parameters: ["--mode", "fullreindex", "--filter-mode", "strict"]
@@ -351,12 +378,14 @@ Create `databricks-deploy/jobs/reindex_lightrag.yml` with three Job resources:
 - Same environment block
 
 **kdb_2_5_reindex_postcheck:**
+
 - name: "[kdb-2.5] Re-index LightRAG — Step 3 postcheck"
 - timeout_seconds: 1800 (30min ceiling)
 - parameters: ["--mode", "postcheck"]
 - Same environment block
 
 Add header comment explaining:
+
 - Phase: kdb-2.5 / Requirements: SEED-DBX-02, SEED-DBX-03
 - Deploy: databricks bundle deploy -t dev
 - Run Step 1: databricks bundle run kdb_2_5_reindex_smallbatch -t dev
@@ -371,12 +400,14 @@ Include note: "This file must be referenced via include: in the parent databrick
   <automated>cd C:\Users\huxxha\Desktop\OmniGraph-Vault && databricks bundle validate -t dev 2>&amp;1 | head -20</automated>
 </verify>
 <done>
+
 - reindex_lightrag.yml exists
 - Three Jobs defined: kdb_2_5_reindex_smallbatch, kdb_2_5_reindex_fullrun, kdb_2_5_reindex_postcheck
 - Neither smallbatch nor fullrun default parameters include --force-overwrite
 - timeout_seconds: 7200, 108000, 1800 respectively
 - `databricks bundle validate -t dev` returns no errors (or only warns about unset email_notifications)
 </done>
+
 </task>
 
 <!-- ================================================================
@@ -394,6 +425,7 @@ Now deploy the bundle to dev workspace and execute Step 1 (50-article stratified
 Produce kdb-2.5-SMALLBATCH-FINDINGS.md with the explicit cost gate decision.
 
 **CRITICAL — Cost gate decision MUST appear explicitly at the end of SMALLBATCH-FINDINGS:**
+
 ```
 Gate decisions:
   cost_extrap < $200: YES/NO  → $X (extrapolated)
@@ -408,6 +440,7 @@ If BLOCKED → STOP PLAN 01 HERE. Do NOT execute Plan 02.
 </what-built>
 <how-to-verify>
 **Step A — Bundle deploy:**
+
 ```bash
 cd /path/to/OmniGraph-Vault
 databricks bundle deploy -t dev 2>&1 | tail -30
@@ -420,6 +453,7 @@ an equivalent path. If not, add the include entry (this is a one-line addition t
 root config, NOT a kdb-1.5 frozen file modification).
 
 **Step C — Trigger Step 1:**
+
 ```bash
 databricks bundle run kdb_2_5_reindex_smallbatch -t dev
 # Streams logs. Wait for completion (~30 min).
@@ -427,9 +461,11 @@ databricks bundle run kdb_2_5_reindex_smallbatch -t dev
 ```
 
 **Step D — Pull smallbatch stats from Volume:**
+
 ```bash
 databricks fs cat dbfs:/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/output/kdb-2.5-smallbatch-stats.json
 ```
+
 Verify JSON contains: n_results, n_ok, n_failed, elapsed_total_s, avg_wallclock_per_ok.
 
 **Step E — Pull billing data:**
@@ -439,6 +475,7 @@ Note: Sonnet 4.6 input tokens, output tokens; Qwen3-Embedding input tokens. Divi
 **Step F — Write SMALLBATCH-FINDINGS.md:**
 Author `.planning/phases/kdb-2.5-reindex-lightrag-storage/kdb-2.5-SMALLBATCH-FINDINGS.md`
 using the RESEARCH Q8 template. Include:
+
 - 50-article run-id from `databricks jobs runs list` or output of `bundle run`
 - Per-article measurements from billing dashboard
 - Extrapolation formula with actual numbers
@@ -447,12 +484,15 @@ using the RESEARCH Q8 template. Include:
 
 **Step G — Verify gate:**
 If all 3 gate criteria PASS:
+
 - Type "gate PASS — proceed to Plan 02"
 
 If any gate criterion FAILS:
+
 - Type "gate BLOCKED: [criterion that failed] = [actual value]"
 - Do NOT proceed to Plan 02 until user reviews and approves scope adjustment
 </how-to-verify>
+
 <resume-signal>
 Type "gate PASS — proceed to Plan 02" OR "gate BLOCKED: [reason]"
 </resume-signal>
@@ -496,10 +536,12 @@ grep "GATE:" .planning/phases/kdb-2.5-reindex-lightrag-storage/kdb-2.5-SMALLBATC
 ```
 
 CONFIG-DBX-01 check (zero kb/ / lib/ / top-level *.py modifications):
+
 ```bash
 git diff --name-only HEAD | grep -E "^kb/|^lib/|^[^/]+\.py$"
 # Expected: empty
 ```
+
 </verification>
 
 <success_criteria>
@@ -529,6 +571,7 @@ Concurrent safety: git add explicit files only (no -A); forward-only commits (no
 </hard_constraints>
 
 <anti_patterns>
+
 - DO NOT add ThreadPoolExecutor for "parallelism" (Pitfall 2: corrupts shared lightrag_storage/).
 - DO NOT add --force-overwrite to YAML default parameters (Pitfall 7: silently overwrite good state).
 - DO NOT treat ainsert return value (track_id) as success indicator (Pitfall 1: it's unconditional).

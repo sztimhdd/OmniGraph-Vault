@@ -14,6 +14,7 @@ key-files:
 ## What was built
 
 Three artifacts:
+
 1. **credentials/vertex_ai_service_account_example.json** — schema template with all 10 required SA fields, placeholder values only (`YOUR_PROJECT_ID`, `PLACEHOLDER_*`).
 2. **scripts/estimate_vertex_ai_cost.py** — standalone cost estimator CLI with hardcoded 2026-04 pricing constants, argparse-required `--articles` + `--avg-images-per-article`.
 3. **.gitignore** — appended `credentials/` exclusion + `!credentials/vertex_ai_service_account_example.json` negation so the template stays tracked but real SA keys never get committed.
@@ -21,6 +22,7 @@ Three artifacts:
 ## Acceptance criteria
 
 All 11 checks pass:
+
 - JSON valid and all 10 required SA fields present (type, project_id, private_key_id, private_key, client_email, client_id, auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url)
 - Only placeholder values — no real Google API key pattern match
 - `.gitignore` has both `credentials/` exclusion and template negation

@@ -35,6 +35,7 @@ must_haves:
 Decide the HYG-03 restoration question (per Wave 0 Close-Out § F) with the YOLO default: **do NOT restore Cognee**. Replace the "past-query memory" feature with a lightweight local JSONL history.
 
 Rationale:
+
 - The 2026-05-02 removal (`0109c02`) fixed two root causes at once: (1) Cognee's LiteLLM→Vertex chain hit model-name 404s; (2) Cognee's module-level import blocked the asyncio event loop. Even with the parallel GSD:quick `_resolve_model()` fix, (2) remains a latent risk on any synthesis call.
 - Cognee was providing one feature to `kg_synthesize.py`: recall past queries to add context. That feature is recoverable with ~30 lines of file I/O.
 - Ingestion-side Cognee (`remember_article` in `ingest_wechat.py`, `cognee_batch_processor.py`) is untouched per 05-00-SUMMARY § D and stays untouched here.
@@ -56,6 +57,7 @@ Windows dev machine. `kg_synthesize.py` touches LightRAG + DeepSeek — the Ligh
 Runtime path: `~/.hermes/omonigraph-vault/query_history.jsonl` (follows the typo-preserving convention in CLAUDE.md — DO NOT rename to `omnigraph-vault`).
 
 Format: one JSON object per line:
+
 ```
 {"ts": "2026-05-03T09:00:00Z", "query": "...", "mode": "hybrid", "response_len": 1466}
 ```
@@ -145,6 +147,7 @@ def _append_query_history(query: str, mode: str, response_len: int) -> None:
         # Never raise; history is best-effort.
         print(f"Warning: query history append failed: {e}")
 ```
+
 </helper_shape>
 
 <unit_test_shape>
@@ -205,6 +208,7 @@ Tests use `tmp_path` + monkeypatch of `QUERY_HISTORY_FILE` to avoid polluting re
 </verification>
 
 <success_criteria>
+
 - HYG-03 satisfied: `kg_synthesize` has history-aware prompting without reintroducing Cognee's Vertex + async-blocking risks.
 - Reversible: if a future v3.4 decision is to restore Cognee, the helpers + JSONL file coexist with Cognee calls; JSONL history remains the "always-on" floor.
 </success_criteria>

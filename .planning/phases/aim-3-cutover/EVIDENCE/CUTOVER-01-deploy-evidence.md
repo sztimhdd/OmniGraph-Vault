@@ -23,6 +23,7 @@ Re-deployed with second tarball (`aim-3-2-units-v2.tar.gz`), re-ran daemon-reloa
 all 13 timers. Idempotent — no harm from already-enabled timers.
 
 **Evidence (CST display = UTC+8):**
+
 - `rss-fetch.timer`: Before fix NEXT = 09:00 CST = 01:00 UTC (WRONG)
 - `rss-fetch.timer`: After fix NEXT = 17:00 CST = 09:00 UTC (CORRECT)
 
@@ -185,6 +186,7 @@ WantedBy=multi-user.target
 ```
 
 Verified:
+
 - `WorkingDirectory=/root/OmniGraph-Vault` — PASS
 - `EnvironmentFile=/root/.hermes/.env` — PASS
 - `ExecStartPre=...cleanup_stuck_docs.py --all-failed` — PASS
@@ -213,6 +215,7 @@ WantedBy=multi-user.target
 ```
 
 Verified:
+
 - `WorkingDirectory=/root/OmniGraph-Vault` — PASS
 - `EnvironmentFile=/root/.hermes/.env` — PASS
 - `ExecStart=...batch_scan_kol.py --daily` — PASS
@@ -240,6 +243,7 @@ WantedBy=multi-user.target
 ```
 
 Verified:
+
 - `WorkingDirectory=/root/OmniGraph-Vault` — PASS
 - `EnvironmentFile=/root/.hermes/.env` — PASS
 - `ExecStart=...scripts/vertex_live_probe.py` — PASS

@@ -104,6 +104,7 @@ proves with real FTS5 fallback (UAT below).
 | 7 | Mobile viewport (375×667) | Playwright `browser_resize` + `browser_take_screenshot` | toggle wraps cleanly above textarea, no horizontal scroll | ✅ |
 
 Screenshot evidence:
+
 - `.playwright-mcp/kb-v2-1-5-toggle-desktop.png` — Quick answer selected (default)
 - `.playwright-mcp/kb-v2-1-5-toggle-deep-research-active.png` — Deep research selected
 - `.playwright-mcp/kb-v2-1-5-toggle-mobile.png` — 375×667 viewport
@@ -128,15 +129,19 @@ To pick up this phase on Aliyun:
 
 1. `ssh aliyun-vitaclaw 'cd /root/OmniGraph-Vault && git pull --ff-only origin main'`
 2. SSG re-export with `KB_BASE_PATH=/kb`:
+
    ```bash
    ssh aliyun-vitaclaw 'cd /root/OmniGraph-Vault && KB_BASE_PATH=/kb venv/bin/python kb/export_knowledge_base.py'
    ssh aliyun-vitaclaw 'rsync -a --delete /root/OmniGraph-Vault/kb/output/ /var/www/kb/'
    ssh aliyun-vitaclaw 'systemctl reload caddy'
    ```
+
 3. Restart kb-api so the new `kb/services/synthesize.py` + `kb/api_routers/synthesize.py` are picked up:
+
    ```bash
    ssh aliyun-vitaclaw 'systemctl restart kb-api.service'
    ```
+
 4. Verify with the same probes used in Local UAT scenarios 1-3 against `http://101.133.154.49/kb/api/synthesize`.
 
 ## Test results

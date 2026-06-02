@@ -98,6 +98,7 @@ Note: q_idx subdirs may be missing if the question was skipped/failed. The
 merger must handle q_idx ∈ {0,1,2} with any subset present.
 
 LightRAG ainsert signature (RESEARCH.md §3):
+
 ```python
 rag.ainsert(
     input: str,
@@ -107,9 +108,11 @@ rag.ainsert(
 ```
 
 D-08 encoding:
+
 - Each Zhihu doc: `ids=[f"zhihu_{wechat_hash}_{q_idx}"]`, `file_paths=[f"enriches:{wechat_hash}"]`
 
 D-07 enriched state machine (written to SQLite articles.enriched):
+
 - 0 = pending (initial)
 - 1 = in progress (optionally set while running; not required)
 - 2 = success (including partial ≥1 q success)
@@ -645,6 +648,7 @@ enrichment_id = a stable synthetic ID — use the wechat_hash prefixed with "enr
 </verification>
 
 <success_criteria>
+
 - Pure merger function (merge_md) respects D-09 (inline summaries under 知识增厚)
 - Runner (merge_and_ingest) respects D-07 (state machine), D-08 (Zhihu doc ids + enriches backlink), D-11 (partial success = 2)
 - SQLite articles.enriched + ingestions.enrichment_id updated (failure-tolerant)

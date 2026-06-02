@@ -61,6 +61,7 @@ Output: 1 surgical patch in `lib/scraper.py` + 1 new mock-only test file at `tes
 <!-- DO NOT change any of these — only the marked section in lib/scraper.py is in scope. -->
 
 From lib/scraper.py:60-73 — the dataclass (DO NOT TOUCH):
+
 ```python
 @dataclass(frozen=True)
 class ScrapeResult:
@@ -85,6 +86,7 @@ else:
 ```
 
 From ingest_wechat.py:507-514 — UA layer return shape (DO NOT TOUCH):
+
 ```python
 return {
     "title": title,
@@ -97,6 +99,7 @@ return {
 ```
 
 From ingest_wechat.py:976-978 — LEGACY merge semantic (the contract to mirror):
+
 ```python
 markdown, _img_urls = process_content(article_data["content_html"])
 # Merge UA-extracted data-src images with process_content images
@@ -104,11 +107,13 @@ img_urls = article_data.get("img_urls", []) + _img_urls
 ```
 
 Notes on the legacy line — read carefully:
+
 - It is **plain concat with `+`** — NOT dedup, NOT set semantics. Order is preserved: `img_urls` first, `process_content` images second.
 - Duplicates ARE possible if the same `data-src` URL appears both inside `#js_content` (caught by `process_content`) and elsewhere in the page (caught by the UA `data-src` regex).
 - The legacy code path proves this is the production-correct contract today (legacy callers have not reported duplication issues — downstream image_pipeline likely de-dupes by hash).
 
 From ingest_wechat.py:763-775 — `process_content` (DO NOT TOUCH; mock target in tests):
+
 ```python
 def process_content(html):
     soup = BeautifulSoup(html, 'html.parser')
@@ -122,9 +127,11 @@ def process_content(html):
     markdown = h.handle(html)
     return markdown, images
 ```
+
 </interfaces>
 
 **Hard scope guards (HARD NO list — re-read before writing any code):**
+
 - Do NOT change `scrape_wechat_ua` (key naming stays `img_urls`)
 - Do NOT touch Apify / CDP / MCP layer functions
 - Do NOT touch any production env vars
@@ -280,6 +287,7 @@ After Task 2 commits:
 </verification>
 
 <success_criteria>
+
 1. `lib/scraper.py:_scrape_wechat` `process_content` branch merges `result.get("img_urls", [])` with `process_content` output, in that order, via plain list concat (mirrors `ingest_article:978` exactly).
 2. UA-fallback articles now have `ScrapeResult.images` containing both data-src URLs from outside `#js_content` AND images parsed from inside `content_html`. Audit `ece03ae` Mismatch #1 closed.
 3. SCR-06 short-circuit branch (Apify path) behavior is byte-identical to before — proven by `test_apify_short_circuit_unchanged_no_img_urls_key`.

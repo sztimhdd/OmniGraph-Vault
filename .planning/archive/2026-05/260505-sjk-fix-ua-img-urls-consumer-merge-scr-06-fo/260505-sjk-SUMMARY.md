@@ -53,6 +53,7 @@ else:
 ```
 
 Three structural points (mirrors `ingest_article.py:978` exactly):
+
 - Order: `img_urls` FIRST, then `_process_imgs` — exact mirror of legacy
 - Plain `+` concat — no dedup, no set semantics
 - Defensive read: `list(result.get("img_urls") or [])` handles `None` AND avoids mutating caller's list

@@ -40,6 +40,7 @@ Reconcile the pre-aim-1 dirty working tree at `/root/OmniGraph-Vault/` (kb-api's
 Purpose: DEPLOY-02..04 require a clean tree they can trust. Without reconciliation, `pip install` may run against an unknown `requirements.txt`, env-file edits may collide with uncommitted changes, and smoke logs will not be reproducible against a known commit.
 
 Output:
+
 - Aliyun: clean working tree at `/root/OmniGraph-Vault/`, HEAD reconciled to a known commit
 - Local: `.planning/phases/aim-1-code-env-deploy/DEPLOY-NOTES.md` with §DEPLOY-01 section
 </objective>
@@ -63,6 +64,7 @@ Output:
 </context>
 
 <pre_conditions>
+
 - aim-0 verdict = PASS (recorded in STATE Gate 1 CLOSED line 132-133)
 - `.planning/phases/aim-1-code-env-deploy/` directory exists (orchestrator created it)
 - Operator has SSH access via alias `aliyun-vitaclaw` (memory file `aliyun_vitaclaw_ssh.md`)
@@ -294,6 +296,7 @@ Output:
 **ROADMAP SC1 (line 78):** "Code deployed in-place at `/root/OmniGraph-Vault/` (existing kb-api checkout per STATE:132-133; HEAD reconciled to a known commit; pre-aim-1 dirty working tree captured / committed / discarded per operator judgement and recorded in DEPLOY-NOTES.md); `git status` clean post-reconcile; HEAD commit hash recorded (DEPLOY-01)"
 
 Mapped to plan acceptance:
+
 - ✅ In-place at `/root/OmniGraph-Vault/`: Tasks 1, 3 operate on this path; Task 2 forbids alternative
 - ✅ HEAD reconciled to known commit: Task 3a executes reconcile; Task 3b captures HEAD hash
 - ✅ Dirty working tree captured / committed / discarded per operator judgement: Task 2 decision options exhaust the four reconcile methods; Task 3a executes choice

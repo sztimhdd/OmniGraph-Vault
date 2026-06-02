@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS ingestions (
     UNIQUE(article_id)
 );
 ```
+
 </interfaces>
 </context>
 
@@ -584,6 +585,7 @@ CREATE TABLE IF NOT EXISTS ingestions (
 </verification>
 
 <success_criteria>
+
 - pytest discovers tests/ and runs
 - SQLite migration has 4 passing idempotency tests
 - Phase-0 spike script exists with correct exit-code contract + auto-generates a success/fail report on first remote run

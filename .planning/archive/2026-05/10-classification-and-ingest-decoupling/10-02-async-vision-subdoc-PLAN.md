@@ -78,6 +78,7 @@ finally block; 7+ unit tests gating the four behaviors.
 <!-- Contracts the executor needs. -->
 
 From `ingest_wechat.py` AFTER plan 10-01 lands:
+
 ```python
 # Stub created in plan 10-01, replaced by this plan:
 async def _vision_worker_impl(
@@ -90,6 +91,7 @@ async def _vision_worker_impl(
 ```
 
 From `image_pipeline.py` (UNCHANGED by this plan — just called from the worker):
+
 ```python
 def describe_images(paths: list[Path]) -> dict[Path, str]:
     """Returns {path: description}. Failed images have empty string."""
@@ -105,6 +107,7 @@ def emit_batch_complete(*, filter_stats, download_input_count, download_failed,
 ```
 
 Sub-doc content spec (D-10.07 LOCKED — copy verbatim):
+
 ```
 # Images for <title>
 
@@ -115,12 +118,14 @@ Sub-doc content spec (D-10.07 LOCKED — copy verbatim):
 ```
 
 Sub-doc `doc_id` (D-10.07 LOCKED):
+
 ```python
 sub_doc_id = f"wechat_{article_hash}_images"
 ```
 
 Batch orchestrator drain sketch (D-10.09) — added to BOTH `run` and `ingest_from_db` in
 `batch_ingest_from_spider.py`, in the existing `finally:` block, BEFORE `rag.finalize_storages()`:
+
 ```python
 finally:
     if rag is not None:
@@ -152,6 +157,7 @@ finally:
 ```
 
 Test pattern — awaiting the Vision task explicitly:
+
 ```python
 # Given a mocked rag with ainsert = AsyncMock()
 task = await ingest_wechat.ingest_article(url, rag=mock_rag)
@@ -159,6 +165,7 @@ if task is not None:
     await task  # deterministically wait for Vision worker to finish
 # Now assert on mock_rag.ainsert.call_args_list (2 calls: parent + sub-doc)
 ```
+
 </interfaces>
 </context>
 
@@ -526,6 +533,7 @@ Phase 10 plan 10-02 acceptance (D-10.06 / D-10.07 / D-10.08 / D-10.09):
 </verification>
 
 <success_criteria>
+
 - `_vision_worker_impl` is fully implemented — no stub, no TODO (D-10.06)
 - Sub-doc content matches D-10.07 spec verbatim (header, list format, empty-desc omission, skip-if-all-empty)
 - All exceptions inside the worker are caught and logged; text ingest is never invalidated (D-10.08)

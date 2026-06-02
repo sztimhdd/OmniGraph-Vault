@@ -7,6 +7,7 @@
 ---
 
 <user_constraints>
+
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
@@ -31,11 +32,13 @@
 | D-20.16 | Reuse `lib/checkpoint.py` for RSS 5-stage markers: `01_scrape, 02_classify, 03_image_download, 04_text_ingest, 05_vision_worker` |
 
 ### Claude's Discretion
+
 - Implementation order within each wave (RCL, RIN, COG sub-tasks)
 - Whether to add `cap_seconds` to existing `_drain_pending_vision_tasks` or inline a local drain helper in `enrichment/rss_ingest.py`
 - Exact test fixture structure for `test_rss_ingest_5stage.py`
 
 ### Deferred Ideas (OUT OF SCOPE)
+
 - EN→CN translation (explicitly excluded from v3.4 per REQUIREMENTS.md)
 - E2R-01 "enriched rate >= 60%" fixture (deferred to Phase 21)
 - Vertex AI migration (post-Milestone B)
@@ -46,6 +49,7 @@
 ---
 
 <phase_requirements>
+
 ## Phase Requirements
 
 | ID | Description | Research Support |
@@ -270,9 +274,11 @@ D-20.12 says "drain (cap_seconds=120)" — this references a cap, not the existi
 ### Q2: Import safety for `_build_fullbody_prompt` / `_call_fullbody_llm`
 
 **Finding:** Safe. `rss_classify.py` already contains:
+
 ```python
 from batch_classify_kol import get_deepseek_api_key
 ```
+
 No circular import risk. `batch_classify_kol` imports `from lib import INGESTION_LLM, generate_sync` — both are available at `rss_classify.py` import time.
 
 Module-level side effect in `batch_classify_kol`: `_load_hermes_env()` is called at import time. This reads `~/.hermes/.env`. Since `rss_classify.py` also loads from this file, there is no conflict — `_load_hermes_env` uses `os.environ.setdefault` semantics (does not overwrite).
@@ -280,12 +286,14 @@ Module-level side effect in `batch_classify_kol`: `_load_hermes_env()` is called
 ### Q3: Cognee `remember_article` blocking behavior
 
 **Finding:** The current implementation in `cognee_wrapper.py` lines 109-151:
+
 ```python
 await asyncio.wait_for(
     cognee.remember(..., run_in_background=True),
     timeout=5.0,
 )
 ```
+
 If `cognee.remember` itself blocks (e.g., mocked to `asyncio.sleep(10)`), `asyncio.wait_for` will block for exactly 5.0 seconds before raising `TimeoutError` and returning `False`. Wall-clock: ~5s, NOT < 100ms.
 
 **D-20.13 mock test WILL FAIL without D-20.15 change.** The `asyncio.create_task` refactor (D-20.15) IS required, not optional.
@@ -293,12 +301,14 @@ If `cognee.remember` itself blocks (e.g., mocked to `asyncio.sleep(10)`), `async
 ### Q4: Vision sub-doc format for RSS
 
 **Finding from `ingest_wechat._vision_worker_impl`:**
+
 ```
 # Images for {title}
 
 - [image 1]: {description}  (http://localhost:8765/{article_hash}/{filename})
 - [image 2]: {description}  (http://localhost:8765/{article_hash}/{filename})
 ```
+
 RSS must match this format exactly, substituting `article_hash = get_article_hash(url)` (SHA-256[:16]) and `doc_id = f"rss-{article_id}_images"`.
 
 Local image URL format `http://localhost:8765/{article_hash}/{n}.jpg` is matched by `_IMAGE_URL_PATTERN` in `lib/lightrag_embedding.py`.
@@ -306,11 +316,13 @@ Local image URL format `http://localhost:8765/{article_hash}/{n}.jpg` is matched
 ### Q5: `download_images` signature change
 
 **Current signature:**
+
 ```python
 def download_images(urls: list[str], dest_dir: Path) -> dict[str, Path]:
 ```
 
 **Required post-Phase-20 signature:**
+
 ```python
 def download_images(
     urls: list[str],
@@ -320,6 +332,7 @@ def download_images(
 ```
 
 SVG filter (D-20.09) — add after `response = requests.get(url, ...)`:
+
 ```python
 content_type = response.headers.get("Content-Type", "")
 if content_type.startswith("image/svg"):
@@ -336,6 +349,7 @@ Both changes are backward-compatible: `referer=None` is the default (old callers
 ### Q7: `_pending_doc_ids` clear semantics
 
 **Finding from `ingest_wechat.py`:**
+
 - Set after successful `ainsert` (or after vision worker completes sub-doc insert)
 - Cleared only on success path (`_clear_pending_doc_id` called in vision worker completion handler)
 - On rollback: cleared explicitly after `adelete_by_doc_id`
@@ -345,6 +359,7 @@ RSS must mirror this: `_pending_doc_ids[article_hash] = doc_id` after `ainsert` 
 ### Q8: PROCESSED gate preservation
 
 **Finding from `enrichment/rss_ingest.py` lines 184-207** — this gate must not be removed or bypassed in the rewrite:
+
 ```python
 cur.execute(
     "SELECT 1 FROM ingestions WHERE article_id = ? AND status = 'ok'",
@@ -354,6 +369,7 @@ if cur.fetchone():
     logger.debug("Article %s already ingested (status=ok), skipping", article_id)
     continue  # in loop / return False in helper
 ```
+
 This is the idempotency guard preventing re-ingestion of articles already in the KG.
 
 ### Q9: Phase 20 fixture scope (E2R-01 deferral)
@@ -365,6 +381,7 @@ Phase 20 test scope: unit tests with mocked rag/db, mock test for Cognee detach,
 ### Q10: Checkpoint stage name API clarification
 
 **Finding from `lib/checkpoint.py`:**
+
 - `STAGE_FILES` dict keys: `scrape`, `classify`, `image_download`, `text_ingest`, `vision_worker`, `sub_doc_ingest`
 - `write_stage(ckpt_hash, stage_name, content)` takes the short key (e.g., `"scrape"`)
 - File on disk: `checkpoints/{ckpt_hash}/01_scrape.html` (numeric prefix in filename, not in API key)
@@ -523,6 +540,7 @@ COG-03 is gated on a live Hermes smoke test, not automated CI. Steps:
 | `_translate_to_chinese` call in rss_ingest | Removed entirely | Simplification; out-of-v3.4 scope |
 
 **Deprecated/outdated after Phase 20:**
+
 - `THROTTLE_SECONDS = 0.3` in `rss_classify.py`: replaced by `FULLBODY_THROTTLE_SECONDS = 4.5`
 - `CLASSIFY_PROMPT` multi-line template in `rss_classify.py`: replaced by `_build_fullbody_prompt` import
 - `_translate_to_chinese` and `langdetect` calls in `rss_ingest.py`: removed (out of v3.4 scope)

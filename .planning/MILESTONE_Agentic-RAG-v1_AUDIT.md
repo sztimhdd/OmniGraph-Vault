@@ -45,6 +45,7 @@ Iteration history (TEST-05 remediation sub-cycle, exceeded the formal 3-iter PLA
 ### Dimension 1: Coverage breadth — Score: **3/5** (BORDER PASS)
 
 Telegram answer covered 8 distinct architectural topics:
+
 - Definition (Harness as engineering infra outside model)
 - 7-layer architecture (角色/规则, 记忆, 上下文加载, 稳定执行, 有效循环, 评分/可观测性, 中断修复)
 - "Hard Tracking, Soft Execution" design philosophy
@@ -55,6 +56,7 @@ Telegram answer covered 8 distinct architectural topics:
 - 4 cited reference sources
 
 Agentic-RAG output covered 5 of those 8 topics:
+
 - ✓ Definition (核心运行时引擎角色, 基础设施)
 - ✓ 6-component architecture (上下文管理, 工具系统, 权限控制, 执行后端, 记忆与技能, 多Agent协作) — partial overlap with Telegram's 7-layer (missing 角色/规则, 评分/可观测性, 中断修复; gains 多Agent协作 not on Telegram)
 - ✓ Design philosophy ("弹性优先" — resilience-first)
@@ -68,6 +70,7 @@ Missing: Hermes vs Claude Code comparison, "Hard Tracking Soft Execution" specif
 ### Dimension 2: Technical depth — Score: **3/5** (PASS)
 
 Agentic-RAG names 4 internal specifics (≥3 required):
+
 - "MEMORY.md and USER.md files" (concrete filenames)
 - "七级层次化权限系统和沙箱（Sandbox）" (specific seven-tier permission model + Sandbox component name)
 - "子代理（Sub-Agent）机制 ... 父子链 (parent-child chain)" (concrete mechanism + topology)
@@ -79,6 +82,7 @@ Beyond surface-level, but lacks file:line references or class names that the Tel
 ### Dimension 3: Philosophical framing — Score: **4/5** (PASS)
 
 Agentic-RAG dedicates a final section "设计哲学与工程价值" with multiple paragraphs:
+
 - "弹性优先" principle named explicitly
 - "并非一次性设计出来的，而是从解决实际工程问题中逐步演化而来" — organic evolution framing
 - "将模型的能力稳定地连接现实世界" — model-vs-infrastructure motivation
@@ -90,6 +94,7 @@ Solid philosophical content; missing only the Telegram answer's "Continuous Accu
 ### Dimension 4: Source attribution — Score: **2/5** (FAIL)
 
 Agentic-RAG has a `### References` block at end with 3 numbered KG-side sources:
+
 - [1] Hermes 的核心架构 Harness：上下文、工具、权限与执行控制
 - [2] Harness 到底是什么？看看 OpenClaw、Hermes、Claude Code 的演绎吧
 - [3] 我把Hermes里的模型几乎测了一遍，得出一个很扎心的结论
@@ -105,6 +110,7 @@ Telegram ground-truth provides identical-style numbered references but ALSO weav
 Agentic-RAG markdown contains 0 inline `![desc](http://localhost:8765/...)` images.
 
 Telegram answer embedded ≥3 images via `MEDIA:` tags (msg 41 + earlier sections):
+
 - `MEDIA:.../43ccc4b10e/0.jpg` — 系统提示词拼接顺序图 (system prompt prefix cache diagram)
 - (and 2+ more across earlier send_message calls)
 

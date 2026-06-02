@@ -16,6 +16,7 @@ orchestrator at `batch_ingest_from_spider.py:793-1014`.
 **Files**: `tests/unit/test_run_kol_scan_orchestration.py` (new)
 
 **Action**:
+
 - Add four `@pytest.mark.asyncio` tests R1, R2, R3, R4
 - Reuse `mock_rag` from `tests/unit/_ingest_fixtures.py`
 - Patch boundary (per test, via `monkeypatch`):
@@ -32,12 +33,15 @@ orchestrator at `batch_ingest_from_spider.py:793-1014`.
   spy call counts) — never on internal call shape
 
 **Verify**:
+
 ```
 venv/Scripts/python.exe -m pytest tests/unit/test_run_kol_scan_orchestration.py -v
 ```
+
 Must show `4 passed`.
 
 **Done when**:
+
 - File exists at the path above
 - All 4 tests green
 - Pre-existing T1–T5 still 5 passed (regression check)

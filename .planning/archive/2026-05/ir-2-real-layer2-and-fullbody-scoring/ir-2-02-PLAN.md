@@ -62,6 +62,7 @@ LAYER2_BODY_TRUNCATION_CHARS = 8000
 
 async def layer2_full_body_score(articles: list[ArticleWithBody]) -> list[FilterResult]
 def persist_layer2_verdicts(conn, articles, results) -> None
+
 ```
 
 <!-- Test fixture pattern: monkeypatch the LLM dependency at the import-resolution
@@ -397,6 +398,7 @@ async def test_layer2_over_max_raises() -> None:
 ```
 
 **HARD CONSTRAINTS:**
+
 - Tests MUST NOT make real LLM calls — every Layer 2 test that hits `layer2_full_body_score` monkeypatches `lib.llm_deepseek.deepseek_model_complete`.
 - Tests MUST NOT modify any of the 8 existing Layer 1 tests.
 - Tests MUST run on existing pytest config (`asyncio_mode = "auto"`); do NOT add markers; do NOT add deps.
@@ -426,6 +428,7 @@ DEEPSEEK_API_KEY=dummy python -m pytest tests/unit/test_article_filter.py -v --t
 # Full unit suite — must not regress
 DEEPSEEK_API_KEY=dummy python -m pytest tests/unit/ -q
 ```
+
 </verification>
 
 <commit_message>

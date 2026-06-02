@@ -71,6 +71,7 @@
 ### Cascade order in `lib/scraper.py` (today)
 
 `lib/scraper.py:227-232` (constant):
+
 ```python
 _DEFAULT_CASCADE_ORDER: tuple[str, ...] = (
     "scrape_wechat_ua",
@@ -87,6 +88,7 @@ _DEFAULT_CASCADE_ORDER: tuple[str, ...] = (
 ### Cascade order in `ingest_wechat.py` (today)
 
 `ingest_wechat.py:1048-1073` (top-level orchestrator inside `ingest_article`):
+
 ```
 1049:        # 1. UA spoofing (primary — fast, free, reliable)
 1050:        article_data = await scrape_wechat_ua(url)
@@ -119,6 +121,7 @@ _DEFAULT_CASCADE_ORDER: tuple[str, ...] = (
 ### Divergence still present? **No.** ✅
 
 **Root-cause evidence (decisive):**
+
 - Commit `fab60e0` (`Fri May 8 11:21:07 2026 -0300`) — `feat(scraper): F1b cascade reorder ua-first + SCRAPE_CASCADE env var override`. From `git show --stat fab60e0`:
   - `lib/scraper.py: new _resolve_cascade_order() ... Default tuple changed from apify,cdp,mcp,ua to ua,apify,cdp,mcp.`
   - `ingest_wechat.py:982-989: cosmetic if/else inversion in direct cascade — CDP-local branch now appears first textually (semantics unchanged: still mutually exclusive on _is_mcp_endpoint(CDP_URL)).`
@@ -142,6 +145,7 @@ _DEFAULT_CASCADE_ORDER: tuple[str, ...] = (
 #### M-1 — `SCRAPE_CASCADE` single-bad-token poisons the entire list (silent operability hazard)
 
 **Evidence:** `lib/scraper.py:246-256`:
+
 ```python
 tokens = [t.strip().lower() for t in raw.split(",") if t.strip()]
 resolved: list[str] = []
@@ -165,6 +169,7 @@ for tok in tokens:
 **Why not LOW:** the impact is on cron op-cost and the lesson the ev2 quick was specifically intended to enforce. M-grade because it can quietly waste 600s of cron budget on a typo.
 
 **Suggested fix (post-release hygiene):**
+
 - Drop unknown tokens silently with a warning, but continue with the parsed-prefix subset (i.e. `ua,apify,foo` → `(ua, apify)`, not full default).
 - OR: raise a `ValueError` at module import-time when SCRAPE_CASCADE is set and contains an unknown token, to fail fast at cron startup rather than silently mid-run.
 - Either path is ~5 LOC + 1 test. Quick type: `tighten-env-parser`. Risk: very low.
@@ -176,6 +181,7 @@ for tok in tokens:
 #### M-2 — Generic-cascade Layer-3 (CDP/MCP) is intentionally skipped — non-WeChat scrape cascade is shallow
 
 **Evidence:** `lib/scraper.py:387-388`:
+
 ```python
 # Layer 3: SKIPPED in Phase 19 per D-RSS-SCRAPER-SCOPE Option A scope
 # Generic CDP/MCP is deferred to Phase 20.
@@ -200,6 +206,7 @@ for tok in tokens:
 #### L-1 — Mixed exception-swallow style + duplicate fallback warning bodies in `_resolve_cascade_order`
 
 **Evidence:** `lib/scraper.py:251-262`:
+
 - Two identical `logger.warning(...) ; return _DEFAULT_CASCADE_ORDER` blocks (lines 251-255 and 258-262), one for unknown-token, one for empty-resolved.
 - The second block (`if not resolved`) is dead code if the parsing happens via the for-loop above — `resolved` is non-empty unless `tokens` was empty after the `if t.strip()` filter, which means input was something like `,,,` or `   ,  ` — already handled by line 244 (`raw.strip() == ""`)? **Actually no:** `"  ,  "` would reach line 246, get filtered to `[]` by `if t.strip()`, then bypass the for-loop, reach line 257, fire the warning. So the path IS reachable.
 
@@ -212,6 +219,7 @@ for tok in tokens:
 #### L-2 — `requests.get` 15-second timeout is hard-coded (no env override)
 
 **Evidence:** `lib/scraper.py:141`:
+
 ```python
 lambda: requests.get(url, headers=headers, timeout=15),
 ```
@@ -227,6 +235,7 @@ Compare with `ingest_wechat.py` which has 5+ different timeouts across CDP (3000
 #### L-3 — `_scrape_wechat` does `import ingest_wechat` inside its body (line 278)
 
 **Evidence:** `lib/scraper.py:278`:
+
 ```python
 async def _scrape_wechat(url: str) -> ScrapeResult:
     ...
@@ -287,6 +296,7 @@ No other cross-cutting issues. `lib/scraper.py`'s only other imports (lines 16-2
 | `await` | 8 sites | All inside coroutine bodies; no orphaned awaitables. |
 
 **Timeout map (A6 sub-angle):**
+
 - Layer 1 generic (`trafilatura.fetch_url`): no explicit timeout — trafilatura's internal default applies (~20s).
 - Layer 2 generic (`requests.get`): hard-coded 15s (`:141`). See L-2.
 - Layer 1 wechat → delegated to `ingest_wechat`: per-layer-fn timeouts: UA 15s (`ingest_wechat.py:554`), Apify 300s `wait_for` (`:655`), MCP 30s sync + 4500ms in-page (`:734, :769`), CDP 30000ms connect (`:850`).
@@ -374,6 +384,7 @@ F-deferred (M-2)            — Phase 20 roadmap, not a quick
 ### Pollution score: **LOW**
 
 Reasoning:
+
 - **418 LOC, 10 named symbols, all <80 LOC** — by absolute size and shape, this is the cleanest core lib module in the repo. No god-functions, no dead branches, no migration debris (zero TODO/FIXME/XXX/HACK/DEPRECATED markers).
 - **Only "Phase X" markers** are 4 instances of `Phase 19` (current) and `Phase 20` (deferred Layer-3) — both still applicable, both load-bearing context.
 - **Zero correctness HIGHs.** Cascade divergence (CLAUDE.md 2026-05-08 #1, the F-1 hypothesis) is **closed**. Producer↔consumer dual-key contract is **symmetrical** at every consumer site grepped. No silent-empty-success path (line 301 explicit cascade-on-empty). No async task escape. No SQL.

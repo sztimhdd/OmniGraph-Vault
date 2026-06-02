@@ -257,6 +257,7 @@ The `kb/config.py` must NOT call `load_env()` from main config.py (avoids duplic
 </verification>
 
 <success_criteria>
+
 - `kb/config.py` exposes 6 constants, all env-overridable, all matching documented defaults
 - `kb/` package + 4 subpackages importable without error
 - `kb/output/` directory established and gitignored

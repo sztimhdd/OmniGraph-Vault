@@ -92,6 +92,7 @@ Pause has been active ≈ 9h 1m at STORAGE-04 verdict — well above the 30-min 
 ## Hand-off → Wave 5
 
 **Wave-5 inputs:**
+
 - Aliyun holding-dir validated byte-identical to Hermes source (this evidence file)
 - Aliyun production path `/root/OmniGraph-Vault/lightrag_storage/` confirmed clean (STORAGE-03B Step D)
 - Hermes pause STILL ACTIVE — cron resume is wave-5 final step, AFTER mv + chmod

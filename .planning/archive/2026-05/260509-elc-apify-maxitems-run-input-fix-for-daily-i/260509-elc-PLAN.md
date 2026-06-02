@@ -40,6 +40,7 @@ Fix the 2026-05-08 09:00 ADT daily-ingest cron failure where 5/5 articles errore
 Purpose: Unblock daily-ingest cron. Pay-per-result actors require this run-option per the apify-client SDK (`apify_client/clients/resource_clients/actor.py:316-372` — `max_items` kwarg maps to API field `maxItems`). WeChat URL = 1 article expected.
 
 Output:
+
 - 1-line code change at ingest_wechat.py:574
 - New test file tests/unit/test_apify_run_input.py asserting `max_items=1` reaches `.call()`
 - Atomic commit with forensic citations (cron session JSON, bug report, SDK source line)
@@ -107,6 +108,7 @@ Note: `max_items` is a kwarg on `.call()`, NOT a key inside the `run_input` dict
 </interfaces>
 
 <forensic_evidence>
+
 - Cron session: `session_cron_2b7a8bee53e0_20260508_090038.json` (Hermes-side artifact)
 - Bug report: `docs/bugreports/2026-05-08-cron-ingest-failure.md`
 - Error message (exact): `"Maximum charged results must be greater than zero"`
@@ -116,6 +118,7 @@ Note: `max_items` is a kwarg on `.call()`, NOT a key inside the `run_input` dict
 
 <scope_boundary>
 HARD scope — parallel ir-4 W2 agent owns batch_ingest_from_spider.py + lib/scraper.py:
+
 - ALLOWED: ingest_wechat.py:_apify_call (specifically line 574, the lambda)
 - ALLOWED: tests/unit/test_apify_run_input.py (NEW file)
 - FORBIDDEN: batch_ingest_from_spider.py, lib/scraper.py, any migration / SQL / Layer 1 / Layer 2 code
@@ -208,6 +211,7 @@ HARD scope — parallel ir-4 W2 agent owns batch_ingest_from_spider.py + lib/scr
 After both tasks complete:
 
 1. Diff is exactly 1 line changed in `ingest_wechat.py` plus 1 new test file. Run:
+
    ```bash
    git diff --stat ingest_wechat.py
    # Expect: 1 file changed, 1 insertion(+), 1 deletion(-)
@@ -216,22 +220,26 @@ After both tasks complete:
    ```
 
 2. Both test files green:
+
    ```bash
    .venv/Scripts/python -m pytest tests/unit/test_apify_run_input.py tests/unit/test_apify_rotation.py -v
    ```
 
 3. Scope check (FORBIDDEN files untouched):
+
    ```bash
    git status batch_ingest_from_spider.py lib/scraper.py
    # Expect: no changes (parallel ir-4 W2 agent owns these)
    ```
 
 4. No secrets in diff:
+
    ```bash
    git diff ingest_wechat.py | grep -iE "(token|key|secret|apify_api_)" || echo "OK — no literal secrets"
    ```
 
 5. Atomic commit (forward-only, no rebase/amend/force):
+
    ```bash
    git add ingest_wechat.py tests/unit/test_apify_run_input.py
    git commit -m "$(cat <<'EOF'
@@ -269,13 +277,16 @@ After both tasks complete:
    ```
 
 6. Confirm commit landed (forward-only, NO push without operator approval):
+
    ```bash
    git log -1 --stat
    # Expect: 2 files changed; ingest_wechat.py +1/-1; test_apify_run_input.py new
    ```
+
 </verification>
 
 <success_criteria>
+
 - [ ] `ingest_wechat.py` line 574 contains `max_items=1` as a kwarg on `.call()`
 - [ ] `max_items` is NOT a key inside `run_input` (correct architectural placement per SDK contract)
 - [ ] `tests/unit/test_apify_run_input.py` exists with one async test that mocks ApifyClient and asserts `max_items=1` reaches `.call()` kwargs

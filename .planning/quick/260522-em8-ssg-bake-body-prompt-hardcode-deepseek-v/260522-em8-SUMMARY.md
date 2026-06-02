@@ -10,6 +10,7 @@ status: completed
 ## What changed
 
 ### `lib/llm_deepseek.py`
+
 - `deepseek_model_complete` gains optional `model: str | None = None` parameter.
 - When `model` is `None` (the default), behavior is unchanged — uses
   module-level `_MODEL` from `DEEPSEEK_MODEL` env. LightRAG callers continue to
@@ -18,6 +19,7 @@ status: completed
   single call only. Docstring updated to document the override.
 
 ### `lib/translate.py`
+
 - Module docstring lines 16-18 replaced: R7 image-positioning language → SSG-bake
   discipline disclosure (boilerplate strip, H1 demotion, alt-text enrichment,
   code-fence inference, paragraph splitting).

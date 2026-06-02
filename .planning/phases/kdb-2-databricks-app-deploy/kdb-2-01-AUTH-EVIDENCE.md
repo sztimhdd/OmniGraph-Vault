@@ -44,6 +44,7 @@ databricks --profile dev apps create omnigraph-kb
 App SP client_id captured to `.scratch/kdb-2-01-sp-client-id.txt` (single GUID line, no whitespace; `wc -l` returns 1; GUID-shape regex `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` matches).
 
 **Skill verification (Task 1.1 step 4):** `Skill(skill="databricks-patterns", args="Confirm 'databricks apps create' v0.260+ behavior: idempotency on existing app + service_principal_client_id field shape...")` invoked. The skill confirmed via Context7 + skill body content that:
+
 - `POST /apps` is the underlying API (CLI translates to it)
 - App resource includes `service_principal_client_id` field as a top-level GUID
 - `MSYS_NO_PATHCONV=1` is required on Windows Git Bash for path-arg CLI commands (relevant for kdb-2-04)
@@ -55,6 +56,7 @@ Empirical confirmation: actual response shows `service_principal_client_id` as t
 ## Section 2 — UC grants (AUTH-DBX-01..03)
 
 **Skill audit (Task 1.2 step 2):** `Skill(skill="security-review", args="Audit the 3 grant statements about to be issued against UC for the App SP...")` invoked. Verdict: **SAFE TO PROCEED** —
+
 - (a) `READ VOLUME` granted, NOT `WRITE VOLUME` — AUTH-DBX-03 hard rule honored
 - (b) `USE CATALOG` and `USE SCHEMA` are read-side metadata-traversal privileges only — minimal-privilege; do not imply CREATE / MODIFY / SELECT-on-tables
 - (c) Principal is the App SP client_id GUID `459ebc59-0512-4da7-b962-f639312b8df6` in backticks, NOT a friendly name (`app-529s0g omnigraph-kb`)
@@ -127,6 +129,7 @@ Evidence files: `.scratch/kdb-2-01-perms-llm.json` + `.scratch/kdb-2-01-perms-em
 AUTH-DBX-05 is satisfied by Databricks Apps default behavior — App access requires workspace SSO; no anonymous access is possible. There is no "anonymous=false" toggle to set; it's the platform default for all Apps.
 
 Per `kdb-2-RESEARCH.md` Q5 (lines 553-625), the workspace `https://adb-2717931942638877.17.azuredatabricks.net` has Private Link enabled, so the App URL `https://omnigraph-kb-2717931942638877.17.azure.databricksapps.com` is accessible only:
+
 - (a) From inside the corporate network OR
 - (b) Via workspace SSO browser session
 

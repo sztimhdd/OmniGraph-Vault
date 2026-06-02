@@ -9,6 +9,7 @@
 Centralize Gemini model selection, API-key loading (+ optional multi-account rotation), per-model rate limiting, and 429/503 retry into a repo-root `lib/` module. Migrate all 25 production files off direct `GEMINI_API_KEY` + hardcoded model strings.
 
 **Delivers:**
+
 - Repo-root `lib/` modules: `models.py`, `api_keys.py`, `rate_limit.py`, `llm_client.py`, `cognee_bridge.py`
 - `OMNIGRAPH_GEMINI_KEY` env var (scoped, preferred) with `GEMINI_API_KEY` fallback, optional `OMNIGRAPH_GEMINI_KEYS` rotation pool
 - Hybrid model config: constants in code + `OMNIGRAPH_MODEL_*` env overrides
@@ -18,6 +19,7 @@ Centralize Gemini model selection, API-key loading (+ optional multi-account rot
 - `OMNIGRAPH_RPM_<MODEL>` env override for paid-tier users
 
 **Does NOT deliver:**
+
 - Multi-vendor abstraction (OpenAI, Anthropic) — future
 - Encrypted key storage — host handles
 - Hermes per-skill scoping (blocked on Hermes #410)
@@ -44,6 +46,7 @@ Centralize Gemini model selection, API-key loading (+ optional multi-account rot
 ### Model & Config Strategy
 
 - **D-02:** **Hybrid model-selection pattern.** `lib/models.py` holds greppable constants as the source of truth. Every constant is overridable at runtime via a matching env var. Pattern:
+
   ```python
   # lib/models.py
   import os
@@ -53,6 +56,7 @@ Centralize Gemini model selection, API-key loading (+ optional multi-account rot
   EMBEDDING_MODEL = os.environ.get("OMNIGRAPH_MODEL_EMBEDDING",   "gemini-embedding-2")  # updated per D-10
   GITHUB_INGEST_LLM = os.environ.get("OMNIGRAPH_MODEL_GITHUB_INGEST", "gemini-3.1-flash-lite-preview")
   ```
+
   Rollback-without-deploy preserved (Phase 5 D-02 intent); grep for `INGESTION_LLM` still finds the source of truth (Phase 7 §3 D7 intent).
 
 - **D-05:** **`ingest_github.py` keeps `gemini-3.1-flash-lite-preview` via dedicated `GITHUB_INGEST_LLM` constant.** Whatever made the preview model the right choice for GitHub ingestion (reasoning depth on structured repo metadata?) is preserved. Drift risk is now explicit: a single constant to audit, not a hardcoded string. Planner must wire `ingest_github.py` to `lib.models.GITHUB_INGEST_LLM`, not `INGESTION_LLM`.
@@ -170,6 +174,7 @@ Hermes reviewed Phase 7 plans at [`07-REVIEW-HERMES.md`](./07-REVIEW-HERMES.md) 
 ### Claude's Discretion
 
 Planner + executor decide:
+
 - Exact signatures of `lib/cognee_bridge.py` — specifically how `rotate_key()` notifies Cognee (direct call to `cognee_bridge.refresh()` from `api_keys.rotate_key()` vs observer pattern; research doc has a reference implementation but planner can pick a leaner form)
 - Pytest fixture structure (conftest.py shape, fixture scopes for mocked client)
 - Deploy.md content depth (minimum: new env var names + deprecation of `GEMINI_API_KEY_BACKUP`; maximum: full table of all `OMNIGRAPH_*` vars)
@@ -183,6 +188,7 @@ Planner + executor decide:
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
@@ -218,6 +224,7 @@ Planner + executor decide:
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 (Full mapping in `07-RESEARCH.md § Migration Scope Map` — 25 files with P0/P1/P2 priorities. Below is a summary for planning.)

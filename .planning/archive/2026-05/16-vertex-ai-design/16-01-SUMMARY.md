@@ -16,6 +16,7 @@ Created `docs/VERTEX_AI_MIGRATION_SPEC.md` (227 lines) — the canonical Vertex 
 ## Acceptance criteria
 
 All 7 grep/wc/test checks pass:
+
 - File exists, 227 lines (≥ 120 required)
 - Exactly 5 `##` top-level sections present, all 5 mandated names verified
 - `lib/api_keys.py` referenced in Code Integration Roadmap

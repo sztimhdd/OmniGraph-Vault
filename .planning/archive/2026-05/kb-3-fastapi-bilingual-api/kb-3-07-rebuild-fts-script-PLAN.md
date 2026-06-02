@@ -135,6 +135,7 @@ def _rebuild(db_path: str) -> int:
 if __name__ == "__main__":
     sys.exit(main())
 ```
+
 </interfaces>
 </context>
 
@@ -360,6 +361,7 @@ if __name__ == "__main__":
 </verification>
 
 <success_criteria>
+
 - SEARCH-02: daily rebuild path locked
 - Idempotent + correct + fast
 - Negative-case rows excluded automatically (DATA-07 inheritance)

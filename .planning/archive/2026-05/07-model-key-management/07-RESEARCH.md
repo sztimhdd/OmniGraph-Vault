@@ -40,6 +40,7 @@
 Phase 7 replaces scattered `GEMINI_API_KEY` reads, hardcoded model strings, and three incompatible rate-limiters (ingest_wechat's asyncio.Lock, config.rpm_guard's time.time sync-lock, no-limiter-at-all in most scripts) with a unified `lib/` module.
 
 **All required dependencies are already installed** as transitive packages:
+
 - `aiolimiter-1.2.1` (via Cognee)
 - `tenacity-9.1.4` (via Cognee + LightRAG + google-genai)
 - `google-genai-1.73.1` (direct)
@@ -47,6 +48,7 @@ Phase 7 replaces scattered `GEMINI_API_KEY` reads, hardcoded model strings, and 
 Adding them to `requirements.txt` is for reproducibility, not to pull new code.
 
 **Two design-doc assumptions require correction** (details below):
+
 1. The doc assumes all scripts use `gemini-2.5-flash-lite`. Actual: `config.py` defaults INGEST/ENRICHMENT/IMAGE to `gemini-3.1-flash-lite-preview`; `ingest_wechat.py` + `multimodal_ingest.py` + `query_lightrag.py` + `kg_synthesize.py` use `gemini-2.5-flash-lite`; `ingest_github.py` uses `gemini-3.1-flash-lite-preview`. The registry must reflect this drift **before** standardising.
 2. The doc says Cognee is "configured via its own env vars" — true for the *first* config load. After that, `get_llm_config()` is `@lru_cache`-decorated; rotating keys via `os.environ[...]` has no effect. Rotation must set `llm_config.llm_api_key` on the cached singleton directly (already done at `cognee_wrapper.py:41` — extend to rotation callback).
 
@@ -142,6 +144,7 @@ async def call(...):
 ```
 
 **Do NOT reverse** — putting the limiter OUTSIDE retry would:
+
 - Consume one capacity unit for the whole retry sequence (bucket thinks it's one call).
 - Block new unrelated calls for the entire retry window.
 - Not actually slow down retries after 429s (defeats the point).
@@ -611,6 +614,7 @@ def get_limiter(model: str) -> AsyncLimiter:
 ### `lib/llm_client.py` — wrapped async + sync generate
 
 **Corrections from design doc §4.4:**
+
 1. Add a `generate_sync` entry point (for scripts like `batch_classify_kol.py` that are synchronous).
 2. Wire the rotation-to-Cognee bridge.
 3. Handle client cache invalidation on rotation (design doc had this; verify it's correct — YES, the `_client_key != key` check at line 293 is right).

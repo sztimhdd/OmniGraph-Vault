@@ -101,6 +101,7 @@ Current config.py contents end at line 37 (Gemini env var cleanup block). New
 keys go AFTER line 37.
 
 D-07 enriched state machine:
+
 - 0 = pending (default for new)
 - 2 = success (partial >= 1 q) — set by merge_and_ingest.py
 - -1 = skipped (< 2000 chars) — SET HERE in ingest_wechat.py
@@ -495,6 +496,7 @@ around line 680.
 </verification>
 
 <success_criteria>
+
 - All 11 Phase 4 config keys present in config.py (10 original + new INGEST_LLM_MODEL); default model = flash
 - ingest_wechat.py: uses INGEST_LLM_MODEL (no hardcoded flash-lite), auto-migrates SQLite on import, marks short articles enriched=-1, no --enrich flag
 - enrichment/fetch_zhihu.py and enrichment/merge_and_ingest.py pop GOOGLE_GENAI_USE_VERTEXAI at import (defensive; matches extract_questions.py)

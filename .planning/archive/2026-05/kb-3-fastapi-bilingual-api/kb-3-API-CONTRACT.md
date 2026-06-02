@@ -225,6 +225,7 @@ Symmetric to KOL `articles` and RSS `rss_articles` (both have these columns sinc
 **Env override:** `KB_CONTENT_QUALITY_FILTER=off` disables the 3 quality conditions (debugging only — see CONTENT-QUALITY-DECISIONS.md §"Env override"). Default `on`.
 
 **Expected counts** (verified 2026-05-13 vs `.dev-runtime/data/kol_scan.db` Hermes mirror):
+
 - KOL: 127 / 789 = 16% pass filter
 - RSS: 33 / 1712 = 2% pass filter
 - Combined: 160 / 2501 = 6.4%
@@ -306,6 +307,7 @@ Field shape:
 ### 4.5 DATA-07 carve-out (intentional, verbatim from CONTENT-QUALITY-DECISIONS.md §"NOT affected")
 
 **This endpoint does NOT apply the DATA-07 filter.** Direct URL access by hash must resolve regardless of `body`/`layer1_verdict`/`layer2_verdict` so that:
+
 - Bookmarked URLs continue to work after Layer 2 reclassifies an article as `reject`
 - KG synthesize source links resolve even if the source article is below the list-quality bar
 - Search hits (KG mode) link to detail pages without DATA-07 filtering the deep-retrieval
@@ -418,6 +420,7 @@ LIMIT ?
 ```
 
 **Env override:** `KB_SEARCH_BYPASS_QUALITY=on` skips the 3 quality conditions in FTS mode. Per CONTENT-QUALITY-DECISIONS.md §"Open question — search results filtering":
+
 - **Apply filter** (default) — search becomes a quality-curated discovery surface, consistent with list views
 - **Skip filter** (override) — power users / admin debugging can find pre-Layer-1 historical rows
 
@@ -550,6 +553,7 @@ The KB layer (`kb/services/synthesize.py`) prepends a literal directive string t
 | `en` | `"Please answer in English.\n\n"` |
 
 So the actual `query_text` passed to C1 becomes:
+
 - `lang=zh` + `question="AI Agent 框架如何选型?"` → `query_text = "请用中文回答。\n\nAI Agent 框架如何选型?"`
 - `lang=en` + `question="How to choose an AI agent framework?"` → `query_text = "Please answer in English.\n\nHow to choose an AI agent framework?"`
 
@@ -673,6 +677,7 @@ If FTS5 itself is unavailable (catastrophic — SQLite locked or `articles_fts` 
 ### 7.11 Synthesize timeout (QA-04)
 
 Default 60s wall-time on the BackgroundTask (env override `KB_SYNTHESIZE_TIMEOUT`). On timeout:
+
 - `asyncio.wait_for(synthesize_response(...), timeout=KB_SYNTHESIZE_TIMEOUT)` raises `asyncio.TimeoutError`
 - Wrapper catches → triggers FTS5 fallback path (same as §7.10)
 - Job state set to `done` with `fallback_used=true`, `confidence="fts5_fallback"`
@@ -711,6 +716,7 @@ GET /static/img/{hash}/{filename}
 ```
 
 Examples:
+
 - `/static/img/a1b2c3d4e5/1.jpg`
 - `/static/img/a1b2c3d4e5/cover.png`
 
@@ -728,6 +734,7 @@ md = re.sub(r'http://localhost:8765/', '/static/img/', md)
 ### 8.4 Status codes
 
 Inherited from `StaticFiles`:
+
 - 200 — file served (with correct `Content-Type`)
 - 404 — file not present
 - 500 — IO error reading file (rare; surfaces as default FastAPI 500)
@@ -810,6 +817,7 @@ async def synthesize_response(query_text: str, mode: str = "hybrid"):
 ```
 
 The KB layer (`kb/services/synthesize.py`) calls this function with:
+
 - `query_text` = language directive prepend + user `question` (per I18N-07 §7.3)
 - `mode` = `"hybrid"` (always; no user override exposed in v2.0)
 
@@ -930,6 +938,7 @@ grep 'Please answer in English' .planning/phases/kb-3-fastapi-bilingual-api/kb-3
 | 1.0 | 2026-05-14 | kb-3-01 executor | Initial contract lock — applied api-design discipline verbatim, all 8 API REQs covered, DATA-07 + I18N-07 + CONFIG-02 cross-referenced |
 
 If downstream plans (kb-3-04..09) discover an unspecified detail during implementation, the resolution path is:
+
 1. Discuss with user
 2. Update THIS document first (with version bump)
 3. Then implement against the updated contract

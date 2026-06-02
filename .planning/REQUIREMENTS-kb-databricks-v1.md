@@ -5,6 +5,7 @@
 > Per `feedback_parallel_track_gates_manual_run.md`: gsd-tools.cjs init does NOT recognize suffix files; orchestrator hand-drives every gate.
 >
 > **rev 3 strategic constraints (user-locked 2026-05-15):**
+>
 > 1. ALL LLM calls (synthesis + entity extraction + embedding) route through MosaicAI Model Serving. DeepSeek fully retired in v1.
 > 2. Hermes runtime fully separated — Databricks deploy is self-contained, no ongoing dependency on Hermes resources after the one-shot seed.
 > 3. Synthesis model: `databricks-claude-sonnet-4-6` (locked).
@@ -100,6 +101,7 @@ Requirements grouped by category. REQ-ID format: `[CATEGORY]-NN`. Continuation o
 - [ ] **CONFIG-DBX-01**: Source-tree changes scoped per **rev 3 constraint #5 relaxation**. Allowed `kb/`-relative edits in this milestone: `lib/llm_complete.py` (LLM-DBX-01 provider branch add) AND `kg_synthesize.py` (LLM-DBX-02 dispatcher route-through). Any other path under `kb/`, `lib/`, top-level `*.py` requires explicit user approval before edit.
   
   Verification command (run at kdb-3 close):
+
   ```bash
   git log <milestone-base>..HEAD --grep '(kdb-' --name-only -- \
     kb/ \
@@ -107,6 +109,7 @@ Requirements grouped by category. REQ-ID format: `[CATEGORY]-NN`. Continuation o
     | grep -v -E '^lib/llm_complete\.py$|^kg_synthesize\.py$' \
     | sort -u
   ```
+
   Returns empty. The exemption list (`lib/llm_complete.py`, `kg_synthesize.py`) lives in `databricks-deploy/CONFIG-EXEMPTIONS.md` for audit traceability. `<milestone-base>` is the locked commit hash recorded in `STATE-kb-databricks-v1.md` (rev 3 forward commit).
 - [ ] **CONFIG-DBX-02**: All Databricks-target NEW config + adapter code lives in `databricks-deploy/` directory at repo root: `app.yaml`, `databricks.yml` (if bundle used), `Makefile` recipes, `requirements.txt`, `lightrag_databricks_provider.py`, `CONFIG-EXEMPTIONS.md`, runbook docs. **No new files added under `kb/` or `lib/`** — only the two specifically-listed exemption files are *modified*; no new `kb/...` or `lib/...` files are *created* by this milestone.
 
@@ -115,6 +118,7 @@ Requirements grouped by category. REQ-ID format: `[CATEGORY]-NN`. Continuation o
 These two run on a **workspace-side serverless notebook or test-app** during kdb-1, NOT inside the production `omnigraph-kb` App. Purpose: surface the two highest-risk milestone blockers (Model Serving access + grant capability) early enough to escalate without losing kdb-2 timeline.
 
 - [ ] **PREFLIGHT-DBX-01**: From a workspace serverless cluster (or scratch test-app), run a Python script:
+
   ```python
   from databricks.sdk import WorkspaceClient
   from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
@@ -124,6 +128,7 @@ These two run on a **workspace-side serverless notebook or test-app** during kdb
       messages=[ChatMessage(role=ChatMessageRole.USER, content="hello")],
   )
   ```
+
   Pass = HTTP 200 with valid response body (`resp.choices[0].message.content` non-empty). Fail = ANY non-200, timeout, missing endpoint, or auth failure → escalate (likely SP grant gap, not network) BEFORE kdb-2 starts. Same probe repeated against `databricks-qwen3-embedding-0-6b`. Mitigation list (request CAN_QUERY grant, alternative endpoint name) documented in `kdb-1-PREFLIGHT-FINDINGS.md`.
 - [ ] **PREFLIGHT-DBX-02**: User attempts a test grant on a throwaway target — e.g. `GRANT USE CATALOG ON CATALOG mdlg_ai_shared TO 'test-principal'` (substitute a real test SP / user identity) — proves user has workspace-admin (or scope-admin) capability needed for kdb-2 AUTH-DBX-01..04. Fail → escalate to workspace admin BEFORE kdb-2 starts. Result documented in `kdb-1-PREFLIGHT-FINDINGS.md`.
 

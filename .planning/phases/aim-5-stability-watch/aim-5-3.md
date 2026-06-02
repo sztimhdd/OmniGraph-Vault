@@ -25,6 +25,7 @@ t_shirt: S
 ## Goal
 
 Daily read-only watch of the **two SYNC-03 consumers**:
+
 1. Hermes `omnigraph-daily-pull.service` systemd timer (fires 02:00 ADT
    = 05:00 UTC after aim-4-3 cutover) — verified via journal grep for
    `sync OK on attempt N` + 48h marker file age check
@@ -34,6 +35,7 @@ Daily read-only watch of the **two SYNC-03 consumers**:
 
 This plan **also closes the 4-item TODO checklist deferred from
 aim-4-4-EVIDENCE PARTIAL** (per `.planning/STATE-Aliyun-Ingest-Migration-v1.md:143`
+
 + `aim-5-CONTEXT.md` FINDING 8). aim-4-4 was the natural checkpoint plan
 because it shipped the SYNC-03 verification + Aliyun manual wiki commit
 runbooks; aim-5-3 closes its open items.
@@ -118,6 +120,7 @@ prompt only if direct access fails.
 ### Task 1 — Daily Hermes probe (run once per day, day 1..7) `[agent-runnable]`
 
 **`<read_first>`**
+
 - `aim-5-CONTEXT.md` lines 316-331 (STAB-03 daily probe pattern)
 - `aim-5-CONTEXT.md` FINDING 2 (Hermes WSL2 TZ = America/Halifax)
 - `aim-5-CONTEXT.md` FINDING 7 (two consumers, two checks)
@@ -126,6 +129,7 @@ prompt only if direct access fails.
   day-7 Databricks probe)
 
 **`<acceptance_criteria>`**
+
 - Daily log file `aim-5-EVIDENCE/daily-checks-day-N.log` contains a
   `=== STAB-03 day N ===` section with: journal grep result, marker
   file ls output, timer list output, per-day verdict.
@@ -175,6 +179,7 @@ fi
 ### Task 2 — Day-7 Databricks `git log -1 kb/wiki/` probe `[agent-runnable preferred, operator-fallback]`
 
 **`<read_first>`**
+
 - `docs/runbooks/aim-4-databricks-sync03-verify.md` (full verification
   procedure, preconditions, fail diagnosis)
 - `aim-4-4-EVIDENCE.md` lines 13-19 (aim-4 deploy timestamp =
@@ -183,6 +188,7 @@ fi
   may require operator)
 
 **`<acceptance_criteria>`**
+
 - One of the following is captured in `aim-5-EVIDENCE/daily-checks-day-7.log`
   under `=== STAB-03 day 7 Databricks probe ===`:
   - **Direct probe success:** stdout from `git log -1 kb/wiki/
@@ -247,6 +253,7 @@ Databricks probe ===` header.
 ### Task 3 — aim-4-4 TODO carry-over closure (forward-only append) `[agent-runnable]`
 
 **`<read_first>`**
+
 - `.planning/phases/aim-4-daily-sync/aim-4-4-EVIDENCE.md` (full file —
   identify the "Deferred operator action" section + 4-item TODO
   checklist at lines 38-65)
@@ -255,6 +262,7 @@ Databricks probe ===` header.
 - Memory `feedback_no_amend_in_concurrent_quicks.md`
 
 **`<acceptance_criteria>`**
+
 - A new section `## aim-5-3 closure (appended <ts>)` is appended to
   `.planning/phases/aim-4-daily-sync/aim-4-4-EVIDENCE.md` (forward-
   only — do NOT edit prior content; only append at EOF).
@@ -300,7 +308,9 @@ above stays intact for traceability.
 ### Databricks `git log -1 kb/wiki/` stdout
 
 ```
+
 <commit hash> <ISO timestamp> <subject>
+
 ```
 
 (Captured via aim-5-3 Task 2 — direct probe / operator prompt.)
@@ -319,10 +329,12 @@ remaining items carry to <next milestone>)
 ### Task 4 — Day-7 verdict + aim-5-3-EVIDENCE.md `[agent-runnable]`
 
 **`<read_first>`**
+
 - 7 daily logs (STAB-03 sections)
 - `aim-5-CONTEXT.md` FINDING 1 (tolerance 0)
 
 **`<acceptance_criteria>`**
+
 - `aim-5-3-EVIDENCE.md` exists with:
   - 7 daily Hermes verdicts table
   - Day-7 Databricks probe stdout + verdict
@@ -366,7 +378,9 @@ Operator prompt fallback used: <yes/no>
 
 `git log -1 kb/wiki/` stdout:
 ```
+
 <hash> <ISO timestamp> <subject>
+
 ```
 
 aim-4 deploy timestamp reference: `b522f64` @ `2026-05-24 21:15:28 -0300`

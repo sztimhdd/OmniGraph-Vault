@@ -37,6 +37,7 @@ Gemini 2.5 Flash Lite + google_search grounding question extractor with D-03 sin
 `enrichment/extract_questions.py` — a CLI + library module that reads a WeChat article Markdown file, calls Gemini 2.5 Flash Lite with Google Search grounding (D-12), and returns 1–3 under-documented technical questions the article raises but does not answer.
 
 Key behaviors:
+
 - Articles under `ENRICHMENT_MIN_LENGTH` (default 2000) chars are skipped gracefully: exit 0, `status: skipped`
 - Full articles: calls Gemini, writes `questions.json` to `$ENRICHMENT_DIR/<hash>/questions.json` atomically (tmp → `os.replace`)
 - Single-line JSON on stdout for all outcomes (D-03 Hermes 50KB cap compliance)
@@ -51,6 +52,7 @@ Key behaviors:
 **GREEN commit:** `d3eab0f` — implementation passes all 7 tests
 
 Files created:
+
 - `enrichment/__init__.py` — package marker
 - `enrichment/extract_questions.py` — 140 lines; CLI + library; grounding tool; atomic write
 - `tests/unit/test_extract_questions.py` — 7 unit tests, all mocked, LLM-free

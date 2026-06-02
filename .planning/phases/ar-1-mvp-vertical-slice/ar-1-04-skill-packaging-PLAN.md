@@ -49,10 +49,12 @@ must_haves:
 Wrap the runnable lib + CLI (delivered by ar-1-01..03) as an OpenClaw / Hermes skill so the agent can invoke research via natural-language triggers.
 
 Purpose:
+
 - SKILL-01..05: Single user-facing skill `omnigraph_research`. Triggers like "research X", "deep dive on Y", "what do I know about Z synthesized" route through Hermes skill loader → scripts/research.sh → `python -m omnigraph.research` → orchestrator.
 - Hard constraint from design § Skill exposure: internal stages NEVER exposed as separate skills. Only ONE skill ships from this milestone, regardless of how many internal stages exist.
 
 Output:
+
 - `skills/omnigraph_research/SKILL.md` — frontmatter + body following Hermes skill writing standards (CLAUDE.md § OpenClaw / Hermes Skill Writing Standards)
 - `skills/omnigraph_research/scripts/research.sh` — ~50-line wrapper
 - `skills/omnigraph_research/README.md` — human install guide + cost/quality/latency table
@@ -346,6 +348,7 @@ After ar-1-03, `python -m omnigraph.research "<query>"` is fully functional. Thi
 </verification>
 
 <success_criteria>
+
 - 4 skill artifacts present: SKILL.md, scripts/research.sh, README.md, tests/skills/test_omnigraph_research.json
 - skill_runner.py harness exits 0
 - Internal stages remain hidden — no separate `omnigraph_web_baseline` / `omnigraph_retriever` / etc. skills exist (design § Skill exposure honored)

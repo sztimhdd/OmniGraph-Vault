@@ -36,6 +36,7 @@ Rotation-on-429 is implemented in `lib/llm_client.py:55-69` via tenacity `@retry
 3. Extending the existing `lib/llm_client.py` would conflate Gemini-specific retry/rotation logic with Deepseek's OpenAI-compatible SDK. Better to keep providers separate.
 
 **Structure chosen:**
+
 - `lib/llm_deepseek.py` — implementation (`deepseek_model_complete` + `_client` singleton)
 - `lightrag_llm.py` — 2-line shim that re-exports
 - `lib/__init__.py` — also exports `deepseek_model_complete` for symmetry
@@ -70,6 +71,7 @@ This matches the established pattern exactly and keeps the plan's `key_links` im
 ### Net effect on Gemini LLM quota
 
 After swapping 5 LightRAG sites:
+
 - **Eliminated:** ALL LightRAG-driven `generate_content` calls (entity extraction, relationship summarization, query synthesis) → the biggest quota consumer.
 - **Retained on Gemini:** `enrichment/extract_questions.py` (grounding required), `describe_image` vision path in `multimodal_ingest.py` (VISION_LLM).
 - **Already on DeepSeek by default:** 4 classification scripts (batch_classify_kol, batchkol_topic, _reclassify, batch_ingest_from_spider).
@@ -92,6 +94,7 @@ os.environ["EMBEDDING_MODEL"] = "gemini-embedding-2"
 ```
 
 Cognee is:
+
 - Async-decoupled from the fast path (`cognee_batch_processor.py` polls `entity_buffer/`)
 - Low-volume — operates on entity lists, not full chunks
 - Its LLM calls are already rate-controlled at the caller level (`_COGNEE_TIMEOUT = 30s` wrap)
@@ -113,12 +116,14 @@ Cognee continues to use Gemini. Task 0c.5 becomes a documented no-op.
 ## Section 4 — Final Plan of Attack
 
 ### Task 0c.1 — Create shared wrapper
+
 - Write `lib/llm_deepseek.py` with `deepseek_model_complete` (AsyncOpenAI against `https://api.deepseek.com/v1`, `deepseek-v4-flash` default, `DEEPSEEK_MODEL` env override, module-level singleton `_client`).
 - Write `lightrag_llm.py` (2-line shim, re-exports from `lib.llm_deepseek`).
 - Add to `lib/__init__.py` exports.
 - Add 6 unit tests in `tests/unit/test_lightrag_llm.py` (all mocked).
 
 ### Task 0c.2 — Key rotation for embedding
+
 - The `_KEY_POOL` already effectively exists via `lib.api_keys.load_keys()`. What's missing: a per-call in-loop 429 retry inside `lib/lightrag_embedding.py` that calls `rotate_key()` and retries against the next key.
 - Add a round-robin + 429 failover loop in `embedding_func` that wraps the `client.aio.models.embed_content(...)` call.
 - Add module-level `_ROTATION_HITS: dict[str, int]` counter for smoke-test telemetry (Task 0c.6 assertion).
@@ -126,19 +131,23 @@ Cognee continues to use Gemini. Task 0c.5 becomes a documented no-op.
 - Keep existing 6 tests in `test_lightrag_embedding.py` green.
 
 ### Task 0c.3 — Swap 5 LightRAG sites
+
 - Surgical edit: delete local `llm_model_func`, `import deepseek_model_complete`, pass as `llm_model_func=deepseek_model_complete`. Update `llm_model_name` string to `deepseek-v4-flash`.
 - 5 files: `ingest_wechat.py`, `ingest_github.py`, `query_lightrag.py`, `multimodal_ingest.py`, `omnigraph_search/query.py`.
 
 ### Task 0c.4 — Classification scripts
+
 - `batch_classify_kol.py`, `batchkol_topic.py`, `_reclassify.py`, `batch_ingest_from_spider.py`: **Already default to DeepSeek.** Nothing to change. Add an explicit import of `deepseek_model_complete` for future convergence (optional — document as skipped).
 - `enrichment/extract_questions.py`: **Explicitly SKIP** — grounding dependency.
 
 Revised Task 0c.4 scope: document no-op + add convergence import comments in the scripts that make the pipeline easier to refactor later.
 
 ### Task 0c.5 — Cognee
+
 - **No-op.** Document in SUMMARY that Cognee stays on Gemini.
 
 ### Task 0c.6 — Smoke test
+
 - Run end-to-end on remote if Gemini keys have quota; otherwise log `result: pending_api_budget`.
 
 ---

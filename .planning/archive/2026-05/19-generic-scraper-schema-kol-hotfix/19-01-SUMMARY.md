@@ -117,6 +117,7 @@ $ DEEPSEEK_API_KEY=dummy venv/Scripts/python -m pytest tests/ -q --ignore=tests/
 **Pass delta:** 458 (post-Wave-0 baseline) → 463 = exactly +5 GREEN from Wave 1. No existing GREEN test regressed.
 
 **Failure attribution (all known):**
+
 - **3 Wave 2 RED stubs (expected, will go GREEN in plan 19-02):**
   - `test_batch_ingest_hash.py::test_classify_full_body_uses_scraper`
   - `test_batch_ingest_hash.py::test_hash_is_sha256_16`
@@ -168,15 +169,18 @@ None — no external service configuration required. `trafilatura` + `lxml` were
 ## Self-Check: PASSED
 
 Files exist:
+
 - `lib/scraper.py` — FOUND (286 LOC)
 - `tests/unit/test_scraper.py` — FOUND (modified, 5 GREEN tests, 0 pytest.fail stubs)
 
 Commits exist on `main`:
+
 - `1a70adc` — FOUND (feat: lib/scraper.py core)
 - `597b5c9` — FOUND (feat: _scrape_wechat + _scrape_generic + scrape_url)
 - `523990e` — FOUND (test: 5 RED → 5 GREEN)
 
 Acceptance checks:
+
 - `grep -c "^@dataclass(frozen=True)" lib/scraper.py` → 1 — PASS
 - `grep -c "class ScrapeResult:" lib/scraper.py` → 1 — PASS
 - `grep -c "^def _route" lib/scraper.py` → 1 — PASS

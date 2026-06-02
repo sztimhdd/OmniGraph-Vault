@@ -66,6 +66,7 @@ Hand-off signal: user or Phase 5 executor reports "Task 6.3 done; regression smo
 </precondition>
 
 <proposed_gates>
+
 ```python
 # scripts/validate_regression_batch.py — reduced from multi-fixture to single.
 
@@ -82,6 +83,7 @@ The Phase 11 `benchmark_result.json` schema already carries `stage_timings_ms`, 
 </proposed_gates>
 
 <ci_workflow_shape>
+
 ```yaml
 name: regression-smoke
 
@@ -113,6 +115,7 @@ Open question for execution: does the CI runner have enough bandwidth to run a r
 </ci_workflow_shape>
 
 <hermes_cron_shape>
+
 ```bash
 #!/usr/bin/env bash
 # register_regression_cron.sh — HYG-05 weekly regression smoke.
@@ -131,6 +134,7 @@ else
 fi
 hermes cron list
 ```
+
 </hermes_cron_shape>
 </context>
 
@@ -179,6 +183,7 @@ Filled at execution time. At minimum:
 </verification>
 
 <success_criteria>
+
 - HYG-05 satisfied: any regression that breaks text_ingest wall-clock, aquery, image filter, or doc status fails CI on the PR and/or the weekly Hermes cron — before it reaches the next daily batch.
 - Zero existing production code paths modified.
 </success_criteria>

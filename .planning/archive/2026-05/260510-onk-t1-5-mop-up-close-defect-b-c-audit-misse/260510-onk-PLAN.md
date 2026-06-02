@@ -92,6 +92,7 @@ Output: 1 atomic commit (5 files modified, 0 deleted), final-grep evidence + pyt
 <!-- Executor should mirror these — no codebase exploration needed. -->
 
 From `query_lightrag.py:18-24` (T1 W2 commit `03eee42`) — Defect B canonical fix:
+
 ```python
 async def query_and_synthesize(query_text: str):
     """Initializes LightRAG and performs a query to synthesize a markdown response."""
@@ -105,6 +106,7 @@ async def query_and_synthesize(query_text: str):
 ```
 
 From `lib/llm_deepseek.py:43-49` (T1 W3 commit `14f1136`) — Defect C canonical fix:
+
 ```python
 # Defect C (quick 260510-l14): use the canonical loader from config.py
 # instead of duplicating the .env parser. lib.llm_deepseek may import before
@@ -114,13 +116,16 @@ from config import load_env
 
 load_env()
 ```
+
 For T1.5 batch scripts: replace the entire `def _load_hermes_env(): ...` body + the call site (`_load_hermes_env()` line 394 in batch_classify_kol.py / line 258 in batch_scan_kol.py) with the canonical 2-line form. Concretely: delete the function definition, change the call site `_load_hermes_env()` to `load_env()`, add `from config import load_env` to the imports.
 
 Pre-verification grep evidence (already collected):
+
 - `batch_classify_kol.py:52` defines `_load_hermes_env`, `batch_classify_kol.py:394` calls it.
 - `batch_scan_kol.py:47` defines `_load_hermes_env`, `batch_scan_kol.py:258` calls it.
 - `scripts/wave0c_smoke.py` is verified NON-orphan: referenced as comment in `lib/lightrag_embedding.py:47` + `tests/unit/test_ainsert_persistence_contract.py:147`; last commit `e538b2d` on 2026-05-09 (within 30 days). Apply Option a (fix), do NOT delete.
 </interfaces>
+
 </context>
 
 <tasks>
@@ -138,12 +143,14 @@ For each of the 3 target lines, apply T1 W2's canonical fix pattern (commit `03e
   3. **`scripts/wave0c_smoke.py:71`** — Read 5 lines of context (lines 67-75). Same shape inside `LightRAG(...)` ctor: line 69 has `llm_model_func=get_llm_func()`, line 71 has `llm_model_name="deepseek-v4-flash"`. Delete line 71. Note: line 72-74 contain `embedding_func_max_async`, `embedding_batch_num`, `llm_model_max_async` kwargs — preserve those (they tune smoke perf and are unrelated to Defect B).
 
 Verify-then-act protocol per site:
+
 - Read 5-line context first
 - Confirm pattern matches (ctor uses `get_llm_func()` AND has hardcoded `deepseek-v4-flash`)
 - If pattern matches: apply the fix
 - If pattern does NOT match (line shifted, file refactored, kwarg structure differs): STOP that site, document deviation, continue with others
 
 Surgical-changes discipline (CLAUDE.md Principle 3):
+
 - Touch ONLY the line containing the `llm_model_name` kwarg + adjacent comma if syntactically required
 - Do NOT reformat the rest of the ctor call
 - Do NOT add explanatory comments inline (the rationale belongs in commit message + SUMMARY)
@@ -186,6 +193,7 @@ For each of the 2 target files, apply T1 W3's canonical fix pattern (commit `14f
        c. Update call site at (formerly) line 258: replace `_load_hermes_env()` with `load_env()`.
 
 Verify-then-act protocol per site:
+
 - Read function definition + call site BEFORE editing
 - Confirm pattern matches (same 24-LOC body shape; reads from `Path.home() / ".hermes" / ".env"` AND `Path("//wsl.localhost/...")` fallback; populates `os.environ` only when key absent)
 - If pattern matches: apply the fix
@@ -194,6 +202,7 @@ Verify-then-act protocol per site:
 Behavioral note: `config.load_env()` reads only `Path.home() / ".hermes" / ".env"` (no WSL fallback). The WSL fallback in the duplicate `_load_hermes_env` was Hermes-specific dev-time scaffolding. T1 W3 already accepted this same trade-off when retiring `lib/llm_deepseek._load_hermes_env`. Per T1 SUMMARY closure check (cross-cutting issue 3, "PARTIAL → CLOSED"), the canonical loader IS `config.load_env`; T1.5 just extends the same retirement to the 2 batch scripts.
 
 Surgical-changes discipline:
+
 - Touch ONLY the function definition (delete) + the call site (1-token replace) + 1 import line (add)
 - Do NOT touch other functions, docstrings, logging setup
 - Do NOT remove unrelated unused imports created by the deletion (Python's GC handles dead imports; `Path` may still be used elsewhere — verify via grep before removing any imports)
@@ -257,6 +266,7 @@ Step 3.3 — Atomic commit (forward-only, no rebase/amend):
 Choose 1-commit OR 2-commit form per planner discretion (5 trivial mechanical fixes — single commit is acceptable).
 
 Recommended 1-commit form:
+
 ```bash
 git add ingest_github.py omnigraph_search/query.py scripts/wave0c_smoke.py \
         batch_classify_kol.py batch_scan_kol.py
@@ -274,6 +284,7 @@ DO NOT use `--amend`, `git reset --soft`, `git rebase` (per CLAUDE.md "Lessons L
 Step 3.4 — Write SUMMARY.md mirroring T1 shape (`260510-l14-SUMMARY.md`).
 
 Required sections:
+
 1. Frontmatter — `phase`, `plan`, `type`, `status: complete`, `completed: 2026-05-10`, `commits: [<sha>]`, `loc_delta: <signed>`, `defects_closed: [POLLUTION-B-IN-SCOPE, POLLUTION-C-IN-SCOPE]`
 2. Per-site outcome table: site (file:line) | defect | action | line-range diff cite | result (PASS / DEVIATION)
 3. Final-grep evidence with `.scratch/quick-260510-onk-final-grep-{b,c}.log` cites + line counts
@@ -283,6 +294,7 @@ Required sections:
 7. No-fabrication compliance — every claim cites `.scratch/` log path or git SHA
 
 Anti-fabrication discipline (CLAUDE.md Lesson 2026-05-08 #2):
+
 - Every "X verified" assertion MUST cite a `.scratch/` raw log file with line range OR a git SHA
 - DO NOT claim test pass/fail counts without referencing the pytest log
 - DO NOT claim grep ceiling without referencing the final-grep log
@@ -297,6 +309,7 @@ Anti-fabrication discipline (CLAUDE.md Lesson 2026-05-08 #2):
     - `.scratch/quick-260510-onk-pytest.log` shows pass count ≥ 626; failures = same 16 pre-existing set as T1 baseline
     - `.planning/quick/260510-onk-t1-5-mop-up-close-defect-b-c-audit-misse/260510-onk-SUMMARY.md` exists with all 7 required sections + commit SHA cited in frontmatter
   </done>
+
 </task>
 
 </tasks>
@@ -323,6 +336,7 @@ If ANY gate fails: STOP, document in SUMMARY's "Risk events" section, do NOT mas
 </verification>
 
 <success_criteria>
+
 - All 5 sites mechanically fixed per T1 canonical patterns (commit `03eee42` for B, commit `14f1136` for C)
 - Defect B + C CLOSED outside T2/T3 territory (residual: 1 ingest_wechat.py line + 1 batch_ingest_from_spider.py line, both expected & documented)
 - Pytest baseline preserved (626 pass / 16 pre-existing fail / 5 skip)

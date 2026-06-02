@@ -124,6 +124,7 @@ All plan-level verification gates from `11-00-PLAN.md` passed:
 ## Self-Check: PASSED
 
 Verified via filesystem + git log:
+
 - `FOUND: scripts/bench_ingest_fixture.py` ✅
 - `FOUND: tests/unit/test_bench_harness.py` ✅
 - `FOUND: commit b42721b` (test RED) ✅

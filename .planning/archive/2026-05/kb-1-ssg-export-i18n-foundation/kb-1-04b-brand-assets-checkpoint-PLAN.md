@@ -171,6 +171,7 @@ Templates already include `onerror="this.style.display='none'"` on `<img>` so a 
 </verification>
 
 <success_criteria>
+
 - UI-04 satisfied: brand assets (or documented stubs) present in kb/static/
 - User has explicitly signed off on real-vs-placeholder choice
 - Downstream plans kb-1-07 (base template) and kb-1-08 (article detail) can reference `/static/VitaClaw-Logo-v0.png` and `/static/favicon.svg` without missing-asset errors

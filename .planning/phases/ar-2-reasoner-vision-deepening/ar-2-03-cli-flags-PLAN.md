@@ -44,10 +44,12 @@ must_haves:
 Extend the CLI entrypoint at `lib/research/__main__.py` with three new flags — `--max-iter-reasoner`, `--max-iter-verifier`, `--no-grounding` — and wire them into a `dataclasses.replace()` override on `ResearchConfig` BEFORE invoking `research()`. Preserve the pure-wrapper rule (LIB-04 / Rule 1) — `__main__.py` still has zero business logic beyond argument parsing and dataclass override.
 
 Purpose:
+
 - CLI-03: deliver the three flags called out in the requirements. `--max-iter-reasoner` is meaningful immediately (ar-2-01 Reasoner agent loop respects `cfg.max_iter_reasoner`). `--max-iter-verifier` and `--no-grounding` are plumbed-but-no-op in ar-2 (Verifier is still the ar-1 stub through ar-2; Grounding is unwired until ar-3) — flag plumbing is cheap and avoids a CLI surface change in ar-3.
 - The Layer 2 smoke command from CONTEXT.md becomes runnable after this plan: `python -m omnigraph.research --max-iter-reasoner 2 --max-iter-verifier 1 --no-grounding "什么是 Hermes Harness 深度解析"`.
 
 Output:
+
 - One file modified: `lib/research/__main__.py` (~25 LOC added — three `parser.add_argument` calls + an `overrides` dict + a guarded `dataclasses.replace` call).
 - One new test file: `tests/unit/research/test_main_cli_flags.py` (≥6 tests: 4 fast unit tests for `_parse_args`, 1 fast unit test for `_amain` override-dict construction, 1 slow integration subprocess test).
 - ar-1 + ar-2-01 + ar-2-02 regression suite still green; full `tests/unit/research/` count after ar-2-03 ≥ 53 (ar-1 ≥35 + ar-2-01 ≥7 + ar-2-02 ≥8 + this plan ≥6).
@@ -77,6 +79,7 @@ This plan also documents (but does NOT execute) the upgraded Layer 2 smoke test 
 **Current `__main__.py` structure (post ar-1, verbatim — preserved as the foundation):**
 
 The current file has:
+
 - Module docstring header (single line + paragraph)
 - Imports: `argparse`, `asyncio`, `sys`, `from .config import from_env`, `from .image_server import ensure_image_server`, `from .orchestrator import research`
 - `_parse_args(argv)` — single positional `query` arg
@@ -323,6 +326,7 @@ def test_subprocess_max_iter_reasoner_override(tmp_path):
     assert result.returncode == 0, f"stderr: {result.stderr}"
     assert len(result.stdout) > 0
 ```
+
 </interfaces>
 </context>
 
@@ -508,6 +512,7 @@ venv/Scripts/python.exe -m omnigraph.research \
 ```
 
 Expected (per CONTEXT.md):
+
 - exit code 0
 - stdout: non-empty markdown (≥ 200 chars)
 - markdown contains query echo
@@ -522,6 +527,7 @@ Capture log to `.scratch/ar-2-03-smoke-260522.log` if executed.
 </verification>
 
 <success_criteria>
+
 - ROADMAP § "Phase ar-2: Reasoner + vision deepening" Success Criterion #4: CLI accepts `--max-iter-reasoner`, `--max-iter-verifier`, and `--no-grounding` flags; values propagate into `ResearchConfig` and override defaults. ✓ delivered by Task 1; verified by Task 2 Tests 1-8.
 - REQ CLI-03 (CLI overrides for max-iter-* + --no-grounding; LLM provider env-only) ✓ delivered.
 - LIB-04 / Rule 1 (pure async entrypoint; CLI is a pure wrapper) ✓ preserved — no business logic added to `__main__.py`.

@@ -80,6 +80,7 @@ The window is open: ingestion is frozen (Hermes RO until 2026-06-22, [project_ai
 **Split into a read-only audit phase and a mutating salvage phase.** P4.0 produces `P4-AUDIT.md` (no file mutations); user reviews verdicts; P4.1 then executes them as atomic commits. This guarantees the destructive work has explicit user sign-off on every cluster (deletes, rewrites, frontend-wires) before any line of `lib/research/*` is touched.
 
 **P4.0 — ARAG audit (read-only):**
+
 - Catalog every file + function under `lib/research/*` with verdict: KEEP / REWRITE / DELETE / WIRE-TO-FRONTEND.
 - **Audit criterion:** anything authored as a 200k-context-window-era workaround = DELETE candidate. Reference [Anthropic 2026 doubled-limits](https://www.dotzlaw.com/insights/anthropic-2026-code-with-claude/) — *"the value of having written a clever summarizer drops to zero."* Modern Claude Sonnet 4.6 (1M context) + Vertex Gemini 2.5 (1M context) eliminate most pre-2026 summarizer scaffolding.
 - **Resolve TEST-05 4/5 root cause:** classify as "200k-era constraint bug (delete the test)" or "real regression (real fix needed)". This must be resolved before P4.1 picks up the test.
@@ -87,6 +88,7 @@ The window is open: ingestion is frozen (Hermes RO until 2026-06-22, [project_ai
 - Zero file mutations.
 
 **P4.1 — ARAG salvage (mutating):**
+
 - **Depends on P4.0 + explicit user approval of every verdict.**
 - Executes verdicts as atomic commits per cluster: deletes-cluster, rewrites-cluster, wire-to-frontend-cluster.
 - New product surface: frontend "Deep Research" tab in `kb/static/qa.*` consuming `/api/research`.
@@ -100,6 +102,7 @@ The window is open: ingestion is frozen (Hermes RO until 2026-06-22, [project_ai
 ### P7 — Side Decision (fold or park)
 
 At end of Wave 1 (when P1 commits land), decide:
+
 - **Fold into P1:** if P1 atomic commit window is still open and the Pydantic fix is touching the same `kb/api_routers/search.py` file → 1 extra LoC, no separate phase overhead.
 - **Park as `v1.1.x` quick:** if P1 is already shipped → file as standalone `/gsd:quick` for next available window.
 

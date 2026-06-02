@@ -1,4 +1,5 @@
 # INGEST-WECHAT-REVIEW — Deep audit of ingest_wechat.py
+
 Generated: 2026-05-10 19:43 ADT
 Scope: ingest_wechat.py (1406 LOC, drift -2 from POLLUTION-AUDIT's 1408) — architecture, lib↔app inversion, ingest_article internals
 Excludes: T1 / T1.5 closed boot pollution (b181edc, ece74fe, 14f1136, 03eee42, 3afc042); 7 already-audited surfaces enumerated in POLLUTION-AUDIT.md "Already-audited exclusions"
@@ -93,6 +94,7 @@ L232:            result = await fn(url)                         # call ingest_we
 ```
 
 The default cascade order at `lib/scraper.py:173-178` is hard-coded:
+
 ```
 ("scrape_wechat_ua", "scrape_wechat_apify", "scrape_wechat_cdp", "scrape_wechat_mcp")
 ```
@@ -102,12 +104,14 @@ These four names MUST exist as `getattr`-discoverable attributes on the `ingest_
 ### Where the names are pinned (transitive lock-points)
 
 **Production callers** (must be re-pointed atomically with any rename/move):
+
 - `lib/scraper.py:162-165` (`_CASCADE_TOKEN_MAP` dict literal — all four names as values)
 - `lib/scraper.py:174-177` (`_DEFAULT_CASCADE_ORDER` tuple literal)
 - `lib/scraper.py:228` (`getattr(ingest_wechat, fn_name, None)`)
 - `ingest_wechat.py:1026, 1030, 1046, 1049` — internal cascade in `ingest_article` cache-miss branch (these are LOCAL calls, not the scraper.py path; both paths exist in parallel — see Section C #4 finding)
 
 **Test pins** (must be updated atomically with any rename):
+
 - `tests/unit/test_apify_rotation.py:26, 43, 64` — `await ingest_wechat.scrape_wechat_apify(...)`
 - `tests/unit/test_scrape_cascade_order.py:37, 39, 41, 43` — `monkeypatch.setattr(ingest_wechat, "scrape_wechat_*", ...)` for all 4
 - `tests/unit/test_scraper_ua_img_merge.py:48, 51, 54, 57` — same pattern, all 4
@@ -119,10 +123,12 @@ These four names MUST exist as `getattr`-discoverable attributes on the `ingest_
 ### Where each scraper SHOULD live in clean architecture
 
 In a clean cascade architecture, all 4 scrape implementations live next to the orchestrator:
+
 - `lib/scraper.py` already owns `_scrape_wechat()` (the orchestrator) + cascade resolution
 - The 4 implementations physically inside `ingest_wechat.py` are an accident of git history (Phase 19 SCR-01..05 fixed the orchestrator wrapper but did not pull the impls down — POLLUTION-AUDIT.md is correct)
 
 **Target shape (no fix code proposed, just the architecture)**:
+
 - `lib/scraper.py` (existing): cascade resolution + orchestration (unchanged)
 - `lib/scraper_wechat.py` (NEW): `scrape_wechat_{ua,apify,cdp,mcp}` + `_apify_call` + `_next_ua` + `_ua_cooldown` + `_is_mcp_endpoint` + `_UA_POOL` + `process_content`
 - `ingest_wechat.py` (LIGHTER): just orchestration (`ingest_article`, `ingest_pdf`, `_vision_worker_impl`, registries, `extract_entities`)
@@ -235,6 +241,7 @@ Audit asks: "is it temporary scaffolding or load-bearing?" Answer: **LOAD-BEARIN
 `_PENDING_DOC_IDS: dict[str, str]` at L346 is module-global mutable state. Three operations: register at L987 + L1226, clear at L992 + L1233, read at `batch_ingest_from_spider:294` via `get_pending_doc_id`.
 
 Ordering hazards:
+
 - The cache-hit branch (L987) registers under `ckpt_hash`, calls `ainsert`, clears at L992 — but the surrounding `try/except` at L977-994 swallows exceptions silently. If `ainsert` raises, `_clear_pending_doc_id` is NOT called → STALE entry → next run for same URL sees the registry think the doc is still pending → no rollback would actually fire because `batch_ingest_from_spider` only checks the registry on `asyncio.TimeoutError`, not generic exception.
 - The fresh branch (L1226-1233) uses `try/finally` so `_clear_pending_doc_id` always fires. This asymmetry is observable.
 
@@ -343,6 +350,7 @@ Per proposed quick scope:
 ### Quick C: Resolve parallel cascade divergence (Section C #4)
 
 Two options, both have radius:
+
 - **Option C-thin**: have `ingest_article:1024-1049` delegate to `lib.scraper.scrape_url(url, type="wechat")`. Risk: the Apify-block detection at L1033-1039 (checks for "环境异常" keywords, drops to None on short content) does NOT exist in `lib/scraper.py` — would need to relocate that detection to lib/scraper, otherwise CLI behavior regresses.
 - **Option C-fat**: keep both cascades, but document the divergence in CLAUDE.md "Lessons Learned" so future cron-cascade-tweak quicks get the heads-up. Risk: doesn't fix anything, just flags the regression-prone shape.
 
@@ -467,6 +475,7 @@ Hard constraints any future fix MUST respect:
 ## Already-fixed (excluded from concerns)
 
 T1 + T1.5 closed defects relevant to this file:
+
 - POLLUTION-A (Vertex env clobber across CLI scripts) — **CLOSED via `lib/cli_bootstrap.py`**; `ingest_wechat.py:276` is the one remaining production site BUT it's already correctly guarded (Phase 11 D-11.08 conditional).
 - POLLUTION-B (`llm_model_name="deepseek-v4-flash"`) — **PARTIAL**; `ingest_wechat.py:318` is the last residual, T2 territory (now F-4 above).
 - POLLUTION-C (`load_env` duplicates) — **CLOSED for `ingest_wechat.py`**: T1 SUMMARY lines 99-107 confirm `ingest_wechat.py:150-151` already uses `from config import load_env; load_env()`.
@@ -474,6 +483,7 @@ T1 + T1.5 closed defects relevant to this file:
 - POLLUTION-E (orphans `multimodal_ingest.py`, `scripts/cognee_diag/`) — **CLOSED via deletion**.
 
 Already-audited surfaces NOT touched by this review:
+
 - LightRAG SDK / RAG wrapping (260510-gqu)
 - Cognee 422 routing (260509-syd) — note: Cognee paths fully retired in 260510-gfg; `ingest_wechat.py` no longer imports `cognee_wrapper`
 - Vision drain hang (`lib/vision_tracking.py` + `ingest_wechat.py:1245` track_vision_task wrapper) (260509-p1n)

@@ -38,6 +38,7 @@ Source: `.scratch/arx-3-probes/tail-runtime-2.log` lines 470-500 (deployment_id 
 ```
 
 **Key signals:**
+
 - `Loaded graph` count = **1** (entire process lifetime)
 - `nano-vectordb:Init` count = **3** (entities + relationships + chunks, fired once each)
 - `lightrag_singleton_ready` count = **1**, `wall_s=28.48` (warm; storage already hydrated by db_bootstrap at boot)
@@ -103,6 +104,7 @@ Aliyun is on commit `dddaa38` (pre-singleton); `kb-api.service` runs on `127.0.0
 | `POST /api/synthesize` long_form (zh-CN, "AI Agent的核心架构是什么？") | job `e69dcc96ef91` → status=done, **conf=no_results, fallback_used=False, md_len=2802** |
 
 **Parity assessment:**
+
 - Aliyun runtime is healthy and `/api/synthesize` completes with substantive markdown payloads (~2k-3k chars).
 - `conf=no_results` differential vs Databricks (`conf=kg`) is **out of arx-3 scope**: Aliyun runs the older `dddaa38` `kg_synthesize.py` (pre-singleton, pre-C0/C1/C2 dispatch refinements). The differential is a function of the prior-pin code path, not an arx-3 regression.
 - The singleton fix is forward-compatible: the patched Makefile adds `--include` flags that govern Databricks deploy only. Aliyun deploy is independent (systemd-managed git pull + service restart). When Aliyun next pulls main, it will pick up the singleton automatically — no deploy-pipeline change needed there.

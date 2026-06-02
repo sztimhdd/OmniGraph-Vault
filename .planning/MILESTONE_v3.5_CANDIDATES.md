@@ -21,21 +21,25 @@ spike before any commitment.
 ### Current architecture inventory
 
 LLM gates per article (4):
+
 1. **Graded probe** (`OMNIGRAPH_GRADED_CLASSIFY=1`) — DeepSeek title+digest probe before scrape; saves Apify cost on obvious rejects but introduces latency+probability of false-negative (cf 2026-05-06 `_classify_full_body` topic_filter regression in quick 260506-en4).
 2. **Full-body classify** (`_classify_full_body` in `batch_ingest_from_spider.py`) — single LLM call after scrape, writes `classifications` row.
 3. **Entity extract** (`extract_entities` in `ingest_wechat.py`, on the LightRAG ainsert path) — independent LLM call, output buffered to `entity_buffer/`.
 4. **Cognee remember** (`cognee_wrapper.remember_article`, currently behind `OMNIGRAPH_COGNEE_INLINE` since 2026-05-04) — async LLM call for memory-layer storage; gated off in production after the LiteLLM→AI-Studio routing 422 loop.
 
 Paid API (1):
+
 - **Apify WeChat scraper** — 75-90s wall-clock per article on success path; `~$0.001-0.005` per call.
 
 SQL state writes per article (4 tables):
+
 - `articles.body` (atomically written post-scrape since quick 260505-m9e)
 - `classifications` (one INSERT, post-classify; UPSERT post-quick 260506-se5)
 - `ingestions` (one row per terminal outcome — ok/failed/skipped/skipped_ingested/skipped_graded/dry_run)
 - `checkpoints/{hash}/` filesystem markers (5 ordered stages)
 
 Per-image side pipeline:
+
 - **Vision cascade** (3 providers + circuit breaker — SiliconFlow → OpenRouter → Gemini)
 - **Image download → local persist → vision describe** all happen once per image
 
@@ -80,6 +84,7 @@ INGEST   | 1 LLM call    | LightRAG ainsert (entity extract happens inside Light
 ```
 
 What changes vs current:
+
 - **Drop graded probe** — accept the irreducible Apify cost on filter rejects; the cost is dominated by vision-on-success not Apify-on-reject anyway. Or: keep graded probe as a `--cheap-mode` opt-in flag rather than the default.
 - **Move entity extract inside LightRAG** — already happens internally, but currently `ingest_wechat.extract_entities` is a separate pre-ingest call buffering to `entity_buffer/`. Removing this buffer + relying on LightRAG's own pipeline would simplify state.
 - **Resolve Cognee inline disablement** — either fix LiteLLM routing OR commit to the async-only `cognee_batch_processor.py` path and delete the inline code.
@@ -113,11 +118,13 @@ about to ship via `/gsd:new-milestone`. Post-launch enhancements should be
 captured here as real usage data accumulates — DO NOT pre-spec.
 
 References:
+
 - `docs/design/agentic_rag_internal_api.md` (locked design)
 - Memory file `~/.claude/projects/.../memory/project_agentic_rag_design_in_progress.md`
 - KG-side cross-milestone contract (PROJECT.md): `omnigraph_search.query.search(query_text: str, mode: str = "hybrid") -> str` must stay stable.
 
 Known candidates to track (from design discussion, not yet proven needed):
+
 - Multi-turn query state (carry-over across follow-up questions)
 - Result re-ranking with Cognee memory context
 - Streaming partial answers vs current batch synthesis

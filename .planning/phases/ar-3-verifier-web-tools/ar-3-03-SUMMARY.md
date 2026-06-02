@@ -115,6 +115,7 @@ assert len(result.markdown) > 0
 **Exit code:** `0`. **Stderr:** clean (only INFO-level LightRAG load logging — no tracebacks).
 
 **Captured artifacts:**
+
 - `.scratch/ar-3-03-l2a-smoke-260523.stdout` — full smoke output
 - `.scratch/ar-3-03-l2a-smoke-260523.stderr` — clean stderr (INFO-only)
 
@@ -152,6 +153,7 @@ The 155-char markdown is the synthesizer's degraded output when the Retriever st
 Per plan Task 5 step 4 stop-condition guidance: *"WebBaseline / Retriever stage fails... If they fail with cap=0, that's a regression in ar-1's stage stubs — out of Wave 3 scope; flag in SUMMARY.md."*
 
 Plan Task 5 acceptance criterion `len(markdown) >= 200` is a heuristic anchored to the synthesizer's degraded-but-substantive output. With Retriever in `failed` state, the synthesizer correctly emits the minimal terminal-stage markdown (Chinese title + retriever degradation note), which is 155 chars in dense Chinese characters. **All other Wave 3-scope acceptance criteria are met:**
+
 - ✓ exit code 0
 - ✓ `result.state.reasoned.iter_count == 0`, `status == "ok"`
 - ✓ `result.state.verified.iter_count == 0`, `status == "ok"`

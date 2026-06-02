@@ -92,6 +92,7 @@ verdict.
 ### Task 1 — Day-0 OBSERVATION.md scaffold instantiation `[agent-runnable]`
 
 **`<read_first>`**
+
 - `.planning/phases/aim-5-stability-watch/aim-5-CONTEXT.md` lines
   186-236 (FINDING 10 — OBSERVATION.md schema verbatim)
 - `.planning/phases/aim-4-daily-sync/aim-4-4-EVIDENCE.md` lines 52-65
@@ -100,6 +101,7 @@ verdict.
   (Hermes lightrag_storage retention deadline 2026-06-22)
 
 **`<acceptance_criteria>`**
+
 - `OBSERVATION.md` exists with all sections from FINDING 10 schema.
 - Baseline section captures the 4-item TODO from aim-4-4-EVIDENCE
   verbatim.
@@ -205,11 +207,13 @@ git log -1 --name-only
 ### Task 2 — Daily append discipline (day 1..6) `[agent-runnable]`
 
 **`<read_first>`**
+
 - `OBSERVATION.md` (the scaffold from Task 1)
 - Daily logs from aim-5-1, aim-5-2, aim-5-3, aim-5-5 evidence files
   (`aim-5-EVIDENCE/daily-checks-day-N.log` per CONTEXT lines 380-384)
 
 **`<acceptance_criteria>`**
+
 - For each day N in 1..6, the operator/agent appends a Day N section
   to OBSERVATION.md compiled from aim-5-1/2/3/5 daily probe outputs.
 - TZ disambiguation: each Day N header carries BOTH ADT and UTC
@@ -242,6 +246,7 @@ data). Operator decides RESTART vs. continue per FINDING 1.
 ### Task 3 — Day-7 close verdict + aim-5-VERIFICATION.md `[agent-runnable]`
 
 **`<read_first>`**
+
 - All 7 daily entries in `OBSERVATION.md`
 - `aim-5-1-EVIDENCE.md`, `aim-5-2-EVIDENCE.md`, `aim-5-3-EVIDENCE.md`,
   `aim-5-4-EVIDENCE.md`, `aim-5-5-EVIDENCE.md` (per-plan verdicts)
@@ -251,6 +256,7 @@ data). Operator decides RESTART vs. continue per FINDING 1.
   deadline reminder text)
 
 **`<acceptance_criteria>`**
+
 - OBSERVATION.md "Day-7 verdict" section is fully populated (no
   placeholders left).
 - For each STAB-NN, the verdict is computed using the asymmetric

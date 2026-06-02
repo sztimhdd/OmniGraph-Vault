@@ -55,6 +55,7 @@ must_haves:
 Conduct a single-shot, READ-ONLY deep code review of `image_pipeline.py` (645 LOC, last commit `ce8127a`) and emit `260511-lyj-REVIEW.md` + `260511-lyj-SUMMARY.md` inside this quick's directory.
 
 Purpose:
+
 - This is the only OmniGraph-Vault module that spends real money (SiliconFlow ¥0.0013/image). Cost-leak risk is its own verdict dimension.
 - 3-provider Vision Cascade + circuit breaker is more complex than `lib/scraper.py`; previous audits (T3 `260511-d7m`, T4 `260511-kxd`) did not cover it.
 - Quick `260509-p1n` only refactored the spawn site (`lib/vision_tracking.py` + `ingest_wechat.py:1186`); the orchestrator internals have never been audited.
@@ -66,6 +67,7 @@ Output: REVIEW.md + SUMMARY.md only. No code changes. No live API calls. No `.en
 
 <execution_context>
 Running locally on Windows / Git Bash via `/gsd:quick`. Read-only tools only:
+
 - Read (with offset/limit for large files — `image_pipeline.py` is 645 LOC, fits a single read; CLAUDE.md is large, target the two named sections).
 - Grep / Glob.
 - Bash for `wc -l`, `git log`, `git show`, `git status --short` only.
@@ -77,44 +79,60 @@ No code edits. No tests run. No API calls. No subprocess spawning the vision pip
 # Required reads (in order)
 
 ## Project state
+
 @.planning/STATE.md
 
 ## Project contract (the document this audit verifies)
+
 @CLAUDE.md
+
 - Section "Vision Cascade" (long-form, ~30 lines) — the documented contract for cascade order, circuit breaker, balance alerts.
 - Section "SiliconFlow Balance Management" (long-form, ~25 lines) — depletion semantics, top-up flow, pre-batch warnings.
 - Section "Lessons Learned" entry "2026-05-05 #5" — the anchor lesson on vision worker timeout vs `OMNIGRAPH_LLM_TIMEOUT_SEC` 30× ratio.
 
 ## Audit target
+
 @image_pipeline.py
+
 - 645 LOC. Last commit `ce8127a` ("feat(image_pipeline): D-20.08/09 referer header + SVG filter (RIN-02)").
 - This is the ONLY file whose internals are being audited. Read it in full.
 
 ## Cousins (context-only reads — do NOT audit their internals)
+
 @ingest_wechat.py
+
 - ONLY line 1186 (the vision worker spawn site). Verify the call-site contract from `260509-p1n` is honored. Do not audit the rest of this file.
 
 @lib/vision_tracking.py
+
 - Drain helpers — for A4 (cross-module coupling) + A6 (task-lifecycle boundary). Verify the contract `image_pipeline.py` exposes to it.
 
 @lib/vertex_gemini_complete.py
+
 - For A4 — answer the question: does `image_pipeline.py` Vertex Vision path go through this fixed module (`260511-b3y`) or construct its own client?
 
 ## Trusted-region cross-references (do NOT re-audit)
+
 @.planning/quick/260509-p1n-fix-d-10-09-vision-async-drain-hang-via-/260509-p1n-SUMMARY.md
+
 - Vision drain refactor context. Trust the spawn-site contract; verify only the call-site shape from inside `image_pipeline.py`.
 
 @.planning/quick/260511-b3y-ainsert-vertex-location-fix-3-line-fix-l/260511-b3y-PLAN.md
+
 - Vertex location fix context. Trust the `lib/vertex_gemini_complete.py` fix; verify whether `image_pipeline.py` benefits from it or has an isolated path.
 
 ## REVIEW.md schema templates (for matching prior tone + structure)
+
 @.planning/quick/260511-kxd-t4-lib-scraper-py-deep-review-read-only/260511-kxd-REVIEW.md
+
 - T4 template — cascade-divergence approach is closest analog. Match the angle structure + verdict tone.
 
 @.planning/quick/260511-d7m-t3-batch-ingest-from-spider-py-deep-revi/260511-d7m-REVIEW.md
+
 - T3 template — 7-angle structure. Match section ordering + evidence-density discipline.
 
 ## Test coverage discovery (for A7)
+
 - Glob `tests/unit/test_image_pipeline*.py` and `tests/unit/test_vision*.py`.
 - Read whichever match. If none, A7 = "no tests found" and that itself is a finding.
 
@@ -220,21 +238,35 @@ For each of the 7 audit angles, collect file:line evidences from `image_pipeline
 Use the schema in the task brief verbatim:
 
 1. Header (date ADT, file, LOC, last commit SHA).
+
 2. ## TL;DR — counts (HIGH/MEDIUM/LOW), cross-cutting count, est cleanup hours/quicks, hygiene verdict, cost-leak verdict.
+
 3. ## 1. File sectional map — function list + LOC per function + one-line purpose. Use Grep `^def\|^async def\|^class` with `-n` to enumerate.
+
 4. ## 2. CLAUDE.md cross-reference table — ~10 rows covering both Vision Cascade + Balance Management contracts. Columns: documented contract / source code state / match? + evidence (file:line).
+
 5. ## 3. Lessons Learned cross-reference — anchor 2026-05-05 #5 with Status / Evidence columns.
+
 6. ## 4. Cascade + Circuit-breaker findings (STAR ANGLE 1) — explicit cascade order, breaker scope, 4xx/429/5xx branch table, hidden state issues.
+
 7. ## 5. Cost / balance findings (STAR ANGLE 2) — balance check timing + estimation accuracy, silent-leak possibilities, cost instrumentation gaps.
+
 8. ## 6. Findings by severity — HIGH / MEDIUM / LOW. Each finding: F-X title / Evidence (file:line) / Why severity / Fix scope (~LOC, quick type, risk).
+
 9. ## 7. Cross-cutting issues — items spanning image_pipeline + N other files.
+
 10. ## 8. Async + timeout observations (A6).
+
 11. ## 9. Test coverage gap (A7).
+
 12. ## 10. Recommended fix-quick sequence — ordered, est hours, dependencies.
+
 13. ## 11. Module verdict — pollution score (HIGH/MEDIUM/LOW), cost-leak risk (HIGH/MEDIUM/LOW), recommendation (ship X / batch with lib hygiene wave / no action).
+
 14. ## 12. Open questions for user — items reviewer cannot decide.
 
 Discipline:
+
 - Every finding cites file:line. No "looks fine" stubs.
 - A2 + A3 collectively cite >= 8 file:line evidences (target — count and report in SUMMARY).
 - Each angle (A1-A7) appears in REVIEW.md, even if "no findings in A_X".
@@ -244,6 +276,7 @@ Discipline:
 - Hygiene verdict is REQUIRED.
 
 If wall-time budget exhausted (3h hard cap, 4h emergency cap):
+
 - Ship a partial REVIEW.md.
 - Add to §12 Open Questions: "incomplete: angles A_X..A_Y not done".
 - Stop. Don't paper over with speculation.
@@ -251,6 +284,7 @@ If wall-time budget exhausted (3h hard cap, 4h emergency cap):
 **Phase D — Author SUMMARY.md (closure note):**
 
 Write `260511-lyj-SUMMARY.md` containing:
+
 - Quick ID, date ADT, LOC, last commit SHA of audit target.
 - Hygiene verdict (clear / soft-gating / gating) + finding counts (HIGH/MEDIUM/LOW).
 - Cost-leak verdict (clean / soft-leak / leak) + brief rationale.
@@ -266,6 +300,7 @@ Write `260511-lyj-SUMMARY.md` containing:
 3. Use `node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs(quick-260511-lyj): T5 image_pipeline.py deep review (release hygiene)" --files .planning/quick/260511-lyj-t5-image-pipeline-py-deep-review-read-on/260511-lyj-PLAN.md .planning/quick/260511-lyj-t5-image-pipeline-py-deep-review-read-on/260511-lyj-REVIEW.md .planning/quick/260511-lyj-t5-image-pipeline-py-deep-review-read-on/260511-lyj-SUMMARY.md`.
 4. After commit, update SUMMARY.md to record the commit SHA. Amend or supplemental commit per project convention (do not `--amend` if shared worktree concerns apply — see Lessons Learned 2026-05-06 #5).
   </action>
+
   <verify>
     <automated>bash -c 'cd "C:/Users/huxxha/Desktop/OmniGraph-Vault" && for s in "## TL;DR" "## 1. File sectional map" "## 2. CLAUDE.md" "## 3. Lessons Learned" "## 4. Cascade + Circuit-breaker findings" "## 5. Cost / balance findings" "## 6. Findings by severity" "## 7. Cross-cutting issues" "## 8. Async + timeout observations" "## 9. Test coverage gap" "## 10. Recommended fix-quick sequence" "## 11. Module verdict" "## 12. Open questions"; do grep -q "$s" .planning/quick/260511-lyj-t5-image-pipeline-py-deep-review-read-on/260511-lyj-REVIEW.md || { echo "MISSING SECTION: $s"; exit 1; }; done; grep -qE "Cost / balance verdict|Cost-leak verdict" .planning/quick/260511-lyj-t5-image-pipeline-py-deep-review-read-on/260511-lyj-REVIEW.md || { echo "MISSING cost-leak verdict"; exit 1; }; grep -qE "Hygiene verdict" .planning/quick/260511-lyj-t5-image-pipeline-py-deep-review-read-on/260511-lyj-REVIEW.md || { echo "MISSING hygiene verdict"; exit 1; }; CHANGED=$(git status --short | grep -v "^?? .planning/quick/260511-lyj-" | grep -v "^.. .planning/quick/260511-lyj-"); [ -z "$CHANGED" ] || { echo "UNEXPECTED CHANGES OUTSIDE QUICK DIR:"; echo "$CHANGED"; exit 1; }; echo OK'</automated>
   </verify>
@@ -296,6 +331,7 @@ Write `260511-lyj-SUMMARY.md` containing:
 </verification>
 
 <success_criteria>
+
 - REVIEW.md is complete, evidence-dense, and verdicts are explicit.
 - SUMMARY.md captures the verdict pair, finding counts, evidence tally, and commit SHA.
 - No code mutation occurred. No live API calls. Read-only audit.

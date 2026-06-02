@@ -36,6 +36,7 @@ The phase goal decomposes into 12 observable truths (mapped 1:1 to `04-VALIDATIO
 | 12 | No new `failed` doc statuses in kv_store | 04-07 E2E | INFRA-BLOCKED |
 
 Additional cross-cutting checks:
+
 - D-14 Phase-0 spike gate: **PASS** (`phase0_spike_report.md` status=success; live-cleanup delete confirmed non-destructive)
 - `--enrich` flag removed from `skills/omnigraph_ingest/` (D-07): **PASS**
 - 38/38 unit tests green (Windows local, `pytest tests/unit -q`): **PASS**
@@ -129,6 +130,7 @@ Evidence: the skill contains zero `python -c`/`exec`/subprocess pseudocode — e
 
 - D-03 JSON emitted at `merge_and_ingest.py:232`: `{hash, status, enriched, question_count, success_count, zhihu_docs_ingested, enrichment_id}` — 7 fields populated from real runtime data.
 - D-08 deterministic IDs + enriches-backlink at `merge_and_ingest.py:140-145`:
+
   ```python
   await rag.ainsert(
       md,
@@ -136,6 +138,7 @@ Evidence: the skill contains zero `python -c`/`exec`/subprocess pseudocode — e
       file_paths=[f"enriches:{wechat_hash}"],
   )
   ```
+
   This matches the D-08 contract: Zhihu docs are independent LightRAG documents with `enriches=<parent-wechat-hash>` metadata; hybrid retrieval will naturally surface parent + children.
 - Wave-5 E2E evidence (04-07 line 17): stdout emitted `{"status":"ok","enriched":2,"success_count":3,"zhihu_docs_ingested":3,"enrichment_id":"enrich_8ac04218b4"}`.
 

@@ -53,6 +53,7 @@ Purpose: empirical verification of an unverified async-safety claim. If we
 find the race here, we save P5 plan-phase from rebuilding it later.
 
 Output:
+
 - `tests/integration/kb/test_async_safety.py` (≤30 LoC, single async test)
 - `.scratch/v1.1-yolo-p5verify-<UTC-iso>.log` (final report)
 - On branch (B): atomic forward-only commit on `main`, pushed to origin
@@ -75,12 +76,15 @@ Output:
 <!-- Singleton + endpoint contracts the test consumes. Do NOT modify either. -->
 
 Module-global singleton in `kg_synthesize.py:82`:
+
 ```python
 async def _get_or_init_rag() -> LightRAG: ...   # cached after first call
 ```
+
 Called by `synthesize_response()` at line 186 (`rag = await _get_or_init_rag()`).
 
 Endpoint contract from `kb/api_routers/synthesize.py` (per P5-stub line 64-67):
+
 ```
 POST /api/synthesize     → 202 Accepted, body: {"job_id": "<uuid>"}
 GET  /api/synthesize/{job_id} → {"status": "queued"|"running"|"done"|"failed",
@@ -380,6 +384,7 @@ Phase-level checks (in order):
 </verification>
 
 <success_criteria>
+
 - Test file `tests/integration/kb/test_async_safety.py` lands at ≤30 LoC,
   exercises N=4 concurrent `/api/synthesize`, asserts marker-bearing
   pairwise-distinct markdowns, runs against a real singleton (local or

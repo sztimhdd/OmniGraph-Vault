@@ -138,6 +138,7 @@ async def list_articles_endpoint(
 ):
     ...
 ```
+
 </interfaces>
 </context>
 
@@ -588,6 +589,7 @@ async def list_articles_endpoint(
 </verification>
 
 <success_criteria>
+
 - API-02: GET /api/articles paginated, filterable, p50 < 100ms
 - API-03: GET /api/article/{hash} resolves, returns full payload, 404 on miss
 - DATA-07 cross-phase impact: list endpoint filters; detail endpoint preserves direct access

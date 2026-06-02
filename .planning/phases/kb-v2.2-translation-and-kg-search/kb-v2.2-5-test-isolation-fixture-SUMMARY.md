@@ -157,6 +157,7 @@ audit verifies attribution.
 ## Baseline triage closure
 
 5/16 kb-v2.1-9 audit items closed in F5 scope:
+
 - ✅ test_lightrag_embedding_rotation::test_single_key_fallback
 - ✅ test_lightrag_embedding_rotation::test_round_robin_two_keys
 - ✅ test_lightrag_embedding_rotation::test_429_failover_within_single_call

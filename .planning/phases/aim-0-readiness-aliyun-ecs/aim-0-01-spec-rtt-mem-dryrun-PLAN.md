@@ -40,11 +40,13 @@ the same file.
 ## Scope
 
 **In scope:**
+
 - READY-01: Host spec check via read-only SSH (`nproc`, `free -h`, `df -h /`)
 - READY-02: LLM provider RTT — Aliyun side AND Hermes same-day baseline, both captured in one step
 - READY-03: LightRAG ainsert peak RSS dry-run on Aliyun using a heavy article URL
 
 **Out of scope:**
+
 - Code deployment (aim-1)
 - venv / requirements.txt install on Aliyun — READY-03 uses a TEMPORARY scratch venv in /tmp (see Step 3 operator prompt)
 - Any production path writes — scratch venv at `/tmp/aliyun-readiness/` only
@@ -295,6 +297,7 @@ READY-03: PASS / FAIL
 ## Rollback
 
 aim-0 is read-only on Aliyun for Steps 1-2. For Step 3 (operator-run READY-03):
+
 - Scratch workspace is entirely under `/tmp/aliyun-readiness/` — no production paths touched
 - Rollback = `rm -rf /tmp/aliyun-readiness/` (safe; no persistent state)
 - Aliyun production paths (`/opt/omnigraph-vault/`, `/etc/omnigraph/`) are NOT touched by this plan

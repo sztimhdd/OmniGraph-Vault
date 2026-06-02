@@ -8,10 +8,12 @@
 ## Pre-flight Audit (done)
 
 ### Working-tree inventory
+
 - 10 modified files
 - 17 untracked entries
 
 ### In-scope (3 commits)
+
 - `databricks-deploy/translate_kb.py` (M)
 - `.planning/STATE-KB-v2.md` (M — forward-only addendum, written by orchestrator)
 - `kb/export_knowledge_base.py` (M)
@@ -25,6 +27,7 @@
 - `kb/services/search_index.py` (M)
 
 ### Out-of-scope (DO NOT stage; user redline)
+
 - `.planning/PROJECT.md`
 - `.planning/phases/aim-0-readiness-aliyun-ecs/aim-0-01-spec-rtt-mem-dryrun-PLAN.md`
 - `.planning/phases/kdb-2-databricks-app-deploy/kdb-2-SMOKE-EVIDENCE.md`
@@ -36,6 +39,7 @@
 - `kb/deploy/RUNBOOK-aliyun-deploy.md`
 
 ### Commit-2 audit verdict (real increment vs dev residue)
+
 - Last llm-wiki commits: `58a4e18` (docs flip nyquist + close), `3f65082` (VERIFICATION evidence + VALIDATION tick), `0acbe46` (W2 SKILL.md preflight) — all docs-only or single-file feature.
 - Current diff adds the W4-tail SSG render pipeline (3 new helpers in export_knowledge_base.py + 11 nav/wiki locale strings + book-open icon + wiki nav links + 3 entirely new files for templates and logo).
 - Verdict: REAL new W4-tail SSG rendering pipeline never committed. Proceed with `feat(llm-wiki-W4-tail)`.

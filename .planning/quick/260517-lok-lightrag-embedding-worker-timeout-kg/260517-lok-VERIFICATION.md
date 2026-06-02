@@ -162,9 +162,11 @@ Commit `c9cc7bf` touches `tests/integration/kb/test_synthesize_wrapper.py`, a fi
 ### 1. Aliyun Systemd Restart + Journal Grep (LOK-05)
 
 **Test:** SCP `kg_synthesize.py` to `aliyun-vitaclaw:/root/OmniGraph-Vault/kg_synthesize.py`, then `systemctl restart kb-api.service`, then:
+
 ```bash
 ssh aliyun-vitaclaw "journalctl -u kb-api.service -n 50 --no-pager | grep -i 'embedding func.*workers initialized'"
 ```
+
 **Expected:** Line containing `Timeouts: Func: 90s, Worker: 180s, Health Check: 195s`
 
 **Why human:** Requires Aliyun SSH + live systemd state. The kwarg is verified as present in the code; this step confirms LightRAG honors it at the Python runtime level on the prod host.
@@ -174,11 +176,13 @@ ssh aliyun-vitaclaw "journalctl -u kb-api.service -n 50 --no-pager | grep -i 'em
 ### 2. POST /api/synthesize mode=qa Smoke (LOK-06a)
 
 **Test:**
+
 ```bash
 ssh aliyun-vitaclaw "curl -s -X POST http://127.0.0.1:8000/api/synthesize \
   -H 'Content-Type: application/json' \
   -d '{\"mode\":\"qa\",\"question\":\"Hermes Agent 是什么\"}' | python3 -m json.tool"
 ```
+
 **Expected:** JSON with `error: null` and non-empty `markdown` field (real KB content, not empty string)
 
 **Why human:** Aliyun-only endpoint; the original timeout manifested as empty markdown silently — only a real cross-border round-trip can confirm the fix resolved the symptom.
@@ -186,11 +190,13 @@ ssh aliyun-vitaclaw "curl -s -X POST http://127.0.0.1:8000/api/synthesize \
 ### 3. POST /api/synthesize mode=long_form Smoke (LOK-06b)
 
 **Test:**
+
 ```bash
 ssh aliyun-vitaclaw "curl -s -X POST http://127.0.0.1:8000/api/synthesize \
   -H 'Content-Type: application/json' \
   -d '{\"mode\":\"long_form\",\"question\":\"对比 LangChain 和 LangGraph 各自的设计哲学\"}' | python3 -m json.tool"
 ```
+
 **Expected:** `error: null`, `markdown_len > 2000`, `sources` array with at least 1 entry
 
 **Why human:** Long-form queries stress the Worker budget most heavily (longer vector retrieval = more embedding calls within one Worker invocation). If any single Worker still exceeds 180s, this query will expose it.
@@ -198,9 +204,11 @@ ssh aliyun-vitaclaw "curl -s -X POST http://127.0.0.1:8000/api/synthesize \
 ### 4. No Worker Timeout Warnings During Smoke
 
 **Test:**
+
 ```bash
 ssh aliyun-vitaclaw "journalctl -u kb-api.service --since '2 minutes ago' --no-pager | grep -i 'worker timeout' || echo 'NO WORKER TIMEOUT — clean'"
 ```
+
 **Expected:** `NO WORKER TIMEOUT — clean`
 
 **Why human:** Confirms the Worker budget (180s) is sufficient for actual cross-border latency. If warnings appear, 180s is still too tight; next step would be `LIGHTRAG_EMBEDDING_TIMEOUT=120` (Func=120/Worker=240/Health=255) noting the Worker=240 margin against KB_SYNTHESIZE_TIMEOUT=240s outer budget.

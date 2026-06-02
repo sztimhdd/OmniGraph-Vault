@@ -97,6 +97,7 @@ context = {
 Article-card markup REUSED from kb-1 articles_index.html (same as plan 05). The pre-render context (snippet, url_hash, update_time_human, etc.) is computed by plan 09 driver — template just reads attributes.
 
 JSON-LD Thing (UI-SPEC §6 verbatim):
+
 ```json
 {
   "@context": "https://schema.org",
@@ -106,6 +107,7 @@ JSON-LD Thing (UI-SPEC §6 verbatim):
   "alternateName": []
 }
 ```
+
 </interfaces>
 </context>
 
@@ -324,6 +326,7 @@ JSON-LD Thing (UI-SPEC §6 verbatim):
 </verification>
 
 <success_criteria>
+
 - ENTITY-01 enabled: template ready for plan 09 driver to render `/entities/{slug}.html` × ~91
 - ENTITY-04 enabled: Thing JSON-LD emitted with @type=Thing + alternateName=[]
 </success_criteria>

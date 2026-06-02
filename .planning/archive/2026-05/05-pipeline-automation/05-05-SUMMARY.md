@@ -47,6 +47,7 @@ LIMIT ?
 ```
 
 Asymmetry verified by Test 7 (`test_asymmetric_enriched_filter`):
+
 - KOL `enriched=0` + RSS `enriched=0` → ONLY RSS rows appear (KOL excluded).
 - KOL `enriched=2` + RSS `enriched=0` → BOTH appear (Test 8).
 
@@ -110,6 +111,7 @@ creds → `rc=1` but `{digest_dir}/{today}.md` exists.
 ## 7. Atomic archive write
 
 `archive(date, markdown, digest_dir)`:
+
 1. `target_dir.mkdir(parents=True, exist_ok=True)`
 2. Write to `{date}.md.tmp`
 3. `os.replace(tmp, target)` (atomic on POSIX + NTFS)

@@ -207,6 +207,7 @@ The design doc was authored 2026-05-06; deltas as of 2026-05-22:
 ## LIB-09 Resolution: Option (a) — Namespace mapping
 
 The design doc has an internal inconsistency:
+
 - line 25: `omnigraph.research_api`
 - line 287: `omnigraph.research`
 - line 625: `lib/research/`
@@ -215,6 +216,7 @@ ar-1 picks **option (a)**: keep the physical path `lib/research/` and add a name
 mapping in `pyproject.toml` so `omnigraph.research` resolves to it.
 
 **Why (a) over (b) physical rename**:
+
 - Repo convention: every other implementation lib lives at `lib/` (`lib/llm_deepseek.py`,
   `lib/vision_cascade.py`, `lib/lightrag_embedding.py`). Renaming to `omnigraph/research/`
   would create a one-off layout for this milestone alone — unnecessary churn.

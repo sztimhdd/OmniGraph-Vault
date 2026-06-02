@@ -82,6 +82,7 @@ STAGE_FILES = {
     "vision_worker":  "05_vision/",
     "sub_doc_ingest": "06_sub_doc_ingest.done",  # NEW 2026-05-01 D-SUBDOC
 }
+
 ```
 
 Current ingest_article stage map (from ingest_wechat.py lines 667-922):
@@ -750,13 +751,16 @@ async def test_vision_checkpoint_write_failure_is_swallowed(
 Add `import pytest_asyncio` is NOT needed if `pytest-asyncio` is already a dependency (check via `grep pytest-asyncio requirements.txt`). If not present, mark tests with `@pytest.mark.asyncio` and document the dependency addition.
 
 If `pytest-asyncio` is missing, use the simpler `asyncio.run()` pattern:
+
 ```python
 def test_X(...):
     asyncio.run(_async_body())
 ```
+
 Executor picks based on what's already in requirements.txt. Check first with: `grep asyncio requirements.txt`.
 
 Run the tests:
+
 ```
 .venv/Scripts/python -m pytest tests/unit/test_checkpoint_ingest_integration.py -v
 ```
@@ -791,6 +795,7 @@ Fix any failures by adjusting the Task 1 ingest_wechat.py integration, not the t
 </verification>
 
 <success_criteria>
+
 - 5 has_stage() guards present in ingest_wechat.py, one per stage
 - Pre-seeding a checkpoint causes that stage's work to be skipped (verified by 5 tests, one per stage)
 - Failure at stage N preserves checkpoints 1..N-1 (verified by test_failure_at_image_download_preserves_prior_checkpoints)

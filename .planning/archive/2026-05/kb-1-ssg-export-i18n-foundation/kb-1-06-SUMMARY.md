@@ -159,6 +159,7 @@ None encountered — module is pure unit-test scope, no external API calls.
 ## Acceptance Criteria — All Met
 
 ### Task 1
+
 - [x] `kb/data/article_query.py` exists with `@dataclass(frozen=True)` decorator (line 28)
 - [x] File contains string `class ArticleRecord:` (line 29)
 - [x] File contains string `def resolve_url_hash` (line 55)
@@ -166,6 +167,7 @@ None encountered — module is pure unit-test scope, no external API calls.
 - [x] Smoke `python -c "...resolve_url_hash..."` outputs 10-char hex string `5d41402abc`
 
 ### Task 2
+
 - [x] `pytest tests/unit/kb/test_article_query.py -v` exits 0 (17 tests at end of Task 2; final 24 at end of Task 3)
 - [x] File contains string `def list_articles` (line 116)
 - [x] File contains string `def get_article_by_hash` (line 172)
@@ -174,6 +176,7 @@ None encountered — module is pure unit-test scope, no external API calls.
 - [x] Smoke import `python -c "from kb.data.article_query import list_articles, get_article_by_hash; print('OK')"` exits 0
 
 ### Task 3
+
 - [x] `pytest tests/unit/kb/test_article_query.py -v` exits 0 with 24 tests passing (≥ 23)
 - [x] File contains string `def get_article_body` (line 228)
 - [x] File contains string `final_content.enriched.md` (lines 232, 244)

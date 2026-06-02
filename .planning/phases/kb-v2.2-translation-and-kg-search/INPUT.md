@@ -86,6 +86,7 @@ User decisions 2026-05-17 evening, explicitly closed forever (not "maybe v2.3"):
 | **Citation-rich (footnotes / endnotes / bibliography)** | Same | CUT-FINAL |
 
 Also out of scope (existing v2.1 boundary, unchanged):
+
 - HTTPS/TLS, ingest cron migration, Hermes retire — v2.3+ if ever
 - Databricks Apps deployment — kdb-* track (parallel)
 - Auth, multi-tenancy, admin features — out of v2.x entirely
@@ -118,6 +119,7 @@ Also out of scope (existing v2.1 boundary, unchanged):
 ## Inheritance
 
 All phases inherit:
+
 - `kb-1-UI-SPEC.md` + `kb-2-UI-SPEC.md` + `kb-3-UI-SPEC.md` design tokens (ZERO new `:root` vars)
 - C1 contract (`kg_synthesize.synthesize_response`) — F8' and FU-1 may extend prompt template but signature stays
 - C2 contract (`omnigraph_search.query.search`) — F8' may add `score` field surface but signature stays
@@ -164,6 +166,7 @@ Capture screenshots into `.playwright-mcp/` with phase-specific filename
 prefixes.
 
 For F12 specifically, local UAT also covers:
+
 - Aliyun staging sync dry-run (rsync `--dry-run`) capturing diff size
 - cgroup memory ceiling verification under full vdb load
 - KG search smoke at `/api/search?mode=kg` returning ~3.9× more image-bearing
@@ -184,6 +187,7 @@ Per `feedback_no_amend_in_concurrent_quicks.md` + `feedback_git_add_explicit_in_
 - Use `git add <explicit-files>` only
 
 Possible concurrent territories during v2.2 milestone:
+
 - kdb-2 Wave 3 deploy + UAT (different files: `databricks-deploy/*`, `.planning/phases/kdb-*`)
 - v2.2.x quick set散修 (from F7 11 B4 prod-drift items, post-Wave-1)
 

@@ -86,6 +86,7 @@ if layer2.verdict == "reject":
 # pattern. The candidate loop appends (row, body) tuples to a queue;
 # whenever the queue reaches LAYER2_BATCH_SIZE the drain helper runs.
 ```
+
 </interfaces>
 
 <tasks>
@@ -134,6 +135,7 @@ from lib.article_filter import (
 ```
 
 2. **Identify the ir-1-01 Layer 2 inline block** at approximately:
+
 ```python
 # v3.5 ir-1 (LF-3.2 / LF-3.3): Layer 2 with new 3-field FilterResult shape.
 layer2_results = layer2_full_body_score([
@@ -343,6 +345,7 @@ await _drain_layer2_queue()
 The existing format is fine — `processed` counter is incremented inside `_drain_layer2_queue` for ok-verdict articles; reject and NULL-verdict do NOT increment. So `processed` reflects "successfully ainserted articles" which matches the log semantics.
 
 8. **HARD CONSTRAINTS:**
+
 - DO NOT change the signatures of `ingest_from_db`, `ingest_article`, `_build_topic_filter_query`.
 - DO NOT modify the Layer 1 chunk loop — that landed in ir-1-01 and is unchanged.
 - DO NOT change dry-run behavior — dry-run still short-circuits BEFORE scrape (LF-3.6).

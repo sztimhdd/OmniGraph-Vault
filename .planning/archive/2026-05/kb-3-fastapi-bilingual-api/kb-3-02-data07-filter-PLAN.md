@@ -494,6 +494,7 @@ Reads at module import once — no per-call overhead.
 </verification>
 
 <success_criteria>
+
 - DATA-07 REQ closed: 6 affected list-style functions filter, get_article_by_hash carve-out intact
 - kb-1 list page + kb-2 topic/entity pages + kb-3 /api/articles automatically inherit filter on next consumer
 - Env override available for debugging

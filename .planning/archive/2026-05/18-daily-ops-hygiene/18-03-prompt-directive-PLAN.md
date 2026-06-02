@@ -105,6 +105,7 @@ If the image server is running and the graph has images for the query topic
 but the output still contains zero images, the directive may have been dropped
 or overridden — flag this to the operator.
 ```
+
 </proposed_diff_sketch>
 
 <unit_test_shape>
@@ -159,6 +160,7 @@ Two tests:
 </verification>
 
 <success_criteria>
+
 - HYG-04 satisfied: future skills / scripts that build synthesis prompts over LightRAG image-containing contexts have a named import point for the directive.
 - SKILL.md documents the mechanism so operators know where to look when images don't render.
 - Trivially reversible (revert constant extraction; inline text back).

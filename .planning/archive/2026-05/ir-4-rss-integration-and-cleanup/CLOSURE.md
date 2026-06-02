@@ -23,6 +23,7 @@ bring local in sync with production (idempotent twin runner; backup left
 at `.dev-runtime/data/kol_scan.db.pre-007-20260508-212825.bak`).
 
 Net delta across W1..W4: **+1062 / -944 = +118 lines** (W1 added migration
+
 + tests, W3+W4 retired more lines than they added).
 
 ## REQ coverage (with scope-deviation note)
@@ -140,5 +141,6 @@ sections present.
 ## Next phase
 
 ir-3 (calendar wait + observation). v3.5 milestone closes at ir-3 PASS
+
 + backlog drain stable. Cleanup of LF-5.1/5.2/5.3 (REQ-text scope) may
 spawn a v3.5 follow-up quick or roll into v3.6.

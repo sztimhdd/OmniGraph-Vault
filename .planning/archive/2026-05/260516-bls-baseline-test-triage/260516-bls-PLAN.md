@@ -57,6 +57,7 @@ production constraint).
 ### B2 — Mock signature drift (24 failures)
 
 #### B2a — `vertexai` kwarg drift (7 failures)
+
 Production `lib/lightrag_embedding.py:_make_client` now calls
 `genai.Client(api_key=api_key, vertexai=False)`. Tests' `_mock_client_cls`
 helpers don't accept `vertexai` kwarg.
@@ -67,6 +68,7 @@ helpers don't accept `vertexai` kwarg.
   non_429_error_does_not_rotate, empty_backup_env_var_treated_as_no_backup)
 
 #### B2b — `effective_timeout` kwarg drift on _fake_ingest_article (3 failures)
+
 Production `_run_ingest_with_timeout` (or similar) now passes `effective_timeout`
 positionally AND test still passes it via kwarg → `got multiple values for argument`.
 
@@ -77,6 +79,7 @@ positionally AND test still passes it via kwarg → `got multiple values for arg
 since error was `r.image_count`.)
 
 #### B2c — `ingest_article` 3-tuple return drift (4 failures)
+
 Per CLAUDE.md "Lessons Learned" 2026-05-10 quick `260510-uai`: outer
 `ingest_article` was widened from 2-tuple to 3-tuple `(success, wall, doc_confirmed)`,
 test_rollback_on_timeout still unpacks 2.
@@ -87,6 +90,7 @@ test_rollback_on_timeout still unpacks 2.
 - `tests/unit/test_rollback_on_timeout.py::test_idempotent_reingest_after_rollback`
 
 #### B2d — `ingest_article_processed_gate` ZeroDivisionError (10 failures)
+
 Suggests `_compute_article_budget_s` (or sub-helper) divides by a count derived
 from mocked data that defaults to 0. Either fixture/mock missing field or
 prod-code computes a denominator that's now 0 in mock context. Plausibly mock
@@ -110,6 +114,7 @@ mark `xfail` with grep-able `kb-v2.1-9 audit:` reason; if prod gets fixed,
 xfail flips to unexpected-pass alarm.
 
 #### B4a — siliconflow_balance "totalBalance" key (2 failures)
+
 Test mock returns `{"data": {"balance": "5.43"}}` but prod expects `totalBalance`.
 Could be: prod-code drift (B2 mock data) OR upstream API contract change (B4).
 Without examining production source-of-truth I can't be sure — mark xfail.
@@ -118,6 +123,7 @@ Without examining production source-of-truth I can't be sure — mark xfail.
 - `tests/unit/test_siliconflow_balance.py::test_authorization_header_sent`
 
 #### B4b — bench_integration assertions (2 failures)
+
 `assert 0 == 1` / `assert False is True` / `gate_pass=false → exit 1` — gate
 predicate flipping. Smells like real behavior drift; surface via xfail.
 
@@ -125,6 +131,7 @@ predicate flipping. Smells like real behavior drift; surface via xfail.
 - `tests/integration/test_bench_integration.py::test_live_gate_run`
 
 #### B4c — fetch_zhihu/image_pipeline namespace assertion (2 failures)
+
 Tests assert `hh/zhihu_1/` namespace prefix but prod emits raw `http://x/a.jpg`.
 Tests pinning a now-changed namespacing convention.
 
@@ -132,6 +139,7 @@ Tests pinning a now-changed namespacing convention.
 - `tests/unit/test_image_pipeline.py::test_download_images_success_and_failure`
 
 #### B4d — graded_classify None returns (3+1 failures)
+
 3 tests in `test_graded_classify.py` get `assert None == {...}` — production now
 returns None where it used to return dict. Plus
 `test_graded_classify_prompt_quality::test_graded_prompt_quality` flagging
@@ -142,12 +150,14 @@ that's failing on prompt drift. Both require domain knowledge to fix correctly.
 - `tests/unit/test_graded_classify_prompt_quality.py::test_graded_prompt_quality`
 
 #### B4e — scrape_first_classify schema drift (1 failure)
+
 `assert 0 == 2` → mock returns 0 records where 2 expected. Schema or prompt
 behaviour drift.
 
 - `tests/unit/test_scrape_first_classify.py::test_call_deepseek_returns_new_schema`
 
 #### B4f — text_first_ingest fast-return + content shape (2 failures)
+
 `ingest_article should return in <5s; took 5.14s` (timing flaky? or real
 regression?) plus `'[Image 0 Reference]:' in 'Image 0 from article ...'`
 (format string drift — Phase 5-00 changed end-of-doc text-ref shape).

@@ -73,6 +73,7 @@ One-liner: Wired `clamp_article_timeout` + batch-budget tracking + `batch_timeou
 ## Deviations from Plan
 
 **[Rule 1 - Bug] Signature follow-up in 2 regression tests**
+
 - **Found during:** Task 1 (after `ingest_article` signature changed to return `tuple[bool, float]`)
 - **Issue:** `tests/unit/test_rollback_on_timeout.py` (4 call sites) and `tests/unit/test_vision_worker.py` (3 fake-ingest definitions) both used the old single-`bool` contract — causing `TypeError: cannot unpack non-iterable bool` on tuple-unpack in the batch loops or `assert ok is True` failing with a tuple.
 - **Fix:** Updated the 4 direct calls in `test_rollback_on_timeout.py` to `ok, _wall = await bi.ingest_article(...)`. Updated the 3 fake `_fake_ingest_article` coroutines in `test_vision_worker.py` to accept `effective_timeout=None` kwarg and return `(True, 0.0)`.

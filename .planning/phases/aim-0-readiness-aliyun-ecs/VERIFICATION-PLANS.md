@@ -14,16 +14,20 @@ Plans checked: aim-0-01, aim-0-02
 ### 1. REQ pass-criteria pinning
 
 **READY-01** (REQUIREMENTS.md line 33): `nproc ≥ 8 AND free -h Mem total ≥ 15 GiB AND df -h / Avail ≥ 5 G`
+
 - Plan 01 Step 1 pass predicate (line 71–73): `nproc ≥ 8`, `free -h Mem: total ≥ 15`, `df -h / Avail ≥ 5G` — exact match. PASS.
 
 **READY-02** (REQUIREMENTS.md line 34): each provider Aliyun median RTT ≤ 2× Hermes baseline, same-day measurement, ≥5 sequential samples
+
 - Plan 01 Step 2: 5 sequential `curl -w '%{time_total}'` samples per provider per side, median computed, table with `Ratio (Aliyun/Hermes) ≤ 2×` — exact match.
 - One deviation: the pass predicate at line 136 relaxes READY-02 to a WARN (not FAIL) if only Vertex AI exceeds 2×. This is within the spirit of REQUIREMENTS.md, which says "each provider" but acknowledges corp-network RTT outlier from Hermes. The deviation is explicitly documented and acceptable.
 
 **READY-03** (REQUIREMENTS.md line 35): peak RSS < 8 GB via `/usr/bin/time -v` or `psrecord`
+
 - Plan 01 Step 3 pass predicate (line 208): `peak_rss_gb < 8.0` computed from `/usr/bin/time -v` `Maximum resident set size (kbytes)`. Exact match. PASS.
 
 **READY-04** (REQUIREMENTS.md line 36): ≥1 article `status='ok'` in `ingestions` table; entities to scratch path `/tmp/aliyun-readiness/lightrag_storage/`
+
 - Plan 02 Step 2 pass predicate (line 183): `≥ 1 article status='ok'` AND `lightrag_storage/ non-empty` — exact match. PASS.
 
 ### 2. Operator-channel discipline
@@ -77,12 +81,14 @@ The conditionality is explicit. PASS.
 ### 8. Frontmatter correctness
 
 Plan 01:
+
 - `phase: aim-0` — correct
 - `plan_id: aim-0-01` — correct
 - `requirements: [READY-01, READY-02, READY-03]` — exact match to plan scope
 - `depends_on: [none]` — correct (Wave 1)
 
 Plan 02:
+
 - `phase: aim-0` — correct
 - `plan_id: aim-0-02` — correct
 - `requirements: [READY-04]` — exact match to plan scope

@@ -37,11 +37,13 @@ This plan introduces `scripts/lightrag_count.py` (which does NOT exist in repo t
 ### Task 1 — Agent writes `scripts/lightrag_count.py`
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\list_entities.py` (existing pattern for reading the GraphML — same `graph_chunk_entity_relation.graphml` filename used by LightRAG; `nx.read_graphml` enumerates nodes for entities)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\config.py` lines 20-30 (RAG_WORKING_DIR derivation — confirms the storage path layout under `{BASE_DIR}/lightrag_storage/`)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` line 54 (STORAGE-04 wording — required outputs `entities`, `relations`, `chunks`, `kv_keys`; ±0% byte-identical)
 
 **`<acceptance_criteria>`**
+
 - File `scripts/lightrag_count.py` exists.
 - `python scripts/lightrag_count.py --help` exits 0 with usage text.
 - `python scripts/lightrag_count.py <empty-dir>` exits non-zero with clear error message (does NOT silently return zeros).
@@ -181,10 +183,12 @@ git commit -m "feat(aim-2): add scripts/lightrag_count.py for STORAGE-04 byte-id
 ### Task 2 — Operator runs count on Hermes source storage
 
 **`<read_first>`**
+
 - The committed `scripts/lightrag_count.py` (just created in Task 1)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-2-lightrag-storage-migration\EVIDENCE\STORAGE-01-pause-evidence.md` (re-confirm Hermes pause is still active)
 
 **`<acceptance_criteria>`**
+
 - Hermes-side Python venv has `networkx` available (likely yes — already a LightRAG dependency).
 - Hermes count run exits 0 and emits valid JSON.
 - Hermes pause re-confirmed still active before AND after the count run.
@@ -224,6 +228,7 @@ pgrep -f batch_ingest_from_spider; echo "exit=$?"
 ```
 
 Paste FULL output of all 3 steps. The JSON line from /tmp/aim2-count-hermes.json is the source-of-truth for byte-compare in Task 3.
+
 ```
 
 ### Task 3 — Agent runs count on Aliyun holding-dir and byte-compares
@@ -280,9 +285,11 @@ If MISMATCH, follow Abort/rollback below — do NOT proceed to Task 4 or aim-2-5
 ### Task 4 — Agent writes STORAGE-04 evidence and commits
 
 **`<read_first>`**
+
 - All output from Tasks 2 + 3.
 
 **`<acceptance_criteria>`**
+
 - File `EVIDENCE/STORAGE-04-count-evidence.md` exists.
 - File contains both JSON literals (Hermes-source, Aliyun-holding).
 - File contains explicit MATCH / MISMATCH verdict per-field table.
@@ -335,6 +342,7 @@ Path: `/tmp/aim2-extract/lightrag_storage/`
 
 - If PASS: aim-2-5 proceeds (mv holding-dir to production path, set Hermes read-only, resume Hermes cron AFTER mv).
 - If FAIL: see aim-2-4 Abort/rollback. Hermes resumes via aim-2-1 reverse BEFORE retrying from STORAGE-02. Aliyun holding-dir cleaned via `rm -rf /tmp/aim2-extract/`.
+
 ```
 
 Then commit:
@@ -377,6 +385,7 @@ date -u +"%Y-%m-%dT%H:%M:%SZ" | tee /tmp/aim2-pause-resumed.iso
 ```
 
 Paste output back. After this, Hermes is back to authoritative ingest. The aim-2 retry begins from aim-2-1 (re-pause) when operator + agent are ready.
+
 ```
 
 ## Evidence to capture

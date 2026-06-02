@@ -50,6 +50,7 @@ Implement Phase 21 STK-02 + STK-03: a thin-wrapper CLI at `scripts/cleanup_stuck
 Purpose: Operators need a one-shot tool to recover from stuck-doc situations without touching internal LightRAG storage layers. STK-01 already proved `adelete_by_doc_id` is residue-free on the production storage backend — this plan is the operator-facing CLI on top of that finding. Stuck-doc cleanup is a Phase 21 success-criterion gate for Phase 22 backlog re-ingest (BKF-02 delete-before-reinsert pattern depends on the same primitive, but is out of scope here).
 
 Output:
+
 - `scripts/cleanup_stuck_docs.py` (CLI; ~120-180 LOC; --dry-run / --all-failed / --hash flags)
 - `tests/unit/test_cleanup_stuck_docs.py` (mock-only; ~150-200 LOC; 8+ assertions covering schema + exit codes + flag isolation)
 - Local smoke evidence (5-step manual run on `.dev-runtime/`) recorded in commit message / SUMMARY.md
@@ -77,6 +78,7 @@ Output:
 <!-- Key contracts the executor must hold to. Do NOT re-explore the codebase. -->
 
 # CLI signature (argparse)
+
 - `--dry-run` (flag) — list candidates only, no mutation; exit 0
 - `--all-failed` (flag) — delete every doc with status=='failed'; exit 0 even if 0 found
 - `--hash <doc_id>` (string) — delete exactly one doc by id; exit 0 if it was deleted
@@ -86,6 +88,7 @@ Output:
 - `--all-failed` and `--hash` and `--dry-run` are mutually exclusive (argparse group). `--dry-run` may be combined with `--all-failed` to preview a planned delete (treat `--dry-run --all-failed` as `--dry-run` and exit 0).
 
 # JSON report schema (single source of truth — define once, use in both impl + tests)
+
 ```python
 from typing import TypedDict, Literal
 
@@ -103,15 +106,18 @@ class CleanupReport(TypedDict):
     skipped_reasons: list[SkipEntry]
     elapsed_ms: int                 # time.perf_counter_ns() based, integer ms
 ```
+
 Output: `print(json.dumps(report, ensure_ascii=False))` exactly once on stdout.
 
 # Eligible status values for cleanup (from kv_store_doc_status.json)
+
 - `failed` → deletable
 - `processing` → deletable (operator chose to clean — possible orphan from killed run)
 - `processed` → NEVER deletable; if --hash targets a processed doc, refuse (exit 1, JSON.skipped_reasons[0].reason='not_failed_status')
 - anything else → skip with reason='not_failed_status'
 
 # Active-pipeline-lock detection (advisory; NEVER hard-fail)
+
 Best-effort check before deletion. Try in this order, stop at first that succeeds:
   (a) `from lightrag.kg.shared_storage import get_pipeline_status_lock` — if importable, attempt non-blocking acquire / release pattern (see lightrag.kg.shared_storage source). If acquire fails or namespace says "busy", emit stderr warning.
   (b) Else: stat `RAG_WORKING_DIR / "pipeline_status.json"` if it exists; warn if mtime < 60s (best-effort heuristic).
@@ -119,11 +125,13 @@ Best-effort check before deletion. Try in this order, stop at first that succeed
 On any signal of pipeline busy: write to stderr `WARNING: pipeline appears busy — deletion may race with active ingest`. Continue execution. NEVER block.
 
 # adelete_by_doc_id contract (per STK-01 findings)
+
 - Returns `DeletionResult(status: str, doc_id: str, message: str, status_code: int, ...)` where status_code 200 + status=='success' means clean.
 - May return non-success on its own (e.g., doc_id not found) — caller must check status, not assume exception.
 - Async: must be awaited inside `asyncio.run(main_async())`.
 
 # Imports the CLI must use (DO NOT diverge)
+
 ```python
 import argparse, asyncio, json, logging, os, sys, time
 from pathlib import Path
@@ -139,6 +147,7 @@ from config import RAG_WORKING_DIR
 ```
 
 # Test fixture pattern (mock-only — DO NOT touch .dev-runtime/)
+
 ```python
 @pytest.fixture
 def fake_doc_status(tmp_path, monkeypatch):
@@ -166,6 +175,7 @@ def mock_rag(monkeypatch):
     monkeypatch.setattr("scripts.cleanup_stuck_docs._build_rag", fake_get_rag)
     return rag
 ```
+
 The CLI must expose a `_build_rag()` async helper (single-line wrapper around `from ingest_wechat import get_rag`) so tests can monkeypatch a single seam. Do NOT monkeypatch `ingest_wechat.get_rag` directly — too brittle.
 </interfaces>
 </context>
@@ -393,12 +403,14 @@ The CLI must expose a `_build_rag()` async helper (single-line wrapper around `f
 Manual smoke (Task 3 step 1-5) is the primary E2E verification — unit tests pass on mocks but only the smoke flow against `.dev-runtime/` exercises the real `adelete_by_doc_id` integration that STK-01 verified. Both must be green for completion.
 
 Cross-task assertions:
+
 - `mock_rag.adelete_by_doc_id.call_count` is asserted in at least 5 separate tests with specific values (0, 1, 2). This locks down the most subtle behavior of the CLI.
 - LOC budget: CLI 120-180 + tests 150-200 = 270-380 LOC total. If actual exceeds 380 LOC, executor must STOP and surface the overage in SUMMARY.md before committing.
 - JSON schema fidelity: tests call `json.loads(captured_stdout)` then check all 5 keys exist + types match. Schema definition is the single source in the CLI module — tests import it.
 </verification>
 
 <success_criteria>
+
 1. `scripts/cleanup_stuck_docs.py` exists with --dry-run / --all-failed / --hash flags; no-flag → help + exit 0
 2. JSON report on stdout has exactly 5 schema keys (`docs_identified`, `docs_deleted`, `docs_skipped`, `skipped_reasons`, `elapsed_ms`) on every successful invocation
 3. PROCESSED docs are NEVER passed to `adelete_by_doc_id` (asserted in tests; verifiable by reading `_filter_candidates` source)

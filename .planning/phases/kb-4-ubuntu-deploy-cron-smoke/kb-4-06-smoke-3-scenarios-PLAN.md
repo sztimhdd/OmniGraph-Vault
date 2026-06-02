@@ -58,12 +58,14 @@ Output: `kb-4-SMOKE-VERIFICATION.md` with verbatim scenario text + step-by-step 
 - 3 Smoke scenarios (verbatim from PROJECT-KB-v2.md):
 
   Smoke 1 — 双语 UI 切换:
+
   1. 浏览器 Accept-Language: zh-CN 访问首页 → 默认中文 UI
   2. 点击右上角语言切换 → 英文 UI 全站生效(nav / labels / buttons / footer 全英文)
   3. 刷新页面 → 偏好通过 cookie 持久化,仍英文 UI
   4. 访问 /?lang=zh → 硬切回中文,cookie 同步更新
 
   Smoke 2 — 双语搜索 + 详情页:
+
   1. 中文 UI 输入 "AI Agent 框架" → 返回 ≥3 条中文文章命中
   2. 英文 UI 输入 "langchain framework" → 返回 ≥3 条英文文章命中
   3. 点击任一英文文章 → 详情页 <html lang="en"> + 标 "English" badge + 内容原文(英文)
@@ -71,10 +73,12 @@ Output: `kb-4-SMOKE-VERIFICATION.md` with verbatim scenario text + step-by-step 
   5. 详情页底部 og:image / og:title metadata 正确(分享到 IM 群里有预览)
 
   Smoke 3 — RAG 问答双语 + 失败降级:
+
   1. 中文输入 "LangGraph 和 CrewAI 有什么区别?" → 异步 → 中文 markdown 答复 + 来源链接
   2. 英文输入 "What is the difference between LangGraph and CrewAI?" → 异步 → 英文 markdown 答复 + 来源链接
   3. 模拟 LightRAG 不可用(stop kg backend or block storage path) → /synthesize 降级返回 FTS5 top-3 摘要拼接 + confidence: "fts5_fallback" 标记,不 500
 </interfaces>
+
 </context>
 
 <tasks>
@@ -341,6 +345,7 @@ Output: `kb-4-SMOKE-VERIFICATION.md` with verbatim scenario text + step-by-step 
 </verification>
 
 <success_criteria>
+
 - DEPLOY-05: same-host deploy PASS
 - All 3 smoke scenarios PASS — the milestone close gate
 </success_criteria>

@@ -40,11 +40,13 @@ In both cases, a genuinely failed doc appeared `'processed'` to the poller.
 **Changes to `ingest_wechat.py`:**
 
 1. Added `STABLE_VERIFY_DELAY_S` constant (line 63):
+
    ```python
    STABLE_VERIFY_DELAY_S = float(os.getenv("OMNIGRAPH_STABLE_VERIFY_DELAY", "5.0"))
    ```
 
 2. Added `stable_delay_s` parameter to `_verify_doc_processed_or_raise` signature (line 82):
+
    ```python
    stable_delay_s: float = STABLE_VERIFY_DELAY_S,
    ```
@@ -77,6 +79,7 @@ In both cases, a genuinely failed doc appeared `'processed'` to the poller.
 - GREEN run: 11/11 tests passed — see `.scratch/h09race-pytest-green-20260511-160944.log`
 
 Full output (GREEN):
+
 ```
 collected 11 items
 test_processed_verification_passes_first_try PASSED

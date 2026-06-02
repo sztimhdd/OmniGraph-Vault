@@ -92,6 +92,7 @@ $ venv/Scripts/python.exe -m pytest tests/unit/research/ -v
 ```
 
 Breakdown by file:
+
 - `test_types.py` — 10/10 (carried from ar-1-01)
 - `test_config.py` — 11/11 (carried from ar-1-01)
 - `test_stages_stubs.py` — 20/20 (new, ar-1-02 Tasks 1+2)

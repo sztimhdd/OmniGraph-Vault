@@ -80,6 +80,7 @@ Output: `lib/article_filter.py` carries real Layer 2 + bumped prompt_version; `m
 <!-- Existing symbols this plan REUSES (read-only). -->
 
 From `lib/llm_deepseek.py` (post-ir-1; unchanged):
+
 ```python
 async def deepseek_model_complete(
     prompt: str,
@@ -88,12 +89,14 @@ async def deepseek_model_complete(
     **kwargs,
 ) -> str: ...
 ```
+
 - Reads `DEEPSEEK_API_KEY` at module-import time (raises RuntimeError if absent).
 - Reads `DEEPSEEK_MODEL` env, default `deepseek-v4-flash` (note: REQ LF-2.3 names `deepseek-chat` — see plan deviation note below).
 - Built-in 120s request timeout.
 - API endpoint: `https://api.deepseek.com/v1` (OpenAI-compatible).
 
 From `lib/article_filter.py` post-ir-1 (commit cf79840):
+
 - `ArticleMeta`, `ArticleWithBody`, `FilterResult` (3-field) — REUSED.
 - `PROMPT_VERSION_LAYER1` constant — REUSED unchanged.
 - `_LAYER1_V0_PROMPT_BODY`, `_layer1_timeout_env`, `layer1_pre_filter`, `persist_layer1_verdicts` — UNCHANGED.
@@ -101,6 +104,7 @@ From `lib/article_filter.py` post-ir-1 (commit cf79840):
 - `def layer2_full_body_score(articles)` (line ~343, sync placeholder returning verdict='candidate') — REPLACE with real async DeepSeek impl returning verdict='ok'/'reject'.
 
 From `.scratch/layer2-validation-20260507-210423.md`:
+
 - The verbatim Layer 2 v0 prompt at lines 43-118 of the report. Copy character-for-character into `_LAYER2_V0_PROMPT_BODY`.
 - Failure-mode mapping at report lines 195-203:
   - timeout → "timeout"
@@ -172,6 +176,7 @@ def persist_layer2_verdicts(
     """Atomically persist layer2_verdict + reason + at + prompt_version on
     each article's source table. Mirror of persist_layer1_verdicts."""
 ```
+
 </interfaces>
 
 <tasks>
@@ -211,11 +216,13 @@ def persist_layer2_verdicts(
 1. **Update module docstring** at the top: replace the description of layer2 placeholder with "real DeepSeek batch call against the v0 prompt validated 2026-05-07 spike (.scratch/layer2-validation-20260507-210423.md). Verdict alphabet: 'ok' / 'reject' per LF-2.5."
 
 2. **Bump constant** at line 75:
+
 ```python
 PROMPT_VERSION_LAYER2: str = "layer2_v0_20260507"  # ir-2: real DeepSeek wired
 ```
 
 3. **Add new Layer 2 constants** AFTER the existing `LAYER1_TIMEOUT_SEC` block:
+
 ```python
 LAYER2_BATCH_SIZE: int = 5
 """LF-2.2 lower bound — sweet spot per spike § Recommendation."""
@@ -249,6 +256,7 @@ _LAYER2_V0_PROMPT_BODY: str = """\
 The implementer MUST paste the full prompt verbatim — do NOT paraphrase. The spike report's reject-rate metrics are invalidated if the prompt drifts.
 
 5. **Add `_layer2_timeout_env` no-op context manager** AFTER `_layer1_timeout_env`:
+
 ```python
 @contextmanager
 def _layer2_timeout_env() -> Iterator[None]:
@@ -405,6 +413,7 @@ def persist_layer2_verdicts(
 ```
 
 8. **Update `__all__`** at module bottom to include new exports:
+
 ```python
 __all__ = [
     "ArticleMeta", "ArticleWithBody", "FilterResult",
@@ -417,6 +426,7 @@ __all__ = [
 ```
 
 **HARD CONSTRAINTS:**
+
 - DO NOT keep the sync placeholder shape — fully replace with async batch impl.
 - DO NOT edit the Layer 2 prompt text from the spike report — character-for-character verbatim.
 - DO NOT add Layer-2-specific retry logic. The DeepSeek wrapper has its own 120s timeout; LF-2.6 + D-LF-4 forbid Layer-2-level retry.
@@ -481,6 +491,7 @@ ALTER TABLE rss_articles  ADD COLUMN layer2_reason         TEXT NULL;
 ALTER TABLE rss_articles  ADD COLUMN layer2_at             TEXT NULL;
 ALTER TABLE rss_articles  ADD COLUMN layer2_prompt_version TEXT NULL;
 ```
+
   </action>
   <verify>
     <automated>test -f migrations/007_layer2_columns.sql && grep -c "ALTER TABLE" migrations/007_layer2_columns.sql | grep -q "^8$" && echo OK</automated>
@@ -580,6 +591,7 @@ if __name__ == "__main__":
     ok = migrate(DB_PATH)
     sys.exit(0 if ok else 1)
 ```
+
   </action>
   <verify>
     <automated>python -c "
@@ -630,6 +642,7 @@ os.unlink(p)
 ```
 
 Plan-level OUT-OF-SCOPE verification:
+
 - ir-2-01 owns ingest loop wiring; this plan does NOT update `batch_ingest_from_spider.py`.
 - ir-2-02 owns unit tests; the existing layer1 tests should keep passing because the new shape is additive (no Layer 1 surface changed).
 </verification>

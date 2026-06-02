@@ -24,6 +24,7 @@ ingest unaffected. Both KOL articles (`source_d='wechat'`) and RSS articles
 
 Selects up to N (default 10) articles where `body_translated IS NULL` AND
 `layer1_verdict='candidate'` AND `layer2_verdict='ok'` from both `articles`
+
 + `rss_articles` (UNION ALL, ORDER BY `layer2_at` ASC). For each row,
 translates the body via `lib.translate.translate_body_with_deepseek_tavily`
 and UPDATEs `body_translated` / `translated_lang` / `translated_at`. Does
@@ -202,4 +203,5 @@ dry-run output as evidence anchors.
 - **CLAUDE.md PRINCIPLE #6:** Local UAT mandatory before any KB phase complete (satisfied above)
 - **CLAUDE.md PRINCIPLE #7:** Behavior-anchor harness — fixture parity for `articles` + `rss_articles` translation columns
 </content>
+
 </invoke>

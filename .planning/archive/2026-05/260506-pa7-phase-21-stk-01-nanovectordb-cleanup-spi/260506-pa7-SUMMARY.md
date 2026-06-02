@@ -151,6 +151,7 @@ None. Hard scope honored — zero production source touched.
 ## Self-Check: PASSED
 
 Verified:
+
 - `.planning/quick/260506-pa7-phase-21-stk-01-nanovectordb-cleanup-spi/spike_cleanup_probe.py` exists.
 - `.planning/phases/21-stuck-doc-spike/21-00-SPIKE-FINDINGS.md` exists with `verdict:` in frontmatter.
 - Commit `35d81fc` exists in `git log`.

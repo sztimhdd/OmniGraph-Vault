@@ -63,6 +63,7 @@ metrics:
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed ingest_pdf's broken reference to deleted describe_image()**
+
 - **Found during:** Task 1.2
 - **Issue:** `ingest_pdf()` called `describe_image(img_path)` which we deleted from the file. Leaving it would break PDF ingestion with `NameError: name 'describe_image' is not defined`.
 - **Fix:** Updated `ingest_pdf` to call `describe_images([Path(img_path)]).get(Path(img_path), "")` — uses the batch API with a single-item list.
@@ -70,6 +71,7 @@ metrics:
 - **Commit:** 19cb925
 
 **2. [Rule 1 - Bug] Removed PIL import made orphan by describe_image deletion**
+
 - **Found during:** Task 1.2
 - **Issue:** `from PIL import Image` was only used by the deleted `describe_image` function. Leaving it would create an unused import that could cause ImportError if PIL is not installed.
 - **Fix:** Removed the import per Surgical Changes principle (we made it orphaned).

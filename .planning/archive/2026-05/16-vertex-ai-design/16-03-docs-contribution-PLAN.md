@@ -42,6 +42,7 @@ Contribute two append-only documentation sections — one to `CLAUDE.md`, one to
 Purpose: A reader of `CLAUDE.md` should understand WHY quota coupling is a problem and WHERE to find the full spec. A reader of `Deploy.md` should see the production recommendation and have a copy-paste command to estimate cost.
 
 Output:
+
 - `CLAUDE.md` + one new section "Vertex AI Migration Path" (after § "Lessons Learned")
 - `Deploy.md` + one new section "Recommended Upgrade Path" (appended)
 
@@ -108,6 +109,7 @@ To estimate monthly cost before migrating, run:
 ```bash
 python scripts/estimate_vertex_ai_cost.py --articles {N} --avg-images-per-article {M}
 ```
+
 ```
 
 3. Verify placement and content:
@@ -190,6 +192,7 @@ python scripts/estimate_vertex_ai_cost.py --articles 282 --avg-images-per-articl
 ```
 
 Output lists Embedding (Vertex AI), Vision (SiliconFlow), LLM (DeepSeek) costs and a monthly total.
+
 ```
 
 3. Verify:
@@ -230,6 +233,7 @@ After both tasks, open `CLAUDE.md` and `Deploy.md` and confirm the new sections 
 </verification>
 
 <success_criteria>
+
 - [ ] CLAUDE.md has new § Vertex AI Migration Path after § Lessons Learned
 - [ ] Deploy.md has new § Recommended Upgrade Path as last section
 - [ ] Both sections link to the spec and the cost script

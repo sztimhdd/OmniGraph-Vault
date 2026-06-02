@@ -44,6 +44,7 @@ metrics:
 ### lib/llm_deepseek.py
 
 Replaced the hardcoded constant:
+
 ```python
 # BEFORE:
 _DEEPSEEK_TIMEOUT_S = 120.0
@@ -59,6 +60,7 @@ The `or "300"` guard handles the edge case where the env var is set to empty str
 ### tests/unit/test_llm_deepseek_lazy.py
 
 Added 2 new tests after the existing 4:
+
 - `test_default_timeout_is_300` — confirms timeout=300.0 when `OMNIGRAPH_DEEPSEEK_TIMEOUT` is unset
 - `test_env_override_changes_timeout` — confirms timeout=60.0 when `OMNIGRAPH_DEEPSEEK_TIMEOUT=60`
 
@@ -100,6 +102,7 @@ tests/unit/test_lightrag_llm.py::test_deepseek_client_has_120s_timeout PASSED
 ### Import smoke check
 
 Appended to `.scratch/dsto-20260511-160043.log`:
+
 ```
 import OK
 ```
@@ -124,6 +127,7 @@ Baseline failure count was also 23 (verified from `.planning/.../b2uhntn4p.outpu
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed test_lightrag_llm.py::test_deepseek_client_has_120s_timeout isolation**
+
 - **Found during:** Task 1 GREEN verification
 - **Issue:** The test was reading `ld._client.timeout` without explicitly rebuilding the client. Under some test orderings in the full suite, a stale 120.0 client cached from a preceding test bled through even after the autouse fixture ran, causing intermittent failures asserting 300.0 == 120.0.
 - **Fix:** Added `monkeypatch.delenv("OMNIGRAPH_DEEPSEEK_TIMEOUT", raising=False)`, `sys.modules.pop("lib.llm_deepseek", None)`, `ld._client = None`, `ld._get_client()` to force a deterministic fresh client in every run.

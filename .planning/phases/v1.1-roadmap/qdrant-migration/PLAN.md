@@ -142,6 +142,7 @@ if lightrag_lock is not None:
 This shape is observable by HT-6 N=4 lock-break tests and was verified on Databricks `01f15aeb`/`01f15af3`. It MUST NOT be modified by this phase.
 
 The env-driven vector_storage split happens at LightRAG **instantiation**:
+
 - `kb/api.py:89` (lifespan singleton)
 - `kg_synthesize.py:155` (CLI fallback ctor)
 - `ingest_wechat.py:392` (`_get_or_init_rag` ctor)

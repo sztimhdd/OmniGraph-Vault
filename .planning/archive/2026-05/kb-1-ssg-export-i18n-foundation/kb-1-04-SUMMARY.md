@@ -62,6 +62,7 @@ completed: 2026-05-12
 - **Files modified:** 2 (created)
 
 ## Accomplishments
+
 - Single `kb/static/style.css` (587 lines) with all 8 design-token CSS variables, mobile-first responsive at 768/1024px breakpoints, [data-lang] visibility selectors, and Pygments Monokai inline — no external font loads, no Tailwind, no preprocessor
 - `kb/static/lang.js` (104 lines) ES5-compatible IIFE implementing the 4-tier language resolution: `?lang=` query → `kb_lang` cookie → `navigator.languages` → `zh-CN` default; cookie persisted 1 year with SameSite=Lax
 - `.lang-toggle` click handler cycles zh ↔ en, writes cookie, reloads via `?lang=`
@@ -75,12 +76,14 @@ Each task was committed atomically:
 2. **Task 2: Write kb/static/lang.js** — `db8d02a` (feat)
 
 ## Files Created/Modified
+
 - `kb/static/style.css` — Global design tokens (`--bg`, `--bg-card`, `--text`, `--accent`, `--accent-green`, etc.), reset, layout primitives, top-nav, i18n span toggling via `[data-lang]`, article list cards, article detail body styles (`.article-body`, `.breadcrumb`, `.lang-badge`), mobile-first responsive at 768/1024px, Pygments Monokai under `.codehilite` — 587 lines, 0 external font/CDN imports
 - `kb/static/lang.js` — IIFE, `'use strict'`, ES5 (var + function() only), implements `readCookie`/`writeCookie`/`readQueryLang`/`detectFromBrowser`/`resolveLang`/`applyLang`/`bindToggle`, supports both `loading` and post-load DOMContentLoaded paths — 104 lines
 
 ## Acceptance Criteria Verification
 
 ### Task 1 (style.css)
+
 - Line count 587 ≥ 300 — PASS
 - 5 design-token CSS variables (`--bg: #0f172a`, `--bg-card: #1e293b`, `--text: #f0f4f8`, `--accent: #3b82f6`, `--accent-green: #22d3a0`) all present — PASS (5 grep hits)
 - Font stack literal `'Inter', 'Noto Sans SC', system-ui, sans-serif` present — PASS
@@ -89,6 +92,7 @@ Each task was committed atomically:
 - `grep -E "@import.*://|googleapis|cdn\."` returns 0 — PASS
 
 ### Task 2 (lang.js)
+
 - Line count 104 (range 60–110) — PASS
 - All required strings (`kb_lang`, `COOKIE_MAX_AGE = 31536000`, `SameSite=Lax`, `data-fixed-lang`, `navigator.languages`, `URLSearchParams`) — PASS (9 grep hits)
 - IIFE: starts with `(function ()` and ends with `})();` — PASS
@@ -96,6 +100,7 @@ Each task was committed atomically:
 - No `import`, no `=>`, no `let`/`const` outside comments — PASS
 
 ## Decisions Made
+
 - None — followed plan as specified. CSS structure (9 sections in order) and lang.js code body were both written verbatim per plan spec.
 
 ## Deviations from Plan

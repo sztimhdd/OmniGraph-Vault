@@ -84,6 +84,7 @@ Amendment 4 was your call — no bridge module, inline env-var write + `refresh_
 ### 3. Phase 4 preservation in `cognee_wrapper.py` (`53dbcc1`)
 
 Must preserve:
+
 - 4 function signatures: `remember_article`, `remember_synthesis`, `recall_previous_context`, `disambiguate_entities`
 - `_disambiguation_cache = {}` module-level dict
 - Fire-and-forget semantics (`asyncio.create_task(...)`, `asyncio.wait_for(..., timeout=5.0)`)
@@ -102,6 +103,7 @@ During Wave 2, 4 pre-existing failing tests in `test_fetch_zhihu.py` + `test_ima
 ### 6. Phase 5 cross-coupling risk
 
 Phase 5 Plan 05-00c landed 4 commits in parallel with Wave 2 (`36cf862`, `ebdd095`, `d4700ed`, `7122b8a`, `139aed1`, + the Deepseek swap at `139aed1`). `lib/__init__.py` now imports `deepseek_model_complete` with fail-at-import key validation. Wave 3 had to use `DEEPSEEK_API_KEY=dummy` to run the full suite. Does this argue for:
+
   - (a) Lazy-importing `deepseek_model_complete` in `lib/__init__.py`?
   - (b) Soft-failing Deepseek key validation at import time?
   - (c) Leaving it — Phase 5 owns the coupling and Wave 4 is unaffected?
@@ -121,6 +123,7 @@ A review doc at `.planning/phases/07-model-key-management/07-REVIEW-HERMES-WAVES
 ---
 
 **Reference docs for context:**
+
 - `07-CONTEXT.md` — 11 decisions + 8 amendments (post-your-review locked state)
 - `07-02-SUMMARY.md` — Wave 2 executor's self-report
 - `07-03-SUMMARY.md` — Wave 3 executor's self-report

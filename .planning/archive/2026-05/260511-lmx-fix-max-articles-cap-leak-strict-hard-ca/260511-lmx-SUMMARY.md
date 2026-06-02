@@ -56,6 +56,7 @@ Plan-claimed line numbers verified against worktree HEAD (`7306385` pre-fix):
 Repro script: `.scratch/lmx-repro.py` (gitignored).
 
 Command:
+
 ```bash
 .venv/Scripts/python .scratch/lmx-repro.py
 ```
@@ -67,6 +68,7 @@ Run with the temporary stderr line `[lmx-debug] iter=N processed=X queue_len=Y m
 **Pre-fix log file**: `.scratch/maxcap-prefix-20260511T185332Z.log` (29 lines)
 
 Key evidence lines:
+
 - L6:  `[lmx-debug] iter=1 processed=0 queue_len=0 max=2`
 - L8:  `[lmx-debug] iter=2 processed=0 queue_len=1 max=2`
 - L10: `[lmx-debug] iter=3 processed=0 queue_len=2 max=2`
@@ -107,6 +109,7 @@ Key evidence lines:
 ```
 
 Untouched (per surgical-change rule):
+
 - CAP CHECK 2 at L1930 (now redundant for the leak case but harmless as belt-and-suspenders)
 - Final drain at L1939 (correct: flushes the in-flight queue after `break`)
 - Scan-mode `run()` at L689 (different code path; user reports were all `--from-db`)
@@ -119,6 +122,7 @@ Same repro script, same args, with the temporary stderr line removed and the fix
 **Post-fix log file**: `.scratch/maxcap-postfix-20260511T185437Z.log` (18 lines)
 
 Key evidence lines:
+
 - L6:  `[1/6] [kol-account-A] KOL article 100`
 - L7:  `[2/6] [kol-account-A] KOL article 101`
 - L8:  `max-articles cap reached (processed=0 + queued=2 >= 2); stopping --from-db loop.` ← per-iter check fires when queued=2 >= cap=2 BEFORE iter=3 enqueue
@@ -189,6 +193,7 @@ Completed quick 260511-lmx — `--max-articles` strict hard cap on ok+failed onl
 ## Self-Check: PASSED
 
 Created files exist:
+
 - `tests/unit/test_max_articles_hard_cap.py` — present, committed in `7629071`
 - `.planning/quick/260511-lmx-fix-max-articles-cap-leak-strict-hard-ca/260511-lmx-SUMMARY.md` — this file
 - `.scratch/maxcap-prefix-20260511T185332Z.log` — present (29 lines)
@@ -196,4 +201,5 @@ Created files exist:
 - `.scratch/maxcap-pytest-20260511T185651Z.log` — present (15 lines)
 
 Commit pushed to origin/main:
+
 - `7629071` — confirmed via `git push origin HEAD:main` fast-forward `7306385..7629071`

@@ -75,6 +75,7 @@ Output: 1 new helper `kb/services/wiki_inject.py` (~30 LOC) + a small modificati
 The kb-v2.2-7 parallel agent may modify kb/services/synthesize.py. The first read_first item in every task touching synthesize.py is "read current state of kb/services/synthesize.py immediately before editing".
 
 Existing helper to reuse (per RESEARCH "Don't Hand-Roll"):
+
 ```python
 # kb/services/synthesize.py
 def _resolve_sources_from_markdown(md: str) -> list[str]:
@@ -83,6 +84,7 @@ def _resolve_sources_from_markdown(md: str) -> list[str]:
 ```
 
 Existing async synthesize entry (placeholder; verify exact signature when reading):
+
 ```python
 async def synthesize(question: str, mode: str = "long_form") -> dict:
     rag = await get_rag()
@@ -91,6 +93,7 @@ async def synthesize(question: str, mode: str = "long_form") -> dict:
 ```
 
 Wiki inject contract (NEW — this plan defines):
+
 ```python
 # kb/services/wiki_inject.py
 def extract_main_entity(question: str) -> str | None:
@@ -104,11 +107,13 @@ async def resolve_wiki_context(question: str, wiki_root: Path = Path("kb/wiki"),
 ```
 
 Read-time lint subset (from kb/wiki_lint.py — built in W3):
+
 - `lint_citation_integrity(page_path, known_article_hashes)` — must return [] (all citations resolve)
 - `lint_staleness(page_path, max_days=180)` — must return []
 - (Skip backlink/contradiction at read-time — those are write-time concerns)
 
 `<wiki_context>` block format (per CONTEXT.md Wave 4 implementation details):
+
 ```
 <wiki_context>
 # Entity wiki page content (raw markdown including frontmatter and citations)
@@ -118,6 +123,7 @@ Read-time lint subset (from kb/wiki_lint.py — built in W3):
 ```
 
 DB connection / config-driven path resolution (MEDIUM 3 fix — wiki_inject.py MUST use these patterns, not hardcoded paths):
+
 - `config.py` exposes `BASE_DIR`, `RAG_WORKING_DIR`, and `KOL_SCAN_DB_PATH` (or equivalent). All path resolution MUST honor `OMNIGRAPH_BASE_DIR` env override.
 - `kb/api.py` exposes the FastAPI app + DB connection helper used by other `kb/services/*` modules. wiki_inject.py SHOULD import the same helper rather than opening its own sqlite3 connection with a hardcoded path.
 </interfaces>
@@ -387,6 +393,7 @@ Phase-level verification for W4:
 </verification>
 
 <success_criteria>
+
 1. kb/services/wiki_inject.py exposes extract_main_entity + resolve_wiki_context; ≤30 LOC; config-driven DB path resolution (no hardcoded literals)
 2. kb/services/synthesize.py has the wiki-context prepend; ≤40 LOC change; no other modifications
 3. 5 fallthrough unit tests + 4 injection integration tests all PASS

@@ -45,6 +45,7 @@ Extend `scripts/reconcile_ingestions.py` to detect "ghost success" race conditio
 Purpose: Surface silent ghosts so the candidate-pool re-pick (which would burn paid Vision API budget) becomes visible in cron logs. Exit 1 → cron alert.
 
 Output:
+
 - `scripts/reconcile_ingestions.py` with a NEW `_query_failed_rows` function + reverse-scan loop in `main()` + extended summary line + extended exit code semantics.
 - `tests/unit/test_reconcile_rss.py` with 4 new test cases (total 18, plus 8 in `test_reconcile_ingestions.py` = 26).
 </objective>
@@ -78,14 +79,17 @@ def _query_ok_rows(db_path: Path, date_start: date, date_end: date) -> list[dict
 ```
 
 Existing mystery JSON line shape (DO NOT touch — backward compat for downstream parsers):
+
 ```json
 {"art_id": int, "url": str, "doc_id": str, "actual_status": str, "ingested_at": str}
 ```
 
 Existing summary line (DO NOT touch left side, only append after `|`):
+
 ```
 2026-05-14: 1 ok rows / 1 matched / 0 mystery (wechat: 0, rss: 0)
 ```
+
 </interfaces>
 
 <test_fixture_helpers>
@@ -366,6 +370,7 @@ The fixture's `ingestions.status` column is plain TEXT (no CHECK constraint) →
 </verification>
 
 <success_criteria>
+
 - [ ] All 26 unit tests PASS (22 existing + 4 new)
 - [ ] `_query_failed_rows` helper exists in `scripts/reconcile_ingestions.py`
 - [ ] Summary line appends `| N ghost (wechat: X, rss: Y)` (always present, even when ghost = 0)

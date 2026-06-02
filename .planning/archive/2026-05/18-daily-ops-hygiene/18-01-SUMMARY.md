@@ -33,6 +33,7 @@ Tests: **8/8 pass**. No regression in `tests/unit/test_image_pipeline.py` (22/22
 **Option A (N-image cap).** Default `MAX_IMAGES_PER_ARTICLE = 60`.
 
 Rationale (carried from 18-01-PLAN `<objective>`):
+
 - Wave 0 kept-image distribution: median ~10–15, p95 ~40. 60 = ~2× p95 — generous headroom without opening the door to the long tail.
 - 118-image article was the single outlier in a 67-article batch (1.5%). Losing images #61–118 for that one outlier is acceptable; the first 60 already carry the article's visual argument.
 - Simple to reason about, trivial to unit-test, reversible via env var.

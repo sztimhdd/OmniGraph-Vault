@@ -5,6 +5,7 @@
 local-tip-time of writing). Operator pulls after the W5 push lands.
 
 **Deploy contract:**
+
 - ir-4 ships **all 5 commits as one main update** (W1+W2+W3+W4+W5).
 - migration 008 is the **only schema change** (single rebuild on `ingestions`).
 - Operator must remove the existing `rss-classify` cron job manually because
@@ -171,6 +172,7 @@ cd ~/OmniGraph-Vault && bash scripts/cron_daily_ingest.sh 2
 ```
 
 Expected:
+
 - Two articles processed end-to-end (Layer 1 → Layer 2 → ainsert).
 - DB shows two `ingestions(status='ok')` rows. At least one should have
   `source='rss'` because the FIFO `ORDER BY source DESC, id` puts KOL
@@ -210,6 +212,7 @@ Post-ir-4 the candidate pool is ~149 KOL + ~1600 RSS articles. The default
 `daily-ingest` cron runs `--max-articles 10` — that's 150 days at 1 batch/day.
 
 **Recommended catch-up cadence (first week):**
+
 - Day 1: run `bash scripts/cron_daily_ingest.sh 50` once, off-peak. Wall-clock
   ~3-4h depending on scrape + ainsert mix.
 - Day 2-7: same — 1 extra burst per day, 50 articles each.

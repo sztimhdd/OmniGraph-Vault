@@ -20,6 +20,7 @@ tester:
 expected: Per ROADMAP Success Criterion #3 — open generated `kb/output/articles/*.html` in a browser. Verify visible `中文` / `English` lang badge, correct breadcrumb labels (Home > Articles > Title), JSON-LD article schema in `<head>`, og:* meta in `<head>`, code highlighting via Pygments inline CSS, no broken images (logo placeholder degrades gracefully via onerror).
 result: PASS
 evidence:
+
   - **zh-CN article** (`/articles/16e23156b6.html` — "对话 Sam 和 Greg:这波 AI,很多人看错了", 5087 chars body):
     - `<html lang="zh-CN">` ✓ matches content
     - badge text: **"中文"** ✓ visible at top of article
@@ -43,6 +44,7 @@ why_human: ~~Visual rendering is only verifiable by opening generated HTML in a 
 expected: Per ROADMAP Success Criterion #4 — load any generated page with `?lang=en`, verify all UI chrome strings (nav, footer, page titles, etc.) toggle to English. Reload without the query param. Verify English persists via `kb_lang` cookie (1-year SameSite=Lax per kb-1-04 spec).
 result: PASS
 evidence:
+
   - 默认进 homepage (无 query, no cookie) → Playwright 默认 `Accept-Language: en-US,en` → 4-tier resolver 选 `en` → UI 全英文 (Home / Articles / Ask AI / language toggle shows "中")
   - 点击语言 toggle 按钮 → URL → `/?lang=zh-CN`, UI 全中文:
     - brand: VitaClaw → 企小勤
@@ -88,6 +90,7 @@ why_human: Operator action — sourcing a binary asset from a sibling repo not p
 expected: Per kb-1-DESIGN-AUDIT.md Resolution — `ui-ux-pro-max` + `frontend-design` Skills invoked, `kb-1-UI-SPEC.md` design contract ratified, all 12 audit findings closed. Visual re-verification at 5 page types × 3 viewports (375 / 768 / 1280) confirms: gradient hero text, prominent search + 5 topic chips + dual CTA, article cards with rounded-2xl + body snippet + color-coded lang chips (zh-CN=blue / en=green / unknown=neutral grey) + WeChat/RSS source icons + hover glow, chevron breadcrumb, full Q&A page layout per PRD §5.4 (large textarea + glow CTA + 5 hot questions + result framework + disclaimer + bottom CTA banner), no horizontal scroll at any viewport, focus-visible rings, prefers-reduced-motion honored.
 result: PASS
 evidence:
+
   - 15/15 viewports PASS (5 page types × {375, 768, 1280}px) — `.scratch/kb-1-redesign-uat-iter2-*.log`
   - All horizontal scroll measurements: scrollW = vw, body overflow-x = hidden — zero overflow
   - **Screenshots** captured by Python Playwright (headless Chromium) and inspected:
@@ -114,6 +117,7 @@ blocked: 0
 ## Test Methodology
 
 Verification performed via Playwright MCP automated browser session 2026-05-13:
+
 - Full `kb/output/` SSG re-built against production `.dev-runtime/data/kol_scan.db` (1800 article HTMLs across KOL + RSS, mixed zh-CN / en / unknown lang distribution).
 - Local `python -m http.server 8090 --directory kb/output` served the SSG output.
 - Playwright Chromium navigated 4 page types (homepage / article list / 2 article details / Q&A entry) and ran assertions via `browser_evaluate` for og: meta, JSON-LD schema, lang badge text, cookie value, viewport scrollWidth.

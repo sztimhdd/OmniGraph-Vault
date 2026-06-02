@@ -87,6 +87,7 @@ def init_db(db_path: Path) -> None:
 Target: extend `init_db` to also call `init_rss_schema(conn)` from the new module.
 
 From RESEARCH.md Pattern 5 (verified OPML parse shape):
+
 ```python
 import xml.etree.ElementTree as ET
 tree = ET.parse(path)
@@ -95,6 +96,7 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
     xml_url = outline.get("xmlUrl")
     html_url = outline.get("htmlUrl")
 ```
+
 </interfaces>
 </context>
 
@@ -423,6 +425,7 @@ for outline in tree.getroot().findall(".//outline[@type='rss']"):
 </verification>
 
 <success_criteria>
+
 - Idempotent RSS schema migration wired into init_db.
 - Bundled OPML parses to 92 feeds.
 - `rss_feeds` seeded; re-running seed is a no-op.

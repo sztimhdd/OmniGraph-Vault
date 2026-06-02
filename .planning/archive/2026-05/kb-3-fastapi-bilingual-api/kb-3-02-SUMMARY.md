@@ -27,6 +27,7 @@ Skill(skill="writing-tests", args="TDD tests for env override (case-insensitive 
 Both Skills loaded from `~/.claude/skills/python-patterns/SKILL.md` and
 `~/.claude/skills/writing-tests/SKILL.md` BEFORE writing any code.
 Guidance applied:
+
 - python-patterns: PEP 8 type hints, explicit module-level env constant, EAFP avoided for schema drift (programmer error, not exception flow), `dict[int, bool]` Python 3.9+ built-in generic, no try/except for guard misses.
 - writing-tests: integration-first against real SQLite, behavior-focused (assert on returned `ArticleRecord` lists, not SQL string structure), happy + error paths covered, sqlite3 in-memory connection allowed under "test DB" exception.
 
@@ -53,6 +54,7 @@ Guidance applied:
 Added 4 negative-case rows to fixture (additive — kb-2 baseline tests
 unaffected because negatives don't touch any classifications/entities used
 by existing assertions):
+
 - KOL id=99: body='', layer1='reject' — fails 2/3 conditions
 - KOL id=98: body present, layer1='candidate', layer2='reject' — fails 1/3
 - RSS id=97: body=NULL, layer1='candidate', layer2='ok' — fails body condition

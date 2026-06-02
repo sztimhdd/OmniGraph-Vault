@@ -143,6 +143,7 @@ Skill(skill="frontend-design", args="Wire into Jinja2 partial that expects `lang
 Both literals appear in `kb/templates/_qa_result.html` (template comment block) AND `kb/static/qa.js` (module header comment).
 
 **ui-ux-pro-max disciplines applied:**
+
 - Priority 1 (Accessibility): `aria-live="polite"` on result region; `role="alert"` only on error banner; focus-visible across interactive controls; `prefers-reduced-motion` respected
 - Priority 2 (Touch & Interaction): feedback buttons carry `aria-pressed`; retry button has both icon + text label; no icon-only structural buttons
 - Priority 7 (Animation): `transform-performance` rule satisfied (GPU-accelerated `transform` + `opacity` only); 400ms result-reveal ease-out; 900ms spinner; motion has cause-effect (state transitions, not decoration)
@@ -151,6 +152,7 @@ Both literals appear in `kb/templates/_qa_result.html` (template comment block) 
 - D-12 token discipline: 31 `:root` vars unchanged
 
 **frontend-design disciplines applied:**
+
 - "anti-AI-aesthetic": honest "Quick Reference" copy on fts5_fallback (not "AI is thinking..." anthropomorphism)
 - Component restraint: extract reusable partial; no new card variants beyond kb-1 / kb-2
 - Cohesive style: state-attribute selectors compose existing utility classes; zero new tokens
@@ -190,12 +192,14 @@ The 8-state matrix introduces zero new `:root` vars. Yellow `qa-confidence-chip-
 ## Self-Check: PASSED
 
 **Files exist:**
+
 - `kb/templates/_qa_result.html` ✓ FOUND (109 lines)
 - `kb/static/qa.js` ✓ FOUND (275 lines)
 - `kb/static/marked.min.js` ✓ FOUND (50,680 bytes)
 - `tests/integration/kb/test_ask_html_state_matrix.py` ✓ FOUND (34 tests pass)
 
 **Commits exist:**
+
 - `c8f9b9a` ✓ FOUND
 - `c10b1b8` ✓ FOUND
 

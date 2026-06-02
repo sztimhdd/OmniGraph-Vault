@@ -20,6 +20,7 @@ Karpathy's LLM Wiki pattern (60+ implementations as of April 2026) is the proven
 The libraries and tools every task in this phase will use (no hand-rolled alternatives):
 
 ### Markdown + Frontmatter (wiki page format)
+
 - **Pattern:** Plain markdown files with YAML frontmatter for metadata
 - **Frontmatter fields (from nashsu/llm_wiki SCHEMA conventions):**
   - `title` — page display name
@@ -31,22 +32,26 @@ The libraries and tools every task in this phase will use (no hand-rolled altern
 - **Use:** `python-frontmatter` library if Python parsing needed (DO NOT hand-roll YAML parser)
 
 ### LightRAG (existing — entity/relationship extraction + graph query)
+
 - **API surface:** `aquery(question, mode="hybrid")` for multi-hop retrieval; `vdb_entities.json` + `vdb_relationships.json` on disk for centrality scoring
 - **What's available:** entity extraction (`entity_name`, `entity_type`, `entity_description`, `source_id`), relationship extraction (`src_entity`, `tgt_entity`, `keywords`, `description`), custom KG insert API
 - **What's MISSING:** native markdown synthesis, canonical entity deduplication at export, cross-reference indexing — these are app-layer concerns
 - **Use:** existing wrappers in `lib/lightrag_embedding.py`, `lib/llm_client.py`. DO NOT modify LightRAG itself
 
 ### Citations format: `^[article:<hash>]`
+
 - **Pattern:** inline footnote-like markers tied to article content_hash (10-char hex from `articles.content_hash`)
 - **Resolution:** wiki consumer (synthesize, KB UI later) resolves hashes to `/article/<hash>.html` URLs
 - **Source:** Karpathy gist convention, also matches OmniGraph's existing kb/services/synthesize.py:_resolve_sources_from_markdown regex
 
 ### Hermes operator prompts (deployment channel for Hermes-side changes)
+
 - **Pattern:** generate paste-ready prompt for user to forward to Hermes; never `ssh` from local Bash for mutations
 - **Per CLAUDE.md Rule 5:** read-only diagnostic SSH ok; mutations via prompt
 - **Wave 2 W2 will use this pattern for omnigraph_query SKILL.md update on Hermes**
 
 ### Existing KB infrastructure (don't recreate)
+
 - **kb/services/search_index.py** — FTS5 trigram search; reference pattern for any future kb/services/wiki.py (deferred to P1)
 - **kb/services/synthesize.py:_resolve_sources_from_markdown** — citation-resolution regex; W4 reuses
 - **kb/api.py** — FastAPI app + route registration; W4 doesn't add new routes (just modifies synthesize logic)
@@ -57,16 +62,19 @@ The libraries and tools every task in this phase will use (no hand-rolled altern
 ## Architecture Patterns
 
 ### Pattern: Wiki as compiled view, Graph as source of truth
+
 - **Source layers:** raw articles (immutable in SQLite) → LightRAG graph (auto-extracted entities/relations) → wiki pages (LLM-synthesized markdown with citations)
 - **Sync direction:** wiki is FED FROM graph; graph is never modified by wiki. Wiki contains nothing that isn't traceable back to graph + raw articles via `^[article:<hash>]` citations
 - **Implication:** every task in this phase that writes to wiki must also write source citations; no claim without provenance
 
 ### Pattern: Three operations (Ingest / Query / Lint)
+
 1. **Ingest** (W3): Read new sources → extract key facts → update 10–15 wiki pages atomically (per Karpathy)
 2. **Query** (W2 + W4): Search wiki first → if miss, fall through to graph + synthesize. (Storage-back rejected per Decision 4)
 3. **Lint** (folded into W3 + W4): Pre-application guard — contradictions, dangling links, stale claims, coverage gaps
 
 ### Pattern: Compounding artifact (vs stateless RAG)
+
 | Aspect | Traditional RAG | LLM Wiki Pattern |
 |--------|---|---|
 | Retrieval model | Stateless (re-search every query) | Stateful (wiki caches synthesis) |
@@ -76,12 +84,14 @@ The libraries and tools every task in this phase will use (no hand-rolled altern
 | Multi-hop reasoning | Weak (limited context reuse) | Strong (wiki preserves intermediate reasoning) |
 
 ### Pattern: Pre-application lint guard (vs post-hoc detection)
+
 - **Decided:** lint runs BEFORE applying suggestions (W3) and BEFORE injecting into prompt (W4 read-time)
 - **Rationale:** active protection against bad updates beats retroactive detection of drift
 - **Lint checks (W3):** contradiction (new claim vs existing), citation integrity (article hashes resolve), backlink validity (`[[entity]]` references exist), staleness (suggestion source newer than existing claims)
 - **Lint checks (W4):** minimal — page exists, citations resolve, page not too stale
 
 ### Pattern: Hermes/repo separation
+
 - **kb/wiki/** — source of truth, in repo, Claude Code edits here
 - **~/wiki-omnigraph/** (Hermes side) — production read target; sync via git pull on Hermes (Hermes already runs `git pull` in cron) or symlink `~/wiki-omnigraph -> ~/OmniGraph-Vault/kb/wiki`
 - **W0 task:** decide and document the sync mechanism; recommend symlink (zero ongoing cost)
@@ -93,31 +103,37 @@ The libraries and tools every task in this phase will use (no hand-rolled altern
 These categories of solution have battle-tested standard approaches — DO NOT build custom alternatives:
 
 ### YAML frontmatter parsing
+
 - **Use:** `python-frontmatter` (already common pattern, MIT license)
 - **DON'T:** hand-roll YAML parser, regex-based field extraction, or use raw `yaml.safe_load` with manual delimiter handling
 - **Why:** edge cases (multiline values, unicode, escaping) are non-trivial; library is small + battle-tested
 
 ### Markdown citation resolution
+
 - **Use:** existing regex `\/article\/([a-f0-9]{10})` from `kb/services/synthesize.py:_resolve_sources_from_markdown`
 - **DON'T:** re-implement citation parsing in W4
 - **Why:** existing code already handles edge cases (escaped slashes, malformed hashes); reuse via import
 
 ### LightRAG centrality / multi-hop query
+
 - **Use:** existing LightRAG `aquery(mode="hybrid")` for multi-hop; read `vdb_entities.json` + `vdb_relationships.json` JSON directly for centrality counts
 - **DON'T:** invoke graph DB APIs directly (kuzu / lancedb) or write custom centrality algorithms beyond degree+relation count
 - **Why:** LightRAG already handles vector + graph hybrid retrieval; centrality from JSON files is O(N) read
 
 ### Atomic file writes
+
 - **Use:** existing OmniGraph pattern — write `.tmp` then `os.rename()` (e.g., `canonical_map.json` write pattern)
 - **DON'T:** direct write to wiki page file (risk corrupted page on crash mid-write)
 - **Why:** crash safety is non-trivial; existing pattern works
 
 ### Cron hook async execution
+
 - **Use:** `asyncio.create_task()` + `asyncio.wait_for(timeout=...)` pattern from `batch_ingest_from_spider.py`'s existing layer2 queue
 - **DON'T:** spawn subprocess, fork, or use threading for the wiki update hook
 - **Why:** existing async ingest infra already handles task lifetime + timeout + cleanup
 
 ### Skill writing (W2 Hermes update)
+
 - **Use:** existing `~/.hermes/skills/research/llm-wiki/SKILL.md` as template + `~/.hermes/skills/omnigraph_query/SKILL.md` as the file to modify
 - **DON'T:** rewrite the skill from scratch or invent new metadata fields
 - **Why:** skill convention is documented in CLAUDE.md "OpenClaw / Hermes Skill Writing Standards" section — follow it
@@ -129,41 +145,49 @@ These categories of solution have battle-tested standard approaches — DO NOT b
 LLM-maintained knowledge systems hit predictable failure modes. Verification steps in plans MUST check for these:
 
 ### Pitfall 1: Drift (wiki diverges from truth)
+
 - **Symptom:** wiki summary contradicts raw source after new article ingest
 - **Defense:** Lint contradiction check before apply (W3); periodic resync mode in W3 hook (compare wiki claims against article body samples)
 - **Verification:** test scenario in W3 plan — ingest article that contradicts existing wiki page, verify lint blocks the conflicting suggestion
 
 ### Pitfall 2: Cross-reference rot (page A links to page B, B doesn't exist or doesn't link back)
+
 - **Symptom:** `[[entity-x]]` references unresolved pages; one-way backlinks
 - **Defense:** Symmetry lint — if A links to B, B must link to A (W3 lint check)
 - **Verification:** test scenario — generate suggestion with new `[[entity-y]]` reference, verify lint either rejects (B doesn't exist) or auto-creates B-side link
 
 ### Pitfall 3: Orphan pages (unmaintained, unreachable)
+
 - **Symptom:** wiki pages with last_updated date older than 6 months
 - **Defense:** staleness check during W3 lint (skip injection in W4 if page too old); periodic backlink-count + access-frequency monitoring (deferred to v2)
 - **Verification:** test scenario — set page last_updated to 1 year ago, verify W4 falls through to LightRAG-only
 
 ### Pitfall 4: Over-synthesis (LLM hallucinates connections beyond source evidence)
+
 - **Symptom:** wiki page contains claims with no `^[article:<hash>]` citation
 - **Defense:** strict citation requirement (every paragraph must cite); confidence scores in frontmatter; lint check rejects suggestions with uncited claims
 - **Verification:** test scenario in W1 — generate page from 3-article source set, verify every claim has citation
 
 ### Pitfall 5: Degeneration loops (small LLM errors compound through update cycles)
+
 - **Symptom:** wiki page quality degrades over multiple W3 update cycles
 - **Defense:** git version control (every wiki write is tracked, rollback possible); lint blocks low-confidence suggestions
 - **Verification:** rollback procedure documented in W0 README
 
 ### OmniGraph-specific pitfall: Image URLs and citations format
+
 - **Status:** RESOLVED 2026-05-19 (commits 974f888 + 1683a58) — long-form synthesize now emits `/static/img/<hash>/<n>.jpg` + `/article/<hash>.html` correctly
 - **Implication for W1/W4:** wiki page generation can rely on this; no need to post-process synthesize output for URL/citation rewrites
 - **Verification:** W1 plan must run a sample synthesize against the test article and confirm output paths
 
 ### OmniGraph-specific pitfall: Parallel agent on kb/
+
 - **Status:** kb-v2.2-7 bilingual SSG agent active; modifies `kb/services/search_index.py`, `kb/services/synthesize.py`, `databricks-deploy/*`
 - **Implication:** W3 hook (modifies `batch_ingest_from_spider.py`) and W4 (modifies `kb/services/synthesize.py`) MAY collide
 - **Defense:** W4 must `git pull` and re-read `kb/services/synthesize.py` immediately before editing; W4 plan tasks include explicit "read current state" step
 
 ### OmniGraph-specific pitfall: LightRAG embedding quota / cost
+
 - **Status:** Vertex AI embedding GA on `global` endpoint; pool quota across projects
 - **Implication for W1:** generating 20 wiki pages with multi-hop graph queries may consume embedding budget; W1 plan should batch + cache
 - **Defense:** estimate cost in W1 plan task before generation; user budget approval gate

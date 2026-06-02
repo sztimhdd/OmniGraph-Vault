@@ -123,6 +123,7 @@ $ venv/Scripts/python.exe -m pytest tests/integration/kb/ tests/unit/kb/ --tb=sh
 ```
 
 New test file `tests/integration/kb/test_kg_mode_hardening.py`: 8 / 8 PASS:
+
 - `test_kg_mode_unavailable_when_env_unset`
 - `test_kg_mode_unavailable_when_credential_file_missing`
 - `test_kg_mode_available_when_credential_file_exists`
@@ -183,6 +184,7 @@ Deltas from the RUNBOOK template (operator deploy used `root` user, not `kb`):
 | `KB_BASE_PATH` | `/kb` | empty (Caddy strips `/kb` prefix upstream) |
 
 Deploy was applied as a hand-merged unit preserving Aliyun's existing paths
+
 + env, ADDING ONLY the kb-v2.1-1 directives (5 new lines):
 
 - `MemoryHigh=1.5G`, `MemoryMax=2G`, `CPUQuota=200%`

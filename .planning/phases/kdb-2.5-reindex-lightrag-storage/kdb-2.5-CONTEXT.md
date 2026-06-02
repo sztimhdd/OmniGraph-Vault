@@ -44,12 +44,14 @@ review away would make the $200/30h gate performative.
 ## Scope Boundaries
 
 **In scope (kdb-2.5 only):**
+
 - `databricks-deploy/jobs/reindex_lightrag.py` (NEW)
 - `databricks-deploy/jobs/reindex_lightrag.yml` (NEW)
 - `databricks-deploy/jobs/tests/` (NEW — 6 unit + 1 integration + fixtures + conftest)
 - `.planning/phases/kdb-2.5-*/` planning artifacts
 
 **Strictly read-only (must not modify):**
+
 - `databricks-deploy/lightrag_databricks_provider.py` (kdb-1.5 frozen)
 - `databricks-deploy/startup_adapter.py` (kdb-1.5 frozen)
 - `databricks-deploy/CONFIG-EXEMPTIONS.md` (kdb-2 frozen; NOT extended by kdb-2.5)
@@ -57,6 +59,7 @@ review away would make the $200/30h gate performative.
 - `tests/integration/kb/` (kdb-2 / KB-v2 territory)
 
 **Deferred (not kdb-2.5):**
+
 - kdb-3 UAT close, Smoke 3 RAG round-trip
 - Embedding-side dispatcher (`lib/embedding_complete.py`)
 - 429 auto-retry with exponential backoff (requires modifying frozen factory)

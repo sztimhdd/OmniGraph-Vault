@@ -39,11 +39,13 @@ The aim-2-3 holding-dir at `/tmp/aim2-extract/` is consumed by the `mv`; that pa
 ### Task 1 — Agent promotes holding-dir to Aliyun production path via `mv`
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-2-lightrag-storage-migration\EVIDENCE\STORAGE-04-count-evidence.md` (CRITICAL — verify Overall verdict = PASS before doing ANY mv. If FAIL, do NOT execute this task; abort per aim-2-4 abort/rollback.)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\STATE-Aliyun-Ingest-Migration-v1.md` line 133 (path correction — Aliyun production path is `/root/.hermes/omonigraph-vault/lightrag_storage/`, NOT `/opt/omnigraph-vault/`)
 - Memory `aliyun_vitaclaw_ssh.md` (SSH alias).
 
 **`<acceptance_criteria>`**
+
 - aim-2-4 STORAGE-04 verdict = PASS confirmed by reading evidence file.
 - `/root/.hermes/omonigraph-vault/` parent directory exists on Aliyun before mv (mkdir -p if missing).
 - `/root/.hermes/omonigraph-vault/lightrag_storage/` does NOT pre-exist before mv (target must be empty / non-existent — guards against accidental overwrite of any pre-existing storage).
@@ -98,10 +100,12 @@ Capture all output to `.scratch/aim-2-5-cutover-mv-<TS>.log` for evidence Task 4
 ### Task 2 — Operator sets Hermes-side storage read-only via `chmod -R a-w`
 
 **`<read_first>`**
+
 - The Aliyun production-path verification output from Task 1 (mv must have succeeded before the Hermes original is locked).
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-2-lightrag-storage-migration\EVIDENCE\STORAGE-01-pause-evidence.md` (re-confirm pause is still active — locking storage while Hermes ingest is somehow running could corrupt mid-write files even though the pause should hold).
 
 **`<acceptance_criteria>`**
+
 - Aliyun production path validated populated (Task 1 done) BEFORE Hermes chmod runs.
 - All files under `~/.hermes/omonigraph-vault/lightrag_storage/` have mode `r--r--r--` after chmod.
 - `find ~/.hermes/omonigraph-vault/lightrag_storage/ -perm -u+w` returns empty.
@@ -157,6 +161,7 @@ date -u +"%Y-%m-%dT%H:%M:%SZ" | tee /tmp/aim2-cutover-ts.iso
 ```
 
 Paste FULL output of all 5 steps. The timestamp from Step 5 + 30 days is the retention deadline that aim-2-5 Task 4 records into STATE-Aliyun-Ingest-Migration-v1.md.
+
 ```
 
 ### Task 3 — Operator resumes Hermes ingest crontab (uncomment 11 lines)
@@ -218,6 +223,7 @@ date -u +"%Y-%m-%dT%H:%M:%SZ" | tee /tmp/aim2-resume-ts.iso
 ```
 
 Paste FULL output of all 4 steps. The resume timestamp from Step 4 closes the aim-2-1 → aim-2-5 pause window.
+
 ```
 
 ### Task 4 — Agent records 30-day retention deadline in STATE + writes STORAGE-05 evidence + commits
@@ -359,6 +365,7 @@ Target: `/root/.hermes/omonigraph-vault/lightrag_storage/`
 Aim-2 phase **CLOSED — STORAGE-01..05 all PASS**. Aliyun has authoritative LightRAG storage at production path. Hermes has read-only cold backup with 30-day retention. 11-line Hermes ingest cron resumed (warm-spare window until aim-3 retires it).
 
 Next: `/gsd:plan-phase aim-3` (cutover proper — systemd timer + kol_scan.db handoff + Hermes crontab clear).
+
 ```
 
 Step 4 — commit (TWO separate commits, forward-only):
@@ -408,6 +415,7 @@ date -u +"%Y-%m-%dT%H:%M:%SZ" | tee /tmp/aim2-pause-resumed.iso
 ```
 
 Paste output. Hermes is back to authoritative ingest. Do NOT run Task 2 chmod — Hermes storage stays writable until aim-2 retry from aim-2-1.
+
 ```
 
 If Task 2 chmod has already succeeded but Task 3 resume fails, the chmod is fine to leave in place — Hermes storage is read-only (cold backup) but ingest cron is broken. Operator needs only to fix the cron resume; no chmod reverse needed.

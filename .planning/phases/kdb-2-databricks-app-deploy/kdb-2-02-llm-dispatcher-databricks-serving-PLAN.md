@@ -76,6 +76,7 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
 ### Task 2.1 — Write 4 RED unit tests for `databricks_serving` branch
 
 **Read-first:**
+
 - `tests/unit/test_llm_complete.py` (full 60 lines) — pattern: monkeypatch env, lazy-import contract, ValueError match
 - `kdb-2-RESEARCH.md` Q2 lines 256-281 — concrete test sketches for all 4
 - `databricks-deploy/lightrag_databricks_provider.py:48-98` — `make_llm_func()` shape (so the test mock returns a compatible async callable)
@@ -177,6 +178,7 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
 4. Run `pytest tests/unit/test_llm_complete.py -v` and confirm: 5 existing tests PASS, 4 new tests FAIL with import or logic errors (RED phase). Capture stderr/stdout to `.scratch/kdb-2-02-red.log`.
 
 **Acceptance** (grep-verifiable):
+
 - `grep -c "^def test_" tests/unit/test_llm_complete.py` returns `9` (5 existing + 4 new)
 - `grep -c "test_databricks_serving_returns_factory_callable\|test_unknown_provider_lists_databricks_in_error\|test_databricks_branch_is_lazy_import\|test_databricks_provider_error_path_surfaces" tests/unit/test_llm_complete.py` returns `4`
 - `pytest tests/unit/test_llm_complete.py -v` exit code is non-zero (RED — 4 failures expected); 5 existing tests still PASS
@@ -190,6 +192,7 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
 ### Task 2.2 — GREEN: implement `databricks_serving` branch + Decision-1 translation
 
 **Read-first:**
+
 - `lib/llm_complete.py` (full 48 lines) — exact insertion point
 - `kdb-2-RESEARCH.md` Q2 lines 217-253 — concrete branch sketch
 - `kdb-2-RESEARCH.md` Q4 lines 476-503 — error-classifier patterns (used here as the translation reference, not as a new helper in `kb/services/synthesize.py`)
@@ -202,6 +205,7 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
 2. Edit `lib/llm_complete.py`:
    - **Line 27** — change `_VALID = ("deepseek", "vertex_gemini")` to `_VALID = ("deepseek", "vertex_gemini", "databricks_serving")`
    - **Insert new branch** between line 41 (end of vertex_gemini branch) and line 42 (start of `raise ValueError(...)`):
+
      ```python
          if provider == "databricks_serving":
              # kdb-2 LLM-DBX-01 + LLM-DBX-04 (Decision 1 — translation in dispatcher).
@@ -246,11 +250,13 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
                  )
              return _databricks_serving_llm
      ```
+
    - **Update module docstring** lines 1-19 — extend the provider list to mention `databricks_serving` and reference kdb-2 LLM-DBX-01 + LLM-DBX-04 with one sentence each. Surgical addition only — no rewrite of unrelated content.
 3. Run `pytest tests/unit/test_llm_complete.py -v` — expect ALL 9 tests to PASS (GREEN). Capture stdout to `.scratch/kdb-2-02-green.log`.
 4. Spot-check the lazy-import contract via `python -c "import lib.llm_complete; import sys; assert 'lightrag_databricks_provider' not in sys.modules; assert 'databricks.sdk' not in sys.modules; print('OK')"` → expect `OK`.
 
 **Acceptance** (grep-verifiable):
+
 - `grep -c '"databricks_serving"' lib/llm_complete.py` returns ≥3 (in `_VALID`, in the branch `if provider ==`, and in docstring)
 - `grep -c "from lightrag_databricks_provider import make_llm_func" lib/llm_complete.py` returns 1
 - `pytest tests/unit/test_llm_complete.py -v` exit code 0; output contains `9 passed`
@@ -265,6 +271,7 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
 ### Task 2.3 — Flip CONFIG-EXEMPTIONS row + commit forward-only
 
 **Read-first:**
+
 - `databricks-deploy/CONFIG-EXEMPTIONS.md` (full 29 lines) — current ledger
 - `feedback_no_amend_in_concurrent_quicks.md` — forward-only commit rule
 - `feedback_git_add_explicit_in_parallel_quicks.md` — explicit file paths in `git add`
@@ -273,14 +280,19 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
 
 1. Edit `databricks-deploy/CONFIG-EXEMPTIONS.md`:
    - Change line 11 row from:
+
      ```
      | `lib/llm_complete.py` | LLM-DBX-01 | kdb-2 | NOT YET MODIFIED |
      ```
+
      to (placeholder commit hash filled in step 4):
+
      ```
      | `lib/llm_complete.py` | LLM-DBX-01 + LLM-DBX-04 (translation per Decision 1) | kdb-2 | MODIFIED (kdb-2-02 — see commit <FILL_AT_COMMIT>) |
      ```
+
    - Add a paragraph under "Phase kdb-1.5 contribution" titled "Phase kdb-2-02 contribution":
+
      ```
      ## Phase kdb-2-02 contribution
 
@@ -293,8 +305,10 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
      `kb/services/synthesize.py:448` routes to the `kg_unavailable` reason-code
      bucket (kb-v2.1-1 KG MODE HARDENING contract).
      ```
+
 2. Stage explicitly: `git add lib/llm_complete.py tests/unit/test_llm_complete.py databricks-deploy/CONFIG-EXEMPTIONS.md`
 3. Commit forward-only with message:
+
    ```
    feat(kdb-2-02): add databricks_serving provider branch + LLM-DBX-04 translation
 
@@ -311,13 +325,17 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
 
    REQs: LLM-DBX-01 (full); LLM-DBX-04 (implementation; verification in kdb-2-03)
    ```
+
 4. After commit, capture commit hash via `git log -1 --format=%H`. Edit `databricks-deploy/CONFIG-EXEMPTIONS.md` to replace `<FILL_AT_COMMIT>` with the actual hash. Stage + commit forward-only as a second commit:
+
    ```
    docs(kdb-2-02): backfill commit hash into CONFIG-EXEMPTIONS row
    ```
+
    (This is the 2-forward-commit pattern from STATE-kb-databricks-v1.md — never `git commit --amend`, ever, on shared main checkout.)
 
 **Acceptance** (grep-verifiable):
+
 - `grep -E "lib/llm_complete\.py.*MODIFIED \(kdb-2-02" databricks-deploy/CONFIG-EXEMPTIONS.md` returns ≥1 row
 - `grep -c "Phase kdb-2-02 contribution" databricks-deploy/CONFIG-EXEMPTIONS.md` returns 1
 - `git log --oneline | head -3` shows BOTH the feat commit AND the docs backfill commit (forward-only — no `--amend`)
@@ -352,6 +370,7 @@ This plan flips ONE row in `databricks-deploy/CONFIG-EXEMPTIONS.md`:
 ## Anti-patterns (block list)
 
 This plan MUST NOT:
+
 - Modify `kg_synthesize.py` (Decision 3 — kdb-2-03 territory + zero net change anyway)
 - Modify `kb/services/synthesize.py` (Decision 1 — translation lives in dispatcher)
 - Add `kb/services/synthesize.py` to CONFIG-EXEMPTIONS (Decision 1)

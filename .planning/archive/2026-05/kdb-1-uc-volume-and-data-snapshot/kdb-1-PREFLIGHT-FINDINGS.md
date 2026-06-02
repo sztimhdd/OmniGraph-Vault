@@ -125,6 +125,7 @@ SHOW SCHEMAS IN mdlg_ai_shared LIKE 'preflight_test_*'
 (N/A — no failures observed.)
 
 If a future re-run surfaces failures:
+
 - PREFLIGHT-01 ❌ → likely Apps-SP-specific issue (since user-creds work); escalate to Databricks IT for SP-level CAN QUERY grant on Model Serving endpoints
 - PREFLIGHT-02 ❌ → escalate to workspace admin for explicit grant of `USE CATALOG` + `CREATE SCHEMA` (or the equivalent group membership)
 

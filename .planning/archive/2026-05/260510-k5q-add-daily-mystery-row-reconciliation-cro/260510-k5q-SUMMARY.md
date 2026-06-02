@@ -173,6 +173,7 @@ The next response in that case is to:
    PROCESSED-gate is holding.
 
 Possible root causes if canary fires:
+
 - `_verify_doc_processed_or_raise` retry budget exceeded under real Vertex
   pipeline (see contract test at `tests/unit/test_ainsert_persistence_contract.py`)
 - Cancelled vision-worker sub-doc race (parallel quick `260510-gqu`

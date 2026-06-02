@@ -333,6 +333,7 @@ Output: kb-4-VERIFICATION.md + STATE/ROADMAP edits.
 </verification>
 
 <success_criteria>
+
 - KB-v2 milestone closed (or operator-deploy-pending if option-c)
 - All artifacts on disk
 - Memory `feedback_parallel_track_gates_manual_run.md` honored — direct edits, not gsd-tools state advance

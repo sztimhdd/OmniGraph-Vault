@@ -59,6 +59,7 @@ T3a + T3b exercise.
 T3a probes a single doc with status snapshots at **post-await** and
 **post-finalize** boundaries. T3b stresses the same path across 5
 sequential docs to surface accumulation effects (per-article snapshots
+
 + a final post-finalize snapshot).
 
 ## Constraints
@@ -515,6 +516,7 @@ selection is the user's call after reading INVESTIGATION § 5.
 > **T3a — `test_t3a_real_vertex_post_await_vs_post_finalize`**
 > Single doc, real Vertex Gemini LLM + real `embedding_func`. Capture
 > status snapshots at:
+>
 > 1. **post-await** — immediately after
 >    `await asyncio.wait_for(rag.ainsert(content, ids=[doc_id]), 300)`
 >    returns. Read `kv_store_doc_status.json[doc_id]['status']`
@@ -536,6 +538,7 @@ selection is the user's call after reading INVESTIGATION § 5.
 > post-await snapshot list.
 >
 > Print verdict lines:
+>
 > - `[T3b verdict] post-await processed: X/5`
 > - `[T3b verdict] post-finalize processed: Y/5`
 

@@ -122,6 +122,7 @@ cycle). An in-flight `ainsert` call that LLM-times out will set status `FAILED`
 **What "stuck doc" means in practice:**
 
 A doc is stuck when:
+
 1. `kv_store_doc_status.json` contains `"status": "failed"` or `"status": "processing"` for the doc_id
 2. The corresponding content in `kv_store_full_docs.json` may or may not exist
 3. Entity vectors and graph edges may be partially written
@@ -129,6 +130,7 @@ A doc is stuck when:
 **LightRAG's own self-healing path** (`lightrag.py:1603-1733`):
 
 When a new `ainsert` is called, `_validate_and_fix_document_consistency` runs and:
+
 - Docs with `FAILED` status AND no content in `full_docs` → deleted from `doc_status` automatically
 - Docs with `FAILED` status AND content in `full_docs` → status reset to `PENDING` (retried)
 - Docs with `PROCESSING` status → status reset to `PENDING` (retried)
@@ -190,6 +192,7 @@ Deliver: `scripts/cleanup_stuck_docs.py --dry-run / --doc-id / --all-failed / --
 **Evidence:**
 
 Current `rss_articles` schema (from live DB):
+
 ```sql
 rss_articles (
   id, feed_id, title, url, author, summary,
@@ -199,6 +202,7 @@ rss_articles (
 ```
 
 Current `articles` (KOL) schema:
+
 ```sql
 articles (
   id, account_id, title, url, digest, update_time,
@@ -257,6 +261,7 @@ STAGE_FILES: dict[str, str] = {
 ```
 
 The hash key is derived from URL (`lib/checkpoint.py:63-65`):
+
 ```python
 def get_article_hash(url: str) -> str:
     return hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
@@ -265,6 +270,7 @@ def get_article_hash(url: str) -> str:
 A WeChat URL and an RSS URL will never produce the same 16-char SHA-256 prefix
 under realistic conditions (namespace collision probability: ~2^-64). The stage file
 names are source-agnostic. `rss_ingest.py` already computes a hash independently:
+
 ```python
 article_hash = hashlib.md5(url.encode("utf-8")).hexdigest()[:12]  # rss_ingest.py:244
 ```
@@ -291,6 +297,7 @@ directly.
 **`ingest_wechat.py` — extract one function, leave rest in place.**
 
 The scraping cascade lives across four functions:
+
 - `scrape_wechat_apify` (line 509) — WeChat-specific Apify actor
 - `scrape_wechat_cdp` (line 681) — generic CDP, works on any URL
 - `scrape_wechat_mcp` (line 547) — generic Playwright MCP, works on any URL
@@ -330,6 +337,7 @@ async def scrape_url(
 ```
 
 **Functions to move:**
+
 - `scrape_wechat_cdp` → becomes `_scrape_via_cdp(url, cdp_url)` in `lib/scraper.py`
 - `scrape_wechat_mcp` → becomes `_scrape_via_mcp(url, mcp_url)` in `lib/scraper.py`
 - `process_content` → move to `lib/scraper.py` (it is already generic HTML→MD)
@@ -337,6 +345,7 @@ async def scrape_url(
 - `scrape_wechat_apify` stays in `ingest_wechat.py` but is called internally by `scrape_url`
 
 **Functions that stay in `ingest_wechat.py`:**
+
 - `ingest_article` — orchestrates the full ingest (classify + image + LightRAG), not just scrape
 - All UA rotation helpers (`_next_ua`, `_ua_cooldown`)
 - `get_rag`, `_vision_worker_impl`, `_pending_doc_id` tracking
@@ -485,6 +494,7 @@ orchestrate_daily.step_7_ingest_all
 ```
 
 **Key invariants preserved from KOL path:**
+
 - Checkpoint atomicity: every stage write is `.tmp` → `os.replace()`
 - Vision worker is fire-and-forget: exceptions swallowed, text ingest is never blocked
 - `enriched = 2` written only after `PROCESSED` status confirmed (D-19)

@@ -50,6 +50,7 @@ Ship integration tests that exercise the full Phase 13 stack (VisionCascade + si
 Purpose: CASC-04 has a subtle "all-429 → stop batch" rule, CASC-03 has recovery-probe semantics over 10 skipped images, and CASC-06 has mid-batch SiliconFlow-removal logic. These multi-step sequences are best tested via integration: instantiate the real `VisionCascade`, mock only the HTTP layer, and run sequences of calls that exercise the state machine across many iterations.
 
 Output:
+
 - `tests/integration/test_vision_cascade_e2e.py` — ≥7 integration tests simulating 503/429/timeout/recovery/balance sequences
 - `tests/integration/__init__.py` — ensure test dir is importable (may already exist)
 </objective>
@@ -77,6 +78,7 @@ Output:
 <!-- All patched at the requests/HTTP boundary — never import real API keys -->
 
 From `lib.vision_cascade`:
+
 ```python
 from lib.vision_cascade import (
     VisionCascade,
@@ -90,12 +92,14 @@ from lib.vision_cascade import (
 ```
 
 Mocking strategy (patches at the HTTP boundary inside vision_cascade):
+
 ```python
 mocker.patch("lib.vision_cascade.requests.post")   # for SiliconFlow + OpenRouter
 mocker.patch("lib.vision_cascade.generate_sync")   # for Gemini (via lib.generate_sync)
 ```
 
 Helper for stubbed HTTP response:
+
 ```python
 def make_post_response(status_code=200, description="stub"):
     r = MagicMock()
@@ -384,6 +388,7 @@ def test_gemini_alert_at_batch_end(cascade_env, mocker, tmp_path, monkeypatch, c
 Ensure `tests/integration/__init__.py` exists (if missing, create empty). Add `pytest.mark.integration` marker to all tests. Tests should be runnable via `pytest tests/integration/test_vision_cascade_e2e.py -v` AND skippable in unit-only CI runs via `-m "not integration"`.
 
 Edge cases to handle:
+
 - If `image_pipeline.describe_images` imports `VisionCascade` via `from lib.vision_cascade import VisionCascade`, then patches at `image_pipeline.VisionCascade` (not `lib.vision_cascade.VisionCascade`) — but for HTTP-layer mocks we patch `lib.vision_cascade.requests.post` because that's where the real `_call_provider` methods live.
 - Balance check in image_pipeline is imported as `from lib.siliconflow_balance import check_siliconflow_balance` so patch at `image_pipeline.check_siliconflow_balance`.
   </action>
@@ -416,6 +421,7 @@ Edge cases to handle:
 </verification>
 
 <success_criteria>
+
 - [ ] Circuit-open sequence (3×503) verified at integration level with on-disk provider_status.json check
 - [ ] All-providers-429 raises `AllProvidersExhausted429Error` verified
 - [ ] Recovery probe after 10 skipped images verified (circuit re-closes on success)

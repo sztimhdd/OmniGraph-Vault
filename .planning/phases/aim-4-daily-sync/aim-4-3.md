@@ -107,6 +107,7 @@ abort/rollback section.
 ### Task 1 — Author 2 systemd unit files + README in repo
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-4-daily-sync\aim-4-CONTEXT.md`
   lines 252-288 (Hermes systemd unit templates with verbatim ini content)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-3-cutover\aim-3-1.md`
@@ -115,6 +116,7 @@ abort/rollback section.
   lines 72, 74 (SYNC-02 + SYNC-04 verbatim)
 
 **`<acceptance_criteria>`**
+
 - `deploy/hermes/systemd/` directory exists in repo.
 - The 3 files (`omnigraph-daily-pull.service`,
   `omnigraph-daily-pull.timer`, `README.md`) exist with content
@@ -236,6 +238,7 @@ ls -la /tmp/aliyun-sync-failed-*
 - `.planning/phases/aim-4-daily-sync/aim-4-CONTEXT.md`
 - `.planning/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` SYNC-02 + SYNC-04
 - `scripts/sync-from-aliyun.sh` (the script this unit calls)
+
 ```
 
 ### Task 2 — Deploy units to Hermes + enable timer
@@ -319,11 +322,13 @@ expected. Document the gating in evidence.
 ### Task 3 — Net cron count audit + manual fire smoke
 
 **`<read_first>`**
+
 - aim-3 SUMMARY (CUTOVER-03 evidence — Hermes ingest crontab cleared)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\STATE-Aliyun-Ingest-Migration-v1.md`
   lines 78-90 (Hermes operational state pre/post cutover)
 
 **`<acceptance_criteria>`**
+
 - On Hermes: `crontab -l 2>/dev/null | grep -E "ingest|kol_scan|rss" | wc -l` returns 0.
 - On Hermes: `systemctl list-timers omnigraph-* --no-pager` shows
   exactly 1 timer (`omnigraph-daily-pull.timer`). If aim-3 erroneously
@@ -364,10 +369,12 @@ Capture all stdout for evidence.
 ### Task 4 — Author evidence + commit
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\CLAUDE.md` Lessons Learned 2026-05-06 #5 + 2026-05-15 #1
 - Memory `feedback_git_add_explicit_in_parallel_quicks.md`
 
 **`<acceptance_criteria>`**
+
 - `.planning/phases/aim-4-daily-sync/aim-4-3-EVIDENCE.md` exists with
   all stdout from Task 2 + Task 3.
 - Single forward-only commit on `main` with the 3 unit/README files +

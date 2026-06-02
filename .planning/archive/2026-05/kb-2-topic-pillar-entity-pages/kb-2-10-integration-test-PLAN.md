@@ -86,11 +86,13 @@ Pattern from kb-1 integration test (`tests/integration/kb/test_export.py`):
 - Asserts sitemap.xml + _url_index.json correctness
 
 kb-2 fixture data (from plan 01 conftest.py):
+
 - 8 articles (5 KOL + 3 RSS), 5 topics × 3-5 articles, 6 above-threshold entities
 - All articles pass TOPIC-02 cohort gate (depth_score>=2 + layer verdict)
 - Entity slugs (deterministic via slugify_entity_name): openai, langchain, lightrag, anthropic, autogen, mcp
 
 Driver invocation pattern (mirror kb-1 test):
+
 ```python
 import subprocess
 result = subprocess.run(
@@ -99,6 +101,7 @@ result = subprocess.run(
     capture_output=True, text=True, check=True,
 )
 ```
+
 </interfaces>
 </context>
 
@@ -397,6 +400,7 @@ result = subprocess.run(
 </verification>
 
 <success_criteria>
+
 - All 12 kb-2 REQs cross-cutting verified at integration level (TOPIC-01..05, ENTITY-01..04, LINK-01..03)
 - ≥12 test cases pass (5 topic param + 6 entity param + structural + JSON-LD + sitemap + LOC + locale param + icon param + read-only)
 </success_criteria>

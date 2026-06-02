@@ -7,6 +7,7 @@
 ---
 
 <user_constraints>
+
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
@@ -101,6 +102,7 @@ Phase 5 delivers an unattended daily pipeline atop a mandatory embedding migrati
 - `sentence-transformers` — out of scope; local embedding was a deferred alternative for quota issues.
 
 **Installation (new deps only):**
+
 ```bash
 # Remote WSL host:
 venv/bin/pip install feedparser langdetect
@@ -143,6 +145,7 @@ docs/spikes/
 **When to use:** Always, for gemini-embedding-2 only. The prefix is required for optimal RAG performance per official docs.
 
 **Code example (verified from official cookbook and code inspection):**
+
 ```python
 # Source: lightrag/kg/nano_vector_db_impl.py:152-153 (query path uses _priority=5)
 #         lightrag/kg/nano_vector_db_impl.py:123 (upsert path has no _priority)
@@ -207,6 +210,7 @@ async def embedding_func(texts: list[str], **kwargs) -> np.ndarray:
 **When to use:** Wave 0b only (50% cost savings, async overnight). Live RSS ingestion in Waves 1+ uses sync API.
 
 **Code shape (verified from local SDK source + official cookbook):**
+
 ```python
 # Source: venv/Lib/site-packages/google/genai/batches.py + Batch_mode.ipynb
 
@@ -263,6 +267,7 @@ if batch_job.state.name == "JOB_STATE_SUCCEEDED":
 **If staying at 768 (recommended):** Phase 4 delete-by-id + re-ainsert path (D-17) remains fully valid. Delete the 18 docs by ID, change the model env var, re-ainsert. The JSON files remain intact.
 
 **If changing dim (NOT recommended for Wave 0):**
+
 1. Stop Hermes.
 2. Delete `~/.hermes/omonigraph-vault/lightrag_storage/vdb_*.json` (3 files: entities, relationships, chunks).
 3. Keep `~/.hermes/omonigraph-vault/lightrag_storage/*.graphml` and KV JSON files (they are unaffected by dim change).
@@ -273,6 +278,7 @@ if batch_job.state.name == "JOB_STATE_SUCCEEDED":
 **What:** When a text chunk contains `http://localhost:8765/<hash>/<i>.jpg`, the embedding function fetches the image bytes and sends text + image as a single aggregated embedding via `embed_content`. A single `contents` array with multiple parts (text string + `types.Part.from_bytes(...)`) produces ONE aggregated embedding per the official cookbook (Cell 21-22: "Submitting multiple parts within a single content entry produces one aggregated embedding").
 
 **Code shape (verified from cookbook Cell 22):**
+
 ```python
 # Source: google-gemini/cookbook Embeddings.ipynb Cell 22
 result = client.models.embed_content(
@@ -358,42 +364,49 @@ def parse_opml(path: str) -> list[dict]:
 ## Common Pitfalls
 
 ### Pitfall 1: NanoVectorDB Embedding Dim Assertion Failure
+
 **What goes wrong:** Changing `embedding_dim` in `wrap_embedding_func_with_attrs` while existing `vdb_*.json` files have `embedding_dim: 768` causes `AssertionError: Embedding dim mismatch, expected: 1536, but loaded: 768` at LightRAG startup.
 **Why it happens:** `nano_vectordb/dbs.py:72-74` asserts dim equality on every init.
 **How to avoid:** Keep `embedding_dim=768` for Wave 0 (recommended). If a higher dim is chosen, delete all three `vdb_*.json` files before first run with new dim.
 **Warning signs:** `AssertionError` during LightRAG `__post_init__`. Usually surfaces in the first `await rag.ainsert()` or `await rag.aquery()` call.
 
 ### Pitfall 2: Gemini Batch API Paid-Tier Requirement
+
 **What goes wrong:** `client.batches.create_embeddings()` returns 403 or quota error on a free-tier API key.
 **Why it happens:** Multiple official cookbook notebooks (Embeddings_REST.ipynb Cell 3, haystack cross-modal notebook Cell 4) explicitly note "requires paid tier rate limits to run properly."
 **How to avoid:** Test with a 1-item inline batch BEFORE building the full Wave 0b pipeline. If 403: fall back to sync API with per-embedding `asyncio.sleep(1.0)` rate limiting (same pattern as Phase 4's 100-RPM guard on -001).
 **Warning signs:** HTTP 403 or `google.api_core.exceptions.PermissionDenied` on `batches.create_embeddings()`.
 
 ### Pitfall 3: task_type Parameter Not Supported for gemini-embedding-2
+
 **What goes wrong:** Passing `config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY")` to `embed_content` with `model="gemini-embedding-2"` may silently ignore or error.
 **Why it happens:** Official cookbook Cell 44 explicitly states "With gemini-embedding-2, the task_type parameter is not supported. Instead, you should include task instructions directly in the prompt." The Haystack integration notebook appears to pass `task_type` in config but that may be a Haystack abstraction that converts it to a prompt prefix internally.
 **How to avoid:** Use prompt prefixes (`"task: search result | query: {text}"`) not `task_type` param. Never forward `task_type` to `embed_content` for `-2`.
 **Warning signs:** Embeddings appear to work but retrieval quality is degraded (no cross-modal benefit); or API returns error about unsupported parameter.
 
 ### Pitfall 4: Ingestion Dedup Blocking Re-Embed
+
 **What goes wrong:** After Wave 0 re-embed, `ingest_from_db` skips all 18 docs because `ingestions` table already has `status=ok` for them.
 **Why it happens:** `ingest_from_db:562` excludes `article_id IN (SELECT article_id FROM ingestions WHERE status = 'ok')`.
 **How to avoid:** Wave 0 re-embed script must use `rag.adelete_by_doc_id()` + `rag.ainsert()` directly (not `ingest_from_db`). The ingestion record stays intact (no need to wipe it) — only the LightRAG vector storage needs refreshing.
 **Warning signs:** "No passed articles found" message during re-embed run.
 
 ### Pitfall 5: `_priority` Kwarg Forwarded to Gemini API
+
 **What goes wrong:** LightRAG wraps the embedding function with `priority_limit_async_func_call` which injects `_priority` kwarg. If the wrapper naively forwards `**kwargs` to `embed_content`, the Gemini SDK throws `TypeError: unexpected keyword argument _priority`.
 **Why it happens:** LightRAG's queue mechanism passes `_priority=5` to signal higher priority for query calls. It's an internal kwarg, not a Gemini API parameter.
 **How to avoid:** Pop `_priority` from kwargs before calling `embed_content`: `is_query = kwargs.pop("_priority", None) == 5`.
 **Warning signs:** `TypeError` on first `rag.aquery()` call.
 
 ### Pitfall 6: RSS Feed Timeout Blocking Full Fetch
+
 **What goes wrong:** One slow feed (30s timeout) blocks subsequent feeds if run synchronously.
 **Why it happens:** `feedparser.parse()` is synchronous; 92 feeds × potential 30s = up to ~46 min.
 **How to avoid:** Run feeds in thread pool with `asyncio.get_event_loop().run_in_executor()`, cap each at 10-15s timeout. PRD §7 specifies "feedparser 超时 30s/feed" — confirm this is per-feed (not total).
 **Warning signs:** `rss_fetch.py` run takes > 10 minutes for 92 feeds.
 
 ### Pitfall 7: cognee_wrapper EMBEDDING_MODEL Env Var Conflict
+
 **What goes wrong:** `cognee_wrapper.py:27` sets `os.environ["EMBEDDING_MODEL"] = "gemini-embedding-001"` at import time, overwriting the `EMBEDDING_MODEL=gemini-embedding-2` set in `~/.hermes/.env`.
 **Why it happens:** cognee_wrapper hardcodes the old model name as an environment override.
 **How to avoid:** D-03 requires updating `cognee_wrapper.py:27` in lockstep with the migration.
@@ -501,6 +514,7 @@ if batch_job.state.name == "JOB_STATE_SUCCEEDED":
 ### Verified: `batch_ingest_from_spider.py` Multi-Keyword Extension
 
 Current signature (lines 598-616):
+
 ```python
 # Current: single --topic-filter string, required with --from-db
 parser.add_argument("--topic-filter", type=str, default=None)
@@ -509,6 +523,7 @@ parser.add_argument("--topic-filter", type=str, default=None)
 ```
 
 Extension for multi-keyword (D-11). **Recommended CLI shape:** multi-flag (consistent with existing `batch_classify_kol.py --topic Agent --topic LLM` pattern):
+
 ```python
 # Extended: multiple --topic-filter flags (match any)
 parser.add_argument("--topic-filter", type=str, action="append", dest="topic_filters",
@@ -531,6 +546,7 @@ parser.add_argument("--topic-filter", type=str, action="append", dest="topic_fil
 | 6 duplicated `embedding_func` copies | Single shared module (D-01) | Wave 0 | Easier model swaps; one change point |
 
 **Deprecated/outdated:**
+
 - `gemini_embed.func` from `lightrag.llm.gemini`: Uses `task_type` parameter, incompatible with `-2`. Must be replaced in the new shared module with a direct SDK call. (The function remains in the package but cannot be used for `-2`.)
 - `RETRIEVAL_DOCUMENT` / `RETRIEVAL_QUERY` task_type values: Still valid for `gemini-embedding-001`; unsupported for `gemini-embedding-2`.
 
@@ -572,9 +588,11 @@ parser.add_argument("--topic-filter", type=str, action="append", dest="topic_fil
 | `batch_classify_kol.py` | Wave 0b pre-classification | Present in repo | — | — |
 
 **Missing dependencies requiring install steps:**
+
 - `feedparser` + `langdetect`: Wave 1 plan must include `venv/bin/pip install feedparser langdetect && pip freeze > requirements.txt`.
 
 **Blocking unknowns (must be resolved in Wave 0 spike):**
+
 - Gemini Batch API tier availability — test before building Wave 0b pipeline.
 - gemini-embedding-2 free-tier RPM — probe before setting throttle interval.
 
@@ -611,6 +629,7 @@ parser.add_argument("--topic-filter", type=str, action="append", dest="topic_fil
 ### Benchmark Design (Wave 0 Deliverable)
 
 **Golden-query set:** 5-10 queries covering key topics already in the graph (Phase 4-validated). Minimum design:
+
 - 2 Chinese technical queries (e.g., "Hermes Agent 架构", "OpenClaw 技术栈")
 - 2 cross-modal queries (e.g., "LightRAG 架构图", queries expected to surface image chunks)
 - 1 English query if any English content exists in graph
@@ -631,6 +650,7 @@ parser.add_argument("--topic-filter", type=str, action="append", dest="topic_fil
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - `venv/Lib/site-packages/lightrag/kg/nano_vector_db_impl.py` — LightRAG upsert path: `embedding_func(batch)` at line 123; query path: `embedding_func([query], _priority=5)` at line 152
 - `venv/Lib/site-packages/lightrag/operate.py:3639` — LightRAG query batching: `await actual_embedding_func(texts_to_embed, _priority=5)`
 - `venv/Lib/site-packages/nano_vectordb/dbs.py:72-74` — Dim mismatch assert: confirmed hard fail on dim change with existing storage
@@ -640,11 +660,13 @@ parser.add_argument("--topic-filter", type=str, action="append", dest="topic_fil
 - GitHub Gist `emschwartz/e6d2bf860ccc367fe37ff953ba6de66b` (accessed 2026-04-28 via GitHub API) — OPML confirmed: 92 feeds, OPML 2.0, 2-level nesting, all representative feeds present
 
 ### Secondary (MEDIUM confidence — verified via official Google cookbook)
+
 - `google-gemini/cookbook quickstarts/Embeddings.ipynb` (accessed 2026-04-28 via GitHub API) — Confirmed: gemini-embedding-2 model name correct; `task_type` unsupported for -2; multimodal via `types.Part.from_bytes()`; aggregated embedding for text+image in single `contents` list; default dim 3072; `output_dimensionality` config supported
 - `google-gemini/cookbook quickstarts/Batch_mode.ipynb` (accessed 2026-04-28 via GitHub API) — Confirmed: `client.batches.create_embeddings()` API shape; JSONL format for file-based batches; `EmbeddingsBatchJobSource(file_name=...)` or `inlined_requests`; poll/retrieve pattern; 24hr SLO
 - `google-gemini/cookbook quickstarts/rest/Embeddings_REST.ipynb` Cell 3 + `examples/haystack/Gemini_Embedding_Haystack_Crossmodal_Retrieval.ipynb` Cell 4 — Both note "requires paid tier rate limits" for cross-modal/batch embedding
 
 ### Tertiary (LOW confidence — needs on-host validation)
+
 - `google-genai` v1.73.1 PyPI metadata — confirmed version installed in project venv
 - feedparser 6.0.12 from PyPI — confirmed latest version; not yet installed on remote
 
@@ -665,6 +687,7 @@ parser.add_argument("--topic-filter", type=str, action="append", dest="topic_fil
 ## Metadata
 
 **Confidence breakdown:**
+
 - Standard stack: HIGH — versions confirmed from PyPI + local venv
 - LightRAG embedding call shape: HIGH — directly inspected installed source
 - NanoVectorDB dim binding: HIGH — directly inspected installed source

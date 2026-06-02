@@ -106,6 +106,7 @@ All six SCs **VALID**.
 **Right-Size justification (orchestrator-waived):** Halt Trigger "LoC > 150" was triggered. User selected option Z — accept A dispatcher full design knowing it would exceed the 150 ceiling. Initial estimate was +201 net; T5 plan-checker split added a unit-test layer, growing total to +258 net (honest row-sum; see TOTAL row footnote). This phase explicitly remains plan-phase tier (multi-subsystem coordination: lib/ dispatcher + databricks-deploy/ helper + kb/api.py wrapper replacement + 2 test layers + 1 deploy artifact env update). The eval harness alone (T4 +50) + unit-test layer (T5 +50) are plan-phase mandate per Principle #8 ("measurement infrastructure"). No quick downshift possible.
 
 **Out of scope (queued for `v1.1.P2-3-perf-fix-B`):**
+
 - `lib/vertex_gemini_rerank.py` (Vertex Gemini batch JSON helper, +50 LoC)
 - `lib/llm_rerank.py` adds vertex_gemini route (+10 LoC)
 - Aliyun systemd env update + deploy + smoke + Aliyun-side VERIFICATION (+5 config + ops)
@@ -803,19 +804,24 @@ Six tasks, dependency-ordered.
 ## Verification (4 Track + SC#5 + SC#6)
 
 ### Track 1 — Cold-start (SC#1)
+
 **Databricks Apps (binding gate):**
+
 - LightRAG hydrate ~28.88s (P5 baseline preserved). `_build_llm_rerank` only constructs an async closure (no model download/load). First /api/synthesize Haiku TTFB ~5-15s.
 - **PASS:** `cold_start_databricks_s ≤ 60s`. Log shows `llm_rerank_init_ok provider=databricks_serving wall_s=NN.NN` exactly once per process.
 
 **Local NTFS (informational, not gating):**
+
 - No BGE load, so local boot ≤ baseline. Reported but not asserted.
 
 ### Track 2 — Async safety (P5 contract preserved)
+
 - Re-run `tests/integration/kb/test_async_safety.py::test_singleton_async_safety_n4` against deployed Databricks.
 - **PASS:** 4/4 done, distinct markdown, MARKER tokens preserved.
 - LLM rerank introduces no new lock; relies on P5's `app.state.lightrag_lock` (verified P2-3 RESEARCH §7).
 
 ### Track 3 — Graceful degrade (SC#4 + SC#6)
+
 - (a) `OMNIGRAPH_LLM_RERANK_FORCE_FAIL=1` → app.state.rerank_disabled=True; mode='hybrid' for KG paths. Log: `llm_rerank_force_fail`. **PASS** when 200 + `mode='hybrid'`.
 - (b) `BGE_FORCE_LOAD_FAIL=1` legacy compat → identical path. Log: `llm_rerank_force_fail (test/escape override)`. **PASS** when 200 + `mode='hybrid'`.
 - (c) Per-request: simulated JSON parse fail (test b in T5) → wrapper returns identity, apply_rerank_if_enabled uses original chunks; aquery succeeds.
@@ -823,14 +829,17 @@ Six tasks, dependency-ordered.
 - All four mechanisms verified.
 
 ### Track 4 — Steady-state quality (SC#2 + SC#3)
+
 - **SC#2 latency:** 10-iter p50/p95 against post-P5 baseline 49.93s. **PASS:** `p50_databricks ≤ 65s`.
 - **SC#3 quality:** eval harness on N=15 (10 qa_seed + 5 prod queries). **PASS:** `mean_post - mean_baseline ≥ 0.10`.
 
 ### SC#5 — Principle #9 file-touch invariant
+
 - `git diff --name-only main..HEAD | Select-String 'kb/(static|templates)/'` returns empty.
 - Sync-only Databricks deploy permissible; no Pass 0 SSG bake required.
 
 ### Aliyun parity gate (HC-6)
+
 - **DEFERRED to `v1.1.P2-3-perf-fix-B`.** Aliyun retains P5 baseline mode='hybrid' until B ships Vertex Gemini batch JSON helper + dispatcher route + Aliyun deploy.
 
 ## Halt Triggers
@@ -856,12 +865,14 @@ P2-3-perf-fix-A is a **paired-component change** spanning 2 NEW files + 2 MODIFI
 2. **Provider downgrade:** set `OMNIGRAPH_LLM_RERANK_PROVIDER=disabled` on deployed app. Same end state but explicit dispatcher control.
 
 3. **Full revert (if architectural):**
+
    ```powershell
    git revert <T6-sha> <T5-sha> <T4-sha> <T3-sha> <T2-sha> <T1-sha>
    git push origin main
    databricks sync --watch . /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy
    databricks apps deploy omnigraph-kb --source-code-path /Workspace/Users/hhu@edc.ca/omnigraph-kb/databricks-deploy
    ```
+
    Restores P2-3 escape state (BGE wrapper retained, escape env active).
 
 4. **Partial revert (Haiku only):** revert T1 commit only; the dispatcher import in T2 then surfaces ImportError in lifespan, which `_build_llm_rerank` catches as graceful degrade. Effectively forces rerank_disabled until dispatcher is restored. Hot-fix-friendly state.
@@ -869,6 +880,7 @@ P2-3-perf-fix-A is a **paired-component change** spanning 2 NEW files + 2 MODIFI
 ## Success Criteria
 
 P2-3-perf-fix-A is complete when:
+
 - [ ] **SC#1:** Cold-start ≤ 60s on Databricks; numeric in VERIFICATION.md cites `llm_rerank_init_ok wall_s=` + first /api/synthesize wall.
 - [ ] **SC#2:** Steady-state long_form `p50_databricks ≤ 65s` (1.3 × P5 baseline 49.93s).
 - [ ] **SC#3:** Token-overlap `mean_post ≥ mean_baseline + 0.10` on N=15 (10 qa_seed + 5 production).
@@ -881,6 +893,7 @@ P2-3-perf-fix-A is complete when:
 ## Output
 
 After T6 operator-approved, the phase closes with:
+
 - 6 commits on main (T1..T6)
 - Updated `STATE-v1.1.md` (P2-3-perf-fix-A row added → ✅ CLOSED post-approval)
 - `P2-3-perf-fix-A-VERIFICATION.md` with all 6 SC sections + Databricks deploy evidence + Aliyun deferred citation

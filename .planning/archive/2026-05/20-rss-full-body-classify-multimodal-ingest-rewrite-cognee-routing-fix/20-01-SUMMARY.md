@@ -72,6 +72,7 @@ Rewrote `enrichment/rss_classify.py` to achieve architectural parity with the KO
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Kept `_call_deepseek` as stub instead of deleting**
+
 - **Found during:** Understanding test monkeypatching contract
 - **Issue:** Tests 1 and 3 call `monkeypatch.setattr("enrichment.rss_classify._call_deepseek", ...)` without `raising=False`. Deleting `_call_deepseek` entirely would cause `AttributeError` when pytest tries to patch the attribute.
 - **Fix:** Kept `def _call_deepseek(...)` raising `NotImplementedError` with a clear message. Plan's `<acceptance_criteria>` only forbids `def _call_deepseek` being a *functional* caller (it said "replaced by `_call_fullbody_llm` import") — a stub satisfies that constraint.
@@ -79,6 +80,7 @@ Rewrote `enrichment/rss_classify.py` to achieve architectural parity with the KO
 - **Commit:** 882e322
 
 **2. [Rule 2 - Missing critical] Module-reference calls instead of local binding**
+
 - **Found during:** Analyzing test monkeypatch expectations
 - **Issue:** Tests patch `batch_classify_kol._call_fullbody_llm` at the source module. Python `from module import func` creates a local binding; patching the source module doesn't affect an already-imported local binding. The tests would pass the mock check but silently call the real function.
 - **Fix:** Call via `batch_classify_kol._call_fullbody_llm(prompt)` and `batch_classify_kol._build_fullbody_prompt(...)`. The `from batch_classify_kol import ...` statement is still present (satisfies D-20.01 literal import requirement and `FULLBODY_TRUNCATION_CHARS` constant usage).

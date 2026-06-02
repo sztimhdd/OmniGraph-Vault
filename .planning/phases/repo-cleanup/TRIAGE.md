@@ -100,6 +100,7 @@ CLAUDE.md is currently ~870 lines / ~16k tokens at session start. Goal: reduce b
 **Execution order within Bucket A:** A21 fix-on-extract first (D3 explicit), then A8 + A20 + A19 + A14 + A6 + A15 (other extracts), then COMPACTs (A4, A5, A10, A12, A16, A18). All as separate atomic commits to keep diffs reviewable.
 
 **Phase 4 token-delta scaffold (estimate):**
+
 - EXTRACTs (A6 + A8 + A14 + A15 + A19 + A20 + A21): ~430 lines → ~7 lines pointers = **−423 lines / ~−7,400 tokens**
 - COMPACTs (A4 + A5 + A10 + A12 + A16 + A18): ~140 lines → ~25 lines = **−115 lines / ~−2,000 tokens**
 - **Total estimated reduction: ~538 lines / ~9,400 tokens (~58% of CLAUDE.md before HARD CONSTRAINTS).**
@@ -283,6 +284,7 @@ Per INVENTORY:
 Approved: ~360 MB recovery. Untracked AND >30 days OR not cited from any committed `.md`/`.py` file.
 
 **Per-batch protocol (mandatory):**
+
 1. List candidates in batches of ≤50 paths; write each batch to `.scratch/cleanup-batch-NN.txt` (gitignored).
 2. For each batch, run `git grep -F -l <basename>` across `*.md *.py` (excluding `.scratch/`).
 3. If any candidate is cited → halt batch, surface to user, ask before deleting that file.
@@ -454,6 +456,7 @@ Each step = single atomic commit. Pull --ff-only before EACH commit. Halt + arx-
 **Phase 2 deliverable complete.** No mutation performed.
 
 **Authorize Phase 3 with one of:**
+
 - **`approve all`** — execute steps 1–13 in order, with serialization/halt protocol per spec.
 - **`approve A,C,D`** (or any subset) — execute only the named buckets.
 - **`skip <X>`** — execute everything except `<X>` (e.g., `skip B` to defer memory cleanup).

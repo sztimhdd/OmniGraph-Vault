@@ -76,10 +76,12 @@ Output: 6 new cron jobs registered (health-check + scan-kol preserved from Phase
 PRD section 3.4 full cron list (6 NEW jobs; 2 existing preserved):
 
 Existing (preserve, do NOT re-register):
+
 - 07:55 health-check  (id: e7afccd9931b)
 - 08:00 scan-kol      (id: df7dc3fa0390)
 
 NEW — register these 6:
+
 1. rss-fetch           0 6  * * *  run enrichment/rss_fetch.py
 2. rss-classify        0 7  * * *  run enrichment/rss_classify.py
 3. daily-classify-kol  15 8 * * *  run batch_classify_kol.py --topic Agent --topic LLM --topic RAG --topic NLP --topic CV --min-depth 2 --days-back 1
@@ -235,6 +237,7 @@ NOTE on "Hermes drives" (D-16): cron prompts describe intent in natural language
 </verification>
 
 <success_criteria>
+
 - D-15 satisfied: cron registration + observation all happened on remote.
 - D-16 satisfied: each cron prompt follows "Hermes drives" pattern (natural-language prompt → Hermes subprocess → Python helper).
 - 3-day observation window complete.

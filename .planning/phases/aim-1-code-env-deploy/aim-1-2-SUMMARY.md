@@ -23,11 +23,13 @@ User-directed (2026-05-22) after agent surfaced the python-version blocker:
 ## Two deviations recorded (per user mandate)
 
 **Deviation 1 — Python 3.11.0rc1 (release candidate, not formal stable):**
+
 - Selected because Aliyun Ubuntu has no 3.11 final / 3.12 / 3.13 in `/usr/bin/`.
 - Risk: 3.11.0rc1 ABI froze before 3.11.0 final (2022-10); ingest-side packages all have cp311 wheels that resolve cleanly. Smoke (25/25 imports) confirms ABI compat.
 - Mitigation if instability surfaces: rebuild `venv-aim1` on a properly built python3.11 final (apt or compile from source). Keeping kb-api on 3.10 means rebuild is contained to the ingest side.
 
 **Deviation 2 — Dual-venv architecture:**
+
 - `venv/` → kb-api (uvicorn), Python 3.10.12, 160 packages, PID 3512216 unchanged through aim-1-2.
 - `venv-aim1/` → ingest (DEPLOY-04 smoke target, aim-3 systemd timer ExecStart target), Python 3.11.0rc1, 153 packages.
 - aim-1-3 / aim-1-4 command templates use `venv-aim1/bin/python` and `venv-aim1/bin/pip` exclusively. `kb-api.service.d/override.conf` is NOT touched.
@@ -109,6 +111,7 @@ EXIT=0
 `venv-aim1` is operational with all 27 top-level deps + transitive resolved. aim-1-3 (DEPLOY-03 env extension) and aim-1-4 (DEPLOY-04 e2e smoke) command templates will use `venv-aim1/bin/python` exclusively. `/root/.hermes/.env` is NOT touched in aim-1-2 — env extension is aim-1-3 scope. aim-1-3 will append 6 ingest provider keys (DEEPSEEK / SILICONFLOW / VERTEX SA path / GEMINI / APIFY × 2) preserving existing kb-api keys + file mode/ownership.
 
 aim-3 systemd timer (future phase) ExecStart will be:
+
 ```
 ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python <ingest-script>
 ```

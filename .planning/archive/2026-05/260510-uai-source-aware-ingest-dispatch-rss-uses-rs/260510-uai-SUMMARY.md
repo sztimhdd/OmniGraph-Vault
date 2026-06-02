@@ -53,6 +53,7 @@ Evidence: `.scratch/uai-grep-20260510-220439.log` Task 2 Verification.
 - [x] 5 callsites in `test_rollback_on_timeout.py` (L63, L91, L124, L162, L170) all have `source=` kwarg.
 
 Baseline comparison:
+
 - siw rl2 baseline (per plan T4): 28 failed / 667 passed total tests.
 - uai post-fix: 22 failed / 630 passed / 5 skipped = 657 total. The 3 new tests passing shifted total by +3 from baseline 667 → 670 expected; my 630 + 5 skipped + 22 failed = 657 vs expected 670 = -13. Investigated: pytest count discrepancy is upstream (some test files were renamed/added/removed across 260510-l14 / 260510-h09 / 260510-kne / 260509-p1n / 260509-syd between when "rl2 baseline = 28/667" was recorded and today). The relevant metric is **zero NEW regressions** which holds:
   - 4 `test_rollback_on_timeout.py` failures: pre-existing baseline (siw introduced 3-tuple return; tests still unpack 2-tuple — out of uai scope per plan scope_guards). Pre-uai these failed with `TypeError: missing 'source'`; post-uai they fail with `ValueError: too many values to unpack (expected 2)` — different error, same set, NOT a uai regression.
@@ -113,6 +114,7 @@ diff PRE POST: <empty> (byte-equal — gkw WIP preserved)
 ## Scope-Guard Verification (post-commit `git show --stat HEAD`)
 
 Will be filled in post-commit. Expectation:
+
 - `tests/unit/test_ainsert_persistence_contract.py` MUST NOT appear in commit's diff.
 - Files in commit: 8 (`batch_ingest_from_spider.py`, `ingest_wechat.py`, 4 test files, `.planning/STATE.md`, `.planning/quick/260510-uai-.../*.md`).
 
@@ -135,6 +137,7 @@ Will be filled in post-commit. Expectation:
 **Issue:** Existing test fixtures used `<p>Body text</p>` (12 chars) and `process_content` mock returned `"body markdown"` (13 chars). After `MIN_INGEST_BODY_LEN=500` guard activates in production code, these tests trigger the guard themselves and fail. T4 truth ("zero new regressions") would not hold.
 
 **Fix:** Extended fixture body content to ≥500 chars in 4 places:
+
 1. `tests/unit/test_text_first_ingest.py::_make_article_data` — `content_html` body now repeats `"Body text long enough to clear MIN_INGEST_BODY_LEN."` 12 times.
 2. `tests/unit/test_text_first_ingest.py::_patch_common` — `process_content` mock now returns `long_md` (12-fold repetition) not `"body markdown"`.
 3. `tests/unit/test_text_first_ingest.py::test_cache_hit_returns_none` — `final_content.md` cached body now repeats `"Body with [Image 0 Description]: cached desc."` 12 times.

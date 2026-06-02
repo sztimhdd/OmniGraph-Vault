@@ -60,11 +60,13 @@ directly via the Bash tool. NO operator-channel prompts.
 ### Task 1 — Generate ed25519 key pair on Hermes
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-4-daily-sync\aim-4-CONTEXT.md` lines 290-304 (SSH key bootstrap recipe)
 - Memory `hermes_ssh.md` (Hermes SSH connection: port 49221, user sztimhdd)
 - Memory `feedback_dont_outsource_ssh.md` (run SSH yourself via Bash, don't hand commands to user)
 
 **`<acceptance_criteria>`**
+
 - `~/.ssh/hermes_to_aliyun_ed25519` exists on Hermes with mode 600.
 - `~/.ssh/hermes_to_aliyun_ed25519.pub` exists on Hermes with mode 644.
 - The pubkey starts with `ssh-ed25519 AAAA` and ends with a comment
@@ -100,11 +102,13 @@ corrupted; document the reason in evidence).
 ### Task 2 — Install pubkey on Aliyun authorized_keys
 
 **`<read_first>`**
+
 - Memory `aliyun_vitaclaw_ssh.md` (Aliyun host 101.133.154.49 root, key
   `~/.ssh/aliyun_orchestrator_ed25519` on dev box, alias `aliyun-vitaclaw`)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-4-daily-sync\aim-4-CONTEXT.md` line 298-300 (`echo "<pubkey>" >> /root/.ssh/authorized_keys` pattern)
 
 **`<acceptance_criteria>`**
+
 - The pubkey (full single-line ed25519 string) appears as a NEW line in
   `/root/.ssh/authorized_keys` on Aliyun.
 - Pre-existing lines in `/root/.ssh/authorized_keys` are byte-identical
@@ -143,9 +147,11 @@ If DELTA != 1, abort and inspect on Aliyun manually before retrying.
 ### Task 3 — Validate non-interactive SSH + dry-run rsync
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\phases\aim-4-daily-sync\aim-4-CONTEXT.md` line 302-304 (validation pattern)
 
 **`<acceptance_criteria>`**
+
 - `ssh -i ~/.ssh/hermes_to_aliyun_ed25519 -o BatchMode=yes
   -o StrictHostKeyChecking=accept-new root@101.133.154.49 'hostname'`
   exits 0 from Hermes and prints Aliyun's hostname.
@@ -194,12 +200,14 @@ Capture both outputs into the evidence file.
 ### Task 4 — Author evidence markdown + commit
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\CLAUDE.md` Lessons Learned 2026-05-06 #5 + 2026-05-15 #1 (forward-only commits, explicit `git add`, never `-A`)
 - Memory `feedback_git_add_explicit_in_parallel_quicks.md`
 - Memory `feedback_no_literal_secrets_in_prompts.md` (no pubkey body in
   the evidence file — fingerprint only)
 
 **`<acceptance_criteria>`**
+
 - `.planning/phases/aim-4-daily-sync/aim-4-1-EVIDENCE.md` exists.
 - File contains: timestamp, key fingerprint (SHA-256 from
   `ssh-keygen -lf`), authorized_keys line-delta result, smoke

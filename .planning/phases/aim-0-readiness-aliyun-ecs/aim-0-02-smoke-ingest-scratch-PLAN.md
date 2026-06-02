@@ -43,12 +43,14 @@ the Aliyun host clean for aim-1's production install.
 ## Scope
 
 **In scope:**
+
 - READY-04: 1-2 article E2E smoke ingest reaching `status='ok'` in `ingestions` table
 - Scratch storage path only: `/tmp/aliyun-readiness/lightrag_storage/`
 - Completing READINESS.md with READY-04 result + overall aim-0 verdict
 - Cleanup: `rm -rf /tmp/aliyun-readiness/` after successful READY-04
 
 **Out of scope:**
+
 - Production storage path (`/opt/omnigraph-vault/` — aim-1)
 - Production env file (`/etc/omnigraph/.env` — aim-1)
 - systemd timer setup (aim-3)
@@ -170,6 +172,7 @@ ls /tmp/aliyun-readiness/lightrag_storage/
 ```
 
 **What to report back:** Paste:
+
 1. ingest exit code (echo'd after each article — must be 0 for PASS)
 2. The `du -sh /tmp/aliyun-readiness/lightrag_storage/` output (confirms graph + embeddings written)
 3. The `ls entity_buffer/*.json` output (confirms entity extraction ran)
@@ -179,6 +182,7 @@ ls /tmp/aliyun-readiness/lightrag_storage/
 ---
 
 **Agent action after operator reports back:** Record in `READINESS.md § Smoke ingest E2E (READY-04)`:
+
 - Articles used (URL + article_id)
 - sqlite3 output showing `status='ok'`
 - lightrag_storage size post-ingest
@@ -188,6 +192,7 @@ ls /tmp/aliyun-readiness/lightrag_storage/
 **Pass predicate:** ≥ 1 article completes with `Exit code: 0` AND `/tmp/aliyun-readiness/lightrag_storage/` non-empty (graph + embeddings written) AND `/tmp/aliyun-readiness/repo/entity_buffer/*.json` exists for the ingested article(s).
 
 **Fail action:** If `status='failed'` for all attempted articles, record the error pattern:
+
 - Provider UNREACHABLE (network block) → note which provider; assess if cascade fallback is sufficient
 - OOM / process killed → check if READY-03 peak RSS was close to limit; escalate
 - Timeout → note wall-clock time; if > 30 min/article, flag for aim-1 systemd timer timeout config

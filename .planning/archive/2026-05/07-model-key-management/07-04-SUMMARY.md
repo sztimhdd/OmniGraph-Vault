@@ -84,30 +84,36 @@ metrics:
 ## Accomplishments
 
 ### Task 4.1a — batch_classify_kol.py (commit `9d9772f`)
+
 - Swap `genai.Client(api_key=...).models.generate_content(...)` → `lib.generate_sync(INGESTION_LLM, prompt, config=...)`
 - Drop `get_gemini_api_key()` helper (lib.current_key owns key resolution)
 - Remove unused `from google import genai` — `genai_types` kept for `GenerateContentConfig(response_mime_type=...)` kwarg
 - DeepSeek classifier branch untouched (not Phase 7 scope)
 
 ### Task 4.1b — batch_ingest_from_spider.py (commit `7ddb5e3`) — CLI PRESERVED
+
 - Same migration pattern as 4.1a
 - Gemini precheck in `batch_classify_articles()` now uses `lib.current_key()` (fail-open semantics preserved)
 - **`--from-db` / `--topic-filter` argparse CLI preserved verbatim** (Phase 5 D-11 contract)
 
 ### Task 4.1c — batchkol_topic.py (commit `c1832fc`)
+
 - Same migration pattern as 4.1a
 - `config.load_env()` call chain preserved (intended — batchkol_topic imports config.load_env explicitly)
 
 ### Task 4.1d — _reclassify.py (commit `d0cc3e2`)
+
 - Same migration pattern as 4.1a
 - Drop `get_gemini_api_key()` + hand-rolled `~/.hermes/auth.json` scan (lib.api_keys handles all of it)
 
 ### Task 4.2 — skill_runner.py (commit `b5ab408`)
+
 - Key: `os.environ.get("GEMINI_API_KEY")` → `current_key()` (rotation-aware)
 - Model: `_GEMINI_MODEL = "gemini-3.1-flash-lite-preview"` → `_GEMINI_MODEL = "gemini-2.5-flash-lite"`
 - **Model literal retained (not from lib.models) per 07-RESEARCH Open Q #4** — test-harness independence from production model changes; added inline rationale comment
 
 ### Task 4.3 — verify_gate_{a,b,c}.py (commits `490c3a7`, `e7a26f5`, `b705a14`)
+
 - Separate commits per D-03
 - All 3: `from lib import current_key, INGESTION_LLM, EMBEDDING_MODEL`
 - `os.environ['LLM_MODEL'] = INGESTION_LLM`, `os.environ['EMBEDDING_MODEL'] = EMBEDDING_MODEL` (mirrors cognee_wrapper.py Wave 3 handshake)
@@ -115,6 +121,7 @@ metrics:
 - Note: `os.environ['GEMINI_API_KEY'] = _key` assignment preserved — Cognee's downstream SDK reads GEMINI_API_KEY from env at its own init time
 
 ### Task 4.4 — 3 SKILL.md frontmatters (commit `4676fb3`) — D-07
+
 - Added Hermes `required_environment_variables` block with `OMNIGRAPH_GEMINI_KEY` + prompt/help (fallback documented) / required_for
 - Added OpenClaw `skillKey: omnigraph-vault` + `primaryEnv: OMNIGRAPH_GEMINI_KEY` in metadata.openclaw
 - Updated `requires.config`: `GEMINI_API_KEY` → `OMNIGRAPH_GEMINI_KEY`
@@ -123,17 +130,20 @@ metrics:
 - YAML validates cleanly for all 3 files
 
 ### Task 4.5 — Deploy story (commit `19ff273`)
+
 - **Created `.env.template`** (was stub; now full template with OMNIGRAPH_* precedence, model-constant comment block per Amendment 1, DEEPSEEK_API_KEY required comment, OMNIGRAPH_RPM_* examples)
 - **Updated `Deploy.md`** with new `## Environment Variables (Phase 7)` section: required table, rotation table, model-constant table (Amendment 1), RPM override examples, **Hermes FLAG 1 + FLAG 2 documentation** (standalone Cognee rotation caveat + DEEPSEEK_API_KEY import-time coupling)
 - **Updated `CLAUDE.md`** with 3 paragraphs: Phase 7 env var convention + FLAG 1 caveat + FLAG 2 caveat
 - Both Hermes FLAGs land as documentation-only (no code changes); per plan Task 4.5 scope
 
 ### Task 4.7 pre-sweep — ingest_wechat.extract_entities (commit `1f19675`)
+
 - The ONE remaining active `config.gemini_call` caller at start of Wave 4
 - Migrated to `lib.generate_sync(INGESTION_LLM, prompt)` — `response.text` access collapses to a plain string
 - Also swept 3 historical-narrative comments that referenced `config.gemini_call` or `config.IMAGE_DESCRIPTION_MODEL` (image_pipeline.py docstring, test_fetch_zhihu.py comment, test_extract_questions.py docstring)
 
 ### Task 4.7 SWEEPER — config.py (commit `8b10e2a`) — Amendment 3
+
 - **DELETED `from lib.models import INGESTION_LLM, VISION_LLM`** (only fed the shims)
 - **DELETED 3 D-11 shim constants:**
   - `INGEST_LLM_MODEL = INGESTION_LLM`
@@ -145,6 +155,7 @@ metrics:
 - Net: `1 file changed, 7 insertions(+), 55 deletions(-)` — config.py scope permanently narrowed to paths + env loading
 
 ### Task 4.6 — Final phase gate
+
 - Clean-room greps (see below) run with `--exclude-dir=.claude` (worktree copies excluded)
 - Full pytest: **109/109 green** with `DEEPSEEK_API_KEY=dummy`
 - SUMMARY.md written (this file)
@@ -276,6 +287,7 @@ Both non-blocking FLAGs from `07-REVIEW-HERMES-WAVES-2-3.md` landed in Task 4.5 
 ## Self-Check: PASSED
 
 **Files verified exist:**
+
 - FOUND: batch_classify_kol.py
 - FOUND: batch_ingest_from_spider.py
 - FOUND: batchkol_topic.py
@@ -297,6 +309,7 @@ Both non-blocking FLAGs from `07-REVIEW-HERMES-WAVES-2-3.md` landed in Task 4.5 
 - FOUND: tests/unit/test_extract_questions.py
 
 **Commits verified present on main:**
+
 - FOUND: 9d9772f (Task 4.1a)
 - FOUND: 7ddb5e3 (Task 4.1b)
 - FOUND: c1832fc (Task 4.1c)
@@ -311,6 +324,7 @@ Both non-blocking FLAGs from `07-REVIEW-HERMES-WAVES-2-3.md` landed in Task 4.5 
 - FOUND: 8b10e2a (Task 4.7 SWEEPER)
 
 **Wave 4 acceptance gate:**
+
 - FOUND: 12 Wave 4 commits (all atomic per D-03)
 - FOUND: Amendment 3 sweeper deleted D-11 shims + gemini_call from config.py (grep rc=1)
 - FOUND: 3 SKILL.md frontmatters have OMNIGRAPH_GEMINI_KEY (YAML parses, >=5 occurrences each)

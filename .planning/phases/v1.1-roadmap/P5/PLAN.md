@@ -95,6 +95,7 @@ Gross-changed-lines = 89. Within ceiling 100. Net delta = +23. No HALT trigger.
 The lock is acquired INSIDE `synthesize_response()` itself in `kg_synthesize.py`, wrapping ONLY the inner `await asyncio.wait_for(rag.aquery(...))` block at lines 243-246. Routers and the `kb_synthesize` service wrapper DO NOT acquire the lock — they thread `lightrag_lock` through as a parameter and let `synthesize_response()` own the critical section.
 
 Rationale:
+
 - The actual mutating op is `rag.aquery()` (RESEARCH §2 confirmed `self.llm_response_cache` write at lightrag.py:3045-3046). Wrapping the single call site that reaches `aquery()` is sufficient and minimal.
 - The outer `asyncio.wait_for(...)` at `kb/services/synthesize.py:521-524` and `kb/api_routers/search.py:122-125` is UNCHANGED — its timeout still bounds the full call jointly. The lock now lives strictly INSIDE that outer wait_for, so `wait_for` can still cancel a stuck lock-acquire if the holder hangs.
 - All three consumer paths (`/api/synthesize`, `/api/search?mode=kg`, `/api/search/kg`) reach `aquery()` only through `synthesize_response()`, so a single inner lock site covers the entire concurrency surface.
@@ -113,12 +114,14 @@ Throughput impact: zero on hot path. Current per-query latency is 60-180s and th
 ### Scope of the lock — INSIDE wait_for, around aquery() only
 
 **The lock wraps ONLY the inner `await asyncio.wait_for(rag.aquery(...))` block at kg_synthesize.py:243-246.** It does NOT wrap:
+
 - The outer `wait_for(synthesize_response(...))` at `kb/services/synthesize.py:521-524`
 - The outer `wait_for(synthesize_response(...))` at `kb/api_routers/search.py:122-125`
 - The router-layer `_kg_worker` / `_kg_local_worker` body
 - `_resolve_sources_from_markdown`, canonical-map loading, history append, or job_store updates
 
 Reasoning:
+
 - `aquery()` is the only call that mutates LightRAG shared state. Surrounding logic is read-only against article DB / job_store, which has its own lock semantics.
 - Wrapping the lock OUTSIDE `wait_for` (at the router layer) would let a hung `aquery()` block all other requests for the full timeout (60-240s). Under N=4 concurrent load that pushes the 4th request to ~4×timeout ≈ 720s and contradicts SC#2.
 - Wrapping the lock INSIDE `wait_for` (and inside `synthesize_response()`) keeps the timeout enforceable: if a holder hangs past its inner timeout (`KB_LIGHTRAG_INNER_TIMEOUT`), `asyncio.wait_for` cancels the coroutine, the `async with` exits, and the next waiter proceeds.
@@ -201,6 +204,7 @@ $env:KB_BASE_URL = "https://kb-api-app-xxxx.cloud.databricks.com"
 ```
 
 **PASS criteria** (already encoded in the test file):
+
 - All 4 jobs reach `done` (line 34)
 - 4 distinct markdown payloads — no 2 results identical (line 35)
 - Each result's markdown contains its own `MARKER` token — no cross-talk (line 36-37)
@@ -257,11 +261,14 @@ If post-deploy regression is observed on Databricks:
 
 1. **Identify offending commits** — P5 ships as a 6-task atomic-commit sequence (T1..T6). Each task is its own commit with a `feat(v1.1.P5)` / `refactor(v1.1.P5)` / `test(v1.1.P5)` / `docs(v1.1.P5)` prefix, so the commits are easy to locate by `git log --grep`. No git tags are required (Principle #2 — tags add ceremony without execution value).
 2. **Locate the P5 commit SHAs:**
+
    ```powershell
    # list every P5 commit on main with full SHA + subject
    git log --grep="v1.1.P5" --format='%H %s'
    ```
+
 3. **Full revert** (default; if any uncertainty):
+
    ```powershell
    # Revert commits in REVERSE order (newest first — T6, T5, ..., T1) so the
    # working tree stays consistent at each step. Revert each commit individually:
@@ -275,14 +282,19 @@ If post-deploy regression is observed on Databricks:
    databricks sync --watch . /Workspace/Users/hhu@edc.ca/kb-api-app
    databricks apps deploy kb-api-app --source-code-path /Workspace/Users/hhu@edc.ca/kb-api-app
    ```
+
    Or as a range (oldest..newest, with revert applied newest-to-oldest under the hood):
+
    ```powershell
    git revert --no-edit <T1-parent-sha>..HEAD
    ```
+
 4. **Partial revert (lock-only, keep singleton)** — if regression is async-safety related (deadlock/throughput) but cold-start improvement should be retained, revert only the lock-introducing commits (T2 lock-wrap inside `synthesize_response`, T3/T4 lock parameter threading). Identify by:
+
    ```powershell
    git log --grep="v1.1.P5" --grep="lock\|async with" --all-match --format='%H %s'
    ```
+
    Revert those SHAs individually. This leaves lifespan + singleton in place; restores per-call serialization-free behavior. Acceptable interim state if SC#3 surfaces a Databricks-specific issue not seen locally.
 5. **Hot-fix gate**: per Principle #9, sync-only is permissible since P5 touches **no** `kb/static/` or `kb/templates/` files. Re-confirm with `git diff --name-only HEAD~6..HEAD | Select-String 'kb/(static|templates)/'` returning empty.
 
@@ -817,6 +829,7 @@ Phase-level verification (rolled up from per-task acceptance criteria):
 ## success_criteria
 
 P5 is complete when:
+
 - [ ] SC#1: First /api/synthesize 200/202 sub-30s on local NTFS (numeric in VERIFICATION.md)
 - [ ] SC#2: post-P5 p50 ≤ pre-P5 p50 × 1.10 AND post-P5 p95 ≤ pre-P5 p95 × 1.20
 - [ ] SC#3: 4-concurrent test PASSED (distinct markdown, MARKER preservation, no deadlock)
@@ -826,6 +839,7 @@ P5 is complete when:
 ## output
 
 After T6 operator-approved, the phase is closed with:
+
 - 6 commits on main (T1..T6)
 - Updated STATE.md (orchestrator handles)
 - P5-VERIFICATION.md cited from phase entry

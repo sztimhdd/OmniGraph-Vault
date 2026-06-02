@@ -80,6 +80,7 @@ Output: 4 tracks shipped + pushed to origin/main + Aliyun OnFailure handler inst
 <!-- Key contracts the executor needs. Extracted from spiders/wechat_spider.py. -->
 
 `spiders/wechat_spider.py` raises on non-zero ret codes:
+
 ```python
 # Lines 110-122 and 213-225 (two API call sites — list-articles + digest)
 if base_resp.get("ret") != 0:
@@ -90,6 +91,7 @@ if base_resp.get("ret") != 0:
 ```
 
 `batch_scan_kol.py:scan_account` (line 211-228) catches this exception:
+
 ```python
 except Exception as exc:
     logger.error("  Failed to scan %s: %s", name, exc)
@@ -162,6 +164,7 @@ Also create the memory note file `feedback_wechat_cookie_refresh_runbook.md` in 
 Patch `batch_scan_kol.py`:
 
 1. Add module-level constant near `SESSION_LIMIT` (line 38):
+
    ```python
    # Threshold for ret=200003 cookie-expiry detection. NOT env-overridable
    # per CLAUDE.md v1.0.x lesson #1 (cross-coupling risk). Forward-only fix
@@ -179,12 +182,14 @@ Patch `batch_scan_kol.py`:
    - Unpack the new 4-tuple: `ok, new, skipped, session_invalid = scan_account(...)`
    - `if session_invalid: invalid_count += 1`
    - After the loop completes (after the existing "Scan complete" log line at line 296-299), add:
+
      ```python
      total_attempts = scanned_count + failed_count
      if total_attempts > 0 and invalid_count / total_attempts >= SESSION_INVALID_THRESHOLD:
          print(f"WECHAT_SESSION_INVALID: {invalid_count}/{total_attempts}", file=sys.stderr)
          sys.exit(2)
      ```
+
    - Place this BEFORE the `if summary_json:` block so JSON-summary path also triggers exit.
    - The `try/finally` ensures `conn.close()` still runs (sys.exit raises SystemExit, finally fires).
 
@@ -218,12 +223,15 @@ Pure surgical: SESSION_LIMIT preserved, all existing args preserved, new constan
    Type=oneshot
    User=root
    ExecStart=/bin/bash -c 'mkdir -p /root/.hermes && date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ > /root/.hermes/wechat-session-stale'
+
    ```
    Note: `%%` escapes `%` in systemd unit files. The marker file content is a UTC ISO-8601 timestamp; mtime is set automatically.
 
 2. Modify `deploy/aliyun/systemd/omnigraph-kol-scan.service` — add ONE line under `[Unit]` (after line 4 `Wants=network-online.target`):
    ```
+
    OnFailure=omnigraph-kol-scan-alert.service
+
    ```
    No other changes to that file.
 
@@ -252,23 +260,29 @@ Pure surgical: SESSION_LIMIT preserved, all existing args preserved, new constan
 
    echo "Done. To verify: bash scripts/deploy-aliyun-session-alert.sh && ssh $REMOTE 'systemctl start omnigraph-kol-scan-alert.service && ls -la /root/.hermes/wechat-session-stale'"
    ```
+
    `chmod +x scripts/deploy-aliyun-session-alert.sh`.
 
 4. **Agent runs the deployment directly** (PRINCIPLE 5 override per memory `feedback_aim1_agent_is_operator.md` — aim-1+ phases SSH Aliyun directly):
+
    ```bash
    bash scripts/deploy-aliyun-session-alert.sh 2>&1 | tee .scratch/quick-260524-tvg-b2-deploy.log
    ```
 
 5. **Agent runs verification directly** via SSH:
+
    ```bash
    ssh aliyun-vitaclaw "rm -f /root/.hermes/wechat-session-stale && systemctl start omnigraph-kol-scan-alert.service && sleep 2 && ls -la /root/.hermes/wechat-session-stale && cat /root/.hermes/wechat-session-stale" 2>&1 | tee .scratch/quick-260524-tvg-b2-verify.log
    ```
+
    Expected output: file exists, mtime ~now, content is current UTC timestamp.
 
 6. After verification passes, clean up the test marker on Aliyun so it doesn't trigger a false runbook execution:
+
    ```bash
    ssh aliyun-vitaclaw "rm -f /root/.hermes/wechat-session-stale"
    ```
+
   </action>
   <verify>
     <automated>powershell -Command "if (Select-String -Path .scratch/quick-260524-tvg-b2-verify.log -Pattern 'wechat-session-stale' -Quiet) { exit 0 } else { exit 1 }"</automated>
@@ -284,25 +298,32 @@ Pure surgical: SESSION_LIMIT preserved, all existing args preserved, new constan
 Source: `.scratch/hermes-cookie-refresh/20260524-211033/wechat-cdp-credential-refresh/`
 
 1. Verify source exists:
+
    ```bash
    ls .scratch/hermes-cookie-refresh/20260524-211033/wechat-cdp-credential-refresh/
    ```
+
    Expected: at minimum `SKILL.md`, possibly `references/` and/or `scripts/`.
 
 2. Copy entire directory tree to `skills/`:
+
    ```bash
    mkdir -p skills/wechat-cdp-credential-refresh
    cp -r .scratch/hermes-cookie-refresh/20260524-211033/wechat-cdp-credential-refresh/* skills/wechat-cdp-credential-refresh/
    ```
+
    Preserve original SKILL.md / references/ / scripts/ separation (per CLAUDE.md "OpenClaw / Hermes Skill Writing Standards" section).
 
 3. **Audit copied files for sensitive literals** before staging:
+
    ```bash
    grep -rE 'slave_sid|data_ticket|rand_info|bizuin|xid|wxuin|slave_user|TOKEN=' skills/wechat-cdp-credential-refresh/
    ```
+
    If ANY match, STOP and remove the offending lines / replace with placeholders (`<COOKIE_VALUE>` / `<TOKEN>`). The Hermes skill should already use placeholders, but verify.
 
 4. Create `skills/wechat-cdp-credential-refresh/README.md`:
+
    ```markdown
    # wechat-cdp-credential-refresh
 
@@ -325,6 +346,7 @@ Source: `.scratch/hermes-cookie-refresh/20260524-211033/wechat-cdp-credential-re
    - Cookie values, TOKEN values — these are runtime data, never source-of-truth
    - The output `kol_config.py` produced by this skill (gitignored)
    ```
+
   </action>
   <verify>
     <automated>powershell -Command "if (Test-Path skills/wechat-cdp-credential-refresh/SKILL.md) { if ((Get-ChildItem skills/wechat-cdp-credential-refresh -Recurse | Select-String -Pattern 'slave_sid|data_ticket|rand_info|wxuin').Count -eq 0) { exit 0 } else { exit 1 } } else { exit 1 }"</automated>
@@ -343,6 +365,7 @@ After all 4 tasks:
 4. `.scratch/quick-260524-tvg-b2-verify.log` exists and shows `wechat-session-stale` file with current mtime.
 5. `grep -rE 'slave_sid|data_ticket|wxuin|49221|101\.133|root@' docs/runbooks/wechat-cookie-refresh.md skills/wechat-cdp-credential-refresh/ scripts/deploy-aliyun-session-alert.sh` — zero matches.
 6. Single chained git commit per CLAUDE.md `feedback_git_add_explicit_in_parallel_quicks.md`:
+
    ```
    git add docs/runbooks/wechat-cookie-refresh.md \
            batch_scan_kol.py \
@@ -354,11 +377,13 @@ After all 4 tasks:
        && git commit -m "..." \
        && git push
    ```
+
    NEVER `git add -A` / `git add .` / `--amend` / `git reset --hard`.
 7. Commit message body MUST cite the real `.scratch/quick-260524-tvg-*.log` paths with line ranges (no fabricated test-output text).
 </verification>
 
 <success_criteria>
+
 - [ ] `docs/runbooks/wechat-cookie-refresh.md` exists, >=40 lines, no sensitive literals
 - [ ] MEMORY.md has new index entry pointing to `feedback_wechat_cookie_refresh_runbook.md`
 - [ ] `batch_scan_kol.py` has SESSION_INVALID_THRESHOLD constant + 4-tuple return + post-loop exit-2 block

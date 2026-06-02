@@ -41,9 +41,11 @@ This plan closes the aim-3 phase. After aim-3-4 verdict PASS, the milestone adva
 ### Task 1 — Confirm wallclock window has passed
 
 **`<read_first>`**
+
 - `.planning/phases/aim-3-cutover/EVIDENCE/CUTOVER-EVIDENCE.md` (aim-3-3 output) — section "Cutover window + missed-window estimate" — `cutover_window_start` ISO
 
 **`<acceptance_criteria>`**
+
 - Current UTC wallclock ≥ `cutover_window_start` + 24h.
 - For each of the 3 sampled timers, ≥ 1 OnCalendar fire has occurred since `cutover_window_start`. Compute by hand from the UTC schedule:
   - `omnigraph-rss-fetch.timer` fires daily at `09:00 UTC` — at least 1 fire ≥ 24h after start
@@ -67,10 +69,12 @@ If ≥ 24h has elapsed, proceed to Task 2.
 ### Task 2 — Capture journald for 3 sampled units
 
 **`<read_first>`**
+
 - aim-3-2 evidence file `EVIDENCE/CUTOVER-01-deploy-evidence.md` (the unit names + UTC schedules)
 - Memory `aliyun_vitaclaw_ssh.md` (SSH alias)
 
 **`<acceptance_criteria>`**
+
 - 3 journalctl outputs captured (daily-ingest, rss-fetch, reconcile).
 - Each output non-empty.
 - Each output contains a `Started ... .service` entry AND a completion entry (either `Deactivated successfully` for `Type=simple` or `Main process exited`).
@@ -121,10 +125,12 @@ Document any anomaly in the evidence file.
 ### Task 3 — Capture Aliyun DB write progression (CUTOVER-02 24h verify)
 
 **`<read_first>`**
+
 - aim-3-3 evidence file `EVIDENCE/CUTOVER-EVIDENCE.md` — section 1 — Hermes-side `MAX(layer2_at)` value at cutover
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` line 62 (CUTOVER-02 verify wording: "24h after cutover, Aliyun-side DB has new rows ... advances past the cutover timestamp")
 
 **`<acceptance_criteria>`**
+
 - Aliyun `MAX(layer2_at)` > Hermes-side baseline `MAX(layer2_at)` from aim-3-3 Task 1.
 - Aliyun row counts (articles, rss_articles) ≥ Hermes-side baseline + at least 1 (proves Aliyun wrote at least one new row in the 24h window — the threshold is intentionally weak: even 1 row advance is sufficient because that proves write authority transferred).
 - Optional richer signal: per-day row count for the 24h window post-cutover ≥ 1.
@@ -164,11 +170,13 @@ Compare to aim-3-3 Task 1 output verbatim. The Aliyun `MAX(layer2_at)` MUST be >
 ### Task 4 — Write CUTOVER-04-journald-evidence.md and aim-3 closure
 
 **`<read_first>`**
+
 - All `.scratch/aim-3-4-*.log` outputs
 - aim-3-3 evidence (for cutover_window_start cross-reference)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\STATE-Aliyun-Ingest-Migration-v1.md` (for the closure-note append)
 
 **`<acceptance_criteria>`**
+
 - File `.planning/phases/aim-3-cutover/EVIDENCE/CUTOVER-04-journald-evidence.md` exists.
 - Sections: "Wallclock window check", "list-timers LAST column" (all 13 rows), "Sampled journalctl outputs" (3 units verbatim + kol-enrich stub), "Aliyun DB write progression" (Hermes baseline vs. Aliyun current), "CUTOVER-04 verdict" (PASS / PARTIAL / FAIL), "aim-3 phase verdict" (PASS / FAIL aggregating CUTOVER-01..05).
 - (Optional) STATE-Aliyun-Ingest-Migration-v1.md has a forward-only appended line under "Pending Todos" or "Phase plan" reflecting aim-3 closure.
@@ -196,7 +204,9 @@ REQs covered: CUTOVER-04 (journald per-unit) + CUTOVER-02 part 2 (24h DB write v
 ## 2. systemctl list-timers --all omnigraph-* (LAST column populated check)
 
 ```
+
 [paste full table from Task 2]
+
 ```
 
 13-row LAST column summary: [N of 13 timers have LAST > cutover_window_start]
@@ -207,7 +217,9 @@ REQs covered: CUTOVER-04 (journald per-unit) + CUTOVER-02 part 2 (24h DB write v
 ### omnigraph-daily-ingest.service (24h lookback)
 
 ```
+
 [paste verbatim Task 2 output for daily-ingest]
+
 ```
 
 Entries observed:
@@ -218,7 +230,9 @@ Entries observed:
 ### omnigraph-rss-fetch.service (24h lookback)
 
 ```
+
 [paste verbatim]
+
 ```
 
 Entries observed:
@@ -228,7 +242,9 @@ Entries observed:
 ### omnigraph-reconcile.service (24h lookback)
 
 ```
+
 [paste verbatim]
+
 ```
 
 Entries observed:
@@ -238,7 +254,9 @@ Entries observed:
 ### omnigraph-kol-enrich.service (24h lookback — STUB confirmation)
 
 ```
+
 [paste verbatim]
+
 ```
 
 Stub confirmation:
@@ -300,9 +318,11 @@ git log -1 --name-only
 ### Task 5 (optional) — Append aim-3 closure note to STATE-Aliyun-Ingest-Migration-v1.md
 
 **`<read_first>`**
+
 - Current `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\STATE-Aliyun-Ingest-Migration-v1.md` (top-of-file YAML + "Phase plan" table + "Pending Todos" if exists)
 
 **`<acceptance_criteria>`**
+
 - Forward-only edit: ONE line added (or one row's "Status" column updated from "blocked by aim-2" → "✅ DONE — commit [HASH] / [DATE]"). No other lines touched.
 - Commit: separate from the evidence-file commit above (forward-only, single-purpose commits per `feedback_git_add_explicit_in_parallel_quicks.md`).
 

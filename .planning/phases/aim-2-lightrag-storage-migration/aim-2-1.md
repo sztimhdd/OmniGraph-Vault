@@ -33,10 +33,12 @@ All four must be true before declaring this plan done:
 ### Task 1 — Operator pauses Hermes crontab
 
 **`<read_first>`**
+
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\STATE-Aliyun-Ingest-Migration-v1.md` lines 80-90 (Hermes Operational State; the 11 ingest cron entries)
 - `c:\Users\huxxha\Desktop\OmniGraph-Vault\.planning\REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` line 51 (STORAGE-01 wording — pause method, verify method, resume protocol)
 
 **`<acceptance_criteria>`**
+
 - Operator-side: `crontab -l | grep -E "^#.*(ingest|kol_scan|rss)" | wc -l` returns ≥ 11.
 - Operator-side: `crontab -l | grep -vE "^#" | grep -E "(ingest|kol_scan|rss)" | wc -l` returns 0.
 - Operator-side: `pgrep -f batch_ingest_from_spider` exit code = 1 (empty stdout).
@@ -96,6 +98,7 @@ pgrep -af rss_ingest; echo "exit=$?"
 ```
 
 Paste the FULL output of all four steps back. Do NOT skip any step. Do NOT abbreviate "..." anything. The agent needs the full text to write the evidence file.
+
 ```
 
 After receiving the operator output, the agent moves to Task 2.
@@ -140,13 +143,17 @@ REQ: STORAGE-01
 ## Crontab BEFORE pause (verbatim)
 
 ```
+
 [paste verbatim Step 1 `crontab -l` output]
+
 ```
 
 ## Crontab AFTER pause (verbatim — every ingest line MUST start with `#`)
 
 ```
+
 [paste verbatim Step 4 `crontab -l` output]
+
 ```
 
 ## Sentinel checks
@@ -168,6 +175,7 @@ Resume command (uncomment the 11 lines):
 crontab -e   # remove leading `#` from each ingest/kol_scan/rss line
 crontab -l | grep -vE "^#" | grep -E "(ingest|kol_scan|rss)" | wc -l   # expect 11
 ```
+
 ```
 
 Then commit:

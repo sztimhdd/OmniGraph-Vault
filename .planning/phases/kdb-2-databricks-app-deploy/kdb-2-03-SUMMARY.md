@@ -122,6 +122,7 @@ f3670b0 test(kdb-2-03): integration tests confirm dispatcher path + LLM-DBX-04 t
 ```
 
 `f3670b0` files (test commit):
+
 ```
 databricks-deploy/CONFIG-EXEMPTIONS.md
 tests/integration/test_kg_synthesize_dispatcher.py
@@ -160,6 +161,7 @@ Invoked with: `Skill(skill="writing-tests", args="Scaffold 2 integration tests f
 
 Skill output (synthesized): The integration tier should focus on the
 dispatcher-layer contract that crosses module boundaries — `sys.path` injection
+
 + `sys.modules` monkeypatch + env var → resolved callable + invoke. Mirrors
 the unit-test patterns in `tests/unit/test_llm_complete.py:70-160` but
 emphasizes the integration assertion that `make_llm_func` is actually called
@@ -172,6 +174,7 @@ per PLAN line 234.
 Invoked with: `Skill(skill="python-patterns", args="Audit tests/integration/test_kg_synthesize_dispatcher.py: confirm idiomatic use of (a) sys.modules monkeypatching to inject a fake module for the hyphenated databricks-deploy/ path; (b) pytest.MonkeyPatch.setenv for env-var scoping; (c) re-import via _purge helper to ensure the dispatcher's lazy-import resolves freshly each test; (d) async test pattern with asyncio_mode=auto. Confirm the test surface accurately reflects Decision 1's translation-in-dispatcher contract (re-raise unchanged into existing kg_unavailable bucket) without adding a new kg_serving_unavailable literal anywhere.")`
 
 Audit verdict (synthesized):
+
 - (a) `types.ModuleType` + `monkeypatch.setitem(sys.modules, …)` is the
   idiomatic pattern when the underlying directory is hyphenated and
   unimportable as a normal package — matches the kdb-2-02 unit-test pattern

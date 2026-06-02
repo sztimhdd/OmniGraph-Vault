@@ -14,16 +14,19 @@ Land 4 hotfixes that the vitaclaw-site go-live agent applied directly on Aliyun 
 ## Files Changed
 
 **Production code (4 files):**
+
 - `kb/services/synthesize.py` — added `_ENTITY_HINTS`, `_dedupe`, `_fallback_search_terms`, `_source_hashes_from_fts`, `_entity_candidates` helpers + wiring in `_fts5_fallback` and `kb_synthesize` happy path (75-line addition)
 - `kb/static/qa.js` — source chip link path fixed (`/article/` → `/articles/` + KB_BASE_PATH prefix); fallback state name fixed (`'fallback'` → `'fts5_fallback'` in 2 places)
 - `kb/static/search.js` — extracted `buildSearchUrl` + `fetchSearch` helpers; cross-language retry when locale-filtered search returns 0 items
 - `kb/static/VitaClaw-Logo-v0.png` — UI-04 logo carry-forward (470KB, 2048×2048 RGBA)
 
 **Test files (2 files):**
+
 - `tests/integration/kb/test_qa_link_contract.py` — 3 mock-free string-assertion regression tests pinning qa.js link contract + state name (closes kb-3-12 test gap)
 - `tests/unit/kb/test_synthesize_hotfix.py` — 7 unit tests covering `_ENTITY_HINTS` immutability, `_dedupe`, `_fallback_search_terms`, `_entity_candidates`
 
 **Planning files (3 files):**
+
 - `.planning/quick/260515-cvh-kb-aliyun-go-live-hotfix-upstream-commit/260515-cvh-PLAN.md`
 - `.planning/quick/260515-cvh-kb-aliyun-go-live-hotfix-upstream-commit/260515-cvh-SUMMARY.md`
 - `.planning/quick/260515-cvh-kb-aliyun-go-live-hotfix-upstream-commit/260515-cvh-RUNBOOK.md`
@@ -100,6 +103,7 @@ Re-encoded but visually equivalent PNGs. If Aliyun ops cares about byte-identity
 ## Next Steps
 
 Operator follows RUNBOOK.md on Aliyun:
+
 - **Path A** (hot-patch sync, preserves hero-strip): rsync 4 files, restart service, verify source chip click works
 - **Path B** (full re-export, hero-strip loss acceptable): git pull, run export driver, restart service
 

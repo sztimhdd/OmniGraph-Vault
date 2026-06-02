@@ -44,12 +44,14 @@ must_haves:
 Run the two `scripts/local_e2e.sh` smoke modes on Aliyun against the venv + extended env from aim-1-2 + aim-1-3, proving the full ingest pipeline (Layer 1 + scrape + Layer 2 + LightRAG ainsert + vision) is operational on the new host. **Smoke ingests MUST land in scratch storage** (e.g., `/tmp/aim1-smoke/`), not the production path — Hermes is still authoritative until aim-2 cuts over with the 1.6 GB tar.gz transfer.
 
 Two smoke modes (both required per REQ DEPLOY-04 + ROADMAP SC4):
+
 1. **`scripts/local_e2e.sh layer1 5`** — Layer 1 batch on 5 candidates from `.dev-runtime/data/kol_scan.db` (or whatever DB the harness defaults to; harness handles env). Exercises Vertex AI Layer 1 + DeepSeek Layer 2 (only on candidates that pass Layer 1).
 2. **`scripts/local_e2e.sh wechat <url>`** — single-URL E2E on a non-corp-restricted target. Exercises Apify scrape → Layer 2 → SiliconFlow vision → LightRAG ainsert.
 
 Aliyun is in cn-east-mainland (per PROJECT) — all 3 LLM providers reachable (no corp Cisco Umbrella interception); this is the architectural reason migration was chartered.
 
 Output:
+
 - Aliyun: two log files under `/root/OmniGraph-Vault/.scratch/local-e2e-*-<ts>.log` proving zero-error completion
 - Aliyun: smoke ingests in scratch storage (`/tmp/aim1-smoke/lightrag_storage/` or equivalent) — confirmed not in production path
 - Local: `.planning/phases/aim-1-code-env-deploy/DEPLOY-04-EVIDENCE.md` with command, env, log tails, scratch-storage proof
@@ -77,6 +79,7 @@ Output:
 </context>
 
 <pre_conditions>
+
 - aim-1-1 + aim-1-2 + aim-1-3 all complete (clean tree + venv + 6 ingest keys present)
 - DeepSeek key is REAL, not `dummy` (else `wechat <url>` fails at LightRAG ainsert; `layer1 5` fails at Layer 2 — operator must verify before running)
 - Operator has chosen a non-corp-restricted WeChat URL for the `wechat` smoke (any current WeChat MP article works; cn-east-mainland reaches WeChat directly)
@@ -424,6 +427,7 @@ Output:
 **ROADMAP SC4 (line 81):** "`scripts/local_e2e.sh layer1 5` AND `scripts/local_e2e.sh wechat <url>` both reach completion with no errors in `.scratch/local-e2e-*-<ts>.log`; smoke ingests land in **scratch** storage (production path uncontaminated, same as READY-04 discipline) (DEPLOY-04)"
 
 Mapped:
+
 - ✅ `layer1 5` zero-error completion: Task 2 executes; Task 4 records `tail -30` + grep ERROR count = 0
 - ✅ `wechat <url>` zero-error completion: Task 3 executes; Task 4 records same evidence pattern
 - ✅ Logs in `.scratch/local-e2e-*-<ts>.log`: Task 2 + Task 3 capture log paths; harness writes to that path per CLAUDE.md

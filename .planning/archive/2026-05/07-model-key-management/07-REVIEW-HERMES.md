@@ -14,7 +14,9 @@
 **Verdict: ✅ Scope creep is justified. Ship it.**
 
 ### Current state
+
 `lightrag_embedding.py` (133 lines, at repo root) is imported by at least 5 files:
+
 - `ingest_wechat.py:33`
 - `kg_synthesize.py:42`
 - `multimodal_ingest.py` (per migration map)
@@ -24,14 +26,17 @@
 It uses `os.environ.get("GEMINI_API_KEY")` directly and has its own `_DEFAULT_MODEL = "gemini-embedding-2"` constant (line 46).
 
 ### Analysis
+
 The alternative — leave at root with `from lib.api_keys import current_key` — creates structural asymmetry: one module at root importing from `lib/`, while everything inside `lib/` imports from siblings. That's worse than moving it in.
 
 Moving it to `lib/lightrag_embedding.py` and having the root `lightrag_embedding.py` become a re-export shim (`from lib.lightrag_embedding import embedding_func`) is the cleanest path. The cost is low: 5 import lines change.
 
 ### Missing guardrail
+
 The plan's Wave 0 Task 0.7 has no **output-parity test**. If the refactored internal key access produces a different embedding vector (e.g., wrong key, different model), the bug silently passes Wave 0 tests and only surfaces in Wave 1's smoke test — by which point 5+ other tasks have landed on top.
 
 **Action required:** Add to Wave 0 Task 0.7 acceptance criteria:
+
 - `python -c "from lightrag_embedding import embedding_func as old; from lib import embedding_func as new; assert old is new; print('parity ok')"` — verifies the root shim re-exports the same object
 
 ---
@@ -41,6 +46,7 @@ The plan's Wave 0 Task 0.7 has no **output-parity test**. If the refactored inte
 **Verdict: ⚠️ Overengineered. Ship without model env overrides.**
 
 ### Current plan
+
 ```python
 INGESTION_LLM = os.environ.get("OMNIGRAPH_MODEL_INGESTION_LLM", "gemini-2.5-flash-lite")
 VISION_LLM    = os.environ.get("OMNIGRAPH_MODEL_VISION_LLM",    "gemini-2.5-flash-lite")
@@ -50,15 +56,18 @@ GITHUB_INGEST_LLM = os.environ.get("OMNIGRAPH_MODEL_GITHUB_INGEST", "gemini-3.1-
 ```
 
 ### Analysis
+
 The justification is "rollback without deploy" — but for a single-user hobbyist tool where code lives on one machine, `git revert` + push IS the rollback. It's faster than SSH-ing in to set an env var, and it leaves a clean audit trail.
 
 The only env override that earns its keep is **D-08 (`OMNIGRAPH_RPM_*`)** — upgrading from free tier (15 RPM) to paid tier (300 RPM) = env change, not code change. That's genuinely useful and forward-compatible.
 
 Every model env override is provisioning overhead that will never be touched:
+
 - When will Hai need to swap `INGESTION_LLM` at runtime without a deploy? Never.
 - When will he run `INGESTION_LLM=gemini-2.5-pro` for one script but `gemini-2.5-flash-lite` for another? Never — he's a single-user with one workflow.
 
 **Action required:** Make model constants pure strings:
+
 ```python
 INGESTION_LLM = "gemini-2.5-flash-lite"
 VISION_LLM = "gemini-2.5-flash-lite"
@@ -66,6 +75,7 @@ SYNTHESIS_LLM = "gemini-2.5-flash-lite"
 EMBEDDING_MODEL = "gemini-embedding-2"
 GITHUB_INGEST_LLM = "gemini-3.1-flash-lite-preview"
 ```
+
 Keep `os.environ.get()` ONLY for `RATE_LIMITS_RPM` overrides (D-08).
 
 ---
@@ -75,6 +85,7 @@ Keep `os.environ.get()` ONLY for `RATE_LIMITS_RPM` overrides (D-08).
 **Verdict: Ordering is fine, but Wave 0 is too monolithic.**
 
 ### Analysis
+
 The sequence (Wave 0 → Wave 1 → Wave 2...) is logically sound. Wave 0 lands the library, Wave 1 does the reference migration against it.
 
 **The real problem is Wave 0's blast radius.** 7+ tasks in one wave = one big commit (per the plan's D-03 "per-wave commits"). If Task 0.7 introduces a subtle embedding regression, it's buried under 6 other tasks. You cannot `git bisect` within a wave.
@@ -102,7 +113,9 @@ Each commit is independently revertable. Tests green between every commit. This 
 **Verdict: 🚩 Would not ship as designed. Overengineered.**
 
 ### Current design
+
 The plan's `lib/cognee_bridge.py` is ~35 lines:
+
 ```
 rotate_key() → on_rotate listener → propagate_key_to_cognee() → mutate cached singleton's llm_api_key
 ```
@@ -159,6 +172,7 @@ The plan: "D-11 config.py shims may remain indefinitely (acceptable per D-11)."
 **No.** After Waves 1-4 migrate every caller to `from lib import`, you have `config.py` importing from `lib/` to re-export constants under old names. That's two sources of truth for model names, and `config.py` depends on `lib/` — a structural direction that should flow the other way (application code → lib, not lib → config).
 
 **Action required:** Add a Wave 4 sweeper task: after all callers are migrated (verified via grep acceptance criteria in Waves 1-4), delete:
+
 - `config.INGEST_LLM_MODEL`
 - `config.IMAGE_DESCRIPTION_MODEL`
 - `config.ENRICHMENT_LLM_MODEL`
@@ -173,6 +187,7 @@ Wave 2 Task 2.5 (image_pipeline) has a hedge: "if `generate_sync` doesn't suppor
 This means the "single LLM entry point" promise from `lib/llm_client.py` is broken on day one. Image pipeline goes through `genai.Client(api_key=current_key())` directly, while text ingestion goes through `generate_sync()`. Two code paths, two different behaviors under rotation/retry.
 
 **Action required:** Either:
+
 - Make `generate_sync(model, prompt, contents=[...], **kwargs)` accept multimodal contents natively (the `google-genai` SDK supports it — `client.models.generate_content(model=..., contents=[text, image_part])`)
 - OR document explicitly in `lib/llm_client.py` that vision calls use `current_key()` + direct `genai.Client`, and `lib/` does NOT claim to cover vision use cases
 

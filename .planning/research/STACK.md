@@ -62,6 +62,7 @@ text = extract(
 **Known limitation — math/figure elements stripped by default:**
 
 `MANUALLY_CLEANED` in `trafilatura/settings.py` explicitly includes `"figure"`, `"math"`, `"svg"`, `"picture"`. This means:
+
 - Inline LaTeX in Arxiv HTML (`<math>` tags) will be dropped
 - Figures without alt text lose their caption
 
@@ -286,30 +287,36 @@ If lxml >= 6 is installed, add `lxml>=4.9,<6` to requirements.txt until the traf
 ## Stack Patterns by Variant
 
 **If URL is WeChat (`mp.weixin.qq.com`):**
+
 - Use existing `ingest_wechat.py` path unchanged (UA rotation → Apify → CDP/MCP)
 - Do NOT route through trafilatura
 - Rationale: WeChat MicroMessenger UA spoofing is a bespoke solution that trafilatura's generic UA cannot replicate
 
 **If URL is Arxiv (`arxiv.org/abs/*`):**
+
 - Fetch HTML via trafilatura Layer 1 for abstract/metadata
 - If full paper needed: rewrite URL to `arxiv.org/pdf/XXXX.pdf` and use PyMuPDF path
 - Rationale: trafilatura drops `<math>` elements; PyMuPDF preserves equation text
 
 **If URL is Arxiv HTML (`arxiv.org/html/*`):**
+
 - Use trafilatura with `favor_recall=True`; accept math loss
 - Rationale: newer papers (2024+) have HTML versions; math loss is acceptable for LightRAG entity extraction
 
 **If URL is Medium (`medium.com/*`) from RSS:**
+
 - Attempt Layer 1 (trafilatura UA) — many free articles succeed
 - On failure, fall back to Layer 3 (CDP/MCP) without Layer 2 retry
 - Rationale: Medium's Cloudflare is triggered by repeated bot-like requests; skip Layer 2 on first failure
 
 **If URL is Substack (free newsletter):**
+
 - Layer 1 (trafilatura UA) succeeds reliably for public posts
 - No CDP needed
 - Paid posts do not appear in free RSS feeds
 
 **If URL returns HTTP 429:**
+
 - Do NOT cascade immediately — 429 is transient
 - Apply exponential backoff (30s, 60s, 120s) then retry Layer 1
 - If 429 persists after 3 retries, cascade to Layer 3

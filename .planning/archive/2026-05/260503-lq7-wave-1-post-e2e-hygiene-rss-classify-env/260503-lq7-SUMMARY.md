@@ -182,6 +182,7 @@ Per plan constraint — quick-task scope only:
 ## Self-Check: PASSED
 
 **Files verified:**
+
 - `enrichment/rss_classify.py` — FOUND (contains `OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP` at line 127; no `or 1000`)
 - `enrichment/orchestrate_daily.py` — FOUND (zero `fetched_at`; `a.scanned_at` at line 150)
 - `tests/unit/test_rss_classify.py` — FOUND (4 new env-cap tests at tail)
@@ -189,6 +190,7 @@ Per plan constraint — quick-task scope only:
 - `CLAUDE.md` — FOUND (env var row at line 156)
 
 **Commits verified:**
+
 - `0fa9674` — FOUND on origin/main
 - `07d2b11` — FOUND on origin/main (HEAD)
 

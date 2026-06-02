@@ -20,6 +20,7 @@ Phase 5 has NOT executed yet (the 9 plans are sitting in `.planning/phases/05-pi
 Purpose: The previous Karpathy-bias source list is mismatched against VitaClaw's scope (agent runtimes, memory, MCP, sandbox, eval, browser automation). The new list adds 7-dimension taxonomy at OPML-level so the classifier can output `dimensions: list[str]` and the digest renderer can group articles by dimension for cleaner reading.
 
 Output:
+
 - 1 new OPML file (60-80 entries, all with `omg:*` attrs)
 - 1 new README.md (curation rationale, blind spots, how-to-add-feeds)
 - 3 surgically-edited Phase 5 PLAN.md files (no restructuring)
@@ -36,6 +37,7 @@ Output:
 @.planning/phases/05-pipeline-automation/05-05-daily-digest-PLAN.md
 
 <key_constraints>
+
 - Phase 5 has NOT executed — the OPML referenced in 05-01 doesn't exist on disk yet, so this is a clean swap (no migration needed).
 - Locked decision D-07 (Phase 5 CONTEXT): RSS articles never enriched. The `rss_articles.enriched=2` filter does NOT apply to RSS in 05-05. Already correctly handled in 05-05; do NOT regress.
 - D-08 (EN→CN in classifier prompt): preserve. Adding `dimensions` to the prompt does NOT change the EN→CN rule.
@@ -45,6 +47,7 @@ Output:
 </key_constraints>
 
 <reference_files>
+
 - `enrichment/rss_schema.py` — DOES NOT EXIST YET (Phase 5 not executed). The DDL is INLINE in 05-01 Task 1.1 lines 130-180.
 - `enrichment/rss_classify.py` — DOES NOT EXIST YET. Code is INLINE in 05-03 Task 3.1 lines 130-295.
 - `enrichment/daily_digest.py` — DOES NOT EXIST YET. Spec is INLINE in 05-05 Task 5.1 lines 122-147.
@@ -935,6 +938,7 @@ print('OK: all 3 PLAN.md files passed structural + edit-content checks')
 </verification>
 
 <success_criteria>
+
 - ✅ OPML schema (omg:dimension|priority|source_type) consumable by Phase 5 plans 05-01/05-03/05-05 without further refactor.
 - ✅ Phase 5 wave structure (Wave 1 = 05-01..05-03, Wave 2 = 05-04..05-05) preserved — quick task did not touch wave numbers, depends_on, or plan ordering.
 - ✅ Locked Phase 5 decisions (D-07 RSS-not-enriched, D-08 EN→CN-in-prompt, D-15/D-18/D-19 asymmetric UNION ALL) preserved.

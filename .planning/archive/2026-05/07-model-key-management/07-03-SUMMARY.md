@@ -62,6 +62,7 @@ metrics:
 ## Accomplishments
 
 ### Task 3.1 — cognee_wrapper.py (commit `53dbcc1`)
+
 - Replaced module-level `GEMINI_API_KEY = os.environ.get(...)` with `current_key()` from lib
 - `llm_config.llm_api_key = current_key()` (Amendment 4 init pattern, mirrors kg_synthesize.py Wave 2)
 - Replaced hardcoded `"gemini-2.5-flash"` with `lib.INGESTION_LLM`
@@ -70,6 +71,7 @@ metrics:
 - **Preserved** Cognee handshake env vars (`LLM_PROVIDER='gemini'`, `EMBEDDING_PROVIDER='gemini'`, `EMBEDDING_MODEL='gemini-embedding-2'`, `COGNEE_SKIP_CONNECTION_TEST`, `ENABLE_BACKEND_ACCESS_CONTROL`) — Cognee backend identity, not Gemini SDK calls
 
 ### Task 3.2 — cognee_batch_processor.py (commit `86bea93`)
+
 - Replaced `genai.Client(api_key=GEMINI_API_KEY)` instantiation in `run_batch()` with lib-managed client
 - Both `process_buffer_file` and `process_db_entities` now call `lib.generate_sync(INGESTION_LLM, prompt, config=...)` — removed the `gemini_client` / `client` parameter (internal signature; lib handles key caching + rate limit + retry + rotation)
 - **Amendment 4:** `refresh_cognee()` called as first statement in `run_batch()` — invalidates Cognee's `@lru_cache` so rotated keys land on the next poll cycle
@@ -79,11 +81,13 @@ metrics:
 - **Preserved** DB-first + file-buffer poll discovery + `_RATE_LIMIT_SECONDS` sleep
 
 ### Task 3.2.5 — kg_synthesize.py Amendment 4 one-line patch (commit `5fb32ab`)
+
 - Added `refresh_cognee` to the existing `from lib import ...` line
 - Added `refresh_cognee()` as first statement inside `synthesize_response(query_text, mode)` with Amendment-4 citation comment for greppability
 - Wave 2 Task 2.4 migration state otherwise untouched (surgical change — one line + one import token)
 
 ### Task 3.3 — enrichment/extract_questions.py (commit `221b898`)
+
 - Replaced `from config import gemini_call` + `gemini_call(...)` call with `from lib import INGESTION_LLM, generate_sync` + `generate_sync(DEFAULT_MODEL, ..., config=config)`
 - `DEFAULT_MODEL = os.environ.get("ENRICHMENT_LLM_MODEL", INGESTION_LLM)` — env override preserved; hardcoded fallback swapped for lib constant
 - `GROUNDING_ENABLED` behavior preserved (google_search Tool kwarg still flows through)
@@ -91,10 +95,12 @@ metrics:
 - Tests in `tests/unit/test_extract_questions.py` already pivoted to `lib.llm_client.generate` mocks in Wave 2 D-06 — no test edits needed. All 7 pass.
 
 ### Task 3.4a — init_cognee.py (commit `7073eff`)
+
 - `os.environ['GOOGLE_API_KEY'] = current_key()` (was `os.environ.get('GEMINI_API_KEY', '')`)
 - **Preserved** Cognee handshake vars: `LLM_PROVIDER='gemini'`, `LLM_MODEL='gemini/gemini-1.5-pro'`, `EMBEDDING_PROVIDER='gemini'`, `EMBEDDING_MODEL='gemini/text-embedding-004'`, `EMBEDDING_DIMENSIONS='768'`, `COGNEE_SKIP_CONNECTION_TEST='true'` — these are litellm-qualified model names that Cognee expects verbatim; not Gemini SDK model selectors
 
 ### Task 3.4b — setup_cognee.py (commit `2892d2f`)
+
 - Deleted the hand-rolled `~/.hermes/.env` parsing loop entirely; `lib.current_key()` (via lib.api_keys.load_keys → config.load_env) handles env loading
 - `_key = current_key()` fed into `LLM_API_KEY`, `GOOGLE_API_KEY`
 - **Preserved** same Cognee handshake vars as init_cognee.py
@@ -111,6 +117,7 @@ metrics:
 ## Wave 3 Verification Gates
 
 ### Integration test (Task 3.5 Step A)
+
 ```
 $ DEEPSEEK_API_KEY=dummy venv/Scripts/python -m pytest tests/integration/test_cognee_rotation.py -v
 tests/integration/test_cognee_rotation.py::test_rotate_sets_env_and_refresh_clears_cache PASSED
@@ -118,18 +125,22 @@ tests/integration/test_cognee_rotation.py::test_rotate_propagates_fresh_key_afte
 tests/integration/test_cognee_rotation.py::test_refresh_cognee_calls_cache_clear PASSED
 ======================= 3 passed, 9 warnings in 10.17s ========================
 ```
+
 **Result: PASS (3/3).** Amendment 4 env-var write + cache-clear chain verified by existing Wave 0 fixtures. No source edits to the integration test required this wave.
 
 ### Full test suite (Task 3.5 Step B)
+
 ```
 $ DEEPSEEK_API_KEY=dummy venv/Scripts/python -m pytest tests/ --tb=no -q
 109 passed, 14 warnings in 15.14s
 ```
+
 **Result: PASS (109/109).** Matches the Wave 2 exit baseline exactly — zero regressions from the 6 Wave 3 commits.
 
 Baseline without DEEPSEEK_API_KEY: 11 failed / 69 passed / 29 errors — consistent with Wave 2 SUMMARY's documented Phase 5 Plan 05-00c cross-coupling (lib/__init__.py imports `deepseek_model_complete` which raises at module import time if `DEEPSEEK_API_KEY` is unset). Not a Wave 3 regression.
 
 ### Live kg_synthesize smoke (Task 3.5 Step C)
+
 **Deferred to remote PC per 07-VALIDATION.md "Manual-Only Verifications" row "End-to-end kg_synthesize + Cognee rotation".** The live smoke requires real Gemini API calls + the deployed Cognee DB + populated LightRAG graph — local Windows dev env has none of these in place. Integration test (Step A) covers the Amendment 4 env-var + cache-clear surface programmatically; a real rotation event against live Cognee can be exercised on the remote Hermes PC when Wave 4 deploy verification runs.
 
 ## Amendment 4 Chain — Final State
@@ -153,6 +164,7 @@ Real production code now exercises both sides of the Amendment 4 chain (env-var 
 ## Deviations from Plan
 
 ### Minor scope simplification — cognee_batch_processor internal signature change
+
 **Trigger:** Plan Step D said "swap `genai.Client(api_key=...)` for `api_key=current_key()`". With the migration to `lib.generate_sync`, the `client` parameter is no longer needed on the two processor functions — the lib client is module-global and handles its own key rotation.
 
 **Decision:** Removed the `gemini_client` / `client` parameter from `process_buffer_file` and `process_db_entities` entirely (both are internal helper functions, not part of any public API; grepping the repo confirmed no external callers).
@@ -183,6 +195,7 @@ The DEEPSEEK_API_KEY import-time validation remains an open cross-phase issue (t
 ## Self-Check: PASSED
 
 **Files verified exist:**
+
 - FOUND: cognee_wrapper.py
 - FOUND: cognee_batch_processor.py
 - FOUND: kg_synthesize.py
@@ -191,6 +204,7 @@ The DEEPSEEK_API_KEY import-time validation remains an open cross-phase issue (t
 - FOUND: setup_cognee.py
 
 **Commits verified present on main:**
+
 - FOUND: 53dbcc1 (Task 3.1)
 - FOUND: 86bea93 (Task 3.2)
 - FOUND: 5fb32ab (Task 3.2.5)
@@ -199,6 +213,7 @@ The DEEPSEEK_API_KEY import-time validation remains an open cross-phase issue (t
 - FOUND: 2892d2f (Task 3.4b)
 
 **Wave 3 acceptance gate:**
+
 - FOUND: 6 Wave 3 commits (5 P1 file migrations + 1 Amendment 4 patch on kg_synthesize) — matches plan's "6 commits total"
 - FOUND: Integration test tests/integration/test_cognee_rotation.py PASS (3/3)
 - FOUND: Full pytest suite PASS (109/109, matches Wave 2 baseline)

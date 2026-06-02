@@ -16,6 +16,7 @@ Inserted 5 top-level CLAUDE.md sections (Checkpoint Mechanism, Vision Cascade, S
 ## Acceptance criteria
 
 All 10 grep checks pass:
+
 - 5 section headings present
 - `## ` count: pre-edit 37 → post-edit 42 (+5, surgical)
 - `checkpoint_reset.py` referenced

@@ -64,6 +64,7 @@ DEEPSEEK_API_KEY=dummy venv/Scripts/python.exe -m pytest \
 Phase 14 (regression fixtures) will add real-fixture-based regression tests that exercise the full pipeline with persisted article + image fixtures. These integration tests are purely mock-based and validate the state machine; Phase 14 adds end-to-end signal on golden fixtures.
 
 Important interface contracts for Phase 14:
+
 - `OMNIGRAPH_VISION_CHECKPOINT_DIR` is the canonical test seam for redirecting cascade state.
 - `OMNIGRAPH_VISION_SKIP_BALANCE_CHECK=1` disables pre/mid-batch balance checks for offline runs.
 - Patch `lib.vision_cascade.requests.post` and `lib.generate_sync` at the HTTP + Gemini boundary; patch `image_pipeline.check_siliconflow_balance` at the image_pipeline import site.

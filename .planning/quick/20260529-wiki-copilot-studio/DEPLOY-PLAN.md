@@ -57,6 +57,7 @@ run `python kb/export_knowledge_base.py` first.
 ### 1. Confirm how `kb/output/` gets refreshed
 
 `deploy.sh` Pass 0 is `rm -rf _ssg && cp -R kb/output _ssg`. It does NOT bake. So one of:
+
 - (a) `kb/output/` is git-tracked and pre-baked → I need to bake locally, commit `kb/output/`,
       then deploy.
 - (b) `kb/output/` is .gitignored, baked on-demand by a separate command.

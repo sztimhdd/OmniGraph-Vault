@@ -53,6 +53,7 @@ Any other path edit requires explicit user approval before merge.
 | 10 | **Hermes touchpoint** | **One-shot user upload (SEED-DBX-01) only** — no ongoing sync; runtime is fully Databricks-self-contained (rev 3) |
 
 **Removed in rev 3:**
+
 - ~~"DeepSeek (status quo); workspace secret + `valueFrom: secretKeyRef`"~~ — rev 2.x slot 8, retired
 - ~~"Manual `databricks fs cp` from Windows dev (v1)"~~ — rev 2.x slot 9, replaced by one-shot SEED-DBX-01
 

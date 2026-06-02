@@ -37,6 +37,7 @@ These were locked by the orchestrator after researcher surfaced the trade-offs. 
 Translation in dispatcher. `lib/llm_complete.py` `databricks_serving` branch catches Databricks SDK 503/429/timeout/connection exceptions and re-raises them as generic exception types that kb/services/synthesize.py's EXISTING `kg_unavailable` reason-code path already handles (kb-v2.1-1 KG MODE HARDENING shipped that pattern in commit `eff934f`).
 
 Implementation footprint:
+
 - `lib/llm_complete.py` — exception translation in the `databricks_serving` branch (already in CONFIG-EXEMPTIONS)
 - `kb/services/synthesize.py` — NOT MODIFIED. CONFIG-EXEMPTIONS NOT extended.
 - No new `kg_serving_unavailable` literal added; existing `kg_unavailable` (or whichever literal kb-v2.1-1 implements) is reused.
@@ -56,6 +57,7 @@ kdb-2-04 verification MUST cite this explicitly: "Smoke 1+2 use FTS5 fallback pa
 Pre-existing dispatcher work (quick-260509-s29 W3, see commit history) already covers `kg_synthesize.py:19` (import line: `from lib.llm_complete import get_llm_func`) + `kg_synthesize.py:106` (call site: `llm_model_func=get_llm_func()`).
 
 LLM-DBX-02 work in kdb-2 is therefore reduced to:
+
 - (a) Test confirming `OMNIGRAPH_LLM_PROVIDER=databricks_serving` actually exercises the new dispatcher branch through `kg_synthesize.synthesize_response`
 - (b) CONFIG-EXEMPTIONS.md ledger flip: `kg_synthesize.py` row from `NOT YET MODIFIED` → `MODIFIED (quick-260509-s29 W3 — dispatcher route already in place; kdb-2 confirms via test)`
 - (c) Verify NO other hardcoded LLM call sites in kg_synthesize.py beyond the dispatcher path (researcher confirmed clean per RESEARCH.md Q3)
@@ -65,6 +67,7 @@ LLM-DBX-02 work in kdb-2 is therefore reduced to:
 ### Decision 4 — Smoke 1+2 verification path = BROWSER-SSO INTERACTIVE UAT
 
 Workspace Private Link (verified by kdb-1 SPIKE-FINDINGS) blocks external Bearer + browser-SSO from external network. Recommended path:
+
 1. User opens App URL in browser via workspace UI Apps tab (`https://adb-2717931942638877.17.azuredatabricks.net/apps/omnigraph-kb`)
 2. Completes SSO inside the workspace UI session
 3. Captures screenshots + Apps Logs panel
@@ -115,6 +118,7 @@ Wave 3:
 ### Why this decomposition (not vertical slicing)
 
 The mostly-vertical "AUTH | LLM-side | deploy" decomposition was chosen because:
+
 - AUTH (plan 01) is pure CLI/SQL with no Python dependencies — independent.
 - LLM dispatcher branch (plan 02) is pure Python in `lib/` — independent of AUTH and of the integration tests.
 - LLM-DBX-04 verification (plan 03) needs the dispatcher branch to exist before testing the translated-exception path → depends on plan 02.

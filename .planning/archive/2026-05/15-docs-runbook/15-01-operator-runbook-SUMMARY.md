@@ -16,6 +16,7 @@ Created `docs/OPERATOR_RUNBOOK.md` (129 lines) with 5 mandatory sections: Pre-Ba
 ## Acceptance criteria
 
 All 20 grep/wc checks pass:
+
 - File exists, line count 129 (≥ 80 required)
 - 5 mandatory section headings present
 - 7 pre-batch checklist items (exact count)

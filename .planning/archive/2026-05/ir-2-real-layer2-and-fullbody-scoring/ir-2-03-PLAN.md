@@ -144,6 +144,7 @@ Mandatory sections (preserve order):
 5. **Step 3 — Pause `daily-ingest` cron** (`hermes cron disable daily-ingest`).
 6. **Step 4 — Pull main + verify HEAD matches**.
 7. **Step 5 — Apply migration 007**:
+
    ```bash
    python migrations/007_layer2_columns.py data/kol_scan.db
    sqlite3 data/kol_scan.db "PRAGMA table_info(articles)"     | grep layer2_
@@ -151,6 +152,7 @@ Mandatory sections (preserve order):
    # Re-run for idempotency:
    python migrations/007_layer2_columns.py data/kol_scan.db
    ```
+
 8. **Step 6 — Smoke 5 articles (dry-run)** — log should contain `[layer1] batch` lines (Layer 1 fires under dry-run per LF-3.6); `[layer2] batch` lines do NOT appear under dry-run (Layer 2 is gated by the per-candidate body which dry-run short-circuits).
 9. **Step 7 — Smoke 1 article (real ingest)** — gating happy-path. Log MUST contain `[layer1] batch ... null=0` AND `[layer2] batch ... null=0`. DB query must show both `layer1_verdict` AND `layer2_verdict` populated for the 1 article.
 10. **Step 8 — Resume `daily-ingest` cron**.
@@ -167,6 +169,7 @@ Mandatory sections (preserve order):
 Reference ir-1 HERMES-DEPLOY.md (truthful version at commit f38138b) for exact wording of warnings, command formats, and rollback ordering. Adapt all `migration 006` / `layer1_*` references to `migration 007` / `layer2_*` (or both, where applicable for first-cron-run sanity checks).
 
 **HARD CONSTRAINTS:**
+
 - DO NOT include real SSH hostnames, ports, or usernames.
 - DO NOT execute any of the runbook commands during this plan's execute step.
 - Day-1 backlog warning must surface that BOTH layer1 AND layer2 are first-time-evaluated post-migration.
@@ -414,6 +417,7 @@ wc -l .scratch/layer2-deepseek-validation-*.md .scratch/layer2-deepseek-runner-*
 6. **Capture the latest TS for use in CLOSURE.md** (Task 4.3).
 
 **HARD CONSTRAINTS:**
+
 - The runner file at `.scratch/layer2-deepseek-runner.py` MUST stay gitignored. Verify with `git check-ignore -v .scratch/layer2-deepseek-runner.py`.
 - The output `.md` and `.log` files MUST stay gitignored.
 - Do NOT commit `.scratch/` content.
@@ -535,6 +539,7 @@ After deploy: ir-3 (production cutover + 1-week observation) starts at operator'
 ```
 
 Fill in:
+
 - `<full sha>` from `git log --oneline -10` for each ir-2 commit.
 - `<ts>` matching the close-out smoke timestamp.
 - `<N> / <M>` line counts via `wc -l`.
@@ -542,6 +547,7 @@ Fill in:
 - LF-2.4 verdict text copied verbatim from the report.
 
 **HARD CONSTRAINTS:**
+
 - DO NOT inline summary numbers (e.g. "誤殺=0, 漏放=0") in CLOSURE.md without the line-reference. Anti-fabrication rule from fc13098 lesson.
 - DO NOT touch sibling docs (PROJECT-v3.5 / REQUIREMENTS-v3.5 / ROADMAP-v3.5 / STATE-v3.5).
 - DO NOT modify the ir-2 PLAN files retroactively.

@@ -659,6 +659,7 @@ DATA-07 cross-reference (per CONTENT-QUALITY-DECISIONS.md "Open question — sea
 </verification>
 
 <success_criteria>
+
 - API-04: FTS5 sync query, p50 < 100ms
 - API-05: KG async via 202 + polling
 - SEARCH-01: trigram tokenizer locked

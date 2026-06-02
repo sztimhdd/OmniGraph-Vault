@@ -1,4 +1,5 @@
 # POLLUTION-AUDIT — OmniGraph-Vault
+
 Generated: 2026-05-10 14:46 ADT
 Scope: top vibe-coding-polluted Python modules across the OmniGraph-Vault repo,
 post-exclusion of 7 already-audited surfaces (LightRAG SDK wrapping,
@@ -55,16 +56,19 @@ Notable churn:LOC ratio: `query_lightrag.py` = 11 commits / 59 LOC (= 0.19 commi
 `git log --since="2026-04-01" | grep -iE "revert|rewrite|supersede|hot[- ]?fix|wave|emergency|rollback|fix.*fix"` produced 40+ matches; 3 chains particularly visible.
 
 **Chain A — CV mass-classify (batch_ingest_from_spider.py + batch_classify_kol.py)**
+
 - `c786a83` feat(classify): UPSERT semantics + UNIQUE article_id index
 - `428b16f` fix(classify): revert UPSERT to ON CONFLICT(article_id, topic) — multi-topic loop compatibility
 
 **Chain B — Vertex embedding model name (lib/lightrag_embedding.py)** — Lessons Learned 2026-05-03 confirms 3 flips:
+
 - `8e4b132` fix(cognee): vertex ai embedding model name mapping
 - `9069f59` fix(embedding): remove stale -preview model mapping on Vertex AI
 - `99a1fb8` fix(embedding): restore -preview mapping — Vertex catalog flipped back (3rd flip)
 - `f6be225` fix(embedding): remove incorrect preview alias; gemini-embedding-2 is GA on global endpoint
 
 **Chain C — SCR-06 cascade** (`ingest_wechat.py` + `lib/scraper.py` + `batch_ingest_from_spider.py`)
+
 - `ecaa2df` fix(ingest): short-circuit scraper cascade after Apify success + reduce CDP timeout
 - `958b2b9` fix(scr-06): consumer accepts markdown OR content_html — completes ecaa2df cascade fix
 - `af01315` fix(scr-06-followup): merge UA img_urls with content_html images (silent loss fix per audit ece03ae)
@@ -93,6 +97,7 @@ Three multi-commit chains all centered on the **batch_ingest + ingest_wechat + s
 Examples (verbatim, with file:line):
 
 `batch_ingest_from_spider.py`:
+
 - L30 `# D-09.01 (TIMEOUT-01): LightRAG reads LLM_TIMEOUT at dataclass-definition time`
 - L77 `# Quick 260509-s29 Wave 2: reject-reason cohort version.`
 - L143 `# D-09.03 (TIMEOUT-03): per-article outer budget formula.`
@@ -100,6 +105,7 @@ Examples (verbatim, with file:line):
 - L283 `# D-09.03: 900s floor covers a worst-case single-chunk 800s DeepSeek call.`
 
 `ingest_wechat.py`:
+
 - L136 `# Phase 7 D-09: embedding_func now lives in lib/; root shim re-exports for back-compat.`
 - L140 `# dev). Was: from lightrag_llm import deepseek_model_complete (Plan`
 - L150 `# Phase 5-00b: extract_entities now on DeepSeek (R4). INGESTION_LLM previously`
@@ -107,6 +113,7 @@ Examples (verbatim, with file:line):
 - L277 `# Plan 05-00c Task 0c.3: LightRAG LLM_func is now deepseek_model_complete from`
 
 `image_pipeline.py`:
+
 - L3-7 docstring `Extracted from ingest_wechat.py as part of Phase 4 refactor (D-15, D-16). ... Phase 13 (2026-05-02): describe_images now delegates to lib.vision_cascade`
 - L41 `_DESCRIBE_INTER_IMAGE_SLEEP_SECS = 0  # Phase 8 IMG-02: was 2; SiliconFlow has no RPM cap`
 - L46 `# Phase 8 IMG-03 / D-08.05: canonical outcome taxonomy (6 values).`
@@ -128,6 +135,7 @@ Hub modules ranked by inbound imports (production code, excluding tests/scripts)
 **Key inversion finding**: `lib/scraper.py:212-238` defines `_scrape_wechat()` which uses `getattr(ingest_wechat, fn_name)` to dispatch into the 4 scrape implementations physically defined in `ingest_wechat.py:529-896`. The "library" module depends on the "application" module; refactoring `ingest_wechat.py` requires preserving these getattr-discoverable function names.
 
 `batch_ingest_from_spider.py` carries 3 distinct orchestration paths in one module:
+
 - `run()` (line 683-...): subprocess-driven legacy path
 - `ingest_from_db()` (line 1437-...): in-process DB-driven (production)
 - 4 graded-probe variants at lines 1094 / 1171 / 1221 / 1290 (`_graded_probe_prompts`, `_graded_probe_deepseek`, `_graded_probe_vertex`, `_graded_probe`)
@@ -194,6 +202,7 @@ For Signal 1's top 10 production files, ratio of LOC(exact-match-test) / LOC(sou
 | `multimodal_ingest.py` | 177 | 0 | n/a | mentioned only in `test_get_rag_contract.py` |
 
 **Thin-coverage flags** (ratio < 0.2 or no exact-match test on a >500-LOC file):
+
 - `ingest_wechat.py` (1408 LOC, no exact-match) — covered by 24 scattered tests; impossible to know what each scenario exercises without reading them all.
 - `batch_ingest_from_spider.py` (2029 LOC, no exact-match) — same.
 - `multimodal_ingest.py` (177 LOC, no test, no in-process callers — orphan)
@@ -222,6 +231,7 @@ These leak into the churn signal (e.g., `kg_synthesize.py` 19 commits includes `
 ### #1 — `batch_ingest_from_spider.py` (2029 LOC, 51 commits) — Pollution: HIGH
 
 **Top 3 specific concerns**:
+
 1. **God module / unclear single responsibility.** 26 top-level defs (line numbers 125, 152, 179, 187, 205, 237, 330, 358, 385, 415, 483, 528, 546, 648, 683, 915, 940, 990, 1094, 1159, 1171, 1221, 1290, 1340, 1437, 1968) span: timeout helpers, 2 separate orchestration paths (`run` line 683 + `ingest_from_db` line 1437), 200-line classifier (lines 358-547 — DeepSeek + Gemini fallback that overlaps with `batch_classify_kol.py`), 245-line graded-probe subsystem (lines 1094-1339 with deepseek + vertex variants), schema migration helper (`_ensure_fullbody_columns` line 330), env loader duplicate (`_load_hermes_env` line 358 — also in `lib/llm_deepseek.py:47`), and the actual ingest loop. No exact-match test file. Reading any one path requires holding all 26 defs in working memory.
 2. **84 phase/D-XX/wave markers** make line-by-line archaeology mandatory. Examples:
    - L30 `D-09.01`, L77 `Quick 260509-s29 Wave 2`, L119 `D-10.09`, L143 `D-09.03`, L169 `Phase 17 (BTIMEOUT-04)`, L283 `D-09.03`, L308 `Phase 17 BTIMEOUT-03`, L765 `Phase 17 BTIMEOUT-01`. Reader must know what each ID means; the `.planning/` linkage is implicit.
@@ -236,6 +246,7 @@ These leak into the churn signal (e.g., `kg_synthesize.py` 19 commits includes `
 ### #2 — `ingest_wechat.py` (1408 LOC, 59 commits — highest churn) — Pollution: HIGH
 
 **Top 3 specific concerns**:
+
 1. **5 jobs in one module.** Definitions at lines 529 (`scrape_wechat_ua`), 664 (`scrape_wechat_apify`), 704 (`scrape_wechat_mcp`), 838 (`scrape_wechat_cdp`), 915 (`ingest_article` — ~375 LOC), 1327 (`ingest_pdf`). The 4 scraper functions logically belong in `lib/scraper.py` but **`lib/scraper.py:227-238` getattr-imports them back from `ingest_wechat`** — the "library" depends on the "application", inverting the intended layering (Phase 19 SCR-01..05 was supposed to fix this but stopped at the orchestrator).
 2. **`ingest_article` is itself a god-function.** Lines 915-1290 = ~375 LOC, with a cached-vs-fresh branch (lines 947-996), 5 checkpoint stages (lines 1000-1180), Vision-worker spawn at line 1186, dual hash schemes (MD5[:10] for image dir at line 943, SHA256[:16] for checkpoint at line 940), and inline pending-doc rollback registry calls. `_verify_doc_processed_or_raise` (line 60) is the 2026-05-10 quick 260510-h09 hot-fix bolted on top.
 3. **76 phase/D-XX/wave markers**, 41 in raw count. The Phase 5/7/8/10/12/17/18/19/20 IDs all coexist; reader must mentally fold them to "what's actually live in 2026-05-10".
@@ -249,6 +260,7 @@ These leak into the churn signal (e.g., `kg_synthesize.py` 19 commits includes `
 ### #3 — Cross-cutting cluster: 6 single-purpose CLI scripts duplicate identical setup — Pollution: MEDIUM
 
 **Affected files** (with offending lines):
+
 - `multimodal_ingest.py` L31-44 (own `load_env`), L54 (`os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"`), L64 (hardcoded `llm_model_name="deepseek-v4-flash"` while line 62 `get_llm_func()`), 8 phase markers; **0 in-process callers** (only via CLI subprocess from `batch_ingest_github.py`-style; no callers found for multimodal_ingest)
 - `query_lightrag.py` L15 (Vertex `=false`), L28 (hardcoded `deepseek-v4-flash` while L26 `get_llm_func()`), L18 own `load_env()`; 11 commits / 59 LOC = highest churn ratio in repo
 - `ingest_github.py` L42 (Vertex `=false`)
@@ -260,6 +272,7 @@ These leak into the churn signal (e.g., `kg_synthesize.py` 19 commits includes `
 **The bug**: `lib/lightrag_embedding.py:_is_vertex_mode()` (line 125) checks `GOOGLE_APPLICATION_CREDENTIALS` AND `GOOGLE_CLOUD_PROJECT`. CLAUDE.md "Phase 11 D-11.08" says Vertex is opt-in via these env vars. The 4 scripts that do unconditional `=false` (multimodal_ingest, query_lightrag, ingest_github, omnigraph_search/query, run_uat_ingest) **don't pop GOOGLE_APPLICATION_CREDENTIALS**, so `_is_vertex_mode()` still returns True when SA is set — but the `genai.Client` then tries to use a falsy-USE_VERTEXAI flag with SA auth, which is exactly the contradiction the Phase 11 guard in `config.py:65-69` was designed to prevent. The 2 enrichment scripts unconditionally `pop` (line 39 + 43), which **silently disables** any Vertex opt-in even when the user explicitly set it. **`config.py:65-69`'s guard ("only pop GOOGLE_* when SA NOT set") is bypassed in all 6 scripts.**
 
 **Top 3 concerns**:
+
 1. **Vertex opt-in silently broken in 5 of 9 sites.** The 6 scripts above all pre-date `_is_vertex_mode()` (added in `38b1d64` Phase 11 D-11.08) but were not updated; the only correctly-guarded site is `config.py:65-69`.
 2. **Hardcoded `llm_model_name="deepseek-v4-flash"`** in 3 places (`multimodal_ingest.py:64`, `query_lightrag.py:28`, plus `ingest_wechat.py` historical) while `get_llm_func()` may dispatch to Vertex. LightRAG uses `llm_model_name` for caching keys + tokenizer hints; mismatched model name = silent cache pollution.
 3. **`load_env()` re-implemented** in `ingest_wechat.py`, `multimodal_ingest.py`, `lib/llm_deepseek.py`, `query_lightrag.py` (via the imported `load_env` from config). Three of these (`ingest_wechat`, `multimodal_ingest`, `lib/llm_deepseek`) duplicate the body inline rather than importing `config.load_env` — Surgical Changes principle violation accumulating across versions.
@@ -275,6 +288,7 @@ These leak into the churn signal (e.g., `kg_synthesize.py` 19 commits includes `
 **The defect**: Line 87 `_API_KEY = _require_api_key()` runs at module import. Any Python process that does `from lib import deepseek_model_complete` (which `lib/__init__.py:34` does at root level) will RuntimeError at import if `DEEPSEEK_API_KEY` is not set. CLAUDE.md "Phase 5 DeepSeek cross-coupling (Hermes FLAG 2)" documents this — Gemini-only workloads still need `DEEPSEEK_API_KEY=dummy`. `lib/llm_complete.py:36` uses lazy import inside `get_llm_func()` to avoid this for Vertex-only callers, but `lib/__init__.py:34` re-exports `deepseek_model_complete` eagerly, defeating that fix for any caller that does `import lib`.
 
 **Top 3 concerns**:
+
 1. **Eager re-export defeats the lazy import.** `lib/__init__.py:34` `from .llm_deepseek import deepseek_model_complete` triggers the import-time RuntimeError every time anyone imports `lib`. The 35 files importing from `lib` all pay this cost.
 2. **Documented Hermes FLAG 2** lists "soft-fail is a future Phase 5 follow-up". 6 weeks have passed; the follow-up is still open.
 3. **The dummy-key band-aid** (`DEEPSEEK_API_KEY=dummy`) is documented in CLAUDE.md, but local-dev tests use `dummy` as a real value — any test that accidentally hits a real DeepSeek call will silently 401 instead of fast-failing on missing config.
@@ -290,6 +304,7 @@ These leak into the churn signal (e.g., `kg_synthesize.py` 19 commits includes `
 **The defect**: 0 in-process callers. Imports `lib.generate_sync` for `describe_image()` (line 80), but production code uses `image_pipeline.describe_images` cascade — this single-image path is unused. Writes to local `./data/` (lines 47-48) while production uses `~/.hermes/omonigraph-vault/`. Hardcoded `llm_model_name="deepseek-v4-flash"` while line 62 dispatcher returns whatever `OMNIGRAPH_LLM_PROVIDER` selects.
 
 **Top 3 concerns**:
+
 1. **Likely dead code.** `grep -r "from multimodal_ingest\|import multimodal_ingest"` returns 0 in-process call sites.
 2. **Storage path drift.** `RAG_WORKING_DIR = "./data/lightrag_storage"` (line 48) competes with production `~/.hermes/omonigraph-vault/lightrag_storage/`. Anyone who runs this script writes to a different graph than the production graph reads from.
 3. **`describe_image` (line 74-88) is a 14-line single-image function that duplicates 1/Nth of `image_pipeline.describe_images`** with no cascade, no balance check, no logging.

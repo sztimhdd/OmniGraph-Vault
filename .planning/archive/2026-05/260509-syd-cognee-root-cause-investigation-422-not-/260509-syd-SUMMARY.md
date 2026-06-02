@@ -53,6 +53,7 @@ fixture so this regression cannot happen silently again).
 ## Pointer to full investigation
 
 See [INVESTIGATION.md](./INVESTIGATION.md) for:
+
 - Routing trace (14 numbered steps, file:line citations)
 - Evidence ledger (8 numbered facts, each with verbatim log excerpts)
 - All three fix paths with t-shirt estimates and counted LOC

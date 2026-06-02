@@ -32,12 +32,14 @@ The analysis doc is **directionally interesting but substantially overstates** t
 **Status: DISPUTED**
 
 **Code evidence:**
+
 - `batch_ingest_from_spider.py:428-432` — top-level per-article `try/except Exception` wraps `ingest_article`; on any failure (including DeepSeek 402 RuntimeError) it logs "Ingest failed" and the loop continues to the next article. Returns `(False, wall, False)`, not a raise.
 - `batch_ingest_from_spider.py:931-944` — the batch loop accepts `success/wall/doc_confirmed`, writes `status='failed'` to summary, then continues. It does NOT abort.
 - `batch_ingest_from_spider.py:354-358` docstring explicitly says: "Per-article try/except isolates failures — one bad article never kills the batch."
 - `lib/llm_deepseek.py:56-63` raises `RuntimeError` only on missing key. There is no global "DeepSeek 402 → process exit" path.
 
 **Where the doc gets it wrong:** §2 Defect 1's cascade diagram ("402 → Classify fails → Extract fails → Image Vision succeeds → Merge fails → ENTIRE BATCH ABORTED") is fictional. In actual code:
+
 1. A 402 from DeepSeek raises inside `ingest_wechat.ingest_article`
 2. The outer `await ingest_article(...)` (line 394-397) catches it via the except at 428
 3. Marks that single article failed and continues
@@ -55,6 +57,7 @@ The doc also conflates **batch-level Layer 1 classify** (which DOES happen for a
 **Status: PARTIAL**
 
 **Code evidence:**
+
 - `batch_ingest_from_spider.py:1496-1539` — candidate SELECT uses `NOT IN (SELECT article_id FROM ingestions WHERE status='ok' OR (status='skipped' AND skip_reason_version=?))` AND `layer1_verdict IS NULL OR layer1_prompt_version IS NOT ? OR layer1_verdict='candidate'`. So "99% of candidates discarded daily" is misleading — most rows are already filtered out at SQL level before MAX_ARTICLES sees them.
 - `batch_ingest_from_spider.py:903-915` — `has_stage(ckpt_hash, "text_ingest")` checkpoint skip prevents re-ingesting articles already done.
 - `MAX_ARTICLES` cap is real but not the only flow control — `total_batch_budget` (BTIMEOUT-01..04 from Phase 17) provides per-batch timeout-based termination.
@@ -72,11 +75,13 @@ The doc also conflates **batch-level Layer 1 classify** (which DOES happen for a
 **Status: VERIFIED (symptom) but DISPUTED on the proposed fix**
 
 **Code evidence:**
+
 - `ingest_wechat.py:77-199` — `_verify_doc_processed_or_raise` (commit `949e3f4`) is the bridge between LightRAG async pipeline and `ingestions` table. Quick `260511-lmc` added stable-state re-poll (Option A) and error_msg guard (Option B).
 - 7 INSERT sites in `batch_ingest_from_spider.py` (1681, 1806, 1879, 1929, 1941, 1959, 1983) all write to `ingestions`. The hot path (success ack) lives in the main loop.
 - Memory `project_ghost_success_observed_260514.md`: production ghost-success rate **0.5%** (1/188), not "106 mystery rows in 10 days" with no comparison baseline. Memory `project_v1_0_x_closure_260516.md` confirms 5 ghost successes were reconciled and the two-layer timeout fix shipped (commits `bd67f06`, `4eaef45`).
 
 **Where the doc gets it wrong:** The 106 figure is contextless — out of how many ingestions over the same window? Memory says rate is ~0.5%. The proposal to make LightRAG `doc_status` "the single source of truth" misunderstands the design:
+
 - `ingestions` carries the **SQLite-side workflow state** — `status='skipped'` for Layer 1/2 rejects, `'failed'` for hard errors, retry tracking via `skip_reason_version`
 - LightRAG `doc_status` only knows "is this doc in the graph?" — it has no concept of "we decided to skip this for off-topic reasons" or "scrape failed before we got to LightRAG"
 
@@ -93,11 +98,13 @@ Making `doc_status` the SoT and turning `ingestions` into a derived view would r
 **Status: PARTIAL**
 
 **Code evidence:**
+
 - `lib/llm_deepseek.py:74-99` — DeepSeek has its own `OMNIGRAPH_DEEPSEEK_TIMEOUT` (300s default), separate `AsyncOpenAI` client with own timeout.
 - `lib/lightrag_embedding.py:212-235` — Vertex embedding has its own RuntimeError handling and key rotation.
 - `lib/vision_cascade.py` (per Phase 13) — Vision has its own cascade + circuit breaker independent of LLM.
 
 **Where the doc gets it wrong:** §2 Defect 4's table claims "all share same retry/timeout/error handler" with current handling shown as "Retry 3x in-process". This is fictional. Each provider already has:
+
 - Own timeout (DeepSeek 300s, vision 30s/image, embedding worker 180s after `260517-lok`)
 - Own retry strategy (DeepSeek tenacity, Vision cascade with 3-failure circuit breaker, Embedding key rotation)
 - Own error classification (vision cascade falls through on 429; DeepSeek raises; embedding rotates keys)
@@ -115,6 +122,7 @@ What IS coupled: per-article sequential execution. A DeepSeek hang inside `inges
 **Status: DISPUTED — defect already addressed**
 
 **Code evidence:**
+
 - `lib/article_filter.py:762-806` — `persist_layer1_verdicts` writes `layer1_verdict / layer1_reason / layer1_at / layer1_prompt_version` columns to `articles`. Already-classified articles are NOT re-classified.
 - `batch_ingest_from_spider.py:1514-1516` and `1535-1537` — candidate SELECT predicate: `WHERE a.layer1_verdict IS NULL OR a.layer1_prompt_version IS NOT ? OR a.layer1_verdict = 'candidate'`. Translation: skip any row where Layer 1 already evaluated under the current prompt version and it's not a candidate. The "LF-1.8 prompt-version bump" is the incremental cache invalidation mechanism.
 - `batch_ingest_from_spider.py:907-908` — `has_stage(ckpt_hash, "text_ingest")` checkpoint skip.
@@ -139,6 +147,7 @@ The doc's §3 "Target Architecture" has unaddressed design problems:
 §3.1 and §3.6 propose 4 independent worker subprocesses (Classify / Extract / Image / Merge). LightRAG storages (`kv_store_doc_status.json`, `vdb_entities.json`, GraphML, NanoVectorDB) are file-backed and NOT designed for cross-process concurrent writes. Memory `project_t1_b1_validated_260513.md` and the `_drain_vision_tasks` mechanism assume one in-process LightRAG instance.
 
 The proposal would require either:
+
 - (a) a process-level lock — serializes the workers, defeating the parallelism goal
 - (b) a network-fronted LightRAG server — massive scope creep
 - (c) per-stage storage shards — breaks queryability of the single graph
@@ -182,15 +191,18 @@ Three reasons not to do the 5-day migration:
 3. **Surgical patches solve the real bits.** Concretely:
 
 ### Patch 1 — Bidirectional reconcile (½ day) — addresses real Defect 3
+
 - Already queued for v1.0.y per memory `project_v1_0_x_closure_260516.md`
 - Scope: extend reconcile from `ingestions.status='ok' → doc_status.processed` (current) to also catch `ingestions.status='failed' AND doc_status.processed` (ghost success) and `ingestions.status='ok' AND doc_status.pending|failed` (ghost failure)
 - Surfaces both directions; closes Defect 3 properly without re-platforming
 
 ### Patch 2 — DeepSeek 402 graceful degrade (¼ day) — addresses real fragment of Defect 1
+
 - Add `try/except RuntimeError` around DeepSeek calls inside `ingest_wechat.ingest_article` such that a 402 in entity extraction degrades to "text-only ingest, no entities" rather than failing the whole article
 - Closes the legitimate per-article failure-mode-coupling complaint inside Defect 1 without splitting the process
 
 ### Patch 3 — Document MAX_ARTICLES as cost-governor (¼ day)
+
 - CLAUDE.md update: clarify that MAX_ARTICLES serves both throughput AND SiliconFlow cost AND Vertex RPM governance
 - If/when ingest volume grows, promote to per-stage cost budgets — not now
 

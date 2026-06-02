@@ -23,6 +23,7 @@ Most of the Phase plan still works. These differences change the *shape* of Wave
 ---
 
 <user_constraints>
+
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
@@ -65,6 +66,7 @@ The CONTEXT.md does not call out a dedicated "discretion" section. Pragmatically
 ---
 
 <phase_requirements>
+
 ## Phase Requirements
 
 Mapped from PRD §7.4 acceptance gate → research findings that enable each requirement.
@@ -213,6 +215,7 @@ metadata:
 ```
 
 Notes for the planner:
+
 - The `description` is multi-line with "use when" / "do NOT use when" pairs — this is the established pattern for disambiguating against sibling skills. The Graphify skill and `omnigraph_search` must explicitly reference each other in their "Do NOT use when" sections to prevent agent confusion.
 - `metadata.openclaw.requires.bins` and `.config` are used by OpenClaw's skill gateway — keep them.
 - No `triggers` array field — existing skills embed triggers in the `description`. Follow that convention for consistency.
@@ -287,6 +290,7 @@ if __name__ == "__main__":
 ```
 
 Notes for the planner:
+
 - Entry point shape is identical to `query_lightrag.py` (which already works). Differences: no Cognee memory log call (simpler), exposes `mode` arg for optional override.
 - `RAG_WORKING_DIR` comes from `config.py` which reads `~/.hermes/omonigraph-vault/lightrag_storage/`. No new path.
 - Default mode is `hybrid` (matches PRD §3.2 code sample).
@@ -349,10 +353,12 @@ Remote WSL2 Hermes PC is the execution target for Phase 1/3. Local Windows is th
 | LightRAG storage populated | REQ-04, Demo 2 | ✓ (local) / ✓ (remote, live — 713 nodes / 820 edges per `STATE.md`) | ✓ | — | If remote graph is empty, demo falls back to qualitative "skill returned something" check. |
 
 **Missing dependencies with no fallback:**
+
 - `graphifyy` on remote (must install in Phase 1 step 1)
 - `crontab` — by design; Phase 3 is Linux-only
 
 **Missing dependencies with fallback:**
+
 - `claw skills list` — if OpenClaw is not installed on the remote PC, Phase 1 REQ-02 cannot be verified through the CLI. **ACTION for planner:** Include an early check in Phase 1 — `ssh remote "command -v claw"` — and branch: if OpenClaw present, proceed; if absent, treat D-S10 as aspirational and scope Phase 1 to Hermes-only. Document this in the plan.
 
 ---
@@ -371,6 +377,7 @@ Remote WSL2 Hermes PC is the execution target for Phase 1/3. Local Windows is th
 **What goes wrong:** The PRD §5.2 step 3 (`graphify build`), §5.3 Appendix (`graphify build`), §6.2 (`graphify build --output graph.json.tmp`), and Appendix §10 (`graphify refresh`) all reference commands that are not in the Graphify CLI.
 **Why it happens:** PRD was written against the conceptual model of a pure CLI build tool. The actual tool is an AI-agent-driven skill: the `/graphify` command inside Hermes/OpenClaw runs a 7-step pipeline that *includes* the semantic extraction LLM pass. There is no agent-free pure-CLI build.
 **How to avoid:**
+
   - **Initial graph seed:** invoke `/graphify .` *inside a Hermes or OpenClaw session* on the remote PC, in the directory that contains the cloned repos. Document this as a one-shot step in the runbook.
   - **Weekly rebuild:** use `graphify update <path>` (AST-only, LLM-free) for code-only updates that cron can handle unsupervised. For doc/image changes, `graphify update` writes a `needs_update` flag file; a human must run `/graphify --update` inside Hermes to trigger the semantic re-extraction.
   - **Atomic swap:** already handled by Graphify's shrink guard in `to_json()` (refuses to overwrite if new graph < existing). No custom `tmp → rename` needed.
@@ -682,6 +689,7 @@ if __name__ == "__main__":
 | Standalone MCP server: `python -m graphify.serve` | Still exists (`graphify [path] --mcp`) but conflicts with D-G01 (skill form only). Skip. | — | Ignored by D-G01. |
 
 **Deprecated/outdated (PRD → real-world):**
+
 - PRD's weekly rebuild strategy needs refinement: code-only changes go through cron; doc/paper/image changes need a human-in-the-loop Hermes session (`check-update` flag + notification).
 - PRD treats `graphify install --platform hermes` as sufficient. The real install pattern is TWO commands per platform (install skill + register in AGENTS.md).
 
@@ -789,6 +797,7 @@ if __name__ == "__main__":
 ## Metadata
 
 **Confidence breakdown:**
+
 - Standard stack: **HIGH** — `graphifyy 0.5.3` verified via PyPI JSON + pip + GitHub release tags; project's existing LightRAG stack is already live.
 - Architecture (skill layout, LightRAG init pattern): **HIGH** — existing in-repo skills read verbatim; patterns verified across 4 skills.
 - Pitfalls: **HIGH for 1-5** (directly contradict PRD text by reading Graphify source); **MEDIUM for 6-8** (extrapolations from source code behavior, not live-tested).

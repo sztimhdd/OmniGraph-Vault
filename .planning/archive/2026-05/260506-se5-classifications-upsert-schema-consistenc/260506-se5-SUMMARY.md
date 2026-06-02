@@ -139,29 +139,36 @@ xfail, no v3.5 follow-up needed for this dimension.
 After `git pull --ff-only` lands on Hermes:
 
 1. **Backup the DB before any DELETE** (CLAUDE.md Lessons 2026-05-06 #2):
+
    ```bash
    cp data/kol_scan.db data/kol_scan.db.backup-pre-mig004-$(date +%Y%m%d-%H%M%S)
    ```
 
 2. **Apply migration 004:**
+
    ```bash
    sqlite3 data/kol_scan.db < migrations/004_classifications_unique_article_id.sql
    ```
 
 3. **Verify the UNIQUE index exists:**
+
    ```bash
    sqlite3 data/kol_scan.db ".schema classifications" | grep idx_classifications_article_id
    ```
+
    Expected output:
+
    ```
    CREATE UNIQUE INDEX idx_classifications_article_id ON classifications(article_id);
    ```
 
 4. **Smoke ingest with `--max-articles 1`** to confirm UPSERT path is
    non-fatal:
+
    ```bash
    venv/bin/python batch_ingest_from_spider.py --from-db --topic-filter agent --max-articles 1
    ```
+
    Expected: classifications row written via `ON CONFLICT(article_id)
    DO UPDATE`; no `IntegrityError` in logs.
 

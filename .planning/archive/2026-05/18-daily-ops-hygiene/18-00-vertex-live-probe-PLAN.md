@@ -48,6 +48,7 @@ Output: runnable probe script + Hermes cron registrar + unit tests (all mocked l
 
 <execution_context>
 This plan runs on a Windows dev machine with Cisco Umbrella. Vertex AI endpoints DO reach local via the paid-tier SA (per `memory/vertex_ai_smoke_validated.md`), but:
+
 - Telegram Bot API delivery: Hermes-side only (Umbrella blocks `api.telegram.org` from local in past sessions — probe writes message to stdout in local mode if delivery fails, for test visibility).
 - Cron registration: Hermes-side only (the `hermes cron` CLI exists only on Hermes).
 
@@ -70,6 +71,7 @@ Two flips in ~24h. Neither was announced publicly. The only automation that woul
 </why_this_matters>
 
 <probe_script_shape>
+
 ```python
 #!/usr/bin/env python3
 """Vertex AI embedding model-name live probe — HYG-01.
@@ -177,9 +179,11 @@ def main() -> int:
 if __name__ == "__main__":
     sys.exit(main())
 ```
+
 </probe_script_shape>
 
 <cron_registrar_shape>
+
 ```bash
 #!/usr/bin/env bash
 # register_vertex_probe_cron.sh — HYG-01 monthly Vertex catalog probe.
@@ -209,12 +213,14 @@ echo ""
 echo "=== hermes cron list ==="
 hermes cron list
 ```
+
 </cron_registrar_shape>
 
 <unit_test_shape>
 Tests MUST mock `google.genai.Client` and `requests.post` — no live network.
 
 Five tests:
+
 1. `test_all_green_exits_zero` — mock returns 3072-dim for all 3 → exit 0, no Telegram
 2. `test_all_404_exits_one_and_sends_telegram` — mock raises on all 3 → exit 1, `requests.post` called once
 3. `test_partial_green_exits_zero` — first candidate 404, second 3072-dim → exit 0, no Telegram
@@ -294,12 +300,14 @@ Local:
 - Script files present, executable, syntax-valid.
 
 Hermes (operator sign-off, not blocking):
+
 - `bash scripts/register_vertex_probe_cron.sh` — ADDs `vertex-probe-monthly`, prints confirmation.
 - Manual trigger: `python scripts/vertex_live_probe.py` — at least `gemini-embedding-2` returns 3072-dim (per 2026-05-03 ground truth); exit 0; no Telegram alert.
 - Re-run of registrar prints SKIP.
 </verification>
 
 <success_criteria>
+
 - HYG-01 satisfied: any future Vertex catalog flip fires a 🔴 Telegram alert within 24h of the flip (worst case: flip happens on day 2, discovered on day 1 of next month).
 - Zero new code paths in production ingest/synthesis flow — probe is external.
 - Any `_resolve_model()` change going forward has a hard prerequisite in Definition of Ready ("run probe first"), codified in 05-00-SUMMARY § C operational lesson.

@@ -8,12 +8,14 @@
 ## Phase Boundary
 
 **Delivers:** Design-and-documentation artifacts for migrating from Gemini API free tier to Vertex AI OAuth2 with cross-project quota isolation. **No production code changes.** Four artifacts:
+
 1. `docs/VERTEX_AI_MIGRATION_SPEC.md` — GCP project setup, SA naming, OAuth2 token management, pricing comparison, backward-compat design sketch
 2. `credentials/vertex_ai_service_account_example.json` — schema-only template, no real credentials
 3. `scripts/estimate_vertex_ai_cost.py` — cost estimation CLI (works standalone, no network calls)
 4. `CLAUDE.md` + `Deploy.md` updates (§ "Vertex AI Migration Path" in CLAUDE.md, § "Recommended Upgrade Path" in Deploy.md — coordinated with Phase 15)
 
 **Does NOT deliver:**
+
 - Any Vertex AI SDK integration into `lib/api_keys.py` or `lib/llm_client.py` — deferred to post-v3.2
 - Real service account credentials — template only (placeholders like `YOUR_PROJECT_ID`)
 - GCP project provisioning or IAM role changes — operator runs those manually using the spec
@@ -62,6 +64,7 @@
 ### SA Template (VERT-02) at `credentials/vertex_ai_service_account_example.json`
 
 Schema verbatim from PRD §B5.2:
+
 ```json
 {
   "type": "service_account",
@@ -82,11 +85,13 @@ Schema verbatim from PRD §B5.2:
 ### Cost Estimation Script (VERT-04) at `scripts/estimate_vertex_ai_cost.py`
 
 **CLI signature:**
+
 ```bash
 python scripts/estimate_vertex_ai_cost.py --articles 282 --avg-images-per-article 25
 ```
 
 **Output format (verbatim from PRD §B5.4):**
+
 ```
 Estimated cost for 282 articles with 25 images/article:
 - Embedding (Vertex AI): ¥xxx/month (vs ¥0 free tier)
@@ -96,6 +101,7 @@ Estimated cost for 282 articles with 25 images/article:
 ```
 
 **Assumptions (HARDCODED constants, documented at top of script):**
+
 - Vertex AI embedding: $0.00002/1k chars (gemini-embedding-004), avg 1500 chars/chunk, 30 chunks/article
 - SiliconFlow Qwen3-VL-32B: ¥0.0013/image
 - DeepSeek chat: ¥0.0014/1k input + ¥0.0028/1k output tokens; avg 4000 input + 800 output per classification + chunk extraction
@@ -109,16 +115,19 @@ Estimated cost for 282 articles with 25 images/article:
 Coordinated with Phase 15 (owns docs authorship). This phase provides the **content** for two sections:
 
 **CLAUDE.md § "Vertex AI Migration Path"** (after "Lessons Learned"):
+
 - Problem statement (quota coupling causes batch kills)
 - Recommendation: SiliconFlow for Vision, Gemini API key for embedding until 429 ceiling, then migrate
 - Pointer: "See `docs/VERTEX_AI_MIGRATION_SPEC.md` for full spec"
 
 **Deploy.md § "Recommended Upgrade Path"** (new section at end):
+
 - Production should use Vertex AI OAuth2 + cross-project quota isolation
 - Dev/test: current API key is fine
 - Cost estimate template: `python scripts/estimate_vertex_ai_cost.py --articles {N} --avg-images-per-article {M}`
 
 ### Claude's Discretion
+
 - **Actual pricing numbers** in cost estimation — planner uses current published GCP rates (2026-04); if rates change, operator re-runs script after editing constants at top
 - **Markdown structure** inside `VERTEX_AI_MIGRATION_SPEC.md` — planner picks section ordering as long as all 5 required sections exist
 - **Example commands** in spec (e.g., specific `gcloud` commands) — planner writes working examples from Google docs
@@ -126,20 +135,24 @@ Coordinated with Phase 15 (owns docs authorship). This phase provides the **cont
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Source of Truth
+
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B5 — verbatim requirements
 - `.planning/MILESTONE_v3.2_REQUIREMENTS.md` §B4 — coordination with Phase 15 docs updates
 
 ### GCP / Vertex AI External Docs (planner researches)
+
 - https://cloud.google.com/vertex-ai/docs/authentication — OAuth2 patterns
 - https://cloud.google.com/vertex-ai/pricing — current pricing
 - https://cloud.google.com/sdk/docs/install-sdk — gcloud install
 
 ### Existing Files to Read
+
 - `lib/api_keys.py` — current key management pattern (future Vertex AI adapter plugs here)
 - `lib/llm_client.py` — current LLM client (future Vertex AI adapter wraps)
 - `.gitignore` — verify `credentials/` is excluded

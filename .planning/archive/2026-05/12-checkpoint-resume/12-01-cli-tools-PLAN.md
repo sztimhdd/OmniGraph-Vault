@@ -74,12 +74,14 @@ def list_checkpoints() -> list[dict]: ...
 ```
 
 Script conventions (from existing `scripts/bench_ingest_fixture.py` and similar):
+
 - Shebang: `#!/usr/bin/env python3`
 - `argparse.ArgumentParser` with `description=__doc__`
 - `def main() -> int:` returns exit code
 - `if __name__ == "__main__": sys.exit(main())`
 - Logging via `logging.getLogger(__name__)` at INFO level, configured in main()
 </interfaces>
+
 </context>
 
 <tasks>
@@ -494,6 +496,7 @@ Script conventions (from existing `scripts/bench_ingest_fixture.py` and similar)
 </verification>
 
 <success_criteria>
+
 - Both scripts exist in scripts/ and run as `python scripts/*.py` from repo root
 - `--all` without `--confirm` exits non-zero and prints guard-clause message (CLAUDE.md rule satisfied)
 - Scripts operate on whatever `BASE_DIR` resolves to (respects `OMNIGRAPH_CHECKPOINT_BASE_DIR` env override for tests)

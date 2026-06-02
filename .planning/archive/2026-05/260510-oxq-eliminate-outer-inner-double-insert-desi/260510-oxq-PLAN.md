@@ -49,6 +49,7 @@ must_haves:
 Eliminate the outer/inner double-INSERT design smell on the ingestions table.
 
 Today both ingest_wechat.py (inner) and batch_ingest_from_spider.py (outer, --from-db path) write to the ingestions table. The inner writes status='ok' speculatively when doc_confirmed is True; the outer overwrites with INSERT OR REPLACE based on its own (success, wall) judgment. This split-brain produces:
+
   * Two writers racing on the same row
   * Inner can mark 'ok' even when the outer ultimately decides 'failed' due to TimeoutError vs the doc_confirmed timing window
   * Maintenance hazard — any future status logic change must be made in two places
@@ -58,6 +59,7 @@ Goal: outer becomes the SOLE writer for ingestions. Inner stops writing entirely
 Purpose: removes a load-bearing race condition between two writers and consolidates the "what counts as a successful ingest" decision into a single code site.
 
 Output:
+
   * ingest_wechat.py: 5-line INSERT OR IGNORE block removed (lines ~1314-1318)
   * batch_ingest_from_spider.py: outer return signature widened to (bool, float, bool); both main-loop call sites unpack 3 values; status='ok' gated on success AND doc_confirmed
   * tests/unit/test_ingest_article_processed_gate.py: 3-tuple unpack + new assertion
@@ -78,6 +80,7 @@ Output:
 <!-- Do NOT explore the codebase for these — they are pinned here. -->
 
 CURRENT outer signature (batch_ingest_from_spider.py:237-242):
+
 ```python
 async def ingest_article(
     url: str,
@@ -88,6 +91,7 @@ async def ingest_article(
 ```
 
 NEW outer signature:
+
 ```python
 async def ingest_article(
     url: str,
@@ -110,6 +114,7 @@ NEW outer return points:
   Line 323: `return False, wall, False`               # generic Exception (catches inner's RuntimeError from h09 PROCESSED-raise)
 
 Inner block to REMOVE (ingest_wechat.py:1314-1318) — exactly these 5 lines:
+
 ```python
             conn.execute(
                 "INSERT OR IGNORE INTO ingestions(article_id, source, status) "
@@ -117,6 +122,7 @@ Inner block to REMOVE (ingest_wechat.py:1314-1318) — exactly these 5 lines:
                 (url,),
             )
 ```
+
 KEEP everything else in the surrounding `if DB_PATH.exists() and doc_confirmed:` block — UPDATE articles SET content_hash, the enriched=-1 UPDATE, conn.commit(), conn.close(). The local var `doc_confirmed = True` at line 1298 also stays (still gates the UPDATE articles writes — desirable for retry pool semantics).
 
 Main-loop call sites — TWO of them:
@@ -135,6 +141,7 @@ Test to update (tests/unit/test_ingest_article_processed_gate.py:195):
   Add assertion: `assert doc_confirmed is False`  (inner raises RuntimeError → outer's generic Exception branch → returns doc_confirmed=False)
 
 Tests NOT touched (HARD OUT-OF-SCOPE):
+
   * tests/unit/test_ainsert_persistence_contract.py (parallel quick 260510-gkw has WIP)
   * tests/unit/test_text_first_ingest.py (calls INNER ingest_wechat.ingest_article; inner signature unchanged — still returns vision_task)
   * tests/unit/test_checkpoint_ingest_integration.py (calls INNER; same reason)
@@ -142,6 +149,7 @@ Tests NOT touched (HARD OUT-OF-SCOPE):
 
 <hard_out_of_scope>
 The following must NOT be touched in this quick:
+
 - tests/unit/test_ainsert_persistence_contract.py (parallel quick has WIP)
 - _verify_doc_processed_or_raise body (in ingest_wechat.py)
 - Pattern A poll budget — do not introduce

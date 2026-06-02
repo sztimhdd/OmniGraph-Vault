@@ -35,6 +35,7 @@ Add a hard N-image cap to `ingest_wechat.py` to resolve the 118-image edge case 
 Purpose: the 118-image edge case hung LightRAG's entity-merge for ~14 min in Wave 0. The cost/value of a tail image (image #117 of 118) is minimal — the first 60 images already carry the article's visual argument. Cap + warning gives us bounded ingestion time without burning on the image-weight tail.
 
 Decision rationale (YOLO default: option A from user brief):
+
 - **(a) N-image cap** — bounded time per article, simple to reason about, trivial to unit-test. Cost: possibly lose a couple of relevant late-article images on extreme outliers (118 / 67 articles = ~1.5% of a Wave 0-class batch).
 - **(b) Timeout extension** — kicks the can down the road; a 250-image article still hangs.
 - **(c) Both** — appropriate once (b) becomes needed. For now (a) alone; reopen if post-cap articles still hit Phase 9 timeouts.
@@ -62,6 +63,7 @@ url_to_path, filter_stats = filter_small_images(url_to_path, min_dim=min_dim)
 ```
 
 Cap insertion point: AFTER `filter_small_images`, BEFORE manifest construction. Rationale:
+
 - Filtering before cap: `filter_small_images` drops banners/icons regardless; those shouldn't count toward the cap.
 - Capping before download: wrong — we can't filter pre-download (we don't know the dimensions yet).
 - Capping after filter: right — we only cap on "keepable, useful" images.
@@ -70,6 +72,7 @@ The cap truncates `url_to_path` (OrderedDict-like insertion order is stable sinc
 </where_to_cap>
 
 <proposed_diff_sketch>
+
 ```python
 # After filter_small_images, before manifest build:
 
@@ -111,6 +114,7 @@ Tests call a small testable helper — to avoid end-to-end scrape dependencies, 
 Helper location: `ingest_wechat.py` module scope, next to the `_ckpt_hash_fn` helpers.
 
 Five tests:
+
 1. `test_cap_under_threshold_is_noop` — 20 images, cap=60 → no change, dropped=∅
 2. `test_cap_at_exact_threshold_is_noop` — 60 images, cap=60 → no change, dropped=∅
 3. `test_cap_over_threshold_truncates_tail` — 70 images, cap=60 → kept 60 (first 60), dropped=last 10
@@ -169,6 +173,7 @@ Five tests:
 </verification>
 
 <success_criteria>
+
 - HYG-02 satisfied: articles over 60 kept images are bounded in ingestion time.
 - No behavior change for the 98.5% of articles with ≤ 60 kept images.
 - Operator has a single env var to adjust the cap without code change.

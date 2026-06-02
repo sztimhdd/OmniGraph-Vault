@@ -194,6 +194,7 @@ CREATE TABLE extracted_entities (
 
 -- articles + rss_articles already have layer1_verdict + layer2_verdict (added by kb-2 fixture).
 ```
+
 </interfaces>
 </context>
 
@@ -764,6 +765,7 @@ CREATE TABLE extracted_entities (
 </verification>
 
 <success_criteria>
+
 - TOPIC-02 enabled: topic_articles_query implements the cohort filter exactly per REQ wording
 - TOPIC-03 enabled: TopicSummary + slug derivation supports localized name + desc lookup
 - TOPIC-05 enabled: cooccurring_entities_in_topic returns top-5 entity ranking

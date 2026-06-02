@@ -16,6 +16,7 @@ Appended 3 new top-level sections to the end of `Deploy.md` (after §9 Troublesh
 ## Acceptance criteria
 
 All 12 grep checks pass:
+
 - 3 section headings present
 - 3-row provider trade-off table (SiliconFlow, Gemini, Vertex AI rows verified)
 - `docs/VERTEX_AI_MIGRATION_SPEC.md` forward link present

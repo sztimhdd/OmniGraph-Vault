@@ -52,11 +52,13 @@ All decisions below are LOCKED — do NOT re-litigate during planning. They flow
 - **Dispatcher route:** `lib/llm_rerank.py` adds `_VALID = ("databricks_serving", "vertex_gemini", "disabled")` and a `if provider == "vertex_gemini":` branch that imports `from lib.vertex_gemini_rerank import make_rerank_func` and returns `(make_rerank_func(), True)`. Lazy-import inside the branch (mirrors `lib/llm_complete.py:50-51`). On import or factory exception → `(None, False)` graceful degrade (matches A's `databricks_serving` branch behavior).
 - **Vertex client construction:** REUSE the same idiom as `lib/vertex_gemini_complete.py:_make_client` — `genai.Client(vertexai=True, project=GOOGLE_CLOUD_PROJECT, location=GOOGLE_CLOUD_LOCATION)`. Do NOT introduce a new client construction path.
 - **Vertex JSON output mechanism:** use `types.GenerateContentConfig(response_mime_type="application/json", response_schema=<schema>)` — Vertex Gemini's native JSON mode (analogous to Databricks' `temperature=0.0` + prompt-discipline approach in A). Schema:
+
   ```python
   {"type": "object", "properties": {"scores": {"type": "array", "items": {
       "type": "object", "properties": {"i": {"type": "integer"}, "s": {"type": "number"}},
       "required": ["i", "s"]}}}, "required": ["scores"]}
   ```
+
 - **Parse function reuse:** `_parse_scores(raw, n_docs)` semantics MUST be byte-equivalent to A's `databricks-deploy/lightrag_databricks_rerank._parse_scores`. Two implementation options (PLANNER picks):
   - **Option a — Duplicate** the function in `lib/vertex_gemini_rerank.py` (~25 LoC). Trade: code duplication; isolation from A.
   - **Option b — Extract** `_parse_scores` into a shared module (`lib/_rerank_json_parse.py` or similar) and import from both A's helper and B's helper. Trade: touches A's file (+1 import + 0 logic change), eliminates duplication.
@@ -109,6 +111,7 @@ All decisions below are LOCKED — do NOT re-litigate during planning. They flow
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**

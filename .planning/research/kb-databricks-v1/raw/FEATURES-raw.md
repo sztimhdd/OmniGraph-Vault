@@ -27,6 +27,7 @@ def __post_init__(self):
 ```
 
 Verified locations:
+
 - `lightrag/kg/json_kv_impl.py:39` — `os.makedirs(workspace_dir, exist_ok=True)`
 - `lightrag/kg/networkx_impl.py:50` — same
 - `lightrag/kg/nano_vector_db_impl.py:54` — same
@@ -87,6 +88,7 @@ os.environ["OMNIGRAPH_BASE_DIR"] = "/tmp"   # so working_dir resolves to /tmp/li
 ```
 
 Caveats:
+
 - Cold-start cost grows with KG size. As of 2026-05-14: 94 articles → likely a few MB, fast copy. Future scale-up = revisit.
 - App-local writes are **lost on every App restart**. That's fine because Hermes is the source of truth; restart = re-copy fresh from Volume.
 - If user `databricks fs cp` updates the Volume copy, App must restart to pick up new state.
@@ -129,6 +131,7 @@ For our v1 use case (read SQLite + LightRAG storage + image files, serve images 
 | Is "copy to /tmp at startup" a safe v1 default? | **Yes** | Reduces kdb-1.5 risk |
 
 **Decision rule for kdb-1.5 phase insertion:** if kdb-1 validation finds *any* of the following, insert kdb-1.5:
+
 1. `os.makedirs` raises `[Errno 30]` even when dir exists on the Volume
 2. `LightRAG(working_dir="/Volumes/.../lightrag_storage")` raises at construction
 3. SQLite refuses to open `/Volumes/.../kol_scan.db` (WAL or otherwise)

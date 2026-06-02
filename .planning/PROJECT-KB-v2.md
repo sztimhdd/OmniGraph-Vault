@@ -106,6 +106,7 @@ KG 团队 / 数据团队 free 改动 LightRAG 版本、embedding 模型、storag
    FTS5 top-3 摘要拼接 + `confidence: "fts5_fallback"` 标记,**不 500**
 
 **Pass conditions** (all must hold):
+
 - 3 个 smoke 场景全 PASS
 - 浏览器 Lighthouse 跑分 LCP < 2.5s / CLS < 0.1(SSG 静态页天然达标)
 - 列表页 / 详情页 / 问答页 在桌面 + 移动 viewport 都不溢出
@@ -148,6 +149,7 @@ Existing: see main `PROJECT.md`.
 是 3.37,满足。Ubuntu 20.04 默认 3.31 不够,部署前需确认。
 
 **No new external services / API keys.** 全部复用现有的:
+
 - `DEEPSEEK_API_KEY`(/synthesize via kg_synthesize)
 - `GEMINI_API_KEY` / `OMNIGRAPH_GEMINI_KEY`(LightRAG retrieval LLM,if Vertex 路径)
 - `OMNIGRAPH_LLM_PROVIDER={deepseek, vertex_gemini}`(K-1)
