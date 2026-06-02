@@ -3,7 +3,7 @@
 **Status:** Living document — single source of truth for known unfixed issues outside active phases.
 **Owner:** Orchestrator (main session) maintains; agents read but do not delete entries.
 **Created:** 2026-05-30
-**Last updated:** 2026-06-01 (260601-ipo Aliyun ingest OOM mitigation IN FLIGHT — #4 marked stale + replaced by #25 RAM-mitigation entry; commit 91b33f1 deployed) + perf-fix-B HT-4 halt — reconcile follow-up filed (#26) + #27 kb-api hydrate throttle DoS-by-restart filed post double-deploy + #28 DeepSeek image-emit gap + #29 client-side citation regex sweep server-side carry-over (References fix session 7-commit series) + #28 measurement re-evaluated (intermittent NOT systematic; user counter-example screenshot) + #13 P1 K2 PARKED v1.2 (overtaken by qa.js client-side path)
+**Last updated:** 2026-06-02 (YOLO night shift Task 1 — #7 stale synthesize-audit quick archived to `.planning/quick/archive/` via 9728726, moved to Resolved R19) + 2026-06-01 (260601-ipo Aliyun ingest OOM mitigation IN FLIGHT — #4 marked stale + replaced by #25 RAM-mitigation entry; commit 91b33f1 deployed) + perf-fix-B HT-4 halt — reconcile follow-up filed (#26) + #27 kb-api hydrate throttle DoS-by-restart filed post double-deploy + #28 DeepSeek image-emit gap + #29 client-side citation regex sweep server-side carry-over (References fix session 7-commit series) + #28 measurement re-evaluated (intermittent NOT systematic; user counter-example screenshot) + #13 P1 K2 PARKED v1.2 (overtaken by qa.js client-side path)
 
 ---
 
@@ -65,7 +65,6 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 
 | # | Issue | Suggested slug | Notes |
 |---|---|---|---|
-| 7 | `.planning/quick/20260525-200047-synthesize-audit/` untracked directory, several days. | `260530-stale-quick-gc` | Re-evaluated 2026-05-30: dir contains real audit doc + 4 logs (synthesize deep audit that surfaced FTS5 syntax bug → resolved later via e05d597). NOT empty residue. Action revised: archive to `.planning/quick/archive/` rather than delete. |
 | 8 | `databricks-deploy/_aliyun_pull/` ~4.4 GB local sync residue from manual sync runs. | TBD | gc; can re-pull on next sync. .databricksignore already covers it. |
 | 9 | `.scratch/sync-to-databricks-*.log` (2 files) + `.scratch/databricks-deploy-*.log` accumulating in scratch. | TBD | gitignored; opportunistic local cleanup. |
 | 11 | `.planning/STATE.md` "Quick Tasks Completed" table style inconsistent — early entries are 1000+ char single-line dumps; recent (260530-d8j, 260530-gf1) entries use concise multi-line summary. | TBD | Decide canonical format and either reformat history or leave drift annotation. |
@@ -111,6 +110,7 @@ This is the **issue tracker** for known problems / tech debt / deferred work tha
 | R16 | `databricks-deploy/_ssg/` build artifact path confusing (suggests committed source, actually gitignored). | 2026-05-30 | `758e21b` (`databricks-deploy/_ssg/.README.md` written) | `260530-gf1` |
 | R17 | Memory `aliyun_drift_recovery_260528_lessons.md` Lesson 1 v3 + v4 wording overlap (same root mechanism: systemd `Requires=` cascade described twice). | 2026-05-30 | (out-of-tree memory file edit, no repo commit) | `260530-gf1` |
 | R18 | **P2-3 reranker DEPLOYED-DISABLED** (BGE_FORCE_LOAD_FAIL=1 escape) — replaced with LLM-as-reranker (Databricks Haiku batch JSON). All 6 SC PASS on `01f15d1bcce2189db0557d701a97bf9f`: cold-start 28.15s, qa_seed mean 59.43s, prod-batch 21.07s, token-overlap 1.00 perfect, graceful-degrade verified, kb/static+templates 0 touches, legacy BGE env retained for rollback compat. | 2026-05-31 | `6feb210` `c257c64` `a26ea01` `664c14c` `b8f3baf` + T6 | `v1.1.P2-3-perf-fix-A` |
+| R19 | **Stale synthesize-audit quick** — `.planning/quick/20260525-200047-synthesize-audit/` untracked since 5/25 (real audit doc + 4 logs from synthesize FTS5 syntax bug deep-audit, resolved later via e05d597). Archived to `.planning/quick/archive/` to declutter active quick listing. Logs (*.log) gitignored — only AUDIT.md + probe.py tracked under archive path. | 2026-06-02 | `9728726` | YOLO night shift Task 1 |
 
 ---
 
