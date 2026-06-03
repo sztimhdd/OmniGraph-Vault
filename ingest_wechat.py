@@ -54,7 +54,9 @@ def _status_is_processed(status_val) -> bool:
 # (30 × 2.0s) with OMNIGRAPH_PROCESSED_RETRY / OMNIGRAPH_PROCESSED_BACKOFF
 # env override; covers Phase 2 entity-merging on heavy WeChat articles.
 PROCESSED_VERIFY_MAX_RETRIES = int(os.getenv("OMNIGRAPH_PROCESSED_RETRY", "30"))
-PROCESSED_VERIFY_BACKOFF_S = float(os.getenv("OMNIGRAPH_PROCESSED_BACKOFF", "2.0"))
+PROCESSED_VERIFY_BACKOFF_S = float(os.getenv("OMNIGRAPH_PROCESSED_BACKOFF", "5.0"))
+# 260603 ISSUES #32: image-heavy article async post-ainsert
+# finalization can take >60s; 30 × 5.0 = 150s safer default.
 
 # quick-260511-lmc: stable-state re-poll delay. After first 'processed' observation,
 # wait this many seconds and re-poll to confirm status is stable (not about to flip
