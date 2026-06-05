@@ -1,0 +1,13 @@
+# Databricks Haiku rerank — previously verified by perf-fix-A (2026-05-31)
+# See: .planning/phases/v1.1-roadmap/P2-3-perf-fix-A/P2-3-perf-fix-A-VERIFICATION.md
+# Marker form: `llm_rerank_init_ok provider=databricks_serving wall_s=0.60`
+# (PLAN.md SC-12 wrote `provider=databricks_claude_haiku` but actual marker
+#  uses `provider=databricks_serving`; model name `databricks-claude-haiku-4-5`
+#  is in the `model=` field of the same log line — PLAN/log naming drift,
+#  not a regression.)
+#
+# qdrant-migration T11 SC-12 close path: Aliyun side fresh-verified
+# 2026-06-05 (3× `provider=vertex_gemini` in aliyun-rerank-evidence.log);
+# Databricks side reuses perf-fix-A verified evidence (no new smoke fired
+# from agent — orchestrator may run Step 10 smoke 4 in browser console
+# at next sync if desired).
