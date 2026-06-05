@@ -152,3 +152,72 @@ For each wall, recommend ONE row action for the orchestrator to apply. **All thr
 - Memory `feedback_ssh_readonly_vs_writeop_boundary` — read-only SSH path used here
 - Memory `corp_pem_rebuild_pattern` — corp CA bundle re-merge runbook for probe re-run
 - ISSUES.md #32 / #33 — pre-existing rows that overlap with #38 / #39 (merge candidates per Section 4)
+
+## Section 5 — Probe re-run results (260605-pwl)
+
+**Quick:** `260605-pwl-probe-rerun-cert-rebuild`
+**Date:** 2026-06-05 ADT
+**Pre-step:** `.scratch/260525-rebuild-cacert.py` rebuild — **REBUILD OK: 123 total certs, 4 corp hits** (log: `.scratch/260605-pwl-cert-rebuild.log`)
+**Probe contract:** byte-identical to 260605-mz1 (sha256 `57308c595db37718f9a845a311f65a4c25c6957d987b464649a22ff8bcf3ad23` verified before/after; **probe NOT launched**)
+
+### Run results
+
+| Metric | Value |
+|---|---|
+| PASS A serial wall_s | **N/A — probe not launched (Halt F at T3 boundary)** |
+| PASS B 2-concurrent wall_s | **N/A — probe not launched** |
+| Speedup ratio | **N/A** |
+| both_processed | **N/A** |
+| graphml_valid | **N/A** |
+| kv_store_valid | **N/A** |
+| serial_exception | **N/A** |
+| concurrent_exception | **N/A** |
+
+### Verdict — v1.2 batch_ingest concurrent rewrite viability
+
+**BLOCKED-by-environment** — closest decision-matrix row is `BLOCKED-by-cert-rebuild` (environment unblocker quick needed before re-attempting probe), but the blocker scope extends beyond cert rebuild. Cert rebuild ALONE (parent quick 260605-mz1's intended unblock path) is **insufficient** — the corp environment has TWO additional blockers exposed by post-rebuild reachability probe:
+
+1. **Missing `DEEPSEEK_API_KEY` on the Hermes prod-runtime env path** — `~/.hermes/.env` (the file `config.py` loads at import for prod-parity invocations) contains `GEMINI_API_KEY` / `APIFY_TOKEN` / `FIRECRAWL_API_KEY` / `CDP_URL` / `APIFY_TOKEN_BACKUP`, but **NOT `DEEPSEEK_API_KEY`**. The probe launcher reads this file. `lib.llm_deepseek._require_api_key()` raises `RuntimeError` on first ainsert call. Per PLAN.md T2 step 4: "halt with cite, do NOT silent-skip." **Scope qualifier (added post-adversarial-verify 2026-06-05):** the key DOES exist in two project-local env files — `.dev-runtime/.env` (local-dev runtime) and `databricks-deploy/.env.local` (Databricks Apps local UAT). Workflows entering through those paths have the key available, so the env-gap blocker is path-specific to the Hermes prod-runtime invocation the probe contract uses. The DeepSeek TLS-block (blocker #2 below) blocks **all** corp-laptop paths regardless of which env file provides the key, so the BLOCKED-by-environment verdict still holds.
+
+2. **Corp Cisco Umbrella TLS-blocks `api.deepseek.com`** — even with rebuilt certifi (123 total / 4 corp hits, ssl ground-truth probe passes), Python `urllib.request.urlopen('https://api.deepseek.com/')` returns `URLError: [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE]`. Cert rebuild fixes the **tiktoken bootstrap blob** (Azure blob TLS now succeeds, returns HTTP 400 from server) and **Gemini** (returns HTTP 404 from server) — but corp Umbrella does not re-sign DeepSeek's chain; instead it drops the TLS handshake. Cert rebuild does **NOT** fix this.
+
+The cert rebuild work itself is durable and useful for any future Gemini/Vertex/embedding-only probe on this machine — log preserved at `.scratch/260605-pwl-cert-rebuild.log`.
+
+**v1.2 viability state:** still UNKNOWN — pending probe execution on a network where DeepSeek is reachable AND `DEEPSEEK_API_KEY` is available. Two unblocker paths from this halt:
+
+- **Aliyun-side run (preferred — bypasses both blockers):** SSH `aliyun-vitaclaw`, isolated `/tmp/260605-XX-probe-run/` working dir, `DEEPSEEK_API_KEY` available via systemd `EnvironmentFile=/root/.hermes/.env` (or interactive `set -a; source /root/.hermes/.env; set +a;` per memory `aliyun_ssh_manual_trigger_env`), `api.deepseek.com` reachable from Aliyun. Strongest signal for v1.2 viability since prod-parity network. Trade-off: requires explicit phase scope to allow Aliyun write-ops (probe creates a temporary working dir + LightRAG storage; per memory `feedback_ssh_readonly_vs_writeop_boundary`, this exceeds read-only diagnostic boundary).
+
+- **Switch probe LLM provider to Vertex Gemini:** sibling `.scratch/260605-XX-concurrent-probe-v2.py` with `OMNIGRAPH_LLM_PROVIDER=vertex_gemini`, no DeepSeek dependency. Vertex requires SA JSON + `GOOGLE_APPLICATION_CREDENTIALS` — verify corp network allows Vertex (parent quick reported timeout on `us-central1-aiplatform.googleapis.com`; needs re-test post-cert-rebuild). Trade-off: not prod parity (prod uses DeepSeek), v1.2 viability signal weaker — different LLM client may have different lock semantics inside LightRAG.
+
+LoC estimate for v1.2 GO branch unchanged from parent RESEARCH.md Section 3 (still **+150 to +300 LoC** in `batch_ingest_from_spider.py` GO branch; **0 LoC** in BLOCKED branch). Confidence in estimate: still LOW until probe runs.
+
+### Halt log
+
+**Halt F (NEW) — pre-flight halt at T3 boundary, two blockers exposed:**
+
+- Trigger: T2 pre-flight check (`grep -E '^DEEPSEEK_API_KEY=' ~/.hermes/.env` returned empty) + post-T1 reachability probe (`api.deepseek.com` `SSLV3_ALERT_HANDSHAKE_FAILURE`)
+- Symptom 1 (env): `DEEPSEEK_API_KEY` absent in `~/.hermes/.env` and shell — probe-launch would crash on first `rag.ainsert()` call when `lib.llm_deepseek._get_client()` lazily reads the key
+- Symptom 2 (network, NEW vs parent quick): even with rebuilt cert (`certifi: 123/4 corp`), `urllib.request.urlopen('https://api.deepseek.com/')` returns `SSLV3_ALERT_HANDSHAKE_FAILURE` — corp Cisco Umbrella TLS-blocks DeepSeek chain (no re-sign, just drops handshake). Tiktoken bootstrap (parent Halt #1 root cause) RESOLVED by cert rebuild (HTTP 400 server response = TLS happy). Gemini also resolved (HTTP 404 server response).
+- Action: halted at T3 boundary per plan rule ("halt with cite, do NOT silent-skip"); probe NOT launched; byte-identical contract preserved (sha256 match before/after); diagnostic captured to `.scratch/260605-pwl-probe-output.txt`
+- Impact: v1.2 viability remains UNKNOWN. Cert-rebuild deliverable IS durable. Halt #1 from parent quick (tiktoken bootstrap) IS resolved by cert rebuild — orthogonal to the new DeepSeek blockers.
+
+**Halt A / B / C / D / E — NOT fired in this re-run:**
+
+- Halt A (cert rebuild fail): NOT fired — script returned `REBUILD OK: 123 total / 4 corp hits` cleanly, no rollback
+- Halt B (env-var override forgotten): NOT fired — env vars detected at T2 step 3, would have been unset for T3 probe shell (T3 not launched, but the unset path was prepared)
+- Halt C (kv_store / graphml corruption during concurrent ainsert): NOT fired — probe never reached ainsert
+- Halt D (Vertex 429): NOT fired — probe never reached Vertex
+- Halt E (body data missing): NOT fired — body_1.md (14172 bytes) + body_2.md (9431 bytes) both present at T2 step 1
+
+### Cross-references
+
+- Probe output (halt diagnostic): `.scratch/260605-pwl-probe-output.txt` (gitignored, 73 lines)
+- Cert rebuild log: `.scratch/260605-pwl-cert-rebuild.log` (gitignored, 7 lines, `REBUILD OK: 123 total / 4 corp`)
+- sha256 contract: `.scratch/260605-pwl-probe-sha256-{before,after}.txt` (both gitignored, identical)
+- Pre-pwl cert backup: `venv/Lib/site-packages/certifi/cacert.pem.bak-260605-pre-pwl` (gitignored)
+- Quick close-out: `.planning/quick/260605-pwl-probe-rerun-cert-rebuild/260605-pwl-SUMMARY.md`
+- Parent RESEARCH Section 2 (Halt #1 tiktoken bootstrap): NOW RESOLVED by cert rebuild (this Section 5)
+- Parent RESEARCH Section 3 (v1.2 viability): still UNKNOWN — DeepSeek TLS block + missing key are the new blockers
+- Memory `corp_pem_rebuild_pattern` — runbook used for T1 cert rebuild
+- Memory `aliyun_ssh_manual_trigger_env` — relevant for Aliyun-side re-run unblocker path
+- Memory `feedback_ssh_readonly_vs_writeop_boundary` — read-only SSH boundary for Aliyun-side re-run scope
