@@ -277,7 +277,9 @@ PASS B `wall_s_concurrent=0.005s` is the time taken for the dedup gate to fire a
 
 ### Verdict — v1.2 batch_ingest concurrent rewrite viability
 
-**BLOCKED-by-correctness** — decision-matrix row hit: `any | False (both_processed) | None (graphml not "corrupt:..." just "missing") | BLOCKED-by-correctness`. Halt C also dual-applies (the matrix gives "BLOCKED-by-correctness OR BLOCKED-by-corruption" choice). Picking `BLOCKED-by-correctness` because the primary signal is `both_processed: false` and the graphml state is "missing" rather than "corrupt: ...".
+**BLOCKED — dual-apply between correctness and corruption rows; operational impact identical** (post-adversarial-verify 2026-06-05).
+
+Strict-matrix reading per PLAN.md line 151 corruption definition `corruption = graphml_valid is not True OR kv_store_valid is not True OR concurrent_exception is not None` → `graphml_valid='missing'` satisfies the disjunction, so **row 5 (BLOCKED-by-corruption)** fires per strict literal application. Original verdict `BLOCKED-by-correctness` (row 4) silently re-defined corruption to mean only the literal substring `corrupt:`. Halt C symptom list (PLAN.md line 171) explicitly offers both verdicts as a choice — the row label depends on whether one weights `both_processed=False` (correctness primary) or `graphml_valid='missing'` (corruption primary). Both rows collapse to the same operational next-step in PLAN.md line 576 ("subprocess isolation forced; concurrent ainsert is unsafe; LLM-client-agnostic"), so the row choice has nil practical impact. Recording the dual-apply explicitly so future readers don't trust either row label as definitive: **the BLOCKED verdict is correct; the row label is ambiguous.**
 
 **BUT — verdict reflects probe-contract artifact, NOT real v1.2 viability.** The verdict is correctly BLOCKED per the matrix as it stands, but the underlying cause is a probe-contract flaw (in-process pipeline state defeats `reset_storage()` between passes), NOT a real correctness failure of LightRAG concurrent ainsert. The probe never tested what v1.2 design actually proposes (asyncio.gather over ainsert across distinct article IDs).
 
@@ -300,6 +302,48 @@ Production uses DeepSeek as the LLM provider; this probe uses Vertex Gemini. Loc
 - **If a future probe-contract revision lands a GO/RISKY verdict:** the v1.2 plan-phase MUST include an explicit sub-task for an Aliyun-side prod-parity follow-up smoke (DeepSeek provider, prod-parity network) BEFORE declaring the asyncio.gather wrapper design final.
 
 - **For this quick's BLOCKED-by-correctness:** the immediate next step is NOT subprocess isolation (the matrix's recommended alt-path) but rather a probe-contract revision quick that fixes `reset_storage()` to also reset the in-process pipeline state — most directly via subprocess invocation per pass (each pass is its own `python` invocation with a fresh interpreter, so pipeline state cannot leak between passes). Once the probe contract is fixed, re-run this Vertex probe to get a real `wall_s_concurrent` measurement, then re-apply the decision matrix.
+
+### Section 6.5 — Why ingest is slow (PASS A structural finding — PRIMARY USER-ACTIONABLE SIGNAL)
+
+> Added post-adversarial-verify 2026-06-05 per synthesizer recommendation: this is the load-bearing finding for v1.2 viability and the user's "why is ingest so slow" question.
+
+**PASS A is genuine end-to-end signal.** 459.286s for 2 articles serial = **230s/article** on corp laptop (Vertex Gemini 2.5 flash-lite-preview, 8 embed workers + 4 LLM workers, async=8). Aliyun's 5-day audit (Section 1) shows `avg_article_time_sec` range `240..2867s` — corp laptop matches the **fast end** of that distribution, **proving slow-ingest is NOT local-machine-specific**. It's structural in the LightRAG ingest pipeline.
+
+**Per-article breakdown from the PASS A log:**
+
+For Doc 1 (`c8cc5b1fb7`, 14 KB body, 4 chunks → 53 final entities + 46 relations) the LightRAG pipeline runs:
+
+| Phase | What it does | API calls | Wall-time share (estimate) |
+|---|---|---|---|
+| **Chunk extract** (`Extracting stage 1/1`) | 4 parallel Vertex calls extract entities + relations from each chunk | ~12 calls (4 chunks × ~3 LLM round-trips for retry/JSON-validate) | ~30-50s |
+| **Phase 1 entity processing** (`Processing 40 entities, async=8`) | For each of 40 entities, call LLM to disambiguate + summarize description | ~40 calls | ~50-70s |
+| **Phase 2 relation processing** (`Processing 46 relations, async=8`) | For each of 46 relations, call LLM to summarize | ~46 calls | ~60-80s |
+| **Phase 3 final merge** (`Updating final 53(40+13) entities and 46 relations`) | Single batch update — merges new entities/relations into graph + writes graphml | (no LLM calls; pure I/O) | ~5-10s |
+| **Embedding** (parallel to Phase 1+2) | Each entity + relation embedded by Gemini-embedding-2 (3072 dim) | 8 embed-worker concurrency | overlapped |
+
+Total Vertex API calls observed during PASS A across 2 articles: **191 calls** for 2 articles = **~95 calls/article**. At Vertex Gemini p50 latency ~1-3s/call and `async=8` concurrency → wall ≈ 95/8 × 2s ≈ **24s pure compute**, but actual wall = 230s ⇒ **~10× overhead** comes from sequential phase boundaries (Phase 1 must complete before Phase 2; merge serialized after both; chunk extract can't start until prior chunk's batch has settled).
+
+**This is the load-bearing answer for "why ingest 这么慢":**
+
+1. **LightRAG ingest is N×LLM-calls-per-article structural cost, not network or local-machine.** Each article spawns ~95 Vertex calls. Cron-to-cron variance (240s..2867s observed) is dominated by article entity-density (10-100 entities) × image-density (vision phase Aliyun runs but local skipped). On a 50-entity article with 30 images, expected wall ≈ 60s base + 30 × 60s SiliconFlow read-timeout × backoff = 30+ min easily.
+
+2. **The 8h batch budget × serial article processing (parent wall #40) hits because each article is slow AND the batch is sequential.** With 230s/article best case + 30s overhead per article gate (Layer 1, Layer 2, dedup), 8h = 28800s budget can plausibly process only `28800/(230+overhead) ≈ 100-120 articles best case`, but typical days hit 5-20 due to image-heavy outliers.
+
+3. **PROCESSED-gate failures (#39) correlate with same-day wrapper kills (#38)** because Phase 3 final-merge happens AFTER the wrapper's 1200s soft-cap kicks in for image-heavy articles. The 150s dynamic budget for PROCESSED verification is too tight when LightRAG's Phase 3 itself runs after a 600-900s entity/relation phase.
+
+**How to break it (ordered by ROI):**
+
+| Path | Mechanism | Expected impact | Risk |
+|---|---|---|---|
+| **A. Concurrent article ingest** (v1.2 proposal) | asyncio.gather over N=4-8 articles per batch loop iteration | If LightRAG concurrent ainsert is thread-safe (UNKNOWN until probe v3 lands), 4× speedup → 60s/article effective wall | Probe v3 needed first; subprocess isolation may be required if LightRAG fails concurrent test |
+| **B. Cache LLM extract calls aggressively** | Already happens (`LLM cache == saving` lines per chunk extract) but only across same-article retries; cross-article entity/relation cache could halve Phase 1+2 calls on overlap | 30-50% speedup on dense topical batches (e.g. all-AI-agent articles share entities) | Low — cache already wired, just needs cross-article hash key |
+| **C. Skip Phase 2 / Phase 3 for low-value articles** | layer2 verdict already grades articles; restrict deep-extraction to top-tier; skip relation-merge for layer2='ok-shallow' | 50% wall reduction on shallow articles | Loses graph density for those articles |
+| **D. Batch-size knob** (orthogonal to concurrent rewrite) | Increase async=8 → async=16 for entity/relation phases | 30-50% per-article (less overhead between batches) | Vertex 429 risk if pool > rate limit; embed-worker count must scale too |
+| **E. Subprocess isolation as v1.2 fallback** | If LightRAG concurrent ainsert fails probe v3, v1.2 = `multiprocessing.Pool(N)` wrapper around per-article subprocess | Definitely thread-safe (process-level isolation) but ~3× peak RAM | Heavier op-wise; still 4× wall speedup on N=4 |
+
+**Path A is the v1.2 candidate. Path B+D are zero-LoC quick-wins that should land BEFORE v1.2 plan-phase fires** (cheap; orthogonal; reduces v1.2's required speedup ceiling). Path C is an architectural tradeoff requiring user buy-in.
+
+Independent of v1.2: the **150s PROCESSED-gate budget should be raised to ~300s** (memory `feedback_pending_symptom_check_dim_first` + Section 1 evidence shows 06-05 still firing 30 retries × 5s backoff — gate is too tight for image-heavy articles).
 
 ### Halt log
 
