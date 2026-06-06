@@ -221,3 +221,111 @@ LoC estimate for v1.2 GO branch unchanged from parent RESEARCH.md Section 3 (sti
 - Memory `corp_pem_rebuild_pattern` — runbook used for T1 cert rebuild
 - Memory `aliyun_ssh_manual_trigger_env` — relevant for Aliyun-side re-run unblocker path
 - Memory `feedback_ssh_readonly_vs_writeop_boundary` — read-only SSH boundary for Aliyun-side re-run scope
+
+## Section 6 — Probe re-run results (260605-u17, Vertex provider)
+
+**Quick:** `260605-u17-probe-vertex-rerun`
+**Date:** 2026-06-05/06 ADT
+**Pre-step:** sibling quick `260605-pwl` cert rebuild — `123 total / 4 corp hits` (re-verified at T1; ssl ground-truth probe passes)
+**Vertex reachability:** TLS-happy on `us-central1-aiplatform.googleapis.com` + `oauth2.googleapis.com` + `aiplatform.googleapis.com` (HTTP 404 server response = handshake succeeded; orchestrator pre-flighted)
+**Probe contract:** `.scratch/260605-u17-concurrent-probe-vertex.py` is sibling of parent `260605-mz1-concurrent-probe.py` with one substantive change — LLM provider switched DeepSeek → Vertex Gemini via `lib.llm_complete.get_llm_func()` dispatcher. Embedding/post-conditions/2-pass design/JSON output IDENTICAL. sha256 byte-identical pre/post run (`1891839825103e4001f4271da518b35ade618befd1671cc110522dd6e2cb0dbc` matches before+after). LoC = 78 ≤ 80 cap.
+
+### Run results
+
+| Metric | Value |
+|---|---|
+| PASS A serial wall_s | `459.286` |
+| PASS B 2-concurrent wall_s | `0.005` (probe-contract artifact — see "Probe contract flaw" below; NOT a real concurrent measurement) |
+| Speedup ratio | `83578.027` (nonsense — denominator artifact from PASS B never running) |
+| both_processed | `False` (probe-contract artifact — see below) |
+| graphml_valid | `"missing"` (probe-contract artifact — PASS B reset graphml then never wrote) |
+| kv_store_valid | `True` |
+| serial_exception | `None` (PASS A serial completed cleanly) |
+| concurrent_exception | `None` (PASS B never threw — but never actually concurrent-inserted either) |
+
+**PASS A actually-observed work** (real and useful signal):
+- Article 1 (`c8cc5b1fb7`, ~14 KB body): 4 chunks → 53 entities + 46 relations (40 from chunks + 13 extra from merge)
+- Article 2 (`b37b0df5fb`, ~9 KB body): 3 chunks → 41 entities + 30 relations (35 from chunks + 6 extra from merge)
+- Total final graph: **93 nodes / 76 edges** written to graphml
+- Wall time: **459.286s** for both articles serially through full LightRAG ainsert (extract + merge + persist)
+
+### Probe contract flaw — PASS B never executed real concurrent ainsert
+
+The parent probe contract (inherited byte-for-byte by probe-v2 per PLAN's minimal-diff requirement) has a flaw exposed only on the first probe run that reaches PASS B:
+
+**`reset_storage()` between PASS A and PASS B clears the on-disk `STORAGE` directory but does NOT reset the in-process LightRAG pipeline status.** When the second `make_rag()` call invokes `initialize_pipeline_status()`, the singleton-ish global pipeline state still remembers that doc_ids `c8cc5b1fb7` + `b37b0df5fb` were already processed in PASS A. PASS B's `await asyncio.gather(rag.ainsert(body1, ids=[h1]), rag.ainsert(body2, ids=[h2]))` therefore short-circuits at the dedup gate before any real ainsert work happens.
+
+Direct evidence in `.scratch/260605-u17-probe-output.txt` (around line 271-280, immediately after PASS A finalize):
+
+```text
+WARNING: Duplicate document detected: c8cc5b1fb7 (unknown_source)
+WARNING: Duplicate document detected: b37b0df5fb (unknown_source)
+INFO: Created 1 duplicate document records with track_id: insert_20260605_220629_0fe524e2
+WARNING: No new unique documents were found.
+INFO: Created 1 duplicate document records with track_id: insert_20260605_220629_d0c009b8
+WARNING: No new unique documents were found.
+INFO: Another process is already processing the document queue. Request queued.
+INFO: Preserving 2 failed document entries for manual review
+INFO: No valid documents to process after consistency check
+INFO: Enqueued document processing pipeline stopped
+INFO: Successfully finalized 12 storages
+```
+
+PASS B `wall_s_concurrent=0.005s` is the time taken for the dedup gate to fire and refuse the work, not the time taken for two concurrent ainserts. The post-condition `graphml_valid: "missing"` reflects PASS B having reset the graphml file (via `reset_storage`) but never written a new one because no work executed.
+
+**This flaw exists in the parent probe `260605-mz1-concurrent-probe.py` too** — neither parent quick `260605-mz1` (Halt #1: corp firewall blocked tiktoken bootstrap) nor sibling `260605-pwl` (Halt F: DeepSeek TLS block + env-key gap) ever reached PASS B execution, so the flaw stayed latent until this quick first ran the probe to completion.
+
+### Verdict — v1.2 batch_ingest concurrent rewrite viability
+
+**BLOCKED-by-correctness** — decision-matrix row hit: `any | False (both_processed) | None (graphml not "corrupt:..." just "missing") | BLOCKED-by-correctness`. Halt C also dual-applies (the matrix gives "BLOCKED-by-correctness OR BLOCKED-by-corruption" choice). Picking `BLOCKED-by-correctness` because the primary signal is `both_processed: false` and the graphml state is "missing" rather than "corrupt: ...".
+
+**BUT — verdict reflects probe-contract artifact, NOT real v1.2 viability.** The verdict is correctly BLOCKED per the matrix as it stands, but the underlying cause is a probe-contract flaw (in-process pipeline state defeats `reset_storage()` between passes), NOT a real correctness failure of LightRAG concurrent ainsert. The probe never tested what v1.2 design actually proposes (asyncio.gather over ainsert across distinct article IDs).
+
+What we DO learn from this run (independently of the verdict):
+
+1. **Vertex Gemini end-to-end pipeline works on corp laptop with rebuilt cert + explicit env vars.** PASS A serial completed cleanly: 459s for 2 articles through full extraction → merge → persist. No SSL errors, no auth errors, no quota throttling. Vertex Gemini-2.5-flash-lite-preview produced the entity-relation extractions LightRAG expects.
+
+2. **Vertex serial throughput baseline:** ~230 s/article on this hardware/network with image_count ∈ [2,5] articles. Compare to Aliyun cron `avg_article_time_sec` 240..2867s in 5-day audit (Section 1) — Vertex local is on the fast end of that distribution but within range. (Caveat: Vertex local skips vision via `OMNIGRAPH_VISION_SKIP_PROVIDERS`, so apples-to-apples comparison would adjust for the vision phase Aliyun runs but local skipped.)
+
+3. **Halt G (auth) and Halt F (vertex-network) are both NOT-fired:** Vertex SA JSON loads correctly, oauth2 token issued, model endpoints reachable. Cert rebuild from sibling 260605-pwl is durable through the Vertex provider switch.
+
+### Vertex caveat (mandatory)
+
+**Vertex Gemini measurement is a STRONG SIGNAL but NOT DEFINITIVE for v1.2 viability.**
+
+Production uses DeepSeek as the LLM provider; this probe uses Vertex Gemini. Lock semantics inside LightRAG may differ between LLM clients — different httpx connection pool, different tokenizer call paths (Vertex SDK uses `google.genai` not `tiktoken` for token counting), different retry semantics, different async cancellation behavior. A GO verdict would suggest v1.2 concurrent-rewrite is FEASIBLE but not guarantee prod-parity speedup.
+
+**For this quick's actual verdict (BLOCKED-by-correctness):** the probe-contract flaw is LLM-client-agnostic — `reset_storage()` defeats the in-process pipeline state regardless of whether DeepSeek or Vertex is the LLM. So the BLOCKED verdict here would also have fired against DeepSeek if the parent quick had reached PASS B. The Vertex caveat does NOT alter the BLOCKED verdict, but DOES alter the recommended next-step:
+
+- **If a future probe-contract revision lands a GO/RISKY verdict:** the v1.2 plan-phase MUST include an explicit sub-task for an Aliyun-side prod-parity follow-up smoke (DeepSeek provider, prod-parity network) BEFORE declaring the asyncio.gather wrapper design final.
+
+- **For this quick's BLOCKED-by-correctness:** the immediate next step is NOT subprocess isolation (the matrix's recommended alt-path) but rather a probe-contract revision quick that fixes `reset_storage()` to also reset the in-process pipeline state — most directly via subprocess invocation per pass (each pass is its own `python` invocation with a fresh interpreter, so pipeline state cannot leak between passes). Once the probe contract is fixed, re-run this Vertex probe to get a real `wall_s_concurrent` measurement, then re-apply the decision matrix.
+
+### Halt log
+
+**Halt B (env-var override forgotten) — fired ONCE at probe launch attempt 1, recovered:**
+
+- First launch attempt used `set -a; source .dev-runtime/.env; set +a;` to load env vars. Bash `source` interpreted `\U`, `\h`, `\D` etc. in Windows path values as escape sequences and stripped the backslashes — `c:\Users\huxxha\Desktop\OmniGraph-Vault\.dev-runtime\gcp-paid-sa.json` became `c:UsershuxxhaDesktopOmniGraph-Vault.dev-runtimegcp-paid-sa.json`.
+- Symptom: `google.auth.exceptions.DefaultCredentialsError: File c:UsershuxxhaDesktop... was not found.` raised inside embedding-worker tasks for both passes; LightRAG caught the exception internally and marked both docs FAILED, so the JSON output showed `serial_exception: null` and `concurrent_exception: null` (silent ghost-success class) but `both_processed: false`.
+- Per PLAN Halt B rule ("fix and retry. Do NOT mark BLOCKED for this"), launcher was rewritten with explicit `export GOOGLE_APPLICATION_CREDENTIALS="C:/Users/.../gcp-paid-sa.json"` (forward-slash form, no `source`). Second launch ran cleanly and produced the data above. Three Windows-path env vars confirmed problematic on bash `source`: `GOOGLE_APPLICATION_CREDENTIALS`, `OMNIGRAPH_BASE_DIR`, `KOL_SCAN_DB_PATH` (only the first one is load-bearing for this probe; documented for next quick).
+
+**Halts A / C / D / E / F / G — NOT fired:**
+
+- **A (cert regression):** NOT fired — `123 total / 4 corp hits` re-verified at T1
+- **C (kv_store/graphml corruption from concurrent ainsert):** NOT fired in the original Halt C sense — corruption observed (`graphml_valid: "missing"`) is a probe-contract artifact, not concurrent-ainsert data corruption. PASS B never ran real concurrent ainsert, so the original Halt C question is unanswered.
+- **D (Vertex 429 RESOURCE_EXHAUSTED):** NOT fired — no 429 / quota error in any Vertex call
+- **E (probe-v2 LoC > 80):** NOT fired — first author was 81 LoC, immediately compressed to 78 LoC before any run; sha256 captured AFTER compression
+- **F (corp blocks Vertex on model paths despite root-path pre-flight):** NOT fired — Vertex `/v1beta1/.../generateContent` and `/v1beta1/.../embedContent` calls all succeeded
+- **G (oauth2 / SA fail):** NOT fired — SA JSON loaded, oauth2 token issued (after Halt B fix gave it a valid file path)
+
+### Cross-references
+
+- Sibling probe-v2: `.scratch/260605-u17-concurrent-probe-vertex.py` (gitignored, 78 LoC, sha256 contract `1891839825103e4001f4271da518b35ade618befd1671cc110522dd6e2cb0dbc` matched pre/post)
+- Probe output JSON: `.scratch/260605-u17-probe-output.json` (gitignored, raw decision-matrix input, 9 keys present)
+- Probe full stdout+stderr: `.scratch/260605-u17-probe-output.txt` (gitignored, 296 lines including PASS A real work + PASS B dedup gate)
+- sha256 contract receipts: `.scratch/260605-u17-probe-sha256-{before,after}.txt` (gitignored, identical)
+- Quick close-out: `.planning/quick/260605-u17-probe-vertex-rerun/260605-u17-SUMMARY.md`
+- Parent RESEARCH Section 5 (260605-pwl Halt F): bypassed by Vertex provider switch — DeepSeek TLS block confirmed irrelevant for this run
+- Memory `vertex_ai_smoke_validated` — Vertex SA + endpoint pairing ground truth (validated 2026-04-30; reconfirmed in this quick)
+- Memory `aliyun_oauth_pin` — relevant if Halt G fires on Aliyun (not corp laptop)
+- Memory `feedback_git_add_explicit_in_parallel_quicks` — atomic stage-commit-push pattern in T3
