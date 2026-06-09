@@ -428,29 +428,25 @@ Evergreen invariants only — dated postmortems are archived in [docs/lessons/](
 Recent archives:
 - [2026-05](docs/lessons/2026-05-archive.md) — 9 postmortems: SQLite CHECK constraint, half-fix pattern, cascade divergence, CV mass-classify, ghost success class, D2 contract bug
 
-## Vertex AI Migration Path
+## Vertex AI — COMPLETED 2026-05-17
 
-Current Gemini API calls (embedding + vision + LLM) share one GCP project's free-tier quota; one 429 stops the whole batch. Migration to Vertex AI paid tier gives cross-project quota isolation.
+Production runs on Vertex AI paid-tier SA JSON since 2026-05-17 (aim-1 phase, commit `24aa9ef` close + `ba889ee` 7/7 UAT). Embedding via `gemini-embedding-2` on `GOOGLE_CLOUD_LOCATION=global` endpoint. Cross-project quota isolation — embedding 429 no longer kills batches.
 
-**Current split-provider config** (sufficient until batch volume forces migration):
-- **Vision:** SiliconFlow Qwen3-VL-32B (¥0.0013/image, no GCP dep)
-- **Embedding:** Gemini API free tier (100 RPM)
-- **LLM:** DeepSeek chat (no GCP dep)
+**Current production split** (live since 2026-05-17):
 
-Only embedding touches GCP free-tier quota.
+- **LLM:** DeepSeek chat (primary, openai-compatible client; required even on Vertex path due to `lib/__init__.py` eager import)
+- **Embedding:** Vertex AI Gemini SA JSON (`gemini-embedding-2` on `global`)
+- **Vision:** SiliconFlow Qwen3-VL-32B primary → OpenRouter → Gemini cascade fallback (¥0.0013/image)
 
-**Vertex endpoint + model pairing:** production uses `GOOGLE_CLOUD_LOCATION=global` (pools quota across GCP projects). `gemini-embedding-2` is GA on `global`; `gemini-embedding-2-preview` is regional-only. Always match model to endpoint.
+**Operational notes:**
 
-**Migration triggers** (any one):
-- Embedding regularly hits > 100 RPM (embedding-only 429s)
-- Vision hits > 500 RPD (only if Vision back on Gemini)
-- Single embedding 429 kills the batch despite cascade retries
+- `GOOGLE_CLOUD_LOCATION=global` pools quota across GCP projects. `gemini-embedding-2` is GA on `global`; `gemini-embedding-2-preview` is regional-only. Always match model to endpoint.
+- Aliyun requires `/etc/hosts` pin for `oauth2.googleapis.com` + `us-central1-aiplatform.googleapis.com` → `142.250.73.106` to avoid SA token refresh timeout (memory `aliyun_oauth_pin.md`).
+- SA JSON path: `GOOGLE_APPLICATION_CREDENTIALS=/root/.hermes/gcp-paid-sa.json` (rotate every ≤90 days).
+- Always set `auth_type="pat"` is NOT applicable here — Vertex SDK uses SA JWT exchange, not PAT.
+- Cost estimate: `python scripts/estimate_vertex_ai_cost.py --articles {N} --avg-images-per-article {M}`. Typical 15 articles/day ≈ <$5/month.
 
-Full runbook: `docs/VERTEX_AI_MIGRATION_SPEC.md`. Cost estimate:
-
-```bash
-python scripts/estimate_vertex_ai_cost.py --articles {N} --avg-images-per-article {M}
-```
+Historical migration spec preserved at `docs/VERTEX_AI_MIGRATION_SPEC.md` — frozen as Phase 16 design artifact, code migration shipped.
 
 ## Checkpoint Mechanism
 
@@ -545,7 +541,7 @@ Migration Path" sections above.
 
 - **Gemini 500 RPD ceiling** (free tier) — the Gemini fallback at the end of the Vision Cascade is capped at 500 requests per day across the shared GCP project. A single large batch falling through to Gemini can exhaust this quota and cause Vision to fail for the remainder of the day.
 - **WeChat account throttle** — `ingest_wechat.py` enforces **50 articles per batch + cooldown** before the next batch; this is a WeChat-side limit, not configurable. Large batches should be sliced into 50-article chunks with cooldown between chunks.
-- **Vertex AI migration path (future)** — the current Gemini API key couples embedding quota with LLM quota in the same GCP project, so an embedding 429 can kill a batch mid-ingest. The **Recommended Upgrade Path** (see `Deploy.md` § Recommended Upgrade Path) migrates production deployments to Vertex AI OAuth2 with per-project quota isolation. Design is frozen (Phase 16 spec); code migration is deferred to post-Milestone B.
+<!-- Vertex AI migration path bullet removed 2026-06-10 — production runs on Vertex AI paid-tier SA JSON since 2026-05-17 (aim-1 phase). See "Vertex AI — COMPLETED 2026-05-17" section above. -->
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
