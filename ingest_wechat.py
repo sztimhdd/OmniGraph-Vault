@@ -828,7 +828,18 @@ async def _apify_call(token: str, url: str) -> "dict | None":
     run = await asyncio.wait_for(future, timeout=300)
     print("Apify run finished.")
 
-    results = [item for item in client.dataset(run["defaultDatasetId"]).iterate_items()]
+    # apify-client 3.0 returns a typed Run object (attr access); 2.x returned a
+    # dict (subscript). 3.0 is NOT subscriptable — old `run["defaultDatasetId"]`
+    # raises 'Run' object is not subscriptable. Try attribute first, fall back
+    # to dict subscript so both SDK majors work without a hard pin.
+    if run is None:
+        return None
+    dataset_id = getattr(run, "default_dataset_id", None)
+    if dataset_id is None and isinstance(run, dict):
+        dataset_id = run.get("defaultDatasetId")
+    if not dataset_id:
+        return None
+    results = list(client.dataset(dataset_id).iterate_items())
     if results:
         item = results[0]
         return {
