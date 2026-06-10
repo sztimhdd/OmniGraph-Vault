@@ -68,6 +68,22 @@ _SOURCE_HASH_PATTERN = re.compile(r"articles?/([a-f0-9]{10})")
 # `https://1.2.3.4:8765/`, etc.
 _LEGACY_IMAGE_URL_PATTERN = re.compile(r"https?://[^/\s)]+:8765/")
 
+# ISSUES #29: server-side citation normalizer. Despite the prompt asking for
+# [label](articles/<hash>.html), the LLM (both DeepSeek + Claude) emits ~7
+# orphan shapes. qa.js sweeps these client-side, but non-browser consumers
+# (Hermes skill, /api/synthesize JSON consumers, CLI scripts) never run qa.js,
+# so we also normalize here before the markdown is stored / returned. Mirrors
+# qa.js rewriteOrphanCitations Pass 1 (bracketed article refs, 6 separators) +
+# Pass 2 (bare 10-hex hash) and the References-section dedupe.
+#   Pass 1 covers: [/article/<h>] [/article:<h>] [article/<h>] [article:<h>]
+#                  [article-<h>] [article <h>]
+#   Pass 2 covers: [<h>]   (bare 10-hex, no following '(' so real links survive)
+_ORPHAN_ARTICLE_CITATION = re.compile(r"\[/?article[\s/:_-]([a-f0-9]{10})\]")
+_BARE_HASH_CITATION = re.compile(r"\[([a-f0-9]{10})\](?!\()")
+_REFERENCE_KEYWORDS = (
+    "references", "reference", "参考文献", "参考来源", "参考资料", "引用",
+)
+
 # QA-04: wall-time budget for C1 before fts5_fallback fires. Read once at
 # module-import time (per CONFIG-02 pattern); tests reload the module.
 KB_SYNTHESIZE_TIMEOUT: int = int(os.environ.get("KB_SYNTHESIZE_TIMEOUT", "60"))
@@ -316,6 +332,79 @@ def _rewrite_image_urls(markdown: str) -> str:
     prefix is rewritten; path components are preserved verbatim.
     """
     return _LEGACY_IMAGE_URL_PATTERN.sub("/static/img/", markdown)
+
+
+def _dedupe_reference_sections(markdown: str) -> str:
+    """Collapse duplicate ``## References`` sections, keeping the richest one.
+
+    The LLM frequently emits two References sections (one disclaimer + one real
+    link list, or two duplicate lists). qa.js keeps the highest-``<a>``-count
+    section client-side; we do the same server-side by counting markdown links
+    ``](`` in each References block and keeping only the densest, dropping the
+    rest in place. Pure function; idempotent on already-clean input.
+    """
+    lines = markdown.split("\n")
+    # Identify the line index of each References heading (markdown # heading or
+    # bold-as-heading **References**) and the span until the next heading.
+    heading_idxs: list[int] = []
+    for i, line in enumerate(lines):
+        stripped = line.strip().lower()
+        text = stripped.lstrip("#").strip().strip("*").strip()
+        is_heading = stripped.startswith("#") or (
+            stripped.startswith("**") and stripped.endswith("**")
+        )
+        if is_heading and text and any(text == kw or text.startswith(kw) for kw in _REFERENCE_KEYWORDS):
+            heading_idxs.append(i)
+
+    if len(heading_idxs) < 2:
+        return markdown  # 0 or 1 References section — nothing to dedupe
+
+    # Compute each section's span [start, end) and its link density.
+    def _next_heading_after(start: int) -> int:
+        for j in range(start + 1, len(lines)):
+            s = lines[j].strip()
+            if s.startswith("#") or (s.startswith("**") and s.endswith("**") and len(s) > 4):
+                return j
+        return len(lines)
+
+    sections = []  # (start, end, link_count)
+    for idx in heading_idxs:
+        end = _next_heading_after(idx)
+        link_count = sum(line.count("](") for line in lines[idx:end])
+        sections.append((idx, end, link_count))
+
+    # Keep the section with the most links (ties → first); drop the others.
+    keep = max(sections, key=lambda s: s[2])
+    drop_ranges = [(s[0], s[1]) for s in sections if s is not keep]
+    drop_line_idxs: set[int] = set()
+    for start, end in drop_ranges:
+        drop_line_idxs.update(range(start, end))
+
+    kept_lines = [ln for i, ln in enumerate(lines) if i not in drop_line_idxs]
+    return "\n".join(kept_lines)
+
+
+def _normalize_citations(markdown: str) -> str:
+    """ISSUES #29: normalize LLM-emitted orphan citations to real markdown links.
+
+    All 7 orphan shapes collapse to ``[<hash6>](articles/<hash>.html)`` so that
+    non-browser consumers (Hermes skill, /api/synthesize JSON, CLI) get clean,
+    clickable markdown without depending on qa.js. The link label is the 6-char
+    short hash (qa.js uses the article title when available, but server-side we
+    avoid a DB round-trip in this pure function — source titles already render
+    as SOURCES chips downstream). Then duplicate References sections are deduped.
+
+    Pure + idempotent: applying twice yields the same string (Pass 2's negative
+    look-ahead ``(?!\\()`` skips already-linked ``[hash](...)``).
+    """
+    def _link(match: "re.Match[str]") -> str:
+        h = match.group(1)
+        return f"[{h[:6]}](articles/{h}.html)"
+
+    markdown = _ORPHAN_ARTICLE_CITATION.sub(_link, markdown)
+    markdown = _BARE_HASH_CITATION.sub(_link, markdown)
+    markdown = _dedupe_reference_sections(markdown)
+    return markdown
 
 
 def _extract_source_hashes(markdown: str) -> list[str]:
@@ -571,6 +660,13 @@ async def kb_synthesize(
     # before any downstream consumer (source resolution, job_store, qa.js)
     # sees the markdown. See _rewrite_image_urls docstring.
     markdown = _rewrite_image_urls(markdown)
+    # ISSUES #29: server-side citation normalization so non-browser consumers
+    # (Hermes skill, /api/synthesize JSON, CLI) get clean clickable links and
+    # deduped References without relying on the client-side qa.js sweep. Runs
+    # BEFORE source resolution so _extract_source_hashes sees the normalized
+    # articles/<hash>.html refs. qa.js stays in place (defense-in-depth + it
+    # handles cached pre-fix responses).
+    markdown = _normalize_citations(markdown)
     sources = _resolve_sources_from_markdown(markdown)
     entities = _resolve_entities_for_sources([s.hash for s in sources])
     confidence: ConfidenceLevel = "kg" if markdown.strip() else "no_results"
