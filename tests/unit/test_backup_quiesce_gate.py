@@ -20,7 +20,9 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPT = REPO_ROOT / ".scratch" / "aliyun-backup-260610.sh"
+# Tracked copy under scripts/ — the .scratch/ original is gitignored and never
+# reaches Aliyun via `git pull`, so the deployable quiesce gate lives here.
+SCRIPT = REPO_ROOT / "scripts" / "aliyun-backup-260610.sh"
 
 _BASH = shutil.which("bash")
 pytestmark = pytest.mark.skipif(_BASH is None, reason="bash not available")
