@@ -2286,6 +2286,25 @@ def main() -> None:
         logger.warning("Interrupted by user (Ctrl+C) — storages finalized in coroutine finally block")
         sys.exit(130)
 
+    # ISSUES #45 fix (2026-06-11): asyncio.run() returns cleanly after
+    # `Successfully finalized 12 storages` + `Metrics written`, but third-party
+    # C-level threads (Vertex SDK HTTP/2, google-genai async client,
+    # qdrant-client gRPC connection pools) keep the interpreter alive during
+    # Py_Finalize()'s thread join, hanging the process in `S` state for 50+
+    # minutes. Repo audit: 0 atexit handlers + 0 application-side
+    # threading.Thread → asyncio.run() already ran loop.shutdown_asyncgens()
+    # + shutdown_default_executor() + loop.close(), so no application cleanup
+    # is skipped. Hard-exit: flush buffered I/O + drain log handlers, then
+    # os._exit(0) bypasses Py_Finalize (exits via _exit(2) syscall; the
+    # third-party threads are stateless connection pools the OS reclaims).
+    # Cross-platform recurrences: Hermes 6/8 (PID 2623821), Aliyun 6/9
+    # (PID 1826054), Aliyun 6/11 (PID 1552490 — deep-probe confirmed 0 fds
+    # + 0 .tmp + graphml parses cleanly = data safe, process won't exit).
+    sys.stdout.flush()
+    sys.stderr.flush()
+    logging.shutdown()
+    os._exit(0)
+
 
 if __name__ == "__main__":
     main()
