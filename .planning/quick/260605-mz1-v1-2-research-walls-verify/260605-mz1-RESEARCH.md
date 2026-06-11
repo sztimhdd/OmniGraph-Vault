@@ -437,3 +437,45 @@ Before opening v1.2 plan-phase, spike:
 - Full RESEARCH: `.planning/quick/260611-probe-v3-subprocess/260611-probe-v3-RESEARCH-v3.md`
 - Script SHAs: worker.py (after fixes), launcher.py — both captured in RESEARCH-v3
 - Aliyun run environment: prod-parity DeepSeek + Vertex AI, CST idle window 22:23-22:40
+
+---
+
+## Section 8 — Native Parallel Insert Spike (2026-06-12)
+
+**Quick:** 260611-hl6 | **Full RESEARCH:** `.planning/quick/260611-hl6-260612-spike-native-parallel-insert/260612-RESEARCH.md`
+
+### What changed vs prior probes
+
+This was the first valid concurrent-insert measurement across all 5 probes. Source-read on Aliyun LightRAG 1.4.16 revealed:
+
+- `ainsert(input: list[str], ids=...)` accepts a list natively — ONE pipeline call
+- Internal `asyncio.Semaphore(self.max_parallel_insert)` (lightrag.py:1871) schedules concurrent docs
+- Merge stage uses `sorted_key_parts = sorted([src,tgt])` + `sorted_edge_key = tuple(sorted(edge_key))` — deadlock-proof by design
+
+Prior probes used `asyncio.gather(ainsert(d1), ainsert(d2))` = TWO pipeline calls sharing ONE `pipeline_status` singleton → dedup gate fired → ghost success. This spike used `ainsert([d1,d2,d3,d4])` with `max_parallel_insert=4` — ONE pipeline, LightRAG's own semaphore. No deadlock, no dedup gate.
+
+### Results
+
+| Mode | wall_s | nodes | edges | all_4_processed |
+|------|--------|-------|-------|-----------------|
+| serial | 923.38s | 284 | 311 | True |
+| native_parallel (max_parallel_insert=4) | ~703s | 309 | 390 | True |
+
+Speedup ≈ **1.27–1.31x** (both estimates below 1.4x threshold)
+
+### Verdict: BLOCKED
+
+`speedup < 1.4x` → BLOCKED per decision matrix. Post-conditions all pass; no corruption.
+
+**Why speedup is modest:** 4 docs share LightRAG's 4 LLM workers + 8 embedding workers; Phase 3 merge is serialized by keyed locks. Parallel Phase 1 runs 4× slower per-doc, limiting net speedup to ~1.3x.
+
+### Closure of v1.2 concurrent-ingest research thread
+
+All viable approaches tested:
+1. `asyncio.gather(ainsert(d1), ainsert(d2))` — BLOCKED (pipeline_status deadlock) — probes mz1/pwl/u17/v3
+2. `ainsert([d1,d2,d3,d4], max_parallel_insert=4)` — BLOCKED (speedup < 1.4x) — this spike
+
+**Alternative paths forward for ISSUES #40** (serial batch starvation):
+- Parallel Aliyun systemd services (N services × disjoint pools; zero code change; recommended first)
+- ProcessPoolExecutor per-article subprocess isolation (+100-200 LoC; true process isolation)
+- Raise MAX_ARTICLES + denser cron cadence (incremental improvement without code change)
