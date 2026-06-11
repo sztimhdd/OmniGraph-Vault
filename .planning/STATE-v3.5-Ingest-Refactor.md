@@ -75,7 +75,7 @@ Step 6 baseline: KOL=247, RSS=109, total=356 candidates (well below local-snapsh
 
 ## Parallel-Track Boundary
 
-This STATE file tracks v3.5-Ingest-Refactor ONLY. v3.4 progress remains in `.planning/STATE.md`. Agentic-RAG-v1 progress remains in `.planning/STATE-Agentic-RAG-v1.md`.
+This STATE file tracks v3.5-Ingest-Refactor ONLY. v3.4 progress remains in `.planning/STATE.md`. Agentic-RAG-v1 progress remains in `.planning/archive/closed-milestones/STATE-Agentic-RAG-v1.md`.
 
 The three milestones share:
 
@@ -86,7 +86,7 @@ The three milestones share:
 The three milestones do NOT share:
 
 - Phase numbering (v3.4 uses 19-22; Agentic-RAG-v1 uses `ar-N`; this uses `ir-N`)
-- Sibling planning files (this file vs `STATE.md` vs `STATE-Agentic-RAG-v1.md`)
+- Sibling planning files (this file vs `STATE.md` vs `archive/closed-milestones/STATE-Agentic-RAG-v1.md`)
 - Execute gates / blockers
 
 ## Current Hermes Operational State (post-deploy 2026-05-07 ~16:35 ADT)

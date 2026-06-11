@@ -17,7 +17,7 @@
 
 ## Cross-References
 
-- **Parent milestone close:** Agentic-RAG-v1 — see `.planning/MILESTONE_Agentic-RAG-v1_AUDIT.md` (CLOSED-WITH-DOCUMENTED-V1.1-GAPS 2026-05-24T11:00:00Z)
+- **Parent milestone close:** Agentic-RAG-v1 — see `.planning/archive/closed-milestones/MILESTONE_Agentic-RAG-v1_AUDIT.md` (CLOSED-WITH-DOCUMENTED-V1.1-GAPS 2026-05-24T11:00:00Z)
 - **Source of v1.1-A scope:** v1 audit dim 5 (image-rich answer gap; TEST-05 condition a 0 vs ≥3 target)
 - **Source of v1.1-B scope:** v1 audit dim 5 + user direction 2026-05-24 ("HTTP API for KB web, Databricks first")
 - **Explicitly dropped:** Inline citations (originally v1.1-B in audit, renumbered out per user "3去掉" 2026-05-24)
