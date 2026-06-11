@@ -57,23 +57,14 @@ Last activity (prev): 2026-05-18 - Completed quick task 260518-t2r (H3): wrap `i
 
 ### Immediate next step
 
-**`/gsd:discuss-phase 20`** in a new Claude session — lock D-decisions for RCL-01..03 / RIN-01..06 / COG-02..03 before planning. Phase 20 has no `20-CONTEXT.md` yet; discuss-phase produces it.
+No phase executing. Next-target decision is user's to make. Candidates (from Current Position above):
 
-After CONTEXT.md lands → `/gsd:plan-phase 20` → execute waves.
+1. **ir-3 audit close** — overdue v3.5 production-observation audit (~1 quick). Formally closes the v3.5-Ingest-Refactor milestone.
+2. **#44 graphml↔Qdrant divergence** — long_form quality fix; user decides Path X (cron rebuild, 1-2 weeks) vs Path Y (Hermes batch ingest, 1 night).
+3. **arx-2 synthesizer** — implement ar-4 LLM synthesizer + deploy/UAT; unblocks Agentic-RAG-v1.1 fully.
+4. **#30 translate-throughput** — quick cron cadence fix, zero code change, stops coverage drift.
 
-**Parallel tomorrow morning:** when 06:00 ADT cron fires, monitor for Hermes agent timeout / SCR-06-class regressions using `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet. If cron fails, open `/gsd:debug` orthogonal to Phase 20 work — do NOT roll Phase 20 back unless its own changes implicated.
-
-**Today's verification artifacts** (substitutes for the failed Day-1/Day-2 cron runs):
-
-- Single-article smoke (art=437): `Hermes /tmp/gsdA-smoke-*.log`, ingestions row id=765
-- 5-article reliability test: ingestions rows 802 (art=480) / 803 (art=481) / 830 (art=532) / 851 (art=579) / 865 (art=600); avg 4-5 min/article; 0 regressions on all 5 v3.4-prep fixes
-- Snapshot: `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/reliability_5_check_2026_05_06_1612.md`
-
-**Execute gate rationale:**
-
-- Tuning decisions (subprocess timeout, max-articles cap, concurrency) require real cron data — manual reliability test exercises pipeline but doesn't exercise Hermes cron scheduler
-- Must verify Hermes agent cron timeout fix (`HERMES_CRON_TIMEOUT=28800`) holds across full ~2-hour cron window
-- No code changes in phases 20-22 until gate lifts
+Start any of these via `/gsd:quick` (small fixes) or `/gsd:plan-phase` (multi-plan work).
 
 ### v3.4 Phase Overview
 

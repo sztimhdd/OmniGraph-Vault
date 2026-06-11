@@ -1,5 +1,12 @@
 # Roadmap
 
+> ⚠️ **STALE — HISTORICAL SNAPSHOT (Phase 5/6/19 era, frozen 2026-05-06).** This root
+> ROADMAP predates the milestone-suffix tracking model. It does NOT reflect KB-v2,
+> Agentic-RAG-v1/v1.1, Aliyun-Ingest-Migration, kb-databricks, v3.5-Ingest-Refactor,
+> or the v1.0.x/y line. **For current project state see [STATE.md](STATE.md)** (live
+> tracker) and the per-milestone `ROADMAP-<milestone>.md` files. Retained for the
+> Phase 4-19 historical record only. Last verified-stale: 2026-06-12.
+
 **Last Updated:** 2026-05-06 (Phase 19 verified at 5-article scale via reliability test on Hermes — 5/5 OK, 0 regressions on all 5 v3.4-prep fixes [8ac3cb1 body persist / 5c602a3 timeout / 359058b DocStatus / ecaa2df cascade / af01315 UA img merge]. Execute gate for Phase 20-22 remains BLOCKED until 2026-05-07 06:00 ADT first automated cron run observed positive — Day-1 cron 2026-05-04 SIGTERM'd by Hermes agent timeout, Day-2 corrupted by Phase 2b+; today's manual reliability-5 is de-facto positive baseline.)
 
 ## Done
