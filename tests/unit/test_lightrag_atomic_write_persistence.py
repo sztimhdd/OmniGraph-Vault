@@ -4,16 +4,26 @@ replace LightRAG's NetworkXStorage.write_nx_graph with an atomic implementation
 cannot recur even after `pip install --force-reinstall lightrag` reverts the
 in-place vendored edit.
 
-The patch is delivered in production via a sitecustomize.py (written into both
-Aliyun venvs by scripts/apply_lightrag_atomic_write_patch.sh) which imports and
-calls apply() at interpreter startup. This test exercises apply() directly so
-it is hermetic — it does NOT depend on the local venv being pre-patched.
+The patch is delivered in production via a .pth file (written into both Aliyun
+venvs by scripts/apply_lightrag_atomic_write_patch.sh) whose `import`-prefixed
+line is exec()'d by the site module at interpreter startup. .pth (not
+sitecustomize.py) because Debian ships /usr/lib/python3.11/sitecustomize.py
+which shadows any venv-local one — verified 2026-06-11 on Aliyun: the
+sitecustomize approach left patch_flag=False at startup. .pth files have no
+such first-wins collision; the site module processes ALL of them. These tests
+exercise apply() directly so they are hermetic (do NOT depend on the local venv
+being pre-patched), plus a static guard on the delivery script so the .pth
+mechanism cannot silently regress back to sitecustomize.
 """
 from __future__ import annotations
 
 import inspect
+import pathlib
 
 import pytest
+
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_APPLY_SCRIPT = _REPO_ROOT / "scripts" / "apply_lightrag_atomic_write_patch.sh"
 
 
 @pytest.fixture
@@ -68,3 +78,24 @@ def test_apply_is_idempotent(restore_write_nx_graph) -> None:
     assert apply() is True
     second = networkx_impl.NetworkXStorage.write_nx_graph
     assert first is second, "second apply() must not re-wrap (idempotent)"
+
+
+@pytest.mark.unit
+def test_delivery_uses_pth_not_sitecustomize() -> None:
+    """Regression guard for the 2026-06-11 Aliyun deploy bug: the apply script
+    MUST deliver the patch via a .pth file, NOT sitecustomize.py. Debian's
+    system /usr/lib/pythonX.Y/sitecustomize.py shadows any venv-local one (only
+    the first sitecustomize on sys.path is imported), so the original
+    sitecustomize approach silently never fired. A .pth `import`-line is exec'd
+    by the site module unconditionally and cannot be shadowed."""
+    script = _APPLY_SCRIPT.read_text(encoding="utf-8")
+    assert ".pth" in script, "delivery must use a .pth file"
+    assert 'lib.lightrag_atomic_write_patch' in script, (
+        "the .pth line must import + apply the patch module"
+    )
+    # The script may still `rm -f` the superseded sitecustomize.py, but it must
+    # NOT *write* one (the bug). Assert no `> .../sitecustomize.py` redirect.
+    assert "sitecustomize.py" not in script or "rm -f" in script, (
+        "script must not write sitecustomize.py (Debian shadow bug); "
+        "only cleanup of the old file via rm -f is allowed"
+    )
