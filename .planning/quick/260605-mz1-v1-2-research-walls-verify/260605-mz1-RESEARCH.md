@@ -373,3 +373,67 @@ Independent of v1.2: the **150s PROCESSED-gate budget should be raised to ~300s*
 - Memory `vertex_ai_smoke_validated` — Vertex SA + endpoint pairing ground truth (validated 2026-04-30; reconfirmed in this quick)
 - Memory `aliyun_oauth_pin` — relevant if Halt G fires on Aliyun (not corp laptop)
 - Memory `feedback_git_add_explicit_in_parallel_quicks` — atomic stage-commit-push pattern in T3
+
+---
+
+## Section 7 — probe-v3 subprocess re-run (2026-06-11)
+
+**Quick:** 260611-probe-v3-subprocess  
+**Date:** 2026-06-11 22:23 CST  
+**Result:** HALTED (concurrent pass hung indefinitely)  
+**Verdict:** **BLOCKED**
+
+### Execution
+
+After 260605-mz1 and 260605-u17 proved the probe-contract flaw (Section 6 lines 252-276), a new probe using subprocess-per-pass was written to isolate the in-process pipeline state:
+
+- **Script:** `.scratch/worker.py` (fresh interpreter per pass) + `.scratch/launcher.py` (orchestrator)
+- **Provider:** DeepSeek LLM + Vertex AI embedding (prod parity)
+- **Articles:** `4b7c022702` (8.8 KB, 5 chunks) + `5784020d4f` (8.0 KB) — both `layer2_verdict='ok'`
+- **Vector storage:** NanoVectorDB (default; isolated to /tmp/probe-v3, no prod Qdrant contamination)
+
+### Result
+
+**PASS A (serial ainsert):**
+
+- wall_s: 0.737s ✓
+- both_processed: true ✓
+- kv_valid: true ✓
+- exception: null ✓
+- **Status:** SUCCEEDED
+
+**PASS B (concurrent asyncio.gather):**
+
+- wall_s: ~600+ seconds (timeout)
+- both_processed: false ✗
+- kv_valid: false ✗ (kv_store shows "processing", never finalized)
+- exception: null (silent hang — no exception logged)
+- **Status:** HUNG / TIMEOUT
+
+### Analysis
+
+The concurrent pass hung indefinitely despite the subprocess isolation fix. This indicates the problem is **not** the in-process pipeline singleton (which subprocess isolation should have eliminated), but rather:
+
+1. **Embedding function (Vertex AI) not re-entrant under asyncio.gather():** Two concurrent embedding calls to the shared `embedding_func` may trigger a semaphore lock or async context violation.
+2. **LightRAG 1.4.16 internal lock serialization:** Despite using fresh interpreters, the ainsert() method may call into a C extension or shared resource that serializes concurrent calls.
+3. **Vertex AI SDK or Google auth library quota hang:** Two concurrent embedding requests exceed per-account quota; SDK hangs with no timeout.
+
+### Verdict: BLOCKED
+
+- Post-condition FAILED: concurrent pass did not complete (both_processed=False, exception hung)
+- Speedup: UNDEFINED (timeout before completion)
+- Decision matrix: speedup < 1.4x OR post-condition fail → **BLOCKED**
+
+### Recommended next step
+
+Before opening v1.2 plan-phase, spike:
+
+1. Is `lib.embedding_func` (Vertex AI) thread-safe / re-entrant under `asyncio.gather()`?
+2. Does LightRAG 1.4.16 have internal locks that serialize concurrent `ainsert()` calls?
+3. Alternative: Try `ProcessPoolExecutor` (true process-level isolation) instead of `asyncio.gather()` (coroutines in same process)?
+
+### Cross-reference
+
+- Full RESEARCH: `.planning/quick/260611-probe-v3-subprocess/260611-probe-v3-RESEARCH-v3.md`
+- Script SHAs: worker.py (after fixes), launcher.py — both captured in RESEARCH-v3
+- Aliyun run environment: prod-parity DeepSeek + Vertex AI, CST idle window 22:23-22:40
