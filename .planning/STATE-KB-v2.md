@@ -62,11 +62,11 @@ Prior activity: 2026-05-17 — kb-v2.2 milestone-open completed via hand-driven 
 | Phase | Goal | REQs | T-shirt | Plans | Status |
 |-------|------|------|---------|-------|--------|
 | kb-1 | SSG Export + i18n Foundation (data layer + Jinja2 + bilingual chrome) | 27 | L+0.5d redesign | 10+1 (kb-1-10 gap) + redesign-quick | ✅ **COMPLETE pre-redesign** (26/27 codebase-satisfied; UI-04 logo deferred to kb-4); UI redesign quick task in progress 2026-05-13 to close design-dimension audit |
-| **kb-2** | Topic Pillar + Entity Pages + Cross-Link Network | **12** | M (1.5-2d) | TBD | **NEW 2026-05-13** — revived from "skipped" after Hermes prod data verification |
-| kb-3 | FastAPI Backend + Bilingual API + Search + Q&A | 18 | L | TBD | not started |
+| **kb-2** | Topic Pillar + Entity Pages + Cross-Link Network | **12** | M (1.5-2d) | 10/10 | ✅ **COMPLETE 2026-05-13** (12/12 REQs; 58 integration tests; 12/12 Playwright UAT viewports; `kb/templates/{topic,entity}.html` + `kb/data/article_query.py` query layer + `kb/output/{topics,entities}/` baked SSG; see `kb-2-VERIFICATION.md`) |
+| kb-3 | FastAPI Backend + Bilingual API + Search + Q&A | 18 | L | 12/12 | ✅ **COMPLETE 2026-05-14** (19/19 REQs incl. DATA-07 + I18N-07 + API-01..08 + SEARCH-01..03 + QA-01..05 + CONFIG-02; 256 tests; all 5 endpoint families live in `kb/api.py`; later re-hosted onto Databricks by kb-databricks-v1; see `kb-3-VERIFICATION.md`) |
 | kb-4 | Ubuntu Deploy + Cron + Smoke Verification | 5 | S | 8 plans | ✅ **COMPLETE 2026-05-22** (5/5 DEPLOY REQs; 3 smoke PASS; Aliyun cron `0 12 * * *` installed; prod-shape PASS 16-poll NEVER-500; cgroup MemoryHigh=infinity/MemoryMax=8G; see `kb-4-VERIFICATION.md`) |
 
-Total: **62/62 v2.0 REQs** mapped (was 50; +12 from kb-2 revival). kb-1: 26/27 satisfied + 1 deferred-by-approval (UI-04). kb-2/3/4: 35 REQs pending.
+Total: **62/62 v2.0 REQs** mapped (was 50; +12 from kb-2 revival). kb-1: 26/27 satisfied + 1 deferred-by-approval (UI-04). **kb-2/3/4: all COMPLETE (kb-2 2026-05-13, kb-3 2026-05-14, kb-4 2026-05-22) — v2.0 milestone fully shipped.** (2026-06-12 doc-reconcile: this Progress Table row for kb-2/kb-3 was stale "TBD/not started" despite frontmatter `completed_phases:4` + ROADMAP `[x]` + VERIFICATION docs — the parallel-track suffix-file manual-sweep gap per memory `feedback_parallel_track_gates_manual_run`. Corrected to match reality.)
 
 > **Note:** kb-2 (Topic Pillar + Entity pages + cross-link) **revived 2026-05-13**. Hermes prod has `classifications` 3945 rows + `extracted_entities` 5257 rows / 91 entities at ≥5-article frequency — sufficient for v2.0 scope. v2.1 dependencies (CANON-* LLM canonicalize, TYPED-* entity_type, TOPIC-HIER-* taxonomy) remain deferred and won't block v2.0.
 
