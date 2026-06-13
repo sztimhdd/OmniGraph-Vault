@@ -1,0 +1,88 @@
+{# kb/templates/_research_result.html — Deep Research result component (arx-2-finish GAP B).
+
+   A 5-STAGE STEPPER (NOT the Q&A 8-state matrix). Driven by kb/static/research.js:
+   research.js toggles data-research-state on the section + data-step-state on each
+   <li>, parses the POST /api/research SSE stream, and injects the final report
+   markdown + sources.
+
+   Reuse contract (RESEARCH §Risk B Pitfall 2/3):
+     - result section id MUST be `research-result` (NOT qa-result — else qa.js captures it).
+     - answer article MUST carry class `qa-answer prose` (renderAnswerMarkdown reuse).
+     - sources list MUST carry class `qa-sources-list` (render fns query it).
+   The 5 data-stage values MUST match the SSE event names exactly:
+     web_baseline, retriever, reasoner, verifier, synthesizer.
+
+   Expects in scope: lang (string, set by export render). icon() macro imported below.
+#}
+{% from "_icons.html" import icon %}
+
+<section id="research-result"
+         data-research-state="idle"
+         class="research-result"
+         aria-live="polite"
+         aria-atomic="false"
+         hidden>
+
+  {# Question echo — populated by JS on submit. #}
+  <div class="qa-question research-question">
+    <span class="qa-question-icon" aria-hidden="true">{{ icon('chat-bubble-question', size=18) }}</span>
+    <p class="qa-question-text"></p>
+  </div>
+
+  {# 5-stage live stepper. Each step lights pending -> running -> done/skipped/failed
+     via data-step-state, driven by research.js onStageUpdate. #}
+  <ol class="research-stepper" role="list" aria-label="{{ 'research.state.running' | t(lang) }}">
+    <li class="research-step" data-stage="web_baseline" data-step-state="pending">
+      <span class="research-step__dot" aria-hidden="true"></span>
+      <span class="research-step__label">
+        <span data-lang="zh">{{ 'research.stage.web_baseline' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.stage.web_baseline' | t('en') }}</span>
+      </span>
+      <span class="research-step__status" aria-hidden="true"></span>
+    </li>
+    <li class="research-step" data-stage="retriever" data-step-state="pending">
+      <span class="research-step__dot" aria-hidden="true"></span>
+      <span class="research-step__label">
+        <span data-lang="zh">{{ 'research.stage.retriever' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.stage.retriever' | t('en') }}</span>
+      </span>
+      <span class="research-step__status" aria-hidden="true"></span>
+    </li>
+    <li class="research-step" data-stage="reasoner" data-step-state="pending">
+      <span class="research-step__dot" aria-hidden="true"></span>
+      <span class="research-step__label">
+        <span data-lang="zh">{{ 'research.stage.reasoner' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.stage.reasoner' | t('en') }}</span>
+      </span>
+      <span class="research-step__status" aria-hidden="true"></span>
+    </li>
+    <li class="research-step" data-stage="verifier" data-step-state="pending">
+      <span class="research-step__dot" aria-hidden="true"></span>
+      <span class="research-step__label">
+        <span data-lang="zh">{{ 'research.stage.verifier' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.stage.verifier' | t('en') }}</span>
+      </span>
+      <span class="research-step__status" aria-hidden="true"></span>
+    </li>
+    <li class="research-step" data-stage="synthesizer" data-step-state="pending">
+      <span class="research-step__dot" aria-hidden="true"></span>
+      <span class="research-step__label">
+        <span data-lang="zh">{{ 'research.stage.synthesizer' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.stage.synthesizer' | t('en') }}</span>
+      </span>
+      <span class="research-step__status" aria-hidden="true"></span>
+    </li>
+  </ol>
+
+  {# Final report markdown — EXACT class for renderAnswerMarkdown reuse (Pitfall 2).
+     .prose inherits kb-1 markdown styling. #}
+  <article class="qa-answer prose research-answer"></article>
+
+  {# Sources — EXACT class qa-sources-list for the render fns (Pitfall 2). Filled by
+     renderResearchSources (sources use .uri not .hash — Pitfall 7). #}
+  <aside class="qa-sources research-sources">
+    <h4 class="qa-sources-title">
+      {{ icon('sources', size=14) }}
+      <span class="lang-zh">{{ 'research.sources.title' | t('zh-CN') }}</span><span class="lang-en">{{ 'research.sources.title' | t('en') }}</span>
+    </h4>
+    <ul class="qa-sources-list" role="list"></ul>
+  </aside>
+
+  {# Error banner — role="alert" interrupts AT. Shown on SSE error frame. #}
+  <div class="research-error-banner" role="alert" hidden></div>
+</section>

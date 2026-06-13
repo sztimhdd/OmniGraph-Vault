@@ -2190,3 +2190,83 @@ body.kb-search-active .filter-bar,
 body.kb-search-active .filter-counter,
 body.kb-search-active #article-list,
 body.kb-search-active #empty-filter-state { display: none !important; }
+
+/* ===== Deep Research stepper (arx-2-finish) — leans on .qa-*/.chip/.prose tokens ===== */
+.research-form__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.research-iter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+.research-iter__input {
+  width: 4rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+.research-result { margin-top: 1.5rem; }
+.research-stepper {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.research-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.research-step__dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  flex: none;
+  transition: background 0.2s ease;
+}
+.research-step[data-step-state="running"] { color: var(--text); border-color: var(--accent); }
+.research-step[data-step-state="running"] .research-step__dot {
+  background: var(--accent);
+  animation: research-pulse 1.1s ease-in-out infinite;
+}
+.research-step[data-step-state="done"] { color: var(--text-secondary); border-color: var(--accent-green-soft); }
+.research-step[data-step-state="done"] .research-step__dot { background: var(--accent-green); }
+.research-step[data-step-state="skipped"] { color: var(--text-tertiary); }
+.research-step[data-step-state="skipped"] .research-step__dot { background: var(--text-tertiary); opacity: 0.5; }
+.research-step[data-step-state="failed"] { color: var(--error); border-color: var(--error-border); }
+.research-step[data-step-state="failed"] .research-step__dot { background: var(--error); }
+@keyframes research-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.55; }
+}
+.research-error-banner {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: var(--radius-md);
+  color: var(--error);
+}
+@media (max-width: 640px) {
+  .research-stepper { gap: 0.5rem; }
+  .research-step { width: 100%; }
+}
