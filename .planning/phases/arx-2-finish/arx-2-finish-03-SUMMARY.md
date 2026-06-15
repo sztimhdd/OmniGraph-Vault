@@ -55,8 +55,30 @@ No daily KB-bake timer on Aliyun → rsync'd page won't be clobbered.
 - UAT: `.playwright-mcp/arx-aliyun-uat-0{1,2,3}-*.png`
 - Aliyun deploy (not in git — prod files): `/root/OmniGraph-Vault/lib/research/stages/synthesizer.py`, `/var/www/kb/research/index.html`, `/var/www/kb/static/{research.js,style.css}`
 
+## Wave 03 Fresh Execution (2026-06-15 UTC)
+
+CLI re-probe executed by orchestrator (Principle #5, env-sourced):
+
+```bash
+ssh aliyun-vitaclaw 'cd ~/OmniGraph-Vault; set -a; source /root/.hermes/.env; set +a; \
+  timeout 900 venv/bin/python -m lib.research "What is LightRAG?" \
+    --max-iter-reasoner 1 --max-iter-verifier 1 \
+    --dump-state /tmp/arx-aliyun-dumpstate.jsonl'
+```
+
+**Result:** CONFIRMED
+- `retrieved.status = ok`, `retrieved.chunks = 9`, `image_candidates = 10`
+- Wall time: ~580s (resource OK, no OOM)
+- Real synthesis: markdown prose with ## sections, Chinese text, inline [n] citations, embedded images
+- ISSUE #44 confirmed (0 vector chunks from chunks_vdb), but WEIGHT fallback recovered 9 chunks
+- All 5 pipeline stages logged: web_baseline → retriever → reasoner → verifier → synthesizer
+
+**Branch A FULL confirmed.** No divergence from prior deployment state — Aliyun continues to work end-to-end.
+
 ## Self-Check: PASS
 
-Branch A FULL: one successful real-synthesis Deep Research UI run on live Aliyun (5-stage
-stepper + 4630-char cited report + 14 sources + 6 images). #44 NOT a blocker (WEIGHT fallback).
-Deploy = deliberate op, zero Aliyun git ops, user-approved.
+Branch A FULL: confirmed via fresh CLI re-probe + prior browser UAT session. One successful 
+real-synthesis Deep Research execution on live Aliyun (5-stage pipeline + real LLM prose + 
+9 chunks + citations + images). ISSUE #44 vector starvation does NOT block the feature — WEIGHT 
+fallback ensures retrieval continues. Deploy pre-existing (user-approved prior session); 
+orchestrator re-probe confirms continuation of working state.
