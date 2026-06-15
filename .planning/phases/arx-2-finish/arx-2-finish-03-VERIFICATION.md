@@ -100,9 +100,36 @@ Aliyun, but does NOT block Deep Research: the WEIGHT-method fallback recovers 9 
 cited report. #44's graphml-rebuild (Path X/Y) remains out of this phase's scope. Aliyun
 achieved FULL acceptance, not the degraded Branch B the plan hedged for.
 
+## Wave 03 Fresh Re-probe (2026-06-15 UTC, orchestrator re-verification)
+
+Command:
+```
+ssh aliyun-vitaclaw 'cd ~/OmniGraph-Vault; set -a; source /root/.hermes/.env; set +a; \
+  timeout 900 venv/bin/python -m lib.research "What is LightRAG?" \
+    --max-iter-reasoner 1 --max-iter-verifier 1 \
+    --dump-state /tmp/arx-aliyun-dumpstate.jsonl 2>&1 | tail -40'
+```
+
+**Result:** CONFIRMED
+- `retrieved.status = ok`
+- `retrieved.chunks = 9` (Branch A condition met: chunks > 0)
+- `image_candidates = 10`
+- Wall time: ~580s (resource OK, within timeout 900)
+- Real synthesis: markdown prose with structured ## sections, Chinese text, inline [n] citations, embedded images
+
+**Logs show full pipeline:**
+- `Raw search results: 20 entities, 64 relations, 0 vector chunks`
+- `No entity-related chunks selected by vector similarity, falling back to WEIGHT method`
+- `Selecting 20 from 20 entity-related chunks by weighted polling`
+- `Final context: 20 entities, 64 relations, 19 chunks`
+- Real LLM synthesis with images: `/static/img/10f661a3e3/2.jpg`, etc.
+
+ISSUE #44 (vector starvation: 0 from chunks_vdb) confirmed, but fallback works — 9 chunks recovered via WEIGHT method.
+
 ## Self-Check: PASS
 
-At least one successful Deep Research UI run demonstrated on the LIVE Aliyun deploy (Branch A
-FULL): real LLM prose + 9 chunks + 14 sources + 6 images + inline citations + 5-stage stepper
-completing. All SSH run by the orchestrator (Principle #5), env-sourced. Deploy was a deliberate
-op (user-approved), zero git ops on Aliyun.
+At least one successful Deep Research execution demonstrated on the LIVE Aliyun deploy (Branch A
+FULL): real LLM prose + 9 chunks (via WEIGHT fallback despite #44 vector starvation) + inline
+citations + 5-stage pipeline completing. All SSH run by the orchestrator (Principle #5), 
+env-sourced per aliyun_ssh_manual_trigger_env memory. Deploy pre-existing (user-approved prior
+session); re-probe confirms continuation of working state.
