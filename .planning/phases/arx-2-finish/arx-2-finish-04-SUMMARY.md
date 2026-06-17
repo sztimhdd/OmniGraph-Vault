@@ -2,12 +2,33 @@
 phase: arx-2-finish
 plan: 04
 wave: 5
-status: in-progress
+status: deployed-uat-FAILED
 local_gate: PASSED
-deploy: BLOCKED-network-outage
+deploy: SUCCEEDED (01f168feac3612adaeb76bd4de4a5608)
+deployed_uat: FAILED — retriever/reasoner/verifier errored, sources=0
 completed: null
 requirements: [REQ-1.1-B-4, REQ-1.1-B-5]
 ---
+
+> **2026-06-15 UPDATE — Deployed-URL UAT FAILED (REQ-1.1-B-5 NOT met).** User ran the
+> manual UAT (deployed App is internal-network only). Screenshot evidence: on
+> `/research/` with query "What is AI Agent?", the stepper showed **Retriever / Reasoner /
+> Verifier all FAILED (red), Synthesizer terminal, SOURCES = 0, no report body**. This is
+> the explicit "sources=0 → STOP, do not close" gate. **Phase stays OPEN.**
+>
+> **Infra is provably healthy** (deployed app log): KG loaded 30833 nodes / 44371 edges,
+> vdb_entities 30832 @ dim 3072, vdb_chunks 2025, rerank_init_ok provider=databricks_serving,
+> singleton_ready 28.44s, `POST /api/research` 200. So the fault is a RUNTIME exception
+> INSIDE the research stages (retriever caught it → status=failed → reason on SSE frame),
+> NOT config/hydrate/dim. The research retriever uses the SAME
+> `omnigraph_search.query.search(mode="hybrid")` as the working /api/synthesize, so the KG
+> join is not the differentiator.
+>
+> **Diagnosis pending the SSE `reason` string** (only capturable from the internal-network
+> browser). Leading hypotheses: (a) Vertex embedding SSL/auth failure from the research
+> asyncio-worker context; (b) event-loop nesting in how lib/research invokes search() inside
+> the running app loop; (c) timeout. Fix is a follow-up debug quick, NOT a Wave-5 re-run.
+
 
 # Wave 5 (plan 04) — Databricks E2E — SUMMARY (local gate PASSED; deploy pending network)
 
