@@ -75,18 +75,22 @@ def main() -> int:
     llm_text = llm_resp.choices[0].message.content
     logger.info("llm ok (%s): %r", llm_model, llm_text)
 
-    emb_model = os.environ["KB_EMBEDDING_MODEL"]
-    emb_resp = w.serving_endpoints.query(
-        name=emb_model,
-        input=["hello world"],
-    )
-    try:
-        vec = emb_resp.data[0].embedding
-    except AttributeError:
-        data = getattr(emb_resp, "embeddings", None) or emb_resp.data
-        first = data[0]
-        vec = first["embedding"] if isinstance(first, dict) else first.embedding
-    logger.info("emb ok (%s): dim=%d", emb_model, len(vec))
+    # Embedding is now optional (Vertex AI SA used instead of serving endpoint)
+    emb_model = os.environ.get("KB_EMBEDDING_MODEL")
+    if emb_model:
+        emb_resp = w.serving_endpoints.query(
+            name=emb_model,
+            input=["hello world"],
+        )
+        try:
+            vec = emb_resp.data[0].embedding
+        except AttributeError:
+            data = getattr(emb_resp, "embeddings", None) or emb_resp.data
+            first = data[0]
+            vec = first["embedding"] if isinstance(first, dict) else first.embedding
+        logger.info("emb ok (%s): dim=%d", emb_model, len(vec))
+    else:
+        logger.info("emb skipped (using Vertex AI SA, KB_EMBEDDING_MODEL not set)")
 
     return 0
 
