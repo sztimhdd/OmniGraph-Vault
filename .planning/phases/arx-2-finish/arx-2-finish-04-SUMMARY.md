@@ -29,6 +29,34 @@ requirements: [REQ-1.1-B-4, REQ-1.1-B-5]
 > asyncio-worker context; (b) event-loop nesting in how lib/research invokes search() inside
 > the running app loop; (c) timeout. Fix is a follow-up debug quick, NOT a Wave-5 re-run.
 
+> **2026-06-17 UPDATE — ROOT-CAUSED + FIXED + REDEPLOYED.** User ran the diagnostic console
+> snippet; the SSE `reason` fields gave exact causes:
+> - `retriever | failed | GEMINI_API_KEY not found in environment.`
+> - `reasoner  | failed | GEMINI_API_KEY not found in environment.`
+> - `verifier  | failed | object list can't be used in 'await' expression`
+> - `web_baseline | skipped | TAVILY_API_KEY unset` (expected — ar-1 stub mode)
+>
+> **Two bugs, both confirmed in code, neither a real provider misconfig:**
+> 1. `omnigraph_search/query.py:66` — STALE guard raised `GEMINI_API_KEY not found`
+>    unconditionally, but `lib.lightrag_embedding` runs in Vertex-SA mode when
+>    `GOOGLE_APPLICATION_CREDENTIALS` is set (api_key unused) + LLM is databricks_serving
+>    Claude. Databricks app.yaml correctly omits GEMINI_API_KEY → guard wrongly tripped,
+>    failing BOTH retriever and reasoner (reasoner calls kg_search → same guard). Fixed:
+>    require GEMINI_API_KEY only when NOT in Vertex-SA mode. Commit `f02440e`.
+> 2. `lib/research/stages/verifier.py:152` — `await cfg.web_search(q)` but the SYNC
+>    `_skipped_web_search` stub is installed when TAVILY_API_KEY unset → `await list` crash.
+>    Fixed: await only if `inspect.isawaitable` (mirrors web_baseline.py). Regression test
+>    `test_verifier_tolerates_sync_web_search_stub` added (RED-proof confirmed). Commit `f02440e`.
+>
+> **Deploy-pipeline gap also fixed** (`2a67a73`): `deploy.sh` Pass 0c never staged
+> `omnigraph_search/` (a runtime CONTRACT-01 dep) — the workspace held a STALE copy, so Fix 1
+> would not have shipped. Added omnigraph_search/ staging + Pass 1 --include.
+>
+> **Redeployed**: full deploy.sh, `deployment_id 01f16a57d1bd1f899c85d072e499a6c8`, SUCCEEDED/
+> RUNNING/ACTIVE, update_time 2026-06-17T14:28:13Z. Both fixed files confirmed in the sync log
+> (`Uploaded omnigraph_search/query.py`, `Uploaded lib/research/stages/verifier.py`). 187 research
+> tests pass. **Awaiting user re-UAT of deployed /research/ for the sources>0 proof (B-5 gate).**
+
 
 # Wave 5 (plan 04) — Databricks E2E — SUMMARY (local gate PASSED; deploy pending network)
 
