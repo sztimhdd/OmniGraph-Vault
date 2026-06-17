@@ -50,10 +50,16 @@ find ./databricks-deploy/_ssg -name '*.html' -print0 | \
   xargs -0 sed -i 's|<html lang="zh-CN">|<html lang="en">|g; s|window\.KB_DEFAULT_LANG = "zh-CN"|window.KB_DEFAULT_LANG = "en"|g'
 
 echo ">>> Pass 0c: stage project-root synthesize deps (kdb-3)"
-rm -rf ./databricks-deploy/kg_synthesize.py ./databricks-deploy/config.py ./databricks-deploy/lib
+# omnigraph_search/ is a RUNTIME dep of lib/research/stages/retriever.py
+# (CONTRACT-01: `from omnigraph_search.query import search`). It was NOT
+# re-staged before arx-2-finish, so the workspace held a STALE copy and the
+# GEMINI-guard fix in omnigraph_search/query.py would not have shipped —
+# retriever + reasoner crashed on the Databricks deploy. Stage it like lib/.
+rm -rf ./databricks-deploy/kg_synthesize.py ./databricks-deploy/config.py ./databricks-deploy/lib ./databricks-deploy/omnigraph_search
 cp ./kg_synthesize.py ./databricks-deploy/kg_synthesize.py
 cp ./config.py ./databricks-deploy/config.py
 cp -R ./lib ./databricks-deploy/lib
+cp -R ./omnigraph_search ./databricks-deploy/omnigraph_search
 
 echo ">>> Pass 0d: rebrand _ssg for Databricks audience (Aliyun untouched)"
 cp ./kb/kb-logo.png ./databricks-deploy/_ssg/static/VitaClaw-Logo-v0.png
@@ -75,16 +81,19 @@ sed -i \
 
 echo ">>> Pass 1: sync databricks-deploy/* -> workspace/databricks-deploy/"
 # CRITICAL --include set (verified against Makefile @ commit 7eeab18 line 116-121):
-#   1. _ssg/**          — pre-rendered SSG output (.gitignore L91)
-#   2. kg_synthesize.py — Pass-0c project-root LightRAG entry (L94)
-#   3. config.py        — Pass-0c project-root config (L93)
-#   4. lib/**           — Pass-0c project-root LLM/embed providers (L92)
-# Without all 4, sync silently skips and you get arx-3 singleton REGRESSION.
+#   1. _ssg/**            — pre-rendered SSG output (.gitignore L91)
+#   2. kg_synthesize.py   — Pass-0c project-root LightRAG entry (L94)
+#   3. config.py          — Pass-0c project-root config (L93)
+#   4. lib/**             — Pass-0c project-root LLM/embed providers (L92)
+#   5. omnigraph_search/**— Pass-0c retriever CONTRACT-01 dep (arx-2-finish)
+# Without all 5, sync silently skips and you get arx-3 singleton REGRESSION
+# (or, omitting #5, the arx-2-finish retriever/reasoner GEMINI-guard crash).
 MSYS_NO_PATHCONV=1 databricks --profile "$PROFILE" sync --full \
   --include "_ssg/**" \
   --include "kg_synthesize.py" \
   --include "config.py" \
   --include "lib/**" \
+  --include "omnigraph_search/**" \
   ./databricks-deploy "$WORKSPACE_ROOT/databricks-deploy"
 
 echo ">>> Pass 2: sync kb/* -> workspace/databricks-deploy/kb/"
