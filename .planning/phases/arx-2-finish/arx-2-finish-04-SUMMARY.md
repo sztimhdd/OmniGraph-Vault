@@ -73,6 +73,22 @@ requirements: [REQ-1.1-B-4, REQ-1.1-B-5]
 > web_baseline now runs (not skipped) → then B-5 PASS and close arx-2.**
 > NOTE: user must rotate the 2 Tavily keys pasted in chat (chat-history exposure).
 
+> **2026-06-17 Tavily binding — TWO-PART mechanism (deploy #1 of the secret was incomplete).**
+> First Tavily deploy (`01f16a60...`) logged `[BUILD] [ERROR] error resolving resource tavily-key
+> for env TAVILY_API_KEY: resource tavily-key not found`. Root cause: app.yaml's `resources:` block
+> declares the binding but does NOT register the resource at the app level — Databricks Apps
+> requires BOTH:
+>   1. **app.yaml**: `env: TAVILY_API_KEY {valueFrom: tavily-key}` + a `resources:` entry (commit 8d98f61).
+>   2. **App-level resource registration** (one-time, persists across deploys): `databricks apps
+>      update omnigraph-kb --json @.scratch/app-update-tavily.json` with
+>      `resources: [{name: tavily-key, secret: {scope: kb-translate, key:
+>      omnigraph_research_tavily_key, permission: READ}}]`. VERIFIED this survives subsequent
+>      `apps deploy` (resources count stays 1) — so routine deploy.sh runs keep the binding.
+> After registering the resource, redeployed (`deployment_id 01f16c168cb51ca29e4577d7e531845b`
+> SUCCEEDED) so the build re-resolves valueFrom against the now-registered resource.
+> **Awaiting user re-UAT #2 once this deploy hydrates: web_baseline should now run (not skip),
+> reasoner/verifier=ok, sources>0 → B-5 PASS → close arx-2.**
+
 
 # Wave 5 (plan 04) — Databricks E2E — SUMMARY (local gate PASSED; deploy pending network)
 
