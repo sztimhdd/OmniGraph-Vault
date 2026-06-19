@@ -165,6 +165,18 @@ Aliyun kol-scan detects ret=200003 ≥30% → exit(2) → OnFailure
 
 ---
 
+## POST-P0 end-to-end verification (2026-06-18, after SNAT fix)
+
+P0 RESOLVED (IT fixed NAT SNAT). Re-verified via real app path:
+- Aliyun egress restored: `curl -4` baidu=200, mp.weixin=200, ping 0% loss 8.7ms. WG tunnel revived ("latest handshake: Now", 88 MiB received).
+- ★ **Aliyun→Hermes hop NOW LIVE** (was timeout under P0): from Aliyun `ssh hermes "..."` → `ALIYUN_TO_HERMES_OK / OH-Desktop`. Uses the `~/.ssh/config` hermes stanza I wrote + the pubkey user added. **Option-A step ② is now empirically GREEN, not just theoretical.**
+- ★ **Full chain ②③ run from Aliyun's POV**: `ssh aliyun → ssh hermes → python3 CDP localhost:9222 → Network.getCookies` → 13 cookies, all 5 critical present, token 949047506.
+
+### ⚠️ IMPLEMENTATION-CRITICAL gotcha (surfaced only by manual run)
+The logged-in Edge tab **drifts to subpages** (`/misc/appmsgcomment?...`, article pages, etc.) over time — NOT pinned to `/cgi-bin/home`. Subpage URLs do **not** reliably carry `token=` (one probe hit `NO_WECHAT_TAB` mid-redirect; next probe the subpage happened to carry it). **The refresh script MUST NOT read token from the current tab URL.** It must `Page.navigate` to root `https://mp.weixin.qq.com/`, wait for redirect, and read token from the landing URL (SKILL.md already documents this). Cookies via `Network.getCookies` are always complete regardless of current tab URL (stable). → This is a mandatory step in the 路B script, design it into the plan.
+
+All 5 option-A hops now empirically GREEN: ①detect ✅ ②ssh ✅(live) ③CDP-cookie ✅ ④writeback(cron channel exists, not yet exercised) ⑤telegram(hermes send exists). Step ④ writeback intentionally NOT exercised manually (writes prod kol_config.py — design atomic-write + verify in the plan, not ad-hoc).
+
 ## Discipline log
 - SSH probes/ops run from main session (SSH can't be delegated to sub-agents here).
 - Methodology correction (user-flagged twice): raw `/dev/tcp`/`socket` probes are UNRELIABLE in non-interactive SSH context — verified all reachability verdicts via real app path (curl/requests/ping + route inspection).
