@@ -202,7 +202,7 @@ ssh aliyun-vitaclaw 'curl -fsS http://127.0.0.1:8766/api/articles | python3 -c "
 ssh aliyun-vitaclaw 'curl -fsS "http://127.0.0.1:8766/api/search?q=Hermes&mode=fts" | head -c 400; echo'
 
 # 7d. public site (via Caddy)
-curl -fsS -o /dev/null -w '%{http_code}\n' http://101.133.154.49/kb/
+curl -fsS -o /dev/null -w '%{http_code}\n' http://47.117.244.253/kb/
 # expect: 200
 
 # 7e. KG-mode + synthesize smokes — see kb/deploy/RUNBOOK-aliyun-kg-smoke.md

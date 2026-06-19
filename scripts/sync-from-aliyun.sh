@@ -2,7 +2,7 @@
 # scripts/sync-from-aliyun.sh
 #
 # Pull articles SSG output / kol_scan.db / images / kb/wiki from
-# Aliyun (101.133.154.49, root) → Hermes ${HERMES_DATA_DIR}.
+# Aliyun (47.117.244.253, root) → Hermes ${HERMES_DATA_DIR}.
 # Runs as oneshot on Hermes (systemd timer). Pure bash + rsync + ssh.
 #
 # Idempotent (re-run on same day = no-op transfer). Exit 0 on full
@@ -22,7 +22,7 @@
 set -u
 
 # --- Config (overridable via env) -------------------------------------
-ALIYUN_SSH_HOST="${ALIYUN_SSH_HOST:-root@101.133.154.49}"
+ALIYUN_SSH_HOST="${ALIYUN_SSH_HOST:-root@47.117.244.253}"
 ALIYUN_SSH_KEY="${ALIYUN_SSH_KEY:-${HOME}/.ssh/hermes_to_aliyun_ed25519}"
 HERMES_DATA_DIR="${HERMES_DATA_DIR:-${HOME}/.hermes/omonigraph-vault}"
 

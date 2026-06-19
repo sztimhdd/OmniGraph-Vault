@@ -27,7 +27,7 @@ set -euo pipefail
 : "${KB_BASE_PATH:=/kb}"                    # Caddy serves under /kb/* (override "" for root deploy)
 
 # IMPORTANT: This is for Aliyun Caddy which serves under /kb/* path prefix
-# (http://101.133.154.49/kb/...). KB_BASE_PATH=/kb MUST stay set.
+# (http://47.117.244.253/kb/...). KB_BASE_PATH=/kb MUST stay set.
 # Do NOT copy this to databricks-deploy/deploy.sh which uses root deploy
 # (KB_BASE_PATH empty). See ISSUES.md #10.
 
