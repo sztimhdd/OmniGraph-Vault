@@ -55,7 +55,23 @@ requirements: [REQ-1.1-B-4, REQ-1.1-B-5]
 > **Redeployed**: full deploy.sh, `deployment_id 01f16a57d1bd1f899c85d072e499a6c8`, SUCCEEDED/
 > RUNNING/ACTIVE, update_time 2026-06-17T14:28:13Z. Both fixed files confirmed in the sync log
 > (`Uploaded omnigraph_search/query.py`, `Uploaded lib/research/stages/verifier.py`). 187 research
-> tests pass. **Awaiting user re-UAT of deployed /research/ for the sources>0 proof (B-5 gate).**
+> tests pass.
+>
+> **2026-06-17 re-UAT #1 (user, internal-network browser)** — the 2 fixes WORKED:
+> `retriever | status= ok | chunk_count: 9` (was failed). web_baseline still `skipped`
+> (TAVILY_API_KEY unset — by-design ar-1 stub; NOT a failure — the KG report needs no Tavily).
+
+> **2026-06-17 Tavily enablement (user accepted risk, asked to wire keys permanently).**
+> Stored Tavily key in `kb-translate` secret scope key `omnigraph_research_tavily_key`
+> (NOT plaintext in app.yaml — app.yaml is public-git-tracked). Granted app SP
+> `459ebc59-...` READ on the scope. app.yaml now has a `resources: [tavily-key → secret
+> scope/key]` block + `TAVILY_API_KEY: {valueFrom: tavily-key}` env. Commit `8d98f61`
+> (no secret value in git — only the reference). Redeployed: `deployment_id
+> 01f16a60388a13a982eb76fadb4a48e8` SUCCEEDED/RUNNING/ACTIVE (CLI exited 1 on a network
+> drop during status-poll, but server-side deploy completed — verified via apps get).
+> **Awaiting user re-UAT #2 of deployed /research/: reasoner/verifier=ok + sources>0 +
+> web_baseline now runs (not skipped) → then B-5 PASS and close arx-2.**
+> NOTE: user must rotate the 2 Tavily keys pasted in chat (chat-history exposure).
 
 
 # Wave 5 (plan 04) — Databricks E2E — SUMMARY (local gate PASSED; deploy pending network)
