@@ -15,7 +15,7 @@ requirements: [KCA-7, KCA-8]
 actor: REPO-CODE
 must_haves:
   truths:
-    - "Every canonical project file references CDP port 9222, not 9223"
+    - "Every canonical project file references CDP port 9222, not 9223 (databricks-deploy/config.py excepted — KB pipeline out of scope)"
     - "SKILL.md contains no literal WeChat account or password"
     - "The B-level account-login flow documents reading creds from env vars, not literals"
   artifacts:
@@ -53,6 +53,11 @@ Port standardization decision (from CONTEXT.md #57 + RESEARCH.md): standardize o
 (`C:\Edge-Auto-Profile`) listens on 9222 and persists login state across relaunch. Relaunching it
 on 9223 to match stale code would lose the warm profile / require re-login. The code is the thing
 that is wrong; fix the code to 9222.
+
+Scope boundary (auditable): `databricks-deploy/config.py:30` ALSO contains a `CDP_URL ... 9223`
+default, but it is the KB Databricks app's OWN copy of config.py. The KB/ingest pipeline is
+explicitly OUT OF SCOPE per CONTEXT.md ("Out of scope: ... any KB/ingest pipeline changes"). It is
+deliberately left on 9223, and the acceptance grep below excludes it so the exclusion is visible.
 </decision_note>
 
 <execution_context>
@@ -67,16 +72,44 @@ that is wrong; fix the code to 9222.
 @skills/omnigraph_scan_kol/SKILL.md
 
 <interfaces>
-<!-- The exact 9223 sites to change (verified by grep, excluding .claude/worktrees/** and venv/**). -->
-config.py:30          CDP_URL = os.environ.get("CDP_URL", "http://localhost:9223")
-CLAUDE.md:308         CDP_URL table row "Local mode (default): http://localhost:9223 ... --remote-debugging-port=9223"
-CLAUDE.md:370         Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 ..."
-CLAUDE.md:373         Set CDP_URL=http://localhost:9223 in ~/.hermes/.env
-CLAUDE.md:426         lessons-learned bullet "local Edge (localhost:9223) uses connect_over_cdp()"
-skills/omnigraph_scan_kol/SKILL.md:210   "⚠️ CDP 浏览器不可达（端口 9223）"
-skills/omnigraph_scan_kol/SKILL.md:371   "Windows host at port 9223 must have a real screen"
-skills/wechat-cdp-credential-refresh/SKILL.md   frontmatter + Overview reference "--remote-debugging-port=9223"
-scripts/capture_qr.py:9, :26, :92        usage text + CDP_URL default "http://localhost:9223"
+<!-- ALL 9223 occurrences in the 5 in-scope files (verified by grep 2026-06-19, excluding
+     .claude/worktrees/** and venv/**). The line numbers below are accurate as of authoring but
+     drift as files are edited — DO NOT trust them as a complete list. The authoritative
+     completeness check is the acceptance grep, which MUST return 0 matches across ALL 5 files
+     after the edits. Change EVERY occurrence in each file, comment or LIVE code. -->
+config.py
+  :30   CDP_URL = os.environ.get("CDP_URL", "http://localhost:9223")   (LIVE code, the default)
+CLAUDE.md
+  ~308  CDP_URL table row "Local mode (default): http://localhost:9223 ... --remote-debugging-port=9223"
+  ~370  Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 ..." + --user-data-dir=...EdgeDebug9223
+  ~373  Set CDP_URL=http://localhost:9223 in ~/.hermes/.env
+  ~426  lessons-learned bullet "local Edge (localhost:9223) uses connect_over_cdp()"
+skills/omnigraph_scan_kol/SKILL.md
+  ~210  "⚠️ CDP 浏览器不可达（端口 9223）"
+  ~371  "Windows host at port 9223 must have a real screen"
+skills/wechat-cdp-credential-refresh/SKILL.md   (8 sites — there is NO `compatibility:` frontmatter
+     block; the references are description + Overview + Requires + curl/ws snippets + troubleshooting):
+  :5    frontmatter description "connects to CDP port 9223"
+  :13   "Requires: Edge/Chrome on Windows with CDP flag (--remote-debugging-port=9223)"
+  :14   "Requires: WSL2 ... OR cd to Windows port 9223"
+  :65   curl -s http://127.0.0.1:9223/json/version
+  :69   "Ensure Edge/Chrome was started with `--remote-debugging-port=9223`"
+  :78   websockets.connect('ws://127.0.0.1:9223/devtools/browser/...')
+  :136  websockets.connect(f'ws://127.0.0.1:9223/devtools/page/{page_id}')
+  :271  "msedge --remote-debugging-port=9223 --remote-debugging-address=127.0.0.1 ..."
+scripts/capture_qr.py   (6 sites — note :58 is LIVE code, not a comment):
+  :6    usage docstring "--cdp-url http://localhost:9223"
+  :9    "--remote-debugging-port=9223" requires-note
+  :26   CDP_URL = os.environ.get("CDP_URL", "http://localhost:9223")   (module default)
+  :58   cdp_http = f"http://localhost:9223{...}"   (LIVE code — builds the DevTools HTTP URL)
+  :69   comment example "http://localhost:9223/devtools/page/PAGE_ID"
+  :92   argparse --cdp-url help/default "http://localhost:9223"
+
+<!-- INTENTIONALLY OUT OF SCOPE (do NOT change): databricks-deploy/config.py:30 also has
+     `CDP_URL = os.environ.get("CDP_URL", "http://localhost:9223")`. This is the KB Databricks app's
+     OWN copy of config.py and the KB/ingest pipeline is explicitly excluded by CONTEXT.md. Leave it
+     on 9223. The acceptance grep deliberately omits databricks-deploy/config.py so the exclusion is
+     auditable. -->
 
 <!-- The exact secret literal to remove (verified). SECRET VALUE INTENTIONALLY NOT REPRODUCED HERE
      (ISSUES #58 discipline). It lives at skills/omnigraph_scan_kol/SKILL.md:91 in a line of the form:
@@ -93,15 +126,20 @@ skills/omnigraph_scan_kol/SKILL.md:91   (the literal account + password line to 
   <files>config.py, CLAUDE.md, skills/omnigraph_scan_kol/SKILL.md, skills/wechat-cdp-credential-refresh/SKILL.md, scripts/capture_qr.py</files>
   <read_first>
     - config.py (line 30, CDP_URL default)
-    - CLAUDE.md (lines 308, 370, 373, 426 — CDP_URL doc, Path 2 launch cmd, env example, lessons bullet)
-    - skills/omnigraph_scan_kol/SKILL.md (lines 210, 371 — port-unreachable message + QR-flow note)
-    - skills/wechat-cdp-credential-refresh/SKILL.md (frontmatter `compatibility:` + Overview)
-    - scripts/capture_qr.py (lines 9, 26, 92 — usage docstring + CDP_URL default + argparse default)
+    - CLAUDE.md (lines ~308, ~370, ~373, ~426 — CDP_URL doc, Path 2 launch cmd, env example, lessons bullet)
+    - skills/omnigraph_scan_kol/SKILL.md (lines ~210, ~371 — port-unreachable message + QR-flow note)
+    - skills/wechat-cdp-credential-refresh/SKILL.md (ALL 8 sites — description, Overview/Requires, curl + ws snippets, troubleshooting; there is NO `compatibility:` block)
+    - scripts/capture_qr.py (ALL 6 sites — usage docstring, requires-note, CDP_URL module default, the LIVE `cdp_http = f"http://localhost:9223..."` at :58, the comment example at :69, argparse default)
     - .planning/quick/260615-kol-cookie-autorefresh-investigate/RESEARCH.md (the 9222-is-live evidence: "Live Edge launch cmdline ... --remote-debugging-port=9222"; "9223 is DEAD")
   </read_first>
   <action>
     Change every canonical-project reference to CDP port 9223 → 9222. Standardize on 9222 because
     that is what the live logged-in Edge on Hermes actually runs (RESEARCH.md Test 1/2).
+
+    DO NOT trust the cited line numbers as a complete list — run `grep -n "9223" <file>` on each of
+    the 5 files first, change EVERY hit (comment or LIVE code), then re-grep to confirm 0 remain.
+    The `<interfaces>` block above lists the known occurrences but the acceptance grep is the
+    authoritative safety net.
 
     Exact edits (do NOT touch `.claude/worktrees/**` or `venv/**` — those are git worktrees and
     vendored deps, out of scope):
@@ -113,14 +151,18 @@ skills/omnigraph_scan_kol/SKILL.md:91   (the literal account + password line to 
        ~370 (the `Start-Process "msedge.exe" ... --remote-debugging-port=9223 --user-data-dir=...EdgeDebug9223`):
        change port to 9222 and the user-data-dir suffix `EdgeDebug9223`→`EdgeDebug9222`. Line ~373
        (`CDP_URL=http://localhost:9223`)→9222. Line ~426 (lessons bullet `localhost:9223`)→9222.
-    3. `skills/omnigraph_scan_kol/SKILL.md:210` — change the Chinese message `端口 9223`→`端口 9222`.
-       Line ~371 — `port 9223`→`port 9222`.
-    4. `skills/wechat-cdp-credential-refresh/SKILL.md` — frontmatter `compatibility:` block and the
-       Overview paragraph both say `--remote-debugging-port=9223` / `port 9223` → change all to 9222.
-    5. `scripts/capture_qr.py` — docstring usage line `--cdp-url http://localhost:9223` (line ~6/9),
-       the `--remote-debugging-port=9223` requires-note (line ~9), the module-level
-       `CDP_URL = os.environ.get("CDP_URL", "http://localhost:9223")` (line ~26), and the argparse
-       `--cdp-url` help/default text (line ~92) → all 9222.
+    3. `skills/omnigraph_scan_kol/SKILL.md` — change the Chinese message `端口 9223`→`端口 9222`
+       (~210) and `port 9223`→`port 9222` (~371).
+    4. `skills/wechat-cdp-credential-refresh/SKILL.md` — change ALL 8 occurrences (description at :5,
+       Requires at :13/:14, curl at :65, troubleshooting at :69/:271, ws snippets at :78/:136) from
+       `9223`→`9222`. There is NO `compatibility:` block; do not look for one — just grep and replace.
+    5. `scripts/capture_qr.py` — change ALL 6 occurrences: docstring usage (:6), requires-note (:9),
+       module-level `CDP_URL` default (:26), the LIVE `cdp_http = f"http://localhost:9223{...}"` at
+       :58 (this is real code, not a comment — must change), the comment example (:69), and the
+       argparse `--cdp-url` help/default (:92) → all 9222.
+
+    DO NOT change `databricks-deploy/config.py:30` — that is the KB Databricks app's own config and
+    the KB/ingest pipeline is explicitly out of scope per CONTEXT.md. Leave it on 9223.
 
     Do NOT change historical/archived docs (docs/bugreports/*, docs/runbooks/*, README.md,
     Deploy.md, docs/architecture.md, docs/tech-stack.md, docs/LOCAL_DEV_SETUP.md, specs/) in THIS
@@ -134,11 +176,12 @@ skills/omnigraph_scan_kol/SKILL.md:91   (the literal account + password line to 
   <acceptance_criteria>
     - `grep -n "9223" config.py` returns 0 matches.
     - `grep -n "9222" config.py` shows the CDP_URL default line.
-    - `grep -rn "9223" CLAUDE.md skills/omnigraph_scan_kol/SKILL.md skills/wechat-cdp-credential-refresh/SKILL.md scripts/capture_qr.py` returns 0 matches.
+    - `grep -rn "9223" config.py CLAUDE.md skills/omnigraph_scan_kol/SKILL.md skills/wechat-cdp-credential-refresh/SKILL.md scripts/capture_qr.py` returns 0 matches (the authoritative completeness check — note databricks-deploy/config.py is deliberately NOT in this list, KB out of scope).
     - `grep -c "9222" CLAUDE.md` returns ≥ 4.
+    - `grep -c "9222" scripts/capture_qr.py` returns ≥ 6 (all 6 sites, incl. the LIVE :58 line, flipped).
     - `python -c "import config; print(config.CDP_URL)"` prints a URL containing `9222` (when CDP_URL env unset).
   </acceptance_criteria>
-  <done>All canonical-project references to CDP 9223 changed to 9222; config.CDP_URL default is 9222; no 9223 remains in the 5 listed files.</done>
+  <done>All canonical-project references to CDP 9223 changed to 9222 across all 5 files (including the LIVE capture_qr.py:58 line and all 8 wechat-cdp SKILL sites); config.CDP_URL default is 9222; no 9223 remains in the 5 listed files; databricks-deploy/config.py is intentionally left on 9223 (KB out of scope).</done>
 </task>
 
 <task type="auto">
@@ -193,14 +236,14 @@ skills/omnigraph_scan_kol/SKILL.md:91   (the literal account + password line to 
 </tasks>
 
 <verification>
-- `grep -rn "9223" config.py CLAUDE.md skills/omnigraph_scan_kol/SKILL.md skills/wechat-cdp-credential-refresh/SKILL.md scripts/capture_qr.py` → 0 matches (KCA-7).
+- `grep -rn "9223" config.py CLAUDE.md skills/omnigraph_scan_kol/SKILL.md skills/wechat-cdp-credential-refresh/SKILL.md scripts/capture_qr.py` → 0 matches (KCA-7; databricks-deploy/config.py intentionally excluded, KB out of scope).
 - `grep -rn "huhai\|Hardun" skills/` → 0 matches (KCA-8).
 - `python -c "import config; print(config.CDP_URL)"` → contains 9222.
 - The Account-Login-Fallback section in skills/omnigraph_scan_kol/SKILL.md references env placeholders + rotation note (KCA-8).
 </verification>
 
 <success_criteria>
-- All canonical config + skill + QR-helper files consistently target CDP 9222 (KCA-7 closed for repo side).
+- All canonical config + skill + QR-helper files consistently target CDP 9222 (KCA-7 closed for repo side); databricks-deploy/config.py left on 9223 by design (KB out of scope).
 - Public repo carries no plaintext WeChat credential; env placeholders + rotation note in place (KCA-8 repo side closed; actual password rotation is operator action noted for Plan 04).
 </success_criteria>
 

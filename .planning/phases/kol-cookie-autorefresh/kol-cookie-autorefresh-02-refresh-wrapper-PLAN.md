@@ -19,7 +19,7 @@ must_haves:
     - "Level A (token/page stale) recovers by root-nav alone; Level B fills env creds; Level C captures QR via canvas toDataURL and sends to Telegram via hermes send"
     - "After QR/account login the wrapper re-navigates root to rebind the CSRF token before writeback"
     - "The wrapper checks :9222 /json/version alive first; if down it relaunches headed Edge via WSL PowerShell interop"
-    - "Writeback is atomic (.tmp then rename) on Aliyun and verified by a single-account test scan returning ret=0 before declaring success"
+    - "Writeback is atomic (.tmp then rename) on Aliyun and verified by a single-account test scan returning ret=0 before declaring success; a bad-creds verify result triggers rollback to the .bak-pre-refresh copy"
   artifacts:
     - path: "scripts/refresh_wechat_cookie.py"
       provides: "Hermes-side self-healing refresh orchestrator (A/B/C + self-heal + writeback + notify)"
@@ -28,8 +28,8 @@ must_haves:
       provides: "Direct CDP-over-websocket helper (Network.getCookies, Runtime.evaluate, Page.navigate)"
       min_lines: 60
     - path: "tests/unit/test_refresh_wechat_cookie.py"
-      provides: "Unit coverage for cookie-string build, level detection, token-from-URL extraction"
-      min_lines: 60
+      provides: "Unit coverage for cookie-string build, level detection, token-from-URL extraction, AND the writeback rollback-on-bad-creds branch"
+      min_lines: 80
   key_links:
     - from: "scripts/refresh_wechat_cookie.py"
       to: "ws://localhost:9222/devtools/page/<id>"
@@ -95,6 +95,19 @@ Methods used:
   - Network.getCookies {urls:["https://mp.weixin.qq.com"]}  → ALWAYS returns complete cookies
        regardless of current tab URL (RESEARCH.md: 15 cookies, all 5 critical present)
 
+<!-- IMPORT PATH (INFO 7 — pin this so Plan 03's invocation `cd ~/OmniGraph-Vault && python3
+     scripts/refresh_wechat_cookie.py` resolves the sibling lib). The wrapper is invoked with cwd
+     = repo root (~/OmniGraph-Vault) and script path scripts/refresh_wechat_cookie.py, so the
+     script's own directory (scripts/) is NOT automatically on sys.path for `scripts.lib` package
+     imports. Pin the import by inserting the script's own dir at the front of sys.path at the top
+     of refresh_wechat_cookie.py, BEFORE importing the helper:
+        import os, sys
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from lib.cdp_client import CdpClient, build_cookie_string, extract_token_from_url, critical_cookies_present
+     This resolves `lib/cdp_client.py` whether run as `python3 scripts/refresh_wechat_cookie.py`
+     from the repo root OR `python3 refresh_wechat_cookie.py` from inside scripts/. Do NOT use a
+     `from scripts.lib...` package import (no __init__.py guaranteed; breaks from-repo-root cwd). -->
+
 <!-- kol_config.py shape the writeback must preserve (verified). -->
 kol_config.py:
   TOKEN = "<digits>"
@@ -119,10 +132,13 @@ ssh aliyun "cd /root/OmniGraph-Vault && venv-aim1/bin/python batch_scan_kol.py -
 <!-- Telegram notify (RESEARCH.md): scriptable, no gateway/agent loop needed. -->
 hermes send -t telegram "<message>"          # success/failure summary
 hermes send -t telegram --image /tmp/wx_qr_code.png "<caption>"   # C-level QR send
-  (if --image is unsupported by the local hermes build, fall back to: send text + note that the
-   QR png is at /tmp/wx_qr_code.png; verify the actual `hermes send` flags during Plan 04 operator
-   step and adjust — do NOT block the wrapper on an unverified flag; gate the image path behind a
-   capability check.)
+  (CAPABILITY-GATED — see Task 2: the `hermes send --image` flag is NOT yet confirmed on the local
+   Hermes build. The wrapper MUST probe `hermes send --help` for `--image` support at runtime; if
+   supported → send the image; if NOT supported → fall back to sending the text caption + the
+   /tmp/wx_qr_code.png path so the operator can open it. Plan 04's operator prompt independently
+   confirms `--image` support on Hermes. Plan 05 acceptance is gated on the SAME capability:
+   "image delivered if --image supported, else QR png at /tmp + path sent as text." Do NOT block the
+   wrapper on the unverified flag.)
 </interfaces>
 </context>
 
@@ -169,7 +185,8 @@ hermes send -t telegram --image /tmp/wx_qr_code.png "<caption>"   # C-level QR s
 
     Write `tests/unit/test_refresh_wechat_cookie.py` covering the six behaviors above (pure functions,
     no network). Use plain pytest; these run in the repo venv during CI even though the script runs on
-    Hermes system-python at runtime.
+    Hermes system-python at runtime. (Task 3 adds one more test to this same file for the rollback
+    branch.)
   </action>
   <verify>
     <automated>venv/Scripts/python.exe -m pytest tests/unit/test_refresh_wechat_cookie.py -v</automated>
@@ -187,7 +204,7 @@ hermes send -t telegram --image /tmp/wx_qr_code.png "<caption>"   # C-level QR s
 <task type="auto">
   <name>Task 2: [REPO-CODE] A/B/C refresh orchestrator + self-heal + Telegram notify (KCA-2, KCA-3, KCA-5, KCA-6)</name>
   <read_first>
-    - scripts/lib/cdp_client.py (just created — the CDP primitives this orchestrator drives)
+    - scripts/lib/cdp_client.py (just created — the CDP primitives this orchestrator drives; note the pinned import path in <interfaces>)
     - skills/omnigraph_scan_kol/SKILL.md (FULL A/B/C tree: Decision Tree steps 1-5, Account Login Fallback, QR Code Login Flow Q1-Q5 incl. canvas toDataURL selector `img.login__type__container__scan__qrcode`, poll loop ~5min/30×10s, CSRF rebind, secret-redaction trap)
     - .planning/quick/260615-kol-cookie-autorefresh-investigate/RESEARCH.md (tab-drift gotcha → root-nav for token; Test 2 PowerShell relaunch absolute path + base64 EncodedCommand)
     - .planning/phases/kol-cookie-autorefresh/kol-cookie-autorefresh-CONTEXT.md (Hop ③ levels A/B/C definitions; #58 env-cred wiring; self-heal spec)
@@ -195,6 +212,13 @@ hermes send -t telegram --image /tmp/wx_qr_code.png "<caption>"   # C-level QR s
   <action>
     Create `scripts/refresh_wechat_cookie.py` (system python3, stdlib + websocket-client + the
     sibling `lib/cdp_client.py`). It is the orchestrator. Structure as small functions, main flow:
+
+    IMPORT PATH (INFO 7 — pin so Plan 03's `cd ~/OmniGraph-Vault && python3 scripts/refresh_wechat_cookie.py`
+    resolves the helper): at the very top, BEFORE importing the helper, do
+       `import os, sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))`
+    then `from lib.cdp_client import CdpClient, build_cookie_string, extract_token_from_url, critical_cookies_present`.
+    Do NOT use `from scripts.lib...` (package import breaks when cwd is the repo root). This makes the
+    import work both from the repo root and from inside scripts/.
 
     STEP 0 — SELF-HEAL (KCA-6): build `CdpClient()`. If `not client.is_alive()`: relaunch headed
     Edge via WSL→Windows PowerShell interop. Use the absolute path
@@ -217,10 +241,10 @@ hermes send -t telegram --image /tmp/wx_qr_code.png "<caption>"   # C-level QR s
         (different account name on 安全保护 page) → do NOT retry, fall through to Level C.
       - Level C (true cookie death — KCA-3): capture QR via canvas toDataURL
         (`document.querySelector('img.login__type__container__scan__qrcode')` → canvas drawImage →
-        toDataURL('image/png')), save to `/tmp/wx_qr_code.png`, send to Telegram via
-        `hermes send -t telegram` (KCA-5). Poll up to ~5min (30 × 10s) for dashboard text; on QR
-        expiry ("二维码已过期") refresh QR (max 2 refreshes). On timeout → Telegram
-        `⏰ 扫码超时（5分钟），请稍后手动触发` and exit 1.
+        toDataURL('image/png')), save to `/tmp/wx_qr_code.png`, send to Telegram via the
+        capability-gated `notify_image()` helper (KCA-5 — see NOTIFY below). Poll up to ~5min (30 ×
+        10s) for dashboard text; on QR expiry ("二维码已过期") refresh QR (max 2 refreshes). On
+        timeout → Telegram `⏰ 扫码超时（5分钟），请稍后手动触发` and exit 1.
 
     STEP 2 — CSRF REBIND (KCA-2): after ANY login (B or C) OR token-stale fix, `navigate` root AGAIN,
     wait for redirect, read the NEW token from the landing URL (SKILL.md ret=200040 note — the
@@ -236,6 +260,15 @@ hermes send -t telegram --image /tmp/wx_qr_code.png "<caption>"   # C-level QR s
     STEP 5 — NOTIFY (KCA-5): `hermes send -t telegram` a one-line summary:
     `✅ KOL cookie refreshed (level {A|B|C}); Aliyun test-scan ret=0` OR `❌ refresh failed: {reason}`.
 
+    NOTIFY helpers (KCA-5, capability-gated for image — WARNING 3 resolution):
+    - `notify(text)` — `hermes send -t telegram "<text>"`. Used for summaries + warnings.
+    - `notify_image(png_path, caption)` — FIRST probe `hermes send --help` (or a cached one-time check)
+      for an `--image` flag. If present: `hermes send -t telegram --image <png_path> "<caption>"`. If
+      absent: fall back to `notify(caption + " — QR saved at " + png_path)` (text-only) and log that
+      the image flag is unsupported. This is the SAME capability gate Plan 05 Task 2 asserts against
+      ("image delivered if --image supported, else QR png at /tmp + path sent as text") — keep the two
+      consistent. Do NOT hard-require `--image`; do NOT block the wrapper on it.
+
     Add `argparse`: `--cdp-url` (default http://localhost:9222), `--level` (optional force A/B/C for
     testing), `--dry-run` (do everything except STEP 4 writeback — print what WOULD be written),
     `--test-account` (default 叶小钗, passed to the verify scan). Exit codes: 0 success, 1 failure,
@@ -250,35 +283,46 @@ hermes send -t telegram --image /tmp/wx_qr_code.png "<caption>"   # C-level QR s
   </verify>
   <acceptance_criteria>
     - `scripts/refresh_wechat_cookie.py` parses as valid Python (ast.parse prints `parse_ok`).
+    - `grep -n "sys.path.insert" scripts/refresh_wechat_cookie.py` returns ≥ 1 (pinned import path — INFO 7).
     - `grep -n "is_alive" scripts/refresh_wechat_cookie.py` returns ≥ 1 (self-heal pre-step, KCA-6).
     - `grep -n "EncodedCommand\|powershell" scripts/refresh_wechat_cookie.py` returns ≥ 1 (PowerShell relaunch, KCA-6).
     - `grep -n "WECHAT_MP_ACCOUNT" scripts/refresh_wechat_cookie.py` returns ≥ 1 AND `grep -n "Hardun\|huhai" scripts/refresh_wechat_cookie.py` returns 0 (env creds, never literal — KCA-8).
     - `grep -n "login__type__container__scan__qrcode" scripts/refresh_wechat_cookie.py` returns ≥ 1 (level C canvas QR — KCA-3).
+    - `grep -n "hermes send --help\|--image" scripts/refresh_wechat_cookie.py` returns ≥ 1 (capability-gated image notify — WARNING 3).
     - `grep -c "hermes send" scripts/refresh_wechat_cookie.py` returns ≥ 2 (C-level QR + summary — KCA-5).
     - `grep -n "navigate(\"https://mp.weixin.qq.com/\")\|navigate('https://mp.weixin.qq.com/')" scripts/refresh_wechat_cookie.py` returns ≥ 2 (root-nav for level detect AND CSRF rebind — KCA-2).
   </acceptance_criteria>
-  <done>refresh_wechat_cookie.py implements self-heal pre-step, A/B/C detect+recover, CSRF rebind via root-nav, QR-to-Telegram for level C, env-based B creds, and a notify summary; parses clean; no literal secrets.</done>
+  <done>refresh_wechat_cookie.py implements self-heal pre-step, A/B/C detect+recover, CSRF rebind via root-nav, capability-gated QR-to-Telegram for level C, env-based B creds, pinned import path, and a notify summary; parses clean; no literal secrets.</done>
 </task>
 
-<task type="auto">
-  <name>Task 3: [REPO-CODE] Atomic writeback to Aliyun + single-account test-scan verify (KCA-4)</name>
+<task type="auto" tdd="true">
+  <name>Task 3: [REPO-CODE] Atomic writeback to Aliyun + single-account test-scan verify + tested rollback (KCA-4)</name>
   <read_first>
     - batch_scan_kol.py (the --account / --max-articles path; SESSION_INVALID_THRESHOLD; sys.exit(2) on WECHAT_SESSION_INVALID — the verify contract)
     - skills/omnigraph_scan_kol/SKILL.md (Step 4 write to kol_config.py — patch TOKEN + cookie line; the escape-drift + hex-verify discipline; Step 5 single-account test scan ret=0)
     - .planning/phases/kol-cookie-autorefresh/kol-cookie-autorefresh-CONTEXT.md (Hop ④: atomic write .tmp+rename, verify with test scan BEFORE declaring success, secret-redaction trap)
     - .planning/quick/260615-kol-cookie-autorefresh-investigate/RESEARCH.md (Hermes→Aliyun channel works via sync-kol-db cron; new EIP 47.117.244.253; ssh alias vitaclaw-aliyun is STALE → use explicit IP or the alias only after Plan 04 updates it)
   </read_first>
+  <behavior>
+    - writeback_to_aliyun, when the injected ssh-test-scan runner returns a NONZERO exit code (bad
+      creds), MUST: (a) invoke the rollback restore of kol_config.py.bak-pre-refresh, (b) NOT declare
+      success, (c) return a falsey/failure result. Pin this with a unit test that injects a fake
+      runner returning nonzero and asserts the rollback path ran + failure returned (no live Aliyun).
+  </behavior>
   <action>
-    Add a `writeback_to_aliyun(token, cookie_str, test_account, dry_run)` function in
-    `scripts/refresh_wechat_cookie.py` (or a small `scripts/lib/` helper imported by it). It runs on
-    Hermes and pushes the refreshed credentials to Aliyun atomically, then verifies.
+    Add a `writeback_to_aliyun(token, cookie_str, test_account, dry_run, *, run_ssh=<injectable>)`
+    function in `scripts/refresh_wechat_cookie.py` (or a small `scripts/lib/` helper imported by it).
+    It runs on Hermes and pushes the refreshed credentials to Aliyun atomically, then verifies.
+    Make the ssh-command executor an INJECTABLE callable (default = real subprocess runner) so the
+    verify + rollback branches are unit-testable without a live Aliyun (see <behavior>).
 
     Procedure:
     1. Build a new kol_config.py CONTENT in memory: read a local template OR (preferred) generate the
        two lines `TOKEN = "{token}"` and `COOKIE = "{cookie_str}"` and SED-replace them into the
        remote file rather than overwriting FAKEIDS. Since FAKEIDS must be preserved and lives only on
        Aliyun, do the edit REMOTELY: write a tiny remote python one-liner (passed over ssh) that:
-       reads `/root/OmniGraph-Vault/kol_config.py`, replaces the `TOKEN = "..."` line and the
+       FIRST copies `/root/OmniGraph-Vault/kol_config.py` → `kol_config.py.bak-pre-refresh` (the
+       rollback source), then reads the original, replaces the `TOKEN = "..."` line and the
        `COOKIE = "..."` line with the new values, writes to `kol_config.py.tmp` in the same dir, then
        `os.replace("kol_config.py.tmp", "kol_config.py")` (atomic). Pass token + cookie via stdin or
        a base64-encoded arg to avoid shell-escaping the cookie string (it contains `;`, `+`, `=`, `/`).
@@ -288,46 +332,55 @@ hermes send -t telegram --image /tmp/wx_qr_code.png "<caption>"   # C-level QR s
        is fixed.
     2. If `dry_run`: print the new TOKEN (first 6 chars) + cookie length + the remote command that
        WOULD run, and return without touching Aliyun.
-    3. VERIFY (KCA-4): run over ssh
+    3. VERIFY (KCA-4): run over ssh (via the injectable runner)
        `cd /root/OmniGraph-Vault && venv-aim1/bin/python batch_scan_kol.py --account {test_account} --max-articles 1`
        Capture exit code. ret=0 (exit 0) → success. Nonzero or stderr contains `WECHAT_SESSION_INVALID`
        / `ret=200003` → FAILURE: the writeback produced bad creds. On failure, attempt ONE rollback —
-       the remote one-liner should have saved `kol_config.py.bak-pre-refresh` before the atomic
-       replace; restore it via `os.replace` and return failure so STEP 5 notifies `❌`.
+       restore `kol_config.py.bak-pre-refresh` via `os.replace` (over ssh) and return failure so
+       STEP 5 notifies `❌`.
     4. Hex-verify guard (SKILL.md trap): before declaring success, read back the remote TOKEN bytes
        via ssh `python3 -c "...data.find(b'TOKEN=')..."` and assert it does NOT hex-decode to `***`
        (`373937343438373930` pattern) — guards against the terminal-redaction-wrote-stars failure.
 
-    Keep the function ≤ ~60 lines; it is glue. The atomic-write + verify-before-success + rollback are
+    Keep the function ≤ ~70 lines; it is glue. The atomic-write + verify-before-success + rollback are
     the three non-negotiables (CONTEXT Hop ④: "Do NOT half-write prod kol_config.py").
+
+    THEN add ONE behavioral unit test to `tests/unit/test_refresh_wechat_cookie.py` (per <behavior>):
+    construct `writeback_to_aliyun(...)` with `run_ssh=` a fake that records calls and returns a
+    NONZERO exit code for the verify scan; assert (a) a rollback ssh command targeting
+    `kol_config.py.bak-pre-refresh` was issued, and (b) the function returns failure / does not raise
+    "success". This pins the most dangerous path (writes prod kol_config.py) WITHOUT a live Aliyun —
+    closing the WARNING 5 untested-rollback gap before Plan 05's live exercise.
   </action>
   <verify>
-    <automated>venv/Scripts/python.exe -c "import ast; ast.parse(open('scripts/refresh_wechat_cookie.py').read()); print('parse_ok')" && grep -n "os.replace\|\.tmp" scripts/refresh_wechat_cookie.py</automated>
+    <automated>venv/Scripts/python.exe -c "import ast; ast.parse(open('scripts/refresh_wechat_cookie.py').read()); print('parse_ok')" && venv/Scripts/python.exe -m pytest tests/unit/test_refresh_wechat_cookie.py -v && grep -n "os.replace\|\.tmp" scripts/refresh_wechat_cookie.py</automated>
   </verify>
   <acceptance_criteria>
     - `grep -n "writeback_to_aliyun\|writeback" scripts/refresh_wechat_cookie.py` returns ≥ 1.
     - `grep -n "os.replace\|\.tmp" scripts/refresh_wechat_cookie.py` returns ≥ 1 (atomic write — KCA-4).
     - `grep -n "batch_scan_kol.py --account" scripts/refresh_wechat_cookie.py` returns ≥ 1 (test-scan verify — KCA-4).
     - `grep -n "bak-pre-refresh\|rollback" scripts/refresh_wechat_cookie.py` returns ≥ 1 (rollback on bad creds).
-    - `grep -n "373937343438373930\|\\*\\*\\*" scripts/refresh_wechat_cookie.py` returns ≥ 1 (hex redaction guard).
+    - `grep -n "run_ssh" scripts/refresh_wechat_cookie.py` returns ≥ 1 (injectable ssh runner for testability — WARNING 5).
+    - `grep -n "373937343438373930\|\*\*\*" scripts/refresh_wechat_cookie.py` returns ≥ 1 (hex redaction guard).
+    - `venv/Scripts/python.exe -m pytest tests/unit/test_refresh_wechat_cookie.py -v` → ALL tests pass, including the new rollback-branch test (asserts rollback ran + failure returned when verify scan exits nonzero — WARNING 5).
     - File still parses (`parse_ok`).
   </acceptance_criteria>
-  <done>writeback_to_aliyun does atomic remote .tmp+os.replace preserving FAKEIDS, verifies via single-account test scan (ret=0 gate), rolls back on failure, and guards the `***` redaction trap; success is declared ONLY after the verify scan passes.</done>
+  <done>writeback_to_aliyun does atomic remote .tmp+os.replace preserving FAKEIDS, verifies via single-account test scan (ret=0 gate), rolls back to kol_config.py.bak-pre-refresh on failure, and guards the `***` redaction trap; success is declared ONLY after the verify scan passes; the rollback-on-bad-creds branch is pinned by a behavioral unit test using an injectable ssh runner (no live Aliyun needed — closes WARNING 5).</done>
 </task>
 
 </tasks>
 
 <verification>
-- `venv/Scripts/python.exe -m pytest tests/unit/test_refresh_wechat_cookie.py -v` → all behavior tests pass (KCA-2 primitives).
+- `venv/Scripts/python.exe -m pytest tests/unit/test_refresh_wechat_cookie.py -v` → all behavior tests pass (KCA-2 primitives + the WARNING 5 rollback-branch test).
 - `python -c "import ast; ast.parse(open('scripts/refresh_wechat_cookie.py').read())"` → no syntax error.
-- grep gates above confirm: self-heal (KCA-6), A/B/C + CSRF rebind (KCA-2), level-C QR→Telegram (KCA-3), notify (KCA-5), atomic writeback + test-scan verify (KCA-4), env creds not literals (KCA-8).
-- NOTE: live CDP/scp behavior is NOT exercised here (no logged-in Edge in the repo env) — that is Plan 05 end-to-end real verification on Hermes/Aliyun (Principle #6).
+- grep gates above confirm: pinned import path (INFO 7), self-heal (KCA-6), A/B/C + CSRF rebind (KCA-2), level-C QR→Telegram capability-gated (KCA-3, WARNING 3), notify (KCA-5), atomic writeback + test-scan verify + tested rollback (KCA-4, WARNING 5), env creds not literals (KCA-8).
+- NOTE: live CDP/scp behavior is NOT exercised here (no logged-in Edge in the repo env) — that is Plan 05 end-to-end real verification on Hermes/Aliyun (Principle #6). The rollback branch, however, IS unit-tested here via the injectable runner (no longer live-only).
 </verification>
 
 <success_criteria>
-- A standalone Hermes-runnable refresh wrapper exists with the full A/B/C tree, self-heal, CSRF rebind, atomic writeback + verify, and Telegram notify, reusing the SKILL.md logic.
-- Pure primitives are unit-tested green; the orchestrator + writeback parse and pass all grep contract gates.
-- The script reads B-level creds from env (KCA-8) and targets port 9222 by default (consistent with Plan 01, KCA-7).
+- A standalone Hermes-runnable refresh wrapper exists with the full A/B/C tree, self-heal, CSRF rebind, atomic writeback + verify + tested rollback, and capability-gated Telegram notify, reusing the SKILL.md logic.
+- Pure primitives + the rollback branch are unit-tested green; the orchestrator + writeback parse and pass all grep contract gates.
+- The script reads B-level creds from env (KCA-8), targets port 9222 by default (consistent with Plan 01, KCA-7), and uses a pinned sys.path import so Plan 03's repo-root invocation resolves the helper (INFO 7).
 </success_criteria>
 
 <output>
