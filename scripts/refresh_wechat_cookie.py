@@ -322,7 +322,110 @@ def extract_credentials(client, token):
     return cookie_str
 
 
-# --- writeback_to_aliyun is implemented in Task 3 (same file) ----------------
+# --- Writeback to Aliyun (KCA-4): atomic .tmp+rename + verify + rollback -----
+
+def _default_run_ssh(command):
+    """Real ssh executor: run `ssh {ALIYUN_SSH} <command>` and return the result."""
+    return subprocess.run(
+        ["ssh", ALIYUN_SSH, command],
+        capture_output=True, text=True, check=False,
+    )
+
+
+def writeback_to_aliyun(token, cookie_str, test_account, dry_run, *, run_ssh=None):
+    """Push refreshed creds to Aliyun kol_config.py atomically, then verify.
+
+    Atomic write (.tmp + os.replace) preserving FAKEIDS, verify via a single
+    account test scan (ret=0 gate), rollback to kol_config.py.bak-pre-refresh on
+    a bad-creds verify result. The ssh executor is INJECTABLE (`run_ssh`) so the
+    verify + rollback branches are unit-testable without a live Aliyun.
+
+    Returns True on success (verify scan ret=0), False on failure (and rolls
+    back). The three non-negotiables: atomic write, verify-before-success,
+    rollback on bad creds (CONTEXT Hop ④: do NOT half-write prod kol_config.py).
+    """
+    if run_ssh is None:
+        run_ssh = _default_run_ssh
+
+    cfg = f"{ALIYUN_REPO}/kol_config.py"
+    bak = f"{cfg}.bak-pre-refresh"
+    tmp = f"{cfg}.tmp"
+
+    # Pass token + cookie base64-encoded to dodge shell-escaping ; + = / in the
+    # cookie string (decoded inside the remote python one-liner).
+    tok_b64 = base64.b64encode(token.encode("utf-8")).decode("ascii")
+    cookie_b64 = base64.b64encode(cookie_str.encode("utf-8")).decode("ascii")
+
+    if dry_run:
+        logger.info(
+            "dry-run writeback: TOKEN=%s… cookie_len=%d → would atomic-write %s",
+            token[:6], len(cookie_str), cfg,
+        )
+        return True
+
+    # Remote atomic edit: backup → replace TOKEN/COOKIE lines → .tmp → os.replace.
+    # Preserves FAKEIDS (only the two assignment lines are rewritten).
+    remote_write = (
+        "python3 - <<'PYEOF'\n"
+        "import base64, os, re, shutil\n"
+        f"cfg = {cfg!r}\n"
+        f"bak = {bak!r}\n"
+        f"tmp = {tmp!r}\n"
+        f"tok = base64.b64decode('{tok_b64}').decode('utf-8')\n"
+        f"cookie = base64.b64decode('{cookie_b64}').decode('utf-8')\n"
+        "shutil.copy2(cfg, bak)\n"
+        "src = open(cfg, encoding='utf-8').read()\n"
+        "src = re.sub(r'(?m)^TOKEN\\s*=.*$', 'TOKEN = \"%s\"' % tok, src, count=1)\n"
+        "src = re.sub(r'(?m)^COOKIE\\s*=.*$', 'COOKIE = \"%s\"' % cookie, src, count=1)\n"
+        "open(tmp, 'w', encoding='utf-8').write(src)\n"
+        "os.replace(tmp, cfg)\n"
+        "print('WRITE_OK')\n"
+        "PYEOF"
+    )
+    res = run_ssh(remote_write)
+    if getattr(res, "returncode", 1) != 0:
+        logger.error("remote atomic write failed: %s", getattr(res, "stderr", ""))
+        _rollback(run_ssh, cfg, bak)
+        return False
+
+    # Hex-verify guard (SKILL.md trap): the remote TOKEN must NOT hex-decode to
+    # "***" (373937343438373930) — guards the terminal-redaction-wrote-stars bug.
+    guard = (
+        "python3 -c \"import sys;"
+        f"d=open({cfg!r},'rb').read();i=d.find(b'TOKEN=');"
+        f"sys.exit(1 if bytes.fromhex('{REDACTED_HEX}') in d[i:i+40] else 0)\""
+    )
+    gres = run_ssh(guard)
+    if getattr(gres, "returncode", 1) != 0:
+        logger.error("hex-verify guard tripped: TOKEN looks redacted (***)")
+        _rollback(run_ssh, cfg, bak)
+        return False
+
+    # VERIFY (KCA-4): single-account test scan. ret=0 → valid; nonzero or
+    # WECHAT_SESSION_INVALID / ret=200003 in stderr → bad creds → rollback.
+    verify = (
+        f"cd {ALIYUN_REPO} && {ALIYUN_VENV_PY} "
+        f"batch_scan_kol.py --account {test_account} --max-articles 1"
+    )
+    vres = run_ssh(verify)
+    rc = getattr(vres, "returncode", 1)
+    stderr = getattr(vres, "stderr", "") or ""
+    if rc != 0 or "WECHAT_SESSION_INVALID" in stderr or "ret=200003" in stderr:
+        logger.error("verify test-scan failed (rc=%s); rolling back", rc)
+        _rollback(run_ssh, cfg, bak)
+        return False
+
+    logger.info("verify test-scan ret=0; writeback success")
+    return True
+
+
+def _rollback(run_ssh, cfg, bak):
+    """Restore kol_config.py from its .bak-pre-refresh copy (atomic os.replace)."""
+    restore = (
+        f"python3 -c \"import os; os.replace({bak!r}, {cfg!r})\""
+    )
+    run_ssh(restore)
+    logger.info("rolled back %s from %s", cfg, bak)
 
 
 # --- Main flow ----------------------------------------------------------------
