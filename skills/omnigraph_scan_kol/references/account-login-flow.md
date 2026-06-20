@@ -5,13 +5,13 @@ When cookie-based sessions expire, the browser's saved credentials can provide a
 ## DOM Elements (WeChat MP login page)
 
 - **"使用账号登录" link**: `ref=e12` — clicks into the account login form
-- **Email/username input**: `ref=e19` — pre-filled with `huhai.orion@gmail.com`
+- **Email/username input**: `ref=e19` — pre-filled with `${WECHAT_MP_ACCOUNT}` (from `~/.hermes/.env`, NOT committed)
 - **Password input**: `ref=e20` — pre-filled (value hidden as ••••••••••••••)
 - **"登录" button**: `ref=e18` — submits the login form
 
 ## Redirect Chain
 
-1. POST to `/cgi-bin/bizlogin?action=validate&lang=zh_CN&account=huhai.orion%40gmail.com&token=`
+1. POST to `/cgi-bin/bizlogin?action=validate&lang=zh_CN&account=${WECHAT_MP_ACCOUNT}&token=` (URL-encode the account value)
 2. Redirect to `/cgi-bin/bizlogin?...` with security verification page
 3. Security page shows "安全保护" header and a QR code for 2FA verification
 4. **The session is established at this point** even though the security page is still displayed
@@ -42,4 +42,4 @@ These indicate the dashboard has loaded and the session is active.
 ## Verified Use
 
 - **2026-05-08**: Successfully recovered expired session using this method. No QR code needed.
-- The account is: `huhai.orion@gmail.com` (account name: "大家来打球")
+- The account is read from `${WECHAT_MP_ACCOUNT}` in `~/.hermes/.env` (account name: "大家来打球"). The literal account/password were redacted from this public repo on 2026-06-19 (ISSUES #58); the password MUST be rotated.

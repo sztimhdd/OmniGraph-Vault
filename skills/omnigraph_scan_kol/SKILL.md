@@ -88,7 +88,17 @@ When the root page shows the login landing (no QR code on login page, just "使�
              "returnByValue": true},
      target_id="<tab-id>")
    ```
-   Expected pre-filled values: `"account: huhai.orion@g"` and `"password: Hardun.575"`. If fields show empty, the browser's saved credentials may have been cleared.
+   Expected pre-filled values come from the browser's saved credentials, which must match
+   `${WECHAT_MP_ACCOUNT}` / `${WECHAT_MP_PASSWORD}` set in `~/.hermes/.env` (NOT committed to the repo).
+   Verify the account field shows the configured account (first chars only) and password is
+   non-empty. If fields show empty, the browser's saved credentials may have been cleared —
+   re-enter them in the Edge profile, and ensure `~/.hermes/.env` carries the same values for any
+   scripted fallback.
+
+   > **Security:** This account password was previously committed as a literal in this public
+   > repo (redacted 2026-06-19, ISSUES #58). The password MUST be rotated; redaction alone does
+   > not undo the historical git exposure. The B-level scripted fallback reads `${WECHAT_MP_ACCOUNT}` /
+   > `${WECHAT_MP_PASSWORD}` from `~/.hermes/.env`, never a hardcoded value.
 3. **Click the "登录" button** — The `.btn_login` element is SPA-rendered and may not have a stable ref in the accessibility tree. Use CDP click:
    ```json
    browser_cdp(method="Runtime.evaluate",
