@@ -2,7 +2,7 @@
 name: wechat-cdp-credential-refresh
 description: |-
   Refresh WeChat MP API credentials (TOKEN + COOKIE) via CDP-connected browser.
-  Automates the DevTools manual workflow — connects to CDP port 9223, detects
+  Automates the DevTools manual workflow — connects to CDP port 9222, detects
   existing login, extracts credentials, and saves to kol_config.py.
   First tries cookie-based session recovery (click "登录", no QR needed);
   falls back to HITL QR code scan only when cookies are truly invalidated.
@@ -10,8 +10,8 @@ description: |-
   Trigger phrases: "refresh credentials", "credentials expired", "update wechat token",
   "wechat cookie expired", "login expired", "need new wechat session".
 compatibility: |
-  Requires: Edge/Chrome on Windows with CDP flag (--remote-debugging-port=9223)
-  Requires: WSL2 with mirrored networking OR cd to Windows port 9223
+  Requires: Edge/Chrome on Windows with CDP flag (--remote-debugging-port=9222)
+  Requires: WSL2 with mirrored networking OR cd to Windows port 9222
   File target: $OMNIGRAPH_ROOT/kol_config.py
 ---
 
@@ -62,11 +62,11 @@ Before any credential extraction, attempt to revive the existing session:
 **Why the public homepage is different:** When the root URL doesn't auto-redirect at all and stays on the public page, it means the browser has ZERO session cookies for mp.weixin.qq.com — not even expired ones. The login-button trick won't work because there's no session to recover. CDP cookie inspection will confirm `slave_sid` and `data_ticket` are absent.
 
 ```bash
-curl -s http://127.0.0.1:9223/json/version
+curl -s http://127.0.0.1:9222/json/version
 ```
 
 Expected: JSON with `webSocketDebuggerUrl`. If empty/refused:
-- Ensure Edge/Chrome was started with `--remote-debugging-port=9223`
+- Ensure Edge/Chrome was started with `--remote-debugging-port=9222`
 - In WSL2, verify mirrored networking: `/etc/wsl.conf` should have `networkingMode=mirrored`
 
 ### Step 2: Connect to CDP and find the WeChat MP page
@@ -75,7 +75,7 @@ Expected: JSON with `webSocketDebuggerUrl`. If empty/refused:
 import asyncio, json, websockets, re
 
 async def find_wechat_page():
-    async with websockets.connect('ws://127.0.0.1:9223/devtools/browser/...') as ws:
+    async with websockets.connect('ws://127.0.0.1:9222/devtools/browser/...') as ws:
         # List all pages
         await ws.send(json.dumps({'id': 1, 'method': 'Target.getTargets'}))
         resp = await asyncio.wait_for(ws.recv(), timeout=5)
@@ -133,7 +133,7 @@ If a WeChat MP page exists with a valid dashboard:
 import asyncio, json, re, websockets
 
 # 1. Connect to the specific page's WebSocket
-async with websockets.connect(f'ws://127.0.0.1:9223/devtools/page/{page_id}') as ws:
+async with websockets.connect(f'ws://127.0.0.1:9222/devtools/page/{page_id}') as ws:
     # 2. Get token from page URL (not from /json endpoint — it's redacted there)
     await ws.send(json.dumps({
         'id': 1, 'method': 'Runtime.evaluate',
@@ -268,7 +268,7 @@ Expected output: `VALID — got 1 article(s)` with a title. No `invalid csrf tok
 
 - **`invalid csrf token` error** after refresh: The TOKEN may have rotated on login. Re-run the full extraction.
 - **`invalid session` (ret=200003) after refresh — TRUNCATED slave_sid**: This is the #1 gotcha and the #1 reason to **never ask the user to manually copy cookies**. When copying from DevTools → Application → Cookies in the browser UI, the displayed `slave_sid` value is **truncated** (the UI clips long Base64 strings with `...` mid-value). The CDP `Network.getCookies` API always returns the **full, untruncated** value. If the current config was manually copied, always re-extract via CDP and compare character-by-character.
-- **CDP connection refused**: Edge/Chrome may have been restarted. Start it with: `msedge --remote-debugging-port=9223 --remote-debugging-address=127.0.0.1 --user-data-dir="C:\Users\%USERNAME%\cdp_temp" --no-sandbox`
+- **CDP connection refused**: Edge/Chrome may have been restarted. Start it with: `msedge --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --user-data-dir="C:\Users\%USERNAME%\cdp_temp" --no-sandbox`
 - **Browser is headless**: Some CDP modes launch headless. User won't see the login page. Use visible mode instead.
 - **Multiple CDP pages**: There may be multiple `mp.weixin.qq.com` pages. Use the one with `/cgi-bin/home` or `/cgi-bin/appmsg` in the URL — these are the authenticated pages.
 - **Token is hidden** in CDP `/json` endpoint: The CDP REST API redacts `token=***` in page URLs. Always extract via `Runtime.evaluate('window.location.href')` on the page's WebSocket connection.

@@ -3,10 +3,10 @@
 Capture WeChat MP login QR code using CDP browser cookies.
 
 Usage:
-  python capture_qr.py [--cdp-url http://localhost:9223] [--output /tmp/wx_qr.png]
+  python capture_qr.py [--cdp-url http://localhost:9222] [--output /tmp/wx_qr.png]
 
 Requires:
-  - A Chromium/Edge browser with --remote-debugging-port=9223
+  - A Chromium/Edge browser with --remote-debugging-port=9222
   - The browser already navigated to https://mp.weixin.qq.com/
     (showing the QR login page, not dashboard)
 
@@ -23,7 +23,7 @@ import time
 import requests
 from PIL import Image
 
-CDP_URL = os.environ.get("CDP_URL", "http://localhost:9223")
+CDP_URL = os.environ.get("CDP_URL", "http://localhost:9222")
 
 
 def cdp_call(method: str, params: dict = None, timeout: int = 15) -> dict:
@@ -55,7 +55,7 @@ def cdp_call(method: str, params: dict = None, timeout: int = 15) -> dict:
     ws_base = ws_url.rsplit("/", 1)[0]
 
     # Send CDP command via HTTP (Chrome supports HTTP-based CDP endpoint too)
-    cdp_http = f"http://localhost:9223{target['devtoolsFrontendUrl'].split('?')[0].replace('/devtools/inspector.html', '')}"
+    cdp_http = f"http://localhost:9222{target['devtoolsFrontendUrl'].split('?')[0].replace('/devtools/inspector.html', '')}"
     # Actually, use the /devtools/page/ endpoint
     # Simpler: just use the WebSocket via websocket-client, or use the HTTP + CDP protocol
 
@@ -66,7 +66,7 @@ def cdp_call(method: str, params: dict = None, timeout: int = 15) -> dict:
         headers={"Content-Type": "application/json"},
     )
     # Chrome DevTools Protocol over HTTP is available at:
-    # http://localhost:9223/devtools/page/PAGE_ID
+    # http://localhost:9222/devtools/page/PAGE_ID
 
     # Use the simpler HTTP approach
     page_id = target["id"]
@@ -89,7 +89,7 @@ def cdp_call(method: str, params: dict = None, timeout: int = 15) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Capture WeChat MP QR code via CDP")
     parser.add_argument(
-        "--cdp-url", default=CDP_URL, help="CDP endpoint (default: http://localhost:9223)"
+        "--cdp-url", default=CDP_URL, help="CDP endpoint (default: http://localhost:9222)"
     )
     parser.add_argument(
         "--output", default="/tmp/wx_qr_code.png", help="Output PNG path"

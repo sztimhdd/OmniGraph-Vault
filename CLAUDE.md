@@ -305,7 +305,7 @@ Query → kg_synthesize.py
 | `GEMINI_API_KEY` | Yes | All LLM, vision, and embedding calls |
 | `APIFY_TOKEN` | No | Primary scraping (falls back to CDP) |
 | `FIRECRAWL_API_KEY` | No | Firecrawl web scraping API |
-| `CDP_URL` | No | **Local mode** (default): `http://localhost:9223` — raw CDP WebSocket; `ingest_wechat.py` uses `playwright.connect_over_cdp()`. Start Edge with `msedge --remote-debugging-port=9223`. **Remote MCP mode** (testing fallback): `http://host:port/mcp` — Playwright MCP server (MCP-over-SSE); `ingest_wechat.py` auto-detects the `/mcp` suffix and uses `_MCPClient` + `browser_navigate`/`browser_evaluate` instead. Both modes are fully implemented. |
+| `CDP_URL` | No | **Local mode** (default): `http://localhost:9222` — raw CDP WebSocket; `ingest_wechat.py` uses `playwright.connect_over_cdp()`. Start Edge with `msedge --remote-debugging-port=9222`. **Remote MCP mode** (testing fallback): `http://host:port/mcp` — Playwright MCP server (MCP-over-SSE); `ingest_wechat.py` auto-detects the `/mcp` suffix and uses `_MCPClient` + `browser_navigate`/`browser_evaluate` instead. Both modes are fully implemented. |
 | `OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP` | No | RSS classifier daily-batch safety cap (default 500 articles). Applies only when `--max-articles` CLI flag is NOT passed; CLI value always wins. Non-int values silently fall back to 500. |
 
 Set in `~/.hermes/.env`.
@@ -367,10 +367,10 @@ Look for `Scraping successful using method: apify` in the output.
 1. Start Edge with remote debugging (Windows):
 
    ```powershell
-   Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9223 --user-data-dir=$env:LOCALAPPDATA\EdgeDebug9223"
+   Start-Process "msedge.exe" -ArgumentList "--remote-debugging-port=9222 --user-data-dir=$env:LOCALAPPDATA\EdgeDebug9222"
    ```
 
-2. Set `CDP_URL=http://localhost:9223` in `~/.hermes/.env`
+2. Set `CDP_URL=http://localhost:9222` in `~/.hermes/.env`
 3. Leave `APIFY_TOKEN` unset (or set an invalid value) so Apify fails and the fallback fires.
 4. Run `python ingest_wechat.py "<url>"` — look for `Falling back to local CDP...` then `method: cdp`.
 
@@ -423,7 +423,7 @@ If remote is ahead: push from remote, pull locally, re-read changed files. Decis
 Evergreen invariants only — dated postmortems are archived in [docs/lessons/](docs/lessons/) and surfaced in [MEMORY.md](../../.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/MEMORY.md) when still load-bearing.
 
 - The runtime data directory is `omonigraph-vault` (typo is baked into config.py and deployed environments — do not "fix" it without a coordinated migration)
-- `CDP_URL` supports two modes auto-detected by the `/mcp` URL suffix: local Edge (`localhost:9223`) uses `playwright.connect_over_cdp()`; remote testing (`host:port/mcp`) uses `_MCPClient` (MCP-over-SSE with `mcp-session-id` header). The MCP server requires `initialize` first, then subsequent requests must include `mcp-session-id` in the header — without it every call returns "Server not initialized".
+- `CDP_URL` supports two modes auto-detected by the `/mcp` URL suffix: local Edge (`localhost:9222`) uses `playwright.connect_over_cdp()`; remote testing (`host:port/mcp`) uses `_MCPClient` (MCP-over-SSE with `mcp-session-id` header). The MCP server requires `initialize` first, then subsequent requests must include `mcp-session-id` in the header — without it every call returns "Server not initialized".
 
 Recent archives:
 - [2026-05](docs/lessons/2026-05-archive.md) — 9 postmortems: SQLite CHECK constraint, half-fix pattern, cascade divergence, CV mass-classify, ghost success class, D2 contract bug

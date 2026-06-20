@@ -207,7 +207,7 @@ Check for "AI老兵日记", "原创", "新的创作" in the returned text. If fo
   4. Dashboard visible → session recovered, proceed to Step 3.
   5. Still "请重新登录" → cookies truly expired → enter **QR Code Login Flow** (see full procedure below). After login succeeds, proceed to Step 3 (credential extraction). If login times out → STOP.
 - **CDP unreachable** (browser_navigate fails) → send Telegram:
-  "⚠️ CDP 浏览器不可达（端口 9223）" → STOP.
+  "⚠️ CDP 浏览器不可达（端口 9222）" → STOP.
 
 ### Step 3: Extract credentials via CDP
 
@@ -368,7 +368,7 @@ instead of stopping and waiting for manual intervention.
   and view the image Hermes sent), and a second phone with the WeChat app to
   scan the first phone's screen. Confirmed working in live test 2026-05-01.
 - **CDP browser must be on a visible display.** The Edge instance running on the
-  Windows host at port 9223 must have a real screen — headless mode won't work
+  Windows host at port 9222 must have a real screen — headless mode won't work
   because WeChat checks for rendering surface.
 
 ### Step Q1: Navigate to the WeChat MP login page
