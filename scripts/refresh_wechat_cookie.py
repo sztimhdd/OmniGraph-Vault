@@ -22,6 +22,7 @@ import argparse
 import base64
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -75,10 +76,28 @@ REDACTED_HEX = "373937343438373930"  # see SKILL.md hex-verify guard
 _HERMES_IMAGE_SUPPORTED = None  # one-time cache of `hermes send --help` probe
 
 
+def _resolve_hermes_bin():
+    """Resolve the `hermes` CLI path.
+
+    The wrapper is launched non-interactively (ssh hermes "nohup python3 ..."),
+    where ~/.local/bin is NOT on PATH, so a bare `hermes` lookup fails even
+    though it works in an interactive login shell. Prefer the known install
+    location, then fall back to PATH resolution.
+    """
+    candidate = os.path.expanduser("~/.local/bin/hermes")
+    if os.path.exists(candidate):
+        return candidate
+    found = shutil.which("hermes")
+    return found or "hermes"  # last resort: bare name (will FileNotFoundError if absent)
+
+
+HERMES_BIN = _resolve_hermes_bin()
+
+
 def notify(text):
     """Send a one-line Telegram summary/warning via `hermes send`."""
     try:
-        subprocess.run(["hermes", "send", "-t", "telegram", text], check=False)
+        subprocess.run([HERMES_BIN, "send", "-t", "telegram", text], check=False)
     except FileNotFoundError:
         logger.warning("hermes CLI not found; would have sent: %s", text)
 
@@ -90,7 +109,7 @@ def _hermes_supports_image():
         return _HERMES_IMAGE_SUPPORTED
     try:
         out = subprocess.run(
-            ["hermes", "send", "--help"],
+            [HERMES_BIN, "send", "--help"],
             capture_output=True, text=True, check=False,
         )
         _HERMES_IMAGE_SUPPORTED = "--image" in (out.stdout + out.stderr)
@@ -110,7 +129,7 @@ def notify_image(png_path, caption):
     """
     if _hermes_supports_image():
         subprocess.run(
-            ["hermes", "send", "-t", "telegram", "--image", png_path, caption],
+            [HERMES_BIN, "send", "-t", "telegram", "--image", png_path, caption],
             check=False,
         )
     else:
