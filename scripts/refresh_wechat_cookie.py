@@ -71,9 +71,7 @@ EDGE_PROFILE = r"C:\Edge-Auto-Profile"
 REDACTED_HEX = "373937343438373930"  # see SKILL.md hex-verify guard
 
 
-# --- Telegram notify (capability-gated for image — WARNING 3) ----------------
-
-_HERMES_IMAGE_SUPPORTED = None  # one-time cache of `hermes send --help` probe
+# --- Telegram notify ----------------------------------------------------------
 
 
 def _resolve_hermes_bin():
@@ -102,39 +100,52 @@ def notify(text):
         logger.warning("hermes CLI not found; would have sent: %s", text)
 
 
-def _hermes_supports_image():
-    """One-time probe of `hermes send --help` for an `--image` flag."""
-    global _HERMES_IMAGE_SUPPORTED
-    if _HERMES_IMAGE_SUPPORTED is not None:
-        return _HERMES_IMAGE_SUPPORTED
+def _send_photo_via_telegram_api(png_path, caption):
+    """Deliver an image to Telegram via the Bot API sendPhoto endpoint.
+
+    `hermes send` is text-only (no --image/--photo flag — verified on the live
+    Hermes build), so a QR png path in a text message is useless to the user on
+    their phone. The Bot API sendPhoto endpoint uploads the actual image. Reads
+    TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID from the environment (already set in
+    ~/.hermes/.env). multipart/form-data: data={chat_id, caption}, files={photo}.
+    Returns True on ok, False otherwise.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        logger.warning("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not in env; cannot sendPhoto")
+        return False
     try:
-        out = subprocess.run(
-            [HERMES_BIN, "send", "--help"],
-            capture_output=True, text=True, check=False,
-        )
-        _HERMES_IMAGE_SUPPORTED = "--image" in (out.stdout + out.stderr)
-    except FileNotFoundError:
-        _HERMES_IMAGE_SUPPORTED = False
-    return _HERMES_IMAGE_SUPPORTED
+        import requests  # lazy import — only needed for the level-C QR path
+        with open(png_path, "rb") as fh:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{token}/sendPhoto",
+                data={"chat_id": chat_id, "caption": caption},
+                files={"photo": fh},
+                timeout=20,
+            )
+        ok = bool(resp.ok and resp.json().get("ok"))
+        if not ok:
+            logger.warning("Telegram sendPhoto failed: HTTP %s %s", resp.status_code, resp.text[:200])
+        return ok
+    except Exception as exc:  # network / json / file error — fall back to text
+        logger.warning("Telegram sendPhoto error: %s", exc)
+        return False
 
 
 def notify_image(png_path, caption):
-    """Send a QR png to Telegram if `hermes send --image` is supported.
+    """Deliver a QR png to Telegram so the user can scan it from their phone.
 
-    Capability-gated (WARNING 3): if `--image` is NOT supported on this Hermes
-    build, fall back to a text notify carrying the caption + png path so the
-    operator can open it. Plan 05 asserts the SAME gate: "image delivered if
-    --image supported, else QR png at /tmp + path sent as text." Do NOT block
-    the wrapper on the unverified flag.
+    Primary: Telegram Bot API sendPhoto (uploads the real image — the only path
+    that actually puts a scannable QR on the user's device). Fallback: a text
+    notify carrying the path (operator-on-Hermes can open it) — used only if
+    sendPhoto fails (missing token, network error). The earlier `hermes send
+    --image` approach was a dead end: the CLI has no image flag.
     """
-    if _hermes_supports_image():
-        subprocess.run(
-            [HERMES_BIN, "send", "-t", "telegram", "--image", png_path, caption],
-            check=False,
-        )
-    else:
-        logger.warning("hermes send --image unsupported; sending text + path")
-        notify(f"{caption} — QR saved at {png_path}")
+    if _send_photo_via_telegram_api(png_path, caption):
+        return
+    logger.warning("sendPhoto unavailable; sending text + path as fallback")
+    notify(f"{caption} — QR saved at {png_path}")
 
 
 # --- Self-heal: relaunch headed Edge if :9222 is down (KCA-6) -----------------
