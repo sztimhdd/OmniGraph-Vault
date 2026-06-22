@@ -119,10 +119,10 @@ Hermes-runtime dependency for non-Hermes consumers.
 
 **Sibling planning files** (not in this PROJECT.md):
 
-- `.planning/PROJECT-Agentic-RAG-v1.md` — milestone scope + locked architecture
-- `.planning/REQUIREMENTS-Agentic-RAG-v1.md` — REQ-IDs (LIB / ORCH / TOOL / SKILL / CLI / CONFIG / TEST / CONTRACT)
-- `.planning/ROADMAP-Agentic-RAG-v1.md` — `ar-N` phase decomposition
-- `.planning/STATE-Agentic-RAG-v1.md` — milestone state (separate from v3.4)
+- `.planning/archive/closed-milestones/PROJECT-Agentic-RAG-v1.md` — milestone scope + locked architecture (CLOSED 2026-05-24, archived 2026-06-12)
+- `.planning/archive/closed-milestones/REQUIREMENTS-Agentic-RAG-v1.md` — REQ-IDs (LIB / ORCH / TOOL / SKILL / CLI / CONFIG / TEST / CONTRACT)
+- `.planning/archive/closed-milestones/ROADMAP-Agentic-RAG-v1.md` — `ar-N` phase decomposition
+- `.planning/archive/closed-milestones/STATE-Agentic-RAG-v1.md` — milestone state (separate from v3.4)
 - `.planning/phases/ar-N-*/` — phase work directories
 
 **Cross-milestone contract** (the only KG-side dependency): KG team must keep
@@ -161,10 +161,10 @@ authoritative ingest node. Hermes retires to read-only / dev sandbox.
 
 **Sibling planning files**:
 
-- `.planning/PROJECT-Aliyun-Ingest-Migration-v1.md` — Q1-Q6 decided 2026-05-20 evening
-- `.planning/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` — REQ-IDs (READY / DEPLOY / STORAGE / CUTOVER / SYNC / STAB)
-- `.planning/ROADMAP-Aliyun-Ingest-Migration-v1.md` — `aim-N` phase decomposition (P0-P5)
-- `.planning/STATE-Aliyun-Ingest-Migration-v1.md` — milestone state (separate from v3.4 / v3.5 / Agentic-RAG-v1)
+- `.planning/archive/closed-milestones/PROJECT-Aliyun-Ingest-Migration-v1.md` — Q1-Q6 decided 2026-05-20 evening (CLOSED 2026-05-25, archived 2026-06-12)
+- `.planning/archive/closed-milestones/REQUIREMENTS-Aliyun-Ingest-Migration-v1.md` — REQ-IDs (READY / DEPLOY / STORAGE / CUTOVER / SYNC / STAB)
+- `.planning/archive/closed-milestones/ROADMAP-Aliyun-Ingest-Migration-v1.md` — `aim-N` phase decomposition (P0-P5)
+- `.planning/archive/closed-milestones/STATE-Aliyun-Ingest-Migration-v1.md` — milestone state (separate from v3.4 / v3.5 / Agentic-RAG-v1)
 - `.planning/phases/aim-N-*/` — phase work directories
 
 **Cross-milestone contract**: ingest substrate moves; KG-side query API
@@ -172,7 +172,7 @@ authoritative ingest node. Hermes retires to read-only / dev sandbox.
 kb-api on Aliyun stays read-only SSG + DB (no `/api/synthesize` — that
 endpoint is owned by Agentic-RAG-v1 milestone, not this one).
 
-**Decision summary** (full rationale in PROJECT-Aliyun-Ingest-Migration-v1.md §3-§4):
+**Decision summary** (full rationale in archive/closed-milestones/PROJECT-Aliyun-Ingest-Migration-v1.md §3-§4):
 
 - Cutover strategy: simple cutover, accept 1-day data loss (Q1a)
 - LightRAG migration: full tar.gz + sha256 + entity/relation count ±0% verify (Q2a + 3 hard constraints)

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+
+{% block title %}{{ 'research.page_title' | t('zh-CN') }} / {{ 'research.page_title' | t('en') }} — {{ 'site.brand' | t('zh-CN') }}{% endblock %}
+
+{% block content %}
+<div class="ask-page research-page">
+  <header class="ask-hero">
+    <h1>
+      <span data-lang="zh">{{ 'research.page_title' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.page_title' | t('en') }}</span>
+    </h1>
+    <p>
+      <span data-lang="zh">{{ 'research.hero_subtitle' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.hero_subtitle' | t('en') }}</span>
+    </p>
+  </header>
+
+  <form id="research-form" class="ask-form research-form" onsubmit="return submitResearch(event)">
+    <textarea
+      id="research-input"
+      class="ask-textarea"
+      rows="4"
+      placeholder="{{ 'research.input_placeholder' | t('zh-CN') }} / {{ 'research.input_placeholder' | t('en') }}"
+      aria-label="{{ 'research.input_aria' | t('zh-CN') }}"
+      required></textarea>
+    <div class="research-form__controls">
+      <label class="research-iter" for="research-iterations">
+        <span data-lang="zh">{{ 'research.iterations_label' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.iterations_label' | t('en') }}</span>
+        <input
+          id="research-iterations"
+          name="max_iterations"
+          class="research-iter__input"
+          type="number"
+          min="1"
+          max="10"
+          value="3"
+          inputmode="numeric"
+          aria-label="{{ 'research.iterations_label' | t('zh-CN') }}">
+      </label>
+      <button type="submit" class="btn btn-large glow">
+        {{ icon('sparkle', size=16) }}
+        <span data-lang="zh">{{ 'research.submit' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.submit' | t('en') }}</span>
+        {{ icon('arrow-right', size=16) }}
+      </button>
+    </div>
+  </form>
+
+  {% include '_research_result.html' %}
+
+  <p class="disclaimer">
+    {{ icon('warning', size=18) }}
+    <span>
+      <span data-lang="zh">{{ 'research.disclaimer' | t('zh-CN') }}</span><span data-lang="en">{{ 'research.disclaimer' | t('en') }}</span>
+    </span>
+  </p>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Route the form submit to research.js's window.KbResearch.submit().
+  // The 5-stage stepper on #research-result is driven by kb/static/research.js.
+  function submitResearch(e) {
+    e.preventDefault();
+    var input = document.getElementById('research-input');
+    var iterEl = document.getElementById('research-iterations');
+    var q = (input && input.value || '').trim();
+    if (!q) return false;
+    var iterations = parseInt((iterEl && iterEl.value) || '3', 10);
+    if (!(iterations >= 1 && iterations <= 10)) iterations = 3;
+    if (window.KbResearch && typeof window.KbResearch.submit === 'function') {
+      window.KbResearch.submit(q, iterations);
+      var result = document.getElementById('research-result');
+      if (result) result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    return false;
+  }
+</script>
+<script src="{{ base_path }}/static/marked.min.js" defer></script>
+<script src="{{ base_path }}/static/research.js" defer></script>
+{% endblock %}

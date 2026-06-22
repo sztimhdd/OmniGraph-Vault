@@ -1,3 +1,5 @@
+> CLOSED 2026-05-09 (v3.4), retained — KB-v2 / aim PROJECTs cross-reference it.
+
 # Milestone v3.4 Requirements — RSS-KOL Alignment
 
 **Status:** ACTIVE (started 2026-05-03).
@@ -13,9 +15,9 @@
 
 **Prior milestones archived:**
 
-- v3.1 (Single-Article Ingest Stability, 26 reqs) — `docs/MILESTONE_v3.1_CLOSURE.md` + `.planning/MILESTONE_v3.1_MORNING_SUMMARY.md`
-- v3.2 (Batch Reliability + Infra) — `.planning/MILESTONE_v3.2_REQUIREMENTS.md` + `docs/MILESTONE_v3.2_EXECUTION_REPORT.md`
-- v3.3 (Pipeline Automation: RSS Fetch + Daily Digest + Cron) — `.planning/MILESTONE_v3.3_REQUIREMENTS.md`
+- v3.1 (Single-Article Ingest Stability, 26 reqs) — `docs/MILESTONE_v3.1_CLOSURE.md` + `.planning/archive/closed-milestones/MILESTONE_v3.1_MORNING_SUMMARY.md`
+- v3.2 (Batch Reliability + Infra) — `.planning/archive/closed-milestones/MILESTONE_v3.2_REQUIREMENTS.md` + `docs/MILESTONE_v3.2_EXECUTION_REPORT.md`
+- v3.3 (Pipeline Automation: RSS Fetch + Daily Digest + Cron) — `.planning/archive/closed-milestones/MILESTONE_v3.3_REQUIREMENTS.md`
 
 ---
 

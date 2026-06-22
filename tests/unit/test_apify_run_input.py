@@ -68,6 +68,63 @@ class _FakeApifyClient:
         return _FakeDatasetClient()
 
 
+class _FakeRun:
+    """Synthetic apify-client 3.0 Run object — attribute access, not subscriptable.
+
+    Used to lock the SDK 3.0 happy path after the 2026-06-09 breaking-change
+    fix at ingest_wechat.py:_apify_call (`getattr(run, "default_dataset_id")`
+    instead of `run["defaultDatasetId"]`). 3.0 returns a typed Run that raises
+    `'Run' object is not subscriptable` on dict access.
+    """
+
+    def __init__(self, default_dataset_id: str) -> None:
+        self.default_dataset_id = default_dataset_id
+
+    def __getitem__(self, key: str) -> Any:
+        raise TypeError("'Run' object is not subscriptable")
+
+
+class _FakeActorClient3(_FakeActorClient):
+    """SDK 3.0 variant — returns a typed Run object instead of a dict."""
+
+    def call(self, **kwargs: Any) -> _FakeRun:
+        self._captured["call_count"] = self._captured.get("call_count", 0) + 1
+        self._captured["kwargs"] = kwargs
+        return _FakeRun("ds-fake-3-0")
+
+
+class _FakeApifyClient3(_FakeApifyClient):
+    """SDK 3.0 variant of _FakeApifyClient — actor() returns _FakeActorClient3."""
+
+    def actor(self, actor_id: str) -> _FakeActorClient3:
+        self.captured["actor_id"] = actor_id
+        return _FakeActorClient3(self.captured)
+
+
+@pytest.mark.asyncio
+async def test_apify_call_handles_sdk_3_typed_run(monkeypatch):
+    """SDK 3.0 returns a Run object that raises on subscript; fix uses attr."""
+    instances: list[_FakeApifyClient3] = []
+
+    def _factory(token: str) -> _FakeApifyClient3:
+        client = _FakeApifyClient3(token)
+        instances.append(client)
+        return client
+
+    monkeypatch.setattr(ingest_wechat, "ApifyClient", _factory)
+
+    result = await ingest_wechat._apify_call(
+        token="t-test", url="https://mp.weixin.qq.com/s/fake3"
+    )
+
+    # The fix must NOT raise 'Run' object is not subscriptable.
+    assert result is not None, "SDK 3.0 path produced None — attr access broken"
+    assert result["method"] == "apify"
+    captured = instances[0].captured
+    # Dataset id was extracted via attribute, then passed to client.dataset(...)
+    assert captured.get("dataset_id") == "ds-fake-3-0"
+
+
 @pytest.mark.asyncio
 async def test_apify_call_passes_max_items_1(monkeypatch):
     """_apify_call must pass max_items=1 as a kwarg to ApifyClient.actor(...).call().

@@ -157,12 +157,15 @@ _PER_IMAGE_S = 30               # T1 (2026-05-13): vision cascade per image, wit
                                 # No image-side cap: vision cascade (SiliconFlow primary +
                                 # OpenRouter fallback) is stable; large articles let cascade
                                 # finish naturally rather than truncating image set.
-_SINGLE_CHUNK_FLOOR_S = 1200    # 260517-flo: raised from 900 after 5/17 cron showed
+_SINGLE_CHUNK_FLOOR_S = int(os.getenv("OMNIGRAPH_CHUNK_FLOOR_S", "1800"))
+                                # 260517-flo: raised from 900→1200 after 5/17 cron showed
                                 # text-heavy + medium-image (8-14 imgs / 7+ chunks) consistently
                                 # exceeded 900 floor due to LightRAG queue depth + DeepSeek per-chunk
                                 # variance. id=1072 (8 imgs / 7 chunks) hit 900 timeout, formula
                                 # naturally returned 900 (text+image term = 570 < floor). 300s headroom
                                 # absorbs realistic worst case without affecting articles that finish fast.
+                                # 260603 ISSUES #33: image-heavy KOL articles need >20min budget;
+                                # env-override allowed via OMNIGRAPH_CHUNK_FLOOR_S. Default 1200→1800.
 
 
 _MD_IMAGE_RE = re.compile(r'!\[[^\]]*\]\([^)]+\)')
@@ -2282,6 +2285,25 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.warning("Interrupted by user (Ctrl+C) — storages finalized in coroutine finally block")
         sys.exit(130)
+
+    # ISSUES #45 fix (2026-06-11): asyncio.run() returns cleanly after
+    # `Successfully finalized 12 storages` + `Metrics written`, but third-party
+    # C-level threads (Vertex SDK HTTP/2, google-genai async client,
+    # qdrant-client gRPC connection pools) keep the interpreter alive during
+    # Py_Finalize()'s thread join, hanging the process in `S` state for 50+
+    # minutes. Repo audit: 0 atexit handlers + 0 application-side
+    # threading.Thread → asyncio.run() already ran loop.shutdown_asyncgens()
+    # + shutdown_default_executor() + loop.close(), so no application cleanup
+    # is skipped. Hard-exit: flush buffered I/O + drain log handlers, then
+    # os._exit(0) bypasses Py_Finalize (exits via _exit(2) syscall; the
+    # third-party threads are stateless connection pools the OS reclaims).
+    # Cross-platform recurrences: Hermes 6/8 (PID 2623821), Aliyun 6/9
+    # (PID 1826054), Aliyun 6/11 (PID 1552490 — deep-probe confirmed 0 fds
+    # + 0 .tmp + graphml parses cleanly = data safe, process won't exit).
+    sys.stdout.flush()
+    sys.stderr.flush()
+    logging.shutdown()
+    os._exit(0)
 
 
 if __name__ == "__main__":

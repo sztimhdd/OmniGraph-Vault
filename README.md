@@ -20,15 +20,20 @@
 > - Observability: daily reconcile canary (RSS+KOL dual scope), h09 verification, Pattern A budget logger
 > - Resilience: atomic commits, version-bumped prompts auto-reclassify, Vertex AI paid embedding
 >
-> ### v1.0.x patch candidates (in flight)
-> - **Patch A (in flight)**: Layer 2 v1 prompt with HARD-KEEP RULE 0 + LF-2.7 English long-form relaxation. Targets ~52% real-body Layer 2 false-negative rate found in 2026-05-13 audit (21/40 English long-form blogs unjustly rejected as "无机制")
-> - **Patch B (shipped 2026-05-13, commit `a7a8ab6` + `3740678`)**: scrape_fail pre-check rescues 7 RSS articles with project HARD-KEEP keywords lost to scrape failures
+> ### v1.0.x — closed 2026-05-17
+> - **Patch A (closed 2026-05-13)**: Layer 2 v1 prompt with HARD-KEEP RULE 0 + LF-2.7 English long-form relaxation — RSS pass rate 21%→74% (3.5x), 5/5 false-negatives flipped.
+> - **Patch B (closed 2026-05-13, commit `a7a8ab6` + `3740678`)**: scrape_fail pre-check rescues 7 RSS articles with project HARD-KEEP keywords lost to scrape failures.
 >
-> ### Known v1.x scope (not v1.0 blockers)
-> - **Throughput**: daily-ingest currently ~3 articles/run × 1 cron/day; vision pipeline single-article timeout ate 30%+ of 09:00 cron wallclock; needs vision parallelism + max-articles cap raise
-> - **Vision timeout scaling**: 51-image article hit 900s cap despite `_compute_article_budget_s` calculating 1620s budget (T1 fix in flight)
+> ### Closed 2026-05-24
+> - **aim-1**: Vertex AI paid-tier SA JSON cutover (`24aa9ef` + `ba889ee` 7/7 UAT, live since 2026-05-17, 23+ days stable).
+> - **aim-2**: Aliyun LightRAG storage transplant — byte-identical to Hermes (27654 ent / 39604 rel Δ=0); Hermes frozen RO until 2026-06-22.
+> - **aim-3**: Aliyun systemd timers cron LIVE — 14 omnigraph-* timers (3 ingest + 11 housekeeping).
+> - **agentic-rag-v1**: 41/41 REQs + 165 tests; long_form synthesize via DeepSeek + LightRAG hybrid mode shipped.
 >
-> **Stats (2026-05-13)**: 94 articles in graph (87 KOL + 7 RSS) · 11 Hermes agent cron jobs · 14 KOL accounts · 5 RSS domains active · ~$1-5/day operating cost
+> ### v1.1 in flight (2026-06)
+> - **arx-2 / arx-3 / aim-4 / aim-5 / repo-cleanup** — see ROADMAP / STATE
+>
+> **Stats (2026-06-09)**: ~28k entities / ~40k relationships in Aliyun graphml + 54k entities / 75k relationships in Aliyun Qdrant · 14 systemd timers cron LIVE on Aliyun · Hermes RO frozen until 2026-06-22 (post aim-2 cutover) · ~$1-5/day operating cost (Vertex paid + DeepSeek + SiliconFlow Vision)
 >
 > **Cognee memory layer was retired 2026-05-10** (quick `260510-gfg`). Sections below referencing Cognee describe the historical architecture; current production uses LightRAG entity/edge construction directly. See [CLAUDE.md](CLAUDE.md) for current architecture.
 
@@ -45,21 +50,21 @@
 Modern AI agents (like Openclaw and Hermes Agent) excel at task execution but lack persistent, structured memory across sessions. OmniGraph-Vault fills this gap by providing:
 - **Structured Knowledge Storage**: Content is indexed as a graph (entities, relationships, concepts) rather than flat text.
 - **Multimodal Context**: Images are downloaded, described by vision AI, and stored locally — enabling rich visual context in agent responses.
-- **Session-Aware Memory**: Integrated with **Cognee** to remember user preferences, query patterns, and canonicalize entities over time.
 - **Local & Private**: All data stays on your machine; no external knowledge-base SaaS required.
 
 ### 🚀 Core Features
-- **Triple-Path Scraper**: Primary scraping via **Apify AI**; fallback to **local CDP** (Edge ) in production, or **remote Playwright MCP** server for local dev/testing — auto-detected from .
-- **Multimodal KG Ingestion**: Extracts text and images from articles. Every image receives a semantic description from **Gemini Vision** and is linked in the knowledge graph.
-- **Stateful Intelligence**: **Cognee** memory layer tracks conversation history, learns user interests, and merges synonymous concepts (e.g., “知识图谱” ↔ “Knowledge Graph”).
+- **Triple-Path Scraper (Apify SDK 3.0 + CDP + MCP)**: Primary via **Apify** (SDK 3.0, dual-compat with 2.x typed `Run` objects); production fallback to **local Edge CDP** (port 9223); local-dev/testing fallback to **remote Playwright MCP** server — auto-detected from `CDP_URL` (`/mcp` suffix routes to MCP client).
+- **Multimodal KG Ingestion**: Extracts text and images from articles. Every image receives a semantic description from the **Vision Cascade** (SiliconFlow primary → OpenRouter → Gemini fallback) and is linked in the knowledge graph.
 - **Local Media Persistence**: Built‑in image server (port 8765) ensures visual content remains accessible even if original online links disappear.
 - **Agent‑Ready APIs**: Simple Python interfaces for ingestion, query, and synthesis that can be called from Openclaw, Hermes Agent, or any other automation workflow.
 
 ### 🛠 Technology Stack
-- **KG Engine**: [LightRAG](https://github.com/HKU-Smart-OT/LightRAG)
-- **Memory Layer**: [Cognee](https://github.com/topoteretes/cognee)
-- **LLM / Vision**: Google Gemini 2.5 Pro & Flash models
-- **Scraping**: Apify SDK + Playwright CDP (local production) / Playwright MCP server (remote testing)
+- **KG Engine**: [LightRAG](https://github.com/HKU-Smart-OT/LightRAG) (vendored atomic-write patch — see CLAUDE.md)
+- **LLM**: DeepSeek chat (production primary, openai-compatible client)
+- **Embedding**: Vertex AI Gemini SA JSON (`gemini-embedding-2` on `GOOGLE_CLOUD_LOCATION=global`, paid tier since 2026-05-17)
+- **Vision**: SiliconFlow Qwen3-VL-32B primary → OpenRouter → Gemini fallback cascade
+- **Scraping**: Apify SDK 3.0 + Playwright CDP (local production) / Playwright MCP server (remote testing)
+- **Vector storage**: Qdrant (Aliyun production) / NanoVectorDB JSON (local dev)
 - **Infrastructure**: Python 3.11+, local HTTP server, config‑driven paths
 
 ### 📦 Quick Start

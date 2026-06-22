@@ -88,7 +88,17 @@ When the root page shows the login landing (no QR code on login page, just "使�
              "returnByValue": true},
      target_id="<tab-id>")
    ```
-   Expected pre-filled values: `"account: huhai.orion@g"` and `"password: Hardun.575"`. If fields show empty, the browser's saved credentials may have been cleared.
+   Expected pre-filled values come from the browser's saved credentials, which must match
+   `${WECHAT_MP_ACCOUNT}` / `${WECHAT_MP_PASSWORD}` set in `~/.hermes/.env` (NOT committed to the repo).
+   Verify the account field shows the configured account (first chars only) and password is
+   non-empty. If fields show empty, the browser's saved credentials may have been cleared —
+   re-enter them in the Edge profile, and ensure `~/.hermes/.env` carries the same values for any
+   scripted fallback.
+
+   > **Security:** This account password was previously committed as a literal in this public
+   > repo (redacted 2026-06-19, ISSUES #58). The password MUST be rotated; redaction alone does
+   > not undo the historical git exposure. The B-level scripted fallback reads `${WECHAT_MP_ACCOUNT}` /
+   > `${WECHAT_MP_PASSWORD}` from `~/.hermes/.env`, never a hardcoded value.
 3. **Click the "登录" button** — The `.btn_login` element is SPA-rendered and may not have a stable ref in the accessibility tree. Use CDP click:
    ```json
    browser_cdp(method="Runtime.evaluate",
@@ -207,7 +217,7 @@ Check for "AI老兵日记", "原创", "新的创作" in the returned text. If fo
   4. Dashboard visible → session recovered, proceed to Step 3.
   5. Still "请重新登录" → cookies truly expired → enter **QR Code Login Flow** (see full procedure below). After login succeeds, proceed to Step 3 (credential extraction). If login times out → STOP.
 - **CDP unreachable** (browser_navigate fails) → send Telegram:
-  "⚠️ CDP 浏览器不可达（端口 9223）" → STOP.
+  "⚠️ CDP 浏览器不可达（端口 9222）" → STOP.
 
 ### Step 3: Extract credentials via CDP
 
@@ -398,7 +408,7 @@ instead of stopping and waiting for manual intervention.
   and view the image Hermes sent), and a second phone with the WeChat app to
   scan the first phone's screen. Confirmed working in live test 2026-05-01.
 - **CDP browser must be on a visible display.** The Edge instance running on the
-  Windows host at port 9223 must have a real screen — headless mode won't work
+  Windows host at port 9222 must have a real screen — headless mode won't work
   because WeChat checks for rendering surface.
 
 ### Step Q1: Navigate to the WeChat MP login page

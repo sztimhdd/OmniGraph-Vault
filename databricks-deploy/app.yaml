@@ -130,3 +130,22 @@ env:
   # for rollback compat (deprecated post-A; remove in v1.2).
   # - name: OMNIGRAPH_LLM_RERANK_FORCE_FAIL
   #   value: "0"
+
+  # arx-2-finish: Tavily API key for the research web_baseline + verifier
+  # web_search tools. Sourced from the kb-translate secret scope (key
+  # omnigraph_research_tavily_key) via the `tavily-key` resource below —
+  # NEVER plaintext here (app.yaml is git-tracked + public). With this set,
+  # web_baseline runs instead of emitting status="skipped (TAVILY_API_KEY unset)".
+  - name: TAVILY_API_KEY
+    valueFrom: tavily-key
+
+# arx-2-finish: app resource bindings. The Databricks Apps runtime resolves
+# each `env.valueFrom: <name>` against a same-named resource here. The app SP
+# (459ebc59-...) was granted READ on the kb-translate scope. Secret value is
+# never stored in this file — only the scope/key reference.
+resources:
+  - name: tavily-key
+    secret:
+      scope: kb-translate
+      key: omnigraph_research_tavily_key
+      permission: READ

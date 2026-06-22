@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Deploy session-invalid alert handler to Aliyun.
-# Run from local repo root. Uses ssh alias `aliyun-vitaclaw` (see ~/.ssh/config).
+# Run from local repo root. Uses ssh alias `aliyun-vitaclaw` (see ~/.ssh/config) by default.
+# Override the target for a rebuilt box via ALIYUN_SSH, e.g.
+#   ALIYUN_SSH="root@47.117.244.253" bash scripts/deploy-aliyun-session-alert.sh
 # Idempotent — safe to re-run.
 set -euo pipefail
 
-REMOTE=aliyun-vitaclaw
+REMOTE="${ALIYUN_SSH:-aliyun-vitaclaw}"
 REMOTE_DIR=/etc/systemd/system
 
 echo "[1/4] scp alert service unit ..."

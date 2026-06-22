@@ -649,6 +649,15 @@ def render_index_pages(
     )
     _write_atomic(output_dir / "ask" / "index.html", ask_html)
 
+    # Deep Research entry (arx-2-finish GAP B) — pages are NOT auto-discovered,
+    # so the SSG bake must explicitly render research.html. _write_atomic mkdir's
+    # the research/ parent. No hot_question_keys (research has no hot questions).
+    research_html = env.get_template("research.html").render(
+        lang="zh-CN",
+        page_url=f"{config.KB_BASE_PATH}/research/",
+    )
+    _write_atomic(output_dir / "research" / "index.html", research_html)
+
 
 def _compute_index_lastmod(articles: list[ArticleRecord]) -> str:
     """Deterministic build_date for sitemap index URLs (`/`, `/articles/`, `/ask/`).

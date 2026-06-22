@@ -304,3 +304,40 @@ async def test_verifier_records_parse_failure_as_discrepancy():
     assert any(
         "failed to parse confidence" in d for d in result.discrepancies
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 10 — SYNC web_search stub (TAVILY_API_KEY unset) must NOT crash with
+# "object list can't be used in 'await' expression" (arx-2-finish regression).
+#
+# Tests 2-9 all inject an AsyncMock web_search, so they never exercised the
+# production default — the SYNC ``_skipped_web_search`` stub config.py installs
+# when TAVILY_API_KEY is unset (the live Databricks condition). The verifier
+# awaited it unconditionally → TypeError → status="failed" on the deployed app.
+# This test pins the real sync stub so the bug cannot regress.
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+async def test_verifier_tolerates_sync_web_search_stub():
+    from lib.research.config import _skipped_web_search
+
+    call_count = {"n": 0}
+
+    async def mock_llm(prompt, tools):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return _LLMDecision(
+                is_final=False,
+                tool_calls=(
+                    _ToolCall(name="web_search", args={"query": "subq"}),
+                ),
+            )
+        return _LLMDecision(is_final=True, content="Done.", confidence=70.0)
+
+    # SYNC stub — exactly what from_env() installs when TAVILY_API_KEY is unset.
+    cfg = _make_cfg(mock_llm, web_search=_skipped_web_search)
+    result = await run_verifier("q", cfg, _make_reasoned())
+
+    # Must complete cleanly (NOT status="failed" with an await-TypeError reason).
+    assert result.status == "ok"
+    assert result.iter_count == 2
+    assert "can't be used in 'await'" not in (result.reason or "")

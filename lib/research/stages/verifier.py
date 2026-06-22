@@ -48,6 +48,7 @@ Hard requirements (verbatim from CONTEXT.md § ORCH-04):
 from __future__ import annotations
 
 import asyncio
+import inspect
 from dataclasses import dataclass, field
 
 from ..types import ReasonerOutput, ResearchConfig, Source, VerifierOutput
@@ -146,10 +147,13 @@ async def run(
     has_grounding = cfg.google_search_grounding is not None
 
     async def _web_search_tool(q: str) -> list[dict]:
-        # cfg.web_search is already cascade-wrapped from Wave 1 when both
-        # TAVILY_API_KEY and BRAVE_SEARCH_API_KEY are set; the Verifier treats
-        # it as a single async callable.
-        return await cfg.web_search(q)
+        # cfg.web_search is async when cascade-wrapped (Tavily/Brave keys set),
+        # but is the SYNC _skipped_web_search stub when TAVILY_API_KEY is unset
+        # (config.py:94). Awaiting the sync stub's list return raises
+        # "object list can't be used in 'await' expression" — so tolerate both:
+        # await only when the result is actually awaitable.
+        res = cfg.web_search(q)
+        return await res if inspect.isawaitable(res) else res
 
     async def _web_extract_tool(url: str) -> str:
         if cfg.web_extract is None:

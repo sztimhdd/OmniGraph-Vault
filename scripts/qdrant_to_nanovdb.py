@@ -57,12 +57,14 @@ META_FIELDS_BY_NAMESPACE: dict[str, set[str]] = {
 
 # Maps the Qdrant collection name to the on-disk vdb_<n>.json filename
 # LightRAG NanoVectorDBStorage expects. Collection naming follows
-# QdrantVectorDBStorage's `final_namespace = f"lightrag_vdb_{namespace}"`
-# (qdrant_impl.py:450) when no model_suffix is set.
+# QdrantVectorDBStorage's `final_namespace = f"lightrag_vdb_{namespace}_{model_suffix}"`
+# (qdrant_impl.py) — the model_suffix `gemini_embedding_2_3072d` is appended by
+# LightRAG when the embed func sets `model + dim` metadata. HC-2 locks 3072d
+# `gemini-embedding-2` for v1.x; if these change we update here and bump phase.
 NAMESPACE_TO_QDRANT_COLLECTION: dict[str, str] = {
-    "chunks": "lightrag_vdb_chunks",
-    "entities": "lightrag_vdb_entities",
-    "relationships": "lightrag_vdb_relationships",
+    "chunks": "lightrag_vdb_chunks_gemini_embedding_2_3072d",
+    "entities": "lightrag_vdb_entities_gemini_embedding_2_3072d",
+    "relationships": "lightrag_vdb_relationships_gemini_embedding_2_3072d",
 }
 
 

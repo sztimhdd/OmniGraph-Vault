@@ -54,7 +54,13 @@ def _status_is_processed(status_val) -> bool:
 # (30 × 2.0s) with OMNIGRAPH_PROCESSED_RETRY / OMNIGRAPH_PROCESSED_BACKOFF
 # env override; covers Phase 2 entity-merging on heavy WeChat articles.
 PROCESSED_VERIFY_MAX_RETRIES = int(os.getenv("OMNIGRAPH_PROCESSED_RETRY", "30"))
-PROCESSED_VERIFY_BACKOFF_S = float(os.getenv("OMNIGRAPH_PROCESSED_BACKOFF", "2.0"))
+PROCESSED_VERIFY_BACKOFF_S = float(os.getenv("OMNIGRAPH_PROCESSED_BACKOFF", "10.0"))
+# 260603 ISSUES #32: image-heavy article async post-ainsert
+# finalization can take >60s; 30 × 5.0 = 150s safer default.
+# 260606 ISSUES #39 (260606-bd-cache-async-quickwin A3): #32 budget 150s still
+# insufficient on heavy KOL — observed status=PENDING last_exc=None silent drop
+# in 06-04/06-05 evidence. Raise to 30 × 10.0 = 300s. Aliyun .env explicit
+# OMNIGRAPH_PROCESSED_BACKOFF=10.0 mirrors this for prod parity.
 
 # quick-260511-lmc: stable-state re-poll delay. After first 'processed' observation,
 # wait this many seconds and re-poll to confirm status is stable (not about to flip
@@ -822,7 +828,18 @@ async def _apify_call(token: str, url: str) -> "dict | None":
     run = await asyncio.wait_for(future, timeout=300)
     print("Apify run finished.")
 
-    results = [item for item in client.dataset(run["defaultDatasetId"]).iterate_items()]
+    # apify-client 3.0 returns a typed Run object (attr access); 2.x returned a
+    # dict (subscript). 3.0 is NOT subscriptable — old `run["defaultDatasetId"]`
+    # raises 'Run' object is not subscriptable. Try attribute first, fall back
+    # to dict subscript so both SDK majors work without a hard pin.
+    if run is None:
+        return None
+    dataset_id = getattr(run, "default_dataset_id", None)
+    if dataset_id is None and isinstance(run, dict):
+        dataset_id = run.get("defaultDatasetId")
+    if not dataset_id:
+        return None
+    results = list(client.dataset(dataset_id).iterate_items())
     if results:
         item = results[0]
         return {

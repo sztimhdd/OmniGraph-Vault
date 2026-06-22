@@ -99,8 +99,16 @@ async def test_research_with_live_kg_response(tmp_path, monkeypatch):
     )
     cfg = _make_cfg(tmp_path / "lightrag_storage")
 
+    # arx-2-finish GAP A: synthesizer no longer echoes the KG text verbatim into
+    # markdown — it synthesizes via get_llm_func() (here the research-dir autouse
+    # conftest mock returns stub prose). Pin the durable contract: the live KG
+    # text reaches result.sources (retriever → synthesizer.sources), and the
+    # confidence/sources wiring is intact. The retriever's kg_search result also
+    # feeds the synthesis prompt (covered by test_synthesizer_with_one_chunk).
     result = await research("What is LightRAG?", cfg)
-    assert kg_response in result.markdown
+    assert any(
+        kg_response in (s.snippet or "") for s in result.sources
+    ), "live KG response should surface in result.sources"
     assert result.confidence == 0.5
     assert len(result.sources) >= 1
 

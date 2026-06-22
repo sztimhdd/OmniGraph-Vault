@@ -1,0 +1,7 @@
+Jun 06 01:56:23 iZuf65iclmdqtv2ol6cazcZ python[3402177]: llm_rerank_init_start
+Jun 06 01:56:23 iZuf65iclmdqtv2ol6cazcZ python[3402177]: llm_rerank_init_ok provider=vertex_gemini wall_s=0.32
+Jun 06 01:57:22 iZuf65iclmdqtv2ol6cazcZ python[3405860]: llm_rerank_init_start
+Jun 06 01:57:23 iZuf65iclmdqtv2ol6cazcZ python[3405860]: llm_rerank_init_ok provider=vertex_gemini wall_s=0.23
+Jun 06 01:58:23 iZuf65iclmdqtv2ol6cazcZ python[3409419]: llm_rerank_init_start
+Jun 06 01:58:23 iZuf65iclmdqtv2ol6cazcZ python[3409419]: llm_rerank_init_ok provider=vertex_gemini wall_s=0.23
+Jun 06 02:00:18 iZuf65iclmdqtv2ol6cazcZ python[3409419]: INFO: Successfully reranked: 20 chunks from 209 original chunks

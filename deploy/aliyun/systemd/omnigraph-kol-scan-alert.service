@@ -1,7 +1,13 @@
 [Unit]
-Description=OmniGraph KOL scan failure alert (touches ~/.hermes/wechat-session-stale)
+Description=OmniGraph KOL scan failure alert (ssh-hermes refresh hand-off + stale breadcrumb)
 
 [Service]
 Type=oneshot
 User=root
+# 1. Breadcrumb (kept): record the cookie-expiry timestamp locally.
 ExecStart=/bin/bash -c 'mkdir -p /root/.hermes && date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ > /root/.hermes/wechat-session-stale'
+# 2. Hand-off (new, KCA-1): ssh to Hermes and launch the refresh wrapper DETACHED so this oneshot
+#    returns promptly (level-C QR polling can take ~5min — never block the unit on it). BatchMode
+#    never prompts; ConnectTimeout bounds an unreachable-Hermes case; the || ... systemd-cat makes a
+#    failed hand-off visible in the journal instead of silently failing.
+ExecStart=/bin/bash -c 'ssh -o BatchMode=yes -o ConnectTimeout=20 hermes "cd ~/OmniGraph-Vault && nohup python3 scripts/refresh_wechat_cookie.py >> ~/.hermes/kol-refresh.log 2>&1 &" || echo "kol-scan-alert: ssh hermes hand-off failed" | systemd-cat -t kol-scan-alert'

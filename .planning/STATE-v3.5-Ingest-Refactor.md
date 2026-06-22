@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v3.5-Ingest-Refactor
 milestone_name: — Ingest 筛选重构(双层 LLM filter,替换 classify 架构)
-status: deployed-in-observation
-stopped_at: "ir-4 deployed to Hermes 2026-05-20 (Steps 1-8 of HERMES-DEPLOY-ir-4.md complete); Step 10 24h audit pending."
-last_updated: "2026-05-20T20:00:00Z"
-last_activity: "2026-05-20 — ir-4 Hermes deploy COMPLETE. Step 7 smoke: 1 KOL ok (id=1133), 3 RSS skipped (Layer 1 reject expected). 3 active ingest crons confirmed (daily-ingest @09:00, afternoon @14:00, evening @21:00). Migration 008 was pre-applied (schema source column already present); no pre-mig008 backup taken — risk acceptable since dual-source schema already stable on Hermes."
+status: CLOSED
+stopped_at: "ir-3 retrospective audit CLOSED 2026-06-12 (quick 260612-duw). 4 measurable criteria pass; criteria 3+6 unverifiable (data rotation + missed process). ir-4 deployed Hermes 2026-05-20. All 4 phases complete. Milestone CLOSED."
+last_updated: "2026-06-12T00:00:00+08:00"
+last_activity: "2026-06-12 — ir-3 retrospective audit complete (quick 260612-duw). Criteria 1 (cron reliability), 2 (L1 reject 69.2%), 4 (cost ~¥9.4/mo), 5 (pass rate inferred from 0.23% ghost) all PASS. Criteria 3 (误杀 audit) and 6 (OBSERVATION.md) UNVERIFIABLE — data rotated + never logged. Conditional close accepted. Milestone v3.5-Ingest-Refactor CLOSED."
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 4
   total_plans: 0
   completed_plans: 0
 ---
@@ -39,7 +39,7 @@ Last activity: 2026-05-20 — Hermes deploy complete + 24h audit queued.
 | ----- | ---- | ---- | ------- | ------ |
 | ir-1 | Real Layer 1 + KOL ingest wiring | 14 | L | DONE (commit `f1a963b`) |
 | ir-2 | Real Layer 2 + full-body scoring | 11 | L | DONE (commit `f8e90ef`) |
-| ir-3 | Production cutover + 1-week observation | 1 | S (3 days + 7-day wall-clock) | **AUDIT-PENDING** — 12-day wall-clock window passed (started 2026-05-08, now 2026-05-20). 6 Success Criteria require operator-audit data: (1) 7-day zero-failed cron runs, (2) Layer 1 reject 50-70% band, (3) 30-article 误杀 audit, (4) monthly cost < ¥10, (5) end-to-end pass rate ≥ 90%, (6) `OBSERVATION.md` daily log. **Audit consolidated into ir-4 Step 10 24h audit (operator returns 2026-05-21)** — see `.scratch/ir-3-and-ir-4-audit-sop-260520.md`. ir-3 phase dir was never created; will be retroactively populated post-audit if criteria pass, or marked DEFERRED if criteria are unverifiable. |
+| ir-3 | Production cutover + 1-week observation | 1 | S (3 days + 7-day wall-clock) | **CLOSED (retrospective 2026-06-12)** — quick 260612-duw. Criteria 1/2/4/5 PASS; 3+6 UNVERIFIABLE (data rotated + log never kept). See `.planning/phases/ir-3-production-observation/ir-3-VERIFICATION.md`. |
 | ir-4 | RSS integration + dead-code cleanup | 4 | M | **DEPLOYED to Hermes 2026-05-20** — 5 atomic commits pushed 2026-05-09 (`5d943f8`/`df495c8`/`4cc3757`/`9ff330d`/`2b21c9c` W5 close-out); Hermes deploy complete via HERMES-DEPLOY-ir-4.md Steps 1-8. Step 7 smoke: 1 KOL ok (id=1133) + 3 RSS skipped (Layer 1 reject expected). Step 10 24h audit pending (operator returns 2026-05-21). **Scope deviation** (ack'd): user prompt redirected LF-5.1/5.2 from REQ-text targets to retiring `enrichment/rss_classify.py` + `rss_ingest.py` instead. Original LF-5.1/5.2/5.3 deletions remain pending in a follow-up. **Note**: migration 008 was pre-applied on Hermes (Step 4 SKIP); no pre-mig008 backup taken at deploy time — schema risk acceptable since dual-source already stable. |
 
 Total: 30/30 v1 REQs mapped, 0 orphans.
@@ -75,7 +75,7 @@ Step 6 baseline: KOL=247, RSS=109, total=356 candidates (well below local-snapsh
 
 ## Parallel-Track Boundary
 
-This STATE file tracks v3.5-Ingest-Refactor ONLY. v3.4 progress remains in `.planning/STATE.md`. Agentic-RAG-v1 progress remains in `.planning/STATE-Agentic-RAG-v1.md`.
+This STATE file tracks v3.5-Ingest-Refactor ONLY. v3.4 progress remains in `.planning/STATE.md`. Agentic-RAG-v1 progress remains in `.planning/archive/closed-milestones/STATE-Agentic-RAG-v1.md`.
 
 The three milestones share:
 
@@ -86,7 +86,7 @@ The three milestones share:
 The three milestones do NOT share:
 
 - Phase numbering (v3.4 uses 19-22; Agentic-RAG-v1 uses `ar-N`; this uses `ir-N`)
-- Sibling planning files (this file vs `STATE.md` vs `STATE-Agentic-RAG-v1.md`)
+- Sibling planning files (this file vs `STATE.md` vs `archive/closed-milestones/STATE-Agentic-RAG-v1.md`)
 - Execute gates / blockers
 
 ## Current Hermes Operational State (post-deploy 2026-05-07 ~16:35 ADT)

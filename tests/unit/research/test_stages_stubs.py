@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -483,9 +484,25 @@ async def test_synthesizer_with_one_chunk(tmp_path):
         reason="stub",
     )
 
-    out = await synthesizer_stage.run("hello", cfg, state)
+    # arx-2-finish GAP A: synthesizer now synthesizes via get_llm_func() instead
+    # of echoing chunks[0].snippet verbatim. Pin the NEW contract: the chunk
+    # content flows into the LLM PROMPT (not verbatim into markdown), the real
+    # LLM prose becomes the markdown, and confidence/notes invariants hold.
+    captured = {}
+
+    async def _capture_llm(prompt, **kw):
+        captured["prompt"] = prompt
+        return "# Synthesized\n\nReal answer prose."
+
+    with mock.patch(
+        "lib.research.stages.synthesizer.get_llm_func",
+        return_value=_capture_llm,
+        create=True,
+    ):
+        out = await synthesizer_stage.run("hello", cfg, state)
     assert isinstance(out, SynthesizerOutput)
-    assert "The KG content here." in out.markdown
+    assert "The KG content here." in captured["prompt"]  # chunk → prompt
+    assert "Real answer prose." in out.markdown  # LLM prose → markdown
     assert len(out.note_lines) >= 1
     assert out.confidence == 0.5
 
@@ -535,7 +552,19 @@ async def test_synthesizer_chinese_title(tmp_path):
         chunks=[Source(kind="kg_chunk", uri="x", snippet="内容")],
         image_candidates=[],
     )
-    out = await synthesizer_stage.run("什么是 Hermes 的深度解析", cfg, state)
+
+    # arx-2-finish GAP A: the hardcoded Chinese title is now the GRACEFUL-DEGRADE
+    # title (LLM-failure fallback). Force the degrade path to assert the language
+    # routing still selects the Chinese fallback heading.
+    async def _failing_llm(prompt, **kw):
+        raise RuntimeError("forced degrade")
+
+    with mock.patch(
+        "lib.research.stages.synthesizer.get_llm_func",
+        return_value=_failing_llm,
+        create=True,
+    ):
+        out = await synthesizer_stage.run("什么是 Hermes 的深度解析", cfg, state)
     assert out.markdown.startswith("# 关于「")
 
 
@@ -550,7 +579,18 @@ async def test_synthesizer_english_title(tmp_path):
         chunks=[Source(kind="kg_chunk", uri="x", snippet="body")],
         image_candidates=[],
     )
-    out = await synthesizer_stage.run("What is Hermes Harness", cfg, state)
+
+    # arx-2-finish GAP A: the hardcoded English title is now the GRACEFUL-DEGRADE
+    # title. Force the degrade path to assert language routing selects it.
+    async def _failing_llm(prompt, **kw):
+        raise RuntimeError("forced degrade")
+
+    with mock.patch(
+        "lib.research.stages.synthesizer.get_llm_func",
+        return_value=_failing_llm,
+        create=True,
+    ):
+        out = await synthesizer_stage.run("What is Hermes Harness", cfg, state)
     assert out.markdown.startswith("# Research Answer:")
 
 

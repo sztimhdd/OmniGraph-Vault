@@ -277,9 +277,14 @@ class EmbeddingFunc:
     async def __call__(self, *args: Any, **kwargs: Any) -> np.ndarray:
         return await self.func(*args, **kwargs)
 
+# 260606-bd-cache-async-quickwin A2 (#39 mitigation): opt-in cross-article
+# embedding cache. Default OFF — set OMNIGRAPH_EMBEDDING_CACHE=1 to enable.
+# wrap() is no-op when env flag absent → byte-identical pre-A2 behavior.
+from .llm_cache_embedding_global import wrap as _wrap_embedding_cache
+
 embedding_func = EmbeddingFunc(
     embedding_dim=EMBEDDING_DIM,
-    func=_embed,
+    func=_wrap_embedding_cache(_embed),
     max_token_size=EMBEDDING_MAX_TOKENS,
     model_name=EMBEDDING_MODEL,
 )

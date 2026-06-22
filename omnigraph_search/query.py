@@ -31,9 +31,15 @@ from lib.llm_complete import get_llm_func
 
 _log = logging.getLogger(__name__)
 
-# GEMINI_API_KEY is still required for EMBEDDING (_embedding_func). LLM now
-# uses DEEPSEEK_API_KEY, validated at lib.llm_deepseek import time.
+# Embedding auth: lib.lightrag_embedding runs in Vertex-SA mode when
+# GOOGLE_APPLICATION_CREDENTIALS is set (SA JSON auth, api_key unused) and in
+# free-tier mode when only GEMINI_API_KEY is set. The guard below accepts
+# EITHER — requiring GEMINI_API_KEY unconditionally was a stale check that
+# wrongly blocked the Databricks deploy (Vertex SA + databricks_serving Claude,
+# no GEMINI_API_KEY). LLM uses OMNIGRAPH_LLM_PROVIDER (deepseek/databricks/vertex).
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# Mirror lib.lightrag_embedding._is_vertex_mode() — SA mode needs no api key.
+_VERTEX_SA_MODE = bool(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
 
 
 async def search(
@@ -63,8 +69,11 @@ async def search(
         ValueError: If GEMINI_API_KEY is not present in the environment
             (required for the embedding path).
     """
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY not found in environment.")
+    if not GEMINI_API_KEY and not _VERTEX_SA_MODE:
+        raise ValueError(
+            "No embedding auth: set GEMINI_API_KEY (free-tier) or "
+            "GOOGLE_APPLICATION_CREDENTIALS (Vertex SA mode)."
+        )
 
     if rag is None:
         # CLI fallback (skill_runner / `python -m omnigraph_search.query`):
