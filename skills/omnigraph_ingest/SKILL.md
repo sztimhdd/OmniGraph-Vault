@@ -187,7 +187,42 @@ except FileNotFoundError:
    cd ~/OmniGraph-Vault && bash scripts/ingest.sh "<original_url>"
    ```
 
-**Prevention:** None currently — this is a race condition between batch ingest and LightRAG's async graph merge pipeline. The `lightrag_health_check` reference has additional diagnostic steps.
+**Fix:** manual ingest of the specific URL with `scripts/ingest.sh <url>` after the pipeline completes.
+
+### F7: OOM Kill — LightRAG NanoVectorDB memory explosion
+
+**User-facing symptom:** \"Why does a simple ingest need 10GB RAM?\" — the KB homepage
+stops updating, ingest jobs silently fail, and `systemctl status` shows exit=9/KILL.
+
+**System-level symptom:** ingest cron exits with `status=9/KILL` or `result 'oom-kill'`.
+`dmesg` shows Python process `anon-rss: ~10.9 GB` on a 14 GB machine.
+
+**Root cause:** LightRAG's default `NanoVectorDBStorage` loads the entire vector
+JSON into Python heap. 3072-dim Gemini embedding vectors stored as JSON float arrays
+→ each float is a PyObject (28B) + list pointer (8B) = 36 bytes → 4× amplification vs raw
+float32. Combined with kb-api (2.2 GB) + Docker (0.8 GB) → exceeds machine RAM.
+
+**Diagnosis pipeline** (run in order, each step narrows the cause):
+1. `dmesg | grep -i "oom.*killed" | tail -10` — confirm OOM kill happened
+2. `du -sh lightrag_storage/` — check total vector DB size (expect >2 GB when failing)
+3. `head -c 500 lightrag_storage/vdb_entities.json` — confirm `embedding_dim` (3072)
+4. `grep -c '"vector"' lightrag_storage/vdb_entities.json` — count vectors
+5. `ps aux | grep batch_ingest | awk '{print $2, $6/1024/1024 " GB"}'` — check RSS
+6. Compare with: kb-api RSS + Docker RSS + OS baseline → total must be < machine RAM
+
+**Community research** (when user asks "what are others doing?"):
+Search 3 angles: (a) \"lightrag memory optimization\", (b) \"nano-vectordb memory blowup\",
+(c) \"LightRAG vector storage backend\". LightRAG supports 8 backends — present the
+Decision Framework from `references/oom-diagnosis-and-qdrant-migration.md`:
+FaissVectorDB (fastest), Qdrant (stable), PGVector (if Postgres exists).
+
+**Fix:** Switch to external vector store (Qdrant recommended — free, mmap, separate
+process). 2-line code change + 1 `docker run` command. Requires full re-ingest from
+kol_scan.db (287 articles, ~$0.01 embedding cost). Full procedure in
+`references/oom-diagnosis-and-qdrant-migration.md`.
+
+**Prevention:** Monitor `du -sh lightrag_storage/vdb_*.json` weekly. When total exceeds
+6 GB disk → Python RSS will exceed 10 GB → schedule Qdrant migration before it OOMs.
 
 ## Error Handling
 
@@ -581,3 +616,4 @@ cd ~/OmniGraph-Vault && git pull --ff-only && git log --oneline origin/main -3
 - `references/cron-monitor-example-20260509.md` — cron tick overlap monitoring workflow
 - `references/db-schema.md` — database schema reference
 - `references/manual-catch-up-batch.md` — manual bulk catch-up ingest workflow
+- `references/oom-diagnosis-and-qdrant-migration.md` — OOM root cause analysis (dmesg, RSS accounting, vector memory amplification) + Qdrant migration path

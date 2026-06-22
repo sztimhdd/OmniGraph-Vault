@@ -258,6 +258,36 @@ Even when a dashboard tab shows a fully active session ("AI老兵日记", stats,
    Use `browser_cdp` with `returnByValue=true` for extraction — this API
    returns the **real** value and does NOT redact.
 
+   **⚠️ Shell quoting breaks TOKEN transfer (remote server patching)**
+
+   When transferring TOKEN values to Aliyun via `ssh` or `scp`, shell
+   quoting can silently corrupt the value. The TOKEN is a numeric string
+   (e.g., `1675777528`) but the `***` redacted display in tool output
+   means `sed`/`python3 -c` replacements may write the literal `***` string.
+
+   **Fix:** Use base64 encoding for all remote TOKEN writes:
+
+   ```bash
+   # 1. Encode locally
+   echo -n "1675777528" | base64
+
+   # 2. Decode + write on remote
+   ssh vitaclaw-aliyun 'NEW_TOKEN=$(echo "MTY3NTc3NzUyOA==" | base64 -d); \
+     sed -i "s/^TOKEN=.*/T...<<NEW_TOKEN>>...>/kol_config.py'
+   ```
+
+   **Verification:** Always check the hex representation to confirm
+   redacted `***` was NOT written:
+   ```bash
+   ssh vitaclaw-aliyun 'python3 -c "
+   with open(\"/root/OmniGraph-Vault/kol_config.py\", \"rb\") as f:
+       data = f.read()
+   idx = data.find(b\"TOKEN=\")
+   print(f\"hex: {data[idx:idx+30].hex()}\")
+   "'
+   # If hex contains 2a2a2a (***), redacted display was written → re-do with base64
+   ```
+
    **⚠️ CSRF token mismatch (ret=200040) after QR login**
 
    After a successful QR code login, the dashboard URL shows a new `?token=XXXXX`.
