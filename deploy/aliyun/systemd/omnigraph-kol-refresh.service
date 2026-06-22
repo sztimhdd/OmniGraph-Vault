@@ -1,0 +1,23 @@
+[Unit]
+Description=OmniGraph KOL pre-scan cookie refresh (proactive — ssh-hermes CDP refresh before the daily scan)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+# Proactive refresh (KCA — "never block the scan"): ssh to Hermes and run the refresh wrapper
+# SYNCHRONOUSLY (not detached — we want a fresh cookie BEFORE the 19:00 scan fires). Bound the whole
+# thing so a hung/unreachable Hermes never blocks the timeline:
+#   - ConnectTimeout=20 caps the ssh dial
+#   - the remote `timeout 240` caps the wrapper (level-A is seconds; level-C QR-poll is ~5min but we
+#     do NOT want pre-scan to block that long — if it needs a human QR scan, the wrapper already
+#     Telegram-notifies, and the scan will fail-then-OnFailure-retry as the belt-and-suspenders path)
+#   - the || ... systemd-cat makes any failure visible in the journal, but DOES NOT fail the scan:
+#     this unit is best-effort; the scan + its OnFailure alert remain the safety net.
+ExecStart=/bin/bash -c 'ssh -o BatchMode=yes -o ConnectTimeout=20 hermes "cd ~/OmniGraph-Vault && timeout 240 python3 scripts/refresh_wechat_cookie.py >> ~/.hermes/kol-refresh.log 2>&1" || echo "kol-refresh: pre-scan ssh-hermes refresh failed (scan + OnFailure remain the safety net)" | systemd-cat -t kol-refresh'
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

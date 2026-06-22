@@ -1,0 +1,12 @@
+[Unit]
+Description=OmniGraph KOL pre-scan cookie refresh timer (5 min before the daily scan)
+Requires=omnigraph-kol-refresh.service
+
+[Timer]
+# Daily scan fires at 11:00:00 UTC (= 19:00 CST). Refresh 5 min before so the cookie is fresh
+# when the scan runs. Persistent=true catches up a missed run after downtime.
+OnCalendar=*-*-* 10:55:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
