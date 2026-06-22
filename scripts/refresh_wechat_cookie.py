@@ -285,8 +285,26 @@ def _js_str(value):
     return json.dumps(value)
 
 
+def _ensure_scan_login_view(client):
+    """Click the 扫码登录 (scan-login) tab so the QR <img> renders.
+
+    WeChat's login landing defaults to the ACCOUNT-login view (使用账号登录), where
+    the scan QR element does not exist yet. Live testing showed _capture_qr bailing
+    with 'QR element not found' for exactly this reason. Clicking the 扫码登录 tab
+    first switches to the scan view and renders QR_SELECTOR. No-op if already on it.
+    """
+    client.evaluate(
+        "(function(){var els=Array.from(document.querySelectorAll('a,div,span,li,button'));"
+        "var t=els.find(function(e){return e.textContent.trim()==='扫码登录';});"
+        "if(t){t.click();return 'clicked';}return 'no_scan_tab';})()"
+    )
+    time.sleep(2)
+
+
 def _capture_qr(client):
     """Capture the QR via canvas toDataURL, save to QR_PNG_PATH. True on success."""
+    # WeChat defaults to account-login; switch to the scan view so the QR renders.
+    _ensure_scan_login_view(client)
     exists = client.evaluate(
         "document.querySelector('" + QR_SELECTOR + "') ? 'found' : 'not_found'"
     )
