@@ -205,3 +205,13 @@ Local 5-step gate green with full evidence. Databricks deploy + post-deploy UAT 
 > ALSO (non-fatal, deferred): web_baseline shows status=failed when live Tavily call errors
 > on Databricks egress — best-effort stage, never raises, pipeline proceeds (cosmetic red).
 > **Awaiting user re-UAT #4: full run completes <300s to synthesizer + sources>0.**
+
+> **2026-06-23 web_baseline 401 root-caused + fixed.** re-UAT showed `web_baseline reason=
+> 401 Unauthorized` from api.tavily.com (NOT egress-blocked — app reached Tavily, key
+> rejected) while `retriever | ok`. Both user-supplied keys tested VALID directly (HTTP 200),
+> so the deployed app was sending a MANGLED value: the original `put-secret --string-value -`
+> stdin store corrupted it (Windows stdin /truncation). Binding chain verified correct
+> end-to-end (scope key omnigraph_research_tavily_key -> app resource tavily-key -> env
+> TAVILY_API_KEY -> config.py:67 -> tavily_search api_key). Re-stored the key cleanly via
+> file (exactly 41 bytes, no newline) + redeployed 01f16f2a4ae112109eb1a48c52bfcd34 SUCCEEDED.
+> **Awaiting final re-UAT: web_baseline ok + all 5 stages green to synthesizer + sources>0.**
