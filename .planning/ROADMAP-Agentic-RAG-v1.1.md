@@ -29,8 +29,9 @@ Two phases mirror the two tracks. Strictly serial because:
 
 ## Phases
 
-- [ ] **Phase arx-1-images** — Retriever chunk-by-chunk + hash extraction + image globbing; Synthesizer URL flip; TEST-05 condition (a) 0 → ≥3.
-- [ ] **Phase arx-2-http** — `POST /api/research` SSE endpoint in `kb/api_routers/research.py`; wired in `kb/api.py`; local Databricks UAT 5-step gate; deploy preflight checkpoint; Databricks Apps deploy + post-deploy UAT.
+- [x] **Phase arx-1-images** — Retriever chunk-by-chunk + hash extraction + image globbing; Synthesizer URL flip; TEST-05 condition (a) 0 → ≥3. ✅ CLOSED PASS 2026-05-25 (`39c8f43`).
+- [x] **Phase arx-2-http** — `POST /api/research` SSE endpoint in `kb/api_routers/research.py`; wired in `kb/api.py`; local Databricks UAT 5-step gate; deploy preflight checkpoint; Databricks Apps deploy + post-deploy UAT. ✅ CLOSED PASS 2026-05-25 (`38a7286`, transport layer).
+- [x] **Phase arx-2-finish** — Deep Research usable in KB UI on BOTH Aliyun + Databricks: real LLM synthesis (GAP A), full /research/ frontend (GAP B), E2E proof each env (GAP D/E). ✅ CLOSED PASS 2026-06-23. Aliyun Branch A full + Databricks Branch A full @ iterations=1 (300s-cap; deep-iteration → async-job follow-up ISSUES #63). VERIFICATION: `.planning/phases/arx-2-finish/arx-2-finish-04-VERIFICATION.md`.
 
 ---
 

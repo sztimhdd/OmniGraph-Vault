@@ -2,7 +2,7 @@
 
 **Milestone:** Agentic-RAG-v1.1
 **Created:** 2026-05-24
-**Current status:** IN-PROGRESS — Track 1 closed PASS, Track 2 unblocked
+**Current status:** ✅ COMPLETE — arx-1-images CLOSED PASS, arx-2 (http + finish) CLOSED PASS 2026-06-23 (Databricks full @ iterations=1; Aliyun full; deep-iteration deferred to async-job follow-up #63)
 
 ---
 
@@ -11,7 +11,8 @@
 | Phase | Status | Commits | Notes |
 |---|---|---|---|
 | arx-1-images | ✅ CLOSED PASS (2026-05-25) | `39c8f43` | TEST-05 (a) 0 → 10 images on Hermes real-KG. See `.planning/quick/260524-arx-A-images/VERIFICATION-1.1-A.md` |
-| arx-2-http | UNBLOCKED | — | Ready for code (kb/api_routers/research.py SSE) + Databricks UAT 5-step gate |
+| arx-2-http | ✅ CLOSED PASS (2026-05-25) | `38a7286` | SSE endpoint + 5-stage orchestrator (transport layer). |
+| arx-2-finish | ✅ CLOSED PASS (2026-06-23) | `f02440e` `2a67a73` `b7f0645` `f746a7c` `8d98f61` | Deep Research usable in KB UI on BOTH envs. Real LLM synthesis (GAP A), full frontend /research/ (GAP B), Aliyun E2E Branch A + Databricks E2E Branch A (deployed `01f16f2a`, 11 sources, [1]-[11] cites). **Databricks limited to iterations=1** (300s HTTP-cap; deep-iteration → async-job follow-up #63). See `.planning/phases/arx-2-finish/arx-2-finish-04-VERIFICATION.md`. |
 
 ---
 
@@ -45,3 +46,4 @@ None at scaffold time. All resolved in PROJECT-Agentic-RAG-v1.1.md and user 2026
 
 - 2026-05-24 — Scaffold landed (this file + PROJECT/REQUIREMENTS/ROADMAP-Agentic-RAG-v1.1.md). Awaiting Track 1 quick.
 - 2026-05-25 — arx-1-images closed PASS. Option A fix (`only_context` additive param at sole CONTRACT-01 entry) unstarved retriever's hash-grep. Hermes real-KG: `STATUS: ok / CHUNKS: 9 / IMAGES: 10` (v1 baseline 0). Commit `39c8f43`. VERIFICATION at `.planning/quick/260524-arx-A-images/VERIFICATION-1.1-A.md`.
+- 2026-06-23 — **arx-2-finish CLOSED PASS. Milestone Agentic-RAG-v1.1 COMPLETE.** Turned the shipped-but-unusable `/api/research` SSE endpoint into a real user-facing Deep Research feature on BOTH serving targets. GAP A (real LLM synthesis), GAP B (full /research/ frontend — 5-stage stepper, fetch+ReadableStream SSE, bilingual, SSG-registered), GAP D/E (E2E proof each env). **Aliyun**: Branch A full (chunks=9, real prose, 03-VERIFICATION 2026-06-13); the #44 sources=0 degrade cleared 2026-06-23 (`260623-g6e`, long_form sources=13) so Aliyun is no longer degraded. **Databricks**: Branch A full at iterations=1 — human UAT (Entra-SSO blocks Playwright) query "what is a harness for agent" → 5 stages green, 11 sources, [1]-[11] inline cites, embedded images, ~9000-word report; backend log `POST /api/research 200`, graphml 30833 nodes/44371 edges @ dim 3072. 6 bugs fixed en route (stale GEMINI guard, verifier await-list, deploy.sh omnigraph_search staging, SSE heartbeat, 300s-cap iteration caps, Tavily secret wiring). 4 known-limitations filed NON-blocking (#63 iterations=1/async-job, #64 vector-chunk-resync, #65 rerank-inactive, #66 img-404). Commits `f02440e` `2a67a73` `b7f0645` `f746a7c` `8d98f61`. VERIFICATION: `.planning/phases/arx-2-finish/arx-2-finish-04-VERIFICATION.md`.

@@ -338,7 +338,9 @@
     var q = (query || '').trim();
     if (!q) return;
     var maxIter = parseInt(iterations, 10);
-    if (!(maxIter >= 1 && maxIter <= 10)) maxIter = 3;
+    // Default 1: Databricks Apps has a hard ~300s HTTP cap; iterations>=2 risks
+    // an HTTP/2 timeout mid-reasoner (arx-2-finish 2026-06-23). Keep at 1 on Databricks.
+    if (!(maxIter >= 1 && maxIter <= 10)) maxIter = 1;
 
     resetSteps();
     setQuestionEcho(q);

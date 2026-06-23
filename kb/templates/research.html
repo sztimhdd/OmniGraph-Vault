@@ -32,7 +32,7 @@
           type="number"
           min="1"
           max="10"
-          value="3"
+          value="1"
           inputmode="numeric"
           aria-label="{{ 'research.iterations_label' | t('zh-CN') }}">
       </label>
@@ -65,8 +65,10 @@
     var iterEl = document.getElementById('research-iterations');
     var q = (input && input.value || '').trim();
     if (!q) return false;
-    var iterations = parseInt((iterEl && iterEl.value) || '3', 10);
-    if (!(iterations >= 1 && iterations <= 10)) iterations = 3;
+    // Default 1: Databricks Apps ~300s HTTP cap — iterations>=2 risks an HTTP/2
+    // timeout mid-reasoner (arx-2-finish 2026-06-23). Keep at 1 on Databricks.
+    var iterations = parseInt((iterEl && iterEl.value) || '1', 10);
+    if (!(iterations >= 1 && iterations <= 10)) iterations = 1;
     if (window.KbResearch && typeof window.KbResearch.submit === 'function') {
       window.KbResearch.submit(q, iterations);
       var result = document.getElementById('research-result');
