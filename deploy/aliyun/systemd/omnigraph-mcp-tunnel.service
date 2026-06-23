@@ -1,0 +1,24 @@
+[Unit]
+Description=OmniGraph SSH tunnel: Aliyun localhost:8931 -> Hermes Playwright MCP (WeChat scrape fallback)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+# -N no command, -T no tty; keepalive so a dead link is detected fast; ExitOnForwardFailure so a failed bind exits (systemd restarts)
+ExecStart=/usr/bin/ssh -N -T \
+  -o ConnectTimeout=15 \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -o BatchMode=yes \
+  -o StrictHostKeyChecking=accept-new \
+  -L 127.0.0.1:8931:localhost:8931 \
+  hermes
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target
