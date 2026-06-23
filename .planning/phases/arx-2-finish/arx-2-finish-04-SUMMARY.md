@@ -89,6 +89,22 @@ requirements: [REQ-1.1-B-4, REQ-1.1-B-5]
 > **Awaiting user re-UAT #2 once this deploy hydrates: web_baseline should now run (not skip),
 > reasoner/verifier=ok, sources>0 → B-5 PASS → close arx-2.**
 
+> **2026-06-23 re-UAT #2 (user) — bug #3 found + fixed: SSE heartbeat.**
+> Stepper showed **retriever GREEN + reasoner GREEN** (the 2 crash bugs CONFIRMED fixed!),
+> but the stream died mid-verifier: browser `POST /api/research net::ERR_HTTP2_PROTOCOL_ERROR
+> 200`, result panel "network error". Deployed app log proved the server pipeline kept
+> running fine (multiple `Final context: NN entities/NN relations/NN chunks` lines, no crash,
+> still computing ~278s after POST). Root cause: `kb/api_routers/research.py:_sse_event_stream`
+> yielded SSE frames ONLY at stage boundaries; the reasoner/verifier agent-loops run 60-180s+
+> with ZERO bytes between frames, and Databricks Apps HTTP/2 ingress resets a stream idle that
+> long. NOT a stage crash — a transport-keepalive gap.
+> Fix (commit `b7f0645`): background producer task drains the orchestrator into an
+> asyncio.Queue; consumer races each get() against `_SSE_HEARTBEAT_SEC=15` and emits a
+> `: keepalive` SSE comment on timeout (keeps stream warm; never cancels the producer).
+> research.js parseFrame ignores comment frames (no event:/data: line). Regression test
+> `test_sse_emits_keepalive_during_slow_stage_gap` added. 188 research tests pass. Redeployed.
+> **Awaiting user re-UAT #3: full run completes to synthesizer + sources>0 (no HTTP/2 reset).**
+
 
 # Wave 5 (plan 04) — Databricks E2E — SUMMARY (local gate PASSED; deploy pending network)
 
