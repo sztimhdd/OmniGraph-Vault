@@ -56,7 +56,13 @@ class ResearchRequest(BaseModel):
     """
 
     query: str = Field(..., min_length=1, max_length=2000)
-    max_iterations: int = Field(3, ge=1, le=10)
+    # Default 1 (was 3): Databricks Apps enforces a HARD ~300s HTTP connection
+    # cap. Each reasoner/verifier agent-loop iteration is a cross-border LLM call
+    # (~30-60s) plus kg_search; a 393s run was observed timing out mid-reasoner
+    # (ERR_HTTP2_PROTOCOL_ERROR). max_iterations now caps BOTH loops (see
+    # research_endpoint), so default 1 keeps a full run (~web+retr+reason1+verif1
+    # +synth) comfortably under 300s. Users may raise it, accepting timeout risk.
+    max_iterations: int = Field(1, ge=1, le=10)
 
 
 def _format_sse(event_name: str, data: dict[str, Any]) -> str:
@@ -100,7 +106,15 @@ async def _sse_event_stream(query: str, max_iterations: int) -> AsyncIterator[st
     ``event: error`` SSE frame instead of a 500 — once the response has
     started streaming we can no longer change the HTTP status code.
     """
-    cfg = dataclasses.replace(from_env(), max_iter_verifier=max_iterations)
+    # Cap BOTH agent-loops with the UI value. Previously only max_iter_verifier
+    # was wired, so the reasoner ALWAYS ran its default 5 iterations (each a
+    # cross-border LLM call) — the dominant cost that pushed runs past the
+    # Databricks ~300s HTTP cap. Capping reasoner too is the load-bearing fix.
+    cfg = dataclasses.replace(
+        from_env(),
+        max_iter_reasoner=max_iterations,
+        max_iter_verifier=max_iterations,
+    )
     queue: asyncio.Queue[Any] = asyncio.Queue()
 
     async def _producer() -> None:
@@ -154,4 +168,13 @@ async def research_endpoint(body: ResearchRequest) -> StreamingResponse:
     return StreamingResponse(
         _sse_event_stream(body.query, body.max_iterations),
         media_type="text/event-stream",
+        headers={
+            # Defeat proxy/ingress response buffering so stage frames + the
+            # `: keepalive` heartbeat reach the browser immediately (without
+            # these, an HTTP/2 ingress may buffer the whole stream and the
+            # client sees nothing until it resets). Standard SSE hardening.
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )

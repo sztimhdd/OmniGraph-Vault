@@ -181,14 +181,16 @@ def _fake_from_env() -> Any:
     """Stub from_env() that returns a frozen dataclass with the same name as
     ResearchConfig and a max_iter_verifier slot, without doing any I/O.
 
-    The router uses ``dataclasses.replace(from_env(), max_iter_verifier=...)``,
-    so the returned object only needs to be a frozen dataclass with that field.
-    Using a local dataclass keeps the test independent of the real ResearchConfig
-    constructor's heavy dependencies (VisionCascade, lib.lightrag_embedding, etc.).
+    The router uses ``dataclasses.replace(from_env(),
+    max_iter_reasoner=..., max_iter_verifier=...)``, so the returned object
+    needs both agent-loop cap fields. Using a local dataclass keeps the test
+    independent of the real ResearchConfig constructor's heavy dependencies
+    (VisionCascade, lib.lightrag_embedding, etc.).
     """
 
     @dataclasses.dataclass(frozen=True)
     class _StubCfg:
+        max_iter_reasoner: int = 5
         max_iter_verifier: int = 3
         marker: str = "stub-cfg"
 
@@ -328,8 +330,10 @@ def test_terminal_done_event_carries_research_result(app_client_and_capture):
     assert last_data["note_lines"] == []
 
 
-def test_max_iterations_wires_to_max_iter_verifier(app_client_and_capture):
-    """body.max_iterations propagates to ResearchConfig.max_iter_verifier."""
+def test_max_iterations_wires_to_both_agent_loops(app_client_and_capture):
+    """body.max_iterations caps BOTH reasoner and verifier loops (Databricks
+    300s-cap fix: previously only verifier was wired, so reasoner always ran
+    its default 5 cross-border iterations and pushed runs past the cap)."""
     client, captured = app_client_and_capture
     resp = client.post(
         "/api/research", json={"query": "What is LightRAG?", "max_iterations": 7}
@@ -338,15 +342,18 @@ def test_max_iterations_wires_to_max_iter_verifier(app_client_and_capture):
     # Drain the stream so the stub captures the cfg
     _ = resp.text
     assert captured["cfg"].max_iter_verifier == 7
+    assert captured["cfg"].max_iter_reasoner == 7
 
 
-def test_default_max_iterations_is_three(app_client_and_capture):
-    """ResearchRequest default for max_iterations matches ResearchConfig."""
+def test_default_max_iterations_is_one(app_client_and_capture):
+    """ResearchRequest default max_iterations is 1 (keeps a full run under the
+    Databricks Apps ~300s HTTP connection cap) and caps both agent-loops."""
     client, captured = app_client_and_capture
     resp = client.post("/api/research", json={"query": "anything"})
     assert resp.status_code == 200
     _ = resp.text
-    assert captured["cfg"].max_iter_verifier == 3
+    assert captured["cfg"].max_iter_verifier == 1
+    assert captured["cfg"].max_iter_reasoner == 1
 
 
 # ---------------------------------------------------------------------------
