@@ -21,6 +21,7 @@ closure-capture pattern, no shared mutable state across concurrent requests.
 from __future__ import annotations
 
 import dataclasses
+import asyncio
 import json
 import logging
 from typing import Any, AsyncIterator
@@ -69,32 +70,76 @@ def _format_sse(event_name: str, data: dict[str, Any]) -> str:
     return f"event: {event_name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+# SSE heartbeat interval (seconds). The reasoner/verifier agent-loops run for
+# 60-180s+ with NO stage_end frame in between; Databricks Apps HTTP/2 ingress
+# resets a stream that emits zero bytes for too long (observed 2026-06-23:
+# ERR_HTTP2_PROTOCOL_ERROR mid-verifier while the server pipeline kept running).
+# We emit an SSE comment line (`: keepalive\n\n`) every _SSE_HEARTBEAT_SEC of
+# producer silence to keep the stream warm. Comment frames carry no event:/data:
+# line, so research.js parseFrame ignores them (dataLines empty -> early return).
+_SSE_HEARTBEAT_SEC = 15.0
+_QUEUE_SENTINEL = object()  # producer-done marker on the queue
+
+
 async def _sse_event_stream(query: str, max_iterations: int) -> AsyncIterator[str]:
-    """Adapt the orchestrator's event dicts to SSE frames.
+    """Adapt the orchestrator's event dicts to SSE frames, with heartbeats.
 
     Filters orchestrator events to the 5 named ``stage_end`` events plus the
     terminal ``done`` payload from :func:`research_stream_with_result`. Drops
     pipeline_start, pipeline_end, and stage_start markers (REQ-1.1-B-2 asks
     for 5 stage events + 1 done event, not the raw 12-event stream).
 
+    A background producer task drains the orchestrator into a queue; the
+    consumer races each queue-get against ``_SSE_HEARTBEAT_SEC`` and emits a
+    ``: keepalive`` comment on timeout so the HTTP/2 stream never goes idle
+    long enough for the Databricks ingress to reset it (the agent-loops between
+    stage frames can run minutes). The heartbeat timeout NEVER cancels the
+    producer — it only injects a comment and loops back to wait again.
+
     Errors raised inside the orchestrator propagate as a synthetic
     ``event: error`` SSE frame instead of a 500 — once the response has
     started streaming we can no longer change the HTTP status code.
     """
     cfg = dataclasses.replace(from_env(), max_iter_verifier=max_iterations)
+    queue: asyncio.Queue[Any] = asyncio.Queue()
+
+    async def _producer() -> None:
+        try:
+            async for ev in research_stream_with_result(query, cfg):
+                if ev.get("event") == "done":
+                    await queue.put(_format_sse("done", ev["result"]))
+                elif ev.get("event_type") == "stage_end":
+                    stage = ev.get("stage")
+                    if stage in _STAGE_EVENT_NAMES:
+                        payload = {k: v for k, v in ev.items() if k != "event_type"}
+                        await queue.put(_format_sse(stage, payload))
+        except Exception as exc:  # noqa: BLE001 — surface on SSE channel, never 500 mid-stream
+            logger.exception("research_stream failed: query=%r", query)
+            await queue.put(
+                _format_sse("error", {"message": str(exc), "type": type(exc).__name__})
+            )
+        finally:
+            await queue.put(_QUEUE_SENTINEL)
+
+    producer = asyncio.create_task(_producer())
     try:
-        async for ev in research_stream_with_result(query, cfg):
-            if ev.get("event") == "done":
-                yield _format_sse("done", ev["result"])
+        while True:
+            try:
+                item = await asyncio.wait_for(queue.get(), timeout=_SSE_HEARTBEAT_SEC)
+            except asyncio.TimeoutError:
+                # Producer still working (slow agent-loop) — keep stream warm.
+                yield ": keepalive\n\n"
                 continue
-            if ev.get("event_type") == "stage_end":
-                stage = ev.get("stage")
-                if stage in _STAGE_EVENT_NAMES:
-                    payload = {k: v for k, v in ev.items() if k != "event_type"}
-                    yield _format_sse(stage, payload)
-    except Exception as exc:  # noqa: BLE001 — surface on SSE channel, never 500 mid-stream
-        logger.exception("research_stream failed: query=%r", query)
-        yield _format_sse("error", {"message": str(exc), "type": type(exc).__name__})
+            if item is _QUEUE_SENTINEL:
+                break
+            yield item
+    finally:
+        if not producer.done():
+            producer.cancel()
+            try:
+                await producer
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
 
 
 @router.post("/research")

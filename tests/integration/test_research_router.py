@@ -32,6 +32,7 @@ Behaviors covered (REQ-1.1-B-1 + B-2):
 """
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import importlib
 import json
@@ -54,6 +55,10 @@ def _parse_sse_frames(body: str) -> list[tuple[str, dict[str, Any]]]:
     frames: list[tuple[str, dict[str, Any]]] = []
     for raw in body.split("\n\n"):
         if not raw.strip():
+            continue
+        # Skip SSE comment frames (heartbeats: ": keepalive") — no event:/data:
+        # line; real EventSource/SSE clients ignore comment-only frames.
+        if all(ln.startswith(":") or not ln.strip() for ln in raw.split("\n")):
             continue
         event_name: str | None = None
         data_json: str | None = None
@@ -424,3 +429,55 @@ def test_orchestrator_exception_emits_synthetic_error_frame(monkeypatch):
     err_frame = next(d for n, d in frames if n == "error")
     assert err_frame["type"] == "RuntimeError"
     assert "retriever exploded" in err_frame["message"]
+
+
+# ---------------------------------------------------------------------------
+# Heartbeat — long inter-stage gap must emit SSE keepalive (arx-2-finish bug:
+# Databricks HTTP/2 ingress reset the idle stream mid-verifier; server kept
+# running but the browser saw ERR_HTTP2_PROTOCOL_ERROR). Regression guard.
+# ---------------------------------------------------------------------------
+
+
+def test_sse_emits_keepalive_during_slow_stage_gap(monkeypatch):
+    """A stage gap longer than _SSE_HEARTBEAT_SEC emits a `: keepalive` comment,
+    and all real frames still arrive intact afterward."""
+    import kb.api_routers.research as research_router_module
+    importlib.reload(research_router_module)
+    # Shrink the heartbeat so the test is fast (default 15s).
+    monkeypatch.setattr(research_router_module, "_SSE_HEARTBEAT_SEC", 0.05)
+
+    async def _slow_stream(query: str, cfg: Any) -> AsyncIterator[dict]:
+        yield {
+            "event_type": "stage_end", "stage": "web_baseline", "ts": 0.0,
+            "status": "ok", "reason": None, "duration_s": 0.0, "snippet_count": 0,
+        }
+        # Simulate a long agent-loop with NO frame emitted (> heartbeat interval).
+        await asyncio.sleep(0.25)
+        yield {
+            "event_type": "stage_end", "stage": "retriever", "ts": 0.0,
+            "status": "ok", "reason": None, "duration_s": 0.0,
+            "chunk_count": 9, "image_candidate_count": 0,
+        }
+        yield {"event": "done", "result": {
+            "markdown": "# ok", "confidence": 0.5, "sources": [],
+            "images_embedded": [], "note_lines": [],
+        }}
+
+    monkeypatch.setattr(
+        research_router_module, "research_stream_with_result", _slow_stream
+    )
+    monkeypatch.setattr(research_router_module, "from_env", _fake_from_env)
+
+    import kb.api
+    importlib.reload(kb.api)
+    client = TestClient(kb.api.app)
+    resp = client.post("/api/research", json={"query": "slow"})
+    assert resp.status_code == 200
+    raw = resp.text
+    # Keepalive comment present during the slow gap.
+    assert ": keepalive" in raw
+    # All real frames still arrive intact (heartbeat did not drop/corrupt them).
+    names = [n for n, _ in _parse_sse_frames(raw)]
+    assert "web_baseline" in names
+    assert "retriever" in names
+    assert "done" in names
