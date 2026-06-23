@@ -193,3 +193,15 @@ Local 5-step gate green with full evidence. Databricks deploy + post-deploy UAT 
 (network outage). Phase NOT closed — Databricks `sources>0` proof outstanding.
 
 > **Heartbeat fix DEPLOYED**: `deployment_id 01f16f16a18014e5a1dd59688774db26` SUCCEEDED/RUNNING/ACTIVE (2026-06-23T15:27Z). Heartbeat code confirmed in deployed research.py (`_SSE_HEARTBEAT_SEC`, `: keepalive`). Tavily resource still bound. Ready for re-UAT #3.
+
+> **2026-06-23 re-UAT #3 → bug#4: Databricks 300s HARD HTTP cap.** Run hit 393s still
+> looping in reasoner → platform killed the stream (ERR_HTTP2_PROTOCOL_ERROR). Heartbeat
+> prevents IDLE resets but not a hard TOTAL-duration cap. Root cause (measured from log):
+> reasoner ran default max_iter_reasoner=5 (8+ kg_search, each cross-border LLM ~30-60s);
+> UI slider only capped verifier so reasoner ALWAYS ran 5. Fix (commit f746a7c): cap BOTH
+> loops with UI value, default max_iterations 3→1, + anti-buffering headers
+> (X-Accel-Buffering: no). 188 tests pass. Deployed 01f16f25742f14cfb259e01d8789328b
+> SUCCEEDED; all 3 changes confirmed in deployed source.
+> ALSO (non-fatal, deferred): web_baseline shows status=failed when live Tavily call errors
+> on Databricks egress — best-effort stage, never raises, pipeline proceeds (cosmetic red).
+> **Awaiting user re-UAT #4: full run completes <300s to synthesizer + sources>0.**
