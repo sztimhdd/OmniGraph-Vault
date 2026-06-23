@@ -191,3 +191,5 @@ citations. 2 screenshots: `.playwright-mcp/arx-uat-01-local-dbx-stepper.png`,
 
 Local 5-step gate green with full evidence. Databricks deploy + post-deploy UAT NOT done
 (network outage). Phase NOT closed — Databricks `sources>0` proof outstanding.
+
+> **Heartbeat fix DEPLOYED**: `deployment_id 01f16f16a18014e5a1dd59688774db26` SUCCEEDED/RUNNING/ACTIVE (2026-06-23T15:27Z). Heartbeat code confirmed in deployed research.py (`_SSE_HEARTBEAT_SEC`, `: keepalive`). Tavily resource still bound. Ready for re-UAT #3.
