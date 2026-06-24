@@ -1,9 +1,10 @@
+# 2026-06-24 freq-up: consolidated sole ingest runner, every 2h (was 3 units 8h apart).
+# afternoon + evening timers disabled (systemctl disable --now) — only this timer fires now.
 [Unit]
-Description=OmniGraph daily ingest 09:00 ADT (12:00 UTC) timer
-Requires=omnigraph-daily-ingest.service
+Description=OmniGraph ingest every 2h (consolidated sole runner)
 
 [Timer]
-OnCalendar=*-*-* 12:00:00 UTC
+OnCalendar=*-*-* 00/2:00:00 UTC
 Persistent=true
 
 [Install]
