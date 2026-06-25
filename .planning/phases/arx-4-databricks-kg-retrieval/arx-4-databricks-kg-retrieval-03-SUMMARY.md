@@ -92,18 +92,49 @@ shows near-0% overlap → "0 vector chunks"). The snapshot is alignment-correct.
 pre-existing converter/Qdrant artifact, NOT introduced by the Plan 01 refactor;
 doesn't affect vector retrieval which keys on matrix rows. Out of scope; flagged.)
 
-## Task 2 — sync_to_databricks.sh — **[IN PROGRESS / pending]**
+## Task 2 — sync_to_databricks.sh — **DATA PUSH SUCCEEDED**
 
-`bash scripts/sync_to_databricks.sh --yes` running in background (~50 min, 2.6 GB
-at corp egress 0.77 MB/s). Steps: tar lightrag_storage (now archive-free) → scp →
-`fs cp -r --overwrite` to UC Volume → apps stop → start → wait-pending → deploy.
-[Results + UC Volume vdb_relationships.json file_size pending sync completion.]
+`bash scripts/sync_to_databricks.sh --yes` ran ~3h wall (corp egress 0.77 MB/s).
+- Step 3 lightrag tar = 2.22 GB (archive-free — confirms the Task-1.5 purge).
+- **UC Volume `vdb_relationships.json` = 1,420,551,538 bytes (1.42 GB)** at 17:23,
+  byte-matched to the Aliyun source (was the 49-byte placeholder). `vdb_chunks.json`
+  81 MB, `vdb_entities.json` 1.0 GB — all confirmed via `fs ls --long`.
+- **Script exited 1 at Step 9b'** (the auto-pending-deployment wait-loop timed out
+  prematurely — a known `sync_to_databricks.sh` fragility, filed as a follow-up).
+  The DATA push (the #64-critical part) fully succeeded before that point.
 
-## Task 3 — Re-hydrate + vector-chunk verify — **[HUMAN-VERIFY, pending]**
+## Task 2b — BOOT TIMEOUT (surfaced) + FIX (ISSUES #69-class, in-phase) — **RESOLVED**
 
-CORRECTED per the adversarial finding: grep the deployed startup log for
-**`LightRAG storage hydration complete: N files, M bytes`** (from `_db_bootstrap.py:77`)
-— NOT `startup_adapter: copied via` (dead code). Expect M ≈ 2.25 GB (real rel vdb,
-no archives). Then OOM-watch the boot (container RUNNING + /health 200), then the
-USER runs one `/api/synthesize` long_form query via SSO, and the executor greps
-the backend log for `>0 vector chunks` + absence of `falling back to WEIGHT method`.
+The first redeploy **FAILED: "App process did not start within 10 minutes."**
+Adversarial fix-design workflow (`wf_fde06ab7`, 4 proposals + judge) root-caused it
+with code evidence:
+
+- Boot cmd `python _db_bootstrap.py && exec uvicorn` — uvicorn binds the port (→
+  Databricks 600s health probe) only AFTER `_db_bootstrap.hydrate_lightrag_storage`
+  AND the FastAPI lifespan `initialize_storages()` complete (uvicorn 0.48
+  `Server.startup()` awaits lifespan before socket bind — verified).
+- `hydrate_lightrag_storage` downloaded all **147 UC-Volume files SEQUENTIALLY**
+  (single-threaded). Once the real 1.42 GB relationships vdb replaced the 49-byte
+  placeholder, the sequential download blew 600s (boot log: "Hydrating LightRAG
+  storage..." with no completion line). A prior auto-pending attempt at 22:01 DID
+  complete hydration of 148 files (3.53 GB) + reached singleton, but took >16 min
+  total → past the deadline.
+
+**Fix (commit `8ceef46`, ~45 LoC, mirrors the proven `hydrate_images_dir` pattern):**
+1. `ThreadPoolExecutor(max_workers=8)` parallel download (was sequential).
+2. Junk-skip filter (`.bak/.corrupt/.repaired/.truncated/.backup`) — durable guard.
+3. One-time purge of 135 junk files (1.03 GB) from BOTH the UC Volume (135 deleted →
+   **12 real files / 2.50 GB**) and the Aliyun SoT (prevents re-propagation on next sync).
+
+**Redeploy `01f170e2ee08182b94bbc1492b665eb8` = SUCCEEDED, "App started successfully",
+app RUNNING, compute ACTIVE (stable on recheck).** Because uvicorn binds only after the
+lifespan matrix-load completes, SUCCEEDED **proves** both the hydration AND the 1.42 GB
+relationships matrix parse finished within 600s **without OOM** — the residual RAM-ceiling
+risk the workflow flagged did NOT materialize. Boot-timeout RESOLVED.
+
+## Task 3 — Re-hydrate + vector-chunk verify — **[HUMAN-VERIFY, awaiting user query]**
+
+App is deployed + RUNNING with the fresh aligned snapshot. Final step (Entra-SSO
+blocks Playwright): the USER runs one `/api/synthesize` long_form query via the
+browser, and the executor greps the backend log for `>0 vector chunks` + absence of
+`falling back to WEIGHT method`. (Folded into Plan 04's combined UAT.)
