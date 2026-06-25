@@ -108,10 +108,21 @@ logs are conclusive #41 closure evidence independent of the re-probe.)
 ## Timer (the #41 closure marker)
 
 `qdrant-snapshot.timer` was `disabled`+`inactive` since 2026-06-05 (the #41
-mitigation). Re-enable command (`systemctl enable --now qdrant-snapshot.timer`)
-is queued behind the SSH-throttle recovery poll-loop; it runs the moment SSH
-recovers, then this section is updated with the `is-enabled=enabled` +
-`is-active=active` + next-fire output. **[TIMER RE-ENABLE: pending SSH recovery]**
+mitigation). **RE-ENABLED 2026-06-26 01:45 CST** after the SSH throttle cleared
+(recovery via background poll-loop, ~1h):
+
+```
+systemctl enable --now qdrant-snapshot.timer
+Created symlink …/timers.target.wants/qdrant-snapshot.timer → …
+is-enabled → enabled
+is-active  → active
+```
+
+Timer schedule intact: `OnBootSec=15min` + `OnUnitActiveSec=6h`, `Persistent=true`.
+`enable --now` did NOT auto-trigger the converter (service `inactive`, no
+`qdrant_to_nanovdb` process, no recent journal) — the `Persistent=true` catch-up
+only fires on boot, so the freshly-written vdb files are stable + safe to sync.
+**#41 closure marker SET.** ✓
 
 ## Folds
 
