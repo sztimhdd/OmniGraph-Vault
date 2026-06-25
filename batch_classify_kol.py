@@ -5,6 +5,7 @@ Usage:
     python batch_classify_kol.py --topic "OpenClaw" --min-depth 2
     python batch_classify_kol.py --topic "Agent" --classifier gemini
     python batch_classify_kol.py --topic "RAG" --dry-run
+    python batch_classify_kol.py --topic Agent --topic LLM --topic RAG --topic NLP --topic CV
 
 Plan 05-00c Task 0c.4: default classifier is 'deepseek' (see :335). This
 script already routes to the DeepSeek chat completions endpoint directly —
@@ -466,7 +467,7 @@ def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Classify KOL articles from SQLite via LLM")
-    parser.add_argument("--topic", type=str, required=True, help="Topic to classify (e.g. 'OpenClaw')")
+    parser.add_argument("--topic", type=str, action="append", required=True, help="Topic to classify; repeatable (e.g. --topic Agent --topic LLM). Each flag triggers an independent classification pass.")
     parser.add_argument("--min-depth", type=int, default=2, choices=[1, 2, 3], help="Minimum depth score (default: 2)")
     parser.add_argument("--classifier", type=str, default="deepseek", choices=["deepseek", "gemini"],
                         help="Classifier: deepseek (default) or gemini")
@@ -482,7 +483,8 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
-    run(args.topic, args.min_depth, args.classifier, args.dry_run)
+    for topic in args.topic:
+        run(topic, args.min_depth, args.classifier, args.dry_run)
 
 
 if __name__ == "__main__":
