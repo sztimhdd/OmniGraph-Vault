@@ -25,7 +25,7 @@ nano_vectordb = pytest.importorskip("nano_vectordb")
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 from nano_vectordb import NanoVectorDB
-from nano_vectordb.dbs import Float
+from nano_vectordb.dbs import Float, array_to_buffer_string, load_storage
 
 _SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "qdrant_to_nanovdb.py"
 _spec = importlib.util.spec_from_file_location("qdrant_to_nanovdb", _SCRIPT_PATH)
@@ -199,3 +199,166 @@ def test_converter_dimension_mismatch_raises(tmp_path: Path) -> None:
             meta_fields=set(),
         )
     assert not (tmp_path / "vdb_chunks.json").exists(), "must not write on dim error"
+
+
+# ---------------------------------------------------------------------------
+# ISSUES #41 streaming-refactor behavior anchors (arx-4 Plan 01 Task 2).
+# These pin the on-disk bytes contract through nano_vectordb.load_storage so a
+# future converter change that breaks the consumer (Databricks/Hermes) fails CI.
+# ---------------------------------------------------------------------------
+
+
+def _scroll_vectors_in_order(client: QdrantClient, dim: int) -> list[list[float]]:
+    """Replay the converter's exact scroll (same kwargs) to capture vectors in
+    the authoritative scroll order — the reference sequence the old
+    full-accumulation path (`vectors.append(list(vec))`) would have built."""
+    out: list[list[float]] = []
+    next_offset = None
+    while True:
+        page, next_offset = client.scroll(
+            collection_name=_COLLECTION,
+            limit=500,
+            offset=next_offset,
+            with_payload=True,
+            with_vectors=True,
+        )
+        for point in page:
+            out.append(list(point.vector))
+        if next_offset is None:
+            break
+    return out
+
+
+def test_streaming_matrix_byte_identical_to_reference(tmp_path: Path) -> None:
+    """Plan 01 T2 byte-identity: the streamed matrix base64 EXACTLY equals the
+    reference full-accumulation path (`array_to_buffer_string(np.array(...))`)
+    built from the SAME scroll order.
+
+    The on-disk bytes are a contract — the streaming refactor must produce the
+    identical blob the old per-row-list + np.array path produced, else
+    consumers silently corrupt. Locks scroll order + row-major float32 layout.
+    """
+    client = QdrantClient(":memory:")
+    n_points = 7
+    _seed_collection(client, n_points=n_points)
+
+    # Reference = the OLD path: collect vectors in scroll order, then
+    # array_to_buffer_string(np.array(...)). Both old + new use this same
+    # scroll, so byte-identity must hold regardless of seed-vs-scroll order.
+    scrolled = _scroll_vectors_in_order(client, _DIM)
+    expected_matrix_b64 = array_to_buffer_string(np.array(scrolled, dtype=Float))
+
+    output_path = str(tmp_path / "vdb_chunks.json")
+    qdrant_to_nanovdb.export_collection_to_nanovdb(
+        client=client,
+        collection_name=_COLLECTION,
+        output_path=output_path,
+        embedding_dim=_DIM,
+        meta_fields={"full_doc_id", "content", "file_path"},
+    )
+
+    with open(output_path, "r", encoding="utf-8") as f:
+        written = json.load(f)
+
+    assert written["matrix"] == expected_matrix_b64, (
+        "streamed matrix base64 must be byte-identical to the reference "
+        "array_to_buffer_string(np.array(vectors)) path on the same scroll order"
+    )
+
+    # And it must reshape correctly through the REAL consumer loader.
+    loaded = load_storage(output_path)
+    assert loaded["matrix"].shape == (n_points, _DIM)
+    assert loaded["matrix"].dtype == Float
+    assert len(loaded["data"]) == n_points
+    # Row-major scroll order preserved: row i must equal the i-th scrolled vector.
+    np.testing.assert_array_equal(
+        loaded["matrix"][0], np.array(scrolled[0], dtype=Float)
+    )
+    np.testing.assert_array_equal(
+        loaded["matrix"][-1], np.array(scrolled[-1], dtype=Float)
+    )
+
+
+def test_streaming_load_storage_schema_and_dropped_fields(tmp_path: Path) -> None:
+    """Plan 01 T2 schema roundtrip: load_storage yields (K, D) matrix, K data
+    rows carrying __id__ + __created_at__ + the meta_fields, workspace_id and
+    __vector__ dropped."""
+    client = QdrantClient(":memory:")
+    seeded_ids = _seed_collection(client, n_points=4)
+
+    output_path = str(tmp_path / "vdb_chunks.json")
+    qdrant_to_nanovdb.export_collection_to_nanovdb(
+        client=client,
+        collection_name=_COLLECTION,
+        output_path=output_path,
+        embedding_dim=_DIM,
+        meta_fields={"full_doc_id", "content", "file_path"},
+    )
+
+    loaded = load_storage(output_path)
+    assert loaded["matrix"].shape == (4, _DIM)
+    assert len(loaded["data"]) == 4
+    row = loaded["data"][0]
+    assert row["__id__"] in seeded_ids
+    assert "__created_at__" in row
+    assert "full_doc_id" in row and "content" in row and "file_path" in row
+    assert "workspace_id" not in row, "workspace_id must be dropped"
+    assert "__vector__" not in row, "__vector__ must not be in on-disk row"
+
+
+def test_streaming_empty_collection_load_storage(tmp_path: Path) -> None:
+    """Plan 01 T2 empty case: N=0 → matrix '' that load_storage reshapes to
+    (0, D) without error (preserves the empty-collection behavior)."""
+    client = QdrantClient(":memory:")
+    if client.collection_exists(_COLLECTION):
+        client.delete_collection(_COLLECTION)
+    client.create_collection(
+        collection_name=_COLLECTION,
+        vectors_config=qmodels.VectorParams(size=_DIM, distance=qmodels.Distance.COSINE),
+    )
+
+    output_path = str(tmp_path / "vdb_chunks.json")
+    qdrant_to_nanovdb.export_collection_to_nanovdb(
+        client=client,
+        collection_name=_COLLECTION,
+        output_path=output_path,
+        embedding_dim=_DIM,
+        meta_fields=set(),
+    )
+
+    with open(output_path, "r", encoding="utf-8") as f:
+        written = json.load(f)
+    assert written["matrix"] == "", "empty collection → empty matrix string"
+
+    loaded = load_storage(output_path)
+    assert loaded["matrix"].shape == (0, _DIM)
+    assert len(loaded["data"]) == 0
+
+
+def test_converter_count_roundtrip_mismatch_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Plan 01 T2 (Test 4): the qdrant_snapshot_roundtrip_mismatch RuntimeError
+    survives the streaming refactor — if Qdrant's authoritative count disagrees
+    with the scrolled row count, we must NOT write a truncated snapshot."""
+    client = QdrantClient(":memory:")
+    _seed_collection(client, n_points=5)
+
+    # Force client.count() to lie (report 99 != 5 scrolled) so the guard fires.
+    class _FakeCount:
+        count = 99
+
+    monkeypatch.setattr(
+        client, "count", lambda *a, **k: _FakeCount(), raising=True
+    )
+
+    output_path = str(tmp_path / "vdb_chunks.json")
+    with pytest.raises(RuntimeError, match="qdrant_snapshot_roundtrip_mismatch"):
+        qdrant_to_nanovdb.export_collection_to_nanovdb(
+            client=client,
+            collection_name=_COLLECTION,
+            output_path=output_path,
+            embedding_dim=_DIM,
+            meta_fields=set(),
+        )
+    assert not (tmp_path / "vdb_chunks.json").exists(), "must not write on count mismatch"
