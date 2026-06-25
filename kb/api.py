@@ -100,6 +100,21 @@ async def lifespan(app: FastAPI):
         rerank_model_func=rerank_func,
         **_vector_storage_kwargs,
     )
+    # ISSUES #65 diagnostic: settle the init-vs-query rerank disagreement on the
+    # LIVE deployed instance. Records whether the reranker survived init AND
+    # whether asdict(rag) carries rerank_model_func into the query-path
+    # global_config (lightrag.py builds global_config = asdict(self) at query
+    # time). This is the A/B/C discriminator — read it off the deployed log.
+    from dataclasses import asdict as _asdict
+    _gc_rerank = _asdict(rag).get("rerank_model_func")
+    _log.warning(
+        "rerank_diag init_reranker_set=%s rerank_disabled=%s "
+        "global_config_has_func=%s enable_rerank_default=%s",
+        app.state.reranker is not None,
+        app.state.rerank_disabled,
+        _gc_rerank is not None,
+        os.getenv("RERANK_BY_DEFAULT", "true"),
+    )
     _log.warning(
         "lightrag_vector_storage backend=%s",
         os.environ.get("OMNIGRAPH_VECTOR_STORAGE", "nanovectordb"),
