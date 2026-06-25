@@ -34,14 +34,32 @@ logger = logging.getLogger("kb.db_bootstrap")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 
+# arx-4 #64: junk files that accumulate in lightrag_storage (incident-residue
+# backups) but are NEVER read by LightRAG. Skipping them removes ~1GB + ~135
+# sequential SDK round-trips from boot hydration. Substring match on filename.
+_LIGHTRAG_JUNK_SUFFIXES = (".bak", ".corrupt", ".repaired", ".truncated", ".backup")
+
+
+def _is_lightrag_junk(name: str) -> bool:
+    """True if a lightrag_storage filename is incident-residue (never loaded)."""
+    return any(s in name for s in _LIGHTRAG_JUNK_SUFFIXES)
+
+
 def hydrate_lightrag_storage(src_dir: str, dst_dir: str) -> int:
     """Mirror UC volume LightRAG storage dir → local /tmp dir.
 
     Same rationale as the kol_scan.db hydrator: UC volumes are not
     auto-FUSE-mounted in Databricks Apps, so RAG_WORKING_DIR must
     point to a real local path. Lists the volume directory via SDK
-    Files API and downloads each file (12 JSON/GraphML files,
-    <100MB total).
+    Files API and downloads each file.
+
+    arx-4 #64: downloads run in PARALLEL via ThreadPoolExecutor (mirrors
+    hydrate_images_dir) and SKIP incident-residue junk (.bak/.corrupt/etc).
+    The sequential single-threaded loop blew the Databricks 600s startup
+    deadline once the real 1.42GB vdb_relationships.json replaced the
+    49-byte placeholder; parallel + junk-skip brings hydration well under
+    budget. The port only binds after this returns (uvicorn waits for the
+    pre-uvicorn _db_bootstrap step), so keeping this fast is load-bearing.
 
     Returns 0 on success, non-zero on failure (caller decides whether
     to abort boot or degrade to KG-disabled mode).
@@ -57,25 +75,44 @@ def hydrate_lightrag_storage(src_dir: str, dst_dir: str) -> int:
         logger.exception("LightRAG dir listing failed: %s", e)
         return 1
 
-    total_bytes = 0
+    file_jobs: list[tuple[str, Path]] = []
+    skipped_junk = 0
     for entry in entries:
         if getattr(entry, "is_directory", False):
             continue
         src_path = entry.path
         name = src_path.rsplit("/", 1)[-1]
-        dst_path = dst / name
+        if _is_lightrag_junk(name):
+            skipped_junk += 1
+            continue
+        file_jobs.append((src_path, dst / name))
+
+    def _download_one(job: tuple[str, Path]) -> int:
+        src_path, dst_path = job
         try:
             resp = w.files.download(src_path)
             with dst_path.open("wb") as fh:
                 for chunk in iter(lambda: resp.contents.read(1024 * 1024), b""):
                     fh.write(chunk)
-            total_bytes += dst_path.stat().st_size
+            return dst_path.stat().st_size
         except Exception as e:
-            logger.exception("Failed downloading %s: %s", src_path, e)
-            return 2
+            logger.warning("Failed downloading %s: %s", src_path, e)
+            return -1
 
-    logger.info("LightRAG storage hydration complete: %d files, %d bytes", len(entries), total_bytes)
-    return 0
+    total_bytes = 0
+    failures = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        for size in pool.map(_download_one, file_jobs):
+            if size < 0:
+                failures += 1
+            else:
+                total_bytes += size
+
+    logger.info(
+        "LightRAG storage hydration complete: %d files, %d bytes (skipped %d junk, %d failures)",
+        len(file_jobs) - failures, total_bytes, skipped_junk, failures,
+    )
+    return 2 if failures else 0
 
 
 def hydrate_images_dir(src_dir: str, dst_dir: str) -> int:
