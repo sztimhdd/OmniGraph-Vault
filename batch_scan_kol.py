@@ -234,7 +234,7 @@ def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: in
 
 
 def run(days_back: int, max_articles: int, account_filter: str | None, resume: bool,
-        daily: bool = False, summary_json: bool = False) -> None:
+        daily: bool = False, summary_json: bool = False, max_accounts: int | None = None) -> None:
     load_env()
 
     conn = init_db(DB_PATH)
@@ -242,14 +242,34 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
         inserted = init_accounts(conn)
         logger.info("Accounts: %d new inserted into DB", inserted)
 
-        rows = conn.execute("SELECT name, fakeid FROM accounts ORDER BY name").fetchall()
-        if not rows:
-            logger.error("No accounts in DB")
-            sys.exit(1)
+        if max_accounts is None:
+            # DEFAULT PATH — byte-behavior-identical to before:
+            # select all accounts alphabetically, then shuffle so SESSION_LIMIT
+            # truncation affects different accounts each day.
+            rows = conn.execute("SELECT name, fakeid FROM accounts ORDER BY name").fetchall()
+            if not rows:
+                logger.error("No accounts in DB")
+                sys.exit(1)
 
-        # Shuffle account order so SESSION_LIMIT truncation affects different
-        # accounts each day instead of always skipping the same Z-prefix ones.
-        random.shuffle(rows)
+            # Shuffle account order so SESSION_LIMIT truncation affects different
+            # accounts each day instead of always skipping the same Z-prefix ones.
+            random.shuffle(rows)
+        else:
+            # STALENESS PATH — deterministic, no shuffle; picks the N staleest accounts
+            # (never-scanned NULL-first, then oldest-scanned, then name tiebreak).
+            # Version-safe: uses boolean (IS NULL) ordering, NOT the NULLS FIRST keyword
+            # (Aliyun SQLite version unknown, NULLS FIRST support not guaranteed).
+            rows = conn.execute("""
+                SELECT acc.name, acc.fakeid
+                FROM accounts acc
+                LEFT JOIN articles a ON a.account_id = acc.id
+                GROUP BY acc.id
+                ORDER BY (MAX(a.scanned_at) IS NULL) DESC, MAX(a.scanned_at) ASC, acc.name ASC
+            """).fetchall()
+            if not rows:
+                logger.error("No accounts in DB")
+                sys.exit(1)
+            rows = rows[:max_accounts]
 
         total_accounts = len(rows)
         if resume:
@@ -336,6 +356,8 @@ def main() -> None:
                         help="Daily incremental scan of all accounts (INSERT OR IGNORE by URL)")
     parser.add_argument("--summary-json", action="store_true",
                         help="Output JSON summary to stdout after scan")
+    parser.add_argument("--max-accounts", type=int, default=None,
+                        help="Cap scan to the N staleest accounts (NULL-first, oldest-scanned). Default None = scan all (shuffled).")
     args = parser.parse_args()
 
     if args.daily and args.resume:
@@ -348,6 +370,7 @@ def main() -> None:
         resume=args.resume,
         daily=args.daily,
         summary_json=args.summary_json,
+        max_accounts=args.max_accounts,
     )
 
 
