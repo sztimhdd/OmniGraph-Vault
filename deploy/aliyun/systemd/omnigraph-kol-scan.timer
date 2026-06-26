@@ -1,3 +1,4 @@
+# SUPERSEDED 2026-06-27 by omnigraph-kol-scan-batch@{1..4}.timer (4-batch staleness coverage). Disabled on Aliyun; definition retained for reference.
 [Unit]
 Description=OmniGraph daily KOL scan (WeChat MP API) timer
 Requires=omnigraph-kol-scan.service

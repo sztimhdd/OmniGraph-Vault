@@ -1,0 +1,10 @@
+[Unit]
+Description=OmniGraph KOL scan batch 2 timer (05:30 UTC, staleness-partitioned)
+
+[Timer]
+OnCalendar=*-*-* 05:30:00 UTC
+Persistent=true
+Unit=omnigraph-kol-scan-batch@2.service
+
+[Install]
+WantedBy=timers.target
