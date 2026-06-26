@@ -258,3 +258,93 @@ def test_run_classifies_all_articles_on_truncation(monkeypatch, tmp_path) -> Non
         f"even when the first 50-title batch returns finish_reason=length; "
         f"got {count} rows.  Pre-fix behaviour: 0 rows (whole topic aborted)."
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 4 — backward-compat: finish_reason=stop parses the fenced JSON unchanged
+# ---------------------------------------------------------------------------
+
+def test_call_deepseek_stop_parses_list_unchanged() -> None:
+    """finish_reason=stop with a complete ```json-fenced array returns the parsed
+    list intact — the proven 100-OK path must be byte-for-byte unaffected by #70."""
+    fenced = (
+        '```json\n'
+        '[{"index": 0, "depth_score": 3, "relevant": true, "reason": "deep"}]\n'
+        '```'
+    )
+    resp = _make_deepseek_response(finish_reason="stop", content=fenced)
+
+    with mock.patch.object(batch_classify_kol.requests, "post", return_value=resp):
+        result = batch_classify_kol._call_deepseek("any prompt", "dummy-key")
+
+    assert result == [
+        {"index": 0, "depth_score": 3, "relevant": True, "reason": "deep"}
+    ], f"finish_reason=stop must return the parsed list unchanged; got {result!r}"
+
+
+# ---------------------------------------------------------------------------
+# Test 5 — batch_size resolution: default 100, env-overridable, non-int → 100
+# ---------------------------------------------------------------------------
+
+def _seed_db(db_file: Path, n: int) -> None:
+    """Seed a tmp DB with one account and n unclassified articles."""
+    conn = sqlite3.connect(str(db_file))
+    conn.executescript(_SCHEMA_DDL)
+    conn.execute("INSERT INTO accounts (name, fakeid) VALUES ('TestAccount', 'fake001')")
+    for i in range(n):
+        conn.execute(
+            "INSERT INTO articles (account_id, title, url, digest) VALUES (1, ?, ?, ?)",
+            (f"Article {i}", f"http://example.com/{i}", f"digest {i}"),
+        )
+    conn.commit()
+    conn.close()
+
+
+def _first_slice_size_under(monkeypatch, tmp_path, env_value, n=150) -> int:
+    """Drive run() against n seeded articles, capturing the size of the FIRST
+    top-level slice handed to _classify_batch. Returns that size."""
+    db_file = tmp_path / "kol_scan_bs.db"
+    _seed_db(db_file, n)
+
+    fake_db_path = mock.MagicMock()
+    fake_db_path.exists.return_value = True
+    fake_db_path.__str__ = mock.Mock(return_value=str(db_file))
+    monkeypatch.setattr(batch_classify_kol, "DB_PATH", fake_db_path)
+    monkeypatch.setattr(batch_classify_kol, "load_env", lambda: None)
+    monkeypatch.setattr(batch_classify_kol, "get_deepseek_api_key", lambda: "dummy-key")
+
+    if env_value is None:
+        monkeypatch.delenv("KOL_CLASSIFY_BATCH_SIZE", raising=False)
+    else:
+        monkeypatch.setenv("KOL_CLASSIFY_BATCH_SIZE", env_value)
+
+    sizes: list[int] = []
+
+    def fake_classify_batch(titles, digests, topic, min_depth, api_key, abs_offset):
+        sizes.append(len(titles))
+        # Return a benign success list (abs-indexed) so run() completes.
+        return [
+            {"index": abs_offset + i, "depth_score": 2, "relevant": True, "reason": "ok"}
+            for i in range(len(titles))
+        ]
+
+    monkeypatch.setattr(batch_classify_kol, "_classify_batch", fake_classify_batch)
+    batch_classify_kol.run(topic="NLP", min_depth=2, classifier="deepseek", dry_run=False)
+
+    assert sizes, "run() never invoked _classify_batch"
+    return sizes[0]
+
+
+def test_batch_size_default_is_100(monkeypatch, tmp_path) -> None:
+    """No env var → first top-level slice is 100 (the #70 first-line-of-defense default)."""
+    assert _first_slice_size_under(monkeypatch, tmp_path, env_value=None) == 100
+
+
+def test_batch_size_env_override(monkeypatch, tmp_path) -> None:
+    """KOL_CLASSIFY_BATCH_SIZE=50 → first top-level slice is 50."""
+    assert _first_slice_size_under(monkeypatch, tmp_path, env_value="50") == 50
+
+
+def test_batch_size_non_int_falls_back_to_100(monkeypatch, tmp_path) -> None:
+    """A non-int env value must NOT crash run() — it falls back to 100."""
+    assert _first_slice_size_under(monkeypatch, tmp_path, env_value="not-an-int") == 100

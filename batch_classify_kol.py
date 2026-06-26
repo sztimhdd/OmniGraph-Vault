@@ -472,7 +472,15 @@ def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
 
     titles = [a["title"] for a in articles]
     digests = [a["digest"] for a in articles]
-    batch_size = int(os.environ.get("KOL_CLASSIFY_BATCH_SIZE", "200"))
+    # #70: default 100 is the proven-safe ceiling (finish_reason=stop); 200 truncated
+    # dense topics. Env-overridable for ops tuning; non-int silently falls back to 100
+    # (mirror OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP pattern).
+    try:
+        batch_size = int(os.environ.get("KOL_CLASSIFY_BATCH_SIZE", "100"))
+        if batch_size < 1:
+            batch_size = 100
+    except (TypeError, ValueError):
+        batch_size = 100
     is_gemini = classifier == "gemini"
     label = "Gemini" if is_gemini else "DeepSeek"
 
