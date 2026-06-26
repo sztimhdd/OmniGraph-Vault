@@ -72,7 +72,7 @@ async def test_reasoner_cap_enforcement(monkeypatch):
         )
 
     # Stub kg_search at the module level so it doesn't touch LightRAG.
-    async def stub_kg_search(q, mode="hybrid"):
+    async def stub_kg_search(q, mode="hybrid", **kwargs):  # arx-4: absorb rag= kwarg
         return "stub kg result"
 
     monkeypatch.setattr(

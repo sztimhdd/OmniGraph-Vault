@@ -26,7 +26,7 @@ import json
 import logging
 from typing import Any, AsyncIterator
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -87,7 +87,9 @@ _SSE_HEARTBEAT_SEC = 15.0
 _QUEUE_SENTINEL = object()  # producer-done marker on the queue
 
 
-async def _sse_event_stream(query: str, max_iterations: int) -> AsyncIterator[str]:
+async def _sse_event_stream(
+    query: str, max_iterations: int, rag: object | None = None
+) -> AsyncIterator[str]:
     """Adapt the orchestrator's event dicts to SSE frames, with heartbeats.
 
     Filters orchestrator events to the 5 named ``stage_end`` events plus the
@@ -110,10 +112,15 @@ async def _sse_event_stream(query: str, max_iterations: int) -> AsyncIterator[st
     # was wired, so the reasoner ALWAYS ran its default 5 iterations (each a
     # cross-border LLM call) — the dominant cost that pushed runs past the
     # Databricks ~300s HTTP cap. Capping reasoner too is the load-bearing fix.
+    # arx-4 #64/#65: thread the lifespan LightRAG (with rerank_model_func) into
+    # cfg so the retriever/reasoner reuse it (mix-mode vector chunks + rerank)
+    # instead of building a fresh reranker-less instance. rag=None (CLI) keeps
+    # the from_env default and the omnigraph_search fresh-rag fallback.
     cfg = dataclasses.replace(
         from_env(),
         max_iter_reasoner=max_iterations,
         max_iter_verifier=max_iterations,
+        rag=rag,
     )
     queue: asyncio.Queue[Any] = asyncio.Queue()
 
@@ -157,7 +164,7 @@ async def _sse_event_stream(query: str, max_iterations: int) -> AsyncIterator[st
 
 
 @router.post("/research")
-async def research_endpoint(body: ResearchRequest) -> StreamingResponse:
+async def research_endpoint(body: ResearchRequest, request: Request) -> StreamingResponse:
     """REQ-1.1-B-1: POST /api/research returns a text/event-stream.
 
     Streams 5 stage events as the pipeline progresses, then a terminal
@@ -166,7 +173,14 @@ async def research_endpoint(body: ResearchRequest) -> StreamingResponse:
     change the HTTP status once headers flushed).
     """
     return StreamingResponse(
-        _sse_event_stream(body.query, body.max_iterations),
+        # arx-4 #64/#65: pass the lifespan LightRAG (with reranker) so the
+        # retriever uses mix-mode vector chunks + rerank instead of a fresh
+        # reranker-less hybrid instance. getattr guards CLI/test where state unset.
+        _sse_event_stream(
+            body.query,
+            body.max_iterations,
+            rag=getattr(request.app.state, "lightrag", None),
+        ),
         media_type="text/event-stream",
         headers={
             # Defeat proxy/ingress response buffering so stage frames + the

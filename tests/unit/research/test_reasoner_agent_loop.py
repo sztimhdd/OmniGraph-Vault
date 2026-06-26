@@ -135,7 +135,7 @@ async def test_reasoner_caps_at_max_iter(tmp_path, monkeypatch):
             ),
         )
 
-    async def stub_kg_search(q, mode="hybrid"):
+    async def stub_kg_search(q, mode="hybrid", **kwargs):  # arx-4: absorb rag= kwarg
         return "stub kg result"
 
     # Patch via monkeypatch for safe teardown — avoids closure-capture issues.
@@ -168,7 +168,7 @@ async def test_reasoner_caps_returns_ok_not_failed(tmp_path, monkeypatch):
             ),
         )
 
-    async def stub_kg_search(q, mode="hybrid"):
+    async def stub_kg_search(q, mode="hybrid", **kwargs):  # arx-4: absorb rag= kwarg
         return "stub"
 
     monkeypatch.setattr(
@@ -261,7 +261,7 @@ async def test_reasoner_kg_search_tool_appends_chunk(tmp_path, monkeypatch):
             )
         return _LLMDecision(is_final=True, content="done")
 
-    async def stub_kg_search(q, mode="hybrid"):
+    async def stub_kg_search(q, mode="hybrid", **kwargs):  # arx-4: absorb rag= kwarg
         return "stub kg result"
 
     monkeypatch.setattr(

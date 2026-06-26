@@ -193,6 +193,9 @@ def _fake_from_env() -> Any:
         max_iter_reasoner: int = 5
         max_iter_verifier: int = 3
         marker: str = "stub-cfg"
+        # arx-4 #64/#65: research_endpoint now threads the lifespan rag into cfg
+        # via dataclasses.replace(..., rag=...); the stub must carry the field.
+        rag: object | None = None
 
     return _StubCfg()
 

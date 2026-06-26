@@ -123,7 +123,9 @@ async def run(
 
     async def _kg_search_tool(query: str, top_k: int = 10) -> str:
         # omnigraph_search.query.search is async (verified at read_first time).
-        return await kg_search(query, mode="hybrid")
+        # arx-4 #64/#65 parity with the retriever: mix mode (vector chunks) +
+        # cfg.rag (lifespan instance with reranker) instead of hybrid + fresh rag.
+        return await kg_search(query, mode="mix", rag=cfg.rag)
 
     async def _vision_analyze_tool(image_path: str, question: str) -> str:
         # TOOL-04: wraps cfg.vision_cascade.describe — no new vision infra.

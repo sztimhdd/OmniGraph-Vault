@@ -36,7 +36,13 @@ async def run(query: str, cfg: ResearchConfig) -> RetrieverOutput:
     ``{"ok", "skipped", "failed"}``. Never raises.
     """
     try:
-        kg_text = await kg_search(query, mode="hybrid", only_context=True)
+        # arx-4 #64: mode="mix" (not "hybrid") so LightRAG queries chunks_vdb for
+        # vector chunks (operate.py gates _get_vector_context to mix mode); hybrid
+        # never populates vector chunks → "0 vector chunks → WEIGHT fallback".
+        # arx-4 #65: pass cfg.rag (the lifespan instance with rerank_model_func) so
+        # rerank applies at query time; rag=None here would build a fresh
+        # reranker-less instance and re-trigger the "no rerank model" warning.
+        kg_text = await kg_search(query, mode="mix", only_context=True, rag=cfg.rag)
     except Exception as e:  # noqa: BLE001 — Axis 3 best-effort
         return RetrieverOutput(
             chunks=[],

@@ -134,6 +134,37 @@ async def test_retriever_skipped_when_empty(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Test 4b (arx-4 #64/#65 behavior anchor): retriever forwards mode="mix" and
+# cfg.rag to kg_search. Pins the contract that #64 (vector chunks need mix mode)
+# and #65 (rerank needs the lifespan rag) depend on — a regression here silently
+# reverts to hybrid + fresh reranker-less instance (the 0-vector-chunks +
+# "no rerank model" deployed symptom).
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+async def test_retriever_forwards_mix_mode_and_lifespan_rag(tmp_path, monkeypatch):
+    captured: dict = {}
+
+    async def _capturing_search(q, mode="hybrid", **kwargs):
+        captured["mode"] = mode
+        captured["rag"] = kwargs.get("rag", "MISSING")
+        captured["only_context"] = kwargs.get("only_context", "MISSING")
+        return ""  # empty → skipped; we only assert the call shape
+
+    monkeypatch.setattr(
+        "lib.research.stages.retriever.kg_search", _capturing_search
+    )
+    sentinel_rag = object()
+    cfg = dataclasses.replace(
+        _make_cfg(tmp_path / "lightrag_storage"), rag=sentinel_rag
+    )
+    await retriever_stage.run("hello", cfg)
+
+    assert captured["mode"] == "mix", "retriever must use mix mode for vector chunks (#64)"
+    assert captured["rag"] is sentinel_rag, "retriever must forward cfg.rag (lifespan reranker, #65)"
+    assert captured["only_context"] is True
+
+
+# ---------------------------------------------------------------------------
 # Test 5: retriever failed when search raises
 # ---------------------------------------------------------------------------
 @pytest.mark.unit

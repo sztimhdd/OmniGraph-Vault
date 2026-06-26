@@ -115,3 +115,9 @@ class ResearchConfig:
     telemetry_jsonl: Path | None = None
     max_iter_reasoner: int = 5
     max_iter_verifier: int = 3
+    # arx-4 #64/#65: the lifespan-pinned LightRAG (built with rerank_model_func
+    # in kb/api.py). When set, the retriever/reasoner reuse it instead of
+    # building a fresh, reranker-less instance — so query-time rerank applies
+    # (#65) and the already-hydrated storage is reused. None = CLI/skill_runner
+    # builds its own fresh instance (omnigraph_search.query.search rag=None branch).
+    rag: object | None = None  # LightRAG | None (object avoids a lightrag import here)

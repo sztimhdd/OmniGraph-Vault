@@ -56,7 +56,7 @@ def _make_stub_cfg(rag_working_dir: Path, telemetry_jsonl: Path | None = None) -
 def stub_kg_search(monkeypatch):
     """Stub `kg_search` so the retriever doesn't try to hit a live KG."""
 
-    async def _empty_search(q, mode="hybrid"):
+    async def _empty_search(q, mode="hybrid", **kwargs):  # arx-4: absorb rag= kwarg
         return ""
 
     monkeypatch.setattr(
