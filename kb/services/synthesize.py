@@ -737,12 +737,21 @@ async def kb_synthesize(
     # articles/<hash>.html refs. qa.js stays in place (defense-in-depth + it
     # handles cached pre-fix responses).
     markdown = _normalize_citations(markdown)
+    # #75 (2026-06-29): C1 can return an EMPTY string WITHOUT raising — when the
+    # embedding backend is down (e.g. cross-border Vertex egress dead), LightRAG
+    # catches its own internal error ("Query failed: 'list' object has no
+    # attribute 'get'") and yields no text. That bypassed both the timeout and
+    # except branches, landing here with markdown="" → a dead-end no_results.
+    # Route empty-KG to the keyword-FTS fallback so QA still answers from the
+    # corpus instead of returning nothing.
+    if not markdown.strip():
+        _fts5_fallback(question, lang, job_id, reason="C1 returned empty (KG/embedding unavailable)")
+        return
     sources = _resolve_sources_from_markdown(markdown)
     entities = _resolve_entities_for_sources([s.hash for s in sources])
-    confidence: ConfidenceLevel = "kg" if markdown.strip() else "no_results"
     result = SynthesizeResult(
         markdown=markdown,
-        confidence=confidence,
+        confidence="kg",
         fallback_used=False,
         sources=sources,
         entities=entities,
@@ -752,5 +761,5 @@ async def kb_synthesize(
         status="done",
         result=result.asdict(),
         fallback_used=False,
-        confidence=confidence,
+        confidence="kg",
     )
