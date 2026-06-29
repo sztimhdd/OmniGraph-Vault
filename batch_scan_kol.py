@@ -139,6 +139,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _ensure_column(conn, "articles", "content_hash", "TEXT")
     _ensure_column(conn, "articles", "enriched", "INTEGER DEFAULT 0")
     _ensure_column(conn, "ingestions", "enrichment_id", "TEXT")
+    _ensure_column(conn, "accounts", "last_scanned_at", "TEXT")
     conn.commit()
 
     # Phase 5 Plan 05-01: RSS schema (idempotent)
@@ -256,15 +257,12 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
             random.shuffle(rows)
         else:
             # STALENESS PATH — deterministic, no shuffle; picks the N staleest accounts
-            # (never-scanned NULL-first, then oldest-scanned, then name tiebreak).
-            # Version-safe: uses boolean (IS NULL) ordering, NOT the NULLS FIRST keyword
-            # (Aliyun SQLite version unknown, NULLS FIRST support not guaranteed).
+            # ordered by last attempt time (NULL-first = never attempted, then oldest-attempted,
+            # then name tiebreak). Version-safe: uses boolean (IS NULL) ordering,
+            # NOT the NULLS FIRST keyword (Aliyun SQLite version unknown).
             rows = conn.execute("""
-                SELECT acc.name, acc.fakeid
-                FROM accounts acc
-                LEFT JOIN articles a ON a.account_id = acc.id
-                GROUP BY acc.id
-                ORDER BY (MAX(a.scanned_at) IS NULL) DESC, MAX(a.scanned_at) ASC, acc.name ASC
+                SELECT name, fakeid FROM accounts
+                ORDER BY (last_scanned_at IS NULL) DESC, last_scanned_at ASC, name ASC
             """).fetchall()
             if not rows:
                 logger.error("No accounts in DB")
@@ -311,6 +309,11 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
                 scanned_count += 1
                 total_new += new
                 total_skipped += skipped
+                conn.execute(
+                    "UPDATE accounts SET last_scanned_at = datetime('now','localtime') WHERE name = ?",
+                    (name,),
+                )
+                conn.commit()
                 if summary_json:
                     by_account.append({"name": name, "new": new, "skipped": skipped})
             else:
