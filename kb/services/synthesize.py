@@ -465,6 +465,75 @@ def _resolve_entities_for_sources(source_hashes: list[str]) -> list[EntityMentio
     ]
 
 
+# #75 fallback-quality fix (2026-06-29): the fallback receives a full natural-
+# language QUESTION ("什么是AI Agent" / "What is an AI agent?"), but
+# search_index._sanitize_fts5_query wraps the whole string as a single FTS5
+# phrase literal — so a full question rarely matches (the trigram phrase
+# "什么是AI Agent" finds 0 rows even though "AI Agent" finds 3). The search BOX
+# is fine (users type keywords); only the QA fallback feeds a full sentence.
+# Fix: extract content keywords and OR-union per-keyword FTS hits. Zero external
+# deps (no jieba), no embedding/network — works while Vertex egress is down (#75).
+_QA_STOPWORDS_ZH: frozenset[str] = frozenset({
+    "什么", "是", "的", "了", "吗", "呢", "如何", "怎么", "怎样", "为什么",
+    "哪些", "哪个", "和", "与", "及", "在", "有", "会", "区别", "介绍",
+    "请问", "可以", "需要", "关于", "一下", "这个", "那个",
+})
+_QA_STOPWORDS_EN: frozenset[str] = frozenset({
+    "what", "is", "are", "the", "a", "an", "how", "why", "of", "to", "do",
+    "does", "did", "in", "on", "for", "and", "or", "with", "about", "explain",
+    "tell", "me", "can", "you", "please", "between", "vs",
+})
+# Token = a run of ASCII alphanumerics OR a run of CJK ideographs.
+_QA_TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[一-鿿]+")
+
+
+def _extract_fts_keywords(question: str) -> list[str]:
+    """Split a QA question into FTS-friendly content keywords (#75).
+
+    Drops EN/ZH stopwords and strips leading ZH stop-prefixes from CJK runs
+    (so "什么是AI" → keeps "AI"; a pure-stopword CJK run like "什么是" drops).
+    Pure function. Returns [] only when the question is all stopwords/empty,
+    in which case the caller falls back to the raw question.
+    """
+    out: list[str] = []
+    for tok in _QA_TOKEN_RE.findall(question or ""):
+        if tok.lower() in _QA_STOPWORDS_EN:
+            continue
+        if "一" <= tok[0] <= "鿿":
+            for stop in sorted(_QA_STOPWORDS_ZH, key=len, reverse=True):
+                while tok.startswith(stop) and len(tok) > len(stop):
+                    tok = tok[len(stop):]
+            if tok in _QA_STOPWORDS_ZH:
+                continue
+        if tok:
+            out.append(tok)
+    return out
+
+
+def _fts5_keyword_union(question: str, limit: int) -> list:
+    """Run FTS per extracted keyword and union the hits in first-seen order (#75).
+
+    Falls back to a single whole-question query when no keywords survive
+    extraction (preserves prior behavior for stopword-only inputs).
+    """
+    from kb.services.search_index import fts_query
+
+    keywords = _extract_fts_keywords(question)
+    if not keywords:
+        return fts_query(question, lang=None, limit=limit)
+    seen: set[str] = set()
+    union: list = []
+    for kw in keywords:
+        for row in fts_query(kw, lang=None, limit=limit):
+            if row[0] in seen:
+                continue
+            seen.add(row[0])
+            union.append(row)
+            if len(union) >= limit:
+                return union
+    return union
+
+
 def _fts5_fallback(question: str, lang: str, job_id: str, reason: str) -> None:
     """QA-05: FTS5 top-3 fallback when LightRAG synthesis fails or times out.
 
@@ -476,12 +545,13 @@ def _fts5_fallback(question: str, lang: str, job_id: str, reason: str) -> None:
     instead of plain hash strings, so qa.js renders the same chip surface
     as the KG happy path. Entities stay [] on fallback (qa.js skips entity
     rendering when fallback_used per kb-3 UI-SPEC §3.1 D-9).
+
+    #75 (2026-06-29): query by extracted keywords (OR-union) instead of the raw
+    full question, so a natural-language question reliably matches the trigram
+    index even when the upstream KG/embedding path is down.
     """
     try:
-        # Lazy import — keeps module-import cheap and lets tests monkeypatch.
-        from kb.services.search_index import fts_query
-
-        rows = fts_query(question, lang=None, limit=3)
+        rows = _fts5_keyword_union(question, limit=3)
         if not rows:
             markdown = (
                 "> Note: 暂时无法生成完整回答 / Synthesis temporarily unavailable.\n\n"
