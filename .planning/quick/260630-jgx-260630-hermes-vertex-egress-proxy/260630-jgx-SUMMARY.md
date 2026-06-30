@@ -79,6 +79,78 @@ Proved SOCKS5 proxy works end-to-end before committing persistent changes.
 - E2E ingest: 2 articles scraped + LightRAG embedding running without ConnectTimeout
 - Committed: `13e6566`
 
+## Additional Fixes (Post-Commit 13e6566)
+
+Three additional commits shipped after the initial implementation to fix bugs discovered
+during production cron execution on 2026-06-30:
+
+### Fix 1: `58409a6` — vertex_gemini_complete proxy injection
+
+- **Issue:** L1 classify (Layer-1 via `lib.vertex_gemini_complete`) continued to fail with
+  ConnectTimeout because `vertex_gemini_complete._make_client()` had NO proxy injection.
+  Only `lightrag_embedding._make_client()` was patched in `13e6566`.
+- **Fix:** Added identical proxy block to `vertex_gemini_complete._make_client()`.
+- **Files:** `lib/vertex_gemini_complete.py`
+
+### Fix 2: `96ed0b2` — sync httpx_client for vertex_gemini_complete
+
+- **Issue:** `vertex_gemini_complete` uses `client.aio.models.generate_content()` (async),
+  which needs `httpx_async_client`. But the sync test path (`client.models.generate_content`)
+  also existed — only `httpx_async_client` in `HttpOptions` left the sync path unproxied.
+- **Fix:** Added `httpx_client=httpx.Client(proxy=proxy_url)` alongside `httpx_async_client`
+  in both modules as a safety measure.
+- **Files:** `lib/vertex_gemini_complete.py`
+
+### Fix 3: `3fd8b48` — recursion guard on repeated `_make_client()` calls
+
+- **Issue:** `google.auth.transport.requests.Request.__init__` monkeypatch was re-applied on
+  every `_make_client()` call (L1 classify fires `_make_client()` per batch). Each call
+  captured the already-patched `__init__` as `_orig_request_init`, creating a recursion chain:
+  `_proxied_request_init` → `_proxied_request_init` → ... → RecursionError (989 calls).
+- **Fix:** Guard with `if not getattr(_gar.Request, "_omnigraph_proxy_patched", False):`
+  + set `_gar.Request._omnigraph_proxy_patched = True` in both modules.
+- **Files:** `lib/lightrag_embedding.py`, `lib/vertex_gemini_complete.py`
+
+## Production Cron E2E Evidence (2026-06-30)
+
+`omnigraph-daily-ingest.service` PID 3746338 ran at 06:00 UTC+8 (CST):
+
+**L1 classify — ZERO ConnectTimeout across all batches:**
+
+```
+batch  0: n=30 candidate=30 reject=0  null=0 wall_ms=6121
+batch  1: n=30 candidate=30 reject=0  null=0 wall_ms=5857
+batch  2: n=30 candidate=30 reject=0  null=0 wall_ms=6081
+batch  3: n=30 candidate=30 reject=0  null=0 wall_ms=6538
+batch  4: n=30 candidate=30 reject=0  null=0 wall_ms=6106
+batch  5: n=30 candidate=23 reject=7  null=0 wall_ms=5708
+batch  6: n=30 candidate=13 reject=17 null=0 wall_ms=6026
+batch  7: n=30 candidate=13 reject=17 null=0 wall_ms=6909
+batch  8: n=30 candidate=17 reject=13 null=0 wall_ms=6821
+batch  9: n=30 candidate=19 reject=11 null=0 wall_ms=6030
+batch 10: n=30 candidate=9  reject=21 null=0 wall_ms=6674
+batch 11: n=30 candidate=22 reject=8  null=0 wall_ms=10085
+batch 12: n=30 candidate=18 reject=12 null=0 wall_ms=8818
+batch 13: n=30 candidate=6  reject=24 null=0 wall_ms=6993
+batch 15: n=2  candidate=0  reject=2  null=0 wall_ms=16065
+```
+
+464 articles classified, `null=0` in every batch. No `ConnectTimeout` in entire run.
+
+**graphml growth (embedding via SOCKS5 proxy working):**
+
+```
+06:00 — Loaded: 34053 nodes, 49749 edges
+06:06 — Writing: 34060 nodes, 49755 edges
+06:08 — Writing: 34075 nodes, 49776 edges  (+22 nodes since load)
+06:09 — Writing: 34078 nodes, 49778 edges  (+25 nodes since load)
+```
+
+**No RecursionError** in entire journal (fix 3 worked).
+
+**LightRAG ainsert active:** `Completed merging: 5 entities / 25 entities / 3 entities` across
+first 3 chunks, embeddings calling Vertex via SOCKS5 proxy continuously.
+
 ## Deviations from Plan
 
 ### Auto-fixed Issues

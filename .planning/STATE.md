@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Awaiting Hermes to close Gate 3 (fixture scrape + E2E batch run)
-stopped_at: "Completed 260630-jgx-01-PLAN.md (Hermes Vertex Egress Proxy — #75 B-mitigation DEPLOYED)"
-last_updated: "2026-06-30T18:11:01.830Z"
-last_activity: 2026-06-30
+stopped_at: "260630-jgx CLOSED — #75 B-mitigation PRODUCTION-CONFIRMED (16 L1-classify batches null=0, graphml 34053→34078 via SOCKS5 proxy, 4 commits 13e6566+58409a6+96ed0b2+3fd8b48)"
+last_updated: "2026-07-01T00:15:00.000Z"
+last_activity: 2026-07-01
 progress:
   total_phases: 25
   completed_phases: 11
