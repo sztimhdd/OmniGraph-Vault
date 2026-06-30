@@ -104,7 +104,13 @@ def _make_client() -> "genai.Client":
         from google.genai.types import HttpOptions
         import google.auth.transport.requests as _gar
 
-        http_options = HttpOptions(httpx_async_client=httpx.AsyncClient(proxy=proxy_url))
+        # Inject both sync and async httpx clients — vertex_gemini_complete uses
+        # synchronous client.models.generate_content (needs httpx_client), while
+        # lightrag_embedding uses async (needs httpx_async_client).
+        http_options = HttpOptions(
+            httpx_client=httpx.Client(proxy=proxy_url),
+            httpx_async_client=httpx.AsyncClient(proxy=proxy_url),
+        )
 
         _orig_request_init = _gar.Request.__init__
 
