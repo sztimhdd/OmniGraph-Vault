@@ -87,11 +87,38 @@ def _make_client() -> "genai.Client":
     Mirrors ``lib/lightrag_embedding._make_client`` for the Vertex branch.
     No ``api_key`` path — this module is Vertex-only; free-tier Gemini LLM
     usage routes through the existing ``lib.generate_sync`` helper.
+
+    260630-jgx SOCKS5 proxy mitigation: when OMNIGRAPH_EMBED_PROXY is set,
+    injects httpx.AsyncClient proxy + monkeypatches google.auth Request session.
+    Mirrors lightrag_embedding._make_client proxy block exactly.
     """
     project = _require_project()
     location = os.environ.get("GOOGLE_CLOUD_LOCATION", _DEFAULT_LOCATION) \
         or _DEFAULT_LOCATION
-    return genai.Client(vertexai=True, project=project, location=location)
+
+    http_options = None
+    proxy_url = os.environ.get("OMNIGRAPH_EMBED_PROXY", "")
+    if proxy_url:
+        import httpx
+        import requests as _requests
+        from google.genai.types import HttpOptions
+        import google.auth.transport.requests as _gar
+
+        http_options = HttpOptions(httpx_async_client=httpx.AsyncClient(proxy=proxy_url))
+
+        _orig_request_init = _gar.Request.__init__
+
+        def _proxied_request_init(self: _gar.Request,
+                                  session: "_requests.Session | None" = None) -> None:
+            if session is None:
+                session = _requests.Session()
+                session.proxies = {"https": proxy_url, "http": proxy_url}
+            _orig_request_init(self, session)
+
+        _gar.Request.__init__ = _proxied_request_init  # type: ignore[method-assign]
+
+    return genai.Client(vertexai=True, project=project, location=location,
+                        http_options=http_options)
 
 
 def _build_contents(
