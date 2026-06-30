@@ -112,16 +112,20 @@ def _make_client() -> "genai.Client":
             httpx_async_client=httpx.AsyncClient(proxy=proxy_url),
         )
 
-        _orig_request_init = _gar.Request.__init__
+        # Guard: only monkeypatch once — repeated _make_client() calls would otherwise
+        # chain _proxied_request_init → _proxied_request_init → ... (RecursionError).
+        if not getattr(_gar.Request, "_omnigraph_proxy_patched", False):
+            _orig_request_init = _gar.Request.__init__
 
-        def _proxied_request_init(self: _gar.Request,
-                                  session: "_requests.Session | None" = None) -> None:
-            if session is None:
-                session = _requests.Session()
-                session.proxies = {"https": proxy_url, "http": proxy_url}
-            _orig_request_init(self, session)
+            def _proxied_request_init(self: _gar.Request,
+                                      session: "_requests.Session | None" = None) -> None:
+                if session is None:
+                    session = _requests.Session()
+                    session.proxies = {"https": proxy_url, "http": proxy_url}
+                _orig_request_init(self, session)
 
-        _gar.Request.__init__ = _proxied_request_init  # type: ignore[method-assign]
+            _gar.Request.__init__ = _proxied_request_init  # type: ignore[method-assign]
+            _gar.Request._omnigraph_proxy_patched = True  # type: ignore[attr-defined]
 
     return genai.Client(vertexai=True, project=project, location=location,
                         http_options=http_options)
