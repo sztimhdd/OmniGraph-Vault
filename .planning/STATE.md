@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Awaiting Hermes to close Gate 3 (fixture scrape + E2E batch run)
-stopped_at: Completed kol-cookie-autorefresh-02-PLAN.md (refresh-wrapper)
-last_updated: "2026-06-25T14:37:26.230Z"
-last_activity: 2026-06-25 -- Phase arx-4-databricks-kg execution started
+stopped_at: "Completed 260630-jgx-01-PLAN.md (Hermes Vertex Egress Proxy — #75 B-mitigation DEPLOYED)"
+last_updated: "2026-06-30T18:11:01.830Z"
+last_activity: 2026-06-30
 progress:
   total_phases: 25
   completed_phases: 11
   total_plans: 58
-  completed_plans: 54
+  completed_plans: 57
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 ## Current Position
 
 Phase: arx-4-databricks-kg (databricks-kg-retrieval) — EXECUTING
-Plan: 1 of 4
+Plan: 2 of 4
 **No active phase in flight.** (2026-06-12 reconcile — prior "Phase kdb-1.5 EXECUTING / KB-v2 1 of 3" was stale by ~3-4 weeks; corrected below against VERIFICATION docs + git history + live Aliyun audit. Root cause = parallel-track suffix-file manual-sweep gap, memory `feedback_parallel_track_gates_manual_run`.)
 
 Recently CLOSED milestones / phases (verified 2026-06-12 audit):
@@ -41,7 +41,7 @@ Milestone (main): v3.4 (RSS-KOL Alignment) — ✅ CLOSED 2026-05-09 (Phase 19 +
 
 **Next-target candidates (none committed — awaiting user decision):** (a) **ir-3 audit close** (overdue, ~1 quick to gather observation evidence + flip v3.5 to CLOSED); (b) **#44 graphml↔Qdrant divergence** — the only real substrate work, degrades long_form KG quality on Aliyun, partly self-healing via Path X cron (today measured 9 sources, recovering); (c) **arx-2 finish** — real work: implement the LLM synthesizer (ar-4) + cross deploy/UAT gate, depends on local storage re-hydrate to 3072; (d) **#30 translate-throughput** — zero-code cron-cadence quick to stop the 84% coverage drift.
 
-Last activity: 2026-06-30 -- Completed quick task 260629-gvl (--full): Fix #73 KOL scan staleness head-pinning (option C). (code) batch_scan_kol.py gained accounts.last_scanned_at (idempotent migration) + stamp-on-successful-scan-attempt incl. 0-article (NOT on cookie-dead failure) + staleness SELECT re-ordered to ORDER BY (last_scanned_at IS NULL) DESC, last_scanned_at ASC, name ASC — empty-but-healthy accounts rotate to back after one attempt instead of pinning head (260626-jgp ordered by ARTICLE recency, which 0-article accounts never advance). 8/8 behavior-anchor tests (4 new test_scan_last_scanned.py + 4 existing); commit 4683c9a cherry-picked→main, pushed; verifier 7/7. (data, Aliyun operator) resurrection gate caught all 5 CV accounts in live kol_config.FAKEIDS (removed 49→44) + transactional kol_scan.db delete (58→53 accounts, 2197→1826 articles: 145 under 5 CV accts + 226 orphan CV arts ids 16/17/18/19/49; 1855 cls+529 ing+202 ent cascaded; integrity ok). Migration+ordering confirmed live. CAVEAT: live stamp-on-success unproven (dead cookie + Hermes unreachable for auto-refresh per #75); proven by unit test. KG/Qdrant untouched. #73 RESOLVED (R42)
+Last activity: 2026-06-30
 Last activity (prev): 2026-06-27 -- Completed quick task 260626-jgp (--full): KOL scan 4-batch staleness coverage. batch_scan_kol.py gained backward-compatible --max-accounts N + version-safe staleness ordering ((MAX(scanned_at) IS NULL) DESC, MAX ASC, name ASC; default None = unchanged shuffle). 4 systemd batch timers (omnigraph-kol-scan-batch@{1..4}, 01:30/05:30/11:00/15:30 UTC, --max-accounts 15, lean no-Requires=, RuntimeMaxSec=1800, OnFailure alert kept) replace single 11:00 UTC scan; classify retimed 11:15→16:00 UTC. 4/4 unit tests + verifier 9/9 + plan-check PASS; commits 9887e87+9e70da2 cherry-picked→9928661, pushed. Aliyun deployed via SCP (git fetch 443-blocked), SQLite 3.37.2 confirms boolean-NULL ordering. Bootstrap PROVED: exact staleest-15 selection on live data, 15 req/batch (no 50/50), rotation advances (batch@1≠batch@2), #56 cookie self-heal chain fired end-to-end (dead cookie→exit2→OnFailure→Hermes refresh→re-fire 15ok/0fail). HONEST: literal "58/58 daily / 0 NULL" NOT met — 9 accounts structurally un-populatable by scan (1 url-UNIQUE attribution dup CV技术指南 id=5767 + 8 zero-article fakeid-drift) pin to top-9 of every batch, filed #73 (R40). Net: every scannable account (49) now ~2-3 day rotation vs old random ~18/day. Did NOT touch wechat_spider/ingest cron/classify logic/cookie chain/MCP tunnel
 Last activity (prev): 2026-06-26 -- Completed quick task 260626-fp5 (--full): fixed #70 batch_classify_kol.py batch_size=200 DeepSeek finish_reason=length truncation → whole-topic abort. 3 defenses: TRUNCATED sentinel in _call_deepseek + adaptive _classify_batch recursive halving (MIN_BATCH=25, abs-index rebase) + default batch_size 200→100 (env KOL_CLASSIFY_BATCH_SIZE). 14/14 tests green; Aliyun validated on real densest-200 NLP batch (returned 200, was 0/abort); cron uses default 100, next fire Sat 2026-06-27 19:15 CST. #70 RESOLVED (R39); #71/#72 deferred follow-ups filed. Orchestrator caught + forward-fixed executor's default-200 + dropped-tests deviation (220397e)
 Last activity (prev): 2026-06-25 -- Completed quick task 260625-jv2: fixed batch_classify_kol.py --topic argparse single-value re-regression (action=append + per-topic loop); backfill validated ALL 5 topics 1013→2069 on Aliyun (backlog→0). #69 RESOLVED. #70 filed (P1, root cause pinned): batch_size=200 overflows DeepSeek max_tokens → finish_reason=length truncation → parse fail → whole topic aborted; only NLP (densest) tripped it, resolved via 100-row-batch workaround
@@ -198,6 +198,7 @@ Last activity: 2026-05-01 -- Milestone v3.2 autonomous execution landed, pushed 
 | Phase kb-3 P08 | 8min | 2 tasks | 5 files |
 | Phase ar-1-mvp-vertical-slice P01 | 294 | 7 tasks | 11 files |
 | Phase kol-cookie-autorefresh P02 | 8 | 3 tasks | 3 files |
+| Phase 260630-jgx P01 | 47 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -274,6 +275,9 @@ Recent decisions affecting current work:
 - [Phase kb-1-ssg-export-i18n-foundation]: kb-1-09: DB path override is env-only (KB_DB_PATH=/path), NOT a CLI flag — config.KB_DB_PATH is bound at module import before argparse runs (REVISION 1 / Issue #3)
 - [Phase kb-1-ssg-export-i18n-foundation]: kb-1-09: Sitemap <lastmod> derived from max(article.update_time[:10]) for index URLs and per-article update_time for detail URLs; deterministic _LASTMOD_FALLBACK='1970-01-01' for missing data; never datetime.now() (REVISION 1 / Issue #1)
 - [Phase kb-1-ssg-export-i18n-foundation]: kb-1-09: Defensive sys.path guard at module top — replace kb/ entry with project root when invoked as script, so stdlib 'locale' resolves correctly while 'from kb import' still works. kb/locale subpackage shadows stdlib locale otherwise
+- [Phase 260630-jgx]: Use OMNIGRAPH_EMBED_PROXY not ALL_PROXY: custom var prevents unintended proxy routing by requests/PySocks for non-Google traffic (DeepSeek, SiliconFlow, tiktoken)
+- [Phase 260630-jgx]: Force httpx transport via HttpOptions(httpx_async_client=...) to bypass aiohttp lack of SOCKS5 support in google-genai v1.75.0
+- [Phase 260630-jgx]: Monkeypatch google.auth.transport.requests.Request in _make_client to inject proxied session for SA token refresh — two separate HTTP transport layers need patching
 
 ### Pending Todos
 
@@ -410,8 +414,8 @@ None tracked.
 
 ## Session Continuity
 
-Last session: 2026-06-20T00:21:10.614Z
-Stopped at: Completed kol-cookie-autorefresh-02-PLAN.md (refresh-wrapper)
+Last session: 2026-06-30T18:11:01.818Z
+Stopped at: Completed 260630-jgx-01-PLAN.md (Hermes Vertex Egress Proxy — #75 B-mitigation DEPLOYED)
 Resume file: None
 Next command: Wait for 2026-05-07 06:00 ADT cron run → if positive, lift execute gate → resume with `/gsd:plan-phase 20`. If cron fails, use `docs/research/cron_failure_predictions_2026_05_06.md` cheat sheet to diagnose.
 
