@@ -3,6 +3,8 @@
 .env
 **/.env
 **/.env.local
+# Prevent committing .env backup files that may contain secrets
+**/.env*.bak*
 venv/
 __pycache__/
 *.egg-info/
