@@ -1,5 +1,5 @@
 [Unit]
-Description=OmniGraph SSH SOCKS5 egress proxy: Aliyun -> Hermes (Vertex/Google API unblock, TEMPORARY #75 mitigation)
+Description=OmniGraph SSH SOCKS5 egress proxy: Aliyun -> GCP SG (Vertex/Google API unblock, TEMPORARY #75 mitigation)
 After=network-online.target
 Wants=network-online.target
 
@@ -7,12 +7,13 @@ Wants=network-online.target
 Type=simple
 User=root
 # -D opens SOCKS5 server on Aliyun loopback port 18080
-# Python processes with ALL_PROXY=socks5h://127.0.0.1:18080 route Google traffic via Hermes
+# Python processes route Google/Vertex traffic via GCP Singapore VM (35.198.243.36)
 # The embedding code uses httpx.AsyncClient(proxy="socks5h://127.0.0.1:18080") injected via
 # HttpOptions(httpx_async_client=...) to bypass aiohttp's lack of native SOCKS5 support.
 # TEMPORARY: disable this service when IT fixes ACK NetworkPolicy for wg-gcp-sg
 # Rollback procedure: see .planning/quick/260630-jgx-260630-hermes-vertex-egress-proxy/260630-jgx-DECISION.md
 ExecStart=/usr/bin/ssh -N -T \
+  -i /root/.ssh/id_ed25519 \
   -o ConnectTimeout=15 \
   -o ExitOnForwardFailure=yes \
   -o ServerAliveInterval=30 \
@@ -20,7 +21,7 @@ ExecStart=/usr/bin/ssh -N -T \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=accept-new \
   -D 127.0.0.1:18080 \
-  hermes
+  huhai_orion@35.198.243.36
 Restart=always
 RestartSec=10
 StartLimitIntervalSec=0
