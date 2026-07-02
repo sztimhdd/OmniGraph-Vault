@@ -496,5 +496,32 @@ re-map the REQ.
 
 ---
 
+## Follow-on suffix track (kb-v2.x)
+
+Post-milestone stabilization + enhancement phases layered on top of the sealed kb-1..kb-4
+milestone above. These do NOT re-map the 62 v2.0 REQs (that coverage table is frozen);
+each kb-v2.x phase is gated by its own CONTEXT.md `<success_criteria>` (suffix track — gates
+run manually per `feedback_parallel_track_gates_manual_run`). Phase dirs live under
+`.planning/phases/kb-v2.N-*/`.
+
+- kb-v2.1 (stabilization) — closed.
+- kb-v2.2 (translation + KG search) — closed.
+- **kb-v2.3 (readability upgrade)** — planned 2026-07-02 by `gsd-planner`. **4 plans, 4 waves.**
+
+  **Goal:** KB article pages read like a 2026 tech blog — clean, well-formatted, bilingual,
+  correct image placement, ads/boilerplate/format-noise removed. Two ORDERED stages:
+  Stage 1 (content) = a new post-ingest LLM rewrite pass -> `body_rewritten` (display-only;
+  LightRAG KG stays sourced from original `body` — Decision A); the kept translation cron
+  re-reads it via COALESCE (Fork X). Stage 2 (frontend) = ui-ux-pro-max refinement of
+  article.html + style.css, verified against the clean Stage-1 articles.
+
+  Plans (waves reflect the ordered-stage dependency — prompt validated -> schema -> cron+backfill -> frontend):
+  - [ ] kb-v2.3-1-rewrite-prompt-validation-PLAN.md — validated rewrite prompt + URL-set-diff safety valve + real-sample harness (Wave 1, critical-path gate)
+  - [ ] kb-v2.3-2-schema-and-readpath-PLAN.md — migration 009 (body_rewritten both tables) + D-14 prepend + 5 SELECT sites + conftest parity (Wave 2)
+  - [ ] kb-v2.3-3-rewrite-cron-and-backfill-PLAN.md — rewrite_body_cron.py + behavior-anchor test + Fork-X COALESCE wiring + guarded re-translation reset + 572 Aliyun backfill (Wave 3)
+  - [ ] kb-v2.3-4-frontend-refinement-PLAN.md — ui-ux-pro-max article.html + style.css refinement + full-Makefile deploy (Principle #9) + browser UAT on clean articles (Principle #6) (Wave 4)
+
+---
+
 *Roadmap created: 2026-05-12 by `gsd-roadmapper`.*
-*Last updated: 2026-05-12 — initial draft.*
+*Last updated: 2026-07-02 — appended kb-v2.3 readability-upgrade follow-on track (4 plans) by `gsd-planner`.*
