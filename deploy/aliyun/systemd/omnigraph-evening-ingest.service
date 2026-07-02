@@ -1,7 +1,7 @@
 [Unit]
 Description=OmniGraph evening ingest 21:00 ADT (00:00 UTC next day)
-After=network-online.target
-Wants=network-online.target
+After=network-online.target omnigraph-vertex-proxy.service
+Wants=network-online.target omnigraph-vertex-proxy.service
 Conflicts=omnigraph-daily-ingest.service omnigraph-afternoon-ingest.service
 
 [Service]

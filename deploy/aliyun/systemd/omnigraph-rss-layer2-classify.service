@@ -1,7 +1,7 @@
 [Unit]
 Description=OmniGraph daily RSS Layer-2 classify
-After=network-online.target
-Wants=network-online.target
+After=network-online.target omnigraph-vertex-proxy.service
+Wants=network-online.target omnigraph-vertex-proxy.service
 
 [Service]
 Type=simple
