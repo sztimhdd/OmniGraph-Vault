@@ -150,12 +150,27 @@ def _gate_length(input_body: str, output_body: str) -> tuple[bool, str]:
 # Pull dirty samples from DB
 # ---------------------------------------------------------------------------
 
-def _pull_dirty_samples(conn: sqlite3.Connection, limit: int) -> list[tuple]:
+def _pull_dirty_samples(
+    conn: sqlite3.Connection,
+    limit: int,
+    with_images: bool = False,
+    max_body_len: Optional[int] = None,
+) -> list[tuple]:
     """SELECT the dirtiest unprocessed samples (longest body first).
 
     Returns rows of (id, table_name, title, body).
     DATA-07 filter: layer1_verdict='candidate' AND layer2_verdict='ok'
     AND body IS NOT NULL AND body != '' AND body_rewritten IS NULL.
+
+    Args:
+        with_images: if True, restrict to bodies that contain at least one
+            ``http://localhost:8765/`` image URL. This exercises the URL
+            safety valve's PRIMARY defense (verbatim image-URL preservation
+            on dirty text WITH images) — the 0-image longest-body samples
+            trivially pass the URL gate (urls=0) and never test it.
+        max_body_len: if set, restrict to bodies with length <= this value.
+            Used with --with-images to avoid the 154K-char article that
+            exceeds the 300s per-call timeout (unrelated to the URL test).
     """
     # Check if body_rewritten column exists (may not exist before migration 009)
     tables_with_rewritten = set()
@@ -171,6 +186,12 @@ def _pull_dirty_samples(conn: sqlite3.Connection, limit: int) -> list[tuple]:
             return "AND body_rewritten IS NULL"
         return ""  # column absent — skip guard (all rows eligible)
 
+    # Optional extra filters (forward-only; default behavior unchanged when
+    # both flags are off).
+    img_guard = "AND body LIKE '%http://localhost:8765/%'" if with_images else ""
+    len_guard = f"AND length(body) <= {int(max_body_len)}" if max_body_len else ""
+    extra = f"{img_guard} {len_guard}".strip()
+
     art_guard = rewritten_guard("articles")
     rss_guard = rewritten_guard("rss_articles")
 
@@ -183,7 +204,7 @@ def _pull_dirty_samples(conn: sqlite3.Connection, limit: int) -> list[tuple]:
              WHERE layer1_verdict = 'candidate'
                AND layer2_verdict = 'ok'
                AND body IS NOT NULL AND body != ''
-               {art_guard}
+               {art_guard} {extra}
             UNION ALL
             SELECT id, 'rss_articles' AS table_name, title, body, layer2_at,
                    length(body) AS body_len
@@ -191,7 +212,7 @@ def _pull_dirty_samples(conn: sqlite3.Connection, limit: int) -> list[tuple]:
              WHERE layer1_verdict = 'candidate'
                AND layer2_verdict = 'ok'
                AND body IS NOT NULL AND body != ''
-               {rss_guard}
+               {rss_guard} {extra}
           )
          ORDER BY body_len DESC
          LIMIT ?
@@ -226,7 +247,11 @@ async def _run_harness(args: argparse.Namespace) -> int:
     conn = sqlite3.connect(str(db_path))
 
     try:
-        rows = _pull_dirty_samples(conn, args.limit)
+        rows = _pull_dirty_samples(
+            conn, args.limit,
+            with_images=args.with_images,
+            max_body_len=args.max_body_len,
+        )
     finally:
         conn.close()
 
@@ -234,12 +259,16 @@ async def _run_harness(args: argparse.Namespace) -> int:
         log.error("No dirty samples found — nothing to validate")
         return 1
 
-    log.info("Pulled %d dirty samples (ordered by body length desc)", len(rows))
+    mode = "WITH-IMAGES" if args.with_images else "longest-body"
+    log.info("Pulled %d dirty samples (%s mode, ordered by body length desc)", len(rows), mode)
 
     # Lazy import rewrite function (lazy so the guard above can bail without needing the key)
-    from lib.rewrite import rewrite_body_with_deepseek, _extract_image_urls as _eu  # noqa: F401
+    from lib.rewrite import rewrite_body_with_deepseek, _extract_image_urls as _eu
 
-    SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
+    # With-images samples go to a subdirectory so they never overwrite the
+    # 0-image longest-body samples from a previous run.
+    out_dir = (SAMPLES_DIR / "with-images") if args.with_images else SAMPLES_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     gate_names = ["URL", "HTML", "BOILERPLATE", "MARKDOWNLINT", "LENGTH"]
     gate_totals = {g: 0 for g in gate_names}
@@ -250,15 +279,21 @@ async def _run_harness(args: argparse.Namespace) -> int:
 
     for art_id, table, title, body in rows:
         total_run += 1
-        log.info("--- Sample %d/%d id=%s table=%s title=%.60s body_len=%d ---",
-                 total_run, len(rows), art_id, table, (title or ""), len(body))
+        input_url_count = len(_eu(body))
+        log.info(
+            "--- Sample %d/%d id=%s table=%s title=%.60s body_len=%d input_urls=%d ---",
+            total_run, len(rows), art_id, table, (title or ""), len(body), input_url_count,
+        )
 
         result = await rewrite_body_with_deepseek(title or "", body)
 
         if result is None:
             # Could be valve reject OR empty output — valve logs WARNING
             valve_rejects += 1
-            log.info("  REJECTED-BY-VALVE or EMPTY (safe outcome; not a gate failure)")
+            log.info(
+                "  REJECTED-BY-VALVE or EMPTY (safe outcome; not a gate failure). "
+                "input_urls=%d", input_url_count,
+            )
             all_results.append({
                 "id": art_id,
                 "table": table,
@@ -267,10 +302,12 @@ async def _run_harness(args: argparse.Namespace) -> int:
                 "gates": {},
                 "input_len": len(body),
                 "output_len": 0,
+                "input_url_count": input_url_count,
+                "output_url_count": None,
             })
             # Write input for reference
             sample_id = f"{art_id}-{table}"
-            (SAMPLES_DIR / f"{sample_id}-input.md").write_text(body, encoding="utf-8")
+            (out_dir / f"{sample_id}-input.md").write_text(body, encoding="utf-8")
             continue
 
         # Run gates
@@ -296,13 +333,15 @@ async def _run_harness(args: argparse.Namespace) -> int:
         all_pass = all(gate_results[g][0] for g in gate_names)
         status = "PASS" if all_pass else "FAIL"
 
-        log.info("  %s | URL:%s HTML:%s BP:%s MD:%s LEN:%s",
+        output_url_count = len(_eu(result))
+        log.info("  %s | URL:%s HTML:%s BP:%s MD:%s LEN:%s (in_urls=%d out_urls=%d)",
                  status,
                  "✓" if url_ok else "✗",
                  "✓" if html_ok else "✗",
                  "✓" if bp_ok else "✗",
                  "✓" if md_ok else "✗",
-                 "✓" if len_ok else "✗")
+                 "✓" if len_ok else "✗",
+                 input_url_count, output_url_count)
         for g in gate_names:
             if not gate_results[g][0]:
                 log.info("    GATE-%s: %s", g, gate_results[g][1])
@@ -315,23 +354,30 @@ async def _run_harness(args: argparse.Namespace) -> int:
             "gates": {g: {"pass": gate_results[g][0], "msg": gate_results[g][1]} for g in gate_names},
             "input_len": len(body),
             "output_len": len(result),
+            "input_url_count": input_url_count,
+            "output_url_count": output_url_count,
         })
 
         # Write input/output pair
         sample_id = f"{art_id}-{table}"
-        (SAMPLES_DIR / f"{sample_id}-input.md").write_text(body, encoding="utf-8")
-        (SAMPLES_DIR / f"{sample_id}-output.md").write_text(result, encoding="utf-8")
+        (out_dir / f"{sample_id}-input.md").write_text(body, encoding="utf-8")
+        (out_dir / f"{sample_id}-output.md").write_text(result, encoding="utf-8")
 
     # Write JSON summary
     summary = {
         "date": str(date.today()),
+        "mode": "with-images" if args.with_images else "longest-body",
         "total_samples": total_run,
         "valve_rejects": valve_rejects,
         "gate_totals": gate_totals,
         "gate_passes": gate_passes,
         "results": all_results,
     }
-    summary_path = SAMPLES_DIR / "validation-summary.json"
+    summary_name = (
+        "validation-summary-with-images.json" if args.with_images
+        else "validation-summary.json"
+    )
+    summary_path = out_dir / summary_name
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # Print summary table
@@ -373,7 +419,7 @@ async def _run_harness(args: argparse.Namespace) -> int:
         print("  STATUS: PASS — all gates pass, valve-reject < 30%")
         print("  This harness exit-0 unblocks plan 03 backfill.")
 
-    print(f"\n  Input/output pairs: {SAMPLES_DIR}")
+    print(f"\n  Input/output pairs: {out_dir}")
     print(f"  JSON summary:       {summary_path}")
     print("=" * 70 + "\n")
 
@@ -391,6 +437,22 @@ def _parse_args(argv=None) -> argparse.Namespace:
         type=int,
         default=8,
         help="Number of dirty samples to run (default 8; ordered by body length desc)",
+    )
+    p.add_argument(
+        "--with-images",
+        action="store_true",
+        help="Restrict to bodies containing >= 1 http://localhost:8765/ image URL. "
+             "Exercises the URL safety valve's primary defense (verbatim image-URL "
+             "preservation on dirty text WITH images). Writes samples to a "
+             "with-images/ subdirectory. Default (off) preserves prior behavior.",
+    )
+    p.add_argument(
+        "--max-body-len",
+        type=int,
+        default=None,
+        help="Skip bodies longer than this (chars). Use with --with-images to avoid "
+             "the 154K-char article that exceeds the 300s per-call timeout "
+             "(e.g. --max-body-len 30000).",
     )
     return p.parse_args(argv)
 
