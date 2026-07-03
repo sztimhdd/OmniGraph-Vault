@@ -27,6 +27,20 @@
 
 Full rationale in memory `~/.claude/projects/c--Users-huxxha-Desktop-OmniGraph-Vault/memory/decision_rewrite_display_only_kg_uses_original.md` — planner and checker MUST read it.
 
+### ⚠️ CORRECTED PREMISE (LIVE-PROBE-VERIFIED 2026-07-03) — rewrite INPUT is `final_content.md`, NOT DB `body`
+**The original context below assumed the rewrite reads DB `body`. That premise was FALSED by live Aliyun probe during Wave 1 execution. Planner MUST re-plan Plans 01 + 03 around this correction; Plan 02 is largely unchanged.**
+
+Verified facts (live Aliyun prod `/root/OmniGraph-Vault/data/kol_scan.db`, read-only):
+- **DB `body` has ZERO `http://localhost:8765/` URLs** — `articles` 0/467 displayed, `rss_articles` 0/109. `body` carries WeChat CDN (`https://mmbiz.qpic.cn/...` ×310) + data-URIs (×76). The `localhost:8765` localization happens at the filesystem stage (`image_pipeline.py:localize_markdown` → `final_content.md`), NOT in DB `body`.
+- **The localhost URLs + the actual displayed content live in `final_content.md`** (8–48 URLs/file sampled). D-14 (`article_query.py:587-619`) resolves fs `final_content.enriched.md` → `final_content.md` → db `body_cleaned` → db `body`; ~70% of displayed articles land on the fs copy, so `body` is NOT what most users see.
+- **`final_content.md` is itself DIRTY** — 4/4 sampled carry `javascript:void`/`原创` boilerplate, same marker hits as `body`. It is the "images-localized version of body" — same dirt + real localhost URLs. Readability-upgrade need is REAL, but must clean the fs display content.
+
+Consequences of the old (body-input) plan — BOTH fatal: (1) URL valve is INERT (∅==∅ always passes, main defense never fires on real corpus); (2) image REGRESSION for ~70% (a `body`-derived `body_rewritten` carrying CDN URLs shadows `final_content.md` → `_strip_external_wechat_images` strips them, SSG never converts CDN → images vanish).
+
+**CORRECTED (LOCKED 2026-07-03):** the rewrite INPUT is the **D-14-resolved DISPLAY content** (what `get_article_body()` returns: `final_content.enriched.md` → `final_content.md` → `body_cleaned` → `body`), which for most is `final_content.md` with real `localhost:8765` URLs. Then the valve has real URLs to diff, images survive, and cleaning targets what's actually read. The `body_rewritten` slot + D-14 prepend (migration 009) design is UNCHANGED. Decision A UNAFFECTED (KG ingest reads original `body` independently). Full rationale + Wave-3 `content_hash`-NULL caveat: memory `decision_rewrite_display_only_kg_uses_original.md` "CRITICAL CORRECTION" section.
+
+Wave-1 Task-1 code KEPT (no rework): `lib/rewrite.py` (`rewrite_body_with_deepseek` + `_extract_image_urls` + URL-set diff valve + 7 mocked tests, commits 0565e3e/0bbcc25/45fdc00/2f05622). Only INPUT wiring + validation-harness sample source change.
+
 ### Architecture — display/KG separation (Decision A)
 - Rewrite output is **DISPLAY-LAYER ONLY**. LightRAG KG entity/relationship extraction ALWAYS runs on the ORIGINAL scraped `body`, never on the rewritten version. The rewrite pass is SEPARATE from ingest/ainsert; it never feeds the graph. Reads on `feedback_lightrag_is_core_asset_no_bypass`.
 
