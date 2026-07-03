@@ -113,6 +113,10 @@ class ArticleRecord:
         translated_lang: target lang of translation ('en' or 'zh-CN'); None when not translated
         body_cleaned: regex-stripped body markdown (260522-clt Pass 1); None when not run
         body_repositioned: LLM-repositioned translated body (260522-clt Pass 3, KOL only); None when not run
+        body_rewritten: kb-v2.3 display-only LLM rewrite of the D-14 DISPLAY content
+            (final_content.enriched.md -> final_content.md -> body_cleaned -> body), NOT
+            derived from raw DB body; None until rewrite_body_cron.py runs. Wins over ALL
+            filesystem sources in get_article_body(). KG (LightRAG) always uses raw body.
     """
 
     id: int
@@ -129,6 +133,7 @@ class ArticleRecord:
     translated_lang: Optional[str] = None
     body_cleaned: Optional[str] = None
     body_repositioned: Optional[str] = None
+    body_rewritten: Optional[str] = None    # kb-v2.3 display-only LLM rewrite of the D-14 display content (wins over filesystem)
 
 
 def resolve_url_hash(rec: ArticleRecord) -> str:
@@ -250,6 +255,7 @@ def _row_to_record_kol(row) -> ArticleRecord:
         translated_lang=_row_get(row, "translated_lang"),
         body_cleaned=_row_get(row, "body_cleaned"),
         body_repositioned=_row_get(row, "body_repositioned"),
+        body_rewritten=_row_get(row, "body_rewritten"),
     )
 
 
@@ -271,6 +277,7 @@ def _row_to_record_rss(row) -> ArticleRecord:
         body_translated=_row_get(row, "body_translated"),
         translated_lang=_row_get(row, "translated_lang"),
         body_cleaned=_row_get(row, "body_cleaned"),
+        body_rewritten=_row_get(row, "body_rewritten"),
     )
 
 
@@ -312,7 +319,7 @@ def list_articles(
             sql = (
                 "SELECT id, title, url, body, content_hash, lang, update_time, "
                 "title_translated, body_translated, translated_lang, "
-                "body_cleaned, body_repositioned "
+                "body_cleaned, body_repositioned, body_rewritten "
                 "FROM articles"
             )
             params: list = []
@@ -329,7 +336,7 @@ def list_articles(
                 "SELECT id, title, url, body, content_hash, lang, "
                 "published_at, fetched_at, "
                 "title_translated, body_translated, translated_lang, "
-                "body_cleaned "
+                "body_cleaned, body_rewritten "
                 "FROM rss_articles"
             )
             params = []
@@ -378,7 +385,7 @@ def get_article_by_hash(
         row = conn.execute(
             "SELECT id, title, url, body, content_hash, lang, update_time, "
             "title_translated, body_translated, translated_lang, "
-            "body_cleaned, body_repositioned "
+            "body_cleaned, body_repositioned, body_rewritten "
             "FROM articles WHERE content_hash = ?",
             (hash,),
         ).fetchone()
@@ -389,7 +396,7 @@ def get_article_by_hash(
             "SELECT id, title, url, body, content_hash, lang, "
             "published_at, fetched_at, "
             "title_translated, body_translated, translated_lang, "
-            "body_cleaned "
+            "body_cleaned, body_rewritten "
             "FROM rss_articles "
             "WHERE substr(content_hash, 1, 10) = ?",
             (hash,),
@@ -400,7 +407,7 @@ def get_article_by_hash(
         for row in conn.execute(
             "SELECT id, title, url, body, content_hash, lang, update_time, "
             "title_translated, body_translated, translated_lang, "
-            "body_cleaned, body_repositioned "
+            "body_cleaned, body_repositioned, body_rewritten "
             "FROM articles WHERE content_hash IS NULL"
         ):
             rec = _row_to_record_kol(row)
@@ -588,9 +595,11 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
     """D-14 fallback chain for article body markdown.
 
     Resolution order:
+        0. rec.body_rewritten (kb-v2.3 clean LLM rewrite of the D-14 display
+           content — display-only, wins over ALL below)        -> 'raw_markdown'
         1. {KB_IMAGES_DIR}/{hash}/final_content.enriched.md  -> 'vision_enriched'
         2. {KB_IMAGES_DIR}/{hash}/final_content.md            -> 'vision_enriched'
-        3. rec.body (from DB row)                              -> 'raw_markdown'
+        3. rec.body_cleaned or rec.body (from DB row)          -> 'raw_markdown'
 
     Applies EXPORT-05 + kb-v2.1-2 image-path rewrite at read time:
         'http://localhost:8765/' -> '{KB_BASE_PATH}/static/img/'
@@ -600,6 +609,15 @@ def get_article_body(rec: ArticleRecord) -> tuple[str, BodySource]:
         (body_markdown, body_source) tuple.
     """
     base_path = config.KB_BASE_PATH
+    # kb-v2.3: body_rewritten (display-only LLM rewrite of the D-14 display content) wins
+    # over ALL filesystem sources. It stores raw localhost:8765 URLs (like final_content.md),
+    # so the same read-time image-path rewrite applies. KG (LightRAG) still uses raw body.
+    if rec.body_rewritten:
+        body = rec.body_rewritten
+        body = _strip_external_wechat_images(body)  # kb-v2.2-9
+        body = _rewrite_image_paths(body, base_path)
+        body = _rewrite_image_text_refs_to_html(body)  # kb-v2.1-6
+        return body, "raw_markdown"
     url_hash = resolve_url_hash(rec)
     images_dir = Path(config.KB_IMAGES_DIR)
     for fname in ("final_content.enriched.md", "final_content.md"):
@@ -841,7 +859,7 @@ def topic_articles_query(
         sql_kol = (
             "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time, "
             "a.title_translated, a.body_translated, a.translated_lang, "
-            "a.body_cleaned, a.body_repositioned "
+            "a.body_cleaned, a.body_repositioned, a.body_rewritten "
             "FROM articles a "
             "JOIN classifications c ON c.article_id = a.id "
             "WHERE c.topic = ? AND c.depth_score >= ? "
@@ -862,7 +880,7 @@ def topic_articles_query(
             "SELECT r.id, r.title, r.url, r.body, r.content_hash, r.lang, "
             "r.published_at, r.fetched_at, "
             "r.title_translated, r.body_translated, r.translated_lang, "
-            "r.body_cleaned "
+            "r.body_cleaned, r.body_rewritten "
             "FROM rss_articles r "
             "WHERE r.topics LIKE '%' || ? || '%' AND r.depth >= ? "
             "AND (r.layer1_verdict = 'candidate' OR r.layer2_verdict = 'ok')"
@@ -916,7 +934,7 @@ def entity_articles_query(
         sql_kol = (
             "SELECT a.id, a.title, a.url, a.body, a.content_hash, a.lang, a.update_time, "
             "a.title_translated, a.body_translated, a.translated_lang, "
-            "a.body_cleaned, a.body_repositioned "
+            "a.body_cleaned, a.body_repositioned, a.body_rewritten "
             "FROM articles a JOIN extracted_entities e "
             "ON e.article_id = a.id "
             "WHERE e.entity_name = ?"

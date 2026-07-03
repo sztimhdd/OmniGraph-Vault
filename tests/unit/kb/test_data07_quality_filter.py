@@ -438,13 +438,14 @@ def test_filter_disabled_does_not_run_schema_guard(monkeypatch):
                 id INTEGER PRIMARY KEY, title TEXT, url TEXT, body TEXT,
                 content_hash TEXT, lang TEXT, update_time TEXT,
                 title_translated TEXT, body_translated TEXT, translated_lang TEXT,
-                body_cleaned TEXT, body_repositioned TEXT
+                body_cleaned TEXT, body_repositioned TEXT,
+                body_rewritten TEXT, rewritten_at DATETIME
             );
             CREATE TABLE rss_articles (
                 id INTEGER PRIMARY KEY, title TEXT, url TEXT, body TEXT,
                 content_hash TEXT, lang TEXT, published_at TEXT, fetched_at TEXT,
                 title_translated TEXT, body_translated TEXT, translated_lang TEXT,
-                body_cleaned TEXT
+                body_cleaned TEXT, body_rewritten TEXT, rewritten_at DATETIME
             );
             INSERT INTO articles (id, title, url, body, content_hash, lang, update_time)
             VALUES (1, 't', 'u', 'b', 'h1', 'en', '2026-01-01');

@@ -106,7 +106,9 @@ def tightened_fixture_conn():
             translated_lang VARCHAR(5),
             translated_at DATETIME,
             body_cleaned TEXT,
-            body_repositioned TEXT
+            body_repositioned TEXT,
+            body_rewritten TEXT,
+            rewritten_at DATETIME
         );
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY,
@@ -123,7 +125,9 @@ def tightened_fixture_conn():
             title_translated TEXT,
             translated_lang VARCHAR(5),
             translated_at DATETIME,
-            body_cleaned TEXT
+            body_cleaned TEXT,
+            body_rewritten TEXT,
+            rewritten_at DATETIME
         );
         """
     )
@@ -131,25 +135,25 @@ def tightened_fixture_conn():
     conn.execute(
         "INSERT INTO articles VALUES "
         "(1, 'positive', 'u/1', 'real body', 'hashpos001', 'zh-CN', '2026-05-01', "
-        "'candidate', 'ok', NULL, NULL, NULL, NULL, NULL, NULL)"
+        "'candidate', 'ok', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
     )
     conn.execute(
         "INSERT INTO articles VALUES "
         "(2, 'l2_null_neg', 'u/2', 'real body', 'hashneg001', 'zh-CN', '2026-05-02', "
-        "'candidate', NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
+        "'candidate', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
     )
     # RSS: same shape
     conn.execute(
         "INSERT INTO rss_articles VALUES "
         "(10, 'rss_positive', 'r/10', 'rss body', "
         "'10101010101010101010101010101010', 'en', '2026-05-03', '2026-05-03', "
-        "'candidate', 'ok', NULL, NULL, NULL, NULL, NULL)"
+        "'candidate', 'ok', NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
     )
     conn.execute(
         "INSERT INTO rss_articles VALUES "
         "(11, 'rss_l2_null_neg', 'r/11', 'rss body', "
         "'11111111111111111111111111111111', 'en', '2026-05-04', '2026-05-04', "
-        "'candidate', NULL, NULL, NULL, NULL, NULL, NULL)"
+        "'candidate', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
     )
     conn.commit()
     return conn
