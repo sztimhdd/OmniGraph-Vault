@@ -69,7 +69,13 @@ def _resolve_db_path() -> Path:
 # Gate definitions
 # ---------------------------------------------------------------------------
 
-_HTML_TAGS_RE = re.compile(r"<(script|style|div|span|table|tr|td|th)[^>]*>", re.IGNORECASE)
+# Match genuine HTML tags only. The tag name must be followed by a tag-name
+# boundary: '>', whitespace, or '/'. This prevents false positives like
+# '<thinking>' (a code-block string / regex token) matching the 'th' alternative.
+_HTML_TAGS_RE = re.compile(
+    r"</?(script|style|div|span|table|tr|td|th|thead|tbody)(?=[\s/>])",
+    re.IGNORECASE,
+)
 _BOILERPLATE_MARKERS = ["关注公众号", "点赞", "扫码"]
 _IMAGE_URL_RE = re.compile(r"http://localhost:8765/\S+")
 _URL_TRAILING = re.compile(r"[)\]>\"']+$")
