@@ -46,6 +46,8 @@ Add the display-only storage slot and wire the read path so a populated body_rew
 Purpose: Without this, plan 03's cron would write body_rewritten but the API/SSG would never read it (get_article_by_hash has 3 SELECTs; missing any returns None — Pitfall 5), OR the filesystem final_content.md would shadow it for 70% of articles (the fatal flaw the storage-slot decision caught).
 
 Output: A schema that both tables share, a read chain where body_rewritten is checked FIRST, and tests proving body_rewritten beats a seeded final_content.md.
+
+**⚠️ CORRECTION NOTE (2026-07-03):** The storage-slot + read-path design in this plan is UNAFFECTED by the input-source correction. `body_rewritten` is still an additive TEXT NULL column checked FIRST in the D-14 chain. The ONLY correction that touches this plan is WORDING: `body_rewritten` is populated from the CLEANED D-14 DISPLAY content (what get_article_body returns pre-image-rewrite: final_content.enriched.md -> final_content.md -> body_cleaned -> body), NOT from raw DB `body`. This plan does not produce body_rewritten (plan 03 does) — it only stores + reads it — so the change here is limited to a clarifying comment/docstring so no downstream reader mistakenly assumes body_rewritten is a body-derivative. The D-14 read-path test (body_rewritten wins above final_content.md) is exactly right and unchanged.
 </objective>
 
 <execution_context>
@@ -134,11 +136,14 @@ Create `kb/data/migrations/009_add_body_rewritten_columns.sql` with EXACTLY thes
 ```sql
 -- 009: Add body_rewritten column for kb-v2.3 display-only LLM rewrite.
 -- Additive, non-breaking, idempotent (run_migrations.py guards via PRAGMA table_info).
--- rewrite_body_cron.py writes clean source-language bodies here. get_article_body()
--- D-14 chain checks body_rewritten FIRST, above filesystem final_content.md sources.
+-- rewrite_body_cron.py writes clean bodies here. INPUT to the rewrite is the D-14-resolved
+-- DISPLAY content (final_content.enriched.md -> final_content.md -> body_cleaned -> body),
+-- NOT raw DB body (DB body has WeChat CDN URLs, not the localhost:8765 URLs the display carries).
+-- get_article_body() D-14 chain checks body_rewritten FIRST, above filesystem final_content.md sources.
 -- KG (LightRAG) ALWAYS uses original body; body_rewritten is display-only.
 -- body_cleaned NOT reused (0-populated; shadowed by final_content.md for 70% of corpus).
--- See decision_rewrite_display_only_kg_uses_original.md. No backfill required (NULL is correct).
+-- See decision_rewrite_display_only_kg_uses_original.md (incl. "CRITICAL CORRECTION" section).
+-- No backfill required (NULL is correct until plan-03 cron runs).
 -- Rollback: ALTER TABLE <t> DROP COLUMN body_rewritten (SQLite >= 3.35).
 ALTER TABLE articles ADD COLUMN body_rewritten TEXT;
 ALTER TABLE articles ADD COLUMN rewritten_at DATETIME;
@@ -159,7 +164,7 @@ And to the `rss_articles` CREATE TABLE (after `body_cleaned TEXT` at line 114):
 ```
 (Watch trailing commas — the previous last column needs a comma added when it becomes non-last.) Do NOT add body_repositioned to rss_articles fixture.
 
-Both files MUST land in the SAME commit (Pitfall 3 fixture-drift discipline).
+Both files MUST land in the SAME commit (Pitfall 3 fixture-drift discipline). Use `git add kb/data/migrations/009_add_body_rewritten_columns.sql tests/integration/kb/conftest.py` (explicit paths, never -A).
   </action>
   <verify>
     <automated>venv/Scripts/python.exe -m pytest tests/integration/kb/ -v</automated>
@@ -168,11 +173,12 @@ Both files MUST land in the SAME commit (Pitfall 3 fixture-drift discipline).
     - `grep -c "ADD COLUMN body_rewritten TEXT" kb/data/migrations/009_add_body_rewritten_columns.sql` == 2 (articles + rss_articles).
     - `grep -c "ADD COLUMN rewritten_at DATETIME" kb/data/migrations/009_add_body_rewritten_columns.sql` == 2.
     - `grep -c "body_repositioned" kb/data/migrations/009_add_body_rewritten_columns.sql` == 0 (not added to rss).
+    - The migration comment states the rewrite INPUT is the D-14 display content, NOT raw body: `grep -iE "D-14|display content|localhost:8765|NOT raw" kb/data/migrations/009_add_body_rewritten_columns.sql` matches.
     - `grep -c "body_rewritten TEXT" tests/integration/kb/conftest.py` == 2 (both CREATE TABLE blocks).
     - Running migration 009 twice against a temp DB is idempotent (no error on second run — verify via run_migrations.py PRAGMA guard, or a quick script that applies twice).
     - `venv/Scripts/python.exe -m pytest tests/integration/kb/ -v` green (fixtures parse with new columns).
   </acceptance_criteria>
-  <done>Migration 009 exists with 4 additive ALTERs (2 tables × body_rewritten+rewritten_at, no body_repositioned on rss); conftest fixtures include body_rewritten+rewritten_at in both tables; integration suite green; both files in one commit.</done>
+  <done>Migration 009 exists with 4 additive ALTERs (2 tables × body_rewritten+rewritten_at, no body_repositioned on rss) and a comment noting the input is D-14 display content (not raw body); conftest fixtures include body_rewritten+rewritten_at in both tables; integration suite green; both files in one commit.</done>
 </task>
 
 <task type="auto" tdd="true">
@@ -188,7 +194,7 @@ Both files MUST land in the SAME commit (Pitfall 3 fixture-drift discipline).
     - Test 2 (D14-NULL-FALLTHROUGH): body_rewritten=None + final_content.md on disk -> returns the file content ("vision_enriched") — unchanged legacy behavior.
     - Test 3 (D14-NULL-NO-FILE): body_rewritten=None + no file -> returns rec.body_cleaned or rec.body ("raw_markdown") — unchanged legacy behavior.
     - Test 4 (SELECT-ROUNDTRIP): insert a row with body_rewritten via list_articles/get_article_by_hash against the conftest fixture DB -> the returned ArticleRecord.body_rewritten is populated (proves the SELECT + converter carry the column).
-    - Test 5 (IMAGE-REWRITE-APPLIED): the body_rewritten path still applies _rewrite_image_paths (localhost:8765 -> KB_BASE_PATH/static/img) so images render.
+    - Test 5 (IMAGE-REWRITE-APPLIED): the body_rewritten path still applies _rewrite_image_paths (localhost:8765 -> KB_BASE_PATH/static/img) so images render. NOTE this is the READ path applying the rewrite AT DISPLAY TIME — the STORED body_rewritten keeps raw localhost:8765 URLs (that is what plan-03's cron writes, mirroring how final_content.md stores raw localhost URLs).
     - Test 6 (TOPIC-ENTITY-ROUNDTRIP): seed a KOL row with body_rewritten + a classifications row + an extracted_entities row (freq >= min_freq) in the fixture DB; topic_articles_query() AND entity_articles_query() each return an ArticleRecord whose body_rewritten is populated (proves the 3 topic/entity SELECTs + alias-qualified column carry it). If the fixture lacks classifications/extracted_entities tables, extend the conftest fixture minimally to seed them (guard against fixture drift — CLAUDE.md behavior-anchor lesson).
   </behavior>
   <action>
@@ -196,16 +202,18 @@ In `kb/data/article_query.py`:
 
 1. Dataclass (after line 131 `body_repositioned: Optional[str] = None`):
    ```python
-   body_rewritten: Optional[str] = None    # kb-v2.3 display-only LLM rewrite (wins over filesystem)
+   body_rewritten: Optional[str] = None    # kb-v2.3 display-only LLM rewrite of the D-14 display content (wins over filesystem)
    ```
-   Also add the field to the docstring Attributes list.
+   Also add the field to the docstring Attributes list, noting it is derived from the cleaned D-14 DISPLAY content (final_content.md etc.), NOT from raw body.
 
 2. get_article_body() — insert BEFORE the filesystem loop (before line 605). Concrete edit:
    ```python
    base_path = config.KB_BASE_PATH
    url_hash = resolve_url_hash(rec)
    images_dir = Path(config.KB_IMAGES_DIR)
-   # kb-v2.3: body_rewritten (display-only LLM rewrite) wins over ALL filesystem sources.
+   # kb-v2.3: body_rewritten (display-only LLM rewrite of the D-14 display content) wins
+   # over ALL filesystem sources. It stores raw localhost:8765 URLs (like final_content.md),
+   # so the same image-path rewrite applies here at read time.
    if rec.body_rewritten:
        body = rec.body_rewritten
        body = _strip_external_wechat_images(body)   # kb-v2.2-9
@@ -215,7 +223,7 @@ In `kb/data/article_query.py`:
    for fname in ("final_content.enriched.md", "final_content.md"):
        ...  # unchanged
    ```
-   Use the `"raw_markdown"` BodySource tag (zero new type — RESEARCH Finding 2 recommendation). Also update the get_article_body docstring resolution-order list to show body_rewritten as step 0/1.
+   Use the `"raw_markdown"` BodySource tag (zero new type — RESEARCH Finding 2 recommendation). Also update the get_article_body docstring resolution-order list to show body_rewritten as step 0/1 and note it is the cleaned display content.
 
 3. Append `body_rewritten` to ALL 8 SELECT column lists (RESEARCH Finding 9 CORRECTED table — the topic/entity SELECTs use `a.`/`r.` table aliases, so the added column MUST be alias-qualified there):
    - list_articles KOL (line ~315): `"body_cleaned, body_repositioned, body_rewritten "`
@@ -232,7 +240,7 @@ In `kb/data/article_query.py`:
    - `_row_to_record_kol` (after line 252): `body_rewritten=_row_get(row, "body_rewritten"),`
    - `_row_to_record_rss` (after line 273): `body_rewritten=_row_get(row, "body_rewritten"),`
 
-Create `tests/unit/kb/test_article_query_body_rewritten.py` implementing behavior tests 1-5. Use tmp_path for the seeded final_content.md and monkeypatch config.KB_IMAGES_DIR; use the conftest in-memory fixture DB for the SELECT-roundtrip test.
+Create `tests/unit/kb/test_article_query_body_rewritten.py` implementing behavior tests 1-5 (+ Test 6). Use tmp_path for the seeded final_content.md and monkeypatch config.KB_IMAGES_DIR; use the conftest in-memory fixture DB for the SELECT-roundtrip test. Use `git add kb/data/article_query.py tests/unit/kb/test_article_query_body_rewritten.py` (explicit paths, never -A).
   </action>
   <verify>
     <automated>venv/Scripts/python.exe -m pytest tests/unit/kb/test_article_query_body_rewritten.py tests/integration/kb/ -v</automated>
@@ -252,17 +260,17 @@ Create `tests/unit/kb/test_article_query_body_rewritten.py` implementing behavio
       8. entity_articles_query KOL sql_kol (~916-919) contains `a.body_rewritten`.
       Automated aggregate check: `grep -cE "(a\.body_rewritten|r\.body_rewritten|body_rewritten )" kb/data/article_query.py` >= 8 SELECT occurrences (excluding the dataclass field / converters / D-14 lines) — cross-check against the 8-item list above via `grep -n`.
     - The Test 6 (TOPIC-ENTITY-ROUNDTRIP) behavior test passes, proving the topic-browse + entity-search routes carry body_rewritten (not just list/hash).
-    - `venv/Scripts/python.exe -m pytest tests/unit/kb/test_article_query_body_rewritten.py -v` — all 5 behavior tests pass, including D14-REWRITTEN-WINS (body_rewritten beats a seeded final_content.md).
+    - `venv/Scripts/python.exe -m pytest tests/unit/kb/test_article_query_body_rewritten.py -v` — all behavior tests pass, including D14-REWRITTEN-WINS (body_rewritten beats a seeded final_content.md).
     - Full integration suite still green: `venv/Scripts/python.exe -m pytest tests/integration/kb/ -v`.
   </acceptance_criteria>
-  <done>ArticleRecord has body_rewritten; get_article_body checks it FIRST above filesystem; all 8 SELECTs (list x2 + hash x3 + topic x2 + entity x1) + both converters carry it; the D14-REWRITTEN-WINS + TOPIC-ENTITY-ROUNDTRIP tests prove precedence and topic/entity-route coverage; unit + integration suites green.</done>
+  <done>ArticleRecord has body_rewritten (documented as cleaned D-14 display content); get_article_body checks it FIRST above filesystem; all 8 SELECTs (list x2 + hash x3 + topic x2 + entity x1) + both converters carry it; the D14-REWRITTEN-WINS + TOPIC-ENTITY-ROUNDTRIP tests prove precedence and topic/entity-route coverage; unit + integration suites green.</done>
 </task>
 
 </tasks>
 
 <verification>
 - Migration 009 additive + idempotent; conftest fixtures parity; integration suite green.
-- get_article_body returns body_rewritten (image-rewritten) above filesystem when non-NULL — proven by D14-REWRITTEN-WINS test.
+- get_article_body returns body_rewritten (image-rewritten at read time) above filesystem when non-NULL — proven by D14-REWRITTEN-WINS test.
 - All 8 SELECT sites + both row converters + dataclass carry body_rewritten (no silent None).
 - `venv/Scripts/python.exe -m pytest tests/unit/kb/ tests/integration/kb/ -v` green.
 </verification>
@@ -271,6 +279,7 @@ Create `tests/unit/kb/test_article_query_body_rewritten.py` implementing behavio
 CONTEXT.md Stage 1 gates satisfied:
 - "Schema: migration 009 adds body_rewritten TEXT to articles AND rss_articles; conftest fixtures updated; pytest tests/integration/kb/ green."
 - "Read path: get_article_body() returns body_rewritten when non-NULL, ABOVE filesystem sources — provable by a test that seeds body_rewritten + a final_content.md and asserts body_rewritten wins."
+- body_rewritten is documented (dataclass docstring + migration comment) as the cleaned D-14 DISPLAY content, not a raw-body derivative.
 </success_criteria>
 
 <output>
