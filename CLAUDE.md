@@ -576,6 +576,80 @@ See [docs/conventions.md](docs/conventions.md).
 ## Architecture
 
 See [docs/architecture.md](docs/architecture.md).
+
+## Mac↔Aliyun CDP Architecture
+
+**Deployed:** 2026-07-05
+
+The Mac serves as a headed-browser bridge for Aliyun's production OmniGraph
+instance. Aliyun hosts all cron jobs (KOL scanning, RSS, ingest, classify);
+Mac provides the CDP browser for WeChat cookie refresh and article scraping
+fallback.
+
+### Connection topology
+
+```
+┌─ Mac (Hais-MacBook-Pro.local) ─────────────────────┐
+│  launchd: com.omnigraph.ssh-tunnel                  │
+│    → ssh -R 49221:localhost:22 root@47.117.244.253  │
+│  launchd: com.omnigraph.brave-cdp                   │
+│    → Brave Browser --remote-debugging-port=9222     │
+│    → user-data-dir: ~/.hermes/brave-cdp-profile     │
+│    → auto-opens mp.weixin.qq.com for cookie refresh │
+│  launchd: com.omnigraph.mcp-playwright              │
+│    → @playwright/mcp --cdp-endpoint :9222 --port 8931│
+│  Hermes cron: OmniGraph 每日通报 (daily 10:00 WeChat) │
+│  Hermes cron: OmniGraph 数据同步 (weekly Sun 03:00)  │
+└─────────────────────────────────────────────────────┘
+         │ SSH outbound (key-based, port 49221)
+         ▼
+┌─ Aliyun (47.117.244.253) ──────────────────────────┐
+│  ssh hermes → localhost:49221 → Mac                 │
+│  mcp-tunnel: -L 8931 + -L 9222 → Mac (Browser CDP) │
+│  vertex-proxy: -D 18080 → GCP SG (Google API)       │
+│  CDP_URL=http://localhost:9222 (scraper fallback)    │
+│  15 timers: scan ×4, ingest ×3, RSS ×3, etc.        │
+│  kol-refresh: ssh hermes refresh_wechat_cookie.py   │
+└─────────────────────────────────────────────────────┘
+```
+
+### Key files
+
+| File | Location | Purpose |
+|---|---|---|
+| Reverse tunnel plist | `deploy/macos/com.omnigraph.ssh-tunnel.plist` | Mac→Aliyun persistent SSH |
+| Brave CDP plist | `deploy/macos/com.omnigraph.brave-cdp.plist` | Headed browser for WeChat |
+| MCP wrapper | `deploy/macos/run-playwright-mcp.sh` | Playwright MCP server |
+| Daily digest | `deploy/macos/omnigraph-daily-digest.py` | WeChat notification script |
+| Sync script | `deploy/macos/omnigraph-sync.sh` | Weekly DB + LightRAG sync |
+
+### Scraper fallback chain
+
+```
+scrape_wechat_ua (direct HTTP + WeChat cookie)
+  → scrape_wechat_apify (3rd-party)
+    → scrape_wechat_cdp (localhost:9222 → Brave CDP on Mac)
+      → scrape_wechat_mcp (localhost:8931/mcp → Playwright MCP on Mac)
+```
+
+### Cookie refresh flow
+
+1. Aliyun `kol-refresh.timer` fires 5 min before daily scan
+2. SSHs to Mac: `ssh hermes "python3 scripts/refresh_wechat_cookie.py"`
+3. Script connects to Brave CDP (:9222), extracts fresh token+cookie
+4. Writes back to Aliyun's `kol_config.py` via scp
+5. Verifies with a single-account test scan (ret=0)
+6. If Level-C (true cookie death — QR scan needed): Telegram notifies operator
+7. If scan fails: `kol-scan-alert.service` kicks off another refresh attempt
+
+### Onboarding a new Mac
+
+1. Enable Remote Login (System Settings → Sharing)
+2. Add Aliyun's SSH key: `echo 'ssh-ed25519 AAAA...' >> ~/.ssh/authorized_keys`
+3. Install launchd plists from `deploy/macos/` → `~/Library/LaunchAgents/`
+4. Load: `launchctl load ~/Library/LaunchAgents/com.omnigraph.*.plist`
+5. Open Brave, scan WeChat QR at mp.weixin.qq.com
+6. Verify: `ssh hermes echo OK` from Aliyun
 <!-- GSD:architecture-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->

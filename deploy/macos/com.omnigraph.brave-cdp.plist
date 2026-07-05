@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.omnigraph.brave-cdp</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/Brave Browser.app/Contents/MacOS/Brave Browser</string>
+        <string>--remote-debugging-port=9222</string>
+        <string>--remote-allow-origins=*</string>
+        <string>--user-data-dir=/Users/hai/.hermes/brave-cdp-profile</string>
+        <string>--no-first-run</string>
+        <string>--no-default-browser-check</string>
+        <string>--disable-background-mode</string>
+        <string>--disable-sync</string>
+        <string>--disable-default-apps</string>
+        <string>--disable-extensions</string>
+        <string>https://mp.weixin.qq.com</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/hai/.hermes/logs/brave-cdp.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/hai/.hermes/logs/brave-cdp.log</string>
+</dict>
+</plist>
