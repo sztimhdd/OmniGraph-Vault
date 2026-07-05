@@ -5,6 +5,7 @@ Usage:
     python batch_classify_kol.py --topic "OpenClaw" --min-depth 2
     python batch_classify_kol.py --topic "Agent" --classifier gemini
     python batch_classify_kol.py --topic "RAG" --dry-run
+    python batch_classify_kol.py --topic Agent --topic LLM --topic RAG --topic NLP --topic CV
 
 Plan 05-00c Task 0c.4: default classifier is 'deepseek' (see :335). This
 script already routes to the DeepSeek chat completions endpoint directly —
@@ -48,6 +49,10 @@ from lib import INGESTION_LLM, generate_sync
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
 GEMINI_CLASSIFY_SLEEP = 5.0
+# Minimum batch size below which a truncated slice is abandoned rather than
+# split further.  A slice smaller than this is so short it should not overflow
+# the model's max_tokens ceiling; if it still truncates something else is wrong.
+MIN_BATCH = 25
 
 
 def init_db() -> sqlite3.Connection:
@@ -168,7 +173,15 @@ Articles:
 Return ONLY valid JSON, no other text."""
 
 
-def _call_deepseek(prompt: str, api_key: str) -> list[dict] | None:
+def _call_deepseek(prompt: str, api_key: str) -> list[dict] | str | None:
+    """Call the DeepSeek batch-classify endpoint.
+
+    Returns:
+        list[dict]  — parsed classification results on success.
+        ``"TRUNCATED"`` — the response was cut by ``finish_reason=length``
+            (token ceiling hit); caller should split the batch and retry.
+        ``None`` — any other error (network, auth, parse, unexpected format).
+    """
     if requests is None:
         logger.warning("requests library not available — cannot call DeepSeek API")
         return None
@@ -180,7 +193,11 @@ def _call_deepseek(prompt: str, api_key: str) -> list[dict] | None:
             timeout=120,
         )
         resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"].strip()
+        choice = resp.json()["choices"][0]
+        if choice.get("finish_reason") == "length":
+            logger.warning("DeepSeek finish_reason=length — response truncated (batch too large)")
+            return "TRUNCATED"
+        content = choice["message"]["content"].strip()
         if content.startswith("```"):
             start = content.find("\n") + 1
             end = content.rfind("```")
@@ -198,6 +215,70 @@ def _call_deepseek(prompt: str, api_key: str) -> list[dict] | None:
     except Exception as exc:
         logger.warning("DeepSeek API call failed: %s", exc)
         return None
+
+
+def _classify_batch(
+    titles: list[str],
+    digests: list[str],
+    topic: str,
+    min_depth: int,
+    api_key: str,
+    abs_offset: int,
+) -> list[dict] | None:
+    """Classify a slice of articles via DeepSeek, with adaptive halving on truncation.
+
+    Each returned dict has its ``index`` re-based to ``abs_offset + batch_index``
+    so that ``run()``'s ``cls_by_idx`` (keyed by absolute article-list position)
+    is correct without any change to the consumer.
+
+    If the slice is smaller than ``MIN_BATCH`` and still truncates, the slice
+    is abandoned and ``None`` is returned (the caller aborts the topic).
+
+    Args:
+        titles:     Titles for this slice.
+        digests:    Matching digests for this slice.
+        topic:      Topic label for the prompt.
+        min_depth:  Minimum depth score threshold (forwarded to prompt).
+        api_key:    DeepSeek API key.
+        abs_offset: Index of titles[0] within the full article list.
+
+    Returns:
+        list[dict] with absolute ``index`` values, or ``None`` on failure.
+    """
+    prompt = _build_prompt(titles, topic, min_depth, digests)
+    result = _call_deepseek(prompt, api_key)
+
+    if result == "TRUNCATED":
+        if len(titles) < MIN_BATCH:
+            logger.warning(
+                "DeepSeek truncated a %d-title slice (offset=%d) which is already below "
+                "MIN_BATCH=%d — abandoning slice",
+                len(titles), abs_offset, MIN_BATCH,
+            )
+            return None
+        mid = len(titles) // 2
+        logger.info(
+            "Splitting truncated %d-title slice (offset=%d) → %d + %d",
+            len(titles), abs_offset, mid, len(titles) - mid,
+        )
+        left = _classify_batch(titles[:mid], digests[:mid], topic, min_depth, api_key, abs_offset)
+        if left is None:
+            return None
+        right = _classify_batch(titles[mid:], digests[mid:], topic, min_depth, api_key, abs_offset + mid)
+        if right is None:
+            return None
+        return left + right
+
+    if result is None:
+        return None
+
+    # Re-base 0-based batch indices to absolute article-list positions.
+    rebased = []
+    for item in result:
+        if "index" not in item:
+            continue
+        rebased.append({**item, "index": abs_offset + int(item["index"])})
+    return rebased
 
 
 # Phase 10 plan 10-00 (D-10.02): full-body classifier prompt + call helper.
@@ -391,7 +472,15 @@ def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
 
     titles = [a["title"] for a in articles]
     digests = [a["digest"] for a in articles]
-    batch_size = 200
+    # #70: default 100 is the proven-safe ceiling (finish_reason=stop); 200 truncated
+    # dense topics. Env-overridable for ops tuning; non-int silently falls back to 100
+    # (mirror OMNIGRAPH_RSS_CLASSIFY_DAILY_CAP pattern).
+    try:
+        batch_size = int(os.environ.get("KOL_CLASSIFY_BATCH_SIZE", "100"))
+        if batch_size < 1:
+            batch_size = 100
+    except (TypeError, ValueError):
+        batch_size = 100
     is_gemini = classifier == "gemini"
     label = "Gemini" if is_gemini else "DeepSeek"
 
@@ -400,18 +489,27 @@ def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
         time.sleep(GEMINI_CLASSIFY_SLEEP)
 
     all_cls: list[dict] = []
+    api_key = get_deepseek_api_key()
     for batch_start in range(0, len(titles), batch_size):
         batch_titles = titles[batch_start:batch_start + batch_size]
         batch_digests = digests[batch_start:batch_start + batch_size]
         logger.info("Classifying %d–%d of %d via %s...",
                      batch_start + 1, min(batch_start + batch_size, len(titles)), len(titles), label)
-        prompt = _build_prompt(batch_titles, topic, min_depth, batch_digests)
-        result = _call_deepseek(prompt, get_deepseek_api_key()) if not is_gemini else _call_gemini(prompt)
-        if result is None:
-            logger.warning("%s API failed — aborting classification", label)
-            conn.close()
-            return
-        all_cls.extend(result)
+        if is_gemini:
+            prompt = _build_prompt(batch_titles, topic, min_depth, batch_digests)
+            result = _call_gemini(prompt)
+            if result is None:
+                logger.warning("Gemini API failed — aborting classification")
+                conn.close()
+                return
+            all_cls.extend(result)
+        else:
+            result = _classify_batch(batch_titles, batch_digests, topic, min_depth, api_key, batch_start)
+            if result is None:
+                logger.warning("DeepSeek API failed — aborting classification")
+                conn.close()
+                return
+            all_cls.extend(result)
 
     cls_by_idx = {int(c["index"]): c for c in all_cls if "index" in c}
 
@@ -466,7 +564,7 @@ def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Classify KOL articles from SQLite via LLM")
-    parser.add_argument("--topic", type=str, required=True, help="Topic to classify (e.g. 'OpenClaw')")
+    parser.add_argument("--topic", type=str, action="append", required=True, help="Topic to classify; repeatable (e.g. --topic Agent --topic LLM). Each flag triggers an independent classification pass.")
     parser.add_argument("--min-depth", type=int, default=2, choices=[1, 2, 3], help="Minimum depth score (default: 2)")
     parser.add_argument("--classifier", type=str, default="deepseek", choices=["deepseek", "gemini"],
                         help="Classifier: deepseek (default) or gemini")
@@ -482,7 +580,8 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
-    run(args.topic, args.min_depth, args.classifier, args.dry_run)
+    for topic in args.topic:
+        run(topic, args.min_depth, args.classifier, args.dry_run)
 
 
 if __name__ == "__main__":

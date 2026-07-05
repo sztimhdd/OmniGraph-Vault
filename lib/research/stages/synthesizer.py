@@ -1,8 +1,12 @@
 """Synthesizer stage — terminal stage (NO status field, Axis 8).
 
-ar-2 status: caption-anchored image embeds (alt text sourced from
-``state.reasoned.analyzed_images[i].caption``); CJK-ratio language heuristic
-preserved (Axis 10 ar-1 scope, swapped for LLM-driven detection in ar-4).
+arx-2-finish status: real LLM synthesis (GAP A) — builds an all-chunk prompt
+(query + every [n] chunk + reasoner/verifier summaries + image context) and
+awaits the plain-text ``get_llm_func()`` provider, replacing the ar-1 stub that
+returned ``chunks[0].snippet`` verbatim. Caption-anchored image embeds (alt text
+sourced from ``state.reasoned.analyzed_images[i].caption``) are woven after the
+prose; CJK-ratio language heuristic preserved (Axis 10 ar-1 scope, LLM-driven
+detection deferred).
 
 When ``state.reasoned`` is ``None`` or ``analyzed_images`` is empty, falls
 back to ``state.retrieved.image_candidates`` with the image filename as alt
@@ -20,6 +24,8 @@ cases are handled gracefully via ``or ""``.
 from __future__ import annotations
 
 from pathlib import Path
+
+from lib.llm_complete import get_llm_func
 
 from ..types import (
     ResearchConfig,
@@ -96,35 +102,86 @@ async def run(
                 f"> {emoji} {name} {st.status}: {st.reason or '(no reason)'}"
             )
 
-    # Minimal markdown body — real LLM synthesis lands in ar-2.
+    # Real LLM synthesis (arx-2-finish GAP A) — replaces the ar-1 stub that
+    # returned chunks[0].snippet verbatim. Build a synthesis prompt from ALL
+    # chunks + reasoner/verifier summaries + image context, await the
+    # PLAIN-TEXT provider (get_llm_func(), NOT cfg.llm_complete which is the
+    # JSON tool-calling adapter for Reasoner/Verifier), thread [n] citations,
+    # weave images, and degrade gracefully (terminal stage MUST NOT raise).
+
+    # All-chunk prompt block: number EVERY source [n], not just chunks[0].
+    chunks_text = "\n\n".join(
+        f"[{i + 1}] {s.snippet or '(empty)'}" for i, s in enumerate(sources)
+    )
+    reasoner_md = (state.reasoned.inferences_md or "") if state.reasoned else ""
+    verifier_md = (
+        (state.verified.fact_check_summary_md or "") if state.verified else ""
+    )
+    images_context = "\n".join(
+        f"Image: {alt} — path: /static/img/{path.parent.name}/{path.name}"
+        for path, alt in image_entries
+    )
+
     if lang == "zh":
-        title = f"# 关于「{query}」的研究答复"
-        body = "\n## 知识图谱检索结果\n\n"
+        prompt = (
+            f"你是一个专业研究助手。请基于以下检索片段，为问题「{query}」"
+            "撰写一份详细的中文研究报告。\n\n"
+            f"## 检索片段 (共 {len(sources)} 条, 引用格式 [n])\n{chunks_text}\n\n"
+            f"## 推理摘要\n{reasoner_md}\n\n"
+            f"## 核实摘要\n{verifier_md}\n\n"
+            f"## 可用图片\n{images_context}\n\n"
+            "要求:\n1. 行文流畅,结构清晰 (## 标题 + 段落)\n"
+            "2. 每个关键论断用 [n] 格式引用对应片段编号\n"
+            "3. 适当位置插入图片 Markdown (![alt](/static/img/...))\n"
+            "4. 不要重新列出参考文献 (页面已有 Sources 区域)\n"
+        )
     else:
-        title = f"# Research Answer: {query}"
-        body = "\n## Knowledge Graph Retrieval\n\n"
+        prompt = (
+            "You are a research assistant. Based on the retrieved passages "
+            f"below, write a detailed research report answering: {query}\n\n"
+            f"## Retrieved Passages ({len(sources)} total, cite as [n])\n"
+            f"{chunks_text}\n\n"
+            f"## Reasoner Summary\n{reasoner_md}\n\n"
+            f"## Verifier Summary\n{verifier_md}\n\n"
+            f"## Available Images\n{images_context}\n\n"
+            "Requirements:\n1. Clear structure with ## headings and paragraphs\n"
+            "2. Cite each key claim with [n] matching passage number\n"
+            "3. Embed relevant images as Markdown (![alt](/static/img/...))\n"
+            "4. Do NOT add a References section (the page already shows Sources)\n"
+        )
 
-    if state.retrieved is not None and state.retrieved.chunks:
-        body += state.retrieved.chunks[0].snippet or "(empty)"
-    else:
-        body += "(no chunks retrieved)\n"
+    try:
+        llm = get_llm_func()
+        raw_markdown = await llm(prompt)
+        if not raw_markdown or not raw_markdown.strip():
+            raise ValueError("empty LLM response")
+        markdown = raw_markdown
+    except Exception as exc:  # noqa: BLE001 — terminal stage MUST NOT raise
+        # Graceful degrade: fall back to the ar-1 template body + a note_line.
+        note_lines.append(f"> ❌ LLM synthesis failed: {exc!s}")
+        if lang == "zh":
+            title = f"# 关于「{query}」的研究答复"
+            body = "\n## 知识图谱检索结果\n\n"
+        else:
+            title = f"# Research Answer: {query}"
+            body = "\n## Knowledge Graph Retrieval\n\n"
+        if state.retrieved is not None and state.retrieved.chunks:
+            body += state.retrieved.chunks[0].snippet or "(empty)"
+        else:
+            body += "(no chunks retrieved)\n"
+        markdown = title + body
 
-    # Inline images via app-relative static path (kb-web serves
-    # /static/img/{article_hash}/{filename} from the runtime images dir).
-    # Alt text sourced from ``image_entries`` tuple (caption or filename fallback).
+    # Weave images AFTER the prose (success OR degrade) — app-relative static
+    # path (kb-web serves /static/img/{article_hash}/{filename}); alt text from
+    # the ``image_entries`` tuple (caption or filename fallback). REQ-1.1-A-4.
     if image_entries:
-        body += "\n\n## Retrieved Images\n\n"
+        markdown += "\n\n"
         for path, alt in image_entries:
-            body += (
-                f"![{alt}](/static/img/"
-                f"{path.parent.name}/{path.name})\n"
-            )
+            markdown += f"![{alt}](/static/img/{path.parent.name}/{path.name})\n"
 
-    # Append degradation notes.
+    # Append degradation notes (upstream-stage notes + any LLM-failure note).
     if note_lines:
-        body += "\n\n---\n\n" + "\n".join(note_lines) + "\n"
-
-    markdown = title + body
+        markdown += "\n\n---\n\n" + "\n".join(note_lines) + "\n"
     confidence = (
         0.5 if (state.retrieved is not None and state.retrieved.status == "ok")
         else 0.0

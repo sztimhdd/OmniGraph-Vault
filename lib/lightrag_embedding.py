@@ -134,14 +134,53 @@ def _make_client(api_key: str) -> "genai.Client":
     forwarded. Free-tier mode uses the rotation-managed ``api_key`` as
     before. Location defaults to ``global`` when
     ``GOOGLE_CLOUD_LOCATION`` is unset (gemini-embedding-2 GA endpoint).
+
+    260630-jgx SOCKS5 proxy mitigation: when OMNIGRAPH_EMBED_PROXY is set,
+    routes Vertex/Google API calls through the SOCKS5 proxy. Two transport
+    layers need patching:
+    1. google-genai async API calls (httpx): inject httpx.AsyncClient(proxy=...)
+       via HttpOptions(httpx_async_client=...) to force httpx transport
+       (SOCKS5-capable via socksio) instead of aiohttp (no native SOCKS5 support).
+    2. google-auth SA token refresh (requests): monkey-patch
+       google.auth.transport.requests.Request to use a requests.Session with the
+       SOCKS5 proxy configured via proxies={'https': proxy_url} (PySocks).
+    TEMPORARY — remove when IT fixes ACK NetworkPolicy for wg-gcp-sg (#75).
     """
+    proxy_url = os.environ.get("OMNIGRAPH_EMBED_PROXY", "")
+    http_options = None
+    if proxy_url:
+        import httpx
+        import requests as _requests
+        from google.genai.types import HttpOptions
+        import google.auth.transport.requests as _gar
+
+        # Patch 1: httpx async client for google-genai API calls
+        http_options = HttpOptions(httpx_async_client=httpx.AsyncClient(proxy=proxy_url))
+
+        # Patch 2: google-auth token refresh session (synchronous, uses requests+PySocks)
+        # Guard: only monkeypatch once — repeated _make_client() calls would otherwise
+        # chain _proxied_request_init → _proxied_request_init → ... (RecursionError).
+        if not getattr(_gar.Request, "_omnigraph_proxy_patched", False):
+            _orig_request_init = _gar.Request.__init__
+
+            def _proxied_request_init(self: _gar.Request,
+                                      session: "_requests.Session | None" = None) -> None:
+                if session is None:
+                    session = _requests.Session()
+                    session.proxies = {"https": proxy_url, "http": proxy_url}
+                _orig_request_init(self, session)
+
+            _gar.Request.__init__ = _proxied_request_init  # type: ignore[method-assign]
+            _gar.Request._omnigraph_proxy_patched = True  # type: ignore[attr-defined]
+
     if _is_vertex_mode():
         return genai.Client(
             vertexai=True,
             project=os.environ["GOOGLE_CLOUD_PROJECT"],
             location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
+            http_options=http_options,
         )
-    return genai.Client(api_key=api_key, vertexai=False)
+    return genai.Client(api_key=api_key, vertexai=False, http_options=http_options)
 
 
 async def _embed_once(contents: list, model: str) -> np.ndarray:

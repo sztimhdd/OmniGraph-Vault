@@ -25,6 +25,7 @@ for the full schema contract and rationale.
 """
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -89,6 +90,17 @@ def _build_data_row(payload: dict[str, Any], meta_fields: set[str]) -> dict[str,
     return row
 
 
+# Peak-RSS note (ISSUES #41 fix): the matrix is accumulated as ONE contiguous
+# float32 byte buffer (`bytearray`), streaming each point's raw bytes in scroll
+# order — NOT a nested per-row Python float list and NOT a separate full-array
+# numpy copy. The on-disk schema still requires a single base64 string
+# (load_storage reshapes one blob), so the bytes must exist contiguously at
+# encode time; the win is that they exist exactly ONCE (no double hold, no
+# per-float object overhead). Peak RSS ≈ (points×dim×4 bytes, the buffer) +
+# (the small metadata `rows` list) + (a transient base64 string at the single
+# encode). For relationships (82582×3072×4 ≈ 1.0 GB buffer + ≈1.35 GB transient
+# b64 string ≈ ~2.4 GB peak) this clears the 14G box; the prior per-row boxed
+# float lists (≈ tens of GB of boxed floats) were the OOM root cause.
 def export_collection_to_nanovdb(
     client: Any,
     collection_name: str,
@@ -119,7 +131,12 @@ def export_collection_to_nanovdb(
     fields = meta_fields if meta_fields is not None else set()
 
     rows: list[dict[str, Any]] = []
-    vectors: list[list[float]] = []
+    # Stream raw float32 bytes into ONE contiguous buffer (no nested per-row
+    # float list, no full-array copy). buf grows to exactly points×dim×4 bytes —
+    # the matrix bytes held once. See the peak-RSS note above the function.
+    buf = bytearray()
+    n_points = 0
+    dim_observed = embedding_dim
 
     next_offset: Any = None
     while True:
@@ -140,17 +157,31 @@ def export_collection_to_nanovdb(
                     f"Qdrant point id={point.id} returned vector=None "
                     "(scroll with_vectors=True did not yield a vector)"
                 )
-            vectors.append(list(vec))
+            # Per-point dim guard (HT-7): check on the first vector AND every
+            # vector as we append, so a mismatch raises before we write — the
+            # streaming path can't do a single post-hoc len(vectors[0]) check.
+            if n_points == 0:
+                dim_observed = len(vec)
+                if dim_observed != embedding_dim:
+                    raise ValueError(
+                        f"qdrant_snapshot_dim_mismatch collection={collection_name} "
+                        f"expected={embedding_dim} observed={dim_observed} "
+                        f"points={n_points} (HT-7)"
+                    )
+            elif len(vec) != embedding_dim:
+                raise ValueError(
+                    f"qdrant_snapshot_dim_mismatch collection={collection_name} "
+                    f"expected={embedding_dim} observed={len(vec)} "
+                    f"points={n_points} (HT-7)"
+                )
+            # np.asarray(...).tobytes() == the row's raw float32 bytes; appending
+            # in scroll order yields exactly the C-contiguous row-major bytes that
+            # np.array(vectors, dtype=Float).tobytes() would have produced — so the
+            # final base64 is byte-identical to the old full-accumulation path.
+            buf += np.asarray(vec, dtype=Float).tobytes()
+            n_points += 1
         if next_offset is None:
             break
-
-    dim_observed = len(vectors[0]) if vectors else embedding_dim
-    if vectors and dim_observed != embedding_dim:
-        raise ValueError(
-            f"qdrant_snapshot_dim_mismatch collection={collection_name} "
-            f"expected={embedding_dim} observed={dim_observed} "
-            f"points={len(vectors)} (HT-7)"
-        )
 
     # Roundtrip smoke: compare against Qdrant's authoritative count.
     qdrant_count = client.count(collection_name=collection_name).count
@@ -161,14 +192,11 @@ def export_collection_to_nanovdb(
         )
 
     # Build matrix in nano_vectordb's on-disk format: a single base64-encoded
-    # float32 buffer. Empty matrix is represented as a 0-row, embedding_dim-col
-    # array — array_to_buffer_string returns an empty string, which loads
-    # cleanly via NanoVectorDB.
-    if vectors:
-        matrix_arr = np.array(vectors, dtype=Float)
-    else:
-        matrix_arr = np.zeros((0, embedding_dim), dtype=Float)
-    matrix_b64 = array_to_buffer_string(matrix_arr)
+    # float32 buffer. base64.b64encode(bytes(buf)) is exactly what
+    # array_to_buffer_string(arr) does (== base64.b64encode(arr.tobytes())),
+    # but without re-materializing the array. Empty collection → empty bytes →
+    # "" — matches array_to_buffer_string(np.zeros((0,dim))) == "".
+    matrix_b64 = base64.b64encode(bytes(buf)).decode()
 
     nano_format = {
         "embedding_dim": embedding_dim,
