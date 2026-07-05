@@ -6,6 +6,8 @@ import time
 import json
 import random
 import logging
+import os
+import fcntl
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,6 +23,8 @@ DEFAULT_PAGE_SIZE = 20
 # Once ret=200013 fires, WeChat needs a 30–60s hard cooldown.
 RATE_LIMIT_SLEEP_ACCOUNTS = 5.0
 RATE_LIMIT_SLEEP_PAGES = 2.0
+WECHAT_API_MIN_INTERVAL = float(os.environ.get("WECHAT_API_MIN_INTERVAL_SECONDS", "15.0"))
+WECHAT_API_RATE_LOCK = Path(os.environ.get("WECHAT_API_RATE_LOCK", "/tmp/omnigraph_wechat_api_rate_limit.lock"))
 MAX_RETRIES = 3
 RATE_LIMIT_COOLDOWN = 60.0  # hard cooldown after hitting ret=200013
 
@@ -52,6 +56,39 @@ def _check_session_limit() -> None:
 
 def _backoff_sleep(attempt: int) -> float:
     return (2 ** attempt) + random.uniform(0, 1)
+
+
+def _throttle_wechat_api() -> None:
+    """Enforce a host-wide minimum interval between WeChat MP API requests.
+
+    The systemd scanner runs multiple batch instances with the same WeChat token.
+    Per-process sleeps are not enough; this file lock serializes calls across
+    those processes so they share one API budget.
+    """
+    if WECHAT_API_MIN_INTERVAL <= 0:
+        return
+
+    WECHAT_API_RATE_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with WECHAT_API_RATE_LOCK.open("a+") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        lock_file.seek(0)
+        raw_last = lock_file.read().strip()
+        try:
+            last_request_at = float(raw_last) if raw_last else 0.0
+        except ValueError:
+            last_request_at = 0.0
+
+        now = time.time()
+        wait = last_request_at + WECHAT_API_MIN_INTERVAL - now
+        if wait > 0:
+            logger.info("WeChat API throttle: sleeping %.1fs", wait)
+            time.sleep(wait)
+            now = time.time()
+
+        lock_file.seek(0)
+        lock_file.truncate()
+        lock_file.write(str(now))
+        lock_file.flush()
 
 
 def list_articles(
@@ -97,6 +134,7 @@ def list_articles(
         for attempt in range(1, MAX_RETRIES + 1):
             _check_session_limit()
             try:
+                _throttle_wechat_api()
                 resp = requests.get(WECHAT_API_URL, params=params, headers=headers, timeout=15)
                 if resp.status_code == 429:
                     wait = RATE_LIMIT_COOLDOWN + _backoff_sleep(attempt)
@@ -200,6 +238,7 @@ def list_articles_with_digest(
         for attempt in range(1, MAX_RETRIES + 1):
             _check_session_limit()
             try:
+                _throttle_wechat_api()
                 resp = requests.get(WECHAT_API_URL, params=params, headers=headers, timeout=15)
                 if resp.status_code == 429:
                     wait = RATE_LIMIT_COOLDOWN + _backoff_sleep(attempt)
