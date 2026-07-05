@@ -88,8 +88,15 @@ def _is_retriable(exc: BaseException) -> bool:
 async def generate(model: str, contents, **kwargs) -> str:
     """Async LLM call. ``contents`` is a string OR a list of parts.
 
-    google-genai SDK accepts both natively (Amendment 5) — no fall-back path.
+    In Vertex mode (SOCKS5 proxy), uses sync SDK to avoid aiohttp+SOCKS5
+    incompatibility. Free-tier mode stays async for key rotation.
     """
+    if _is_vertex_mode():
+        # SOCKS5 proxy doesn't support aiohttp — use sync SDK
+        return _get_client().models.generate_content(
+            model=model, contents=contents, **kwargs
+        ).text or ""
+
     async with get_limiter(model):
         try:
             response = await _get_client().aio.models.generate_content(
