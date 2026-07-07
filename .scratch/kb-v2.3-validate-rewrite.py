@@ -95,9 +95,20 @@ def _gate_url(input_body: str, output_body: str) -> tuple[bool, str]:
     return False, f"FAIL dropped={dropped} added={added}"
 
 
+_FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
+_INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+
+
 def _gate_html(output_body: str) -> tuple[bool, str]:
-    """GATE-HTML: no raw HTML tags in output."""
-    matches = _HTML_TAGS_RE.findall(output_body)
+    """GATE-HTML: no raw HTML tags in output.
+
+    Tag names inside fenced code blocks or inline code spans are CONTENT
+    (e.g. an article about rendering a `<div>`), not markup — strip code
+    regions before matching so they don't false-positive the gate.
+    """
+    stripped = _FENCED_CODE_RE.sub("", output_body)
+    stripped = _INLINE_CODE_RE.sub("", stripped)
+    matches = _HTML_TAGS_RE.findall(stripped)
     if not matches:
         return True, "OK"
     return False, f"FAIL found_tags={matches[:3]}"
