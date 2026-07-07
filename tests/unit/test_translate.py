@@ -87,7 +87,8 @@ def _make_translate_test_db(tmp_path):
             title TEXT, body TEXT,
             layer1_verdict TEXT, layer2_verdict TEXT, layer2_at TEXT,
             body_translated TEXT, title_translated TEXT,
-            translated_lang VARCHAR(5), translated_at DATETIME
+            translated_lang VARCHAR(5), translated_at DATETIME,
+            body_rewritten TEXT, rewritten_at DATETIME
         );
         CREATE TABLE rss_articles (
             id INTEGER PRIMARY KEY,
@@ -95,7 +96,8 @@ def _make_translate_test_db(tmp_path):
             title TEXT, body TEXT,
             layer1_verdict TEXT, layer2_verdict TEXT, layer2_at TEXT,
             body_translated TEXT, title_translated TEXT,
-            translated_lang VARCHAR(5), translated_at DATETIME
+            translated_lang VARCHAR(5), translated_at DATETIME,
+            body_rewritten TEXT, rewritten_at DATETIME
         );
         """
     )

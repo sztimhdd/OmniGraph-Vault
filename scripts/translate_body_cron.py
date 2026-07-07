@@ -119,7 +119,8 @@ def _select_candidate_rows(
     sql = """
         SELECT id, table_name, title, body, body_translated, title_translated
           FROM (
-            SELECT id, 'articles' AS table_name, title, body,
+            SELECT id, 'articles' AS table_name, title,
+                   COALESCE(body_rewritten, body) AS body,
                    body_translated, title_translated, layer2_at
               FROM articles
              WHERE layer1_verdict = 'candidate'
@@ -127,7 +128,8 @@ def _select_candidate_rows(
                AND body IS NOT NULL AND body != ''
                AND (body_translated IS NULL OR title_translated IS NULL)
             UNION ALL
-            SELECT id, 'rss_articles' AS table_name, title, body,
+            SELECT id, 'rss_articles' AS table_name, title,
+                   COALESCE(body_rewritten, body) AS body,
                    body_translated, title_translated, layer2_at
               FROM rss_articles
              WHERE layer1_verdict = 'candidate'
