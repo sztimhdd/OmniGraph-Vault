@@ -901,7 +901,7 @@ async def scrape_wechat_mcp(url):
     """
     import json as _json
 
-    mcp_url = CDP_URL.rstrip("/")
+    mcp_url = os.environ.get("MCP_URL", "http://localhost:8931").rstrip("/")
     session_id = None
     msg_id = 0
     _headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
@@ -1276,7 +1276,15 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
 
         if not article_data:
             # 2. Apify (backup)
-            article_data = await scrape_wechat_apify(url)
+            # Wrapped in try/except because scrape_wechat_apify() re-raises
+            # on dual-token exhaustion (e.g. monthly usage hard limit) instead
+            # of returning None. Without this catch, the CDP/MCP fallback is
+            # never reached (ckpt-20260707: 10 failed articles on 2026-07-07).
+            try:
+                article_data = await scrape_wechat_apify(url)
+            except Exception as e:
+                print(f"Apify scraping failed: {e}")
+                article_data = None
 
             # Check if Apify returned a verification/login page
             if article_data:
@@ -1287,14 +1295,15 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
                     print(f"Apify returned verification/login page ({len(content)} chars), triggering fallback...")
                     article_data = None
 
-        # 3. CDP fallback (last resort)
-        # Cascade order ua → apify → cdp/mcp (cdp branch listed first; mcp via _is_mcp_endpoint check)
+        # 3. Browser fallback (CDP → MCP serial cascade)
+        # CDP is tried first (via Mac's headed Brave through SSH tunnel);
+        # MCP only runs if CDP returns None. This replaces the old _is_mcp_endpoint
+        # either/or dispatch which never reached MCP when CDP_URL didn't end in /mcp.
         if not article_data:
-            if not _is_mcp_endpoint(CDP_URL):
-                print("UA & Apify failed. Falling back to local CDP...")
-                article_data = await scrape_wechat_cdp(url)
-            else:
-                print("UA & Apify failed. Falling back to remote Playwright MCP...")
+            print("UA & Apify failed. Falling back to CDP...")
+            article_data = await scrape_wechat_cdp(url)
+            if not article_data:
+                print("CDP failed. Falling back to MCP...")
                 article_data = await scrape_wechat_mcp(url)
 
         if not article_data:
