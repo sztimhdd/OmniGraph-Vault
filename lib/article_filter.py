@@ -28,9 +28,7 @@ exposed a single-article ``passed: bool`` shape. The new contract is:
 
   - batch input/output (1:1 ordered)
   - 3-field FilterResult: verdict / reason / prompt_version
-  - async LLM call routed through Vertex Gemini (the only Gemini path
-    that exists in ``lib/``; PROJECT-v3.5-Ingest-Refactor.md § Tech Stack
-    says "Layer 1 reuses lib/vertex_gemini_complete.py" verbatim)
+  - async LLM call routed through DeepSeek (Vertex reserved for embedding only)
 
 Locked design (PROJECT-v3.5-Ingest-Refactor.md § "6 User-Locked
 D-Decisions" + "Layer 1 v0 Prompt"):
@@ -40,11 +38,9 @@ D-Decisions" + "Layer 1 v0 Prompt"):
   - D-LF-4: failure mode = whole-batch NULL on LLM error. No retry
     counter, no permanent-fail flag. Operator can grep stuck-NULL rows
     if a regression appears.
-  - LF-1.3 routing: ``OMNIGRAPH_LLM_PROVIDER`` env still controls the
-    project-wide LightRAG LLM (deepseek vs vertex_gemini), but Layer 1
-    is Gemini-only by design and always uses Vertex. The "legacy
-    gemini_model_complete" fallback referenced in early plan drafts
-    does not exist in ``lib/`` — see commit message for deviation note.
+  - LF-1.3 routing: Layer 1 uses DeepSeek (via ``lib.llm_deepseek``).
+    Vertex is strictly reserved for embedding only.  OMNIGRAPH_LLM_PROVIDER
+    still controls the project-wide LightRAG LLM dispatcher.
   - LF-1.5: timeout / non-JSON / partial JSON / row-count-mismatch all
     return FilterResult(verdict=None, ...) for EVERY article in the
     batch — no partial-batch persistence.
@@ -481,11 +477,10 @@ def _layer2_timeout_env() -> Iterator[None]:
 async def layer1_pre_filter(
     articles: list[ArticleMeta],
 ) -> list[FilterResult]:
-    """Real Gemini Flash Lite batch pre-filter.
+    """Real DeepSeek batch pre-filter.
 
-    Routed through ``lib.vertex_gemini_complete.vertex_gemini_model_complete``
-    (the only Gemini path in ``lib/`` — see module docstring re: LF-1.3
-    routing deviation). The 30-article spike at
+    Routed through ``lib.llm_deepseek.deepseek_model_complete``.
+    The 30-article spike at
     ``.scratch/layer1-validation-20260507-151608.md`` validated this
     exact prompt + model on real WeChat + RSS data.
 
@@ -534,15 +529,11 @@ async def layer1_pre_filter(
             for _ in articles
         ]
 
-    # LF-1.3 deviation: production has only Vertex Gemini; the "legacy
-    # gemini_model_complete" branch in plan drafts has no real symbol in
-    # lib/. We always route through Vertex. OMNIGRAPH_LLM_PROVIDER still
-    # controls the project-wide LightRAG LLM dispatcher
-    # (lib.llm_complete.get_llm_func) which is unaffected by this module.
+    # Layer 1 routing: DeepSeek model for filtering (not Vertex Gemini).
+    # Vertex is reserved for embedding only.
     try:
-        with _layer1_timeout_env():
-            from lib.vertex_gemini_complete import vertex_gemini_model_complete
-            raw = await vertex_gemini_model_complete(prompt)
+        from lib.llm_deepseek import deepseek_model_complete
+        raw = await deepseek_model_complete(prompt)
     except asyncio.TimeoutError:
         logger.warning("[layer1] timeout for batch of %d", len(articles))
         return _all_null("timeout")
