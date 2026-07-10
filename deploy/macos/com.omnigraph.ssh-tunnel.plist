@@ -6,7 +6,9 @@
     <string>com.omnigraph.ssh-tunnel</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/ssh</string>
+        <string>/opt/homebrew/bin/autossh</string>
+        <string>-M</string>
+        <string>0</string>
         <string>-N</string>
         <string>-R</string>
         <string>49221:localhost:22</string>
@@ -19,9 +21,11 @@
         <string>-o</string>
         <string>ExitOnForwardFailure=yes</string>
         <string>-o</string>
-        <string>ServerAliveInterval=30</string>
+        <string>ServerAliveInterval=15</string>
         <string>-o</string>
         <string>ServerAliveCountMax=3</string>
+        <string>-o</string>
+        <string>TCPKeepAlive=yes</string>
         <string>root@47.117.244.253</string>
     </array>
     <key>RunAtLoad</key>
