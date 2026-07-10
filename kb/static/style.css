@@ -62,6 +62,12 @@
   /* Typography */
   --font-sans: 'Inter', 'Noto Sans SC', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* kb-v2.3-4 editorial: serif for long-form reading (Medium model — serif
+   * article voice, sans UI chrome). Zero-download system stacks: latin falls
+   * to Georgia/Iowan, CJK glyphs fall through to Source Han Serif / Songti /
+   * SimSun (the newspaper faces those platforms ship). ADDITIVE token. */
+  --font-serif: 'Iowan Old Style', Georgia, 'Times New Roman',
+                'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', SimSun, serif;
 
   /* Radii */
   --radius-sm: 6px;
@@ -799,17 +805,22 @@ html[lang="en"] .article-card--zh-only {
   max-width: 400px;
 }
 
+/* kb-v2.3-4 editorial: magazine-grade opener — display-scale balanced title,
+ * hairline rule under the header, generous air. */
 .article-header {
   max-width: 760px;
-  margin: 1.5rem auto 2.5rem;
+  margin: 3rem auto 3rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .article-header h1 {
-  font-size: clamp(1.625rem, 4vw, 2.25rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  margin-bottom: 1rem;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  margin-bottom: 1.5rem;
+  text-wrap: balance;
 }
 
 .article-meta {
@@ -849,32 +860,45 @@ html[lang="en"] .article-card--zh-only {
 
 .article-body {
   max-width: 760px; /* locked measure — do not change */
+  /* kb-v2.3-4: as a grid item, min-width defaults to auto (= min-content),
+   * letting a wide <pre>/table stretch the item past its track on mobile.
+   * min-width:0 lets it shrink; inner pre/table overflow-x:auto scrolls. */
+  min-width: 0;
   margin: 0 auto 3rem;
-  /* kb-v2.3-4: mobile-first 1.6 (1.8 is caption-only per 2026 research);
-   * desktop relaxes to 1.7 in the min-width:768 block below. */
-  line-height: 1.6;
+  /* kb-v2.3-4 editorial: serif article voice (Medium model) — sans stays on
+   * UI chrome + headings; body text reads as a magazine, not an SDK doc.
+   * Serif + CJK newspaper faces want slightly more leading than sans: 1.7
+   * mobile, 1.75 desktop (768+ block below). */
+  font-family: var(--font-serif);
+  line-height: 1.7;
   color: var(--text);
-  /* kb-v2.3-4: fluid type — 16px floor (390w) to 18px ceiling (>=1280w),
-   * rem-based so 200% zoom (WCAG 1.4.4) scales cleanly. */
-  font-size: clamp(1rem, 0.925rem + 0.33vw, 1.125rem);
+  /* Fluid type — serif optically smaller than sans, so floor 17px -> 19px. */
+  font-size: clamp(1.0625rem, 1rem + 0.33vw, 1.1875rem);
 }
 
+/* kb-v2.3-4 editorial: section headings switch back to the sans family —
+ * the serif-body / sans-heading contrast is the classic magazine pairing.
+ * The docs-style h2 border-bottom is gone; hierarchy comes from scale,
+ * weight, and AIR (3.25rem above), not rules. */
 .article-body h1,
 .article-body h2,
 .article-body h3,
 .article-body h4 {
-  margin-top: 2.25rem;
-  margin-bottom: 0.875rem;
-  letter-spacing: -0.015em;
+  font-family: var(--font-sans);
+  margin-top: 3.25rem;
+  margin-bottom: 1rem;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+  text-wrap: balance;
 }
 
-.article-body h1 { font-size: 1.625rem; }
-.article-body h2 { font-size: 1.375rem; padding-bottom: 0.375rem; border-bottom: 1px solid var(--border); }
-.article-body h3 { font-size: 1.15rem; }
-.article-body h4 { font-size: 1.025rem; color: var(--text-secondary); }
+.article-body h1 { font-size: 1.875rem; font-weight: 800; }
+.article-body h2 { font-size: 1.625rem; font-weight: 700; }
+.article-body h3 { font-size: 1.25rem; font-weight: 700; }
+.article-body h4 { font-size: 1.0625rem; font-weight: 600; color: var(--text-secondary); text-transform: none; }
 
 .article-body p {
-  margin-bottom: 1.125rem;
+  margin-bottom: 1.375rem;
 }
 
 .article-body ul,
@@ -897,23 +921,48 @@ html[lang="en"] .article-card--zh-only {
   border-bottom-style: solid;
 }
 
+/* kb-v2.3-4 editorial: images as full-column plates — no hairline box,
+ * deep bg-tinted shadow lifts them off the page (Wired/Medium treatment).
+ * Works on bare <img>; no figure wrapper assumed. */
 .article-body img {
-  margin: 1.75rem auto;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 2.5rem auto;
+  border-radius: var(--radius-lg);
+  border: none;
+  box-shadow: 0 12px 48px -16px rgba(2, 6, 16, 0.85);
 }
 
+/* The ingest-time duplicate title (`# {title}` as the body's first element)
+ * repeats the display header — hide it so the page opens like an article,
+ * not a README. */
+.article-body > h1:first-child {
+  display: none;
+}
+
+/* Lead paragraph — quiet deck treatment on the opening graf. */
+.article-body > p:first-of-type {
+  font-size: 1.11em;
+  color: var(--text);
+}
+
+/* kb-v2.3-4 editorial: pull-quote treatment — larger italic serif set off
+ * by air and a short accent rule, magazine-style (no boxed background). */
 .article-body blockquote {
-  border-left: 3px solid var(--accent);
-  padding: 0.875rem 1.375rem;
-  margin: 1.5rem 0;
+  border-left: 2px solid var(--accent);
+  padding: 0.25rem 0 0.25rem 1.75rem;
+  margin: 2.5rem 0;
   color: var(--text-secondary);
-  /* kb-v2.3-4: was flat var(--bg-card) (identical to cards — invisible).
-   * Subtle blue-tinted wash + left-accent glow separates quote voice from
-   * body without adding a new surface color (Stripe/Linear quiet-quote bar). */
-  background: linear-gradient(90deg, var(--accent-blue-soft), rgba(59, 130, 246, 0.04) 55%, transparent);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: none;
   font-style: italic;
+  font-size: 1.11em;
+  line-height: 1.55;
+  letter-spacing: 0.005em;
+}
+
+.article-body blockquote p {
+  margin-bottom: 0.5rem;
 }
 
 .article-body blockquote p:last-child {
@@ -927,6 +976,27 @@ html[lang="en"] .article-card--zh-only {
   border: 1px solid var(--border);
   font-size: 0.875em;
   color: var(--accent-green);
+  /* kb-v2.3-4: rewrite output sometimes emits multi-line ASCII diagrams as
+   * bare inline <code> (not <pre>). pre-wrap keeps their line structure,
+   * anywhere lets unbreakable box-drawing runs wrap instead of blowing the
+   * 390px viewport out to 684px (mobile UAT catch). */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* kb-v2.3-4: bare <pre> (ASCII diagrams from the rewrite pipeline) gets the
+ * same containment as .codehilite — scrolls in its own box, never widens the
+ * column (390px UAT: 7 bare pre blocks forced the page to 668px). */
+.article-body pre {
+  max-width: 100%;
+  overflow-x: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  margin: 1.25rem 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
 }
 
 .article-body pre code {
@@ -941,11 +1011,17 @@ html[lang="en"] .article-card--zh-only {
 .article-body table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1.5rem 0;
+  margin: 2rem 0;
+  /* Data stays in the sans voice (serif tables read like 1980s print-outs) */
+  font-family: var(--font-sans);
   font-size: 0.9375rem;
   background: var(--bg-card);
   border-radius: var(--radius-md);
   overflow: hidden;
+  /* kb-v2.3-4: wide CJK tables scroll inside their own box instead of
+   * blowing out the mobile viewport (390px UAT caught a 668px table). */
+  display: block;
+  overflow-x: auto;
 }
 
 .article-body th,
@@ -1629,10 +1705,10 @@ html[lang="en"] .article-card--zh-only {
     padding: 0 2rem;
   }
 
-  /* kb-v2.3-4: desktop reading rhythm — 1.6 mobile-first base relaxes to
-   * 1.7 on the longer desktop measure (760px ≈ 75ch at 18px). */
+  /* kb-v2.3-4: desktop reading rhythm — serif leading relaxes slightly on
+   * the longer desktop measure. */
   .article-body {
-    line-height: 1.7;
+    line-height: 1.75;
   }
 
   .article-list {
@@ -2024,7 +2100,11 @@ html[lang="en"] .article-card--zh-only {
 
 .article-detail-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  /* kb-v2.3-4: minmax(0,1fr) not bare 1fr — grid items default min-width:auto,
+   * so a wide ASCII <pre> or CJK table forces the column past the mobile
+   * viewport (390px UAT measured 668px). minmax(0,·) lets the item shrink and
+   * the pre/table overflow-x:auto containment take over. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 2rem;
 }
 @media (min-width: 1024px) {
