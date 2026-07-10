@@ -149,12 +149,64 @@ def _gate_markdownlint(output_body: str) -> tuple[bool, str]:
     return True, "OK"
 
 
+_NOISE_SVG_ATTR_TOKENS = ("xmlns", "xlink:href", "stroke=", "fill=", "fill-rule", "viewbox")
+
+
+def _denoise_len(text: str) -> int:
+    """Length of `text` after stripping WeChat SVG/data-URI noise lines.
+
+    Noise = tracking-pixel data-URIs and percent-encoded SVG tag soup that
+    WeChat embeds in display content (round-3 id=7670: the same 1px SVG
+    data-URI block repeated 44x = 22354/28242 chars = 79% of raw input).
+    The rewrite LLM correctly deletes this, so GATE-LENGTH must measure the
+    output against the DE-NOISED input, not the raw one.
+
+    Conservative by design — a line is stripped ONLY when noise tokens
+    dominate it:
+      * it contains a 'data:image/' URI, or
+      * it has >= 4 percent-encoded tag markers (%3C / %3E) — prose that
+        merely EXPLAINS URL encoding mentions each once or twice, or
+      * it has >= 3 DISTINCT svg attribute tokens (xmlns / xlink:href /
+        stroke= / fill= / fill-rule / viewBox) — attribute soup, never prose.
+    Fenced code blocks (``` / ~~~) are NEVER stripped: an article ABOUT svg
+    rendering with an `<svg xmlns=...>` example is content, not noise.
+    """
+    kept_len = 0
+    in_fence = False
+    for line in text.splitlines(keepends=True):
+        if line.lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+            kept_len += len(line)
+            continue
+        if in_fence:
+            kept_len += len(line)
+            continue
+        low = line.lower()
+        if "data:image/" in low:
+            continue
+        if low.count("%3c") + low.count("%3e") >= 4:
+            continue
+        if sum(1 for tok in _NOISE_SVG_ATTR_TOKENS if tok in low) >= 3:
+            continue
+        kept_len += len(line)
+    return kept_len
+
+
 def _gate_length(input_body: str, output_body: str) -> tuple[bool, str]:
-    """GATE-LENGTH: output >= 20% of input length."""
-    ratio = len(output_body) / max(len(input_body), 1)
+    """GATE-LENGTH: output >= 20% of the DE-NOISED input length.
+
+    Raw D-14 input can be dominated by WeChat SVG/data-URI noise the rewrite
+    is SUPPOSED to delete (id=7670: 79% noise -> raw ratio 19% despite a
+    correct rewrite keeping 91% of the real content), so the denominator is
+    the de-noised input length. Threshold unchanged at 20%. Both ratios are
+    reported so humans can audit the de-noising.
+    """
+    denoised = max(_denoise_len(input_body), 1)
+    ratio = len(output_body) / denoised
+    raw_ratio = len(output_body) / max(len(input_body), 1)
     if ratio >= 0.20:
-        return True, f"OK (ratio={ratio:.2%})"
-    return False, f"FAIL (ratio={ratio:.2%} < 20%)"
+        return True, f"OK (ratio={ratio:.2%} of de-noised {denoised}; raw {raw_ratio:.2%})"
+    return False, f"FAIL (ratio={ratio:.2%} of de-noised {denoised} < 20%; raw {raw_ratio:.2%})"
 
 
 # ---------------------------------------------------------------------------
