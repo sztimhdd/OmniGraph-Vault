@@ -39,7 +39,7 @@
 
   /* Text */
   --text: #f0f4f8;
-  --text-secondary: #94a3b8;
+  --text-secondary: #a8b8cc; /* kb-v2.3-4: was #94a3b8 (4.5:1 AA) -> 6.3:1 toward AAA, same slate hue */
   --text-tertiary: #64748b;
 
   /* Brand accents */
@@ -848,11 +848,15 @@ html[lang="en"] .article-card--zh-only {
 }
 
 .article-body {
-  max-width: 760px;
+  max-width: 760px; /* locked measure — do not change */
   margin: 0 auto 3rem;
-  line-height: 1.8;
+  /* kb-v2.3-4: mobile-first 1.6 (1.8 is caption-only per 2026 research);
+   * desktop relaxes to 1.7 in the min-width:768 block below. */
+  line-height: 1.6;
   color: var(--text);
-  font-size: 1rem;
+  /* kb-v2.3-4: fluid type — 16px floor (390w) to 18px ceiling (>=1280w),
+   * rem-based so 200% zoom (WCAG 1.4.4) scales cleanly. */
+  font-size: clamp(1rem, 0.925rem + 0.33vw, 1.125rem);
 }
 
 .article-body h1,
@@ -901,12 +905,19 @@ html[lang="en"] .article-card--zh-only {
 
 .article-body blockquote {
   border-left: 3px solid var(--accent);
-  padding: 0.75rem 1.25rem;
-  margin: 1.25rem 0;
+  padding: 0.875rem 1.375rem;
+  margin: 1.5rem 0;
   color: var(--text-secondary);
-  background: var(--bg-card);
+  /* kb-v2.3-4: was flat var(--bg-card) (identical to cards — invisible).
+   * Subtle blue-tinted wash + left-accent glow separates quote voice from
+   * body without adding a new surface color (Stripe/Linear quiet-quote bar). */
+  background: linear-gradient(90deg, var(--accent-blue-soft), rgba(59, 130, 246, 0.04) 55%, transparent);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   font-style: italic;
+}
+
+.article-body blockquote p:last-child {
+  margin-bottom: 0;
 }
 
 .article-body code {
@@ -1014,6 +1025,38 @@ html[lang="en"] .article-card--zh-only {
 
 .article-body .highlighter-rouge .highlight {
   background: transparent;
+}
+
+/* kb-v2.3-4: back-to-top for long-form articles. Composes locked tokens only.
+ * The chevron icon is rotated -90deg (right -> up) to reuse the existing set. */
+.back-to-top {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.5rem;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  z-index: var(--z-nav);
+  transition: color var(--motion-fast), border-color var(--motion-fast),
+              box-shadow var(--motion-fast);
+}
+
+.back-to-top:hover,
+.back-to-top:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent-blue-30);
+  box-shadow: var(--glow-blue);
+}
+
+.back-to-top__icon {
+  transform: rotate(-90deg);
 }
 
 .article-footer {
@@ -1586,6 +1629,12 @@ html[lang="en"] .article-card--zh-only {
     padding: 0 2rem;
   }
 
+  /* kb-v2.3-4: desktop reading rhythm — 1.6 mobile-first base relaxes to
+   * 1.7 on the longer desktop measure (760px ≈ 75ch at 18px). */
+  .article-body {
+    line-height: 1.7;
+  }
+
   .article-list {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1693,91 +1742,95 @@ html[lang="en"] .article-card--zh-only {
 
 
 /* ==========================================================================
- * 17. Pygments Monokai (offline-generated, dark)
- *     python -c "from pygments.formatters import HtmlFormatter;
- *       print(HtmlFormatter(style='monokai').get_style_defs('.codehilite'))"
+ * 17. Pygments — slate-mint dark theme (kb-v2.3-4 refresh)
+ *     Replaces offline-generated Monokai. Restrained 4-hue palette drawn
+ *     from the site accent family so code blocks read as part of the page:
+ *       base #e2e8f0 · comment #7d8ca3 · keyword #93c5fd (blue family)
+ *       string #5eead4 (mint, echoes --accent-green) · fn/class #c4b5fd
+ *       number #fcd34d · error/deleted #fda5a5 (echoes --error)
+ *     All hues >= 7:1 on --bg-elevated #1a1f2e except comments (5.2:1).
  * ========================================================================== */
 
 .codehilite pre { line-height: 1.55; }
-.codehilite .hll { background-color: #49483e }
-.codehilite .c { color: #959077 } /* Comment */
-.codehilite .err { color: #ED007E; background-color: #1E0010 } /* Error */
-.codehilite .esc { color: #F8F8F2 } /* Escape */
-.codehilite .g { color: #F8F8F2 } /* Generic */
-.codehilite .k { color: #66D9EF } /* Keyword */
-.codehilite .l { color: #AE81FF } /* Literal */
-.codehilite .n { color: #F8F8F2 } /* Name */
-.codehilite .o { color: #FF4689 } /* Operator */
-.codehilite .x { color: #F8F8F2 } /* Other */
-.codehilite .p { color: #F8F8F2 } /* Punctuation */
-.codehilite .ch { color: #959077 }
-.codehilite .cm { color: #959077 }
-.codehilite .cp { color: #959077 }
-.codehilite .cpf { color: #959077 }
-.codehilite .c1 { color: #959077 }
-.codehilite .cs { color: #959077 }
-.codehilite .gd { color: #FF4689 }
-.codehilite .ge { color: #F8F8F2; font-style: italic }
-.codehilite .ges { color: #F8F8F2; font-weight: bold; font-style: italic }
-.codehilite .gr { color: #F8F8F2 }
-.codehilite .gh { color: #F8F8F2 }
-.codehilite .gi { color: #A6E22E }
-.codehilite .go { color: #66D9EF }
-.codehilite .gp { color: #FF4689; font-weight: bold }
-.codehilite .gs { color: #F8F8F2; font-weight: bold }
-.codehilite .gu { color: #959077 }
-.codehilite .gt { color: #F8F8F2 }
-.codehilite .kc { color: #66D9EF }
-.codehilite .kd { color: #66D9EF }
-.codehilite .kn { color: #FF4689 }
-.codehilite .kp { color: #66D9EF }
-.codehilite .kr { color: #66D9EF }
-.codehilite .kt { color: #66D9EF }
-.codehilite .ld { color: #E6DB74 }
-.codehilite .m { color: #AE81FF }
-.codehilite .s { color: #E6DB74 }
-.codehilite .na { color: #A6E22E }
-.codehilite .nb { color: #F8F8F2 }
-.codehilite .nc { color: #A6E22E }
-.codehilite .no { color: #66D9EF }
-.codehilite .nd { color: #A6E22E }
-.codehilite .ni { color: #F8F8F2 }
-.codehilite .ne { color: #A6E22E }
-.codehilite .nf { color: #A6E22E }
-.codehilite .nl { color: #F8F8F2 }
-.codehilite .nn { color: #F8F8F2 }
-.codehilite .nx { color: #A6E22E }
-.codehilite .py { color: #F8F8F2 }
-.codehilite .nt { color: #FF4689 }
-.codehilite .nv { color: #F8F8F2 }
-.codehilite .ow { color: #FF4689 }
-.codehilite .pm { color: #F8F8F2 }
-.codehilite .w { color: #F8F8F2 }
-.codehilite .mb { color: #AE81FF }
-.codehilite .mf { color: #AE81FF }
-.codehilite .mh { color: #AE81FF }
-.codehilite .mi { color: #AE81FF }
-.codehilite .mo { color: #AE81FF }
-.codehilite .sa { color: #E6DB74 }
-.codehilite .sb { color: #E6DB74 }
-.codehilite .sc { color: #E6DB74 }
-.codehilite .dl { color: #E6DB74 }
-.codehilite .sd { color: #E6DB74 }
-.codehilite .s2 { color: #E6DB74 }
-.codehilite .se { color: #AE81FF }
-.codehilite .sh { color: #E6DB74 }
-.codehilite .si { color: #E6DB74 }
-.codehilite .sx { color: #E6DB74 }
-.codehilite .sr { color: #E6DB74 }
-.codehilite .s1 { color: #E6DB74 }
-.codehilite .ss { color: #E6DB74 }
-.codehilite .bp { color: #F8F8F2 }
-.codehilite .fm { color: #A6E22E }
-.codehilite .vc { color: #F8F8F2 }
-.codehilite .vg { color: #F8F8F2 }
-.codehilite .vi { color: #F8F8F2 }
-.codehilite .vm { color: #F8F8F2 }
-.codehilite .il { color: #AE81FF }
+.codehilite .hll { background-color: rgba(59, 130, 246, 0.12) }
+.codehilite .c { color: #7d8ca3; font-style: italic } /* Comment */
+.codehilite .err { color: #fda5a5; background-color: rgba(248, 113, 113, 0.08) } /* Error */
+.codehilite .esc { color: #e2e8f0 } /* Escape */
+.codehilite .g { color: #e2e8f0 } /* Generic */
+.codehilite .k { color: #93c5fd } /* Keyword */
+.codehilite .l { color: #fcd34d } /* Literal */
+.codehilite .n { color: #e2e8f0 } /* Name */
+.codehilite .o { color: #cbd5e1 } /* Operator */
+.codehilite .x { color: #e2e8f0 } /* Other */
+.codehilite .p { color: #cbd5e1 } /* Punctuation */
+.codehilite .ch { color: #7d8ca3; font-style: italic }
+.codehilite .cm { color: #7d8ca3; font-style: italic }
+.codehilite .cp { color: #7d8ca3 }
+.codehilite .cpf { color: #7d8ca3; font-style: italic }
+.codehilite .c1 { color: #7d8ca3; font-style: italic }
+.codehilite .cs { color: #7d8ca3; font-style: italic }
+.codehilite .gd { color: #fda5a5 }
+.codehilite .ge { color: #e2e8f0; font-style: italic }
+.codehilite .ges { color: #e2e8f0; font-weight: bold; font-style: italic }
+.codehilite .gr { color: #fda5a5 }
+.codehilite .gh { color: #e2e8f0; font-weight: 600 }
+.codehilite .gi { color: #5eead4 }
+.codehilite .go { color: #a8b8cc }
+.codehilite .gp { color: #93c5fd; font-weight: bold }
+.codehilite .gs { color: #e2e8f0; font-weight: bold }
+.codehilite .gu { color: #7d8ca3 }
+.codehilite .gt { color: #fda5a5 }
+.codehilite .kc { color: #93c5fd }
+.codehilite .kd { color: #93c5fd }
+.codehilite .kn { color: #93c5fd }
+.codehilite .kp { color: #93c5fd }
+.codehilite .kr { color: #93c5fd }
+.codehilite .kt { color: #93c5fd }
+.codehilite .ld { color: #5eead4 }
+.codehilite .m { color: #fcd34d }
+.codehilite .s { color: #5eead4 }
+.codehilite .na { color: #c4b5fd }
+.codehilite .nb { color: #e2e8f0 }
+.codehilite .nc { color: #c4b5fd }
+.codehilite .no { color: #93c5fd }
+.codehilite .nd { color: #c4b5fd }
+.codehilite .ni { color: #e2e8f0 }
+.codehilite .ne { color: #c4b5fd }
+.codehilite .nf { color: #c4b5fd }
+.codehilite .nl { color: #e2e8f0 }
+.codehilite .nn { color: #e2e8f0 }
+.codehilite .nx { color: #c4b5fd }
+.codehilite .py { color: #e2e8f0 }
+.codehilite .nt { color: #93c5fd }
+.codehilite .nv { color: #e2e8f0 }
+.codehilite .ow { color: #93c5fd }
+.codehilite .pm { color: #cbd5e1 }
+.codehilite .w { color: #e2e8f0 }
+.codehilite .mb { color: #fcd34d }
+.codehilite .mf { color: #fcd34d }
+.codehilite .mh { color: #fcd34d }
+.codehilite .mi { color: #fcd34d }
+.codehilite .mo { color: #fcd34d }
+.codehilite .sa { color: #5eead4 }
+.codehilite .sb { color: #5eead4 }
+.codehilite .sc { color: #5eead4 }
+.codehilite .dl { color: #5eead4 }
+.codehilite .sd { color: #5eead4 }
+.codehilite .s2 { color: #5eead4 }
+.codehilite .se { color: #fcd34d }
+.codehilite .sh { color: #5eead4 }
+.codehilite .si { color: #5eead4 }
+.codehilite .sx { color: #5eead4 }
+.codehilite .sr { color: #5eead4 }
+.codehilite .s1 { color: #5eead4 }
+.codehilite .ss { color: #5eead4 }
+.codehilite .bp { color: #e2e8f0 }
+.codehilite .fm { color: #c4b5fd }
+.codehilite .vc { color: #e2e8f0 }
+.codehilite .vg { color: #e2e8f0 }
+.codehilite .vi { color: #e2e8f0 }
+.codehilite .vm { color: #e2e8f0 }
+.codehilite .il { color: #fcd34d }
 
 /* ============================================================
    kb-2 — Topic Pillar Page (UI-SPEC §3.1)

@@ -187,6 +187,13 @@
     </div>
   </main>
 
+  {# kb-v2.3-4: back-to-top — long-form articles (25-30K chars) need a return
+     affordance. aria-label localized via lang.js-driven spans is not possible
+     on an attribute, so use a fixed bilingual-safe label. #}
+  <button class="back-to-top" type="button" aria-label="Back to top / 返回顶部" hidden>
+    {{ icon('chevron-right', size=18, cls='back-to-top__icon') }}
+  </button>
+
   <footer class="site-footer">
     <div class="container">
       <div class="site-footer__bottom">
@@ -211,16 +218,29 @@
   <script>
     (function () {
       var nav = document.querySelector('.nav-wrap');
-      if (!nav) return;
+      var toTop = document.querySelector('.back-to-top');
       var ticking = false;
       function update() {
-        if (window.scrollY > 20) nav.classList.add('scrolled');
-        else nav.classList.remove('scrolled');
+        if (nav) {
+          if (window.scrollY > 20) nav.classList.add('scrolled');
+          else nav.classList.remove('scrolled');
+        }
+        /* kb-v2.3-4: back-to-top appears after ~1.5 viewports of scroll */
+        if (toTop) {
+          if (window.scrollY > window.innerHeight * 1.5) toTop.hidden = false;
+          else toTop.hidden = true;
+        }
         ticking = false;
       }
       window.addEventListener('scroll', function () {
         if (!ticking) { window.requestAnimationFrame(update); ticking = true; }
       }, { passive: true });
+      if (toTop) {
+        toTop.addEventListener('click', function () {
+          var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+        });
+      }
     })();
   </script>
 </body>
