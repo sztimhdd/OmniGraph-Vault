@@ -149,64 +149,75 @@ def _gate_markdownlint(output_body: str) -> tuple[bool, str]:
     return True, "OK"
 
 
-_NOISE_SVG_ATTR_TOKENS = ("xmlns", "xlink:href", "stroke=", "fill=", "fill-rule", "viewbox")
+# WeChat tracking-pixel / data-URI image spans. html2text soft-wraps each
+# data-URI across ~8 physical lines, so noise must be removed SPAN-wise
+# (re.S regex across newlines), NOT line-wise — a line-based predicate misses
+# ~41% of the wrapped noise (round-3 id=7670 ground truth: 44 spans = exactly
+# 21340 of 28242 raw chars) and wrongly deletes prose sharing a line with an
+# inline pixel (id=723 line 89: 81 CJK chars + one pixel on one line).
+_DATA_URI_SVG_SPAN_RE = re.compile(
+    r"!\[[^\]]*\]\(data:image/svg\+xml.*?%3C/svg%3E\)", re.S
+)
+_DATA_URI_B64_SPAN_RE = re.compile(
+    r"!\[[^\]]*\]\(data:image/[a-zA-Z+.-]+;base64,[^)]*\)", re.S
+)
 
 
-def _denoise_len(text: str) -> int:
-    """Length of `text` after stripping WeChat SVG/data-URI noise lines.
+def _strip_data_uri_noise(text: str) -> str:
+    """Remove WeChat data-URI image spans + residual percent-encoded soup.
 
-    Noise = tracking-pixel data-URIs and percent-encoded SVG tag soup that
-    WeChat embeds in display content (round-3 id=7670: the same 1px SVG
-    data-URI block repeated 44x = 22354/28242 chars = 79% of raw input).
-    The rewrite LLM correctly deletes this, so GATE-LENGTH must measure the
-    output against the DE-NOISED input, not the raw one.
-
-    Conservative by design — a line is stripped ONLY when noise tokens
-    dominate it:
-      * it contains a 'data:image/' URI, or
-      * it has >= 4 percent-encoded tag markers (%3C / %3E) — prose that
-        merely EXPLAINS URL encoding mentions each once or twice, or
-      * it has >= 3 DISTINCT svg attribute tokens (xmlns / xlink:href /
-        stroke= / fill= / fill-rule / viewBox) — attribute soup, never prose.
-    Fenced code blocks (``` / ~~~) are NEVER stripped: an article ABOUT svg
-    rendering with an `<svg xmlns=...>` example is content, not noise.
+    Span pass first (handles wrapped multi-line URIs and keeps prose that
+    shares a line with a pixel); then a conservative line pass for orphaned
+    fragments only:
+      * a line still containing 'data:image/' (mangled/unclosed span opener)
+      * a line with >= 4 percent-encoded tag markers (%3C/%3E) — markup soup;
+        prose that merely EXPLAINS URL encoding mentions one or two.
+    No svg-attribute-token rule (it wrongly stripped prose like
+    '你可以用 fill="red"、stroke="blue" 与 viewBox 控制图标') and no fence
+    state machine (a single stray ``` flipped it permanently).
     """
-    kept_len = 0
-    in_fence = False
+    text = _DATA_URI_SVG_SPAN_RE.sub("", text)
+    text = _DATA_URI_B64_SPAN_RE.sub("", text)
+    kept: list[str] = []
     for line in text.splitlines(keepends=True):
-        if line.lstrip().startswith(("```", "~~~")):
-            in_fence = not in_fence
-            kept_len += len(line)
-            continue
-        if in_fence:
-            kept_len += len(line)
-            continue
         low = line.lower()
         if "data:image/" in low:
             continue
         if low.count("%3c") + low.count("%3e") >= 4:
             continue
-        if sum(1 for tok in _NOISE_SVG_ATTR_TOKENS if tok in low) >= 3:
-            continue
-        kept_len += len(line)
-    return kept_len
+        kept.append(line)
+    return "".join(kept)
+
+
+def _denoise_len(text: str) -> int:
+    """Length of `text` after stripping WeChat SVG/data-URI noise."""
+    return len(_strip_data_uri_noise(text))
 
 
 def _gate_length(input_body: str, output_body: str) -> tuple[bool, str]:
-    """GATE-LENGTH: output >= 20% of the DE-NOISED input length.
+    """GATE-LENGTH: de-noised output >= 20% of the DE-NOISED input length.
 
     Raw D-14 input can be dominated by WeChat SVG/data-URI noise the rewrite
     is SUPPOSED to delete (id=7670: 79% noise -> raw ratio 19% despite a
     correct rewrite keeping 91% of the real content), so the denominator is
-    the de-noised input length. Threshold unchanged at 20%. Both ratios are
-    reported so humans can audit the de-noising.
+    the de-noised input length. The NUMERATOR is de-noised too — otherwise an
+    output that deletes all real content but keeps the noise spans would pass
+    on noise volume alone. Threshold unchanged at 20%. Both ratios reported
+    for human audit.
     """
-    denoised = max(_denoise_len(input_body), 1)
-    ratio = len(output_body) / denoised
+    denoised_in = max(_denoise_len(input_body), 1)
+    denoised_out = _denoise_len(output_body)
+    ratio = denoised_out / denoised_in
     raw_ratio = len(output_body) / max(len(input_body), 1)
     if ratio >= 0.20:
-        return True, f"OK (ratio={ratio:.2%} of de-noised {denoised}; raw {raw_ratio:.2%})"
-    return False, f"FAIL (ratio={ratio:.2%} of de-noised {denoised} < 20%; raw {raw_ratio:.2%})"
+        return True, (
+            f"OK (ratio={ratio:.2%} of de-noised in={denoised_in} "
+            f"out={denoised_out}; raw {raw_ratio:.2%})"
+        )
+    return False, (
+        f"FAIL (ratio={ratio:.2%} of de-noised in={denoised_in} "
+        f"out={denoised_out} < 20%; raw {raw_ratio:.2%})"
+    )
 
 
 # ---------------------------------------------------------------------------
