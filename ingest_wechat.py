@@ -892,7 +892,7 @@ async def scrape_wechat_apify(url):
         raise last_exc
     return None
 
-async def scrape_wechat_mcp(url):
+async def scrape_wechat_mcp(url, mcp_url_override=None):
     """Fallback scraping via remote Playwright MCP server.
 
     Uses browser_run_code with async (page) => {...} to do navigate + extract
@@ -901,7 +901,7 @@ async def scrape_wechat_mcp(url):
     """
     import json as _json
 
-    mcp_url = os.environ.get("MCP_URL", "http://localhost:8931").rstrip("/")
+    mcp_url = (mcp_url_override or os.environ.get("MCP_URL", "http://localhost:8931")).rstrip("/")
     session_id = None
     msg_id = 0
     _headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
@@ -1295,16 +1295,20 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
                     print(f"Apify returned verification/login page ({len(content)} chars), triggering fallback...")
                     article_data = None
 
-        # 3. Browser fallback (CDP → MCP serial cascade)
-        # CDP is tried first (via Mac's headed Brave through SSH tunnel);
-        # MCP only runs if CDP returns None. This replaces the old _is_mcp_endpoint
-        # either/or dispatch which never reached MCP when CDP_URL didn't end in /mcp.
+        # 3. Browser fallback (CDP → MCP → MCP_fallback serial cascade)
+        # CDP via Mac's headed Brave (SSH tunnel), then Mac's Playwright MCP,
+        # then ohca PC's Playwright MCP as final fallback.
         if not article_data:
             print("UA & Apify failed. Falling back to CDP...")
             article_data = await scrape_wechat_cdp(url)
             if not article_data:
                 print("CDP failed. Falling back to MCP...")
                 article_data = await scrape_wechat_mcp(url)
+            if not article_data:
+                mcp_fallback_url = os.environ.get("MCP_FALLBACK_URL")
+                if mcp_fallback_url:
+                    print("MCP failed. Falling back to MCP fallback (ohca)...")
+                    article_data = await scrape_wechat_mcp(url, mcp_url_override=mcp_fallback_url)
 
         if not article_data:
             print("Scraping failed (both Apify and browser fallback).")
