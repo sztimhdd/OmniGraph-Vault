@@ -1031,7 +1031,7 @@ async def scrape_wechat_cdp(url):
     async with async_playwright() as p:
         print(f"Connecting to CDP at {CDP_URL}...")
         try:
-            browser = await p.chromium.connect_over_cdp(CDP_URL, timeout=30000)
+            browser = await p.chromium.connect_over_cdp(CDP_URL, timeout=120000)
         except Exception as e:
             print(f"Failed to connect to CDP: {e}")
             return None
@@ -1040,7 +1040,7 @@ async def scrape_wechat_cdp(url):
         page = await context.new_page()
         
         print(f"Navigating to {url}...")
-        await page.goto(url, wait_until="networkidle")
+        await page.goto(url, wait_until="domcontentloaded", timeout=30000)
         
         # Scroll to bottom to ensure all images are loaded
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
