@@ -40,13 +40,20 @@ Legacy `GEMINI_API_KEY_BACKUP` is automatically folded into the pool if set (no 
 
 Pure string constants in `lib/models.py`. Rollback path is `git revert && push && pull-on-remote`.
 
-| Constant | Value |
-|---|---|
-| `INGESTION_LLM` | `gemini-2.5-flash-lite` |
-| `VISION_LLM` | `gemini-2.5-flash-lite` |
-| `SYNTHESIS_LLM` | `gemini-2.5-flash-lite` |
-| `EMBEDDING_MODEL` | `gemini-embedding-2` (D-10 — matches deployed lightrag_embedding default) |
-| `GITHUB_INGEST_LLM` | `gemini-3.1-flash-lite-preview` (preserved per phase D-05) |
+## Strategic Model Routing (2026-07-11 Update)
+
+| Constant | Value | Provider | Purpose |
+|---|---|---|---|
+| `INGESTION_LLM` | `gemini-2.5-flash` | Vertex | Content processing |
+| `VISION_LLM` | `gemini-2.5-flash-lite` | Vertex | Image→text description |
+| `EMBEDDING_MODEL` | `gemini-embedding-2` | Vertex | Graph embeddings |
+| `SYNTHESIS_LLM` | `gemini-2.5-flash-lite` | Vertex | Graph synthesis |
+| `GITHUB_INGEST_LLM` | `gemini-3.1-flash-lite-preview` | Vertex | GitHub doc ingestion |
+| **Layer1 filter** | deepseek-v4-flash | **DeepSeek** | Article classification |
+| **Layer2 scoring** | deepseek-v4-flash | **DeepSeek** | Content scoring |
+| **Translation** | deepseek-v4-flash | **DeepSeek** | Title/body translation |
+
+**Rule: Vertex Gemini ONLY for VISION + EMBEDDING + INGESTION. All text classification/translation on DeepSeek.**
 
 ### Optional — RPM overrides (paid tier, D-08 retained)
 

@@ -2,8 +2,8 @@
 
 **Product:** OmniGraph-Vault – Personal Knowledge Base for AI Agents  
 **Target Users:** Developers and researchers using Openclaw, Hermes Agent, or similar AI assistant frameworks.  
-**Version:** 1.3
-**Last Updated:** 2026-04-27  
+**Version:** 1.4
+**Last Updated:** 2026-07-11  
 
 ---
 
@@ -447,6 +447,11 @@ python skill_runner.py skills/omnigraph_ingest --validate
 - [OnlyTerp LightRAG + Hermes Guide](https://github.com/OnlyTerp/hermes-optimization-guide)
 
 ### 8.3 Changelog
+- **2026-07-11**: v1.4 – Layer1 classification migrated from Vertex Gemini
+  to DeepSeek (gemini reserved for VISION+EMBEDDING only); 3-layer CDP/MCP
+  browser scrape cascade (CDP Playwright → MCP → ohca PC Edge); WeChat MP
+  session refresh procedure via Mac CDP WebSocket; autossh tunnel for
+  persistent Mac↔Aliyun CDP bridge; CSP de-noise for body-length gate.
 - **2026-04-27**: v1.3 – SQLite-backed KOL pipeline: `batch_scan_kol.py`,
   `batch_classify_kol.py`, `--from-db` ingest mode; `data/kol_scan.db`
   with 6 tables (accounts, articles, classifications, ingestions,

@@ -2,7 +2,7 @@
 
 **Audience:** Operators running large-scale KOL batch ingestion without reading the code.
 **Prerequisites:** SSH access to the production host with `~/.hermes/.env` configured.
-**Last Updated:** 2026-04-30
+**Last Updated:** 2026-07-11
 
 This runbook is the authoritative reference for starting, monitoring, and recovering batch runs of `batch_ingest_from_spider.py`. If a scenario is not covered here, escalate — do not improvise against production.
 
@@ -127,3 +127,34 @@ Runs the five regression fixtures against the current pipeline and writes a stru
 ---
 
 *For architectural context on the Checkpoint Mechanism, Vision Cascade, and SiliconFlow balance semantics, see `CLAUDE.md`. For deployment and upgrade-path concerns (Vertex AI migration), see `Deploy.md` § Recommended Upgrade Path.*
+
+---
+
+## WeChat Session Refresh
+
+WeChat MP API sessions expire every 14-31 days. Symptom: `ret=200003 invalid session` in scan logs.
+
+**Procedure:**
+
+1. On Mac, open Brave CDP at `http://127.0.0.1:9222/json`
+2. Find existing logged-in tab with URL `mp.weixin.qq.com/cgi-bin/home?t=home/index`
+3. Extract token from URL: `token=NNNNNNNNN`
+4. Extract cookies via CDP WebSocket → `Network.getCookies`
+5. Update `/root/OmniGraph-Vault/kol_config.py`: replace TOKEN and COOKIE (keep FAKEIDS intact)
+6. `systemctl restart omnigraph-kol-scan-batch@{1..4}.service`
+7. Verify: `ret=0` from WeChat MP API test call
+
+**Warning:** Never create new browser tabs via `PUT /json/new` — triggers re-auth redirect.
+
+## Model Routing (as of 2026-07-11)
+
+| Purpose | Model | Provider |
+|---------|-------|----------|
+| Layer1 article filter | deepseek-v4-flash | DeepSeek |
+| Layer2 full-body scoring | deepseek-v4-flash | DeepSeek |
+| VISION (image → description) | gemini-2.5-flash-lite | Vertex |
+| Embedding | gemini-embedding-2 | Vertex |
+| Translation | deepseek-v4-flash | DeepSeek |
+| INGESTION LLM | gemini-2.5-flash | Vertex |
+
+**Rule: Vertex Gemini ONLY for VISION + EMBEDDING + INGESTION. Text classification on DeepSeek.**

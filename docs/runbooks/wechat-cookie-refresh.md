@@ -2,135 +2,156 @@
 
 ## Overview
 
-When the WeChat MP API session (TOKEN + COOKIE) expires, all 54 KOL account scans
-return `ret=200003` ("invalid session"). The B1 + B2 defenses surface this within
-one scan cycle. This runbook describes how to refresh credentials end-to-end.
+When the WeChat MP API session (TOKEN + COOKIE) expires, all KOL account scans
+return `ret=200003` ("invalid session"). Sessions last 14-31 days.
 
-**Authored:** 260524-tvg (quick `260524-tvg` Track A)  
+**Last Updated:** 2026-07-11  
+**Current source machine:** Mac (Brave CDP :9222) — replaced WSL/Windows Edge  
 **Canonical skill:** `skills/wechat-cdp-credential-refresh/SKILL.md`
 
 ---
 
-## 1. When to Trigger
+## 1. Detection
 
-Check for any of these symptoms:
+Any of these symptoms indicate session expiry:
 
-- `~/.hermes/wechat-session-stale` exists on Aliyun (created by B2 OnFailure handler).
-  Check: `ssh aliyun-vitaclaw "ls -la /root/.hermes/wechat-session-stale 2>/dev/null"`
-- `journalctl -u omnigraph-kol-scan.service --since '1 hour ago' -n 50` on Aliyun
-  shows `WECHAT_SESSION_INVALID: N/total` on stderr (B1 detection, threshold >= 30%).
-- Daily digest shows 0 new articles for 2+ consecutive days.
-- Manual scan exits with code 2: `ssh aliyun-vitaclaw "cd /root/OmniGraph-Vault && venv-aim1/bin/python batch_scan_kol.py --daily; echo exit=$?"`
-  — `exit=2` + `WECHAT_SESSION_INVALID:` in stderr confirms session is stale.
-
----
-
-## 2. Hermes-Side Refresh (Operator Runs in Hermes Session)
-
-The WeChat CDP credential refresh ONLY runs on a Windows host with Microsoft Edge
-launched with `--remote-debugging-port=9223`. Hermes is currently the only such
-machine in this project.
-
-**Paste this prompt into a Hermes chat session to invoke the refresh skill:**
-
-```
-Refresh the WeChat MP credentials using the wechat-cdp-credential-refresh skill.
-Follow Step 0 (cookie-based session recovery) first before requesting a QR code.
-After successful extraction, write updated credentials to kol_config.py. Then run
-the Step 5 verification query (list_articles for first KOL, 1 article) and confirm
-VALID output before reporting done. Do NOT paste or report any cookie / token values
-in chat.
-```
-
-The skill (`skills/wechat-cdp-credential-refresh/SKILL.md`) handles:
-- Step 0: Tries "登录" button click to revive stale token without QR scan
-- Step 3-A: CDP WebSocket `Network.getCookies` for full untruncated `slave_sid`
-- Step 3-D: Falls back to HITL QR scan only if cookies are truly absent
-- Step 4: Writes TOKEN + COOKIE to `kol_config.py`
-- Step 5: Verifies with live `list_articles` call
-
-**Do NOT inline cookie or token values into the Hermes prompt.**  
-Hermes reads `kol_config.py` from disk after credential refresh — no value needs
-to flow through chat.
-
----
-
-## 3. Transfer to Aliyun (2-Hop SCP)
-
-After Hermes refreshes credentials, transfer the updated `kol_config.py` to Aliyun.
-
-`kol_config.py` is gitignored on both machines — transfer via SCP, never via git.
-
-**Step 1 — Copy from Hermes to local laptop:**
+- `ret=200003` in scan logs: `journalctl -u omnigraph-kol-scan-batch@1.service -n 50`
+- `WECHAT_SESSION_INVALID: N/total` in batch output (>= 30% threshold)
+- Daily digest shows 0 new articles for 2+ consecutive days
+- Manual API test returns non-zero ret:
 
 ```bash
-scp hermes:~/OmniGraph-Vault/kol_config.py /tmp/kol_config.py
-```
-
-(`hermes` = SSH alias defined in `~/.ssh/config`. Never inline host/port/user.)
-
-**Step 2 — Copy from local laptop to Aliyun:**
-
-```bash
-scp /tmp/kol_config.py aliyun-vitaclaw:/root/OmniGraph-Vault/kol_config.py
-```
-
-(`aliyun-vitaclaw` = SSH alias defined in `~/.ssh/config`.)
-
-**Step 3 — Clean up local temp file:**
-
-```bash
-rm /tmp/kol_config.py
+ssh aliyun "cd /root/OmniGraph-Vault && python -c '
+from kol_config import COOKIE,TOKEN
+import requests
+r=requests.get(\"https://mp.weixin.qq.com/cgi-bin/appmsg?action=list_ex&type=9&count=1&begin=0&f=json&ajax=1&token=\"+TOKEN,headers={\"Cookie\":COOKIE},timeout=10)
+print(r.json().get(\"base_resp\",{}))'"
+# Expected: {"ret": 0, ...} — if ret != 0, session is stale
 ```
 
 ---
 
-## 4. Verification on Aliyun
+## 2. Mac CDP Refresh Procedure (current method)
 
-Run these commands in sequence to confirm the new credentials work:
+### 2.1 Check Existing Tabs
 
 ```bash
-# Sanity-check: non-empty COOKIE value (no cookie values printed to terminal)
-ssh aliyun-vitaclaw "cd /root/OmniGraph-Vault && venv-aim1/bin/python -c 'import kol_config; print(len(kol_config.COOKIE))'"
-# Expected: a number > 100
+curl -s http://127.0.0.1:9222/json | python3 -c "
+import sys,json
+for p in json.load(sys.stdin):
+  if 'mp.weixin.qq.com/cgi-bin/home' in p.get('url',''):
+    print('FOUND logged-in tab')
+    print('URL:', p['url'][:120])
+    print('Title:', p['title'])
+"
+```
 
-# Clear the stale marker (created by B2 OnFailure handler)
-ssh aliyun-vitaclaw "rm -f /root/.hermes/wechat-session-stale"
+The logged-in tab URL contains `token=NNNNNNNNN` — this is the new TOKEN.
 
-# Manual trigger: run one scan cycle and check result
-ssh aliyun-vitaclaw "systemctl start omnigraph-kol-scan.service && sleep 30 && systemctl status omnigraph-kol-scan.service"
-# Expected: Active: inactive (dead) with Result=success (not failed)
+### 2.2 Extract Token + Cookies
 
-# Confirm scan produced articles and no WECHAT_SESSION_INVALID
-ssh aliyun-vitaclaw "journalctl -u omnigraph-kol-scan.service --since '5 minutes ago' -n 100 | grep -E 'ok|failed|WECHAT_SESSION_INVALID'"
-# Expected: log lines showing "ok" accounts, zero WECHAT_SESSION_INVALID
+```python
+import requests, json, websocket
+
+CDP = 'http://127.0.0.1:9222'
+pages = requests.get(CDP + '/json').json()
+
+for p in pages:
+    if 'mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=' in p.get('url',''):
+        # Extract token from URL
+        import re
+        token = re.search(r'token=(\d+)', p['url']).group(1)
+        print(f'TOKEN = "{token}"')
+
+        # Extract cookies via CDP WebSocket
+        ws = websocket.create_connection(p['webSocketDebuggerUrl'])
+        ws.send(json.dumps({'id':1,'method':'Page.enable'}))
+        ws.recv()
+        ws.send(json.dumps({'id':2,'method':'Network.getCookies'}))
+        resp = json.loads(ws.recv())
+        cookies = resp['result']['cookies']
+        ws.close()
+
+        cookie_str = '; '.join(f"{c['name']}={c['value']}" for c in cookies)
+        print(f'COOKIE = "{cookie_str}"')
+        break
+```
+
+**Warning:** Never create new tabs via `PUT /json/new` — triggers WeChat re-auth redirect. Always use existing logged-in tabs.
+
+### 2.3 Verify Page is Actually Logged In
+
+```python
+ws.send(json.dumps({'id':3,'method':'Runtime.evaluate',
+    'params':{'expression':'document.body.innerText.substring(0,100)','returnByValue':True}}))
+```
+
+Expected: shows "首页 内容管理 互动管理..." — NOT "请重新登录".
+
+### 2.4 Deploy to Aliyun
+
+```bash
+# Merge new TOKEN+COOKIE with existing FAKEIDS
+ssh aliyun "python3 -c \"
+old=open('/root/OmniGraph-Vault/kol_config.py').read()
+# Extract FAKEIDS from old config
+import re
+m=re.search(r'FAKEIDS\s*=\s*\{', old)
+start=m.start()
+depth=0; end=start
+for i,c in enumerate(old[start:],start):
+    if c=='{': depth+=1
+    elif c=='}':
+        depth-=1
+        if depth==0: end=i+1; break
+fids_block=old[start:end]
+
+# Build merged config
+merged='''# kol_config.py — LOCAL ONLY, never commit
+
+TOKEN = \\\"$TOKEN\\\"
+COOKIE = \\\"$COOKIE\\\"
+
+''' + fids_block
+open('/root/OmniGraph-Vault/kol_config.py','w').write(merged)
+print('Updated OK')
+\""
+
+# Restart scan services
+ssh aliyun "systemctl restart omnigraph-kol-scan-batch@{1..4}.service"
 ```
 
 ---
 
-## 5. Hard Constraints
+## 3. Verification
 
-These are absolute rules — never violate them:
+```bash
+# Quick API test
+ssh aliyun "cd /root/OmniGraph-Vault && python -c '
+from kol_config import COOKIE,TOKEN
+import requests
+r=requests.get(\"https://mp.weixin.qq.com/cgi-bin/appmsg?action=list_ex&type=9&count=1&begin=0&f=json&ajax=1&token=\"+TOKEN,headers={\"Cookie\":COOKIE},timeout=10)
+print(r.json().get(\"base_resp\",{}))'"
+# Expected: {ret: 0, err_msg: ok}
 
-- **Never paste cookie or token values** into chat, commits, prompts, or this runbook.
-  Credentials are runtime data, not source-of-truth. Only `kol_config.py` holds them,
-  and it is gitignored on all machines.
-- **Never inline SSH host/port/user** — use only SSH aliases (`hermes`, `aliyun-vitaclaw`).
-  Actual connection details live in `~/.ssh/config` and the project memory files, never
-  in committed files.
-- **Never `git add kol_config.py`** — it is listed in `.gitignore`. Verify before any
-  commit: `git status | grep kol_config` must produce no output.
-- **Always use CDP `Network.getCookies`** for extraction — the DevTools UI truncates
-  long Base64 `slave_sid` values and produces a broken cookie string. CDP API returns
-  the full untruncated value.
-- **Cookie changes propagate to Aliyun via SCP only** — never commit, never paste into
-  Hermes prompts as literal values.
+# Check scan health (30s after restart)
+ssh aliyun "journalctl -u omnigraph-kol-scan-batch@1.service --since '1 min ago' -n 10 | grep -E 'ok|failed|WECHAT_SESSION_INVALID'"
+# Expected: lines showing 'ok' accounts, zero WECHAT_SESSION_INVALID
+```
 
 ---
+
+## 4. Hard Constraints
+
+- **Never create new CDP tabs** — use existing logged-in tabs only
+- **Never paste cookie/token values** into chat, commits, or prompts
+- **Always use `Network.getCookies`** — `document.cookie` misses HttpOnly cookies (slave_sid, data_ticket)
+- **Preserve FAKEIDS** when updating — T+COOKIE change, FAKEIDS stay
+- **kol_config.py is gitignored** — never commit, transfer via SCP only
+- **Session lasts 14-31 days** — plan for monthly refresh
 
 ## See Also
 
 - `skills/wechat-cdp-credential-refresh/SKILL.md` — full CDP procedure + edge cases
+- `docs/HANDOFF-2026-07-11.md` — complete handoff for next agent
 - `deploy/aliyun/systemd/omnigraph-kol-scan-alert.service` — B2 OnFailure handler
-- `batch_scan_kol.py:SESSION_INVALID_THRESHOLD` — B1 detection threshold (30%)
-- Project memory: `feedback_wechat_cookie_refresh_runbook.md`
