@@ -1,9 +1,16 @@
 [Unit]
-Description=Run Qdrant -> nano-vectordb JSON snapshot every 6h
+Description=Run Qdrant -> nano-vectordb JSON snapshot 4x daily (03/09/15/21:10 UTC)
 
 [Timer]
-OnBootSec=15min
-OnUnitActiveSec=6h
+# Wall-clock schedule instead of the old monotonic OnBootSec+OnUnitActiveSec pair.
+# Root cause of ISSUES #78: OnUnitActiveSec re-arms ONLY after a *successful*
+# activation. On the 2026-06-17 Aliyun rebuild the boot-time fire ran before
+# docker-ce was installed (docker landed 6/23), the service failed, and the
+# timer never re-armed -> permanently elapsed (last real run 2026-06-06).
+# OnCalendar fires on wall-clock regardless of prior activation outcome, so a
+# single failed run can no longer disarm the whole schedule. Persistent=true
+# catches up one missed run after downtime.
+OnCalendar=*-*-* 03/6:10:00 UTC
 Unit=qdrant-snapshot.service
 Persistent=true
 
