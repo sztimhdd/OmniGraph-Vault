@@ -1,5 +1,5 @@
 [Unit]
-Description=OmniGraph daily digest
+Description=OmniGraph translate body cron 11:00 ADT (14:00 UTC)
 After=network-online.target
 Wants=network-online.target
 
@@ -8,7 +8,8 @@ Type=simple
 User=root
 WorkingDirectory=/root/OmniGraph-Vault
 EnvironmentFile=/root/.hermes/.env
-ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/export_vitaclaw_agent_news.py --output /opt/vitaclaw/control-plane/vitaclaw-site/dist/data/agent-news.json
+TimeoutStartSec=900
+ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/translate_body_cron.py --limit 20
 StandardOutput=journal
 StandardError=journal
 

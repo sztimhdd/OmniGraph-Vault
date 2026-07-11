@@ -5,15 +5,13 @@ Wants=network-online.target
 # StartLimitIntervalSec is a [Unit] directive (systemd >=v230); it was silently
 # ignored in [Service]. =0 DISABLES the start rate limiter (retry forever) so the
 # tunnel self-heals within RestartSec of Hermes coming back — NOT a limit.
-# Pairing with RestartSec=300 (was 10) cuts a Hermes-down restart flood from
-# ~8640/day to ~288/day (30x) without a sticky failed-state that would leave the
-# WeChat-scrape #3 fallback silently dead. Verified by workflow wf_67c73b79-5e3.
+# RestartSec=300 (was 10) cuts a Hermes-down flood from ~8640/day to ~288/day (30x)
+# without a sticky failed-state that leaves the WeChat-scrape #3 fallback dead.
 StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 User=root
-# -N no command, -T no tty; keepalive so a dead link is detected fast; ExitOnForwardFailure so a failed bind exits (systemd restarts)
 ExecStart=/usr/bin/ssh -N -T \
   -o ConnectTimeout=15 \
   -o ExitOnForwardFailure=yes \
@@ -21,7 +19,7 @@ ExecStart=/usr/bin/ssh -N -T \
   -o ServerAliveCountMax=3 \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=accept-new \
-  -L 127.0.0.1:8931:localhost:8931 \
+  -L 127.0.0.1:8931:localhost:8931 -L 127.0.0.1:9222:localhost:9222 -L 127.0.0.1:58932:localhost:58932 \
   hermes
 Restart=always
 RestartSec=300

@@ -1,6 +1,5 @@
 [Unit]
 Description=OmniGraph evening ingest 21:00 ADT (00:00 UTC next day) timer
-Requires=omnigraph-evening-ingest.service
 
 [Timer]
 OnCalendar=*-*-* 00:00:00 UTC

@@ -1,9 +1,8 @@
 [Unit]
-Description=OmniGraph afternoon ingest 14:00 ADT (17:00 UTC) timer
-Requires=omnigraph-afternoon-ingest.service
+Description=OmniGraph afternoon ingest 14:00 CST (06:00 UTC) timer
 
 [Timer]
-OnCalendar=*-*-* 17:00:00 UTC
+OnCalendar=*-*-* 06:00:00 UTC
 Persistent=true
 
 [Install]

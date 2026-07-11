@@ -1,0 +1,26 @@
+[Unit]
+Description=OmniGraph rewrite body cron 02:30 CST (18:30 UTC) — kb-v2.3 D-14 display rewrite
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/OmniGraph-Vault
+EnvironmentFile=/root/.hermes/.env
+# kb_v2_3_aliyun_db_paths: _resolve_db_path()'s fallback is wrong in cron context —
+# pin the canonical DB + images dir exactly like kb-api does.
+Environment=KB_DB_PATH=/root/OmniGraph-Vault/data/kol_scan.db
+Environment=KB_IMAGES_DIR=/root/.hermes/omonigraph-vault/images
+# Queue head is ~88 backfill leftovers (69 retryable valve-rejects + 19 instant
+# oversize skips, ORDER BY layer2_at ASC) ahead of ~25/day new inflow; limit 150
+# covers the full queue each run so new articles are never starved. Shrinks as
+# retries land. Worst case ~2.8h serial (DeepSeek only, no Vertex quota).
+ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/rewrite_body_cron.py --limit 150
+RuntimeMaxSec=14400
+TimeoutStopSec=120
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

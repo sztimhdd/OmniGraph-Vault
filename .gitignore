@@ -11,6 +11,8 @@ __pycache__/
 
 # Personal Claude Code tooling (not project artifacts)
 .claude/
+.agents/
+skills-lock.json
 
 # Local dev runtime — DB copy, LightRAG storage, images, logs, local .env
 # Entirely off-repo to keep company-machine data confined to project folder
@@ -94,6 +96,10 @@ databricks-deploy/_ssg/
 databricks-deploy/lib/
 databricks-deploy/config.py
 databricks-deploy/kg_synthesize.py
+# omnigraph_search/ ← project root (deploy.sh pass-0c stage copy, CONTRACT-01)
+databricks-deploy/omnigraph_search/
+# Aliyun → Databricks sync staging (multi-GB tar pulls; .databricksignore excludes too)
+databricks-deploy/_aliyun_pull/
 
 # Production-config backups (timestamped or *.production-backup) — local-only.
 databricks-deploy/*.production-backup

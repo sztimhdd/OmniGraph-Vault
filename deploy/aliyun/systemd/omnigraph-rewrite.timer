@@ -1,0 +1,10 @@
+[Unit]
+Description=OmniGraph rewrite body 02:30 CST (18:30 UTC) daily timer
+
+[Timer]
+OnCalendar=*-*-* 18:30:00 UTC
+Persistent=false
+Unit=omnigraph-rewrite.service
+
+[Install]
+WantedBy=timers.target
