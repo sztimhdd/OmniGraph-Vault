@@ -449,7 +449,7 @@ EOF
 
 | Issue | Root Cause | Fix |
 |-------|-----------|-----|
-| WeChat ret=200003 | Session expired | Run `ssh aliyun-vitaclaw "cd /root/OmniGraph-Vault && python3 scripts/refresh_wechat_cookie.py"` |
+| WeChat ret=200003 | Session expired | Go to Hermes PC → open Edge → mp.weixin.qq.com → scan QR with phone → login. See `WECHAT-REFRESH-PRETEST-CHECKLIST.md` |
 | 0 RSS candidates | Feed stale or all rejected | Use KOL articles instead; check RSS feed URL in config |
 | Layer 1 null verdict | DeepSeek timeout or API error | Check `journalctl -u omnigraph-daily-ingest` for error; retry |
 | Scrape fails (all methods) | Article structure changed or access blocked | Manually verify URL opens in browser; try different account |
@@ -503,7 +503,7 @@ python3 batch_classify_kol.py --topics ai --max-articles 3
 python3 batch_ingest_from_spider.py --topics ai --depth 1 --max-articles 1
 
 # Verify
-sqlite3 data/kol_scan.db "SELECT COUNT(*) FROM ingestions WHERE status='ok' AND ingested_at > datetime('now', '-30 min')"
+sqlite3 /root/OmniGraph-Vault/data/kol_scan.db "SELECT COUNT(*) FROM ingestions WHERE status='ok' AND ingested_at > datetime('now', '-30 min')"
 
 # Test RAG
 python3 kg_synthesize.py "What was the main topic of the most recent article?" hybrid
