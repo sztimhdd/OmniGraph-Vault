@@ -156,8 +156,8 @@ def notify_image(png_path, caption):
 
 # --- Self-heal: relaunch headed Edge if :9222 is down (KCA-6) -----------------
 
-def relaunch_edge():
-    """Relaunch headed Edge via WSL→Windows PowerShell interop.
+def relaunch_edge_local():
+    """Relaunch headed Edge via WSL→Windows PowerShell interop (Hermes only).
 
     Uses the absolute powershell.exe path and a base64 -EncodedCommand
     (UTF-16LE) to avoid SSH/quoting pain (RESEARCH.md Test 2).
@@ -177,30 +177,74 @@ def relaunch_edge():
     )
 
 
-def ensure_browser_alive(client, endpoint_name="CDP"):
+def relaunch_edge_remote(hermes_host="hermes-pc"):
+    """Relaunch headed Edge on Hermes PC via SSH.
+
+    Runs the PowerShell launch command on Hermes via SSH (used when calling
+    from Aliyun or Mac to remotely wake up Hermes Edge).
+    """
+    ps_cmd = (
+        'Start-Process "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" '
+        '-ArgumentList '
+        '"--remote-debugging-port=9222",'
+        '"--remote-debugging-address=127.0.0.1",'
+        '"--remote-allow-origins=*",'
+        '"--user-data-dir=C:\\Edge-Auto-Profile",'
+        '"--no-sandbox"'
+    )
+    encoded = base64.b64encode(ps_cmd.encode("utf-16-le")).decode("ascii")
+    try:
+        subprocess.run(
+            ["ssh", hermes_host,
+             f"powershell.exe -NoProfile -EncodedCommand {encoded}"],
+            timeout=10,
+            check=False,
+        )
+        logger.info("SSH to %s: launched Edge via PowerShell", hermes_host)
+    except Exception as exc:
+        logger.warning("SSH relaunch to %s failed: %s", hermes_host, exc)
+
+
+def ensure_browser_alive(client, endpoint_name="CDP", hermes_host="hermes-pc"):
     """STEP 0 self-heal: if the endpoint is down, relaunch Edge and poll ~30s.
 
-    Only runs on Hermes (Windows/WSL) where PowerShell relaunch is available.
-    On non-Windows systems or Mac fallback, just verify connectivity — no relaunch.
+    If running on Hermes (Windows/WSL): use local PowerShell relaunch.
+    If running on Aliyun/Mac: SSH to Hermes to trigger relaunch.
+    On Mac fallback: no relaunch (just verify connectivity).
 
     Returns True if alive (eventually), False if relaunch failed.
     """
     if client.is_alive():
         return True
 
-    # WSL→Windows relaunch is Hermes-only (Windows Edge via PowerShell).
-    if sys.platform.startswith("linux") or sys.platform == "win32":
-        logger.warning("%s down — relaunching headed Edge via PowerShell", endpoint_name)
-        relaunch_edge()
-        for _ in range(30):  # ~30s, 1s interval
-            time.sleep(1)
-            if client.is_alive():
-                logger.info("%s back up after relaunch", endpoint_name)
-                return True
-    else:
-        logger.warning("%s unreachable on %s (no auto-relaunch on this platform)", endpoint_name, sys.platform)
+    # Platform detection: where is this script running?
+    is_windows_wsl = sys.platform.startswith("linux") and os.path.exists("/etc/wsl.conf")
+    is_windows = sys.platform == "win32"
+    is_hermes_context = is_windows_wsl or is_windows
+    is_aliyun_context = sys.platform.startswith("linux") and not is_windows_wsl
 
-    notify(f"⚠️ {endpoint_name} unreachable or relaunch failed")
+    if is_hermes_context:
+        # Running ON Hermes → local PowerShell relaunch
+        logger.warning("%s down — relaunching headed Edge via local PowerShell", endpoint_name)
+        relaunch_edge_local()
+    elif is_aliyun_context:
+        # Running on Aliyun → SSH to Hermes to trigger relaunch
+        logger.warning("%s down — relaunching headed Edge via SSH to %s", endpoint_name, hermes_host)
+        relaunch_edge_remote(hermes_host)
+    else:
+        # Mac or other platform → no auto-relaunch
+        logger.warning("%s unreachable on %s (no auto-relaunch on this platform)", endpoint_name, sys.platform)
+        notify(f"❌ {endpoint_name} unreachable; manual intervention needed")
+        return False
+
+    # Poll for up to 30s
+    for attempt in range(30):
+        time.sleep(1)
+        if client.is_alive():
+            logger.info("%s back up after relaunch (attempt %d)", endpoint_name, attempt + 1)
+            return True
+
+    notify(f"⚠️ {endpoint_name} relaunch failed or timeout")
     return False
 
 
@@ -525,7 +569,7 @@ def _rollback(run_ssh, cfg, bak):
 
 # --- Main flow ----------------------------------------------------------------
 
-def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh):
+def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh, hermes_host="hermes-pc"):
     global ALIYUN_SSH
     if aliyun_ssh:
         ALIYUN_SSH = aliyun_ssh
@@ -547,7 +591,7 @@ def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh):
     logger.info("connected to %s", client_name)
 
     # STEP 0-HEAL — SELF-HEAL (KCA-6)
-    if not ensure_browser_alive(client, endpoint_name=client_name):
+    if not ensure_browser_alive(client, endpoint_name=client_name, hermes_host=hermes_host):
         return 1
 
     # STEP 1 — CONNECT + LEVEL DETECT
@@ -557,7 +601,7 @@ def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh):
         logger.error("connect failed: %s", exc)
         # No page target — relaunch and try once more (only if Hermes).
         if "Edge" in client_name:
-            if not ensure_browser_alive(client, endpoint_name=client_name):
+            if not ensure_browser_alive(client, endpoint_name=client_name, hermes_host=hermes_host):
                 return 1
             client.connect()
         else:
@@ -640,6 +684,8 @@ def main():
                         help="Account for the single-account verify scan")
     parser.add_argument("--aliyun-ssh", default=None,
                         help="Override the Aliyun ssh target (alias or root@IP)")
+    parser.add_argument("--hermes-host", default="hermes-pc",
+                        help="Hermes PC hostname/alias for remote Edge launch (used when running on Aliyun)")
     args = parser.parse_args()
 
     sys.exit(run(
@@ -648,6 +694,7 @@ def main():
         dry_run=args.dry_run,
         test_account=args.test_account,
         aliyun_ssh=args.aliyun_ssh,
+        hermes_host=args.hermes_host,
     ))
 
 
