@@ -27,14 +27,14 @@ EOF
 
 When WeChat session is expired:
 
-### Step 1: Request QR Login via Telegram
+### Step 1: Login on Hermes Edge Browser
 
-Send a message to your Telegram bot / personal channel:
-```
-@omnigraph-vault: WeChat cookie expired. Need QR login.
-```
-
-Or manually visit the WeChat Official Account backend to re-authenticate.
+1. **SSH to Hermes PC** or go directly to the machine
+2. **Open Edge browser** on Hermes
+3. Navigate to `https://mp.weixin.qq.com`
+4. Scan the QR code with your phone's WeChat
+5. Confirm login on your phone
+6. Wait for Edge to load the dashboard (session saved to Hermes)
 
 ### Step 2: Verify Session Restored
 
@@ -69,17 +69,21 @@ If Hermes PC is offline or CDP unreachable:
    EOF
    ```
 
-### Step 4: Last Resort — Manual Cookie Update
+### Step 4: Verify Session Persisted to Aliyun
 
-If both CDP paths unavailable:
+After successful login on Hermes Edge:
 
-1. On your laptop, log into WeChat Official Account backend
-2. Extract session cookies (via browser DevTools → Application → Cookies)
-3. Update `/root/OmniGraph-Vault/kol_config.py` COOKIES section
-4. Restart cron jobs:
-   ```bash
-   ssh aliyun-vitaclaw "systemctl restart omnigraph-daily-ingest.timer"
-   ```
+```bash
+ssh aliyun-vitaclaw << 'EOF'
+cd /root/OmniGraph-Vault
+
+# Test if the new session is now visible to Aliyun
+python3 batch_scan_kol.py --max-accounts 1 --max-articles 1
+
+# Expected: ret=0, articles discovered
+# If still ret=200003, the session didn't transfer; try Step 3 (Mac fallback)
+EOF
+```
 
 ---
 
