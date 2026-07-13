@@ -52,6 +52,9 @@ logger = logging.getLogger("refresh_wechat_cookie")
 DASHBOARD_MARKERS = ("AI老兵日记", "原创", "新的创作")
 RELOGIN_MARKER = "请重新登录"
 ACCOUNT_LOGIN_MARKER = "使用账号登录"
+# DECISION 1: primary login-expired signal (gates Level B) — extract_token_from_url
+# being None is the definitive expiry signal; these markers corroborate it.
+LOGIN_PAGE_MARKERS = ("使用账号登录", "立即注册", "微信扫一扫")
 QR_EXPIRED_MARKER = "二维码已过期"
 QR_SELECTOR = "img.login__type__container__scan__qrcode"
 QR_PNG_PATH = "/tmp/wx_qr_code.png"
@@ -312,10 +315,21 @@ def detect_and_recover(client, force_level=None):
     Returns the level string ("A"/"B"/"C") that was handled, or raises on a
     needs-human timeout (caller maps to exit 2). After recovery the caller
     re-navigates root (STEP 2) to rebind the CSRF token before extract.
+
+    DECISION 1 (locked 2026-07-14): extract_token_from_url(landing) is the
+    definitive login-valid signal — URL carries token= => valid; no token=
+    (stays at mp.weixin.qq.com/) => expired. DASHBOARD_MARKERS text-guessing
+    is kept only as a corroborating signal inside recovery bodies, not as the
+    primary gate.
     """
     landing = root_nav(client)
     text = _page_text(client)
     token = extract_token_from_url(landing)
+
+    # --- Already valid: URL carries a token, nothing to recover --------------
+    if force_level is None and token:
+        logger.info("Login valid: landing URL carries token=; nothing to recover")
+        return "A"
 
     # --- Level A: dashboard present, token stale/missing ---------------------
     if force_level == "A" or (force_level is None and _is_dashboard(text)):
@@ -334,8 +348,9 @@ def detect_and_recover(client, force_level=None):
         logger.info("Level A re-nav produced no token; escalating")
 
     # --- Level B: account-login landing --------------------------------------
+    # Gated on login-page markers + token-absence (not dashboard-absence).
     if force_level == "B" or (
-        force_level is None and ACCOUNT_LOGIN_MARKER in text and not _is_dashboard(text)
+        force_level is None and token is None and any(m in text for m in LOGIN_PAGE_MARKERS)
     ):
         logger.info("Level B: account-login landing; filling env creds")
         account = os.environ.get("WECHAT_MP_ACCOUNT")
@@ -359,11 +374,11 @@ def detect_and_recover(client, force_level=None):
             except Exception as exc:  # noqa: BLE001
                 logger.warning("account-login fill/click failed: %s", exc)
             time.sleep(5)
-            text = _page_text(client)
-            if _is_dashboard(text):
+            landing = root_nav(client)
+            if extract_token_from_url(landing):
                 return "B"
         # Linked-account security-page pitfall → do NOT retry, fall to Level C.
-        logger.info("Level B did not reach dashboard; falling through to Level C")
+        logger.info("Level B did not produce a fresh token; falling through to Level C")
 
     # --- Level C: true cookie death (QR scan) --------------------------------
     logger.info("Level C: capturing QR for human scan")
@@ -417,7 +432,13 @@ def _capture_qr(client):
 
 
 def _level_c_qr_login(client):
-    """Capture QR → Telegram → poll ~5min for dashboard. Raises on timeout."""
+    """Capture QR → Telegram → poll ~5min for a fresh token. Raises on timeout.
+
+    NOTE (memory wechat_mp_login_expiry_page_signature): after login-expiry the
+    QR img is already rendered in the DOM, so _ensure_scan_login_view (called by
+    _capture_qr) is a harmless no-op in that path — it is still needed when the
+    account-login view is the default landing state.
+    """
     refreshes = 0
     if not _capture_qr(client):
         notify("⚠️ WeChat MP 登录页面异常，无法捕获二维码")
@@ -426,9 +447,11 @@ def _level_c_qr_login(client):
 
     for _ in range(30):  # 30 × 10s = 5 min
         time.sleep(10)
-        text = _page_text(client)
-        if _is_dashboard(text):
+        # DECISION 1: success is a fresh token from a root re-nav, not dashboard text.
+        landing = root_nav(client)
+        if extract_token_from_url(landing):
             return "C"
+        text = _page_text(client)
         if QR_EXPIRED_MARKER in text and refreshes < 2:
             refreshes += 1
             root_nav(client)
