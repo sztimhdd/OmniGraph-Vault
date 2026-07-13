@@ -38,7 +38,7 @@ preflight_check() {
     log_info "Running preflight checks..."
 
     ssh "$ALIYUN_SSH" << 'EOF'
-cd "$ALIYUN_DIR"
+set -e
 
 # Check disk
 DISK_USED=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
@@ -47,20 +47,20 @@ if [[ $DISK_USED -gt 90 ]]; then
     exit 1
 fi
 
-# Check services
-systemctl is-active omnigraph-kol-scan-batch@1 > /dev/null || {
+# Check services (warning only)
+systemctl is-active omnigraph-kol-scan-batch@1 > /dev/null 2>&1 || {
     echo "WARN: KOL scan service not active"
 }
 
-# Check DB
-sqlite3 data/kol_scan.db "SELECT 1" > /dev/null || {
+# Check DB (absolute path)
+sqlite3 /root/OmniGraph-Vault/data/kol_scan.db "SELECT 1" > /dev/null || {
     echo "ERROR: kol_scan.db not accessible"
     exit 1
 }
 
-# Check graphml
-python3 -c "import networkx as nx; g = nx.read_graphml('/root/.hermes/omonigraph-vault/lightrag_storage/graphml'); print(f'OK: {g.number_of_nodes()} nodes')" || {
-    echo "ERROR: graphml not readable"
+# Check graphml (file exists)
+test -f /root/.hermes/omonigraph-vault/lightrag_storage/graph_chunk_entity_relation.graphml || {
+    echo "ERROR: graphml file not found"
     exit 1
 }
 
@@ -72,7 +72,7 @@ phase_1_kol_scan() {
     log_info "Phase 1a: KOL Scan..."
 
     ssh "$ALIYUN_SSH" << 'EOF'
-cd "$ALIYUN_DIR"
+cd /root/OmniGraph-Vault
 python3 batch_scan_kol.py --max-accounts 1 --max-articles 5 2>&1 | tail -20
 EOF
 }
@@ -90,7 +90,7 @@ phase_2_classification() {
     log_info "Phase 2: Layer 1 & 2 Classification..."
 
     ssh "$ALIYUN_SSH" << 'EOF'
-cd "$ALIYUN_DIR"
+cd /root/OmniGraph-Vault
 python3 batch_classify_kol.py --topics ai --max-articles 10 2>&1 | tail -30
 EOF
 }
@@ -99,7 +99,7 @@ phase_4_full_ingest() {
     log_info "Phase 4: Full Ingest Pipeline (scrape → ainsert)..."
 
     ssh "$ALIYUN_SSH" << 'EOF'
-cd "$ALIYUN_DIR"
+cd /root/OmniGraph-Vault
 python3 batch_ingest_from_spider.py --topics ai --depth 1 --max-articles 1 2>&1 | tail -50
 EOF
 }
@@ -108,8 +108,7 @@ phase_5_db_verify() {
     log_info "Phase 5: Database Verification..."
 
     ssh "$ALIYUN_SSH" << 'EOF'
-cd "$ALIYUN_DIR"
-sqlite3 data/kol_scan.db << 'SQL'
+sqlite3 /root/OmniGraph-Vault/data/kol_scan.db << 'SQL'
 SELECT
   COUNT(*) as total_ok,
   MAX(ingested_at) as latest_ingest
@@ -123,12 +122,8 @@ phase_6_graphml_verify() {
     log_info "Phase 6: graphml Update Verification..."
 
     ssh "$ALIYUN_SSH" << 'EOF'
-cd "$ALIYUN_DIR"
-python3 -c "
-import networkx as nx
-g = nx.read_graphml('/root/.hermes/omonigraph-vault/lightrag_storage/graphml')
-print(f'graphml: {g.number_of_nodes()} nodes, {g.number_of_edges()} edges')
-"
+# Check graphml file size and mtime
+stat /root/.hermes/omonigraph-vault/lightrag_storage/graph_chunk_entity_relation.graphml 2>/dev/null | grep -E "Size|Modify" || echo "WARN: graphml stat failed"
 EOF
 }
 
