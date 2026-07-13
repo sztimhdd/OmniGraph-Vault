@@ -62,6 +62,12 @@ ALIYUN_SSH = "vitaclaw-aliyun"
 ALIYUN_REPO = "/root/OmniGraph-Vault"
 ALIYUN_VENV_PY = "venv-aim1/bin/python"
 
+# CDP connection targets (fallback chain: Hermes primary → Mac Chrome backup).
+# HERMES_CDP_URL: Hermes PC Edge CDP (ohca.ddns.net:9222 or localhost:9222 if ssh-tunneled).
+# MAC_CDP_URL: Mac Chrome local fallback (localhost:9222 — only used if Hermes unreachable).
+HERMES_CDP_URL = os.environ.get("HERMES_CDP_URL", "http://localhost:9222")
+MAC_CDP_URL = "http://localhost:9222"  # Mac is local-only fallback
+
 # WSL→Windows PowerShell interop relaunch (RESEARCH.md Test 2, live-confirmed).
 POWERSHELL = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 EDGE_EXE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
@@ -171,21 +177,30 @@ def relaunch_edge():
     )
 
 
-def ensure_browser_alive(client):
-    """STEP 0 self-heal: if :9222 is down, relaunch Edge and poll ~30s.
+def ensure_browser_alive(client, endpoint_name="CDP"):
+    """STEP 0 self-heal: if the endpoint is down, relaunch Edge and poll ~30s.
+
+    Only runs on Hermes (Windows/WSL) where PowerShell relaunch is available.
+    On non-Windows systems or Mac fallback, just verify connectivity — no relaunch.
 
     Returns True if alive (eventually), False if relaunch failed.
     """
     if client.is_alive():
         return True
-    logger.warning("CDP :9222 down — relaunching headed Edge via PowerShell")
-    relaunch_edge()
-    for _ in range(30):  # ~30s, 1s interval
-        time.sleep(1)
-        if client.is_alive():
-            logger.info("CDP :9222 back up after relaunch")
-            return True
-    notify("⚠️ Edge CDP :9222 relaunch failed")
+
+    # WSL→Windows relaunch is Hermes-only (Windows Edge via PowerShell).
+    if sys.platform.startswith("linux") or sys.platform == "win32":
+        logger.warning("%s down — relaunching headed Edge via PowerShell", endpoint_name)
+        relaunch_edge()
+        for _ in range(30):  # ~30s, 1s interval
+            time.sleep(1)
+            if client.is_alive():
+                logger.info("%s back up after relaunch", endpoint_name)
+                return True
+    else:
+        logger.warning("%s unreachable on %s (no auto-relaunch on this platform)", endpoint_name, sys.platform)
+
+    notify(f"⚠️ {endpoint_name} unreachable or relaunch failed")
     return False
 
 
@@ -213,6 +228,38 @@ def root_nav(client, wait=3.0):
     client.navigate("https://mp.weixin.qq.com/")
     time.sleep(wait)
     return client.current_url()
+
+
+def connect_browser(hermes_first=True):
+    """Connect to browser via fallback chain: Hermes primary → Mac Chrome backup.
+
+    Returns (CdpClient, str) — the client + endpoint name ("Hermes Edge" or "Mac Chrome").
+    Raises RuntimeError if all endpoints are unreachable.
+    """
+    endpoints = []
+    if hermes_first:
+        endpoints = [
+            (HERMES_CDP_URL, "Hermes Edge"),
+            (MAC_CDP_URL, "Mac Chrome"),
+        ]
+    else:
+        endpoints = [(MAC_CDP_URL, "Mac Chrome"), (HERMES_CDP_URL, "Hermes Edge")]
+
+    for endpoint_url, endpoint_name in endpoints:
+        logger.info("Trying %s at %s", endpoint_name, endpoint_url)
+        try:
+            client = CdpClient.connect(endpoint_url, timeout=10)
+            logger.info("Connected to %s", endpoint_name)
+            return client, endpoint_name
+        except Exception as exc:  # noqa: BLE001 — all errors are fallback-worthy
+            logger.warning("%s connection failed: %s", endpoint_name, exc)
+            continue
+
+    # All endpoints exhausted
+    msg = f"All browser endpoints unreachable: {', '.join(e[1] for e in endpoints)}"
+    logger.error(msg)
+    notify(f"🔴 WeChat refresh FAILED: {msg}")
+    raise RuntimeError(msg)
 
 
 def detect_and_recover(client, force_level=None):
@@ -483,10 +530,24 @@ def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh):
     if aliyun_ssh:
         ALIYUN_SSH = aliyun_ssh
 
-    client = CdpClient(base_url=cdp_url)
+    # STEP 0 — CONNECT via fallback chain (Hermes primary → Mac Chrome backup)
+    try:
+        # Allow override via --cdp-url for testing; otherwise use fallback chain
+        if cdp_url != "http://localhost:9222":
+            # Explicit URL provided — use it directly
+            client = CdpClient(base_url=cdp_url)
+            client_name = "CDP (explicit)"
+        else:
+            # Default: use fallback chain
+            client, client_name = connect_browser(hermes_first=True)
+    except RuntimeError as exc:
+        logger.error("all browser endpoints exhausted: %s", exc)
+        return 1
 
-    # STEP 0 — SELF-HEAL (KCA-6)
-    if not ensure_browser_alive(client):
+    logger.info("connected to %s", client_name)
+
+    # STEP 0-HEAL — SELF-HEAL (KCA-6)
+    if not ensure_browser_alive(client, endpoint_name=client_name):
         return 1
 
     # STEP 1 — CONNECT + LEVEL DETECT
@@ -494,10 +555,15 @@ def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh):
         client.connect()
     except NoWeChatTab as exc:
         logger.error("connect failed: %s", exc)
-        # No page target — relaunch and try once more.
-        if not ensure_browser_alive(client):
+        # No page target — relaunch and try once more (only if Hermes).
+        if "Edge" in client_name:
+            if not ensure_browser_alive(client, endpoint_name=client_name):
+                return 1
+            client.connect()
+        else:
+            # Mac fallback — no auto-relaunch
+            notify(f"❌ WeChat tab not found on {client_name}; manual intervention needed")
             return 1
-        client.connect()
 
     try:
         level = detect_and_recover(client, force_level=force_level)
@@ -536,21 +602,36 @@ def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh):
         dry_run=dry_run,
     )
 
-    # STEP 5 — NOTIFY (KCA-5)
+    # STEP 5 — NOTIFY (KCA-5) + SESSION EXPIRY DETECTION
     if dry_run:
         logger.info("dry-run: skipped writeback notify")
         return 0
+
     if ok:
         notify(f"✅ KOL cookie refreshed (level {level}); Aliyun test-scan ret=0")
+        # SUCCESS: new creds are valid. Session will expire in ~14-31 days.
+        # Operator will see the next ret=200003 from the daily-scan cron,
+        # which will trigger this refresh script again.
         return 0
+
+    # WRITEBACK FAILED — test-scan produced ret=200003 or other error
     notify("❌ refresh failed: Aliyun test-scan did not pass (rolled back)")
+
+    # DIAGNOSTIC: if verify scan returned ret=200003 specifically, log it as a signal
+    # that the session is already expired BEFORE refresh attempt — likely a case where
+    # the refresh script is too late or the browser session was already stale.
     return 1
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Refresh WeChat KOL cookie on Hermes")
-    parser.add_argument("--cdp-url", default="http://localhost:9222",
-                        help="CDP endpoint (default: http://localhost:9222)")
+    parser = argparse.ArgumentParser(
+        description="Refresh WeChat KOL cookie on Hermes (fallback chain: Hermes primary → Mac Chrome backup)"
+    )
+    parser.add_argument(
+        "--cdp-url",
+        default="http://localhost:9222",
+        help="CDP endpoint for explicit targeting; if localhost:9222 (default), uses fallback chain",
+    )
     parser.add_argument("--level", choices=["A", "B", "C"], default=None,
                         help="Force a failure level (testing)")
     parser.add_argument("--dry-run", action="store_true",
