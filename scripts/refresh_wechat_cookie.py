@@ -274,11 +274,14 @@ def root_nav(client, wait=3.0):
     return client.current_url()
 
 
-def connect_browser(hermes_first=True):
+def connect_browser(hermes_first=True, hermes_host="hermes-pc", retry_after_launch=True):
     """Connect to browser via fallback chain: Hermes primary → Mac Chrome backup.
 
     Returns (CdpClient, str) — the client + endpoint name ("Hermes Edge" or "Mac Chrome").
     Raises RuntimeError if all endpoints are unreachable.
+
+    If retry_after_launch=True and all endpoints fail, attempts to SSH to Hermes
+    and launch Edge, then retries once.
     """
     endpoints = []
     if hermes_first:
@@ -289,17 +292,26 @@ def connect_browser(hermes_first=True):
     else:
         endpoints = [(MAC_CDP_URL, "Mac Chrome"), (HERMES_CDP_URL, "Hermes Edge")]
 
-    for endpoint_url, endpoint_name in endpoints:
-        logger.info("Trying %s at %s", endpoint_name, endpoint_url)
-        try:
-            client = CdpClient.connect(endpoint_url, timeout=10)
-            logger.info("Connected to %s", endpoint_name)
-            return client, endpoint_name
-        except Exception as exc:  # noqa: BLE001 — all errors are fallback-worthy
-            logger.warning("%s connection failed: %s", endpoint_name, exc)
+    for attempt in (1, 2):  # Try once, then again after relaunch if enabled
+        for endpoint_url, endpoint_name in endpoints:
+            logger.info("[Attempt %d] Trying %s at %s", attempt, endpoint_name, endpoint_url)
+            try:
+                client = CdpClient(base_url=endpoint_url)
+                client.connect()
+                logger.info("Connected to %s", endpoint_name)
+                return client, endpoint_name
+            except Exception as exc:  # noqa: BLE001 — all errors are fallback-worthy
+                logger.warning("%s connection failed: %s", endpoint_name, exc)
+                continue
+
+        # After first attempt, if all failed and retry enabled: try launching Edge remotely
+        if attempt == 1 and retry_after_launch:
+            logger.warning("All endpoints failed on attempt 1; attempting remote Edge launch on %s", hermes_host)
+            relaunch_edge_remote(hermes_host)
+            time.sleep(5)  # Wait for Edge to boot
             continue
 
-    # All endpoints exhausted
+    # All attempts exhausted
     msg = f"All browser endpoints unreachable: {', '.join(e[1] for e in endpoints)}"
     logger.error(msg)
     notify(f"🔴 WeChat refresh FAILED: {msg}")
@@ -582,8 +594,8 @@ def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh, hermes_host="he
             client = CdpClient(base_url=cdp_url)
             client_name = "CDP (explicit)"
         else:
-            # Default: use fallback chain
-            client, client_name = connect_browser(hermes_first=True)
+            # Default: use fallback chain (with auto-relaunch if on Aliyun)
+            client, client_name = connect_browser(hermes_first=True, hermes_host=hermes_host)
     except RuntimeError as exc:
         logger.error("all browser endpoints exhausted: %s", exc)
         return 1
