@@ -1,0 +1,12 @@
+[Unit]
+Description=OmniGraph daily disk cleanup timer
+Documentation=https://github.com/huxxha/OmniGraph-Vault
+
+[Timer]
+# Fire at 04:15 UTC (11:15 CST) — after morning ingest, before evening ingest
+# Offset from natural boundary to avoid contention with other maintenance
+OnCalendar=*-*-* 04:15:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,20 @@
+[Unit]
+Description=OmniGraph daily disk cleanup (checkpoint vacuum + journal trim)
+After=network-online.target
+Wants=network-online.target
+Documentation=https://github.com/huxxha/OmniGraph-Vault
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/root/OmniGraph-Vault/scripts/daily_disk_cleanup.sh --execute
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=omnigraph-disk-cleanup
+
+# Non-blocking: if cleanup times out or fails, do NOT block other services
+TimeoutStartSec=600
+OnFailure=
+
+[Install]
+WantedBy=multi-user.target
