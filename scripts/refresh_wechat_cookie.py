@@ -249,8 +249,14 @@ def connect_browser(hermes_first=True):
     for endpoint_url, endpoint_name in endpoints:
         logger.info("Trying %s at %s", endpoint_name, endpoint_url)
         try:
-            client = CdpClient.connect(endpoint_url, timeout=10)
-            logger.info("Connected to %s", endpoint_name)
+            # Probe reachability only (is_alive hits /json/version) — the actual
+            # websocket connect happens in run()'s STEP 1, same as the explicit
+            # --cdp-url path. This keeps both paths behaving identically and
+            # avoids opening (then leaking) a second websocket.
+            client = CdpClient(base_url=endpoint_url)
+            if not client.is_alive():
+                raise RuntimeError("endpoint not reachable")
+            logger.info("Reachable: %s", endpoint_name)
             return client, endpoint_name
         except Exception as exc:  # noqa: BLE001 — all errors are fallback-worthy
             logger.warning("%s connection failed: %s", endpoint_name, exc)
