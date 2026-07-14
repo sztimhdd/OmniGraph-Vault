@@ -52,6 +52,9 @@ logger = logging.getLogger("refresh_wechat_cookie")
 DASHBOARD_MARKERS = ("AI老兵日记", "原创", "新的创作")
 RELOGIN_MARKER = "请重新登录"
 ACCOUNT_LOGIN_MARKER = "使用账号登录"
+# DECISION 1: primary login-expired signal (gates Level B) — extract_token_from_url
+# being None is the definitive expiry signal; these markers corroborate it.
+LOGIN_PAGE_MARKERS = ("使用账号登录", "立即注册", "微信扫一扫")
 QR_EXPIRED_MARKER = "二维码已过期"
 QR_SELECTOR = "img.login__type__container__scan__qrcode"
 QR_PNG_PATH = "/tmp/wx_qr_code.png"
@@ -177,65 +180,19 @@ def relaunch_edge_local():
     )
 
 
-def relaunch_edge_remote(hermes_host="hermes-pc"):
-    """Relaunch headed Edge on Hermes PC via SSH.
-
-    Runs the PowerShell launch command on Hermes via SSH (used when calling
-    from Aliyun or Mac to remotely wake up Hermes Edge).
-    """
-    ps_cmd = (
-        'Start-Process "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" '
-        '-ArgumentList '
-        '"--remote-debugging-port=9222",'
-        '"--remote-debugging-address=127.0.0.1",'
-        '"--remote-allow-origins=*",'
-        '"--user-data-dir=C:\\Edge-Auto-Profile",'
-        '"--no-sandbox"'
-    )
-    encoded = base64.b64encode(ps_cmd.encode("utf-16-le")).decode("ascii")
-    try:
-        subprocess.run(
-            ["ssh", hermes_host,
-             f"powershell.exe -NoProfile -EncodedCommand {encoded}"],
-            timeout=10,
-            check=False,
-        )
-        logger.info("SSH to %s: launched Edge via PowerShell", hermes_host)
-    except Exception as exc:
-        logger.warning("SSH relaunch to %s failed: %s", hermes_host, exc)
-
-
-def ensure_browser_alive(client, endpoint_name="CDP", hermes_host="hermes-pc"):
+def ensure_browser_alive(client, endpoint_name="CDP"):
     """STEP 0 self-heal: if the endpoint is down, relaunch Edge and poll ~30s.
 
-    If running on Hermes (Windows/WSL): use local PowerShell relaunch.
-    If running on Aliyun/Mac: SSH to Hermes to trigger relaunch.
-    On Mac fallback: no relaunch (just verify connectivity).
+    DECISION 3 (locked 2026-07-14): the script runs ON Hermes, so local
+    PowerShell relaunch is the only relaunch path — no remote-SSH branch.
 
     Returns True if alive (eventually), False if relaunch failed.
     """
     if client.is_alive():
         return True
 
-    # Platform detection: where is this script running?
-    is_windows_wsl = sys.platform.startswith("linux") and os.path.exists("/etc/wsl.conf")
-    is_windows = sys.platform == "win32"
-    is_hermes_context = is_windows_wsl or is_windows
-    is_aliyun_context = sys.platform.startswith("linux") and not is_windows_wsl
-
-    if is_hermes_context:
-        # Running ON Hermes → local PowerShell relaunch
-        logger.warning("%s down — relaunching headed Edge via local PowerShell", endpoint_name)
-        relaunch_edge_local()
-    elif is_aliyun_context:
-        # Running on Aliyun → SSH to Hermes to trigger relaunch
-        logger.warning("%s down — relaunching headed Edge via SSH to %s", endpoint_name, hermes_host)
-        relaunch_edge_remote(hermes_host)
-    else:
-        # Mac or other platform → no auto-relaunch
-        logger.warning("%s unreachable on %s (no auto-relaunch on this platform)", endpoint_name, sys.platform)
-        notify(f"❌ {endpoint_name} unreachable; manual intervention needed")
-        return False
+    logger.warning("%s down — relaunching headed Edge via local PowerShell", endpoint_name)
+    relaunch_edge_local()
 
     # Poll for up to 30s
     for attempt in range(30):
@@ -324,10 +281,21 @@ def detect_and_recover(client, force_level=None):
     Returns the level string ("A"/"B"/"C") that was handled, or raises on a
     needs-human timeout (caller maps to exit 2). After recovery the caller
     re-navigates root (STEP 2) to rebind the CSRF token before extract.
+
+    DECISION 1 (locked 2026-07-14): extract_token_from_url(landing) is the
+    definitive login-valid signal — URL carries token= => valid; no token=
+    (stays at mp.weixin.qq.com/) => expired. DASHBOARD_MARKERS text-guessing
+    is kept only as a corroborating signal inside recovery bodies, not as the
+    primary gate.
     """
     landing = root_nav(client)
     text = _page_text(client)
     token = extract_token_from_url(landing)
+
+    # --- Already valid: URL carries a token, nothing to recover --------------
+    if force_level is None and token:
+        logger.info("Login valid: landing URL carries token=; nothing to recover")
+        return "A"
 
     # --- Level A: dashboard present, token stale/missing ---------------------
     if force_level == "A" or (force_level is None and _is_dashboard(text)):
@@ -346,8 +314,9 @@ def detect_and_recover(client, force_level=None):
         logger.info("Level A re-nav produced no token; escalating")
 
     # --- Level B: account-login landing --------------------------------------
+    # Gated on login-page markers + token-absence (not dashboard-absence).
     if force_level == "B" or (
-        force_level is None and ACCOUNT_LOGIN_MARKER in text and not _is_dashboard(text)
+        force_level is None and token is None and any(m in text for m in LOGIN_PAGE_MARKERS)
     ):
         logger.info("Level B: account-login landing; filling env creds")
         account = os.environ.get("WECHAT_MP_ACCOUNT")
@@ -371,11 +340,11 @@ def detect_and_recover(client, force_level=None):
             except Exception as exc:  # noqa: BLE001
                 logger.warning("account-login fill/click failed: %s", exc)
             time.sleep(5)
-            text = _page_text(client)
-            if _is_dashboard(text):
+            landing = root_nav(client)
+            if extract_token_from_url(landing):
                 return "B"
         # Linked-account security-page pitfall → do NOT retry, fall to Level C.
-        logger.info("Level B did not reach dashboard; falling through to Level C")
+        logger.info("Level B did not produce a fresh token; falling through to Level C")
 
     # --- Level C: true cookie death (QR scan) --------------------------------
     logger.info("Level C: capturing QR for human scan")
@@ -429,7 +398,13 @@ def _capture_qr(client):
 
 
 def _level_c_qr_login(client):
-    """Capture QR → Telegram → poll ~5min for dashboard. Raises on timeout."""
+    """Capture QR → Telegram → poll ~5min for a fresh token. Raises on timeout.
+
+    NOTE (memory wechat_mp_login_expiry_page_signature): after login-expiry the
+    QR img is already rendered in the DOM, so _ensure_scan_login_view (called by
+    _capture_qr) is a harmless no-op in that path — it is still needed when the
+    account-login view is the default landing state.
+    """
     refreshes = 0
     if not _capture_qr(client):
         notify("⚠️ WeChat MP 登录页面异常，无法捕获二维码")
@@ -438,9 +413,11 @@ def _level_c_qr_login(client):
 
     for _ in range(30):  # 30 × 10s = 5 min
         time.sleep(10)
-        text = _page_text(client)
-        if _is_dashboard(text):
+        # DECISION 1: success is a fresh token from a root re-nav, not dashboard text.
+        landing = root_nav(client)
+        if extract_token_from_url(landing):
             return "C"
+        text = _page_text(client)
         if QR_EXPIRED_MARKER in text and refreshes < 2:
             refreshes += 1
             root_nav(client)
@@ -581,7 +558,7 @@ def _rollback(run_ssh, cfg, bak):
 
 # --- Main flow ----------------------------------------------------------------
 
-def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh, hermes_host="hermes-pc"):
+def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh):
     global ALIYUN_SSH
     if aliyun_ssh:
         ALIYUN_SSH = aliyun_ssh
@@ -603,7 +580,7 @@ def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh, hermes_host="he
     logger.info("connected to %s", client_name)
 
     # STEP 0-HEAL — SELF-HEAL (KCA-6)
-    if not ensure_browser_alive(client, endpoint_name=client_name, hermes_host=hermes_host):
+    if not ensure_browser_alive(client, endpoint_name=client_name):
         return 1
 
     # STEP 1 — CONNECT + LEVEL DETECT
@@ -613,7 +590,7 @@ def run(cdp_url, force_level, dry_run, test_account, aliyun_ssh, hermes_host="he
         logger.error("connect failed: %s", exc)
         # No page target — relaunch and try once more (only if Hermes).
         if "Edge" in client_name:
-            if not ensure_browser_alive(client, endpoint_name=client_name, hermes_host=hermes_host):
+            if not ensure_browser_alive(client, endpoint_name=client_name):
                 return 1
             client.connect()
         else:
@@ -696,8 +673,6 @@ def main():
                         help="Account for the single-account verify scan")
     parser.add_argument("--aliyun-ssh", default=None,
                         help="Override the Aliyun ssh target (alias or root@IP)")
-    parser.add_argument("--hermes-host", default="hermes-pc",
-                        help="Hermes PC hostname/alias for remote Edge launch (used when running on Aliyun)")
     args = parser.parse_args()
 
     sys.exit(run(
@@ -706,7 +681,6 @@ def main():
         dry_run=args.dry_run,
         test_account=args.test_account,
         aliyun_ssh=args.aliyun_ssh,
-        hermes_host=args.hermes_host,
     ))
 
 
