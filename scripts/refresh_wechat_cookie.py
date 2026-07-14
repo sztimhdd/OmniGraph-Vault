@@ -48,6 +48,34 @@ logging.basicConfig(
 )
 logger = logging.getLogger("refresh_wechat_cookie")
 
+
+def _load_hermes_env(path=os.path.expanduser("~/.hermes/.env")):
+    """Load KEY=VALUE lines from ~/.hermes/.env into os.environ (no overwrite).
+
+    The script's sendPhoto path (level-C QR delivery) reads TELEGRAM_BOT_TOKEN /
+    TELEGRAM_CHAT_ID directly from os.environ, but a non-login SSH shell does NOT
+    source ~/.hermes/.env. Load it here so the QR image can reach the user's
+    phone. Mirrors config.py's loader: does NOT overwrite already-set env vars.
+    """
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+    except OSError as exc:  # best-effort — a missing/unreadable .env is non-fatal
+        logger.warning("could not load %s: %s", path, exc)
+
+
+_load_hermes_env()
+
 # --- Constants ---------------------------------------------------------------
 DASHBOARD_MARKERS = ("AI老兵日记", "原创", "新的创作")
 RELOGIN_MARKER = "请重新登录"
