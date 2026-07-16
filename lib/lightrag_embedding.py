@@ -69,7 +69,7 @@ _COOLDOWN_BASE = 30            # seconds — start conservative, grow fast
 _COOLDOWN_MAX = 1800           # 30 min cap
 _CONSECUTIVE_429_BURSTS = 0    # global counter, reset on any success
 _LAST_EMBED_CALL_TS = 0.0      # for Vertex-mode rate limiting
-_VERTEX_MIN_GAP_S = 0.3         # min 300ms between calls to avoid bursting quota
+_VERTEX_MIN_GAP_S = 1.2         # 50 RPM = 1 call/1.2s; leave 17% headroom
 
 
 def _is_429(exc: BaseException) -> bool:
@@ -178,6 +178,17 @@ async def _embed_once(contents: list, model: str) -> np.ndarray:
     """
     use_vertex = _is_vertex_mode()
     api_key = "" if use_vertex else current_embedding_key()
+    
+    # Pre-call rate limit (Vertex mode): enforce _VERTEX_MIN_GAP_S gap
+    # to stay under RPM quota. Avoids the 429 → backoff → retry spiral.
+    if use_vertex:
+        global _LAST_EMBED_CALL_TS
+        now = _time.time()
+        gap_needed = _VERTEX_MIN_GAP_S - (now - _LAST_EMBED_CALL_TS)
+        if gap_needed > 0:
+            await _asyncio.sleep(gap_needed)
+        _LAST_EMBED_CALL_TS = _time.time()
+    
     client = _make_client(api_key)
     response = await client.aio.models.embed_content(
         model=model,
