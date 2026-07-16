@@ -48,15 +48,28 @@ _IMAGE_FETCH_TIMEOUT_S = 5.0
 # Consumed by scripts/wave0c_smoke.py to assert both keys rotated at least once.
 _ROTATION_HITS: dict[str, int] = {}
 
-# Phase 5-00b: embedding exhaustion cooldown.
-# When both keys 429 consecutively, the per-minute quota is gone.
-# Without a cooldown, LightRAG's retry loop burns ~200 calls/doc on 429s
-# that all fail. A single 5-minute pause lets the RPM window reset so the
-# next batch of embeddings has a clean slate.
+# Phase 5-00b v2 (260720): exponential backoff + jitter cooldown.
+# Original fixed 300s cooldown was too rigid — against a low-RPM Vertex AI
+# quota, 5 min often wasn't enough (429s returned immediately after cooldown),
+# causing service timeout → restart loops (restart counter hit 54 on 2026-07-16).
+#
+# v2 design:
+# - Base cooldown 30s (most quota windows reset within 60s)
+# - Exponential growth: 30→60→120→240→480→960→1920s per consecutive 429 burst
+# - Cap at 30 min (lightrag retry loop upper bound)
+# - Jitter ±25% to avoid thundering herd across concurrent tasks
+# - Success resets the exponent immediately (quota window is open again)
+# - Rate-limit: min 300ms gap between embedding calls in Vertex mode
+#   (prevents bursting through quota faster than it refills)
 import asyncio as _asyncio
+import random as _random
 import time as _time
 _GLOBAL_COOLDOWN_UNTIL = 0.0
-_COOLDOWN_SECONDS = 300  # 5 min — safe margin above Gemini's per-minute reset
+_COOLDOWN_BASE = 30            # seconds — start conservative, grow fast
+_COOLDOWN_MAX = 1800           # 30 min cap
+_CONSECUTIVE_429_BURSTS = 0    # global counter, reset on any success
+_LAST_EMBED_CALL_TS = 0.0      # for Vertex-mode rate limiting
+_VERTEX_MIN_GAP_S = 0.3         # min 300ms between calls to avoid bursting quota
 
 
 def _is_429(exc: BaseException) -> bool:
@@ -222,15 +235,21 @@ async def _embed(texts: list[str], **kwargs: Any) -> np.ndarray:
                 raise  # non-429 — propagate immediately
 
         if vec is None:
-            # All keys exhausted — cooldown before failing so LightRAG's
-            # retry doesn't immediately hit the same wall.
-            global _GLOBAL_COOLDOWN_UNTIL
+            # All keys exhausted — apply exponential-backoff cooldown.
+            global _GLOBAL_COOLDOWN_UNTIL, _CONSECUTIVE_429_BURSTS
+            _CONSECUTIVE_429_BURSTS += 1
+            # Exponential: base * 2^(bursts-1), capped at MAX
+            delay = min(_COOLDOWN_BASE * (2 ** (_CONSECUTIVE_429_BURSTS - 1)), _COOLDOWN_MAX)
+            # Jitter ±25% to spread retries across concurrent tasks
+            jitter = delay * 0.25 * (2 * _random.random() - 1)
+            cooldown = delay + jitter
+            
             now = _time.time()
             if now < _GLOBAL_COOLDOWN_UNTIL:
                 wait = _GLOBAL_COOLDOWN_UNTIL - now
                 await _asyncio.sleep(wait)
-            _GLOBAL_COOLDOWN_UNTIL = _time.time() + _COOLDOWN_SECONDS
-            # 260517-msg: differentiate Vertex AI quota 429 from free-tier
+            _GLOBAL_COOLDOWN_UNTIL = _time.time() + cooldown
+            # 260720-v2: differentiate Vertex AI quota 429 from free-tier
             # key pool exhaustion in the error string. Pre-fix message
             # ("All 1 Gemini keys exhausted") was misleading on Vertex
             # mode where pool_size is hardcoded 1 — diagnosis on 5/17
@@ -240,15 +259,19 @@ async def _embed(texts: list[str], **kwargs: Any) -> np.ndarray:
             # batch concurrency tuning, NOT key pool addition.
             if _is_vertex_mode():
                 raise RuntimeError(
-                    "Vertex AI embedding quota 429 — RPM/RPD exceeded "
-                    "(not key-pool exhaustion; pool_size hardcoded 1 in "
-                    "Vertex mode). Check GCP quota dashboard for "
-                    "aiplatform.googleapis.com or reduce embedding "
-                    "concurrency."
+                    f"Vertex AI embedding quota 429 — RPM/RPD exceeded "
+                    f"(burst #{_CONSECUTIVE_429_BURSTS}, cooldown {cooldown:.0f}s). "
+                    f"Check GCP quota dashboard for "
+                    f"aiplatform.googleapis.com or reduce embedding "
+                    f"concurrency."
                 ) from last_err
             raise RuntimeError(
-                f"All {pool_size} Gemini key(s) exhausted (free-tier 429)"
+                f"All {pool_size} Gemini key(s) exhausted (free-tier 429, "
+                f"burst #{_CONSECUTIVE_429_BURSTS}, cooldown {cooldown:.0f}s)"
             ) from last_err
+
+        # Success: reset consecutive-429 counter — quota window is open
+        _CONSECUTIVE_429_BURSTS = 0
 
         vectors.append(vec)
 
