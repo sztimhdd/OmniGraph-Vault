@@ -18,6 +18,7 @@ monkeypatch + runtime env toggling both work.
 """
 from __future__ import annotations
 
+import asyncio as _asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -288,3 +289,60 @@ def test_is_vertex_mode_helper_truth_table(monkeypatch):
     # Empty string in either treated as unset.
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     assert lem._is_vertex_mode() is False
+
+
+# Test 7: concurrent _embed_once admission-control race (260719)
+@pytest.mark.asyncio
+async def test_concurrent_embed_once_respects_vertex_gap_lock(monkeypatch):
+    """Two concurrent _embed_once calls must be spaced >= _VERTEX_MIN_GAP_S.
+
+    2026-07-19 race: LightRAG embedding_func_max_async=2 lets two
+    coroutines concurrently read stale _LAST_EMBED_CALL_TS, compute same
+    gap_needed, sleep together, burst — Vertex AI 429. An asyncio.Lock
+    around the read-wait-update section serialises admission.
+    """
+    import lib.lightrag_embedding as lem
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/fake/sa.json")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project-123")
+
+    TEST_GAP = 0.1
+    API_LATENCY = 0.02
+    monkeypatch.setattr(lem, "_VERTEX_MIN_GAP_S", TEST_GAP)
+
+    _clock = [0.0]
+
+    def _mock_time() -> float:
+        return _clock[0]
+    monkeypatch.setattr(lem._time, "time", _mock_time)
+
+    original_sleep = _asyncio.sleep
+    sleep_durations: list[float] = []
+
+    async def _mock_sleep(seconds: float) -> None:
+        sleep_durations.append(seconds)
+        _clock[0] += seconds
+        await original_sleep(0)
+    monkeypatch.setattr(lem._asyncio, "sleep", _mock_sleep)
+
+    embed_call_starts: list[float] = []
+
+    async def _mock_embed(**kwargs: Any) -> MagicMock:
+        embed_call_starts.append(_clock[0])
+        _clock[0] += API_LATENCY
+        return _make_embed_response()
+    mock_client = MagicMock()
+    mock_client.aio.models.embed_content = _mock_embed
+    monkeypatch.setattr(lem.genai, "Client", lambda *a, **kw: mock_client)
+
+    lem._LAST_EMBED_CALL_TS = 0.0
+    await _asyncio.gather(
+        lem._embed_once(["chunk-A"], "gemini-embedding-2"),
+        lem._embed_once(["chunk-B"], "gemini-embedding-2"),
+    )
+
+    assert len(embed_call_starts) == 2
+    gap = embed_call_starts[1] - embed_call_starts[0]
+    assert gap >= TEST_GAP, f"gap={gap:.3f}s < required {TEST_GAP}s"
+    assert len(sleep_durations) >= 1, (
+        f"expected >=1 admission-wait sleep, got {len(sleep_durations)}"
+    )
