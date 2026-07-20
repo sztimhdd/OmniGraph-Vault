@@ -35,7 +35,8 @@ ssh vitaclaw-aliyun 'hostname; readlink -f /root/OmniGraph-Vault; ls /root/OmniG
 | `kb-api` | active | FastAPI + LightRAG + Qdrant, 端口 8766 |
 | `qdrant` (docker) | running | 端口 6333/6334, v1.11.0 |
 | `caddy` | active | 反向代理, 端口 80/443 |
-| `mcp-healthcheck.timer` | enabled, 每15min | MCP 管道健康监测 (journalctl -u mcp-healthcheck) |
+| `mcp-healthcheck.timer` | enabled, 每15min | MCP 管道 + kb-api + disk + 429 (journalctl -u mcp-healthcheck) |
+| `omnigraph-disk-cleanup.timer` | enabled, 每天04:15UTC | 清理旧 checkpoint + 日志 |
 | `afternoon/evening-ingest.timer` | **disabled** | 已由每2h的 daily timer 替代 |
 
 ### 数据库 (`kol_scan.db`)
@@ -154,10 +155,12 @@ ss -tlnp | grep -E "8931|9223|58932"       # 端口监听
 curl -s :9223/json/version                 # CDP 响应
 
 # 阿里云侧
-systemctl status mcp-healthcheck.timer      # 健康检查定时器
-journalctl -u mcp-healthcheck --since -1h   # 最近结果
-/root/OmniGraph-Vault/scripts/mcp-healthcheck.py; echo $?  # 手动检查
+journalctl -u mcp-healthcheck --since -1h   # 最近检测结果（含 kb-api / disk / 429）
+/root/OmniGraph-Vault/scripts/mcp-healthcheck.py; echo $?  # 手动触发
+systemctl list-timers omnigraph-disk-cleanup.timer --no-pager  # 磁盘清理状态
 ```
+
+检测内容：MCP 管道 | kb-api :8766/health | 磁盘使用率 >90% | 24h 内 429 计数（info 非 fatal）
 
 ### 故障自愈
 
