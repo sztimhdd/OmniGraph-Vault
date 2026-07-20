@@ -1519,6 +1519,7 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
                   SELECT article_id FROM ingestions
                    WHERE source = 'wechat'
                      AND (status = 'ok'
+                          OR status = 'failed'
                           OR (status = 'skipped'
                               AND skip_reason_version = ?))
                )
@@ -1540,6 +1541,7 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
                   SELECT article_id FROM ingestions
                    WHERE source = 'rss'
                      AND (status = 'ok'
+                          OR status = 'failed'
                           OR (status = 'skipped'
                               AND skip_reason_version = ?))
                )
