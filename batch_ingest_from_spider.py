@@ -157,14 +157,14 @@ _PER_IMAGE_S = 30               # T1 (2026-05-13): vision cascade per image, wit
                                 # No image-side cap: vision cascade (SiliconFlow primary +
                                 # OpenRouter fallback) is stable; large articles let cascade
                                 # finish naturally rather than truncating image set.
-_SINGLE_CHUNK_FLOOR_S = int(os.getenv("OMNIGRAPH_CHUNK_FLOOR_S", "1800"))
+_SINGLE_CHUNK_FLOOR_S = int(os.getenv("OMNIGRAPH_CHUNK_FLOOR_S", "3600"))
                                 # 260517-flo: raised from 900→1200 after 5/17 cron showed
                                 # text-heavy + medium-image (8-14 imgs / 7+ chunks) consistently
                                 # exceeded 900 floor due to LightRAG queue depth + DeepSeek per-chunk
                                 # variance. id=1072 (8 imgs / 7 chunks) hit 900 timeout, formula
                                 # naturally returned 900 (text+image term = 570 < floor). 300s headroom
                                 # absorbs realistic worst case without affecting articles that finish fast.
-                                # 260603 ISSUES #33: image-heavy KOL articles need >20min budget;
+                                # 1800→3600 (260720): large-entity articles (165+ entities) exceed 1800s due to serialized embedding lock at 5.5s interval; doubling budget absorbs worst case
                                 # env-override allowed via OMNIGRAPH_CHUNK_FLOOR_S. Default 1200→1800.
 
 
@@ -396,10 +396,12 @@ async def ingest_article(
     try:
         # D-09.03: 900s floor covers a worst-case single-chunk 800s DeepSeek call.
         # Phase 17 (BTIMEOUT-02): if the caller passed a clamped budget, use it.
-        await asyncio.wait_for(
+        result = await asyncio.wait_for(
             ingest_wechat.ingest_article(url, source=source, rag=rag),
             timeout=timeout_s,
         )
+        if result is None:
+            return False, time.time() - t_start, False
         return True, time.time() - t_start, True
     except asyncio.TimeoutError:
         wall = time.time() - t_start
