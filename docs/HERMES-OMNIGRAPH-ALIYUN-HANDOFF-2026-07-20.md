@@ -150,7 +150,7 @@ ingest_wechat.py → http://127.0.0.1:58931/mcp
 # WSL 侧
 systemctl --user status playwright-mcp      # MCP 进程
 systemctl --user status aliyun-tunnel        # SSH 隧道
-ss -tlnp | grep -E "8931|9223"             # 端口监听
+ss -tlnp | grep -E "8931|9223|58932"       # 端口监听
 curl -s :9223/json/version                 # CDP 响应
 
 # 阿里云侧
@@ -158,6 +158,18 @@ systemctl status mcp-healthcheck.timer      # 健康检查定时器
 journalctl -u mcp-healthcheck --since -1h   # 最近结果
 /root/OmniGraph-Vault/scripts/mcp-healthcheck.py; echo $?  # 手动检查
 ```
+
+### 故障自愈
+
+健康检查检测到 MCP 不可达时自动执行：
+
+1. 通过 `-R 58932` 隧道 SSH 回连 WSL
+2. 检查 `playwright-mcp` / `aliyun-tunnel` 状态
+3. 执行 `systemctl --user restart` 修复
+4. 验证 CDP 端口 `:9223`
+5. 再次检测 MCP，如果恢复返回 0
+
+局限: 当 SSH 隧道本身中断时（58931/58932 同时消失），修复 SSH 也无法到达 WSL。此时 systemd 会在 WSL 侧自动重启隧道（RestartSec=10s）。
 
 ### 已知问题
 
