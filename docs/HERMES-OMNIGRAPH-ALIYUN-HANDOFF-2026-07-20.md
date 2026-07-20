@@ -44,7 +44,7 @@ ssh vitaclaw-aliyun 'hostname; readlink -f /root/OmniGraph-Vault; ls /root/OmniG
 | 指标 | 值 |
 |------|-----|
 | `ingestions.ok` | 650 |
-| `ingestions.failed` | 4 (全部 body-too-short，确定性失败) |
+| `ingestions.failed` | 11 |
 | `ingestions.skipped` | 4695 |
 | WeChat backlog (未入库) | ~582 |
 | RSS backlog (未入库) | ~654 |
@@ -96,6 +96,13 @@ ssh vitaclaw-aliyun 'hostname; readlink -f /root/OmniGraph-Vault; ls /root/OmniG
 - 阿里云侧: `mcp-healthcheck.timer` (每 15 分钟检测)
 - 零新依赖（不用 autossh，不用额外脚本）
 - 详情: `~/.hermes/plans/2026-07-20_214500-omnigraph-pipeline-hardening.md`
+
+### 修复 5: 可靠性评估修复 (2026-07-21)
+- 4 篇 body-too-short 文章永久排除候选池（skip_reason_version=99）
+- RuntimeMaxSec 3600→7200（减少慢批次被 systemd kill）
+- MemoryMax 4G→5G, OOMScoreAdjust 500→900（减少 OOM-kill，kb-api 优先级高于 ingest）
+- Vertex 429 基线记录：5 次/24h 真实 ERROR（healthcheck 可监测趋势）
+- 复原 504/503 false positive：grep 匹配了 URL hash 碎片，非真实 HTTP 错误
 
 ---
 
