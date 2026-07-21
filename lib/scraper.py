@@ -301,6 +301,17 @@ async def _scrape_wechat(url: str) -> ScrapeResult:
         if not content_html and not scraped_markdown:
             continue
         if scraped_markdown and not content_html:
+            # SCR-08 (2026-07-21): Apify anti-bot pages (e.g. "环境异常",
+            # 86 chars) were accepted as valid markdown and halted the cascade
+            # before reaching CDP/MCP. Run quality gate on markdown-only results
+            # so garbage pages cascade to the next layer instead of silently
+            # returning unusable content.
+            if not _passes_quality_gate(scraped_markdown):
+                logger.warning(
+                    "scraper: wechat layer %s markdown failed quality gate (%d chars) — cascading",
+                    fn_name, len(scraped_markdown),
+                )
+                continue
             markdown = scraped_markdown
             imgs = result.get("images") or []
         else:

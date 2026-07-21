@@ -94,9 +94,9 @@ ALIYUN_REPO = "/root/OmniGraph-Vault"
 ALIYUN_VENV_PY = "venv-aim1/bin/python"
 
 # CDP connection targets (fallback chain: Hermes primary → Mac Chrome backup).
-# HERMES_CDP_URL: Hermes PC Edge CDP (ohca.ddns.net:9222 or localhost:9222 if ssh-tunneled).
+# HERMES_CDP_URL: Hermes PC Edge CDP (default localhost:9223 — match Edge CDP port).
 # MAC_CDP_URL: Mac Chrome local fallback (localhost:9222 — only used if Hermes unreachable).
-HERMES_CDP_URL = os.environ.get("HERMES_CDP_URL", "http://localhost:9222")
+HERMES_CDP_URL = os.environ.get("HERMES_CDP_URL", os.environ.get("CDP_URL", "http://localhost:9223"))
 MAC_CDP_URL = "http://localhost:9222"  # Mac is local-only fallback
 
 # WSL→Windows PowerShell interop relaunch (RESEARCH.md Test 2, live-confirmed).
@@ -195,7 +195,7 @@ def relaunch_edge_local():
     """
     ps = (
         'Start-Process "{exe}" -ArgumentList '
-        '"--remote-debugging-port=9222",'
+        '"--remote-debugging-port=9223",'
         '"--remote-debugging-address=127.0.0.1",'
         '"--remote-allow-origins=*",'
         '"--user-data-dir={profile}",'

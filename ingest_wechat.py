@@ -982,8 +982,8 @@ async def scrape_wechat_mcp(url, mcp_url_override=None):
                 h["mcp-session-id"] = session_id
             requests.post(mcp_url, json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=h, timeout=5)
 
-            print(f"Navigating and extracting {url} (atomic browser_run_code)...")
-            result = _post("tools/call", {"name": "browser_run_code", "arguments": {"code": js_code}}, timeout=15)
+            print(f"Navigating and extracting {url} (atomic browser_run_code_unsafe)...")
+            result = _post("tools/call", {"name": "browser_run_code_unsafe", "arguments": {"code": js_code}}, timeout=15)
             text_out = _text(result)
 
             if "Error" in text_out and "Timeout" in text_out and attempt < max_attempts:
