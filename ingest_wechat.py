@@ -708,11 +708,16 @@ def _ua_cooldown():
 
 async def scrape_wechat_ua(url: str):
     """Primary method: UA spoofing with MicroMessenger token.
-    
+
     WeChat's anti-scraping checks for 'MicroMessenger' in User-Agent.
     If found, serves full HTML. No cookies, no login, no proxy needed.
     Parses only the article content div (js_content) to avoid loading
     3MB+ of JavaScript overhead.
+
+    NOTE (2026-07-21): WeChat now redirects article URLs to CAPTCHA
+    (wappoc_appmsgcaptcha) from Aliyun IPs regardless of Cookie header.
+    UA scraper is effectively blocked; the cascade should fall through
+    to CDP/MCP browser-based paths.
     """
     import re as _re
     
@@ -949,8 +954,35 @@ async def scrape_wechat_mcp(url, mcp_url_override=None):
         except (_json.JSONDecodeError, TypeError):
             return None
 
+    # Load WeChat MP cookies from kol_config — same source as KOL scanner.
+    # Without cookies, WeChat article URLs redirect to CAPTCHA from Aliyun IPs.
+    wechat_cookie = ""
+    try:
+        import kol_config
+        wechat_cookie = getattr(kol_config, "COOKIE", "")
+    except Exception:
+        pass
+
+    # Build browser context cookie injection preamble (runs before page.goto)
+    cookie_preamble = ""
+    if wechat_cookie:
+        cookie_entries = []
+        for pair in wechat_cookie.split(";"):
+            pair = pair.strip()
+            if "=" in pair:
+                name, _, value = pair.partition("=")
+                cookie_entries.append(
+                    "{name: " + json.dumps(name.strip()) +
+                    ", value: " + json.dumps(value.strip()) +
+                    ", domain: 'mp.weixin.qq.com', path: '/'}"
+                )
+        if cookie_entries:
+            cookie_preamble = (
+                "await page.context().addCookies([" + ",".join(cookie_entries) + "]); "
+            )
+
     js_code = f"""async (page) => {{
-  await page.goto('{url}', {{waitUntil: 'domcontentloaded', timeout: 4500}});
+  {cookie_preamble}await page.goto('{url}', {{waitUntil: 'domcontentloaded', timeout: 4500}});
   var title = await page.title();
   var pubTime = await page.evaluate(() => {{
     var el = document.querySelector('#publish_time');

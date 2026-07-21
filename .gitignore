@@ -106,3 +106,4 @@ databricks-deploy/*.production-backup
 
 # IDE personal settings — never project artifacts.
 .vscode/
+kol_scan.db
