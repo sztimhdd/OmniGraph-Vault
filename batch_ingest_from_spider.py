@@ -88,8 +88,11 @@ from lib.article_filter import (
 # back into the candidate pool for re-evaluation.
 #
 # 0 = legacy (backfill value applied by migrations/009_skip_reason_version)
-# 1 = current taxonomy (initial value at schema introduction)
-SKIP_REASON_VERSION_CURRENT = 1
+# 1 = initial taxonomy (2026-05)
+# 2 = CDP fix (2026-07-21): UA/Apify anti-bot shells were incorrectly
+#     skipped.  CDP tunnel now provides real bodies.  Bump to re-evaluate
+#     all version-1 skipped rows.
+SKIP_REASON_VERSION_CURRENT = 2
 from lib.checkpoint import get_article_hash, has_stage
 from lib.vision_tracking import drain_vision_tasks
 
