@@ -223,10 +223,12 @@ _CASCADE_TOKEN_MAP: dict[str, str] = {
 # (docs/bugreports/2026-05-08-cron-ingest-failure.md R1) showed UA was the
 # only path actually succeeding (5/5 articles), while Apify/CDP/MCP combined
 # wasted ~600s of the 900s budget on hard-fail loops. UA-first preserves all
-# four layers as fallbacks for sites where UA fails (e.g. login walls).
+# remaining layers as fallbacks for sites where UA fails (e.g. login walls).
+# 2026-07-21: Apify removed — consistently returns CAPTCHA "环境异常" (86
+# chars) for all WeChat article URLs from Aliyun IPs since July 18. Each call
+# wastes 30-60s cold-start time before passing through quality gate to CDP.
 _DEFAULT_CASCADE_ORDER: tuple[str, ...] = (
     "scrape_wechat_ua",
-    "scrape_wechat_apify",
     "scrape_wechat_cdp",
     "scrape_wechat_mcp",
 )
