@@ -47,7 +47,7 @@ def compute_dynamic_budget(
     doc_status: dict[str, Any] | None = None,
     *,
     base_budget_s: float = 300.0,
-    per_doc_avg_s: float = 60.0,
+    per_doc_avg_s: float = 200.0,
     cap_s: float = 1800.0,
 ) -> float:
     """Compute a queue-aware h09 retry budget in seconds.

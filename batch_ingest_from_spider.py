@@ -1148,12 +1148,18 @@ async def _classify_full_body(
       The classification dict ``{"depth", "topics", "rationale"}`` on success;
       ``None`` on any failure.
     """
-    # 1. Scrape on demand if body absent (D-10.01).
+    # 1. Scrape on demand if body absent or anti-bot shell (D-10.01).
     # SCR-06 hotfix (Phase 19): route via lib.scraper.scrape_url which runs
-    # the full 4-layer WeChat cascade (apify -> cdp -> mcp -> ua) -- not UA-only.
-    # Closes Day-1 KOL 06:00 ADT regression where UA-only path was the sole
-    # fallback when Apify / CDP were misconfigured.
-    if not body:
+    # the full cascade (cdp -> mcp).
+    # 2026-07-21: UA/Apify left 230 anti-bot shells ("环境异常", 85 chars).
+    # Re-scrape when body is null, empty, too short, or contains CAPTCHA markers.
+    _needs_scrape = (
+        not body
+        or len(body) < 200
+        or "环境异常" in body
+        or "wappoc_appmsgcaptcha" in body
+    )
+    if _needs_scrape:
         import ingest_wechat
         from lib.scraper import scrape_url
 

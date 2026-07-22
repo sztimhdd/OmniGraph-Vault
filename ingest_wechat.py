@@ -53,8 +53,14 @@ def _status_is_processed(status_val) -> bool:
 # 2026-05-10 quick 260510-h09b: budget envelope bumped 6s → 60s default
 # (30 × 2.0s) with OMNIGRAPH_PROCESSED_RETRY / OMNIGRAPH_PROCESSED_BACKOFF
 # env override; covers Phase 2 entity-merging on heavy WeChat articles.
+# 260606 → 260722: queue_depth=2 consistently; per_doc_avg_s=60 gives only
+# 120s dynamic bump which doesn't cover the real per-doc processing time
+# (150-250s for entity extraction + embedding + merge).  Verified across
+# 12h of journal: 36 failed with avg_body=10,327 chars (scraping OK but
+# LightRAG timeout).  Bump per_doc_avg_s to 200 so queue_depth=2 →
+# 400s budget; bump base to 600s via PROCESSED_BACKOFF=20 for headroom.
 PROCESSED_VERIFY_MAX_RETRIES = int(os.getenv("OMNIGRAPH_PROCESSED_RETRY", "30"))
-PROCESSED_VERIFY_BACKOFF_S = float(os.getenv("OMNIGRAPH_PROCESSED_BACKOFF", "10.0"))
+PROCESSED_VERIFY_BACKOFF_S = float(os.getenv("OMNIGRAPH_PROCESSED_BACKOFF", "20.0"))
 # 260603 ISSUES #32: image-heavy article async post-ainsert
 # finalization can take >60s; 30 × 5.0 = 150s safer default.
 # 260606 ISSUES #39 (260606-bd-cache-async-quickwin A3): #32 budget 150s still
@@ -661,8 +667,12 @@ async def _vision_worker_impl(
 
 # --- Scraping Methods ---
 
-# Rotating UA pool — avoids detection by varying WeChat client fingerprints
+# Rotating UA pool — avoids detection by varying WeChat client fingerprints.
+# Ordered by priority: classic MicroMessenger UAs first (lower OS versions may
+# receive different HTML structure), modern UAs second.
 _UA_POOL = [
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 6_1_3 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Mobile/10B329 MicroMessenger/5.0.1",
+    "Mozilla/5.0 (Linux; U; Android 2.3.6; zh-cn; GT-S5660 Build/GINGERBREAD) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1 MicroMessenger/4.5.255",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.34(0x16082222) NetType/WIFI Language/zh_CN",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.42(0x18042a23) NetType/4G Language/zh_CN",
     "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.144 Mobile Safari/537.36 MicroMessenger/8.0.45(0x28004534) NetType/WIFI Language/zh_CN",
