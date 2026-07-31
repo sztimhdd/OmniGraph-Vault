@@ -93,7 +93,47 @@ ssh aliyun-old '
 
 ---
 
+## 1.4 Phase 1.3 实测结果（2026-07-31）
+
+| 项 | 结果 |
+|---|---|
+| Qdrant | ✅ 运行中，3 个 `gemini_embedding_2_3072d` collections |
+| 点数 | entities 96,191 / chunks 6,273 / relationships 131,649（合计 234,113） |
+| NanoVectorDB | 仅备份（`qdrant-snapshot.timer` 导出目标，每日 4 次） |
+| LightRAG 初始化 | 三处代码（kb/api.py:91、ingest_wechat.py:406、kg_synthesize.py:156）均 `QdrantVectorDBStorage` |
+| LightRAG 版本 | 1.4.16 |
+
+**判定：Qdrant 是主存储 → Phase 7 用 scroll + re-embed，不读 JSON。**
+
+**⚠ 附带发现：** `qdrant-snapshot.timer` 大文件写不完（vdb_entities.json.tmp 46M 残留、relationships 7/20 未更新）——每次触发写 3.5 GB JSON 把机器 IO 打满（2026-07-31 17:10 触发导致 SSH 失联 ~40 分钟）。搬迁后需处理该 timer（改时间/限流/停用）。
+
+**迁移脚本：** `deploy/migrate_qdrant_to_bgem3.py`（scroll 源库 → embed-server 重算 → 批量 upsert，流式内存安全）
+
+**执行进度（2026-07-31 实测）：**
+- ✅ Phase 1.3：Qdrant 主存储判定（LightRAG 三处代码均 `QdrantVectorDBStorage`）
+- ✅ Phase 2：FlagEmbedding 1.4.0 + BGE-M3 模型（**不走 HF 下载——旧机 HF 被墙，直接内网 scp 新机 `/models/bge-m3`**，4.3 GB）
+- ✅ Phase 3：embed-server active（**独立 venv `/root/embed-venv`（python3.10 + CPU torch + FlagEmbedding），绕开 venv-aim1 的 3.11.0rc1 坏 transformers**；use_fp16=False；:7997 验证 1024d）
+- ✅ Phase 4：lib/models.py（bge-m3/1024）+ lightrag_embedding.py（新机版本，含 `_embed_local` 分支）
+- ✅ Phase 5：.env 幂等写入（grep -c = 2）
+- ✅ Phase 6：19 个 per-unit drop-in，`systemctl show` 验证生效
+- 🔄 Phase 7：迁移执行中（234,136 点；dry-run 通过）
+
+**Phase 7 执行细节（2026-08-01 凌晨）：**
+- 进程内推理版 `deploy/migrate_qdrant_to_bgem3.py`（embed-venv 直载模型，batch 128，**按文本长度排序分批**——BGE-M3 padding 到批内最长，混合批被长文本拖慢）
+- `OMP_NUM_THREADS=8` + `torch.set_num_threads(8)`：CPU 753%（7.5 核），~1.8 pts/s
+- **断点续传 = 目标 collection ID 集合**（每次启动 `existing_ids()` 跳过已迁点，非内存 offset）
+- 已加 8G swapfile（旧机原本无 swap，14G 内存 OOM 风险）
+- `qdrant-snapshot.timer` 已 stop + disable（每日 4 次写 3.5G JSON 打爆 IO，导致 2 次 SSH 失联 40min-2h，一次系统冻结）
+- embed-server 已停（进程内迁移不需要，省 2.7G 内存）
+- 失败告警：`run_migration.sh` wrapper 检测非 0 退出 → Telegram（渠道从 scripts/refresh_wechat_cookie.py 提取）
+
+---
+
 ## 2. 安装 FlagEmbedding + 下载模型
+
+> ⚠ **2026-07-31 实测坑：旧机 venv-aim1 是 Python 3.11.0rc1，缺 `sys.get_int_max_str_digits`（3.11 正式版 API），transformers 5.x / FlagEmbedding 无法 import（`ModuleNotFoundError: GenerationMixin`）。**
+> **解决：embed-server 用独立 venv `/root/embed-venv`（系统 python3.10，与新机同款），不碰 venv-aim1，不影响 ingest 管线。**
+> 后续所有 embed-server 相关命令用 `/root/embed-venv/bin/python`。
 
 ```bash
 # 2.1 安装（旧机能翻墙，直接从 PyPI）
