@@ -18,13 +18,25 @@
 | FlagEmbedding | 未安装 | 已安装 |
 | BGE-M3 模型 | 无 | `/models/bge-m3/` |
 | 翻墙 | ✅ | ❌ |
-| 磁盘剩余 | 7.1 GB | 31 GB |
+| 磁盘剩余 | **18 GB**（2026-07-31 清理后，原 7.1 GB） | 31 GB |
 | 空闲内存 | 6.4 GB | 5.4 GB |
 | systemd units | 30 个（ingest/kb-api 无） | 3 个（embed/kb-api/mcp） |
 | LLM | DeepSeek | DeepSeek |
 
+**磁盘清理记录（2026-07-31 已执行）：**
+| 删除项 | 大小 |
+|---|---|
+| `/root/.rustup` | 1.4 GB |
+| `/root/.bun` | 1.4 GB |
+| `OmniGraph-Vault/venv`（旧 venv） | 1.1 GB |
+| `/root/.npm`（缓存） | 585 MB |
+| `/root/.cache/pip`（缓存） | 520 MB |
+| `lightrag_storage.aliyun-pre-aim2-bak-*`（5/23 旧备份） | 752 MB |
+| `/root/.cache/prisma` + docker prune | ~100 MB |
+| **合计** | **~10 GB（93% → 82%）** |
+
 **风险点：**
-- 磁盘仅剩 7.1 GB，BGE-M3 ~2.2 GB + 重迁临时文件 ~500 MB = 3 GB 余量，刚好够
+- ~~磁盘仅剩 7.1 GB~~ → **已解除**：18 GB 可用，BGE-M3 ~2.2 GB + 重迁临时文件 ~500 MB 无压力
 - Python 3.11 vs 3.10，FlagEmbedding 需验证兼容性
 - LightRAG 1.4.16 vs 1.5.4，monkey patch 位置可能不同
 
@@ -50,7 +62,6 @@ ssh aliyun-old '
   cp /root/.hermes/.env /root/backups/bge-m3-migration-$(date +%Y%m%d)/
   echo "backup done"
 '
-
 # 1.3 确认 NanoVectorDB 源数据完整性
 ssh aliyun-old '
   ls -lh /root/.hermes/omonigraph-vault/lightrag_storage/vdb_*.json
