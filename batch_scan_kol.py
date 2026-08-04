@@ -213,8 +213,8 @@ def _import_articles(conn: sqlite3.Connection, articles: list[dict], account_nam
     return new, skipped
 
 
-def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: int, max_articles: int) -> tuple[bool, int, int, bool]:
-    """Scan single account. Returns (ok, new, skipped, session_invalid)."""
+def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: int, max_articles: int) -> tuple[bool, int, int, bool, bool]:
+    """Scan single account. Returns (ok, new, skipped, session_invalid, rate_limited)."""
     logger.info("  Scanning %s (fakeid=%s)...", name, fakeid[:20] + "..." if len(fakeid) > 20 else fakeid)
     try:
         articles = list_articles(
@@ -227,11 +227,12 @@ def scan_account(conn: sqlite3.Connection, name: str, fakeid: str, days_back: in
     except Exception as exc:
         logger.error("  Failed to scan %s: %s", name, exc)
         session_invalid = "ret=200003" in str(exc)
-        return False, 0, 0, session_invalid
+        rate_limited = "rate limit" in str(exc).lower()
+        return False, 0, 0, session_invalid, rate_limited
 
     new, skipped = _import_articles(conn, articles, name, fakeid)
     logger.info("  %s: %d new, %d skipped (total %d scanned)", name, new, skipped, len(articles))
-    return True, new, skipped, False
+    return True, new, skipped, False, False
 
 
 def run(days_back: int, max_articles: int, account_filter: str | None, resume: bool,
@@ -287,6 +288,7 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
         scanned_count = 0
         failed_count = 0
         invalid_count = 0
+        consecutive_rl = 0
         total_new = 0
         total_skipped = 0
         by_account: list[dict] = []
@@ -301,10 +303,20 @@ def run(days_back: int, max_articles: int, account_filter: str | None, resume: b
                 break
 
             logger.info("[%d/%d] %s", i, len(rows), name)
-            ok, new, skipped, session_invalid = scan_account(conn, name, fakeid, days_back, max_articles)
+            ok, new, skipped, session_invalid, rate_limited = scan_account(conn, name, fakeid, days_back, max_articles)
             req_count += 1
             if session_invalid:
                 invalid_count += 1
+            if rate_limited:
+                consecutive_rl += 1
+                if consecutive_rl >= 3:
+                    logger.warning(
+                        "3 consecutive rate-limited accounts (ret=200013); aborting batch "
+                        "to avoid deepening the WeChat penalty box"
+                    )
+                    break
+            else:
+                consecutive_rl = 0
             if ok:
                 scanned_count += 1
                 total_new += new

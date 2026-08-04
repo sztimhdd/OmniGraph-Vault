@@ -22,6 +22,7 @@ import argparse
 import base64
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -560,8 +561,16 @@ def writeback_to_aliyun(token, cookie_str, test_account, dry_run, *, run_ssh=Non
     vres = run_ssh(verify)
     rc = getattr(vres, "returncode", 1)
     stderr = getattr(vres, "stderr", "") or ""
-    if rc != 0 or "WECHAT_SESSION_INVALID" in stderr or "ret=200003" in stderr:
-        logger.error("verify test-scan failed (rc=%s); rolling back", rc)
+    # 2026-08-04 fix: ANY nonzero WeChat ret in stderr means the test scan
+    # failed — previously only ret=200003 was caught, so ret=200013 (freq
+    # control) slipped through as "verify success" (false positive observed
+    # 2026-08-03 18:57, followed by 30h+ of all-batch 200013).
+    ret_fail = re.search(r"ret=2000\d\d", stderr)
+    if rc != 0 or "WECHAT_SESSION_INVALID" in stderr or ret_fail:
+        logger.error(
+            "verify test-scan failed (rc=%s, ret_fail=%s); rolling back",
+            rc, bool(ret_fail),
+        )
         _rollback(run_ssh, cfg, bak)
         return False
 

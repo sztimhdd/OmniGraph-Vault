@@ -149,14 +149,10 @@ def list_articles(
                     ret_code = base_resp.get("ret")
                     err_msg = base_resp.get("err_msg", "unknown error")
                     if ret_code in (200013,):
-                        if attempt < MAX_RETRIES:
-                            # WeChat needs a hard cooldown — exponential backoff alone won't work.
-                            wait = RATE_LIMIT_COOLDOWN + _backoff_sleep(attempt)
-                            logger.warning(f"WeChat API rate limit (ret={ret_code}) for fakeid={fakeid}, "
-                                         f"hard cooldown {wait:.0f}s (attempt {attempt}/{MAX_RETRIES})")
-                            time.sleep(wait)
-                            continue
-                        raise RuntimeError(f"WeChat API rate limit (ret={ret_code}) after {MAX_RETRIES} attempts: {err_msg}")
+                        # 2026-08-04: ret=200013 is token-level anti-crawl / interface
+                        # capability limit, NOT a transient rate limit. Retrying 3x
+                        # deepens the penalty box (observed 30h+ recovery). Fail fast.
+                        raise RuntimeError(f"WeChat API rate limit (ret={ret_code}) after 1 attempt: {err_msg}")
                     raise RuntimeError(f"WeChat API error (ret={ret_code}): {err_msg}")
                 break
             except requests.RequestException as e:
@@ -253,14 +249,10 @@ def list_articles_with_digest(
                     ret_code = base_resp.get("ret")
                     err_msg = base_resp.get("err_msg", "unknown error")
                     if ret_code in (200013,):
-                        if attempt < MAX_RETRIES:
-                            # WeChat needs a hard cooldown — exponential backoff alone won't work.
-                            wait = RATE_LIMIT_COOLDOWN + _backoff_sleep(attempt)
-                            logger.warning(f"WeChat API rate limit (ret={ret_code}) for fakeid={fakeid}, "
-                                         f"hard cooldown {wait:.0f}s (attempt {attempt}/{MAX_RETRIES})")
-                            time.sleep(wait)
-                            continue
-                        raise RuntimeError(f"WeChat API rate limit (ret={ret_code}) after {MAX_RETRIES} attempts: {err_msg}")
+                        # 2026-08-04: ret=200013 is token-level anti-crawl / interface
+                        # capability limit, NOT a transient rate limit. Retrying 3x
+                        # deepens the penalty box (observed 30h+ recovery). Fail fast.
+                        raise RuntimeError(f"WeChat API rate limit (ret={ret_code}) after 1 attempt: {err_msg}")
                     raise RuntimeError(f"WeChat API error (ret={ret_code}): {err_msg}")
                 break
             except requests.RequestException as e:
