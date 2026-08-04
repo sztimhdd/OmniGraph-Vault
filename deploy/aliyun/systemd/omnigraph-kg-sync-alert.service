@@ -1,0 +1,7 @@
+[Unit]
+Description=OmniGraph KG sync failure alert (Telegram)
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/root/OmniGraph-Vault/deploy/kg_sync_alert.sh

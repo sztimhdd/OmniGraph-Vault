@@ -1,0 +1,11 @@
+[Unit]
+Description=OmniGraph KG+SQLite incremental sync old->new
+After=network-online.target
+Wants=network-online.target
+OnFailure=omnigraph-kg-sync-alert.service
+
+[Service]
+Type=oneshot
+ExecStart=/root/embed-venv/bin/python3 /root/OmniGraph-Vault/deploy/sync_kq_to_new.py
+StandardOutput=journal
+StandardError=journal

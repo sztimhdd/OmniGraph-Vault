@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily OmniGraph KG sync (02:30 CST = 18:30 UTC)
+
+[Timer]
+OnCalendar=*-*-* 18:30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
