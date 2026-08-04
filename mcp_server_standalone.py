@@ -33,21 +33,19 @@ async def health_live(request):
 
 
 async def health_ready(request):
-    """Check KB-API and Qdrant are reachable."""
-    status = {"kb_api": False, "qdrant": False}
+    """Check KB-API is reachable (Qdrant is accessed via KB-API)."""
+    kb_ok = False
     async with httpx.AsyncClient(timeout=5) as client:
         try:
             r = await client.get(f"{KB_API}/health")
             r.raise_for_status()
-            status["kb_api"] = True
+            kb_ok = True
         except Exception:
             pass
-    # Qdrant is accessed via KB-API, so kb_api check covers it indirectly.
-    # Direct Qdrant check would require qdrant_client import — skip for lightweight readiness.
-    all_ready = all(status.values())
+    all_ready = kb_ok
     return JSONResponse({
         "status": "ready" if all_ready else "degraded",
-        "checks": status,
+        "checks": {"kb_api": kb_ok},
         "uptime_s": int(time.time() - health_start),
     }, status_code=200 if all_ready else 503)
 
