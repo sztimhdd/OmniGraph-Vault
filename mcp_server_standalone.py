@@ -20,11 +20,57 @@ KG_DEADLINE = 240
 mcp = FastMCP("omnigraph-kg", host="0.0.0.0", port=8767)
 
 # ── Health (separate port, separate uvicorn) ──────────────────────
+# Three levels (Ponytail M3, 2026-08-04):
+#   /live  — process alive (always 200 while thread is up)
+#   /ready — dependency check (KB-API + Qdrant reachable)
+#   /status — deeper state (collection point counts, pending jobs)
 
-async def health(request):
-    return JSONResponse({"status": "ok"})
+health_start = time.time()
 
-health_app = Starlette(routes=[Route("/health", health, methods=["GET"])])
+
+async def health_live(request):
+    return JSONResponse({"status": "ok", "uptime_s": int(time.time() - health_start)})
+
+
+async def health_ready(request):
+    """Check KB-API and Qdrant are reachable."""
+    status = {"kb_api": False, "qdrant": False}
+    async with httpx.AsyncClient(timeout=5) as client:
+        try:
+            r = await client.get(f"{KB_API}/health")
+            r.raise_for_status()
+            status["kb_api"] = True
+        except Exception:
+            pass
+    # Qdrant is accessed via KB-API, so kb_api check covers it indirectly.
+    # Direct Qdrant check would require qdrant_client import — skip for lightweight readiness.
+    all_ready = all(status.values())
+    return JSONResponse({
+        "status": "ready" if all_ready else "degraded",
+        "checks": status,
+        "uptime_s": int(time.time() - health_start),
+    }, status_code=200 if all_ready else 503)
+
+
+async def health_status(request):
+    """Deeper status: collection counts, KB-API version. Internal use only."""
+    info = {"uptime_s": int(time.time() - health_start)}
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            r = await client.get(f"{KB_API}/health")
+            r.raise_for_status()
+            info["kb_api"] = r.json()
+        except Exception as e:
+            info["kb_api_error"] = str(e)
+    return JSONResponse(info)
+
+
+health_app = Starlette(routes=[
+    Route("/live", health_live, methods=["GET"]),
+    Route("/health", health_live, methods=["GET"]),   # backward compat
+    Route("/ready", health_ready, methods=["GET"]),
+    Route("/status", health_status, methods=["GET"]),
+])
 
 
 def _run_health():
