@@ -14,8 +14,8 @@ SYNTHESIS_LLM    = "gemini-2.5-flash-lite"
 GITHUB_INGEST_LLM = "gemini-3.1-flash-lite-preview"
 
 # D-10: matches production reality (lightrag_embedding.py is already on -2).
-EMBEDDING_MODEL    = "gemini-embedding-2"
-EMBEDDING_DIM      = 3072   # full-capacity dim for gemini-embedding-2
+EMBEDDING_MODEL = "bge-m3"
+EMBEDDING_DIM = 1024   # full-capacity dim for gemini-embedding-2
 EMBEDDING_MAX_TOKENS = 8192
 
 # Free-tier RPM caps verified 2026-04-28. Override per model via env

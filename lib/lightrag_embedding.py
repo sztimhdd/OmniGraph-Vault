@@ -210,19 +210,26 @@ async def _embed_once(contents: list, model: str) -> np.ndarray:
 
 
 
+async def _embed_local(texts: list[str]) -> np.ndarray:
+    """BGE-M3 local embedding via embed-server on port 7997."""
+    import httpx
+    url = os.environ.get("OMNIGRAPH_LOCAL_EMBED_URL", "http://localhost:7997/embeddings")
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(url, json={"input": texts, "model": "BAAI/bge-m3"})
+        resp.raise_for_status()
+        embeddings = [d["embedding"] for d in resp.json()["data"]]
+    return np.array(embeddings, dtype=np.float32)
+
+
 async def _embed(texts: list[str], **kwargs: Any) -> np.ndarray:
-    """Embed ``texts`` via ``gemini-embedding-2`` and return a (N, 3072) float32 ndarray.
+    """Embed ``texts`` via gemini-embedding-2 or local BGE-M3.
 
-    LightRAG uses this function for BOTH upsert and query paths. The only
-    discriminator is ``_priority=5`` which query calls inject; we pop it so
-    it is never forwarded to the Gemini client.
-
-    Plan 05-00c Task 0c.2: each text is embedded with per-call rotation
-    + 429 failover. If the current key returns 429, ``rotate_key()`` is
-    called and the same text is retried with the next key. If every key in
-    the pool returns 429 for a single text, RuntimeError is raised.
-    Non-429 errors propagate immediately (no rotation).
+    When OMNIGRAPH_LOCAL_EMBED=1, uses local embed-server (no API call).
+    Otherwise uses Vertex AI Gemini embedding with key rotation.
     """
+    # Local mode: bypass all Vertex/rotation logic
+    if os.environ.get("OMNIGRAPH_LOCAL_EMBED") == "1":
+        return await _embed_local(texts)
     is_query = kwargs.pop("_priority", None) == 5
     model = EMBEDDING_MODEL
     # D-11.08: in Vertex mode the client ignores api_key (SA auth), so key
@@ -330,4 +337,5 @@ embedding_func = EmbeddingFunc(
     model_name=EMBEDDING_MODEL,
 )
 embedding_func.send_dimensions = True # Restore the original setting
+
 
