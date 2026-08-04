@@ -1,7 +1,8 @@
 # REPAIR PLAN — 2026-08-04 全流程健康检查问题修复
 
 > 来源：2026-08-04 全流程健康检查（omnigraph-pipeline-verify 六阶段）
-> 状态：PENDING 待用户确认后按 T1→T6 顺序执行，每任务独立 UAT + git commit
+> 状态：**T1/T2/T4/T5 已完成，T3 已修复待观察，T6 收尾中**（2026-08-05 00:40）
+> 执行记录：T1（磁盘，无 commit）、T2（DB 变更，无 commit）、T4（`ab6a7a6`）、T3（`34e26d3`）、T5（无 commit）
 
 ## 问题清单与优先级
 
@@ -54,23 +55,24 @@ ssh aliyun-old 'journalctl -u omnigraph-daily-ingest --since "10 min ago" | grep
 
 ---
 
-## T3 — KOL 扫描限流恢复（P1）
+## T3 — KOL 扫描限流恢复（P1）—— ✅ 修复完成，待 24h 后验证
 
 **Objective:** 扫描恢复 ok（至少 1 个账户扫描成功，不再 15/15 全败）。
 
-**Files:** `kol_config.py`（验证）、`batch_scan_kol.py` / `spiders/wechat_spider.py`（cooldown 参数）
+**根因（2026-08-04 探针确认，非凭证失效）：**
+- `scripts/wechat_probe.py` 会话探针：**SESSION OK**（http=200，final_url 到 `cgi-bin/home?t=...` 带 token，非登录页）→ `kol_config.TOKEN`（1748038458）**是有效凭证**
+- 能力探针：**ret=200013 freq control**（列表接口单请求即限）→ **接口级频率/能力限制**（与社区 2026-07 底报告吻合：登录正常但文章列表首屏 200013）
+- **Verifier 假阳性确认**：`refresh_wechat_cookie.py` verify 只查 stderr `ret=200003`/`WECHAT_SESSION_INVALID`——200013 失败时 batch_scan_kol exit 0 无标记 → 误判"writeback success"（8/3 18:57 实例，随后 30h+ 全批 200013）
 
-**Steps:**
-1. 验证 refresh 写入的 token 有效性：手动跑 `venv-aim1/bin/python batch_scan_kol.py --daily --max-accounts 1`，观察是否仍 200013
-2. 若仍 200013：检查 `RATE_LIMIT_COOLDOWN` 当前值（日志显示 63s），评估提升至 180-300s
-3. 若 token 无效：走 `wechat-cdp-credential-refresh`（Hermes PC CDP 重新登录）
-4. 评估扫描节奏：4 批 × 6h 间隔 × 15 账户是否过密（微信 freq control 风控），必要时减批或减账户数
+**修复（commit `34e26d3`）：**
+1. `scripts/refresh_wechat_cookie.py` verifier：stderr 检查改为 `re.search(r"ret=2000\d\d")`（任意非零 WeChat ret 即失败回滚）
+2. `spiders/wechat_spider.py`：200013 **不再重试 3 次**（fail-fast，防 45 req/batch 加深惩罚箱）
+3. `batch_scan_kol.py`：`scan_account` 返回 `rate_limited` 标志；**连续 3 个 200013 立即 abort 本批**
+4. 新增 `scripts/wechat_probe.py`（会话探针 + 能力探针，单请求无循环，禁止把诊断变成限流）
 
-**UAT:**
-```bash
-ssh aliyun-old 'cd /root/OmniGraph-Vault && venv-aim1/bin/python batch_scan_kol.py --daily --max-accounts 1 2>&1 | tail -3'
-# 出现 "Scan complete: 1 ok" 或单账户成功；无 200003/200013 全败
-```
+**当前状态：** 4 个 kol-scan-batch timers 已暂停（2026-08-05 00:30），等待微信 200013 惩罚箱恢复（~24-48h）。恢复路径：24h 后手动 `wechat_probe.py both` → capability ret=0 → 重启 timers → 观察首批全量扫描。
+
+**Files:** `scripts/refresh_wechat_cookie.py`、`spiders/wechat_spider.py`、`batch_scan_kol.py`、`scripts/wechat_probe.py`（新增）
 
 ---
 

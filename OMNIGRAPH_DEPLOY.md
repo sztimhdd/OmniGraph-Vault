@@ -45,16 +45,35 @@ docker run -d --name qdrant \
   qdrant/qdrant:v1.11.5
 ```
 
-**Collections（BGE-M3 1024 维）：**
+**Collections（BGE-M3 1024 维，2026-08-04 后 = 新旧机并集）：**
 
 | Collection | 点数 | 说明 |
 |---|---|---|
-| `lightrag_vdb_entities_bge_m3_1024d` | 70,671 | 实体节点 |
-| `lightrag_vdb_chunks_bge_m3_1024d` | 5,552 | 文本块 |
-| `lightrag_vdb_relationships_bge_m3_1024d` | 96,684 | 关系边 |
-| **合计** | **172,907** | |
+| `lightrag_vdb_entities_bge_m3_1024d` | 138,597 | 实体节点（旧机全量 + 新机存量并集） |
+| `lightrag_vdb_chunks_bge_m3_1024d` | 9,730 | 文本块 |
+| `lightrag_vdb_relationships_bge_m3_1024d` | 182,846 | 关系边 |
+| **合计** | **331,173** | 2026-08-04 首次同步后 |
 
-旧 Gemini 3072d collections 保留作为回滚保险，48h 后可删。
+> **点数来源变化（2026-08-04）**：新机 KG 不再冻结于 2026-07-31 快照（172,907 点）。
+> 新增 `deploy/sync_kq_to_new.py` 每日增量同步（commit `ab6a7a6`），新机 = 旧机 ∪ 新机并集。
+
+### 2.5 新旧机 KG 增量同步（2026-08-04 新增）
+
+**文件：** 旧机 `/root/OmniGraph-Vault/deploy/sync_kq_to_new.py`（旧机执行）
+
+- **机制：** 点 ID 差集（旧机 scroll 全量 ID − 新机全量 ID → 差集点从旧机取向量+payload → 新机 upsert）。天然幂等，无水位文件。
+- **向量直搬：** 两机同为 bge-m3 1024d，无需重算嵌入。
+- **SQLite（FTS）：** 旧机 `sqlite3 .backup`（123MB）→ scp → 新机 `mv` 原子替换（新机 fts 只读，覆盖安全）。
+- **隧道：** 新机 Qdrant :6333 公网未放行（安全组只开 8767/8768），脚本自动建 SSH 隧道 `127.0.0.1:16333 → 新机:6333`（旧机→新机有 SSH 密钥）。
+- **调度：** systemd `omnigraph-kg-sync.timer` 每天 **02:30 CST**（UTC 18:30），oneshot service，日志 `/var/log/omnigraph-kg-sync.log`。
+- **失败告警：** service 退出非 0 → systemd OnFailure（当前未配置专门告警 unit；失败可从 journal/log 检查）。
+
+```bash
+# 手动触发
+systemctl start omnigraph-kg-sync.service
+# 查看日志
+tail -20 /var/log/omnigraph-kg-sync.log
+```
 
 ### 2. embed-server（BGE-M3 本地嵌入）
 
