@@ -148,16 +148,23 @@ ssh aliyun-old 'systemctl restart mcp-healthcheck.service; sleep 5; systemctl is
 
 ---
 
-## 执行顺序依赖
+## 执行顺序依赖（修订 2026-08-04，按严重度优先）
 
 ```
-T1 磁盘 ──┬──> T5 healthcheck
-          └──> T2 dwarkesh（独立）
-T3 扫描限流（独立，但需旧机稳定）
-T4 同步 ──> T6 回归
+T1 磁盘（T4 物理前置：96% 磁盘时导出/backup 可能写不下）
+  │
+  └──> T4 新机同步（P0——同事正在用过期 MCP 数据，每等一个任务就多错一天）
+          │
+          ├──> T2 dwarkesh（P2，独立，可在 T4 后）
+          ├──> T3 扫描限流（P1，独立，可在 T4 后）
+          └──> T5 healthcheck 阈值（依赖 T1，可在 T4 后）
+                  │
+                  └──> T6 回归
 ```
 
-T1/T2/T3 相互独立可并行；T4 依赖旧机稳定（T1 后）；T5 依赖 T1；T6 最后。
+**顺序原则（修订）：** 严重度优先，仅保留真实依赖。T1→T4 是唯一硬依赖链
+（T4 的 SQLite backup + Qdrant 导出在旧机 96% 磁盘下可能 ENOSPC）。T2/T3/T5
+与 T4 无依赖，全部排在 T4 之后；若 T4 阻塞（如新机不可达），T2/T3 可先行。
 
 ## 风险与回退
 
