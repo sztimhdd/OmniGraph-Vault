@@ -150,12 +150,12 @@ DEEPSEEK_API_KEY=sk-...
 
 ### 4. MCP Server（对外服务）
 
-**文件：** `/root/OmniGraph-Vault/mcp_server_standalone.py` — 已纳入 Git（commit `04b3907`）
-SHA256: `f80bd8229b13bf3cf3ff3342e2867b723377324c026b136f2bb0a3338bc0e992`
+**文件：** `/root/OmniGraph-Vault/mcp_server_standalone.py` — 已纳入 Git（commit `04b3907`；2026-08-05 超时修复 `7d23c38`）
 
 - 协议：FastMCP StreamableHTTP
 - 纯 HTTP 代理到 KB-API，不初始化 LightRAG（零 collection 风险）
-- 2 工具：`fts_search`、`kg_search`
+- 3 工具：`fts_search`（同步 <100ms）、`kg_search`、`kg_poll`
+- **2026-08-05 超时修复（commit `7d23c38`）**：MCP 客户端默认 ~60s 总 HTTP 期限（timeout_ms 30s+30s），LightRAG kg 检索需 ~4min → 旧版同步等待必然 MCP_TOOL_CALL_FAILED。现 kg_search 同步等待上限 **55s**（预算内），未完成即返回 `[kg-running] job_id=…`；新增 **kg_poll(job_id)** 工具（<1s/次）取回最终报告。调用方无需改超时配置。
 - Health 通过独立线程 + 独立端口（`:8768`），不触碰 FastMCP internals
 
 **客户端配置：**
