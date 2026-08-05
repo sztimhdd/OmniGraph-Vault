@@ -15,7 +15,13 @@ from mcp.server.fastmcp import FastMCP
 KB_API = os.environ.get("KB_API_URL", "http://127.0.0.1:8766")
 TIMEOUT = 120
 POLL_INTERVAL = 1.0
-KG_DEADLINE = 240
+# 2026-08-05: MCP clients default to a ~60s total HTTP deadline (timeout_ms
+# 30s + 30s grace) and hard-cut the SSE stream even though the server keeps
+# sending pings. LightRAG kg_search takes ~4 min, so a synchronous wait of
+# KG_DEADLINE always dies client-side as MCP_TOOL_CALL_FAILED. Fix: kg_search
+# waits at most KG_INITIAL_WAIT (inside the client budget), then returns a
+# job_id; kg_poll(job_id) fetches the result later in <1s calls.
+KG_INITIAL_WAIT = 55
 
 mcp = FastMCP("omnigraph-kg", host="0.0.0.0", port=8767)
 
@@ -101,7 +107,11 @@ async def fts_search(query: str, limit: int = 10, lang: str = "zh-CN") -> str:
 
 @mcp.tool()
 async def kg_search(query: str) -> str:
-    """Knowledge-graph query via LightRAG. Slower, understands concepts."""
+    """Knowledge-graph query via LightRAG (slow: ~1-4 min for full synthesis).
+
+    Waits up to ~55s for the result inside this call; if LightRAG is still
+    working it returns a job_id — call kg_poll(job_id) to fetch the report
+    once it finishes. Never exceeds the ~60s client HTTP deadline."""
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         resp = await client.get(
             f"{KB_API}/api/search",
@@ -114,7 +124,7 @@ async def kg_search(query: str) -> str:
         if not jid:
             return "[job-create-failed]"
 
-        deadline = time.monotonic() + KG_DEADLINE
+        deadline = time.monotonic() + KG_INITIAL_WAIT
         while time.monotonic() < deadline:
             await asyncio.sleep(POLL_INTERVAL)
             poll = await client.get(f"{KB_API}/api/search/{jid}")
@@ -123,7 +133,30 @@ async def kg_search(query: str) -> str:
             if pdata.get("status") == "done":
                 result = pdata.get("result")
                 return result if isinstance(result, str) else str(result or "[no-result]")
-        return "[kg-timeout]"
+        return (
+            f"[kg-running] job_id={jid} — LightRAG retrieval still in progress "
+            f"(full synthesis takes ~1-4 min). Call kg_poll(job_id=\"{jid}\") "
+            f"to fetch the result."
+        )
+
+
+@mcp.tool()
+async def kg_poll(job_id: str) -> str:
+    """Fetch the result of a kg_search job started earlier.
+
+    Fast (<1s) — safe under any client timeout. Returns the synthesized
+    report when done, or a 'still running' note; poll again in ~30s."""
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        poll = await client.get(f"{KB_API}/api/search/{job_id}")
+        poll.raise_for_status()
+        pdata = poll.json()
+        if pdata.get("status") == "done":
+            result = pdata.get("result")
+            return result if isinstance(result, str) else str(result or "[no-result]")
+        return (
+            f"[kg-running] job_id={job_id} — still in progress, "
+            f"poll again in ~30s."
+        )
 
 
 # ── Main ──────────────────────────────────────────────────────────
