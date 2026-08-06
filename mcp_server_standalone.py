@@ -21,7 +21,9 @@ POLL_INTERVAL = 1.0
 # KG_DEADLINE always dies client-side as MCP_TOOL_CALL_FAILED. Fix: kg_search
 # waits at most KG_INITIAL_WAIT (inside the client budget), then returns a
 # job_id; kg_poll(job_id) fetches the result later in <1s calls.
-KG_INITIAL_WAIT = 55
+# 45s: measured total = 45 + job-create(~3-5s) + SSE transfer(~3-5s via
+# tunnel/public) ≈ 53-55s, safely inside the 60s client budget.
+KG_INITIAL_WAIT = 45
 
 mcp = FastMCP("omnigraph-kg", host="0.0.0.0", port=8767)
 
