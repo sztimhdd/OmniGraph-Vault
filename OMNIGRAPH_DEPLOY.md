@@ -155,7 +155,8 @@ DEEPSEEK_API_KEY=sk-...
 - 协议：FastMCP StreamableHTTP
 - 纯 HTTP 代理到 KB-API，不初始化 LightRAG（零 collection 风险）
 - 3 工具：`fts_search`（同步 <100ms）、`kg_search`、`kg_poll`
-- **2026-08-05 超时修复（commit `7d23c38`）**：MCP 客户端默认 ~60s 总 HTTP 期限（timeout_ms 30s+30s），LightRAG kg 检索需 ~4min → 旧版同步等待必然 MCP_TOOL_CALL_FAILED。现 kg_search 同步等待上限 **55s**（预算内），未完成即返回 `[kg-running] job_id=…`；新增 **kg_poll(job_id)** 工具（<1s/次）取回最终报告。调用方无需改超时配置。
+- **2026-08-05 超时修复（commit `7d23c38` + `23dcdc5`）**：MCP 客户端默认 ~60s 总 HTTP 期限（timeout_ms 30s+30s），LightRAG kg 检索需 ~4min → 旧版同步等待必然 MCP_TOOL_CALL_FAILED。现 kg_search 同步等待上限 **45s**（实测总耗时 47s < 60s 预算，含 job 创建 + SSE 传输），未完成即返回 `[kg-running] job_id=…`；新增 **kg_poll(job_id)** 工具（<1s/次）取回最终报告。调用方无需改超时配置。
+- **自检（2026-08-05）**：`python3 scripts/mcp_healthcheck.py [--public]` — 13 项检查（initialize/tools-list/fts/kg_search 预算/kg_poll + 双机 health），exit 0=全绿。
 - Health 通过独立线程 + 独立端口（`:8768`），不触碰 FastMCP internals
 
 **客户端配置：**
