@@ -59,6 +59,9 @@ except ImportError:
     genai_types = None
 
 from lib import INGESTION_LLM, generate_sync
+# Phase 8: INGESTION_LLM / _call_gemini replaced by DeepSeek.
+# lib.llm_deepseek now handles the compress/classify hot path.
+from lib.llm_deepseek import deepseek_model_complete
 from lib.batch_timeout import (
     BATCH_SAFETY_MARGIN_S,
     clamp_article_timeout,
@@ -651,20 +654,24 @@ def _call_deepseek(prompt: str, api_key: str) -> list[dict] | None:
 
 
 def _call_gemini(prompt: str) -> list[dict] | None:
-    """Call Gemini API and parse JSON response. Returns None on failure."""
-    if genai_types is None:
-        logger.warning("google-genai package not available — cannot call Gemini API")
-        return None
+    """Call DeepSeek API (formerly Gemini) and parse JSON response. Returns None on failure.
+
+    Phase 8: Swapped from gemini-2.5-flash (Vertex — free-tier exhausted/503 errors)
+    to DeepSeek via lib.llm_deepseek.deepseek_model_complete.
+    Function name kept for caller compatibility; real backend is DeepSeek.
+    """
+    import asyncio as _asyncio
     try:
-        # lib.generate_sync handles key resolution + rotation + rate limit + retry.
-        text = generate_sync(
-            INGESTION_LLM,
-            prompt,
-            config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
-        )
+        text = _asyncio.run(deepseek_model_complete(prompt))
+        text = (text or "").strip()
+        if text.startswith("```"):
+            start = text.find("\n") + 1
+            end = text.rfind("```")
+            if end > start:
+                text = text[start:end].strip()
         return json.loads(text)
     except Exception as exc:
-        logger.warning("Gemini API call failed: %s", exc)
+        logger.warning("DeepSeek (gemini→deepseek) API call failed: %s", exc)
         return None
 
 
