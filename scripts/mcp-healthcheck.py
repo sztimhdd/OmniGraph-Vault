@@ -3,12 +3,14 @@
 On MCP failure: SSH back to WSL via repair tunnel, run diagnostics + self-repair.
 
 v2 (2026-08-10): 修复 8/5-8/9 结构性失明——
-  * 新增吞吐/新鲜度检查: kol-scan timers stale、ingest 最新 ok、kg-sync 日志、
-    rss-fetch 成功率、新旧机点数 drift
+  * 新增吞吐/新鲜度检查: ingest 最新 ok、kg-sync 日志、rss-fetch 成功率、
+    新旧机点数 drift
   * 告警: problems 非空 → Telegram (ssh hermes send)
-  * 自动恢复(非凭证类): scan timers 暂停但 capability ret=0 → 恢复;
-    kb-api/kg-sync down → restart
+  * 自动恢复(非凭证类): kb-api/kg-sync down → restart
   * 约束: 200013/200003/扫码仍只告警不自动修 (用户硬性规则)
+v2.1 (2026-08-10): kol-scan 告警移除 — KOL 扫描已由 dajiala 周扫替代
+  (omnigraph-dajiala-scan.timer)，appmsgpublish 死管线的 last-trigger
+  不再作为健康信号。每日汇总见 scripts/ingest_daily_summary.py。
 """
 import json, urllib.request, sys, os, subprocess, logging, sqlite3, time, re
 
@@ -19,13 +21,9 @@ problems = []
 # ── Config ──
 DB = "/root/OmniGraph-Vault/data/kol_scan.db"
 KG_SYNC_LOG = "/var/log/omnigraph-kg-sync.log"
-SCAN_TIMERS = ["omnigraph-kol-scan-batch@%d.timer" % i for i in (1, 2, 3, 4)]
-STALE_SCAN_HOURS = 48      # normal cadence 4x/day; 48h = 2 missed days
 STALE_INGEST_HOURS = 48    # RSS alone is thin; 48h no ok = acquisition dead
 STALE_KGSYNC_HOURS = 26    # daily 02:30; 26h = one missed cycle + margin
 RSS_OK_MIN_RATIO = 0.5
-PROBE = "/root/OmniGraph-Vault/scripts/wechat_probe.py"
-PY = "/root/OmniGraph-Vault/venv-aim1/bin/python"
 NEW_QDRANT = "http://172.18.12.150:6333"
 OLD_QDRANT = "http://127.0.0.1:6333"
 # Alert throttle: same problem set re-alerts at most once per window,
@@ -160,26 +158,11 @@ def _ts_hours_ago(ts_str: str) -> float:
     except (ValueError, OSError):
         return float("inf")
 
-# 4. KOL scan timers stale — the 8/5-8/9 blind spot
-try:
-    r = subprocess.run(["systemctl", "show"] + SCAN_TIMERS + ["-p", "LastTriggerUSec", "--value"],
-                       capture_output=True, text=True, timeout=10)
-    triggers = [ln.strip() for ln in r.stdout.splitlines() if ln.strip() and ln.strip() != "n/a"]
-    if not triggers:
-        problems.append(("kol-scan", "no-trigger-record"))
-    else:
-        raw = max(triggers)  # lexicographic works for ISO-ish timestamps
-        m = re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", raw)
-        if m:
-            hours = _ts_hours_ago(m.group(0))
-            if hours > STALE_SCAN_HOURS:
-                problems.append(("kol-scan", f"last-trigger {hours:.0f}h ago"))
-        else:
-            problems.append(("kol-scan", f"unparseable {raw[:40]}"))
-except Exception as e:
-    problems.append(("kol-scan", f"check-error {e}"))
+# 4. (removed) kol-scan timer staleness — 2026-08-10 KOL scan replaced by the
+#    dajiala weekly scan (omnigraph-dajiala-scan.timer); the dead appmsgpublish
+#    pipeline's LastTriggerUSec is no longer a health signal.
 
-# 5. Ingest staleness — latest ok ingestion
+# 5. Ingest staleness — latest ok ingestion (blocked pipeline alert)
 try:
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=10)
     row = conn.execute("SELECT ingested_at FROM ingestions WHERE status='ok' ORDER BY ingested_at DESC LIMIT 1").fetchone()
@@ -247,31 +230,6 @@ try:
             pass  # collection may not exist on either side yet — best-effort
 except Exception:
     pass
-
-# ── Auto-recovery: scan timers paused but capability healthy ──
-# Only when the ONLY scan problem is staleness (not a live 200013/200003).
-# Probe is single-shot; if capability is limited (ret=200013) we keep paused
-# and the problem stays in the alert. Never force QR / re-login.
-scan_stale = any(n == "kol-scan" for n, _ in problems)
-if scan_stale:
-    try:
-        r = subprocess.run([PY, PROBE, "both"], capture_output=True, text=True, timeout=60)
-        out = (r.stdout + r.stderr)[-500:]
-        # probe exits: 0 = session+list OK, 1 = session OK but list limited,
-        #              2 = session invalid, 3 = probe error
-        if r.returncode == 0:
-            for t in SCAN_TIMERS:
-                subprocess.run(["systemctl", "start", t], capture_output=True, timeout=15)
-            print("  [kol-scan] capability OK — timers restarted")
-            problems = [(n, s) for n, s in problems if n != "kol-scan"]
-        elif r.returncode == 1:
-            print("  [kol-scan] capability limited (ret=200013) — keep paused")
-        elif r.returncode == 2:
-            print("  [kol-scan] session INVALID — keep paused (operator QR required)")
-        else:
-            print(f"  [kol-scan] probe error rc={r.returncode}")
-    except Exception as e:
-        print(f"  [kol-scan] probe failed {e}")
 
 # ── Report ──
 if problems:
