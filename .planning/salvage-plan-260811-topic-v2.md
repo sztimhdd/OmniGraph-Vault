@@ -1,6 +1,6 @@
 # 打捞计划 — 近 3 个月被弃文章（含 452 篇补录重筛）
 
-**状态:** ACTIVE（2026-08-11, quick topic-v2 子任务）
+**状态:** ✅ COMPLETE（2026-08-11, quick topic-v2 子任务）
 **背景:** 旧分类（Agent/LLM/RAG/NLP/CV）错杀大量高价值 Agent 工程文章。新 topic 表
 （config/topic_keywords_2026.json, 7 topics）已落地 + `PROMPT_VERSION_LAYER1`
 bump 至 `layer1_v2_20260810` → 旧 verdict 全部失效，重筛机制就绪。
