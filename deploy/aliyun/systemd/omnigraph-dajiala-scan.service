@@ -1,0 +1,14 @@
+[Unit]
+Description=OmniGraph dajiala KOL scan (weekly) — replaces dead appmsgpublish scan
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Key loaded from EnvironmentFile so it never lands in the unit or repo.
+EnvironmentFile=/root/OmniGraph-Vault/.dajiala_env
+WorkingDirectory=/root/OmniGraph-Vault
+ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python3 /root/OmniGraph-Vault/scripts/dajiala_kol_scan.py --top 20 --pages 2 --db /root/OmniGraph-Vault/data/kol_scan.db
+# Keep the journal small: the script prints progress + JSON summary.
+StandardOutput=journal
+StandardError=journal
