@@ -36,7 +36,7 @@ import requests
 DB = Path(os.environ.get("KOL_SCAN_DB_PATH", "data/kol_scan.db"))
 PYTHON = Path("venv/bin/python")
 KEYWORDS = "openclaw,hermes,agent,harness"  # D-10
-DEFAULT_TOPICS: tuple[str, ...] = ("Agent", "LLM", "RAG", "NLP", "CV")
+DEFAULT_TOPICS: tuple[str, ...] = ("Agent", "Orchestration", "Harness", "MemorySystem", "SkillEngineering", "ContextProtocol", "GraphEngineering")
 SUBPROCESS_TIMEOUT_SECONDS = 3600  # defence-in-depth; real batch budget is
 # OMNIGRAPH_BATCH_TIMEOUT_SEC (v3.2 Phase 17) inside batch_ingest_from_spider.
 

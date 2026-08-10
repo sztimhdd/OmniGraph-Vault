@@ -68,7 +68,7 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------- constants
 
-PROMPT_VERSION_LAYER1: str = "layer1_v1_20260512"
+PROMPT_VERSION_LAYER1: str = "layer1_v2_20260810"
 """Bumping this string forces re-evaluation of all rows whose
 ``articles.layer1_prompt_version`` does not match (LF-1.8).
 Spike validating this exact version: ``.scratch/layer1-validation-20260507-151608.md``."""
@@ -206,7 +206,8 @@ def _detect_scrape_failed(
 
 _LAYER1_V1_PROMPT_BODY: str = """\
 你是一个文章 pre-filter,任务是 reject 明显不需要进入知识库的文章。
-知识库的核心兴趣是:**agent / LLM / RAG / prompt 工程 / AI 工程实践**。
+知识库的核心兴趣是:**Agent 工程 / Agent Harness / 多智能体编排 / 记忆系统 /
+Agent Skills / MCP 上下文协议 / 知识图谱工程 / GraphRAG / Loop 工程**。
 非此核心的内容,即便挂着 "AI" 招牌,也要 reject。
 
 按以下三层裁决,**HIGHER 层胜出后立刻输出,不再评估更低层**:
@@ -249,9 +250,11 @@ title 或 digest 整词包含以下任一关键字(大小写不敏感)→
 REJECT(verdict="reject")命中任一立刻 reject(同 v0,字字未改):
 ═════════════════════════════════════════════════════════════════
 
-1. **多模态 / 视觉 / 视频 / 语音 模型本身** ⚠️ 高频漏放点:
+1. **多模态 / 视觉 / 视频 / 语音 / 传统 NLP / 具身智能模型本身** ⚠️ 高频漏放点:
    主题是 image generation、video generation、ASR / TTS、CV 论文(CVPR/ICCV/ECCV/NeurIPS 视觉方向)、
-   视频生成 scaling、视觉偏好优化、图像编辑、视频剪辑工具、语音识别模型 ——
+   视频生成 scaling、视觉偏好优化、图像编辑、视频剪辑工具、语音识别模型、
+   传统 NLP(信息抽取、NER、文本分类、机器翻译)、具身智能、人形机器人、Robotic AI、
+   自动驾驶感知 ——
    **即使提到 "LLM / 大模型 / Scaling Law / 偏好优化 / RLHF" 也 reject**。
    仅当主题是 "agent 用多模态做任务"(VLM Agent、视觉 Agent、Browser-use、Computer-use)才 keep。
 
@@ -273,6 +276,9 @@ KEEP(verdict="candidate")— 兜底 keep 规则(同 v0,字字未改):
 
 - agent / LLM / RAG / prompt / Claude / DeepSeek / Gemini / Hermes / OpenClaw / Harness / 智能体 /
   大模型 / 工具调用 — 且不踩上面任何一条 reject。
+- **Agent 工程实践**: agent loop / agentic loop / Loop 工程 / Harness 工程 / Vitaclaw /
+  FDE / 分布式执行 / agent 编排 / 多智能体 / 记忆系统 / agent memory / Skills 工程 /
+  SKILL.md / MCP / Model Context Protocol / GraphRAG / 知识图谱工程 / LightRAG。
 - AI 工程实践、agent 框架对比、LLM 应用案例、MLOps、prompt 工程、推理优化(投机解码、KV cache 等)、
   agent 安全 / 评估 / benchmark / 编排、长上下文 / 上下文工程。
 - 长度未知(WeChat scrape 前 content_length=null)不能作为 reject 理由。
@@ -311,7 +317,7 @@ _LAYER1_OUTPUT_SCHEMA_HINT: str = (
 _LAYER2_V1_PROMPT_BODY: str = """\
 你是一个 AI/LLM 文章 Layer 2 深度过滤器。任务是在 Layer 1(基于 title+summary)之后,基于完整正文,判断每篇文章是否值得进入知识库。Layer 1 已 reject 大量明显跑偏文章,Layer 2 是 second-line filter — 主要 catch "AI 招牌但实质浅 / 软文" 这一 Layer 1 难以判断的类别。
 
-知识库核心兴趣:agent / LLM / RAG / prompt 工程 / Claude Code / DeepSeek / Gemini / Hermes / OpenClaw / Harness / 智能体 / 大模型架构 / 推理优化 / Agent 框架 / 工程实践。
+知识库核心兴趣:Agent 工程 / Agent Harness / 多智能体编排 / 记忆系统 / Agent Skills / MCP 上下文协议 / 知识图谱工程 / GraphRAG / Loop 工程 / Claude Code / DeepSeek / Gemini / Hermes / OpenClaw / Vitaclaw / FDE / 智能体 / 上下文工程 / Agent 框架 / 工程实践。
 
 ═════════════════════════════════════════════════════════════════
 RULE 0 — HARD-KEEP(项目核心硬规则,优先级最高) v1 新增

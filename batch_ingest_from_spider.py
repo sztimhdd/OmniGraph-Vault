@@ -119,7 +119,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SLEEP_BETWEEN_ARTICLES = 10  # Phase 5-00c: DeepSeek LLM + 2-key Gemini embedding rotation (not 15 RPM Gemini)
+SLEEP_BETWEEN_ARTICLES = 5  # 2026-08-11: DeepSeek no-429 verified; halved from 10 (Phase 5-00c): DeepSeek LLM + 2-key Gemini embedding rotation (not 15 RPM Gemini)
 GEMINI_BATCH_SLEEP = 2.0   # DeepSeek: no RPM concern; light pause for API stability
 DB_PATH = Path(os.environ.get(
     "KOL_SCAN_DB_PATH",

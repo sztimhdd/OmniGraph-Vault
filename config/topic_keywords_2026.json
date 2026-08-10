@@ -1,0 +1,174 @@
+{
+  "description": "2026 Agentic AI topic keyword table for OmniGraph-Vault layer1/layer2 classification. Replaces legacy Agent/LLM/RAG/NLP/CV.",
+  "version": "2026-08-10",
+  "topics": [
+    {
+      "name": "Agent",
+      "description": "Core AI agent concepts — agentic loops, tool use (terminal/browser/computer use), code agents, reflection/self-correction, autonomous workflows",
+      "keywords": [
+        "AI agent",
+        "智能体",
+        "agentic",
+        "tool use",
+        "工具调用",
+        "computer use",
+        "browser agent",
+        "terminal agent",
+        "终端智能体",
+        "code agent",
+        "autonomous coding",
+        "reflection",
+        "自我修正",
+        "self-correction"
+      ]
+    },
+    {
+      "name": "Orchestration",
+      "description": "Multi-agent orchestration frameworks, A2A protocol, distributed execution, hierarchical planning, agent coordination",
+      "keywords": [
+        "multi-agent",
+        "多智能体编排",
+        "agent orchestration",
+        "A2A协议",
+        "agent-to-agent",
+        "FDE",
+        "fully distributed execution",
+        "分布式执行",
+        "hierarchical agent",
+        "AutoGen",
+        "CrewAI",
+        "LangGraph",
+        "task delegation",
+        "服务发现"
+      ]
+    },
+    {
+      "name": "Harness",
+      "description": "Agent harness engineering — Claude Code hooks/events, CLAUDE.md/AGENTS.md conventions, guardrails, verification layers, token efficiency",
+      "keywords": [
+        "agent harness",
+        "智能体脚手架",
+        "Vitaclaw",
+        "Claude Code hook",
+        "钩子事件",
+        "CLAUDE.md",
+        "AGENTS.md",
+        "guardrail",
+        "护栏机制",
+        "verifiable agent",
+        "输出验证",
+        "governance-by-design",
+        "设计即治理",
+        "token efficiency",
+        "上下文优化"
+      ]
+    },
+    {
+      "name": "MemorySystem",
+      "description": "Agent memory architectures — vector+graph dual-store, persistent memory, entity resolution, temporal reasoning, Mem0-style systems",
+      "keywords": [
+        "agent memory",
+        "智能体记忆",
+        "knowledge graph memory",
+        "知识图谱记忆",
+        "persistent memory",
+        "持久记忆",
+        "Mem0",
+        "vector-graph hybrid",
+        "混合记忆",
+        "entity resolution",
+        "实体消歧",
+        "temporal reasoning",
+        "时间推理",
+        "memory distillation"
+      ]
+    },
+    {
+      "name": "SkillEngineering",
+      "description": "Agent skills ecosystem — SKILL.md format, procedural knowledge, cross-platform skills, plugin systems, skill chaining",
+      "keywords": [
+        "agent skill",
+        "智能体技能",
+        "SKILL.md",
+        "技能系统",
+        "Claude Code skills",
+        "自定义技能",
+        "procedural knowledge",
+        "程序化知识",
+        "slash command",
+        "技能触发",
+        "cross-platform skills",
+        "skills ecosystem",
+        "skill chaining"
+      ]
+    },
+    {
+      "name": "ContextProtocol",
+      "description": "Model Context Protocol (MCP), A2A, inter-agent communication standards, server/client architecture, OAuth/integration, enterprise governance",
+      "keywords": [
+        "MCP",
+        "模型上下文协议",
+        "MCP server",
+        "MCP client",
+        "mcp manager",
+        "MCP stateless",
+        "MCP无状态",
+        "streamable HTTP MCP",
+        "MCP transport",
+        "MCP security",
+        "OAuth MCP",
+        "access control",
+        "A2A协议",
+        "Google A2A"
+      ]
+    },
+    {
+      "name": "GraphEngineering",
+      "description": "Knowledge graph engineering for AI — GraphRAG, Neo4j/ArangoDB for LLM, graph-based retrieval, LightRAG variants, vector-graph hybrid",
+      "keywords": [
+        "GraphRAG",
+        "图检索增强生成",
+        "LightRAG",
+        "OmniGraph",
+        "Neo4j LLM",
+        "Neo4j Agent Memory",
+        "knowledge graph engineering",
+        "知识图谱工程",
+        "arangoDB agent",
+        "向量图谱混合",
+        "ontology reasoning",
+        "本体推理",
+        "multi-hop reasoning",
+        "多跳推理"
+      ]
+    }
+  ],
+  "negative_keywords": [
+    "计算机视觉",
+    "CV领域",
+    "机器视觉",
+    "图像分割",
+    "人脸识别",
+    "object detection",
+    "image recognition",
+    "具身智能",
+    "embodied AI",
+    "机器人学",
+    "Robotic AI",
+    "人形机器人",
+    "NLP传统方法",
+    "natural language processing",
+    "信息抽取",
+    "语音识别",
+    "ASR模型",
+    "speech recognition",
+    "AI视频",
+    "video generation",
+    "sora",
+    "stable diffusion",
+    "文生图",
+    "图生图",
+    "nerf渲染",
+    "自动驾驶感知"
+  ]
+}

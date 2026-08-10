@@ -564,7 +564,8 @@ def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Classify KOL articles from SQLite via LLM")
-    parser.add_argument("--topic", type=str, action="append", required=True, help="Topic to classify; repeatable (e.g. --topic Agent --topic LLM). Each flag triggers an independent classification pass.")
+    parser.add_argument("--topic", type=str, action="append", help="Topic to classify; repeatable (e.g. --topic Agent --topic LLM). Each flag triggers an independent classification pass.")
+    parser.add_argument("--topic-file", type=str, default="", help="Path to topic_keywords_2026.json; loads topic names from it (overrides --topic if provided).")
     parser.add_argument("--min-depth", type=int, default=2, choices=[1, 2, 3], help="Minimum depth score (default: 2)")
     parser.add_argument("--classifier", type=str, default="deepseek", choices=["deepseek", "gemini"],
                         help="Classifier: deepseek (default) or gemini")
@@ -580,7 +581,19 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
-    for topic in args.topic:
+
+    topics = list(args.topic or [])
+    if args.topic_file:
+        import json as _json
+        with open(args.topic_file, encoding="utf-8") as f:
+            data = _json.load(f)
+        topics = [t["name"] for t in data.get("topics", [])]
+        logger.info("Loaded %d topics from %s: %s", len(topics), args.topic_file, ", ".join(topics))
+
+    if not topics:
+        parser.error("at least one --topic or --topic-file is required")
+
+    for topic in topics:
         run(topic, args.min_depth, args.classifier, args.dry_run)
 
 
