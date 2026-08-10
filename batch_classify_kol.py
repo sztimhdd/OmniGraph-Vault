@@ -543,6 +543,31 @@ def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
 
     conn.commit()
 
+    # 2026-08-11 topic-v2 bridge: sync classifications → articles.layer1_verdict
+    # so ingest candidate-pool SELECT (reads articles.layer1_verdict='candidate')
+    # picks up classify results. Only promotes; never demotes (a reject from one
+    # topic may be a candidate of another; ingest's own scrape-first layer1
+    # remains the final authority).
+    if not dry_run and passed:
+        from lib.article_filter import PROMPT_VERSION_LAYER1
+
+        passed_ids = [a["article_id"] for a in passed]
+        placeholders = ",".join("?" for _ in passed_ids)
+        conn.execute(
+            f"""UPDATE articles
+                SET layer1_verdict = 'candidate',
+                    layer1_prompt_version = ?
+                WHERE id IN ({placeholders})
+                  AND (layer1_verdict IS NULL OR layer1_verdict = 'reject')""",
+            [PROMPT_VERSION_LAYER1, *passed_ids],
+        )
+        conn.commit()
+        logger.info(
+            "topic-v2 bridge: promoted %d articles to candidate (topic=%s)",
+            len(passed_ids),
+            topic,
+        )
+
     # Print summary
     print(f"\n=== Filter Results (topic={topic}, min_depth={min_depth}, classifier={classifier}) ===")
     print(f"Total: {len(articles)}  |  Pass: {len(passed)}  |  Filtered: {len(filtered_out)}")
