@@ -149,7 +149,7 @@ async def test_layer1_batch_of_30_persists_all(monkeypatch) -> None:
     ], ensure_ascii=False)
 
     monkeypatch.setattr(
-        "lib.vertex_gemini_complete.vertex_gemini_model_complete",
+        "lib.llm_deepseek.deepseek_model_complete",
         _fake_llm_factory(response=response),
     )
 
@@ -185,7 +185,7 @@ async def test_layer1_timeout_all_null(monkeypatch) -> None:
     arts = [_meta(i) for i in range(1, 6)]
 
     monkeypatch.setattr(
-        "lib.vertex_gemini_complete.vertex_gemini_model_complete",
+        "lib.llm_deepseek.deepseek_model_complete",
         _fake_llm_factory(raise_exc=asyncio.TimeoutError()),
     )
 
@@ -203,7 +203,7 @@ async def test_layer1_partial_json_all_null(monkeypatch) -> None:
 
     truncated_response = '[{"id": 1, "source": "wechat", "verdict": "candidate"'
     monkeypatch.setattr(
-        "lib.vertex_gemini_complete.vertex_gemini_model_complete",
+        "lib.llm_deepseek.deepseek_model_complete",
         _fake_llm_factory(response=truncated_response),
     )
 
@@ -223,7 +223,7 @@ async def test_layer1_row_count_mismatch_all_null(monkeypatch) -> None:
         for i in range(1, LAYER1_BATCH_SIZE)  # 29 entries — one missing
     ], ensure_ascii=False)
     monkeypatch.setattr(
-        "lib.vertex_gemini_complete.vertex_gemini_model_complete",
+        "lib.llm_deepseek.deepseek_model_complete",
         _fake_llm_factory(response=short_response),
     )
 
