@@ -62,8 +62,13 @@ def test_calling_deepseek_without_key_raises(monkeypatch: pytest.MonkeyPatch) ->
     The check is deferred from import to first call, but the diagnostic must
     remain clear and actionable — same message as the existing
     ``_require_api_key()``.
+
+    Note: ``config.load_env()`` re-reads ~/.hermes/.env on module re-import
+    and only skips keys already present (non-empty) in os.environ. A plain
+    ``delenv`` would be undone by load_env on the purge+reimport below, so we
+    pin the key to an empty-ish sentinel that _require_api_key rejects.
     """
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "  ")
     monkeypatch.setenv("HOME", "/nonexistent-home-for-test")
     monkeypatch.setenv("USERPROFILE", "Z:\\nonexistent-home-for-test")
     _purge_modules(["lib", "lib.llm_deepseek", "lightrag_llm"])

@@ -535,11 +535,11 @@ async def layer1_pre_filter(
             for _ in articles
         ]
 
-    # Layer 1 routing: DeepSeek model for filtering (not Vertex Gemini).
+    # Layer 1 routing: DeepSeek (default) or Bailian per OMNIGRAPH_LLM_PROVIDER.
     # Vertex is reserved for embedding only.
     try:
-        from lib.llm_deepseek import deepseek_model_complete
-        raw = await deepseek_model_complete(prompt)
+        from lib.llm_complete import get_llm_func
+        raw = await get_llm_func()(prompt)
     except asyncio.TimeoutError:
         logger.warning("[layer1] timeout for batch of %d", len(articles))
         return _all_null("timeout")
@@ -691,9 +691,9 @@ async def layer2_full_body_score(
 
     try:
         with _layer2_timeout_env():
-            from lib.llm_deepseek import deepseek_model_complete
+            from lib.llm_complete import get_llm_func
             raw = await asyncio.wait_for(
-                deepseek_model_complete(prompt),
+                get_llm_func()(prompt),
                 timeout=LAYER2_TIMEOUT_SEC,
             )
     except asyncio.TimeoutError:

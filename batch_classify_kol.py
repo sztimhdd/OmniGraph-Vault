@@ -174,7 +174,11 @@ Return ONLY valid JSON, no other text."""
 
 
 def _call_deepseek(prompt: str, api_key: str) -> list[dict] | str | None:
-    """Call the DeepSeek batch-classify endpoint.
+    """Call the batch-classify endpoint.
+
+    Routes on ``OMNIGRAPH_LLM_PROVIDER``:
+      - ``deepseek`` (default): direct DeepSeek HTTP via requests.
+      - ``bailian``: via ``lib.llm_bailian.bailian_model_complete``.
 
     Returns:
         list[dict]  — parsed classification results on success.
@@ -182,6 +186,37 @@ def _call_deepseek(prompt: str, api_key: str) -> list[dict] | str | None:
             (token ceiling hit); caller should split the batch and retry.
         ``None`` — any other error (network, auth, parse, unexpected format).
     """
+    provider = os.environ.get("OMNIGRAPH_LLM_PROVIDER", "deepseek").strip() \
+        or "deepseek"
+
+    if provider == "bailian":
+        import asyncio as _asyncio
+        from lib.llm_bailian import bailian_model_complete
+        try:
+            content = _asyncio.run(bailian_model_complete(prompt))
+            content = (content or "").strip()
+        except Exception as exc:
+            logger.warning("Bailian classify API call failed: %s", exc)
+            return None
+        if content.startswith("```"):
+            start = content.find("\n") + 1
+            end = content.rfind("```")
+            if end > start:
+                content = content[start:end].strip()
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError as exc:
+            logger.warning("Bailian classify parse failed: %s", exc)
+            return None
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict):
+            for key in ("results", "articles", "classifications"):
+                if key in parsed and isinstance(parsed[key], list):
+                    return parsed[key]
+        logger.warning("Bailian returned unexpected format: %s", type(parsed))
+        return None
+
     if requests is None:
         logger.warning("requests library not available — cannot call DeepSeek API")
         return None
@@ -382,10 +417,19 @@ def _call_fullbody_llm(prompt: str) -> dict | None:
         except Exception as exc:
             logger.warning("Vertex Gemini fullbody API call failed: %s", exc)
             return None
+    elif provider == "bailian":
+        import asyncio as _asyncio
+        from lib.llm_bailian import bailian_model_complete
+        try:
+            content = _asyncio.run(bailian_model_complete(prompt))
+            content = (content or "").strip()
+        except Exception as exc:
+            logger.warning("Bailian fullbody API call failed: %s", exc)
+            return None
     else:
         raise ValueError(
             f"Unknown OMNIGRAPH_LLM_PROVIDER={provider!r}; "
-            f"expected one of ('deepseek', 'vertex_gemini')"
+            f"expected one of ('deepseek', 'vertex_gemini', 'bailian')"
         )
 
     # Shared JSON parsing — applies to both provider branches.

@@ -35,7 +35,7 @@ import os
 from typing import Callable
 
 
-_VALID = ("deepseek", "vertex_gemini", "databricks_serving")
+_VALID = ("deepseek", "vertex_gemini", "databricks_serving", "bailian")
 
 
 def get_llm_func() -> Callable:
@@ -47,6 +47,9 @@ def get_llm_func() -> Callable:
     if provider == "deepseek":
         from lib.llm_deepseek import deepseek_model_complete
         return deepseek_model_complete
+    if provider == "bailian":
+        from lib.llm_bailian import bailian_model_complete
+        return bailian_model_complete
     if provider == "vertex_gemini":
         from lib.vertex_gemini_complete import vertex_gemini_model_complete
         return vertex_gemini_model_complete
