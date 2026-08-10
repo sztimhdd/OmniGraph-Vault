@@ -188,6 +188,10 @@ def _call_deepseek(prompt: str, api_key: str) -> list[dict] | str | None:
     """
     provider = os.environ.get("OMNIGRAPH_LLM_PROVIDER", "deepseek").strip() \
         or "deepseek"
+    # Same router→deepseek normalization as _call_fullbody_llm: classify stays
+    # on plain DeepSeek (company-paid, unlimited); router boost is ingest-only.
+    if provider == "router":
+        provider = "deepseek"
 
     if provider == "bailian":
         import asyncio as _asyncio
@@ -380,6 +384,12 @@ def _call_fullbody_llm(prompt: str) -> dict | None:
     """
     provider = os.environ.get("OMNIGRAPH_LLM_PROVIDER", "deepseek").strip() \
         or "deepseek"
+    # router (DeepSeek primary + Bailian boost) is an ingest-side extraction
+    # concern; classify/fullbody stays on plain DeepSeek (company-paid,
+    # unlimited). Treat "router" as "deepseek" here so the new default
+    # OMNIGRAPH_LLM_PROVIDER=router does not crash nightly classify.
+    if provider == "router":
+        provider = "deepseek"
 
     if provider == "deepseek":
         if requests is None:
