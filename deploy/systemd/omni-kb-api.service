@@ -1,0 +1,23 @@
+[Unit]
+Description=OmniGraph KB API (kb-2/v2)
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/OmniGraph-Vault
+ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766 --workers 1
+Restart=always
+RestartSec=30
+Environment=KB_DB_PATH=/root/OmniGraph-Vault/data/kol_scan.db
+Environment=KB_IMAGES_DIR=/root/.hermes/omonigraph-vault/images
+Environment=GOOGLE_APPLICATION_CREDENTIALS=/root/.hermes/gcp-paid-sa.json
+Environment=OMNIGRAPH_VECTOR_STORAGE=nanovectordb
+Environment=OMNIGRAPH_LLM_RERANK_FORCE_FAIL=1
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+[Unit]
+Description=OmniGraph MCP Server (FastMCP SSE) — knowledge graph tools for external AI agents
+After=network-online.target kb-api.service
+Wants=network-online.target kb-api.service
+Requires=kb-api.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/OmniGraph-Vault
+EnvironmentFile=/root/.hermes/.env
+Environment=OMNIGRAPH_KB_API_URL=http://127.0.0.1:8766
+Environment=OMNIGRAPH_MCP_HOST=127.0.0.1
+Environment=OMNIGRAPH_MCP_PORT=8767
+ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/kb/mcp_server.py
+Restart=on-failure
+RestartSec=5
+RuntimeMaxSec=86400
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
