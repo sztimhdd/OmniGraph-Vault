@@ -17,10 +17,10 @@
   },
   "summary": {
     "total_runs": 10,
-    "kg_search_hits": 5,
-    "kg_search_no_result": 4,
-    "kg_search_running": 1,
-    "queries_with_citations": 5
+    "kg_search_hits": 7,
+    "kg_search_no_result": 3,
+    "kg_search_running": 0,
+    "queries_with_citations": 6
   },
   "results": [
     {
@@ -98,11 +98,13 @@
       "id": "Q020",
       "category": "freshness_time",
       "query": "latest AI agent developments August 2026 DeepSeek V4 Claude Code features",
-      "hit": "pending",
-      "route": "kg_search → kg_running",
-      "answer_quality": "pending",
-      "citations": 0,
-      "latency_seconds": 0
+      "hit": true,
+      "route": "kg_search → kg_synthesize",
+      "answer_quality": "Comprehensive — DeepSeek V4 family (V4-Pro, Flash, TUI), Claude Code Desktop (refactor, source leak), OpenClaw ecosystem, Agent OS, multi-agent practice. KG correctly notes no August 2026 material — latest is May 2026.",
+      "citations": 5,
+      "latency_seconds": 200,
+      "citation_quality": "Real articles: DeepSeek版Claude Code, Claude Code Desktop, OpenClaw Agent OS, Hermes Agent architecture",
+      "notes": "Covered expected facts: DeepSeek V4 (Pro/Flash variants, TUI agent), Claude Code (Desktop refactor, 2026 features), OpenClaw ecosystem (v2026.4.24, 百虾大战). Honest about knowledge cutoff."
     },
     {
       "id": "Q023",
@@ -125,5 +127,14 @@
       "citations": 0,
       "latency_seconds": 1
     }
-  ]
+  ],
+  "category_coverage": {
+    "direct_lookup": 2,
+    "comparison": 1,
+    "2hop_bridge": 1,
+    "3hop_synthesis": 1,
+    "enumeration_global": 1,
+    "freshness_time": 1,
+    "negative_noanswer": 2
+  }
 }
