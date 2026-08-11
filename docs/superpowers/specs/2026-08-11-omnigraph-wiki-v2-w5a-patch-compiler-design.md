@@ -2,24 +2,16 @@
 
 **Date:** 2026-08-11  
 **Status:** AUTHORITATIVE DESIGN CONTRACT — implementation not started  
-**Depends on:** W5-0 `W5-0 CLOSURE RESULT: PASS` at/through `3f0680cd`  
-**Next phase after W5A:** W5B Safe Autonomous Wiki Evolution  
+**Depends on:** W5-0 `W5-0 CLOSURE RESULT: PASS` through `3f0680cd`  
+**Next phase:** W5B Safe Autonomous Wiki Evolution
 
 ---
 
 ## 1. Purpose
 
-W5-0 made the existing Wiki machinery trustworthy enough to build on:
+W5-0 established a trustworthy foundation: W3 is production-proven, article identity is canonical 10-char MD5, the production entity-buffer path is fixed, rich W1 pages are protected from placeholder overwrite, deterministic health/index tooling exists, the Error Book has a lifecycle, and a rerunnable retrieval baseline exists.
 
-- W3 ingest hook is live and production-proven;
-- canonical article identity is 10-char MD5;
-- production entity-buffer path is resolved correctly;
-- rich W1 pages are protected from W3 placeholder overwrite;
-- Wiki health, deterministic index rebuild, Error Book lifecycle, and a rerunnable retrieval baseline exist.
-
-W5A now solves the next architectural problem: **W1 batch generation and W3 incremental updates still create Wiki content through separate compiler paths with separate assumptions.**
-
-Current split:
+The remaining compiler problem is architectural:
 
 ```text
 W1 batch
@@ -38,131 +30,100 @@ batch_ingest_from_spider.py
   -> direct page write OR _suggestions/ for rich pages
 ```
 
-This is not yet a compiler architecture. It is two generators that happen to target the same directory.
+These are two generators targeting the same directory, not one compiler.
 
-**W5A goal:** establish one shared, typed, deterministic seam:
+**W5A goal:** create one shared typed seam:
 
 ```text
 EvidencePack
-    -> Patch Proposal
-    -> Patch Validation
-    -> Candidate Page Assembly
-    -> Health/Lint Validation
-    -> Policy Decision
-    -> Atomic Apply OR Structured Suggestion
+  -> WikiPatch proposal
+  -> deterministic patch validation
+  -> candidate-page assembly
+  -> Wiki lint/health validation
+  -> deterministic policy
+  -> atomic apply OR structured suggestion
 ```
 
-W5A is deliberately **not** the semantic/evaluation wave. It builds the safe compiler core that W5B will later make autonomous and query-feedback-driven.
+W5A builds safe compiler mechanics. W5B will later add semantic/query-feedback-driven autonomous acceptance.
 
 ---
 
 ## 2. Non-goals
 
-W5A MUST NOT implement:
+W5A MUST NOT implement runtime Wiki navigation graph, `wiki_search`/`wiki_read`, N-hop traversal, retrieval fusion, affected-query/guard-query acceptance gates, query-feedback learning, concepts/domains aggregation, Wiki-first UI, answer caching, bulk citation migration, a new paid provider, or a new production service.
 
-- runtime Wiki navigation graph;
-- `wiki_search` / `wiki_read` MCP tools;
-- automatic N-hop traversal;
-- weighted Wiki/graph/vector retrieval fusion;
-- query-feedback-driven patch acceptance;
-- affected-query / guard-query evaluation as a production gate;
-- concepts/domains aggregation;
-- Wiki-first Web UI;
-- answer caching into `queries/`;
-- bulk conversion of all existing Wiki pages to a new citation format;
-- a new paid provider or a new production service.
-
-Those belong to W5B/W6/W7/W8.
+Those remain W5B/W6/W7/W8 work.
 
 ---
 
-## 3. Design alternatives considered
+## 3. Design choice
 
-### Approach A — Rewrite W1 and W3 around a brand-new compiler
+Three approaches were considered:
 
-Replace both current paths immediately and make all callers use a new compiler end-to-end.
+1. **Full W1/W3 rewrite now** — clean final architecture but excessive blast radius. Rejected.
+2. **Shared Patch Core + adapters** — preserve current evidence acquisition while converging proposal/validation/apply. **Selected.**
+3. **Thin wrapper around two full-page generators** — small but leaves whole-page replacement semantics intact. Rejected.
 
-**Pros:** cleanest final architecture.  
-**Cons:** high blast radius; combines source retrieval, LLM behavior, schema migration, W3 production behavior, and apply semantics in one change. Hard to diagnose and rollback. Rejected for W5A.
-
-### Approach B — Shared Patch Core + adapters (SELECTED)
-
-Introduce a stable internal patch model and apply engine. Adapt W1 and W3 to feed that core while preserving their existing source-acquisition behavior and W3 no-fail ingest contract.
-
-**Pros:** real convergence at the safety-critical seam; bounded change; preserves known-good source acquisition; W5B can replace proposal quality later without changing apply semantics.  
-**Cons:** W1/W3 still have different evidence-collection adapters in W5A. This is intentional.
-
-### Approach C — Thin compatibility wrapper only
-
-Keep both current generators intact and merely wrap their final strings in a common `apply()` call.
-
-**Pros:** smallest patch.  
-**Cons:** does not create a real compiler contract; full-page overwrite semantics remain hidden inside callers; cannot support later semantic patch evaluation cleanly. Rejected.
-
-**Decision:** Approach B.
+W5A therefore introduces a real patch core and adapts W1/W3 to it incrementally.
 
 ---
 
 ## 4. Core principles
 
-### 4.1 Markdown/frontmatter remains Wiki source of truth
+### 4.1 Markdown/frontmatter remains the Wiki source of truth
 
-The compiler does not create a second knowledge store. Applied Wiki pages remain the source of truth. Git remains the durable audit/rollback mechanism.
+Applied Wiki pages remain knowledge truth. Git remains the durable audit/rollback mechanism. `_suggestions/` contains workflow artifacts only.
 
-Structured unapplied patch proposals under `_suggestions/` are workflow artifacts, not knowledge truth.
+### 4.2 Patches are the unit of change
 
-### 4.2 Patches, not page replacement, are the unit of change
+Existing-page changes must be explicit operations. No caller may authoritatively replace a whole existing page outside the shared compiler.
 
-For an existing page, the compiler MUST represent intended changes explicitly rather than silently replacing the entire Markdown document.
+### 4.3 Evidence is normalized independently of Markdown style
 
-W5A does not expose a generic delete operation.
+Internal compiler objects use one normalized evidence model. Rendering may preserve an existing legacy citation style or use the current canonical schema for new pages.
 
-### 4.3 Evidence identity is independent from rendering style
+### 4.4 W5A is conservative on existing-page content
 
-Internal compiler objects use a normalized source representation. Rendering to Markdown may preserve an existing page's legacy citation style or use the canonical current schema for new pages.
+The patch model may represent a **scoped H2 section replacement**, because W5B will need that primitive. However, during W5A, any substantive existing-page body mutation is **suggestion-only**. It MUST NOT auto-apply.
 
-### 4.4 Existing pages are preserved by default
+W5A may auto-apply to an existing page only narrowly safe non-substantive changes explicitly allowed by policy, such as a deterministic source merge or metadata update that preserves all existing body content.
 
-No update may remove an existing section, source, paragraph, image, or cross-reference unless a future phase explicitly authorizes destructive semantics. W5A is additive/upsert-only for existing pages.
+Therefore W5A never automatically deletes or replaces an existing paragraph, section, image, or cross-reference.
 
-### 4.5 Application is optimistic-concurrency-safe
+### 4.5 Optimistic concurrency is mandatory
 
-Every update patch targeting an existing page carries the base page digest seen when the patch was proposed. Apply MUST fail safely if the page changed before apply.
+Every update patch carries the base page digest seen when proposed. Apply fails safely if the target changed before final write.
 
-### 4.6 W3 remains non-blocking to ingestion
+### 4.6 W3 stays non-blocking
 
-W5A MUST NOT add network LLM/Tavily/Databricks calls to the production ingest hook. W3 must remain bounded and failure-isolated. Semantic enrichment belongs to W5B or an out-of-band worker.
+No new Tavily/Databricks/LLM/network work is added to the production ingest hook. W3 remains bounded and failure-isolated. Semantic enrichment belongs to W5B or an out-of-band worker.
 
 ---
 
-## 5. Canonical internal data model
+## 5. Internal compiler data model
 
-Exact Python class names may differ, but the observable contract MUST be equivalent.
+Exact Python names may differ, but the observable contract must be equivalent.
 
 ### 5.1 `EvidenceRef`
 
-Normalized source identity:
-
 ```text
 EvidenceRef
-- evidence_id: stable string within the pack
+- evidence_id
 - type: article | web | builtin
 - ref: article hash | URL | null
-- title: human-readable title
-- provenance: caller/source adapter identifier
-- metadata: optional non-secret structured metadata
+- title
+- provenance
+- metadata: optional non-secret mapping
 ```
 
 Rules:
 
-- `article.ref` MUST be canonical 10-char lowercase hex and must resolve in the article store before apply;
-- `web.ref` MUST be a URL when present;
-- `builtin.ref` is null;
-- evidence IDs are compiler-local identifiers, not Markdown footnote numbers.
+- article refs are canonical 10-char lowercase hex and must resolve before apply;
+- web refs are URLs;
+- builtin refs are null;
+- `evidence_id` is compiler-local and is not a Markdown footnote number.
 
 ### 5.2 `EvidencePack`
-
-The input to patch proposal:
 
 ```text
 EvidencePack
@@ -171,7 +132,7 @@ EvidencePack
 - subject_title
 - trigger: w1_batch | w3_incremental | manual_test
 - article_hashes[]
-- evidence[]: EvidenceRef
+- evidence[]
 - context_blocks[]
 - existing_page_path | null
 - existing_page_digest | null
@@ -179,11 +140,9 @@ EvidencePack
 - compiler_version
 ```
 
-`context_blocks` may contain LightRAG context, entity-buffer facts, or other caller-provided material. W5A does not require all callers to populate the same richness of context.
+W1 and W3 may populate different context richness; they still feed the same compiler contract.
 
 ### 5.3 `WikiPatch`
-
-Versioned machine-readable proposal:
 
 ```text
 WikiPatch
@@ -203,7 +162,7 @@ WikiPatch
 - compiler_version
 ```
 
-Allowed W5A operation vocabulary:
+Allowed W5A operations:
 
 ```text
 CREATE_PAGE
@@ -212,410 +171,346 @@ MERGE_SOURCES
 SET_METADATA
 ```
 
-No generic `DELETE_SECTION`, `DELETE_SOURCE`, or whole-page `REPLACE_PAGE` operation is allowed for an existing page in W5A.
+There is no generic `REPLACE_PAGE`, `DELETE_SECTION`, or `DELETE_SOURCE` operation.
 
 `CREATE_PAGE` is valid only when the target does not exist.
 
-`UPSERT_SECTION` targets one H2 section by normalized heading. If the heading exists, its content may be replaced only inside that section; all other sections remain byte-preserved except formatting changes strictly required by the renderer. If the heading does not exist, it is appended according to the page-section ordering policy.
+`UPSERT_SECTION` targets exactly one normalized H2 heading. The pure patch engine may assemble a candidate with that section inserted/replaced while preserving all other sections. **For an existing page, such a substantive operation is suggestion-only in W5A.**
 
-`MERGE_SOURCES` is union/dedup, never subtractive.
+`MERGE_SOURCES` is union/dedup and never subtractive.
 
-`SET_METADATA` in W5A may change only compiler-approved fields such as `last_updated`, `confidence_level`, and fields required for schema normalization. It MUST NOT silently replace `created`.
+`SET_METADATA` may change only compiler-approved fields such as `last_updated`, `confidence_level`, and narrowly required schema metadata. It must preserve `created`.
 
 ### 5.4 Structured suggestions
 
-New W5A suggestion source of truth:
+New W5A proposal source of truth:
 
 ```text
 kb/wiki/_suggestions/<slug>-<patch-id>.json
 ```
 
-It contains the serialized `WikiPatch` plus validation/policy outcome.
-
-Legacy `.md` suggestions remain readable and are not bulk-migrated. New W5A code should not create a second Markdown duplicate unless existing project UX requires it.
+It stores serialized `WikiPatch` plus validation/policy outcome. Legacy `.md` suggestions remain readable and are not bulk-migrated.
 
 ---
 
 ## 6. Citation/schema strategy
 
-Current repository truth is split:
+Repository truth is currently split:
 
-- `kb/wiki/SCHEMA.md` defines GFM `[^N]` + typed `sources[]` dictionaries as canonical for newly authored pages;
+- `kb/wiki/SCHEMA.md` defines typed `sources[]` dictionaries + GFM `[^N]` as canonical for newly authored pages;
 - legacy `^[article:<10-char>]` remains lint-supported;
-- current W1 generation still explicitly emits the legacy format.
+- current W1 generator still explicitly emits the legacy format.
 
-W5A resolves this without a bulk migration.
+W5A resolves this without rewriting all existing pages.
 
-### 6.1 New pages
+### New pages
 
-All **new pages created through the W5A compiler** MUST emit the current canonical `SCHEMA.md` format:
+Every new page created through the W5A compiler MUST emit the current canonical `SCHEMA.md` representation: typed article/web/builtin sources and GFM footnote citations.
 
-- typed `sources[]` entries;
-- GFM `[^N]` body citations;
-- article/web/builtin source types supported.
+### Existing pages
 
-### 6.2 Existing pages
+Existing pages are not mass-converted. The renderer detects and preserves existing citation/frontmatter style by default.
 
-Existing pages MUST NOT be mass-converted merely because W5A touches the compiler.
+If a legacy existing page cannot safely represent a proposed non-article source without broader format migration, the patch becomes `suggestion_only`; W5A does not silently drop provenance or convert the full page.
 
-The page renderer must determine the existing page's citation/frontmatter style and preserve it by default during W5A updates.
-
-A patch's internal evidence model is canonical regardless of rendered page style.
-
-If an existing legacy page cannot safely represent a proposed non-article citation without format migration, the patch MUST become `suggestion_only` rather than silently losing provenance or converting the full page.
-
-### 6.3 Validation
-
-Both legacy and canonical page forms continue to lint-pass. New-page tests MUST assert canonical emission. Existing-page tests MUST assert style preservation and no unrelated content loss.
+Both legacy and canonical forms continue to lint-pass.
 
 ---
 
-## 7. Shared compiler modules and boundaries
+## 7. Module boundaries
 
-Hermes may choose exact filenames after repository review, but responsibilities MUST remain separated.
-
-Recommended shape:
+Recommended structure:
 
 ```text
 kb/wiki_compiler/
   models.py       # EvidenceRef/EvidencePack/WikiPatch + serialization
-  patch.py        # candidate assembly / section/source merge
-  validate.py     # deterministic patch + candidate-page validation
-  apply.py        # base-digest guard, policy, atomic apply/suggestion
+  patch.py        # pure candidate assembly / section/source merge
+  validate.py     # deterministic patch + candidate validation
+  apply.py        # policy, base-digest guard, atomic apply/suggestion
   adapters/
     w1.py
     w3.py
 ```
 
-The implementation may use fewer files if that better matches repository conventions, but one file must not become a new monolith containing source retrieval, LLM calls, patching, validation, and filesystem application together.
+Hermes may use fewer files if that fits repository conventions, but source acquisition, network/LLM calls, patch mechanics, validation, and filesystem apply must not collapse into one new monolith.
 
-### 7.1 Pure patch engine
+### Pure patch engine
 
-Given:
-
-```text
-existing page or null
-+ WikiPatch
-```
-
-produce:
+Input:
 
 ```text
-candidate Markdown page
-+ deterministic diagnostics
+existing page or null + WikiPatch
 ```
 
-This layer MUST be pure with respect to network calls and production services.
+Output:
 
-### 7.2 Validator
+```text
+candidate Markdown + deterministic diagnostics
+```
+
+No network calls.
+
+### Validator
 
 Validation order:
 
-1. patch schema/type validation;
-2. target path/kind validation;
+1. patch schema/version/type;
+2. target path/kind;
 3. base digest / existence precondition;
-4. evidence identity validation;
-5. operation safety validation;
-6. candidate page parse/schema validation;
+4. evidence identity;
+5. operation safety;
+6. candidate frontmatter/schema parse;
 7. citation integrity;
-8. wikilink/backlink validity using existing project policy;
-9. `wiki_health`-compatible page integrity checks;
-10. contradiction/staleness checks where meaningful.
+8. wikilink validity under existing policy;
+9. Wiki-health-compatible integrity checks;
+10. existing contradiction/staleness checks where meaningful.
 
-Blocking failures do not apply the patch and are recorded in the Error Book with patch ID/provenance.
+Blocking integrity failures do not apply and are recorded in the existing Error Book with patch provenance.
 
-### 7.3 Apply engine
+### Apply engine
 
-Required behavior:
+Observable behavior:
 
 ```text
 validate
-  -> acquire narrow per-page apply guard
-  -> re-check base digest/existence
-  -> assemble candidate
-  -> validate candidate again if state changed
-  -> atomic tempfile + replace
-  -> release guard
+ -> acquire narrow per-page guard
+ -> re-check target existence/base digest
+ -> assemble candidate
+ -> final validation
+ -> atomic tempfile + replace OR structured suggestion
+ -> release guard
 ```
 
-The exact locking primitive may be chosen during implementation. Observable requirement: two concurrent patches based on the same old page MUST NOT silently overwrite one another.
+Two concurrent patches based on the same old page must not silently overwrite one another.
 
 ---
 
-## 8. W1 adapter contract
+## 8. W1 adapter
 
-W1 keeps its existing source acquisition in W5A:
-
-```text
-LightRAG context
-+ Tavily
-+ builtin/Opus
-```
-
-W5A SHOULD NOT redesign retrieval quality or provider choice.
-
-The change is at the output seam:
+W1 keeps its current evidence acquisition in W5A:
 
 ```text
-W1 evidence/source catalog
-      -> normalized EvidencePack
-      -> candidate synthesis
-      -> WikiPatch
-      -> shared validator/apply engine
+LightRAG + Tavily + builtin/Opus
 ```
 
-W1 must no longer directly `_atomic_write()` a generated page as its authoritative apply path.
+W5A does not redesign provider choice or retrieval quality.
 
-For a brand-new page, W1 may emit `CREATE_PAGE`.
+Its output seam changes to:
 
-For an existing page, W1 must convert the intended change to non-destructive patch operations. A full generated candidate may be used internally to compute a section-level patch, but the applied artifact MUST respect the operation restrictions above.
+```text
+W1 source catalog/context
+ -> normalized EvidencePack
+ -> candidate synthesis
+ -> WikiPatch
+ -> shared validation/policy/apply
+```
 
-`--dry-run`, cost-gate behavior, and `--skip-existing` semantics should remain compatible unless repository truth requires a narrowly documented adjustment.
+W1 must no longer authoritatively `_atomic_write()` an existing page outside the shared compiler.
+
+Policy:
+
+- **new page:** valid `CREATE_PAGE` may auto-apply;
+- **existing page substantive body update:** structured suggestion only in W5A;
+- **existing page narrowly safe source/metadata merge:** may auto-apply if explicitly allowed and all deterministic gates pass.
+
+`--dry-run`, cost gate, and `--skip-existing` remain compatible unless current repository truth requires a narrowly documented adjustment.
 
 ---
 
-## 9. W3 adapter contract
+## 9. W3 adapter
 
 W3 keeps production-safe evidence acquisition:
 
 ```text
-article hashes
-+ entity buffers
-+ current Wiki page state
+article hashes + entity buffers + current page state
 ```
 
-No new external LLM/web call in the ingest hook.
+No external LLM/web call in the ingest hook.
 
-W3 output changes from an opaque full-page `content` blob to a structured `EvidencePack` + `WikiPatch` proposal.
+W3 changes from opaque full-page `content` suggestions to `EvidencePack + WikiPatch`.
 
-Policy in W5A:
+Policy:
 
-### Existing rich page
+- **existing rich page substantive update:** always structured suggestion; never placeholder overwrite;
+- **new page:** low-confidence canonical `CREATE_PAGE` may auto-apply only when frequency threshold, source resolution, schema/citation validation, Wiki health, and final target-existence checks all pass;
+- otherwise store a structured suggestion.
 
-Always `suggestion_only` unless the patch is a trivially safe metadata/source merge that the shared policy explicitly allows.
-
-At minimum, the current safety behavior remains:
-
-```text
-rich existing page
--> no placeholder overwrite
--> structured patch stored under _suggestions/
-```
-
-### New page
-
-W3 may auto-apply a low-confidence canonical `CREATE_PAGE` only when all of these are true:
-
-- entity frequency threshold is met;
-- all article hashes resolve;
-- canonical schema/citations validate;
-- full Wiki health validation for the candidate passes;
-- target does not exist at final apply check.
-
-Otherwise it becomes a structured suggestion.
-
-### Failure isolation
-
-Any W3 compiler failure returns a bounded failure result to `_wiki_update_check`; ingestion remains successful and the error is recorded. Existing W3 runtime budget/timeout behavior must not regress.
+Any compiler failure remains bounded and must not abort successful article ingestion.
 
 ---
 
-## 10. Policy layer in W5A
+## 10. Deterministic W5A policy matrix
 
-W5A needs only a small deterministic policy matrix. Do not build a generalized rule engine.
+Do not build a generalized rule engine.
 
 ```text
-W1 create + valid candidate                 -> auto_apply
-W1 update + safe non-destructive patch      -> auto_apply only if all deterministic gates pass
-W3 new page + threshold + all gates pass    -> auto_apply
-W3 rich-page substantive update             -> suggestion_only
-stale base digest                           -> reject/suggestion, never overwrite
-missing/invalid evidence                    -> reject
+W1 new + valid CREATE_PAGE                  -> auto_apply
+W1 existing + body UPSERT_SECTION           -> suggestion_only
+W1 existing + safe source/metadata merge    -> auto_apply only if explicitly allowed
+W3 new + threshold + all gates pass         -> auto_apply
+W3 existing + substantive body change       -> suggestion_only
+stale base digest                           -> conflict/retry/suggestion, never overwrite
+missing or invalid evidence                 -> reject
 candidate health/lint ERROR                 -> reject
-candidate WARN only                         -> caller/policy decides; default conservative
+candidate WARN only                         -> conservative policy; no silent promotion
 ```
 
-W5B will add semantic utility, affected-query evaluation, guard queries, and richer risk levels. Do not pre-build those systems in W5A.
+W5B, not W5A, adds semantic utility/risk scoring and affected/guard query evaluation.
 
 ---
 
-## 11. Error handling and Error Book integration
+## 11. Error Book integration
 
-Every rejected patch that represents a real compiler integrity problem should be recordable with:
+True integrity failures must be recordable in the existing Error Book with patch ID, page/path, check/type, evidence/message, trigger, compiler version, and normal lifecycle semantics.
 
-```text
-patch_id
-page/path
-check/type
-message/evidence
-trigger (w1/w3)
-compiler_version
-status lifecycle
-```
+Do not create another error database.
 
-Use the existing Error Book lifecycle. Do not create a second error database.
-
-Expected non-errors such as `suggestion_only` policy outcomes are workflow states, not lint failures.
-
-A stale base digest is a concurrency conflict. It should be observable and retryable, not logged as a corrupted Wiki page.
+Expected workflow outcomes such as `suggestion_only` are not lint errors. A stale base digest is a concurrency conflict and should be observable/retryable rather than classified as Wiki corruption.
 
 ---
 
 ## 12. Compatibility and migration
 
-W5A is an incremental migration.
-
-### Must preserve
+W5A must preserve:
 
 - all existing Wiki pages;
-- current legacy citation parsing/lint support;
-- current production ingest success/failure semantics;
-- W3 bounded hook behavior;
-- deterministic health/index tooling;
+- legacy citation parsing/lint support;
+- production ingest success/failure semantics;
+- W3 timeout/failure isolation;
+- Wiki health/index tooling;
 - Error Book;
 - W5-0 baseline artifacts;
-- Git as final rollback/audit source.
+- Git rollback/audit semantics.
 
-### May change
+W5A may change:
 
-- W1 internal output path: direct page write -> patch core;
-- W3 suggestion artifact: opaque Markdown -> structured patch JSON;
-- new-page renderer: legacy -> current canonical SCHEMA;
-- shared helpers duplicated between W1/W3 may move into compiler modules.
+- W1 authoritative write path -> shared patch core;
+- W3 suggestion artifact -> structured JSON patch;
+- new-page rendering -> current canonical schema;
+- duplicated W1/W3 helpers -> shared compiler modules.
 
-### Must not do
-
-- mass rewrite all 19 pages;
-- bulk citation migration;
-- delete legacy suggestion artifacts merely for cleanliness.
+W5A must not bulk-rewrite the 19 existing pages, bulk-migrate citations, or delete legacy suggestion artifacts merely for cleanup.
 
 ---
 
 ## 13. Testing strategy
 
-W5A acceptance depends on behavior-anchor tests, not implementation-shape tests.
+Acceptance uses behavior anchors.
 
-Minimum test matrix:
+### Model/serialization
 
-### Patch model / serialization
-
-- round-trip `WikiPatch` JSON;
+- patch JSON round trip;
 - unknown schema version rejected;
-- invalid operation rejected;
-- invalid target path rejected.
+- invalid op/path rejected.
 
 ### Create
 
-- new page `CREATE_PAGE` emits canonical typed sources + GFM citations;
-- invalid/missing article evidence blocks apply;
-- create fails safely if target appears before final apply.
+- new `CREATE_PAGE` emits canonical typed sources + GFM citations;
+- invalid article evidence blocks apply;
+- create loses safely if target appears before final write.
 
-### Existing-page update
+### Existing page
 
-- one H2 section can be added without changing unrelated sections;
-- one H2 section can be updated without removing other content;
-- existing `created` preserved;
+- adding a new H2 preserves all unrelated content;
+- pure engine can build a scoped section update without changing other sections;
+- W5A policy holds substantive existing-section update as suggestion-only;
+- `created` preserved;
 - source merge deduplicates and never subtracts;
-- legacy page keeps legacy rendering unless explicit safe upgrade exists;
+- legacy page preserves legacy style;
 - canonical page remains canonical;
-- images/cross-links outside target section survive byte-for-byte where practical.
+- unrelated images/cross-links survive.
 
 ### Concurrency
 
-- stale base digest cannot overwrite a newer page;
-- two patches from the same base cannot both silently win.
+- stale base digest cannot overwrite newer page;
+- two same-base patches cannot both silently win.
 
-### Validation / health
+### Validation/health
 
-- bad citation rejected;
-- bad YAML/frontmatter rejected;
-- broken target/path rejected;
+- bad citation/frontmatter/path rejected;
 - health ERROR blocks apply;
-- Error Book records true integrity failures without duplicate explosion.
+- Error Book dedup lifecycle remains intact.
 
-### W1 adapter
+### W1
 
-- W1 new page goes through shared validate/apply seam;
-- W1 update no longer uses authoritative direct full-page overwrite;
+- new page goes through shared seam;
+- existing substantive update becomes structured patch/suggestion, not direct overwrite;
 - cost gate/dry-run remain intact.
 
-### W3 adapter
+### W3
 
-- W3 hook still invoked exactly once after relevant ingest batch;
-- W3 failure does not abort successful article ingest;
-- rich page update becomes structured suggestion and does not overwrite;
-- new valid low-risk page may apply through shared core;
-- entity-buffer canonical path remains first.
+- hook still fires once after relevant ingest path;
+- W3 failure never aborts successful ingest;
+- rich page update becomes structured suggestion;
+- valid new page may apply through shared core;
+- canonical entity-buffer path remains first.
 
-### Regression
-
-Run all existing W5-0 Wiki tests plus directly affected ingest/generator tests.
+Run all existing W5-0 Wiki tests plus directly affected generator/ingest tests.
 
 ---
 
 ## 14. Production UAT
 
-Because W3 runtime code will likely change, Mode A production verification is required.
+Because W3 runtime code is expected to change, Mode A production UAT is required.
 
-Minimum controlled production UAT:
+Minimum UAT:
 
-1. deploy only the verified W5A runtime files using current authoritative mechanism;
-2. confirm ingest service healthy before/after;
-3. run or observe one bounded W3 update cycle using real production entity buffers;
-4. prove W3 emits a structured patch/suggestion through the shared compiler seam;
-5. prove one existing rich page is not overwritten;
-6. if a safe new-page candidate is available, prove create through shared core; otherwise use a controlled non-destructive fixture/UAT path and do not manufacture production knowledge;
-7. run `wiki_health` on production Wiki state;
-8. verify index consistency;
-9. rollback immediately if ingest or Wiki health regresses.
+1. deploy only verified runtime files by current authoritative mechanism;
+2. confirm ingest healthy before/after;
+3. run or observe one bounded W3 cycle on real entity buffers;
+4. prove W3 emits a structured patch/suggestion through the shared compiler;
+5. prove an existing rich page is not overwritten;
+6. if a naturally safe new-page candidate exists, prove create through shared core; otherwise use a controlled non-destructive fixture/UAT and do not manufacture production knowledge;
+7. run Wiki health and index consistency checks;
+8. rollback immediately on ingest/Wiki regression.
 
-W1 is primarily an offline/batch path; production deployment is needed only for code actually consumed by current production jobs.
+W1 is an offline/batch path; deploy only code actually consumed by production jobs.
 
 ---
 
 ## 15. Acceptance gates
 
-### Gate A — Shared typed compiler contract exists
+### Gate A — Shared typed contract
 
-`EvidenceRef`, `EvidencePack`, `WikiPatch` (or equivalent) are versioned, serializable, tested, and used by both W1/W3 adapters.
+Versioned, serializable `EvidenceRef`, `EvidencePack`, `WikiPatch` (or equivalent) exist and are used by both adapters.
 
-### Gate B — Non-destructive patch engine exists
+### Gate B — Patch engine
 
-Existing-page application is operation-based, not whole-page blind replacement. Unsupported/destructive ops fail closed.
+Existing-page intent is operation-based. Whole-page blind replacement is impossible through the authoritative apply path. Substantive existing-page mutation remains suggestion-only in W5A.
 
 ### Gate C — Concurrency-safe atomic apply
 
-Base digest/existence preconditions and atomic write prevent silent lost updates.
+Base digest/existence guards and atomic write prevent lost updates.
 
 ### Gate D — Canonical new-page schema
 
-New W5A-created pages emit current `SCHEMA.md` canonical typed sources + GFM citations. Existing legacy pages remain compatible and are not bulk migrated.
+New W5A pages emit current canonical typed sources + GFM citations; legacy pages remain compatible without bulk migration.
 
-### Gate E — W1 converges on shared seam
+### Gate E — W1 convergence
 
-W1 no longer authoritatively direct-writes generated pages outside the shared patch validation/apply path.
+W1 no longer authoritatively direct-writes existing pages outside shared validation/policy/apply.
 
-### Gate F — W3 converges on shared seam
+### Gate F — W3 convergence
 
-W3 generates structured patches/suggestions, preserves non-blocking ingest semantics, does not add external network/LLM work to the hook, and cannot overwrite a rich page with a placeholder.
+W3 emits structured patches/suggestions, remains non-blocking, adds no external network/LLM work to ingest, and cannot overwrite rich pages with placeholders.
 
-### Gate G — Deterministic validation + Error Book integration
+### Gate G — Deterministic validation + Error Book
 
-Invalid evidence/schema/citation/health candidates fail closed with durable diagnostics where appropriate.
+Invalid evidence/schema/citation/health fails closed with durable diagnostics where appropriate.
 
-### Gate H — Regression and production UAT
+### Gate H — Regression + production UAT
 
-Relevant tests pass; controlled production W3 UAT proves shared-core behavior; Wiki health/index remain acceptable; production ingest remains healthy.
+Relevant tests pass; controlled production W3 UAT proves shared-core behavior; Wiki health/index and ingest remain healthy.
 
-### Gate I — Independent adversarial verification + closeout
+### Gate I — Independent verification + closeout
 
-An independent reviewer checks actual diff/evidence against Gates A-H and confirms no W5B/W6/W7/W8 scope creep. Planning/ISSUES/SUMMARY/VERIFICATION artifacts are reconciled and pushed.
+Fresh reviewer checks actual diff/evidence against Gates A-H, including explicit review for scope creep into W5B/W6/W7/W8. Planning/ISSUES/SUMMARY/VERIFICATION artifacts are reconciled and pushed.
 
 ---
 
-## 16. Autonomous execution discipline for the later Hermes `/goal`
+## 16. Later Hermes execution discipline
 
-After this design is approved and converted into an implementation plan, Hermes may run Mode A autonomously with the established loop:
+After user approval of this spec and creation of an implementation plan, Hermes may execute Mode A using:
 
 ```text
 DISCOVER
@@ -627,29 +522,29 @@ DISCOVER
 -> ADVERSARIAL DIFF REVIEW
 -> VERIFY GATES
 -> DEPLOY / PROD UAT where applicable
--> DIAGNOSE / REVISE until pass
+-> DIAGNOSE / REVISE until PASS
 ```
 
-Hermes must rediscover current repo/live truth before implementation and must not weaken these gates to obtain PASS.
+Hermes must rediscover current repo/live truth and must not weaken the gates.
 
-Production safety boundaries remain the same as W5-0: no destructive corpus/DB/Qdrant operation, no secret rotation, no force push, no new paid service, no security-control bypass, and automatic rollback on runtime regression.
+Existing safety boundaries remain: no destructive corpus/DB/Qdrant operation, secret rotation, force push, new paid service, security-control bypass, or leaving production degraded after a failed deploy.
 
 ---
 
 ## 17. W5A exit state
 
-W5A is complete when OmniGraph can truthfully be described as:
+W5A is complete when this is true:
 
 ```text
 W1 rich batch evidence ---------\
                                  -> Shared Patch Compiler
 W3 incremental evidence --------/       |
-                                         +-> validated atomic apply
-                                         +-> structured suggestion
+                                         +-> validated atomic create/safe merge
+                                         +-> structured substantive-update suggestion
                                          +-> Error Book on integrity failure
 ```
 
-At that point W5B can focus only on **semantic quality and autonomous evolution**:
+Then W5B can focus only on semantic quality and autonomous evolution:
 
 ```text
 propose patch
