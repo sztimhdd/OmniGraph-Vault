@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -315,7 +316,25 @@ def test_classify_set_metadata_last_updated_auto_apply(wiki_root: Path):
 
 
 def test_classify_set_metadata_critical_key_suggestion_only(wiki_root: Path):
-    """SET_METADATA touching critical fields (title/sources) -> suggestion_only."""
+    """SET_METADATA touching critical fields (created/title/sources) -> suggestion_only.
+
+    Design §5.3: ``SET_METADATA`` must preserve ``created``; ``created`` is
+    not on the compiler-approved allowlist.
+    """
+    from kb.wiki_compiler.engine import classify_patch
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    patch = _make_patch(
+        ops=(PatchOperation(
+            op="SET_METADATA", section=None, content=None,
+            metadata={"created": "1999-01-01"},
+        ),),
+        base_digest=page_digest(target.read_text(encoding="utf-8")),
+    )
+    assert classify_patch(patch, wiki_root) == "suggestion_only"
+
+
+def test_classify_set_metadata_confidence_level_auto_apply(wiki_root: Path):
+    """SET_METADATA on compiler-approved confidence_level -> auto_apply (design §5.3)."""
     from kb.wiki_compiler.engine import classify_patch
     target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
     patch = _make_patch(
@@ -323,6 +342,28 @@ def test_classify_set_metadata_critical_key_suggestion_only(wiki_root: Path):
             op="SET_METADATA", section=None, content=None,
             metadata={"confidence_level": "high"},
         ),),
+        base_digest=page_digest(target.read_text(encoding="utf-8")),
+    )
+    assert classify_patch(patch, wiki_root) == "auto_apply"
+
+
+def test_classify_merge_plus_critical_set_metadata_suggestion_only(wiki_root: Path):
+    """MERGE_SOURCES with a sibling SET_METADATA on a critical key -> suggestion_only.
+
+    Adversarial MINOR-5: the MERGE branch used to auto-apply without
+    inspecting sibling SET_METADATA keys, so a hand-crafted
+    (MERGE_SOURCES, SET_METADATA{created}) patch could rewrite ``created``.
+    """
+    from kb.wiki_compiler.engine import classify_patch
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    patch = _make_patch(
+        ops=(
+            PatchOperation(op="MERGE_SOURCES", section=None, content=None, metadata=None),
+            PatchOperation(
+                op="SET_METADATA", section=None, content=None,
+                metadata={"created": "1999-01-01"},
+            ),
+        ),
         base_digest=page_digest(target.read_text(encoding="utf-8")),
     )
     assert classify_patch(patch, wiki_root) == "suggestion_only"
@@ -452,6 +493,63 @@ def test_apply_patch_success_no_conflict(wiki_root: Path):
     # Body untouched by metadata/source-only operations
     assert "Old section body [^1]" in after
     assert page_digest(after) != page_digest(before)
+
+
+def test_apply_patch_merge_plus_critical_metadata_suggestion_only(wiki_root: Path):
+    """Mixed MERGE_SOURCES + SET_METADATA{created} -> suggestion, page untouched.
+
+    End-to-end MINOR-5 guard: the patch classifies suggestion_only, the page
+    is never written, and the rendered candidate preserves ``created`` while
+    still showing the (non-applied) source merge.
+    """
+    from kb.wiki_compiler.engine import apply_patch
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    before = target.read_text(encoding="utf-8")
+    patch = _make_patch(
+        ops=(
+            PatchOperation(op="MERGE_SOURCES", section=None, content=None, metadata=None),
+            PatchOperation(
+                op="SET_METADATA", section=None, content=None,
+                metadata={"created": "1999-01-01"},
+            ),
+        ),
+        base_digest=page_digest(before),
+        evidence=(
+            EvidenceRef(
+                evidence_id="e2", type="article", ref="0123456789",
+                title="Second Src", provenance="lightrag-corpus", metadata={},
+            ),
+        ),
+    )
+    result = apply_patch(patch, wiki_root)
+    assert result["status"] == "suggestion"
+    # The page itself is never touched.
+    assert target.read_text(encoding="utf-8") == before
+    payload = json.loads(Path(result["suggestion_path"]).read_text(encoding="utf-8"))
+    # `created` survives; the merge is visible only in the candidate.
+    assert "created: '2026-05-20'" in payload["suggested_content"]
+    assert "created: '1999-01-01'" not in payload["suggested_content"]
+    assert 'ref: "0123456789"' in payload["suggested_content"]
+
+
+def test_set_metadata_render_skips_critical_keys():
+    """_render_candidate SET_METADATA rewrites only allowlisted keys (design §5.3).
+
+    Defense-in-depth: even if a critical key is hand-crafted into a
+    SET_METADATA op, the renderer ignores it — ``created`` is preserved.
+    """
+    from kb.wiki_compiler.engine import _render_candidate
+    patch = _make_patch(
+        ops=(PatchOperation(
+            op="SET_METADATA", section=None, content=None,
+            metadata={"created": "1999-01-01", "last_updated": "2026-08-11"},
+        ),),
+        base_digest="f" * 64,
+    )
+    rendered = _render_candidate(patch, _EXISTING_PAGE)
+    assert "created: '2026-05-20'" in rendered
+    assert "created: '1999-01-01'" not in rendered
+    assert "last_updated: 2026-08-11" in rendered
 
 
 def test_apply_patch_merge_sources_preserves_multi_entry_blocks(wiki_root: Path):
@@ -641,6 +739,63 @@ def test_suggestion_written_for_suggestion_only(wiki_root: Path):
     assert payload["reason"] == "test patch"
     assert isinstance(payload["operations"], list) and payload["operations"]
     assert isinstance(payload["evidence"], list) and payload["evidence"]
+    assert "Suggested body [^1]" in payload["suggested_content"]
+
+
+def test_suggestion_payload_contains_full_serialized_wikipatch(wiki_root: Path):
+    """Design §5.4: the suggestion JSON stores the FULL serialized WikiPatch
+    (round-trips through WikiPatch.from_dict) plus the policy outcome.
+
+    Adversarial MINOR-6: the payload used to omit target_path/target_kind/
+    base_digest/trigger/evidence_pack_id/created_at/compiler_version/
+    patch_schema_version, so a persisted suggestion was not a serialized
+    WikiPatch and could not be re-applied.
+    """
+    from kb.wiki_compiler.engine import apply_patch
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    before = target.read_text(encoding="utf-8")
+    patch = _make_patch(
+        ops=(PatchOperation(
+            op="UPSERT_SECTION", section="Definition / Overview",
+            content="Suggested body [^1]", metadata=None,
+        ),),
+        base_digest=page_digest(before),
+        policy_hint="suggestion_only",
+        patch_id="wpatch-sugg-0003",
+    )
+    result = apply_patch(patch, wiki_root)
+    assert result["status"] == "suggestion"
+    payload = json.loads(Path(result["suggestion_path"]).read_text(encoding="utf-8"))
+
+    serialized = payload["patch"]
+    for field in (
+        "patch_schema_version", "patch_id", "target_slug", "target_path",
+        "target_kind", "base_digest", "trigger", "evidence_pack_id",
+        "operations", "evidence", "policy_hint", "reason", "created_at",
+        "compiler_version",
+    ):
+        assert field in serialized, f"serialized WikiPatch missing {field!r}"
+    # The embedded patch re-deserializes to the original. models.from_dict
+    # normalizes metadata=None -> {} for CREATE_PAGE/UPSERT_SECTION ops
+    # (documented models behavior, not a serialization loss), so the
+    # expected value carries that normalization.
+    rt = WikiPatch.from_dict(serialized)
+    expected = replace(
+        patch,
+        operations=tuple(
+            replace(o, metadata={})
+            if o.metadata is None and o.op in ("CREATE_PAGE", "UPSERT_SECTION")
+            else o
+            for o in patch.operations
+        ),
+    )
+    assert rt == expected
+
+    # Flat convenience mirrors remain for existing readers.
+    assert payload["patch_id"] == patch.patch_id
+    assert payload["target_slug"] == patch.target_slug
+    assert payload["policy_hint"] == "suggestion_only"
+    assert payload["reason"] == patch.reason
     assert "Suggested body [^1]" in payload["suggested_content"]
 
 

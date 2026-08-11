@@ -23,8 +23,8 @@ Contract
       ``- article:<hex>`` format cannot represent web/builtin sources)
     - ``MERGE_SOURCES`` otherwise (canonical page, or article-only into
       legacy) -> ``auto_apply`` (frontmatter-only, body untouched)
-    - ``SET_METADATA`` on non-critical fields (``last_updated`` only) ->
-      ``auto_apply``; any critical key -> ``suggestion_only``
+    - ``SET_METADATA`` on non-critical fields (``last_updated``,
+      ``confidence_level``) -> ``auto_apply``; any critical key -> ``suggestion_only``
     - any ``DELETE_PAGE`` operation -> ``rejected`` (W5A property 7)
 
 * **apply_patch()** — applies a patch with per-page ``fcntl.flock``
@@ -76,8 +76,11 @@ from kb.wiki_compiler.models import (
     page_digest,
 )
 
-#: Metadata keys considered non-critical (safe to auto-apply).
-NON_CRITICAL_METADATA_KEYS = frozenset({"last_updated"})
+#: Metadata keys considered non-critical (safe to auto-apply). Design §5.3:
+#: ``SET_METADATA`` may change only compiler-approved fields such as
+#: ``last_updated`` and ``confidence_level``; critical keys (``created``,
+#: ``title``, ``sources``, ...) must always be preserved.
+NON_CRITICAL_METADATA_KEYS = frozenset({"last_updated", "confidence_level"})
 
 #: Default H2 section for UPSERT_SECTION when the op omits one.
 DEFAULT_SECTION = "Definition / Overview"
@@ -169,6 +172,20 @@ def classify_patch(
     if any(getattr(o, "op", None) == "DELETE_PAGE" for o in ops):
         return "rejected"
 
+    # Design §5.3: SET_METADATA may change only compiler-approved fields
+    # (NON_CRITICAL_METADATA_KEYS). Any critical key — created, title,
+    # sources, ... — forces suggestion_only, even as a sibling of
+    # MERGE_SOURCES (which previously auto-applied without inspecting
+    # SET_METADATA keys and could rewrite `created`).
+    metadata_keys: set = set()
+    for o in ops:
+        if getattr(o, "op", None) == "SET_METADATA":
+            md = getattr(o, "metadata", None)
+            if isinstance(md, dict):
+                metadata_keys.update(md.keys())
+    if metadata_keys and not metadata_keys <= NON_CRITICAL_METADATA_KEYS:
+        return "suggestion_only"
+
     exists, legacy = _page_state(patch, wiki_root, page_registry)
 
     if any(o.op == "CREATE_PAGE" for o in ops):
@@ -190,10 +207,7 @@ def classify_patch(
         return "auto_apply"
 
     if ops and all(o.op == "SET_METADATA" for o in ops):
-        keys: set = set()
-        for o in ops:
-            keys.update((o.metadata or {}).keys())
-        if exists and keys and keys <= NON_CRITICAL_METADATA_KEYS:
+        if exists and metadata_keys and metadata_keys <= NON_CRITICAL_METADATA_KEYS:
             return "auto_apply"
         return "suggestion_only"
 
@@ -480,13 +494,18 @@ def _write_suggestion(patch: WikiPatch, wiki_root: Path) -> Path:
         except OSError:
             current_text = None
     payload = {
-        "patch_id": patch.patch_id,
-        "target_slug": patch.target_slug,
+        # Design §5.4: the suggestion file stores the FULL serialized
+        # WikiPatch (re-deserializable via WikiPatch.from_dict) plus the
+        # validation/policy outcome — not a reduced field subset.
+        "patch": patch.to_dict(),
         "policy_hint": "suggestion_only",
         "reason": patch.reason,
+        "suggested_content": _render_candidate(patch, current_text),
+        # Flat convenience mirrors (kept for existing readers/tests).
+        "patch_id": patch.patch_id,
+        "target_slug": patch.target_slug,
         "operations": [asdict(o) for o in patch.operations],
         "evidence": [asdict(ev) for ev in patch.evidence],
-        "suggested_content": _render_candidate(patch, current_text),
     }
     path = sugg_dir / f"{_safe_slug(patch.target_slug)}-{patch.patch_id}.json"
     _atomic_write(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
@@ -659,8 +678,17 @@ def _merge_sources(text: str, evidence: Tuple[EvidenceRef, ...]) -> str:
 
 
 def _set_metadata(text: str, metadata: Dict[str, Any]) -> str:
-    """Rewrite allowlisted scalar frontmatter keys (surgical line replace)."""
-    if not metadata:
+    """Rewrite allowlisted scalar frontmatter keys (surgical line replace).
+
+    Only compiler-approved keys (NON_CRITICAL_METADATA_KEYS, design §5.3)
+    are written; any other key is ignored, so critical fields such as
+    ``created`` are always preserved even in hand-crafted ops.
+    """
+    allowed = {
+        k: v for k, v in (metadata or {}).items()
+        if k in NON_CRITICAL_METADATA_KEYS
+    }
+    if not allowed:
         return text
     fm, _ = _split_frontmatter(text)
     if fm is None:
@@ -678,8 +706,8 @@ def _set_metadata(text: str, metadata: Dict[str, Any]) -> str:
         if not in_frontmatter:
             continue
         m = _FM_SCALAR_LINE.match(ln)
-        if m and m.group(1) in metadata:
-            lines[i] = f"{m.group(1)}: {_yaml_value(metadata[m.group(1)])}"
+        if m and m.group(1) in allowed:
+            lines[i] = f"{m.group(1)}: {_yaml_value(allowed[m.group(1)])}"
     return "\n".join(lines)
 
 
