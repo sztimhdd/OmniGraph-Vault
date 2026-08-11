@@ -3,7 +3,7 @@
 **Date:** 2026-08-11
 **Review type:** Independent gate verification (GPT-5.6 review + Hermes closure repair)
 **Contract:** docs/superpowers/specs/2026-08-10-omnigraph-wiki-v2-w5-0-design.md @ ad53240c
-**Final commit:** a19d6cfc
+**Final commit:** 7d1aeb50
 
 ---
 

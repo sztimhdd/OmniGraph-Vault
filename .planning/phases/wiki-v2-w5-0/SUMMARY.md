@@ -3,7 +3,7 @@
 **Date:** 2026-08-11
 **Executor:** Hermes autonomous Mode A (closure repair after GPT-5.6 review)
 **Contract:** ad53240c64d57f6e0033f1bf7080c41cc77b059c
-**Final commit:** a19d6cfc (Gate F baseline)
+**Final commit:** 7d1aeb50 (Gate F 25/25 baseline, docs reconciliation)
 
 ## Gates — FINAL STATE
 
