@@ -129,7 +129,17 @@ def lint_staleness(page_path: Path, max_days: int = 180, today: date | None = No
 
 
 def log_lint_failure(failure_dict: dict) -> None:
-    JSONL_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps({"ts": datetime.now(UTC).isoformat(), **failure_dict}, ensure_ascii=False)
-    with open(JSONL_LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+    """Write lint failure to W5-0 Error Book (SQLite, dedup, resolvable).
+
+    Falls back to legacy JSONL if error_book module is unavailable.
+    Migrated from flat JSONL in W5-0 Gate E.
+    """
+    try:
+        from kb.error_book import log_lint_failure as _eb_log
+        _eb_log(failure_dict)
+    except ImportError:
+        # Legacy fallback — remove after W5-0 verified on all environments
+        JSONL_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps({"ts": datetime.now(UTC).isoformat(), **failure_dict}, ensure_ascii=False)
+        with open(JSONL_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
