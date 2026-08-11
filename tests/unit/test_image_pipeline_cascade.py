@@ -50,9 +50,9 @@ def _mock_cascade(mocker, describe_return=None, describe_side_effect=None):
     mock_instance.status = {
         "siliconflow": {"circuit_open": False, "total_successes": 0},
         "openrouter": {"circuit_open": False, "total_successes": 0},
-        "gemini": {"circuit_open": False, "total_successes": 0},
+        "bailian": {"circuit_open": False, "total_successes": 0},
     }
-    mock_instance.providers = ["siliconflow", "openrouter", "gemini"]
+    mock_instance.providers = ["siliconflow", "openrouter", "bailian"]
     mock_cls = mocker.patch("image_pipeline.VisionCascade")
     mock_cls.return_value = mock_instance
     return mock_cls, mock_instance
@@ -90,7 +90,7 @@ def test_cascade_order_is_siliconflow_first(tmp_path, mocker, monkeypatch):
     kwargs = mock_cls.call_args.kwargs
     providers = kwargs.get("providers") or mock_cls.call_args.args[0]
     assert providers[0] == "siliconflow"
-    assert providers == ["siliconflow", "openrouter", "gemini"]
+    assert providers == ["siliconflow", "openrouter", "bailian"]
 
 
 def test_balance_check_skipped_with_env_flag(tmp_path, mocker, monkeypatch):
@@ -129,7 +129,7 @@ def test_balance_warning_emitted_when_insufficient(
 def test_low_balance_switches_to_openrouter_primary(
     tmp_path, mocker, monkeypatch
 ):
-    """Test 5: balance < 0.05 -> cascade built with providers=[openrouter, gemini]."""
+    """Test 5: balance < 0.05 -> cascade built with providers=[openrouter, bailian]."""
     monkeypatch.delenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", raising=False)
     mock_cls, _ = _mock_cascade(mocker)
     mocker.patch(
@@ -143,7 +143,7 @@ def test_low_balance_switches_to_openrouter_primary(
     kwargs = mock_cls.call_args.kwargs
     providers = kwargs.get("providers") or mock_cls.call_args.args[0]
     assert "siliconflow" not in providers
-    assert providers == ["openrouter", "gemini"]
+    assert providers == ["openrouter", "bailian"]
 
 
 def test_balance_error_does_not_crash(tmp_path, mocker, monkeypatch, caplog):
@@ -162,7 +162,7 @@ def test_balance_error_does_not_crash(tmp_path, mocker, monkeypatch, caplog):
     assert p1 in result
     kwargs = mock_cls.call_args.kwargs
     providers = kwargs.get("providers") or mock_cls.call_args.args[0]
-    assert providers == ["siliconflow", "openrouter", "gemini"]
+    assert providers == ["siliconflow", "openrouter", "bailian"]
 
 
 def test_all_providers_429_stops_batch(tmp_path, mocker, monkeypatch):
@@ -202,15 +202,15 @@ def test_empty_paths_list_skips_balance_check(mocker, monkeypatch):
     mock_balance.assert_not_called()
 
 
-def test_batch_end_alert_if_gemini_share_high(
+def test_batch_end_alert_if_last_resort_share_high(
     tmp_path, mocker, monkeypatch, caplog
 ):
-    """Test 9: gemini used on >5% of images -> WARNING."""
+    """Test 9: bailian used on >5% of images -> WARNING."""
     monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
-    # 3 gemini successes out of 10 = 30%
+    # 3 bailian successes out of 10 = 30%
     results = []
     for i in range(10):
-        provider = "gemini" if i < 3 else "siliconflow"
+        provider = "bailian" if i < 3 else "siliconflow"
         results.append(_ok_result(f"d{i}", provider=provider))
     _mock_cascade(mocker, describe_side_effect=results)
     from image_pipeline import describe_images
@@ -218,7 +218,7 @@ def test_batch_end_alert_if_gemini_share_high(
     paths = [_write_img(tmp_path, f"{i}.jpg") for i in range(10)]
     caplog.set_level(logging.WARNING, logger="image_pipeline")
     describe_images(paths)
-    assert any("gemini used for" in r.message for r in caplog.records)
+    assert any("bailian used for" in r.message for r in caplog.records)
 
 
 def test_batch_end_alert_if_circuit_open(tmp_path, mocker, monkeypatch, caplog):
@@ -229,7 +229,7 @@ def test_batch_end_alert_if_circuit_open(tmp_path, mocker, monkeypatch, caplog):
     mock_instance.status = {
         "siliconflow": {"circuit_open": True, "total_successes": 0},
         "openrouter": {"circuit_open": False, "total_successes": 1},
-        "gemini": {"circuit_open": False, "total_successes": 0},
+        "bailian": {"circuit_open": False, "total_successes": 0},
     }
     mock_instance.describe.return_value = _ok_result(provider="openrouter")
     from image_pipeline import describe_images
@@ -241,7 +241,7 @@ def test_batch_end_alert_if_circuit_open(tmp_path, mocker, monkeypatch, caplog):
 
 
 def test_get_last_describe_stats_has_new_keys(tmp_path, mocker, monkeypatch):
-    """Test 11: stats dict contains circuit_opens, gemini_share, batch_stopped_429."""
+    """Test 11: stats dict contains circuit_opens, last_resort_share, batch_stopped_429."""
     monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
     _mock_cascade(mocker)
     from image_pipeline import describe_images, get_last_describe_stats
@@ -250,7 +250,7 @@ def test_get_last_describe_stats_has_new_keys(tmp_path, mocker, monkeypatch):
     describe_images([p1])
     stats = get_last_describe_stats()
     assert isinstance(stats["circuit_opens"], list)
-    assert isinstance(stats["gemini_share"], float)
+    assert isinstance(stats["last_resort_share"], float)
     assert isinstance(stats["batch_stopped_429"], bool)
 
 

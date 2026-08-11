@@ -370,7 +370,7 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
             )
 
     providers = (
-        ["openrouter", "gemini"]
+        ["openrouter", list(DEFAULT_PROVIDERS)[-1]]
         if force_openrouter_primary
         else list(DEFAULT_PROVIDERS)
     )
@@ -494,19 +494,23 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
 
     # CASC-05 batch-end aggregate + alerts
     total_success = vision_success
-    gemini_share = (
-        (provider_mix.get("gemini", 0) / total_success)
+    from lib.vision_cascade import DEFAULT_PROVIDERS as _CASCADE_PROVIDERS
+
+    _last_resort = _CASCADE_PROVIDERS[-1]  # dynamic: bailian (was gemini)
+    last_resort_share = (
+        (provider_mix.get(_last_resort, 0) / total_success)
         if total_success > 0
         else 0.0
     )
     circuit_opens = [
         p for p, s in cascade.status.items() if s.get("circuit_open")
     ]
-    if gemini_share > 0.05:
+    if last_resort_share > 0.05:
         logger.warning(
-            "CASCADE ALERT: gemini used for %.1f%% of images (>5%% threshold) "
+            "CASCADE ALERT: %s used for %.1f%% of images (>5%% threshold) "
             "-- upstream provider issues detected",
-            gemini_share * 100,
+            _last_resort,
+            last_resort_share * 100,
         )
     if circuit_opens:
         logger.warning(
@@ -521,7 +525,7 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
         "vision_error": vision_error,
         "vision_timeout": vision_timeout,
         "circuit_opens": circuit_opens,
-        "gemini_share": round(gemini_share, 4),
+        "last_resort_share": round(last_resort_share, 4),
         "batch_stopped_429": batch_stopped_429,
     }
     return result

@@ -20,10 +20,10 @@ pytestmark = pytest.mark.unit
 def _ok_result() -> CascadeResult:
     return CascadeResult(
         description="stub",
-        provider_used="gemini",  # any provider the cascade is using
+        provider_used="bailian",  # any provider the cascade is using
         attempts=[
             AttemptRecord(
-                provider="gemini",
+                provider="bailian",
                 result_code="success",
                 latency_ms=1,
                 desc_chars=4,
@@ -40,7 +40,7 @@ def _mock_cascade(mocker) -> MagicMock:
     instance.status = {
         "siliconflow": {"circuit_open": False, "total_successes": 0},
         "openrouter": {"circuit_open": False, "total_successes": 0},
-        "gemini": {"circuit_open": False, "total_successes": 0},
+        "bailian": {"circuit_open": False, "total_successes": 0},
     }
     instance.providers = list(DEFAULT_PROVIDERS)
     ctor = mocker.patch("image_pipeline.VisionCascade")
@@ -66,18 +66,18 @@ def _get_providers_kwarg(ctor: MagicMock) -> list[str]:
 
 
 def test_skip_siliconflow_only(tmp_path, mocker, monkeypatch) -> None:
-    """env=siliconflow → providers == ['openrouter','gemini']."""
+    """env=siliconflow → providers == ['openrouter','bailian']."""
     monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
     monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_PROVIDERS", "siliconflow")
     ctor = _mock_cascade(mocker)
     from image_pipeline import describe_images
 
     describe_images([_write_img(tmp_path)])
-    assert _get_providers_kwarg(ctor) == ["openrouter", "gemini"]
+    assert _get_providers_kwarg(ctor) == ["openrouter", "bailian"]
 
 
 def test_skip_siliconflow_and_openrouter(tmp_path, mocker, monkeypatch) -> None:
-    """env=siliconflow,openrouter → providers == ['gemini']."""
+    """env=siliconflow,openrouter → providers == ['bailian']."""
     monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
     monkeypatch.setenv(
         "OMNIGRAPH_VISION_SKIP_PROVIDERS", "siliconflow,openrouter"
@@ -86,15 +86,15 @@ def test_skip_siliconflow_and_openrouter(tmp_path, mocker, monkeypatch) -> None:
     from image_pipeline import describe_images
 
     describe_images([_write_img(tmp_path)])
-    assert _get_providers_kwarg(ctor) == ["gemini"]
+    assert _get_providers_kwarg(ctor) == ["bailian"]
 
 
 def test_skip_all_leaves_empty_list(tmp_path, mocker, monkeypatch) -> None:
-    """env=siliconflow,openrouter,gemini → providers == [] (cascade will fail
+    """env=siliconflow,openrouter,bailian → providers == [] (cascade will fail
     fast; documented in LOCAL_DEV_SETUP.md)."""
     monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
     monkeypatch.setenv(
-        "OMNIGRAPH_VISION_SKIP_PROVIDERS", "siliconflow,openrouter,gemini"
+        "OMNIGRAPH_VISION_SKIP_PROVIDERS", "siliconflow,openrouter,bailian"
     )
     ctor = _mock_cascade(mocker)
     from image_pipeline import describe_images
@@ -115,7 +115,7 @@ def test_env_unset_preserves_default_providers(tmp_path, mocker, monkeypatch) ->
 
 
 def test_whitespace_and_empty_tokens_tolerated(tmp_path, mocker, monkeypatch) -> None:
-    """env=' siliconflow , ,openrouter ' → providers == ['gemini']."""
+    """env=' siliconflow , ,openrouter ' → providers == ['bailian']."""
     monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
     monkeypatch.setenv(
         "OMNIGRAPH_VISION_SKIP_PROVIDERS", " siliconflow , ,openrouter "
@@ -124,11 +124,11 @@ def test_whitespace_and_empty_tokens_tolerated(tmp_path, mocker, monkeypatch) ->
     from image_pipeline import describe_images
 
     describe_images([_write_img(tmp_path)])
-    assert _get_providers_kwarg(ctor) == ["gemini"]
+    assert _get_providers_kwarg(ctor) == ["bailian"]
 
 
 def test_unknown_token_is_harmless(tmp_path, mocker, monkeypatch) -> None:
-    """env='foo,siliconflow' → providers == ['openrouter','gemini'] (unknown
+    """env='foo,siliconflow' → providers == ['openrouter','bailian'] (unknown
     tokens just don't match anything)."""
     monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
     monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_PROVIDERS", "foo,siliconflow")
@@ -136,4 +136,4 @@ def test_unknown_token_is_harmless(tmp_path, mocker, monkeypatch) -> None:
     from image_pipeline import describe_images
 
     describe_images([_write_img(tmp_path)])
-    assert _get_providers_kwarg(ctor) == ["openrouter", "gemini"]
+    assert _get_providers_kwarg(ctor) == ["openrouter", "bailian"]

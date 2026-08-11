@@ -26,9 +26,11 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-# CASC-01 LOCKED -- do not reorder. SiliconFlow primary (paid, reliable),
-# OpenRouter fallback (paid, cheap), Gemini last-resort (free, rate-limited).
-DEFAULT_PROVIDERS: tuple[str, ...] = ("siliconflow", "openrouter", "gemini")
+# CASC-01 -- SiliconFlow primary (paid, reliable), OpenRouter fallback (paid,
+# cheap), Bailian qwen3-vl last-resort (user-paid ¥320, replaces Gemini whose
+# gemini-3.1-flash-lite-preview model 404s on project banded-totality-485901,
+# verified 2026-08-11).
+DEFAULT_PROVIDERS: tuple[str, ...] = ("siliconflow", "openrouter", "bailian")
 
 # CASC-03 LOCKED thresholds.
 CIRCUIT_FAILURE_THRESHOLD = 3   # 3 consecutive failures -> open
@@ -333,6 +335,8 @@ class VisionCascade:
             return self._call_siliconflow(image_bytes, mime)
         if provider == "openrouter":
             return self._call_openrouter(image_bytes, mime)
+        if provider == "bailian":
+            return self._call_bailian(image_bytes, mime)
         if provider == "gemini":
             return self._call_gemini(image_bytes, mime)
         raise _ProviderError(RESULT_OTHER, f"unknown provider {provider}")
@@ -420,6 +424,63 @@ class VisionCascade:
                     "max_tokens": 300,
                 },
                 timeout=30,
+            )
+        except requests.Timeout as e:
+            raise _ProviderError(RESULT_TIMEOUT, f"timeout: {e}") from e
+        except requests.RequestException as e:
+            raise _ProviderError(RESULT_OTHER, f"network: {e}") from e
+        if resp.status_code == 200:
+            content = resp.json()["choices"][0]["message"]["content"] or ""
+            return content.strip()
+        raise _ProviderError(
+            _classify_http(resp.status_code),
+            f"HTTP {resp.status_code}: {resp.text[:200]}",
+        )
+
+    def _call_bailian(self, image_bytes: bytes, mime: str) -> str:
+        """Bailian qwen3-vl last-resort (replaces Gemini, whose model 404s on
+        the GCP project). OpenAI-compatible chat/completions with base64 image.
+        Raises _ProviderError on failure.
+        """
+        import base64 as _b64
+
+        from config import load_env
+
+        load_env()
+        api_key = os.environ.get("BAILIAN_API_KEY", "")
+        base_url = os.environ.get(
+            "BAILIAN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        ).rstrip("/")
+        model = os.environ.get("BAILIAN_VISION_MODEL", "qwen3-vl-flash")
+        if not api_key:
+            raise _ProviderError(RESULT_HTTP_4XX_AUTH, "BAILIAN_API_KEY not set")
+        data_url = "data:{};base64,{}".format(
+            mime or "image/jpeg", _b64.b64encode(image_bytes).decode("ascii")
+        )
+        try:
+            resp = requests.post(
+                f"{base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": _VISION_PROMPT},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": data_url},
+                                },
+                            ],
+                        }
+                    ],
+                    "max_tokens": 512,
+                },
+                timeout=60,
             )
         except requests.Timeout as e:
             raise _ProviderError(RESULT_TIMEOUT, f"timeout: {e}") from e

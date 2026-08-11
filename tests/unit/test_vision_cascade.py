@@ -22,6 +22,7 @@ from lib.vision_cascade import (
     RESULT_HTTP_4XX_AUTH,
     RESULT_HTTP_429,
     RESULT_HTTP_503,
+    RESULT_OTHER,
     RESULT_SUCCESS,
     RESULT_TIMEOUT,
     VisionCascade,
@@ -44,6 +45,7 @@ def sf_env(monkeypatch):
     monkeypatch.setenv("SILICONFLOW_API_KEY", "sk-test-sf")
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test-or")
     monkeypatch.setenv("OMNIGRAPH_GEMINI_KEY", "sk-test-gm")
+    monkeypatch.setenv("BAILIAN_API_KEY", "sk-test-bl")
 
 
 # ----------------------------------------------------------- contracts (Task 1)
@@ -52,7 +54,7 @@ def sf_env(monkeypatch):
 def test_contracts_construct_default_order(tmp_path, sf_env):
     """Test 1+3: default providers in exact CASC-01 order."""
     cascade = VisionCascade(checkpoint_dir=tmp_path)
-    assert cascade.providers == ["siliconflow", "openrouter", "gemini"]
+    assert cascade.providers == ["siliconflow", "openrouter", "bailian"]
     for p in cascade.providers:
         s = cascade.status[p]
         assert s["failures"] == 0
@@ -231,13 +233,8 @@ def test_401_auth_not_counted_as_circuit_failure(tmp_path, sf_env, mocker):
 
 
 def test_all_providers_429_raises_stop_batch(tmp_path, sf_env, mocker):
-    """Test 13: SF 429 + OR 429 + Gemini 429-like -> AllProvidersExhausted429Error."""
+    """Test 13: SF 429 + OR 429 + Bailian 429 -> AllProvidersExhausted429Error."""
     mocker.patch("lib.vision_cascade.requests.post", return_value=_resp(429))
-    # Gemini: patch lib.generate_sync (called inside _call_gemini)
-    mocker.patch(
-        "lib.generate_sync",
-        side_effect=RuntimeError("429 quota exhausted"),
-    )
     cascade = VisionCascade(checkpoint_dir=tmp_path)
     with pytest.raises(AllProvidersExhausted429Error, match="img_429"):
         cascade.describe("img_429", b"x")
@@ -292,6 +289,64 @@ def test_cascade_order_is_siliconflow_first():
     """Belt-and-braces: DEFAULT_PROVIDERS[0] == 'siliconflow' (CASC-01 lock)."""
     assert DEFAULT_PROVIDERS[0] == "siliconflow"
     assert DEFAULT_PROVIDERS[1] == "openrouter"
-    assert DEFAULT_PROVIDERS[2] == "gemini"
+    assert DEFAULT_PROVIDERS[2] == "bailian"
     assert CIRCUIT_FAILURE_THRESHOLD == 3
     assert RECOVERY_PROBE_INTERVAL == 10
+
+
+def test_bailian_fallback_when_sf_and_or_fail(tmp_path, mocker, monkeypatch):
+    """SF 503 + OR 503 -> Bailian 200 (replaces gemini, which 404s)."""
+    monkeypatch.setenv("BAILIAN_API_KEY", "test-key")
+    monkeypatch.setenv("BAILIAN_BASE_URL", "https://bailian.test/v1")
+
+    def side(url, *a, **kw):
+        if "siliconflow" in url:
+            return _resp(503)
+        if "openrouter" in url:
+            return _resp(503)
+        return _resp(200, "bailian desc")
+
+    mocker.patch("lib.vision_cascade.requests.post", side_effect=side)
+    cascade = VisionCascade(checkpoint_dir=tmp_path)
+    result = cascade.describe("img_b", b"bytes")
+    assert result.provider_used == "bailian"
+    assert result.description == "bailian desc"
+    assert len(result.attempts) == 3
+
+
+def test_bailian_404_classified_other(tmp_path, mocker, monkeypatch):
+    """bailian 404 -> RESULT_OTHER (not circuit-counted), no crash."""
+    monkeypatch.setenv("BAILIAN_API_KEY", "test-key")
+    monkeypatch.setenv("BAILIAN_BASE_URL", "https://bailian.test/v1")
+
+    def side(url, *a, **kw):
+        if "siliconflow" in url:
+            return _resp(503)
+        if "openrouter" in url:
+            return _resp(503)
+        return _resp(404)
+
+    mocker.patch("lib.vision_cascade.requests.post", side_effect=side)
+    cascade = VisionCascade(checkpoint_dir=tmp_path)
+    result = cascade.describe("img_b2", b"bytes")
+    assert result.provider_used is None
+    assert result.attempts[-1].result_code == RESULT_OTHER
+
+
+def test_bailian_missing_key_is_4xx_auth(tmp_path, mocker, monkeypatch):
+    """bailian without key -> classified as auth (permanent, no retry loop)."""
+    monkeypatch.delenv("BAILIAN_API_KEY", raising=False)
+    monkeypatch.setenv("BAILIAN_BASE_URL", "https://bailian.test/v1")
+
+    def side(url, *a, **kw):
+        if "siliconflow" in url:
+            return _resp(503)
+        if "openrouter" in url:
+            return _resp(503)
+        return _resp(200, "should not reach")
+
+    mocker.patch("lib.vision_cascade.requests.post", side_effect=side)
+    cascade = VisionCascade(checkpoint_dir=tmp_path)
+    result = cascade.describe("img_b3", b"bytes")
+    assert result.attempts[-1].result_code == RESULT_HTTP_4XX_AUTH
+    assert result.provider_used is None
