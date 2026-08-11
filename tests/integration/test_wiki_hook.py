@@ -1,4 +1,12 @@
-"""W3 hook integration tests: generate_wiki_suggestions + apply_suggestion_atomic."""
+"""W3 hook integration tests: generate_wiki_suggestions + apply_suggestion_atomic.
+
+W5A Task 4 (2026-08-11): the hook surface is unchanged but both functions
+now route through kb.wiki_compiler.adapters.w3 + the shared engine.
+Behavioral contract asserted here:
+  * new entities → canonical CREATE_PAGE via engine auto_apply
+  * existing pages → structured deterministic suggestion JSON, page untouched
+  * invalid evidence → engine rejection recorded in the Error Book
+"""
 from __future__ import annotations
 
 import json
@@ -53,11 +61,16 @@ def test_end_of_cron_fires(tmp_path, monkeypatch):
     assert applied_count >= 1
     written = list((wiki_root / "entities").glob("*.md"))
     assert len(written) >= 1
+    # W5A: new pages are canonical (typed sources), never legacy placeholders.
+    text = written[0].read_text(encoding="utf-8")
+    assert "- type: article" in text
+    assert "^[article:" not in text
 
 
-def test_lint_blocks_unresolved_citation(tmp_path, monkeypatch):
-    """Lint failure is recorded in Error Book (W5-0 Gate E), not JSONL.
-    Unresolved citation blocks page creation — result is False, page not written."""
+def test_invalid_evidence_recorded_in_error_book(tmp_path, monkeypatch):
+    """Invalid W3 evidence is rejected by the shared compiler and recorded in
+    the Error Book (wiki_compiler:evidence_validation), never written to the
+    page tree."""
     db_path = tmp_path / "error_book.db"
     monkeypatch.setattr("kb.wiki_lint.JSONL_LOG_PATH", tmp_path / "unused.jsonl")
     # Prevent migration of real legacy JSONL
@@ -80,11 +93,13 @@ def test_lint_blocks_unresolved_citation(tmp_path, monkeypatch):
             "sources:\n  - article:ffffffffff\nconfidence_level: low\n---\n\n"
             "# Ghost\n\nReferences ^[article:ffffffffff].\n"
         ),
-        "source_articles": ["ffffffffff"],
+        "source_articles": ["not-a-valid-hash"],
     }
     result = apply_suggestion_atomic(suggestion, conn, wiki_root=wiki_root)
     assert result is False
     assert not page_path.exists()
 
     open_errors = get_open_errors(db_path=db_path)
-    assert any(e["check_type"] == "lint_citation_integrity" for e in open_errors)
+    assert any(
+        e["check_type"] == "wiki_compiler:evidence_validation" for e in open_errors
+    )
