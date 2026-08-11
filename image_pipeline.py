@@ -3,11 +3,11 @@
 Extracted from ingest_wechat.py as part of Phase 4 refactor (D-15, D-16).
 All functions are sync; callers wrap in asyncio.to_thread if needed.
 
-Phase 13 (2026-05-02): describe_images now delegates to lib.vision_cascade
-with pre-batch + mid-batch SiliconFlow balance checks (CASC-01..06). The
-legacy VISION_PROVIDER env var is obsolete; the cascade is always
-siliconflow -> openrouter -> gemini unless balance is below the CNY 0.05
-switch threshold.
+Phase 13 (2026-05-02): describe_images delegates to lib.vision_cascade
+(CASC-01..06). Since 2026-08-11 the cascade is single-provider: pure
+Bailian qwen3-vl-flash. The legacy VISION_PROVIDER env var, the SiliconFlow
+balance-switch (pre/mid-batch), and the SiliconFlow -> OpenRouter -> Gemini
+chain are all removed -- there is no provider switch anymore.
 """
 from __future__ import annotations
 
@@ -18,16 +18,10 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
 from pathlib import Path
 
 import requests
 
-from lib.siliconflow_balance import (
-    BalanceCheckError,
-    check_siliconflow_balance,
-    should_switch_to_openrouter,
-)
 from lib.vision_cascade import (
     DEFAULT_PROVIDERS,
     AllProvidersExhausted429Error,
@@ -37,8 +31,8 @@ from lib.vision_cascade import (
 
 logger = logging.getLogger(__name__)
 
-# Rate-limit between Gemini Vision describe_images calls (D-15).
-_DESCRIBE_INTER_IMAGE_SLEEP_SECS = 0  # Phase 8 IMG-02: was 2; SiliconFlow has no RPM cap
+# Rate-limit between vision describe_images calls (D-15).
+_DESCRIBE_INTER_IMAGE_SLEEP_SECS = 0
 
 # Local image server base — matches ingest_wechat.py historical value.
 _DEFAULT_IMAGE_BASE_URL = "http://localhost:8765"
@@ -90,7 +84,7 @@ def get_last_describe_stats() -> dict | None:
 
     Shape:
         {
-            "provider_mix": {"gemini": N, "siliconflow": N, "openrouter": N},
+            "provider_mix": {"bailian": N},
             "vision_success": int,
             "vision_error": int,
             "vision_timeout": int,
@@ -304,18 +298,14 @@ def localize_markdown(
 
 
 def describe_images(paths: list[Path]) -> dict[Path, str]:
-    """Batch-describe images via VisionCascade (SiliconFlow -> OpenRouter -> Gemini).
+    """Batch-describe images via VisionCascade (single provider: Bailian).
 
-    Phase 13 CASC-01/05/06 rewire. Signature preserved for backward-compat with
-    multimodal_ingest.py and ingest_wechat.py. New behavior surfaced via
-    get_last_describe_stats().
+    CASC-01 (2026-08-11): the cascade is pure Bailian qwen3-vl-flash. The
+    SiliconFlow balance pre/mid-batch switch and the multi-provider chain
+    are removed -- there is no provider switch anymore.
 
-    Pre-batch balance check (once, unless OMNIGRAPH_VISION_SKIP_BALANCE_CHECK=1):
-      - Warns if SiliconFlow balance < estimated spend.
-      - If balance < CNY 0.05 -> construct cascade with providers=[openrouter, gemini].
-
-    Mid-batch (every 10th image): re-check balance; if below CNY 0.05 remove
-    SiliconFlow from the live cascade's provider list.
+    Signature preserved for backward-compat with multimodal_ingest.py and
+    ingest_wechat.py. New behavior surfaced via get_last_describe_stats().
 
     AllProvidersExhausted429Error stops the batch cleanly; callers see a
     partial dict with a `batch_stopped_429=True` marker in describe stats.
@@ -335,49 +325,16 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
             "vision_error": 0,
             "vision_timeout": 0,
             "circuit_opens": [],
-            "gemini_share": 0.0,
+            "last_resort_share": 0.0,
             "batch_stopped_429": False,
         }
         return result
 
-    # CASC-06 pre-batch balance check
-    skip_balance = (
-        os.environ.get("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "").strip() == "1"
-    )
-    force_openrouter_primary = False
-    if not skip_balance:
-        try:
-            balance = check_siliconflow_balance()
-            estimated = Decimal(len(paths_list)) * Decimal("0.0013")
-            if balance < estimated:
-                logger.warning(
-                    "SiliconFlow balance CNY %.4f insufficient for CNY %.4f "
-                    "estimated spend -- top up or expect fallback to OpenRouter",
-                    float(balance),
-                    float(estimated),
-                )
-            if should_switch_to_openrouter(balance):
-                logger.warning(
-                    "SiliconFlow balance CNY %.4f below CNY 0.05 floor -- "
-                    "switching to OpenRouter-primary for this batch",
-                    float(balance),
-                )
-                force_openrouter_primary = True
-        except BalanceCheckError as e:
-            logger.warning(
-                "pre-batch balance check failed (%s); proceeding with default "
-                "cascade", e,
-            )
-
-    providers = (
-        ["openrouter", list(DEFAULT_PROVIDERS)[-1]]
-        if force_openrouter_primary
-        else list(DEFAULT_PROVIDERS)
-    )
-    # LDEV-06 (quick task 260504-g7a): OMNIGRAPH_VISION_SKIP_PROVIDERS lets
-    # local dev drop providers that are unreachable or unfunded in the
-    # sandbox (no SiliconFlow balance, no OpenRouter key, etc.). Comma-list;
-    # whitespace + empty tokens tolerated.
+    # CASC-01: single-provider cascade. LDEV-06 (quick task 260504-g7a):
+    # OMNIGRAPH_VISION_SKIP_PROVIDERS lets local dev drop providers that are
+    # unreachable or unfunded in the sandbox. Comma-list; whitespace + empty
+    # tokens tolerated.
+    providers = list(DEFAULT_PROVIDERS)
     _skip_raw = os.environ.get("OMNIGRAPH_VISION_SKIP_PROVIDERS", "").strip()
     if _skip_raw:
         _skip_set = {tok.strip() for tok in _skip_raw.split(",") if tok.strip()}
@@ -412,24 +369,7 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
             vision_error += 1
             continue
 
-        # CASC-06 mid-batch balance monitoring every 10 images
-        if not skip_balance and i > 0 and i % 10 == 0:
-            try:
-                balance = check_siliconflow_balance()
-                if (
-                    should_switch_to_openrouter(balance)
-                    and "siliconflow" in cascade.providers
-                ):
-                    logger.warning(
-                        "mid-batch balance CNY %.4f < CNY 0.05 -- removing "
-                        "SiliconFlow from cascade",
-                        float(balance),
-                    )
-                    cascade.providers = [
-                        p for p in cascade.providers if p != "siliconflow"
-                    ]
-            except BalanceCheckError:
-                pass  # non-fatal; keep going with current cascade
+        # CASC-01: single-provider cascade -- no mid-batch provider switch.
 
         try:
             cres: CascadeResult = cascade.describe(
@@ -507,8 +447,8 @@ def describe_images(paths: list[Path]) -> dict[Path, str]:
     ]
     if last_resort_share > 0.05:
         logger.warning(
-            "CASCADE ALERT: %s used for %.1f%% of images (>5%% threshold) "
-            "-- upstream provider issues detected",
+            "CASCADE ALERT: vision fallback active (single provider) -- "
+            "%s used for %.1f%% of images",
             _last_resort,
             last_resort_share * 100,
         )

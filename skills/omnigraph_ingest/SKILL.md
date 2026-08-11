@@ -234,7 +234,7 @@ For detailed cron failure analysis, see `references/cron-failure-timeline.md`.
 | Apify quota exceeded | Falls back to CDP then UA. If all fail, use `SCRAPE_CASCADE=ua`. |
 | Apify "requires full access" | Actor permissions unapproved. Login to Apify Console, go to Actor → Access → approve. Cascade continues to CDP/UA (wastes ~30s per article). Consider `SCRAPE_CASCADE=ua` until approved. |
 | CDP not reachable | "⚠️ CDP unavailable. Start Edge: `msedge --remote-debugging-port=9223`" |
-| Gemini 429 | Rate limiter in `ingest_wechat.py` (~4 RPM). Clean zombie docs in `lightrag_storage/`. Switch model if persistent. |
+| Gemini 429 (embedding) | Vertex AI RPM/RPD quota exhausted. v3: batch 250 texts per API call (50 RPM × 250 = 12,500 texts/min) + exponential backoff (30s→1800s) in `lib/lightrag_embedding.py`. GCP quota max 50 RPM for gemini-embedding-2. Full diagnostic: `references/embedding-429-backoff-fix.md`. |
 | Gemini 503 | Retry after 30s. Transient. |
 | `ret=200003` all accounts | Token is wrong or literal `***` from redaction. See F4. |
 | Cron timed out at 900s | Model too slow or cascade waste. See F1-F3 above. |
@@ -617,3 +617,5 @@ cd ~/OmniGraph-Vault && git pull --ff-only && git log --oneline origin/main -3
 - `references/db-schema.md` — database schema reference
 - `references/manual-catch-up-batch.md` — manual bulk catch-up ingest workflow
 - `references/oom-diagnosis-and-qdrant-migration.md` — OOM root cause analysis (dmesg, RSS accounting, vector memory amplification) + Qdrant migration path
+- `references/embedding-429-backoff-fix.md` — Vertex AI embedding 429 diagnosis + exponential backoff cooldown (2026-07-20)
+- `references/platform-dots-mangling.md` — Hermes→SSH `...` mangling quirk + workaround (2026-07-20)

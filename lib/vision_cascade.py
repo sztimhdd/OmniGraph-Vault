@@ -1,20 +1,20 @@
 """Vision provider cascade with circuit breaker and persistent state.
 
-Phase 13 CASC-01 locked cascade order: SiliconFlow -> OpenRouter -> Gemini.
-This replaces the wrong-order cascade in image_pipeline._describe_one.
+CASC-01 (single-provider): the vision cascade is now pure Bailian
+qwen3-vl-flash. SiliconFlow / OpenRouter / Gemini branches were removed
+2026-08-11 — there is no provider fallback chain anymore.
 
 Public API:
     - VisionCascade         stateful cascade orchestrator
     - CascadeResult         immutable outcome dataclass
     - AttemptRecord         per-provider attempt record
-    - AllProvidersExhausted429Error  raised when all providers 429 on the same image
-    - DEFAULT_PROVIDERS     ("siliconflow", "openrouter", "gemini")
+    - AllProvidersExhausted429Error  raised when the provider returns 429 on the same image
+    - DEFAULT_PROVIDERS     ("bailian",)
     - CIRCUIT_FAILURE_THRESHOLD  3
     - RECOVERY_PROBE_INTERVAL    10
 """
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import os
@@ -26,11 +26,10 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-# CASC-01 -- SiliconFlow primary (paid, reliable), OpenRouter fallback (paid,
-# cheap), Bailian qwen3-vl last-resort (user-paid ¥320, replaces Gemini whose
-# gemini-3.1-flash-lite-preview model 404s on project banded-totality-485901,
-# verified 2026-08-11).
-DEFAULT_PROVIDERS: tuple[str, ...] = ("siliconflow", "openrouter", "bailian")
+# CASC-01 -- single provider: Bailian qwen3-vl-flash (user-paid, replaces the
+# SiliconFlow -> OpenRouter -> Gemini chain; Gemini's model 404s on project
+# banded-totality-485901, verified 2026-08-11).
+DEFAULT_PROVIDERS: tuple[str, ...] = ("bailian",)
 
 # CASC-03 LOCKED thresholds.
 CIRCUIT_FAILURE_THRESHOLD = 3   # 3 consecutive failures -> open
@@ -330,115 +329,17 @@ class VisionCascade:
     def _call_provider(
         self, provider: str, image_bytes: bytes, mime: str
     ) -> str:
-        """Dispatch. Raises _ProviderError (classified) on any failure."""
-        if provider == "siliconflow":
-            return self._call_siliconflow(image_bytes, mime)
-        if provider == "openrouter":
-            return self._call_openrouter(image_bytes, mime)
+        """Dispatch. Raises _ProviderError (classified) on any failure.
+
+        Single-provider cascade (CASC-01): only "bailian" is wired.
+        """
         if provider == "bailian":
             return self._call_bailian(image_bytes, mime)
-        if provider == "gemini":
-            return self._call_gemini(image_bytes, mime)
         raise _ProviderError(RESULT_OTHER, f"unknown provider {provider}")
 
-    def _call_siliconflow(self, image_bytes: bytes, mime: str) -> str:
-        """POST to SiliconFlow Qwen3-VL-32B. Raises _ProviderError on failure."""
-        key = os.environ.get("SILICONFLOW_API_KEY", "").strip()
-        if not key:
-            raise _ProviderError(
-                RESULT_HTTP_4XX_AUTH, "SILICONFLOW_API_KEY not set"
-            )
-        b64 = base64.b64encode(image_bytes).decode()
-        fmt = "png" if "png" in mime else "jpeg"
-        try:
-            resp = requests.post(
-                "https://api.siliconflow.cn/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "Qwen/Qwen3-VL-32B-Instruct",
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": _VISION_PROMPT},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/{fmt};base64,{b64}"
-                                    },
-                                },
-                            ],
-                        }
-                    ],
-                    "max_tokens": 300,
-                },
-                timeout=60,
-            )
-        except requests.Timeout as e:
-            raise _ProviderError(RESULT_TIMEOUT, f"timeout: {e}") from e
-        except requests.RequestException as e:
-            raise _ProviderError(RESULT_OTHER, f"network: {e}") from e
-        if resp.status_code == 200:
-            content = resp.json()["choices"][0]["message"]["content"] or ""
-            return content.strip()
-        raise _ProviderError(
-            _classify_http(resp.status_code),
-            f"HTTP {resp.status_code}: {resp.text[:200]}",
-        )
-
-    def _call_openrouter(self, image_bytes: bytes, mime: str) -> str:
-        """POST to OpenRouter GLM-4.5V. Raises _ProviderError on failure."""
-        key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-        if not key:
-            raise _ProviderError(
-                RESULT_HTTP_4XX_AUTH, "OPENROUTER_API_KEY not set"
-            )
-        b64 = base64.b64encode(image_bytes).decode()
-        fmt = "png" if "png" in mime else "jpeg"
-        try:
-            resp = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "z-ai/glm-4.5v",
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": _VISION_PROMPT},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/{fmt};base64,{b64}"
-                                    },
-                                },
-                            ],
-                        }
-                    ],
-                    "max_tokens": 300,
-                },
-                timeout=30,
-            )
-        except requests.Timeout as e:
-            raise _ProviderError(RESULT_TIMEOUT, f"timeout: {e}") from e
-        except requests.RequestException as e:
-            raise _ProviderError(RESULT_OTHER, f"network: {e}") from e
-        if resp.status_code == 200:
-            content = resp.json()["choices"][0]["message"]["content"] or ""
-            return content.strip()
-        raise _ProviderError(
-            _classify_http(resp.status_code),
-            f"HTTP {resp.status_code}: {resp.text[:200]}",
-        )
-
     def _call_bailian(self, image_bytes: bytes, mime: str) -> str:
-        """Bailian qwen3-vl last-resort (replaces Gemini, whose model 404s on
+        """Bailian qwen3-vl (CASC-01 single provider; replaces the
+        SiliconFlow -> OpenRouter -> Gemini chain, whose Gemini model 404s on
         the GCP project). OpenAI-compatible chat/completions with base64 image.
         Raises _ProviderError on failure.
         """
@@ -493,31 +394,3 @@ class VisionCascade:
             _classify_http(resp.status_code),
             f"HTTP {resp.status_code}: {resp.text[:200]}",
         )
-
-    def _call_gemini(self, image_bytes: bytes, mime: str) -> str:
-        """Gemini Vision last-resort. Uses lib.generate_sync (handles rate
-        limit + key rotation). Raises _ProviderError on failure."""
-        try:
-            from google.genai import types
-
-            from lib import VISION_LLM, generate_sync
-
-            description = generate_sync(
-                VISION_LLM,
-                contents=[
-                    _VISION_PROMPT,
-                    types.Part.from_bytes(data=image_bytes, mime_type=mime),
-                ],
-            )
-            return description.strip()
-        except _ProviderError:
-            raise
-        except Exception as e:
-            msg = str(e).lower()
-            if "timeout" in msg:
-                raise _ProviderError(RESULT_TIMEOUT, str(e)) from e
-            if "429" in msg or "quota" in msg or "exhausted" in msg:
-                raise _ProviderError(RESULT_HTTP_429, str(e)) from e
-            if "401" in msg or "403" in msg or "permission" in msg:
-                raise _ProviderError(RESULT_HTTP_4XX_AUTH, str(e)) from e
-            raise _ProviderError(RESULT_OTHER, str(e)) from e

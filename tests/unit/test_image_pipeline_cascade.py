@@ -1,18 +1,18 @@
-"""Unit tests for image_pipeline cascade integration -- Phase 13 CASC-01/05/06.
+"""Unit tests for image_pipeline cascade integration -- CASC-01 (single provider).
 
 All patches are at the image_pipeline module scope (the import site), not
-lib.*, so assertions reflect the actual integration wiring.
+lib.*, so assertions reflect the actual integration wiring. The cascade is
+pure Bailian qwen3-vl-flash; SiliconFlow / OpenRouter / Gemini and the
+balance-switch logic were removed 2026-08-11.
 """
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from lib.siliconflow_balance import BalanceCheckError
 from lib.vision_cascade import (
     AllProvidersExhausted429Error,
     AttemptRecord,
@@ -23,7 +23,7 @@ from lib.vision_cascade import (
 pytestmark = pytest.mark.unit
 
 
-def _ok_result(desc: str = "stub desc", provider: str = "siliconflow") -> CascadeResult:
+def _ok_result(desc: str = "stub desc", provider: str = "bailian") -> CascadeResult:
     return CascadeResult(
         description=desc,
         provider_used=provider,
@@ -48,11 +48,9 @@ def _mock_cascade(mocker, describe_return=None, describe_side_effect=None):
         mock_instance.describe.return_value = describe_return or _ok_result()
     # Baseline status: no circuits open, no successes by default
     mock_instance.status = {
-        "siliconflow": {"circuit_open": False, "total_successes": 0},
-        "openrouter": {"circuit_open": False, "total_successes": 0},
         "bailian": {"circuit_open": False, "total_successes": 0},
     }
-    mock_instance.providers = ["siliconflow", "openrouter", "bailian"]
+    mock_instance.providers = ["bailian"]
     mock_cls = mocker.patch("image_pipeline.VisionCascade")
     mock_cls.return_value = mock_instance
     return mock_cls, mock_instance
@@ -67,9 +65,8 @@ def _write_img(tmp_path: Path, name: str) -> Path:
 # -----------------------------------------------------------
 
 
-def test_describe_images_uses_VisionCascade(tmp_path, mocker, monkeypatch):
+def test_describe_images_uses_VisionCascade(tmp_path, mocker):
     """Test 1: describe_images instantiates VisionCascade + returns its descriptions."""
-    monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
     _mock_cascade(mocker, describe_return=_ok_result("stub desc"))
     from image_pipeline import describe_images
 
@@ -78,9 +75,8 @@ def test_describe_images_uses_VisionCascade(tmp_path, mocker, monkeypatch):
     assert result[p1] == "stub desc"
 
 
-def test_cascade_order_is_siliconflow_first(tmp_path, mocker, monkeypatch):
-    """Test 2: VisionCascade is instantiated with providers starting with siliconflow."""
-    monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
+def test_cascade_providers_is_bailian_only(tmp_path, mocker):
+    """Test 2: VisionCascade is instantiated with providers=['bailian']."""
     mock_cls, _ = _mock_cascade(mocker)
     from image_pipeline import describe_images
 
@@ -89,86 +85,11 @@ def test_cascade_order_is_siliconflow_first(tmp_path, mocker, monkeypatch):
 
     kwargs = mock_cls.call_args.kwargs
     providers = kwargs.get("providers") or mock_cls.call_args.args[0]
-    assert providers[0] == "siliconflow"
-    assert providers == ["siliconflow", "openrouter", "bailian"]
+    assert providers == ["bailian"]
 
 
-def test_balance_check_skipped_with_env_flag(tmp_path, mocker, monkeypatch):
-    """Test 3: OMNIGRAPH_VISION_SKIP_BALANCE_CHECK=1 means no balance call."""
-    monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
-    _mock_cascade(mocker)
-    mock_balance = mocker.patch(
-        "image_pipeline.check_siliconflow_balance",
-        side_effect=AssertionError("should not be called"),
-    )
-    from image_pipeline import describe_images
-
-    p1 = _write_img(tmp_path, "a.jpg")
-    describe_images([p1])
-    mock_balance.assert_not_called()
-
-
-def test_balance_warning_emitted_when_insufficient(
-    tmp_path, mocker, monkeypatch, caplog
-):
-    """Test 4: balance < estimated -> WARNING with 'insufficient'."""
-    monkeypatch.delenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", raising=False)
-    _mock_cascade(mocker)
-    mocker.patch(
-        "image_pipeline.check_siliconflow_balance",
-        return_value=Decimal("0.01"),
-    )
-    from image_pipeline import describe_images
-
-    paths = [_write_img(tmp_path, f"{i}.jpg") for i in range(100)]
-    caplog.set_level(logging.WARNING, logger="image_pipeline")
-    describe_images(paths)
-    assert any("insufficient" in r.message for r in caplog.records)
-
-
-def test_low_balance_switches_to_openrouter_primary(
-    tmp_path, mocker, monkeypatch
-):
-    """Test 5: balance < 0.05 -> cascade built with providers=[openrouter, bailian]."""
-    monkeypatch.delenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", raising=False)
-    mock_cls, _ = _mock_cascade(mocker)
-    mocker.patch(
-        "image_pipeline.check_siliconflow_balance",
-        return_value=Decimal("0.03"),
-    )
-    from image_pipeline import describe_images
-
-    p1 = _write_img(tmp_path, "a.jpg")
-    describe_images([p1])
-    kwargs = mock_cls.call_args.kwargs
-    providers = kwargs.get("providers") or mock_cls.call_args.args[0]
-    assert "siliconflow" not in providers
-    assert providers == ["openrouter", "bailian"]
-
-
-def test_balance_error_does_not_crash(tmp_path, mocker, monkeypatch, caplog):
-    """Test 6: BalanceCheckError -> logged warning, proceed with default cascade."""
-    monkeypatch.delenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", raising=False)
-    mock_cls, _ = _mock_cascade(mocker)
-    mocker.patch(
-        "image_pipeline.check_siliconflow_balance",
-        side_effect=BalanceCheckError("timeout"),
-    )
-    from image_pipeline import describe_images
-
-    p1 = _write_img(tmp_path, "a.jpg")
-    caplog.set_level(logging.WARNING, logger="image_pipeline")
-    result = describe_images([p1])
-    assert p1 in result
-    kwargs = mock_cls.call_args.kwargs
-    providers = kwargs.get("providers") or mock_cls.call_args.args[0]
-    assert providers == ["siliconflow", "openrouter", "bailian"]
-
-
-def test_all_providers_429_stops_batch(tmp_path, mocker, monkeypatch):
-    """Test 7: AllProvidersExhausted429Error on 2nd image -> 3rd image not processed."""
-    monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
-
+def test_all_providers_429_stops_batch(tmp_path, mocker):
+    """Test 3: AllProvidersExhausted429Error on 2nd image -> 3rd image not processed."""
     def describe_side(image_id, image_bytes, mime):
         if image_id == "img_001":
             raise AllProvidersExhausted429Error(f"image_id={image_id}: all 429")
@@ -188,50 +109,40 @@ def test_all_providers_429_stops_batch(tmp_path, mocker, monkeypatch):
     assert stats["batch_stopped_429"] is True
 
 
-def test_empty_paths_list_skips_balance_check(mocker, monkeypatch):
-    """Test 8: describe_images([]) -> {} + no balance call."""
-    monkeypatch.delenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", raising=False)
-    mock_balance = mocker.patch(
-        "image_pipeline.check_siliconflow_balance",
-        side_effect=AssertionError("should not be called"),
-    )
-    from image_pipeline import describe_images
+def test_empty_paths_list_returns_empty(tmp_path, mocker):
+    """Test 4: describe_images([]) -> {} with zeroed stats."""
+    _mock_cascade(mocker)
+    from image_pipeline import describe_images, get_last_describe_stats
 
     result = describe_images([])
     assert result == {}
-    mock_balance.assert_not_called()
+    stats = get_last_describe_stats()
+    assert stats["provider_mix"] == {}
+    assert stats["vision_success"] == 0
+    assert stats["batch_stopped_429"] is False
 
 
-def test_batch_end_alert_if_last_resort_share_high(
-    tmp_path, mocker, monkeypatch, caplog
-):
-    """Test 9: bailian used on >5% of images -> WARNING."""
-    monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
-    # 3 bailian successes out of 10 = 30%
-    results = []
-    for i in range(10):
-        provider = "bailian" if i < 3 else "siliconflow"
-        results.append(_ok_result(f"d{i}", provider=provider))
+def test_batch_end_alert_if_last_resort_share_high(tmp_path, mocker, caplog):
+    """Test 5: sole provider handles >5% of images -> 'vision fallback active' WARNING."""
+    # Single-provider cascade: bailian serves every image (share = 100%).
+    results = [_ok_result(f"d{i}", provider="bailian") for i in range(10)]
     _mock_cascade(mocker, describe_side_effect=results)
     from image_pipeline import describe_images
 
     paths = [_write_img(tmp_path, f"{i}.jpg") for i in range(10)]
     caplog.set_level(logging.WARNING, logger="image_pipeline")
     describe_images(paths)
-    assert any("bailian used for" in r.message for r in caplog.records)
+    assert any("vision fallback active" in r.message for r in caplog.records)
 
 
-def test_batch_end_alert_if_circuit_open(tmp_path, mocker, monkeypatch, caplog):
-    """Test 10: circuit still open at batch end -> WARNING."""
-    monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
+def test_batch_end_alert_if_circuit_open(tmp_path, mocker, caplog):
+    """Test 6: circuit still open at batch end -> WARNING."""
     _, mock_instance = _mock_cascade(mocker)
-    # After the batch, cascade reports siliconflow circuit open
+    # After the batch, cascade reports bailian circuit open
     mock_instance.status = {
-        "siliconflow": {"circuit_open": True, "total_successes": 0},
-        "openrouter": {"circuit_open": False, "total_successes": 1},
-        "bailian": {"circuit_open": False, "total_successes": 0},
+        "bailian": {"circuit_open": True, "total_successes": 0},
     }
-    mock_instance.describe.return_value = _ok_result(provider="openrouter")
+    mock_instance.describe.return_value = _ok_result(provider="bailian")
     from image_pipeline import describe_images
 
     p1 = _write_img(tmp_path, "a.jpg")
@@ -240,9 +151,8 @@ def test_batch_end_alert_if_circuit_open(tmp_path, mocker, monkeypatch, caplog):
     assert any("circuits still open" in r.message for r in caplog.records)
 
 
-def test_get_last_describe_stats_has_new_keys(tmp_path, mocker, monkeypatch):
-    """Test 11: stats dict contains circuit_opens, last_resort_share, batch_stopped_429."""
-    monkeypatch.setenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", "1")
+def test_get_last_describe_stats_has_new_keys(tmp_path, mocker):
+    """Test 7: stats dict contains circuit_opens, last_resort_share, batch_stopped_429."""
     _mock_cascade(mocker)
     from image_pipeline import describe_images, get_last_describe_stats
 
@@ -252,26 +162,15 @@ def test_get_last_describe_stats_has_new_keys(tmp_path, mocker, monkeypatch):
     assert isinstance(stats["circuit_opens"], list)
     assert isinstance(stats["last_resort_share"], float)
     assert isinstance(stats["batch_stopped_429"], bool)
+    assert stats["provider_mix"] == {"bailian": 1}
 
 
-def test_mid_batch_balance_recheck_every_10_images(
-    tmp_path, mocker, monkeypatch
-):
-    """Test 12: mid-batch at i=10 removes siliconflow from cascade.providers."""
-    monkeypatch.delenv("OMNIGRAPH_VISION_SKIP_BALANCE_CHECK", raising=False)
-    _, mock_instance = _mock_cascade(mocker)
+def test_provider_mix_only_records_bailian(tmp_path, mocker):
+    """Test 8: provider_mix only ever contains the bailian counter."""
+    _mock_cascade(mocker)
+    from image_pipeline import describe_images, get_last_describe_stats
 
-    # pre-batch (i=0) returns high; mid-batch (i=10) returns low -> switch
-    balance_values = iter(
-        [Decimal("1.00")] + [Decimal("0.03")] * 10
-    )
-    mocker.patch(
-        "image_pipeline.check_siliconflow_balance",
-        side_effect=lambda: next(balance_values),
-    )
-    from image_pipeline import describe_images
-
-    paths = [_write_img(tmp_path, f"{i}.jpg") for i in range(25)]
+    paths = [_write_img(tmp_path, f"{i}.jpg") for i in range(5)]
     describe_images(paths)
-    # After the run, mid-batch check at i=10 should have removed siliconflow
-    assert "siliconflow" not in mock_instance.providers
+    stats = get_last_describe_stats()
+    assert stats["provider_mix"] == {"bailian": 5}
