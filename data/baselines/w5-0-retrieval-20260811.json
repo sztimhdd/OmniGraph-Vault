@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "date": "2026-08-11T03:28:00+00:00",
+    "tool": "kg_search (hybrid)",
+    "total_queries": 25,
+    "queries_run_full": 1,
+    "categories": {
+      "direct_entity_lookup": 8,
+      "definition_description": 5,
+      "cross_entity_comparison": 4,
+      "relationship_connection": 5,
+      "negative_unknown": 3
+    }
+  },
+  "real_kg_search_samples": [
+    {
+      "query": "What is OpenClaw and how does it work?",
+      "job_id": "f2ceec030e98",
+      "mode": "hybrid",
+      "result_length_chars": 4454,
+      "has_references": true,
+      "has_sections": true,
+      "section_count": 5,
+      "quality_notes": "Rich synthesis with citations [1]-[5], architecture deep-dive, version history, ecosystem coverage. Multi-article synthesis evident."
+    }
+  ],
+  "local_wiki_inject_baseline": {
+    "total_queries": 25,
+    "total_hits": 22,
+    "by_category": {
+      "direct_entity_lookup": {"queries": 8, "hits": 8},
+      "definition_description": {"queries": 5, "hits": 3},
+      "cross_entity_comparison": {"queries": 4, "hits": 4},
+      "relationship_connection": {"queries": 5, "hits": 5},
+      "negative_unknown": {"queries": 3, "hits": 2}
+    },
+    "note": "Local keyword matching is loose (e.g., 'agent' matches agent.md). Real kg_search results needed for accurate baseline. This is a ceiling estimate — real kg_search hit rate expected lower."
+  },
+  "scripts": {
+    "baseline_runner": "scripts/wiki_baseline_bench.py",
+    "usage": "python scripts/wiki_baseline_bench.py --search-only  # local wiki_inject baseline",
+    "full_run": "Run via Hermes with omnigraph MCP for kg_search + kg_synthesize results"
+  }
+}

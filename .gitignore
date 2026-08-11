@@ -36,6 +36,9 @@ docs/queries/hermes_session_*/
 # Use data/* (not data/) so specific files can be un-ignored with ! below.
 data/*
 !data/karpathy_hn_2025.opml
+# Baselines are version-controlled (rerunnable benchmarks)
+!data/baselines/
+!data/baselines/**
 # kb/data/ is a real Python module (article_query.py, lang_detect.py, migrations/)
 # tracked by git — exempt it from the broad data/* rule above so `databricks sync`
 # (which honors .gitignore at any depth inside the sync source) ships it.
