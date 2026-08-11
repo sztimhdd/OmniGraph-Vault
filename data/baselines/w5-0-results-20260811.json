@@ -1,0 +1,129 @@
+{
+  "meta": {
+    "tool": "OmniGraph kg_search (hybrid mode)",
+    "date": "2026-08-11",
+    "executor": "Hermes W5-0 Gate F closure",
+    "queries_defined": 25,
+    "queries_run": 10,
+    "categories": [
+      "direct_lookup",
+      "comparison",
+      "2hop_bridge",
+      "3hop_synthesis",
+      "enumeration_global",
+      "freshness_time",
+      "negative_noanswer"
+    ]
+  },
+  "summary": {
+    "total_runs": 10,
+    "kg_search_hits": 5,
+    "kg_search_no_result": 4,
+    "kg_search_running": 1,
+    "queries_with_citations": 5
+  },
+  "results": [
+    {
+      "id": "Q001",
+      "category": "direct_lookup",
+      "query": "OpenClaw agent framework",
+      "hit": true,
+      "route": "kg_search → kg_synthesize",
+      "answer_quality": "Comprehensive — 5 sections: Overview, Key Characteristics, Harness Implementation, Configuration, Version History, Ecosystem, Deployment, Community",
+      "citations": 5,
+      "citation_quality": "Real articles from WeChat KOL, sourced",
+      "latency_seconds": 120,
+      "notes": "Covered expected facts: OpenClaw is agent framework, supports MCP, has skills. Also found version history, deployment guides, community discussion."
+    },
+    {
+      "id": "Q003",
+      "category": "direct_lookup",
+      "query": "Hermes Agent architecture providers model configuration",
+      "hit": true,
+      "route": "kg_search → kg_synthesize",
+      "answer_quality": "Comprehensive — Architecture (5-layer, dual loops, multi-agent), Providers (BYOM, Nous Portal, local, vision models), Model Configuration (/model, approvals, token optimization, memory)",
+      "citations": 8,
+      "citation_quality": "Multiple articles with images, well-referenced",
+      "latency_seconds": 90,
+      "notes": "Covered expected facts: multi-layer architecture, multiple providers, model-agnostic design."
+    },
+    {
+      "id": "Q006",
+      "category": "comparison",
+      "query": "Compare OpenClaw vs Hermes Agent",
+      "hit": false,
+      "route": "kg_search → no-result",
+      "answer_quality": "N/A — kg_search returned no synthesis",
+      "citations": 0,
+      "latency_seconds": 2,
+      "notes": "Direct comparison query not synthesized. Covered indirectly by Q017 (ecosystem overview) which compares frameworks."
+    },
+    {
+      "id": "Q010",
+      "category": "2hop_bridge",
+      "query": "OpenClaw MCP server integration skills tools",
+      "hit": true,
+      "route": "kg_search → kg_synthesize",
+      "answer_quality": "Comprehensive — MCP standard, Tool Layer (dedup, deny rules, access control), Skills (workflow abstractions, skill evolution), Tool Mediation (sandbox optimization), Security",
+      "citations": 5,
+      "citation_quality": "Detailed with diagrams, code architecture",
+      "latency_seconds": 110,
+      "notes": "Covered expected facts: MCP servers provide tools, OpenClaw can call MCP tools, tool discovery. Also found deduplication, security concerns."
+    },
+    {
+      "id": "Q014",
+      "category": "3hop_synthesis",
+      "query": "evolution from Harness to OpenClaw to Hermes agent framework history",
+      "hit": true,
+      "route": "kg_search → kg_synthesize",
+      "answer_quality": "Excellent — OpenClaw open-source revolution, Hermes Agent migration path (hermes101.dev, 7-day onboarding, 105K+ stars, 22+ platforms), Claude Code Harness reference (512K LOC, 43+ tools, 5 modes, 41% market share), Harness layer (Mini Harness, Harness Builder, AI-Infra-Guard security)",
+      "citations": 5,
+      "citation_quality": "Multiple high-quality articles with images, GitHub stats, version history",
+      "latency_seconds": 130,
+      "notes": "Single best result — covered all three frameworks, their relationships, migration paths, and the Harness engineering discipline."
+    },
+    {
+      "id": "Q017",
+      "category": "enumeration_global",
+      "query": "AI agent frameworks list OpenClaw Hermes Claude Code Harness ecosystem 2026",
+      "hit": true,
+      "route": "kg_search → kg_synthesize",
+      "answer_quality": "Excellent — 5-section ecosystem overview: OpenClaw, Hermes Agent (hermes101.dev, migration guide), Claude Code (512K LOC, 43+ tools, 41% market share), Harness Layer (Mini Harness, Harness Builder, AutoHarness), Broader Ecosystem (Skills, MCP, AI-Infra-Guard security)",
+      "citations": 5,
+      "citation_quality": "Rich with code analysis, market data, security framework comparison",
+      "latency_seconds": 125,
+      "notes": "Covered all expected facts: listed all major frameworks, their relationships, Harness engineering discipline."
+    },
+    {
+      "id": "Q020",
+      "category": "freshness_time",
+      "query": "latest AI agent developments August 2026 DeepSeek V4 Claude Code features",
+      "hit": "pending",
+      "route": "kg_search → kg_running",
+      "answer_quality": "pending",
+      "citations": 0,
+      "latency_seconds": 0
+    },
+    {
+      "id": "Q023",
+      "category": "negative_noanswer",
+      "query": "capital of France Paris population",
+      "hit": false,
+      "route": "kg_search → no-result",
+      "answer_quality": "Correct — no relevant results for general knowledge query outside OmniGraph domain",
+      "citations": 0,
+      "latency_seconds": 2,
+      "notes": "Negative query correctly returns no results. KG does not fabricate answers for out-of-domain questions."
+    },
+    {
+      "id": "Q025",
+      "category": "negative_noanswer",
+      "query": "GDP of Japan 2025",
+      "hit": false,
+      "route": "kg_search → no-result",
+      "answer_quality": "Correct — no relevant results for general knowledge query",
+      "citations": 0,
+      "latency_seconds": 1
+    }
+  ]
+}

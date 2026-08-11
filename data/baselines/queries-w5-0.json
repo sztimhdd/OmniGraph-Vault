@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "tool": "OmniGraph kg_search (hybrid mode)",
+    "date": "2026-08-11",
+    "total_queries": 25,
+    "categories": {
+      "direct_lookup": ["What is OpenClaw?", "Define Hermes Agent architecture", "What is Harness in the context of AI agents?", "Describe the skills feature in OpenClaw"],
+      "comparison": ["Compare OpenClaw vs Hermes Agent", "Compare Claude Code vs OpenClaw coding capabilities", "Contrast LightRAG with traditional RAG approaches"],
+      "2hop_bridge": ["How does OpenClaw integrate with MCP servers?", "What model providers does Hermes support for inference?", "How does entity extraction work in OmniGraph ingestion pipeline?"],
+      "3hop_synthesis": ["How do agent frameworks evolve from Harness to OpenClaw to Hermes?", "What is the full pipeline from WeChat article to knowledge graph entity?", "How do wiki pages, entity buffers, and kg_search interact in OmniGraph?"],
+      "enumeration_global": ["List all AI agent frameworks mentioned in the knowledge base", "What are all the AI topics tracked by OmniGraph KOL scan?", "List the key platforms and tools in the agent development ecosystem"],
+      "freshness_time": ["What are the latest developments in AI agent frameworks as of August 2026?", "What recent WeChat articles discuss DeepSeek V4?", "Latest Claude Code features released in 2026"],
+      "negative_noanswer": ["What is the capital of France?", "How to bake a chocolate cake?", "What is the GDP of Japan in 2025?"]
+    },
+    "expected_facts": {
+      "What is OpenClaw?": ["OpenClaw is an AI agent framework", "supports MCP servers", "has skills/plugins system"],
+      "Compare OpenClaw vs Hermes Agent": ["OpenClaw focuses on agent orchestration", "Hermes focuses on personal AI assistant", "both support MCP"],
+      "How does OpenClaw integrate with MCP servers?": ["MCP servers provide tools", "OpenClaw can call MCP tools", "tool discovery protocol"],
+      "What are the latest developments in AI agent frameworks as of August 2026?": ["2026 timeline", "recent releases or features"],
+      "What is the capital of France?": ["No relevant knowledge base article", "should return no results or gracefully handle"]
+    }
+  },
+  "queries": [
+    {"id": "Q001", "category": "direct_lookup", "query": "What is OpenClaw?"},
+    {"id": "Q002", "category": "direct_lookup", "query": "Define Hermes Agent architecture"},
+    {"id": "Q003", "category": "direct_lookup", "query": "What is Harness in the context of AI agents?"},
+    {"id": "Q004", "category": "direct_lookup", "query": "Describe the skills feature in OpenClaw"},
+    {"id": "Q005", "category": "direct_lookup", "query": "What is LightRAG and how does it work?"},
+    {"id": "Q006", "category": "comparison", "query": "Compare OpenClaw vs Hermes Agent"},
+    {"id": "Q007", "category": "comparison", "query": "Compare Claude Code vs OpenClaw coding capabilities"},
+    {"id": "Q008", "category": "comparison", "query": "Contrast LightRAG with traditional RAG approaches"},
+    {"id": "Q009", "category": "comparison", "query": "Compare DeepSeek V4 vs previous versions"},
+    {"id": "Q010", "category": "2hop_bridge", "query": "How does OpenClaw integrate with MCP servers?"},
+    {"id": "Q011", "category": "2hop_bridge", "query": "What model providers does Hermes support for inference?"},
+    {"id": "Q012", "category": "2hop_bridge", "query": "How does entity extraction work in OmniGraph ingestion pipeline?"},
+    {"id": "Q013", "category": "2hop_bridge", "query": "What is the relationship between WeChat articles and knowledge graph entities?"},
+    {"id": "Q014", "category": "3hop_synthesis", "query": "How do agent frameworks evolve from Harness to OpenClaw to Hermes?"},
+    {"id": "Q015", "category": "3hop_synthesis", "query": "What is the full pipeline from WeChat article to knowledge graph entity?"},
+    {"id": "Q016", "category": "3hop_synthesis", "query": "How do wiki pages, entity buffers, and kg_search interact in OmniGraph?"},
+    {"id": "Q017", "category": "enumeration_global", "query": "List all AI agent frameworks mentioned in the knowledge base"},
+    {"id": "Q018", "category": "enumeration_global", "query": "What are all the AI topics tracked by OmniGraph KOL scan?"},
+    {"id": "Q019", "category": "enumeration_global", "query": "List the key platforms and tools in the agent development ecosystem"},
+    {"id": "Q020", "category": "freshness_time", "query": "What are the latest developments in AI agent frameworks as of August 2026?"},
+    {"id": "Q021", "category": "freshness_time", "query": "What recent articles discuss DeepSeek V4?"},
+    {"id": "Q022", "category": "freshness_time", "query": "Latest Claude Code features released in 2026"},
+    {"id": "Q023", "category": "negative_noanswer", "query": "What is the capital of France?"},
+    {"id": "Q024", "category": "negative_noanswer", "query": "How to bake a chocolate cake?"},
+    {"id": "Q025", "category": "negative_noanswer", "query": "What is the GDP of Japan in 2025?"}
+  ]
+}
