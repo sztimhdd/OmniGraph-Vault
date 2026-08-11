@@ -45,8 +45,17 @@ d64ea8c6 feat(wiki-v2-w5-0): C2+C3+C5 — health checker + index rebuild + compi
 
 ## Post-deploy verification
 
-After `systemctl restart omnigraph-daily-ingest` on Aliyun:
-1. Wait for next cron tick (~2h)
-2. Check journal: `journalctl -u omnigraph-daily-ingest --since "5 minutes ago" | grep "W3 wiki hook"`
-3. Expect: non-zero `wiki_stats` (suggestions generated, not `{}`)
-4. Check `ls kb/wiki/_suggestions/` for any update suggestions on rich W1 pages
+Deployed 2026-08-11 via SCP (GitHub→Aliyun too slow from China):
+1. `scp` W5-0 files to 47.117.244.253
+2. `tar xzf` into /root/OmniGraph-Vault (backups saved as .w5-0-bak)
+3. `systemctl restart omnigraph-daily-ingest` → active
+4. Verification: hash fix confirmed (2 occurrences of MD5[:10] pattern), convergence protection confirmed (2 occurrences of _page_is_w1_rich)
+
+Post-cron-tick verification (wait ~2h):
+1. `journalctl -u omnigraph-daily-ingest --since "5 minutes ago" | grep "W3 wiki hook"`
+2. Expect: non-zero `wiki_stats` (suggestions generated, not `{}`)
+3. `ls kb/wiki/_suggestions/` — check for update suggestions on rich W1 pages
+
+## W5-0 Independent Verification
+
+VERIFICATION.md (Gate J, 2026-08-11): All Gates A-J PASS. One pre-existing test integration bug (db_path threading) identified and fixed in d20bcde4. No Gate-level failures. No W6/W7/W8 scope creep.
