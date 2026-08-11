@@ -171,6 +171,40 @@ confidence_level: high
 Old text ^[article:5a362bf61e]
 """
 
+# Canonical page with TWO complete multi-line source entries — the shape the
+# W5A assembler/W1 emit. Regression fixture for the adversarial review MAJOR:
+# _merge_sources used to stop its insertion scan at the first continuation
+# line, corrupting every entry after the first.
+_CANONICAL_2_ENTRY_PAGE = """---
+title: 'Python Debugging'
+created: '2026-05-20'
+last_updated: '2026-05-20'
+sources:
+  - id: 1
+    type: article
+    ref: 'abcdef1234'
+    title: 'Src'
+    provenance: lightrag-corpus
+  - id: 2
+    type: web
+    ref: 'https://example.com/docs'
+    title: 'Web Docs'
+    provenance: tavily-web
+confidence_level: high
+---
+
+# Python Debugging
+
+## Definition / Overview
+
+Old section body [^1][^2]
+
+## References
+
+[^1]: **Src** — abcdef1234 (lightrag-corpus)
+[^2]: **Web Docs** — https://example.com/docs (tavily-web)
+"""
+
 _NO_FRONTMATTER_PAGE = "# No Frontmatter\n\nPlain body without YAML block.\n"
 
 
@@ -418,6 +452,87 @@ def test_apply_patch_success_no_conflict(wiki_root: Path):
     # Body untouched by metadata/source-only operations
     assert "Old section body [^1]" in after
     assert page_digest(after) != page_digest(before)
+
+
+def test_apply_patch_merge_sources_preserves_multi_entry_blocks(wiki_root: Path):
+    """MERGE_SOURCES into a canonical page with >=2 multi-line entries must
+    keep EVERY original entry intact (own ref/title/provenance) and append
+    the new entry LAST. Regression for the adversarial review MAJOR finding:
+    the insertion scan previously stopped at the first continuation line,
+    landing mid-entry and corrupting the block."""
+    import frontmatter
+    from kb.wiki_compiler.engine import apply_patch
+    target = _write_page(wiki_root, "python-debugging", _CANONICAL_2_ENTRY_PAGE)
+    before = target.read_text(encoding="utf-8")
+    patch = _make_patch(
+        ops=(PatchOperation(
+            op="MERGE_SOURCES", section=None, content=None, metadata=None,
+        ),),
+        base_digest=page_digest(before),
+        evidence=(
+            EvidenceRef(
+                evidence_id="e3", type="article", ref="0123456789",
+                title="New Src", provenance="lightrag-corpus", metadata={},
+            ),
+        ),
+    )
+    result = apply_patch(patch, wiki_root)
+    assert result["status"] == "applied", result["error"]
+
+    post = frontmatter.load(str(target))
+    sources = post.metadata["sources"]
+    assert [s["type"] for s in sources] == ["article", "web", "article"]
+    # Every original entry keeps its own keys — nothing absorbed or mangled
+    assert sources[0] == {
+        "id": 1, "type": "article", "ref": "abcdef1234",
+        "title": "Src", "provenance": "lightrag-corpus",
+    }, f"entry 1 corrupted: {sources[0]}"
+    assert sources[1] == {
+        "id": 2, "type": "web", "ref": "https://example.com/docs",
+        "title": "Web Docs", "provenance": "tavily-web",
+    }, f"entry 2 corrupted: {sources[1]}"
+    # New entry appended LAST, complete with all its keys
+    assert sources[2] == {
+        "id": 3, "type": "article", "ref": "0123456789",
+        "title": "New Src", "provenance": "lightrag-corpus",
+    }, f"new entry malformed: {sources[2]}"
+    # Body untouched
+    assert "Old section body [^1][^2]" in target.read_text(encoding="utf-8")
+
+
+def test_merge_sources_suggestion_render_preserves_multi_entry_blocks():
+    """The suggestion path (_render_candidate -> _merge_sources) must also
+    preserve multi-entry canonical blocks — every existing-page suggestion
+    for a canonical page renders through this path."""
+    import frontmatter
+    from kb.wiki_compiler.engine import _render_candidate
+    patch = _make_patch(
+        ops=(PatchOperation(
+            op="MERGE_SOURCES", section=None, content=None, metadata=None,
+        ),),
+        base_digest=page_digest(_CANONICAL_2_ENTRY_PAGE),
+        evidence=(
+            EvidenceRef(
+                evidence_id="e3", type="article", ref="0123456789",
+                title="New Src", provenance="lightrag-corpus", metadata={},
+            ),
+        ),
+    )
+    out = _render_candidate(patch, _CANONICAL_2_ENTRY_PAGE)
+    post = frontmatter.loads(out)
+    sources = post.metadata["sources"]
+    assert len(sources) == 3
+    assert sources[0] == {
+        "id": 1, "type": "article", "ref": "abcdef1234",
+        "title": "Src", "provenance": "lightrag-corpus",
+    }
+    assert sources[1] == {
+        "id": 2, "type": "web", "ref": "https://example.com/docs",
+        "title": "Web Docs", "provenance": "tavily-web",
+    }
+    assert sources[2]["type"] == "article"
+    assert sources[2]["ref"] == "0123456789"
+    assert sources[2]["title"] == "New Src"
 
 
 def test_apply_patch_conflict_on_digest_mismatch(wiki_root: Path):

@@ -147,7 +147,7 @@ def test_apply_suggestion_creates_new_page_canonically(tmp_path: Path):
     page = entities_dir / "new-entity.md"
     assert page.exists()
     text = page.read_text(encoding="utf-8")
-    assert "- type: article" in text
+    assert "    type: article" in text
     assert "^[article:" not in text
     # New-page creation never produces a suggestion file.
     assert not (wiki_root / "_suggestions").exists()

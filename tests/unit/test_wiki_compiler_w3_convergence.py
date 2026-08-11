@@ -154,7 +154,7 @@ def test_new_entity_w3_flow_creates_canonical_cited_page(tmp_path):
     assert page.exists()
     text = page.read_text(encoding="utf-8")
     # canonical typed sources[] — not legacy `- article:<hex>` lines
-    assert "- type: article" in text
+    assert "    type: article" in text
     assert 'ref: "aaaaaaaaaa"' in text
     assert 'ref: "bbbbbbbbbb"' in text
     assert "provenance: w3-entity-buffer" in text
@@ -443,4 +443,4 @@ async def test_batch_ingest_hook_routes_through_compiler(tmp_path, monkeypatch):
     assert result["dropped"] == 0
     page = wiki / "entities" / "test-entity.md"
     assert page.exists()
-    assert "- type: article" in page.read_text(encoding="utf-8")
+    assert "    type: article" in page.read_text(encoding="utf-8")

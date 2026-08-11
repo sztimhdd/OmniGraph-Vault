@@ -618,18 +618,35 @@ def _merge_sources(text: str, evidence: Tuple[EvidenceRef, ...]) -> str:
     if src_idx + 1 < len(lines) and lines[src_idx + 1].startswith("  - "):
         indent = "  "
     insert_at = src_idx + 1
-    while insert_at < len(lines) and (
-        lines[insert_at].startswith(indent + "- ")
-        or (indent and lines[insert_at].startswith("  - "))
-    ):
-        insert_at += 1
+    if indent:
+        # Canonical block entries: a source entry is the `- ` list item plus
+        # its indented continuation lines (`    ref:`, `    title:`, ...).
+        # Skip the ENTIRE sources block so the new entry lands after the
+        # last complete entry — stopping at the first continuation line
+        # would insert mid-entry and corrupt every entry after the first
+        # (adversarial review MAJOR finding).
+        list_prefix = indent + "- "
+        cont_prefix = indent + "  "
+        while insert_at < len(lines):
+            ln = lines[insert_at]
+            if ln.startswith(list_prefix) or ln.startswith(cont_prefix):
+                insert_at += 1
+                continue
+            break
+    else:
+        # Legacy `- article:<hex>` entries are single lines.
+        while insert_at < len(lines) and lines[insert_at].startswith("- "):
+            insert_at += 1
     new_lines: List[str] = []
     if legacy_style:
         for a in additions:
             new_lines.append(f"{indent}- article:{a['ref']}")
     else:
-        for a in additions:
-            new_lines.append(f"{indent}- type: {a['type']}")
+        for i, a in enumerate(additions, start=1):
+            # Canonical entries carry SCHEMA.md's positional id: the count of
+            # existing entries plus the 1-based position among the additions.
+            new_lines.append(f"{indent}- id: {len(sources) + i}")
+            new_lines.append(f"{indent}  type: {a['type']}")
             if a["ref"] is not None:
                 new_lines.append(f"{indent}  ref: {_yaml_str(a['ref'])}")
             new_lines.append(f"{indent}  title: {_yaml_str(a['title'])}")

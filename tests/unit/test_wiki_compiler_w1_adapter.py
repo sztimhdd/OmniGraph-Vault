@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date
-from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import frontmatter
@@ -76,19 +75,19 @@ def _canonical_page_text(
     include_builtin=False,
 ) -> str:
     sources: list[dict] = []
-    for h in hashes:
+    for i, h in enumerate(hashes, start=1):
         sources.append({
-            "type": "article", "ref": h, "title": f"Article {h}",
+            "id": i, "type": "article", "ref": h, "title": f"Article {h}",
             "provenance": "lightrag-corpus",
         })
-    for u in web_urls:
+    for i, u in enumerate(web_urls, start=len(hashes) + 1):
         sources.append({
-            "type": "web", "ref": u, "title": "Web Source",
+            "id": i, "type": "web", "ref": u, "title": "Web Source",
             "provenance": "tavily-web",
         })
     if include_builtin:
         sources.append({
-            "type": "builtin", "title": "Opus training knowledge",
+            "id": len(sources) + 1, "type": "builtin", "title": "Opus training knowledge",
             "provenance": "training-knowledge",
         })
     md = {
@@ -145,22 +144,19 @@ def _chunk_article_map(*, hashes=(ARTICLE_HASH,)) -> dict[str, dict[str, str]]:
 
 
 def _fake_apply(status="applied", suggestion_path=None):
-    """Stand-in for the shared compiler apply engine (Task 3 seam).
-
-    Sync, matching the plan's ``apply_patch_atomic(patch, *, wiki_root,
-    known_article_hashes) -> ApplyResult`` contract.
-    """
+    """Stand-in matching the REAL shared compiler engine contract:
+    ``apply_patch(patch, *, wiki_root) -> dict`` with ``status`` in
+    applied|conflict|suggestion|rejected."""
     calls: list[tuple] = []
 
-    def _apply(patch, *, wiki_root, known_article_hashes):
-        calls.append((patch, wiki_root, known_article_hashes))
-        return SimpleNamespace(
-            status=status,
-            patch_id=patch.patch_id,
-            target_path=patch.target_path,
-            suggestion_path=suggestion_path,
-            issues=(),
-        )
+    def _apply(patch, *, wiki_root):
+        calls.append((patch, wiki_root))
+        return {
+            "status": status,
+            "patch_id": patch.patch_id,
+            "error": None,
+            "suggestion_path": suggestion_path,
+        }
 
     _apply.calls = calls
     return _apply
@@ -231,7 +227,10 @@ def test_prompts_canonical_format():
     )
     assert "[^N]" in prompt, "prompt must teach GFM [^N] footnotes"
     assert "## References" in prompt, "prompt must require a References section"
-    assert "- type: article" in prompt, "prompt must show typed sources frontmatter"
+    # The typed-sources frontmatter example is id-first canonical: the list
+    # marker carries the positional id, `type` is a continuation key.
+    assert "- id: 1" in prompt, "prompt must show typed sources frontmatter"
+    assert "    type: article" in prompt
     assert "provenance: lightrag-corpus" in prompt
     assert "provenance: tavily-web" in prompt
     assert "Format is exactly `^[article:" not in prompt, "old legacy instruction must be gone"
@@ -256,6 +255,87 @@ def test_validates_canonical_success():
     assert res["errors"] == [], res["errors"]
     assert res["post"] is not None
     assert res["format"] == "canonical"
+
+
+def _canonical_with_sources(sources: list[dict]) -> str:
+    """Canonical page text with an explicit sources list (for id tests)."""
+    md = {
+        "title": "Test Entity",
+        "created": "2026-08-11",
+        "last_updated": "2026-08-11",
+        "sources": sources,
+        "confidence_level": "high",
+    }
+    body = (
+        "# Test Entity\n\n"
+        "Test Entity is an agent framework. [^1]\n\n"
+        "## References\n\n"
+        f"[^1]: **Article {ARTICLE_HASH}** — {ARTICLE_HASH} (lightrag-corpus)\n"
+    )
+    return frontmatter.dumps(frontmatter.Post(body, **md))
+
+
+def test_validator_requires_positional_source_id():
+    """SCHEMA.md §1: every sources[] entry must carry a positional integer
+    `id` (1-based, referenced inline as [^id]). The W1 validator must
+    reject canonical pages that omit or misnumber it."""
+    cat = _catalog()
+
+    # id present and positional -> passes
+    ok = _canonical_with_sources([{
+        "id": 1, "type": "article", "ref": ARTICLE_HASH,
+        "title": f"Article {ARTICLE_HASH}", "provenance": "lightrag-corpus",
+    }])
+    res = wgp.validate_and_parse(ok, cat)
+    assert res["errors"] == [], res["errors"]
+
+    # id omitted -> rejected
+    no_id = _canonical_with_sources([{
+        "type": "article", "ref": ARTICLE_HASH,
+        "title": f"Article {ARTICLE_HASH}", "provenance": "lightrag-corpus",
+    }])
+    res = wgp.validate_and_parse(no_id, cat)
+    assert any("id" in e for e in res["errors"]), res["errors"]
+
+    # id misnumbered -> rejected
+    wrong = _canonical_with_sources([{
+        "id": 9, "type": "article", "ref": ARTICLE_HASH,
+        "title": f"Article {ARTICLE_HASH}", "provenance": "lightrag-corpus",
+    }])
+    res = wgp.validate_and_parse(wrong, cat)
+    assert any("id" in e for e in res["errors"]), res["errors"]
+
+    # duplicate id -> rejected
+    dup = _canonical_with_sources([
+        {"id": 1, "type": "article", "ref": ARTICLE_HASH,
+         "title": f"Article {ARTICLE_HASH}", "provenance": "lightrag-corpus"},
+        {"id": 1, "type": "web", "ref": WEB_URL,
+         "title": "Web Source", "provenance": "tavily-web"},
+    ])
+    res = wgp.validate_and_parse(dup, cat)
+    assert any("id" in e for e in res["errors"]), res["errors"]
+
+
+def test_prompt_instructs_positional_source_id():
+    """The prompt must teach Opus that sources[] entries carry a positional
+    `id` (1-based, in AVAILABLE SOURCES order) and that [^N] inline
+    citations reference those ids."""
+    catalog = _catalog()
+    prompt = wgp.build_opus_prompt(
+        entity_name="Test Entity",
+        lightrag_context="ctx",
+        tavily_results=[{"url": WEB_URL, "title": "Web Source", "content": "s"}],
+        catalog=catalog,
+        today=_TODAY,
+    )
+    # The rendered frontmatter example carries id as the first key
+    assert "- id: 1" in prompt
+    assert "- id: 2" in prompt
+    # The frontmatter format instruction spells out the id contract
+    fmt_section = prompt[prompt.index("Format per entry"):prompt.index("Do NOT add sources")]
+    assert "`id:`" in fmt_section
+    assert "1-based" in fmt_section
+    assert "available sources" in fmt_section.lower()
 
 
 def test_validates_legacy_still_passes():
@@ -335,7 +415,7 @@ def test_generate_one_entity_routes_through_compiler(mocker, tmp_path):
     assert res["path"] == str(output_dir / "test-entity.md")
     assert res["errors"] == []
     assert len(fake_apply.calls) == 1
-    patch, wiki_root, known_hashes = fake_apply.calls[0]
+    patch, wiki_root = fake_apply.calls[0]
     assert patch.target_slug == "test-entity"
     assert patch.target_kind == "entity"
     assert patch.target_path.endswith("entities/test-entity.md")
@@ -343,7 +423,10 @@ def test_generate_one_entity_routes_through_compiler(mocker, tmp_path):
     # Candidate content (validated Opus page) rides the patch, not a re-render
     assert patch.operations[0].content == opus_out
     assert wiki_root == tmp_path / "wiki"
-    assert known_hashes == {ARTICLE_HASH}
+    # Real engine contract: apply_fn(patch, *, wiki_root) — the plan-era
+    # known_article_hashes kwarg is gone (engine derives everything from the
+    # patch; evidence is already embedded). The fake's keyword-only signature
+    # rejects that kwarg with TypeError, so a regression here fails this test.
     # Engine compatibility: evidence is present on the patch
     assert any(ev.type == "article" and ev.ref == ARTICLE_HASH for ev in patch.evidence)
     # Log line still written
@@ -510,14 +593,14 @@ def test_suggestion_writing_for_existing_page(mocker, tmp_path):
         mocker, tmp_path,
         opus_output=_canonical_page_text(),
         existing_page=existing,
-        apply_status="suggested",
+        apply_status="suggestion",
         suggestion_path=sugg_path,
     ))
 
     assert res["status"] == "suggested"
     assert res["path"] == sugg_path
     assert len(fake_apply.calls) == 1
-    patch, _, _ = fake_apply.calls[0]
+    patch, _ = fake_apply.calls[0]
     assert patch.policy_hint == "suggestion_only"
     assert patch.base_digest == page_digest(existing)
     assert patch.operations[0].op == "MERGE_SOURCES", (

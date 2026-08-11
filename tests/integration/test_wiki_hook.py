@@ -63,7 +63,7 @@ def test_end_of_cron_fires(tmp_path, monkeypatch):
     assert len(written) >= 1
     # W5A: new pages are canonical (typed sources), never legacy placeholders.
     text = written[0].read_text(encoding="utf-8")
-    assert "- type: article" in text
+    assert "    type: article" in text
     assert "^[article:" not in text
 
 

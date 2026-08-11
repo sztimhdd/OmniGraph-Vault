@@ -7,10 +7,11 @@ Contract
 --------
 * **New pages** (``existing_page_path is None``) produce a single
   ``CREATE_PAGE`` operation whose content is the canonical SCHEMA.md
-  representation: typed ``sources`` frontmatter (``type``/``ref``/``title``/
-  ``provenance``) and GFM ``[^N]`` footnote citations with a trailing
-  ``## References`` section. Legacy ``^[article:<hex>]`` inline citations are
-  never emitted for new pages.
+  representation: typed ``sources`` frontmatter (``id``/``type``/``ref``/
+  ``title``/``provenance``, with ``id`` the positional 1-based footnote
+  number per SCHEMA.md §1) and GFM ``[^N]`` footnote citations with a
+  trailing ``## References`` section. Legacy ``^[article:<hex>]`` inline
+  citations are never emitted for new pages.
 
 * **Existing pages** (``existing_page_path`` set) are *not* rewritten to the
   canonical format. The assembler emits scoped operations only:
@@ -81,7 +82,8 @@ TYPE_PROVENANCE = {
 #: Default H2 section targeted by UPSERT_SECTION on existing pages.
 DEFAULT_SECTION = "Definition / Overview"
 
-#: Frontmatter keys that may appear in a typed source entry.
+#: Frontmatter keys that may appear in a typed source entry (besides the
+#: positional ``id``, which is added first by the canonical renderer).
 _SOURCE_ENTRY_KEYS = ("type", "ref", "title", "provenance")
 
 _COMPILER_VERSION = "v2.0-w5a"
@@ -179,9 +181,10 @@ def _build_canonical_frontmatter(
 
     ``sources`` defaults to the deduplicated catalog derived from ``ep``.
     ``today`` defaults to the date embedded in ``ep.created_at`` when it is
-    ISO-formatted, otherwise ``date.today()``. Source entries carry only the
-    canonical keys (``type``, ``ref``, ``title``, ``provenance``); ``ref`` is
-    omitted for builtin sources.
+    ISO-formatted, otherwise ``date.today()``. Source entries carry the
+    canonical keys (``id``, ``type``, ``ref``, ``title``, ``provenance``);
+    ``id`` is the positional 1-based index (SCHEMA.md §1 — referenced
+    inline as ``[^id]``) and ``ref`` is omitted for builtin sources.
     """
     if sources is None:
         sources = _catalog_sources(ep)
@@ -192,9 +195,9 @@ def _build_canonical_frontmatter(
         "created": today.isoformat(),
         "last_updated": today.isoformat(),
         "sources": [
-            {k: s[k] for k in _SOURCE_ENTRY_KEYS
-             if k in s and s[k] is not None}
-            for s in sources
+            {"id": i, **{k: s[k] for k in _SOURCE_ENTRY_KEYS
+                         if k in s and s[k] is not None}}
+            for i, s in enumerate(sources, start=1)
         ],
         "confidence_level": _derive_confidence(sources),
     }
@@ -437,8 +440,9 @@ def _render_yaml(data: dict) -> str:
     for key, value in data.items():
         if key == "sources":
             lines.append("sources:")
-            for entry in value:
-                lines.append("  - type: " + entry["type"])
+            for i, entry in enumerate(value, start=1):
+                lines.append(f"  - id: {entry.get('id', i)}")
+                lines.append("    type: " + entry["type"])
                 if entry.get("ref") is not None:
                     lines.append("    ref: " + _yaml_str(entry["ref"]))
                 lines.append("    title: " + _yaml_str(entry["title"]))

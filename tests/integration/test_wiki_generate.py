@@ -53,11 +53,13 @@ title: OpenClaw
 created: '2026-05-20'
 last_updated: '2026-05-20'
 sources:
-  - type: article
+  - id: 1
+    type: article
     ref: "16e23156b6"
     title: "KOL OpenClaw deep-dive"
     provenance: lightrag-corpus
-  - type: article
+  - id: 2
+    type: article
     ref: "e965180f9d"
     title: "Hermes/OpenClaw comparison"
     provenance: lightrag-corpus
@@ -95,25 +97,24 @@ def _fake_chunk_article_map() -> dict[str, dict[str, str]]:
 
 
 def _fake_apply_engine(out_dir: Path, applied_paths: list[Path]):
-    """Sync stand-in for the shared compiler apply engine; writes the page
-    like apply_patch_atomic would for a CREATE_PAGE auto-apply."""
+    """Sync stand-in matching the REAL shared compiler engine contract:
+    ``apply_patch(patch, *, wiki_root) -> dict`` with ``status`` in
+    applied|conflict|suggestion|rejected. Writes the page like the engine
+    would for a CREATE_PAGE auto-apply."""
     calls: list[tuple] = []
 
-    def _apply(patch, *, wiki_root, known_article_hashes):
-        calls.append((patch, wiki_root, known_article_hashes))
+    def _apply(patch, *, wiki_root):
+        calls.append((patch, wiki_root))
         target = Path(wiki_root) / patch.target_path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(patch.operations[0].content, encoding="utf-8")
         applied_paths.append(target)
-        return type(
-            "ApplyResult", (), {
-                "status": "applied",
-                "patch_id": patch.patch_id,
-                "target_path": str(target),
-                "suggestion_path": None,
-                "issues": (),
-            },
-        )()
+        return {
+            "status": "applied",
+            "patch_id": patch.patch_id,
+            "error": None,
+            "suggestion_path": None,
+        }
 
     _apply.calls = calls
     return _apply
@@ -171,10 +172,11 @@ def test_one_entity_full(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
 
     # Routed through the compiler: one WikiPatch, CREATE_PAGE, candidate content
     assert len(fake_apply.calls) == 1
-    patch, wiki_root, known_hashes = fake_apply.calls[0]
+    patch, wiki_root = fake_apply.calls[0]
     assert patch.operations[0].op == "CREATE_PAGE"
     assert patch.operations[0].content == _FAKE_OPUS_OUTPUT
-    assert known_hashes == {"16e23156b6", "e965180f9d"}
+    # Real engine contract: apply_fn(patch, *, wiki_root) — no plan-era kwargs
+    assert wiki_root == tmp_path
 
     out_path = out_dir / "openclaw.md"
     assert out_path.exists()
@@ -185,9 +187,11 @@ def test_one_entity_full(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert required.issubset(post.metadata.keys())
     assert post["title"] == "OpenClaw"
 
-    # Sources is a typed list of dicts per canonical SCHEMA (no `id`)
+    # Sources is a typed list of dicts per canonical SCHEMA, with positional
+    # `id` (SCHEMA.md §1) as the first key of every entry.
     sources = post.metadata["sources"]
     assert isinstance(sources, list) and all(isinstance(s, dict) for s in sources)
+    assert [s["id"] for s in sources] == [1, 2]
     assert [s["ref"] for s in sources] == ["16e23156b6", "e965180f9d"]
     assert all(s["type"] == "article" for s in sources)
     assert all(s["provenance"] == "lightrag-corpus" for s in sources)
@@ -198,6 +202,84 @@ def test_one_entity_full(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert "[^1]" in post.content and "[^2]" in post.content
     assert "## References" in post.content
     assert re.search(r"\[\^1\]:", post.content)
+
+    assert log_path.exists()
+    assert "generated entities/openclaw.md" in log_path.read_text(encoding="utf-8")
+
+
+@pytest.mark.integration
+def test_one_entity_real_engine_writes_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UNSTUBBED W1 seam test: ``_compiler_engine`` is NOT monkeypatched —
+    the real ``kb.wiki_compiler.engine.apply_patch`` runs end-to-end. This
+    test dies if the seam breaks (plan-era kwargs, wrong result shape, or
+    status-vocabulary mismatch). Only the 3 evidence sources are mocked.
+
+    Regression for the adversarial review BLOCKER: W1 previously passed
+    ``known_article_hashes=...`` (TypeError on every run) and read the
+    result as an attribute object (always 'rejected').
+    """
+    from scripts import wiki_generate_pages as wgp
+
+    async def _fake_lr_ctx(entity_name: str) -> str:
+        assert entity_name == "OpenClaw"
+        return _FAKE_LIGHTRAG_CTX
+
+    def _fake_tavily(entity_name: str, api_key: str) -> list[dict]:
+        assert api_key == "tvly-fake-test-key"
+        return _FAKE_TAVILY_RESULTS
+
+    def _fake_opus(prompt: str) -> str:
+        assert "OpenClaw" in prompt
+        return _FAKE_OPUS_OUTPUT
+
+    monkeypatch.setattr(wgp, "fetch_lightrag_context", _fake_lr_ctx)
+    monkeypatch.setattr(wgp, "fetch_tavily_results", _fake_tavily)
+    monkeypatch.setattr(wgp, "call_opus", _fake_opus)
+    monkeypatch.setattr(
+        "scripts.wiki_generate_pages.requests.post",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("unexpected http call")))
+
+    out_dir = tmp_path / "entities"
+    out_dir.mkdir(parents=True, exist_ok=True)  # engine resolves the target under wiki_root
+    log_path = tmp_path / "log.md"
+
+    res = asyncio.run(
+        wgp.generate_one_entity(
+            entity_name="OpenClaw",
+            output_dir=out_dir,
+            log_path=log_path,
+            chunk_article_map=_fake_chunk_article_map(),
+            lightrag_dir=tmp_path / "fake_lightrag",
+            tavily_api_key="tvly-fake-test-key",
+            today=date(2026, 5, 20),
+            dry_run=False,
+        )
+    )
+
+    assert res["status"] == "ok", f"real engine seam failed: {res['errors']}"
+    assert res["errors"] == []
+
+    # The real engine wrote the page under wiki_root (tmp_path), not the fake.
+    out_path = out_dir / "openclaw.md"
+    assert out_path.exists(), "real engine apply must write the page file"
+
+    post = frontmatter.load(out_path)
+    sources = post.metadata["sources"]
+    assert isinstance(sources, list) and all(isinstance(s, dict) for s in sources)
+    assert [s["id"] for s in sources] == [1, 2], (
+        "SCHEMA.md positional sources id must survive the full W1 pipeline"
+    )
+    assert [s["ref"] for s in sources] == ["16e23156b6", "e965180f9d"]
+    assert all(s["type"] == "article" for s in sources)
+    assert all(s["provenance"] == "lightrag-corpus" for s in sources)
+
+    # Body carries GFM [^N] citations with matching definitions
+    assert "[^1]" in post.content and "[^2]" in post.content
+    assert "## References" in post.content
+    assert re.search(r"\[\^1\]:", post.content) and re.search(r"\[\^2\]:", post.content)
+    assert re.findall(r"\^\[article:([a-f0-9]{10})\]", post.content) == []
 
     assert log_path.exists()
     assert "generated entities/openclaw.md" in log_path.read_text(encoding="utf-8")
@@ -248,7 +330,8 @@ def test_validation_rejects_uncited_response(
             "created: '2026-05-20'\n"
             "last_updated: '2026-05-20'\n"
             "sources:\n"
-            "  - type: article\n"
+            "  - id: 1\n"
+            "    type: article\n"
             "    ref: \"16e23156b6\"\n"
             "    title: \"KOL OpenClaw deep-dive\"\n"
             "    provenance: lightrag-corpus\n"

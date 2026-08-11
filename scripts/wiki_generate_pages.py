@@ -438,12 +438,14 @@ def catalog_to_evidence_refs(catalog: list[dict[str, Any]]) -> list[EvidenceRef]
 def _typed_sources_yaml(catalog: list[dict[str, Any]]) -> str:
     """Render the canonical typed ``sources:`` frontmatter block.
 
-    Omits SCHEMA.md's ``id`` field — footnote numbering is positional and
-    1-based, matching the compiler assembler's canonical rendering.
+    Each entry carries SCHEMA.md's positional ``id`` (1-based, in catalog
+    order, matching the footnote number) as its FIRST key, followed by
+    type/ref/title/provenance.
     """
     lines: list[str] = []
-    for s in catalog:
-        lines.append("  - type: " + s["type"])
+    for i, s in enumerate(catalog, start=1):
+        lines.append(f"  - id: {s.get('id', i)}")
+        lines.append("    type: " + s["type"])
         ref = s.get("ref")
         if ref:
             lines.append(f'    ref: "{ref}"')
@@ -467,8 +469,9 @@ def build_opus_prompt(
 
     Output format follows kb/wiki/SCHEMA.md canonical (W5A):
     - Frontmatter `sources:` is a typed list of dicts
-      (type/ref/title/provenance); footnote numbers are 1-based catalog
-      positions — the compiler assembler renders the same shape (no `id`)
+      (id/type/ref/title/provenance); `id` is the positional 1-based
+      catalog position (SCHEMA.md §1) — the compiler assembler renders the
+      same shape
     - Inline citations are GFM `[^N]` footnotes; footnote definitions live
       in a trailing `## References` section
     - Web + builtin sources are first-class citable sources (no legacy
@@ -556,7 +559,8 @@ Inline citations:
 
 Frontmatter `sources:` list:
 - MUST list every source you actually cite, in AVAILABLE SOURCES order (same order, same refs).
-- Format per entry: `type: article|web|builtin`; `ref:` (10-char hex for article, URL for web — OMIT for builtin); `title:` (short label); `provenance:` (`lightrag-corpus` | `tavily-web` | `training-knowledge`).
+- Format per entry: `id:` (positional integer, 1-based — the source's number N in AVAILABLE SOURCES; MUST appear as the FIRST key); `type: article|web|builtin`; `ref:` (10-char hex for article, URL for web — OMIT for builtin); `title:` (short label); `provenance:` (`lightrag-corpus` | `tavily-web` | `training-knowledge`).
+- Inline citations `[^N]` reference the source with `id: N` — N MUST be an id present in the frontmatter list.
 - Do NOT add sources you never cite.
 
 `## References` section (required, append at end of body):
@@ -717,7 +721,9 @@ def validate_and_parse(
     """Validate Opus output against kb/wiki/SCHEMA.md, accepting BOTH formats.
 
     Canonical (new pages, W5A):
-    - ``sources:`` is a typed list of dicts (type/ref/title/provenance)
+    - ``sources:`` is a typed list of dicts
+      (id/type/ref/title/provenance; ``id`` positional 1-based per
+      SCHEMA.md §1)
     - body cites with GFM ``[^N]`` footnotes; a ``## References`` section
       with a ``[^N]:`` definition line per cited number is required
     - article refs ⊆ catalog article hashes; web refs ⊆ catalog web refs
@@ -811,6 +817,13 @@ def _validate_canonical_format(
         if not isinstance(s, dict):
             errors.append(f"sources[{i}] must be a typed dict, got {type(s).__name__}")
             continue
+        # SCHEMA.md §1: every entry carries a positional integer id (1-based,
+        # unique per page, referenced inline as [^id]).
+        sid = s.get("id")
+        if not isinstance(sid, int) or isinstance(sid, bool) or sid != i:
+            errors.append(
+                f"sources[{i}] id must be positional integer {i}, got {sid!r}"
+            )
         typ = s.get("type")
         title = s.get("title")
         ref = s.get("ref")
@@ -941,18 +954,15 @@ def _validate_legacy_format(
 def _compiler_engine():
     """Return the shared patch-apply engine (W5A Task 3 seam).
 
-    Prefers the W5A plan module ``kb.wiki_compiler.apply.apply_patch_atomic``
-    and tolerates the alternative spec name
-    ``kb.wiki_compiler.engine.apply_patch``, so the seam works whichever
-    name Task 3 landed on. Returns a callable
-    ``fn(patch, *, wiki_root, known_article_hashes)``.
+    The W5A plan module ``kb.wiki_compiler.apply`` never landed; the
+    production engine is ``kb.wiki_compiler.engine.apply_patch``, whose
+    contract is ``apply_patch(patch, wiki_root, wiki_update=None,
+    error_book=None) -> dict`` with ``status`` in
+    ``applied|conflict|suggestion|rejected``. W1 speaks that contract
+    directly — no adapter layer.
     """
-    try:
-        from kb.wiki_compiler.apply import apply_patch_atomic  # type: ignore[import-not-found]
-        return apply_patch_atomic
-    except ImportError:
-        from kb.wiki_compiler.engine import apply_patch  # type: ignore[import-not-found]
-        return apply_patch
+    from kb.wiki_compiler.engine import apply_patch
+    return apply_patch
 
 
 def _w1_finalize_patch(patch: WikiPatch, candidate_text: str) -> WikiPatch:
@@ -1154,7 +1164,6 @@ async def generate_one_entity(
         apply_result = apply_fn(
             patch,
             wiki_root=output_dir.parent,
-            known_article_hashes=set(article_hashes),
         )
     except Exception as e:
         return {
@@ -1167,14 +1176,17 @@ async def generate_one_entity(
             "wallclock_s": round(time.monotonic() - t0, 1),
         }
 
-    status = getattr(apply_result, "status", "rejected")
-    target_path = getattr(apply_result, "target_path", None) or str(out_path)
-    suggestion_path = getattr(apply_result, "suggestion_path", None)
-    issues = list(getattr(apply_result, "issues", None) or ())
+    # engine.apply_patch returns a plain dict:
+    #   {"status": "applied"|"conflict"|"suggestion"|"rejected",
+    #    "patch_id": str, "error": str|None, "suggestion_path": str|None}
+    status = apply_result.get("status", "rejected")
+    target_path = str(out_path)
+    suggestion_path = apply_result.get("suggestion_path")
+    issues = [apply_result["error"]] if apply_result.get("error") else []
 
     if status == "applied":
         res_status, res_path, res_errors = "ok", str(out_path), []
-    elif status == "suggested":
+    elif status == "suggestion":
         res_status, res_path, res_errors = (
             "suggested", suggestion_path or target_path, []
         )

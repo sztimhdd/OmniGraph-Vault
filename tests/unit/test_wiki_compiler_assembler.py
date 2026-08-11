@@ -6,6 +6,7 @@ source deduplication, deterministic output, and operation selection.
 """
 
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -548,3 +549,53 @@ def test_references_section_lists_all_sources():
     assert refs.startswith("## References")
     assert "[^1]:" in refs and "Article A" in refs and "0123456789" in refs
     assert "[^2]:" in refs and "Builtin B" in refs
+
+
+# ---------------------------------------------------------------------------
+# 14. SCHEMA.md `id` emission (adversarial review MAJOR finding)
+# ---------------------------------------------------------------------------
+
+def test_sources_entries_emit_positional_id():
+    """SCHEMA.md §1 requires each sources[] item to carry an integer `id`
+    (>=1, unique per page, referenced inline as [^id]). The rendered
+    frontmatter must put `id` FIRST in every entry, matching the footnote
+    number."""
+    import frontmatter
+
+    ev_article = _article("ev1", "0123456789", "Article A")
+    ev_web = _web("ev2", "https://example.com/source", "Web Source")
+    pack = _pack(evidence=(ev_article, ev_web), context_blocks=("a", "b"))
+    content = assemble_patch(pack, "entity", today=_TODAY).operations[0].content
+
+    frontmatter_text = content.split("---", 2)[1]
+    assert "  - id: 1" in frontmatter_text
+    assert "  - id: 2" in frontmatter_text
+    # id is the FIRST key of each entry (before type)
+    assert frontmatter_text.index("  - id: 1") < frontmatter_text.index("    type: article")
+    assert frontmatter_text.index("  - id: 2") < frontmatter_text.index("    type: web")
+
+    post = frontmatter.loads(content)
+    sources = post.metadata["sources"]
+    assert [s["id"] for s in sources] == [1, 2]
+    assert [s["type"] for s in sources] == ["article", "web"]
+    assert [s["ref"] for s in sources] == ["0123456789", "https://example.com/source"]
+
+
+def test_rendered_page_passes_lint_citation_integrity(tmp_path: Path):
+    """A W5A-rendered canonical page must satisfy the surviving W3 lint:
+    every [^N] citation resolves to a frontmatter sources[].id, and
+    type=article refs resolve in the corpus. Regression for the adversarial
+    review MAJOR finding (id-less pages fail every citation)."""
+    from kb.wiki_lint import lint_citation_integrity
+
+    ev = _article("ev1", "0123456789", "Article A",
+                  metadata={"context_blocks": [0]})
+    pack = _pack(evidence=(ev,), context_blocks=("Article paragraph.",))
+    content = assemble_patch(pack, "entity", today=_TODAY).operations[0].content
+
+    page = tmp_path / "page.md"
+    page.write_text(content, encoding="utf-8")
+    failures = lint_citation_integrity(page, known_article_hashes={"0123456789"})
+    assert failures == [], (
+        f"rendered canonical page must pass citation lint: {failures}"
+    )
