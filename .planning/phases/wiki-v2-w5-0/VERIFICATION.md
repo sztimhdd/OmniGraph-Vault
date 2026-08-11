@@ -120,7 +120,7 @@ Plus 6 Error Book tests + 2 hash contract tests + existing wiki suite. All 34 wi
 
 GPT-5.6 orchestration review found 3 findings. All 3 addressed:
 1. ✅ Gate I buffer path: fix deployed, controlled UAT proven, journal evidence captured
-2. ✅ Gate F baseline: 25 queries across 7 categories, 10 real kg_search runs, no stubs
+2. ✅ Gate F baseline: 25/25 real FTS executions (24 hits, 1 expected no-result), rerunnable harness, 15 unit tests, no stubs
 3. ✅ Gate J documentation: SUMMARY/VERIFICATION reconciled to final state
 
 ## Scope compliance
