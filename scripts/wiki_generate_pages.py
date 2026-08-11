@@ -552,7 +552,7 @@ Inline citations:
 - Cite article-derived claims using ONLY article source numbers; web-derived claims use web source numbers; builtin-derived claims may use the builtin source number.
 - DO NOT invent source numbers. DO NOT cite a source not in AVAILABLE SOURCES.
 - Multiple citations stack: `[^1][^3]`.
-- DO NOT use the legacy `^[article:<hash>]` inline form — it is deprecated for new pages.
+- DO NOT use the legacy single-type inline citation form — it is deprecated for new pages.
 
 Frontmatter `sources:` list:
 - MUST list every source you actually cite, in AVAILABLE SOURCES order (same order, same refs).
@@ -583,7 +583,7 @@ Required body sections (use `## Heading` for each, in this order):
 
 DO NOT:
 - Output anything before the opening `---` of frontmatter
-- Use the legacy `^[article:<hash>]` citation form
+- Use of the deprecated legacy inline citation form is forbidden.
 - Cite a source number not in AVAILABLE SOURCES above
 - Output empty/placeholder pages — if zero articles available, still produce a page sourced from web + builtin (will land at confidence_level: low)
 
@@ -1106,7 +1106,14 @@ async def generate_one_entity(
         }
 
     # --- Compiler seam: EvidencePack → WikiPatch → shared apply engine ---
-    page_text = frontmatter.dumps(final_post)
+    # The validated Opus candidate rides the patch verbatim (not a frontmatter
+    # re-render — W1's page is authoritative per W5A); strip only a wrapping
+    # code fence, exactly as validation did.
+    page_text = (
+        _strip_code_fences(opus_output)
+        if opus_output.lstrip().startswith("```")
+        else opus_output
+    )
     evidence_refs = catalog_to_evidence_refs(catalog)
     article_hashes = tuple(
         sorted({s["ref"] for s in catalog if s["type"] == "article"})
@@ -1135,6 +1142,11 @@ async def generate_one_entity(
         compiler_version="v2.0-w5a",
     )
     patch = assemble_patch(pack, target_kind="entity", today=today)
+    # The shared assembler emits repo-root-relative paths ("kb/wiki/entities/…");
+    # W1's wiki_root is the wiki dir itself (output_dir.parent), so the patch
+    # target path must be relative to that — drop the repo-root prefix.
+    if patch.target_path.startswith("kb/wiki/"):
+        patch = replace(patch, target_path=patch.target_path[len("kb/wiki/"):])
     patch = _w1_finalize_patch(patch, page_text)
 
     try:
