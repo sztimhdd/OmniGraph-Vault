@@ -6,8 +6,12 @@
   3. Databricks Claude Opus 4.7 training knowledge
 
 Synthesis is performed by Databricks Claude Opus 4.7 (1M context). Output
-follows the SCHEMA-2026-05-20 format: GFM `[^N]` footnotes + multi-type
-sources list in YAML frontmatter.
+follows the W5A canonical SCHEMA format: typed `sources[]` frontmatter
+(type/ref/title/provenance), GFM `[^N]` footnote citations, and a trailing
+`## References` section. Legacy `^[article:<hex>]` pages (pre-2026-05-20)
+remain accepted by the validator but are never emitted for new pages.
+Generated pages are routed through the shared patch compiler
+(kb.wiki_compiler) instead of being written directly.
 
 Per llm-wiki-02-entity-content-PLAN.md Task 3 spec — this script is the W1 T3
 deliverable. Cost-gate prerequisite: `llm-wiki-02-COST-ESTIMATE.md` must have
@@ -40,12 +44,23 @@ import sqlite3
 import sys
 import tempfile
 import time
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import frontmatter
 import requests
+
+from kb.wiki_compiler.assembler import assemble_patch
+from kb.wiki_compiler.models import (
+    EvidencePack,
+    EvidenceRef,
+    PatchOperation,
+    WikiPatch,
+    page_digest,
+    stable_patch_id,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
@@ -59,6 +74,15 @@ TAVILY_MAX_RESULTS = int(os.environ.get("WIKI_TAVILY_MAX_RESULTS", "8"))
 
 CHUNK_ID_RE = re.compile(r"chunk-[a-f0-9]{8,}")
 WIKI_LEGACY_CITATION_RE = re.compile(r"\^\[article:([a-f0-9]{10})\]")
+WIKI_GFM_CITATION_RE = re.compile(r"\[\^(\d+)\](?!:)")
+WIKI_GFM_DEF_RE = re.compile(r"^\[\^(\d+)\]:", re.MULTILINE)
+
+#: Default provenance per source type (SCHEMA.md / compiler assembler).
+SOURCE_TYPE_PROVENANCE = {
+    "article": "lightrag-corpus",
+    "web": "tavily-web",
+    "builtin": "training-knowledge",
+}
 
 
 # ----------------------------------------------------------------------------- helpers
@@ -324,7 +348,9 @@ def build_source_catalog(
 ) -> list[dict[str, Any]]:
     """Build a deduplicated, ordered source catalog for the Opus prompt.
 
-    Returns: list of dicts with: id (1-indexed int), type, ref, title, content
+    Returns: list of dicts with: id (1-indexed int), type, ref, title, content,
+    plus ``provenance`` so the catalog doubles as EvidenceRef-compatible
+    input for the compiler (see ``catalog_to_evidence_refs``).
     """
     catalog: list[dict[str, Any]] = []
     seen_article_hashes: set[str] = set()
@@ -346,6 +372,7 @@ def build_source_catalog(
                 "ref": h,
                 "title": title or f"corpus article {h}",
                 "url": url,
+                "provenance": SOURCE_TYPE_PROVENANCE["article"],
             })
         elif not h and url and url not in seen_urls:
             # Article in LightRAG but not in local SQL — surface as web source
@@ -355,6 +382,7 @@ def build_source_catalog(
                 "type": "web",
                 "ref": url,
                 "title": title or url,
+                "provenance": SOURCE_TYPE_PROVENANCE["web"],
             })
 
     # Tavily web sources
@@ -369,6 +397,7 @@ def build_source_catalog(
             "ref": url,
             "title": (r.get("title") or url)[:200],
             "content": (r.get("content") or "")[:2000],
+            "provenance": SOURCE_TYPE_PROVENANCE["web"],
         })
 
     if include_builtin:
@@ -377,9 +406,53 @@ def build_source_catalog(
             "type": "builtin",
             "ref": None,
             "title": "Databricks Claude Opus 4.7 training knowledge",
+            "provenance": SOURCE_TYPE_PROVENANCE["builtin"],
         })
 
     return catalog
+
+
+def catalog_to_evidence_refs(catalog: list[dict[str, Any]]) -> list[EvidenceRef]:
+    """Map a W1 source catalog to compiler ``EvidenceRef`` objects.
+
+    Provenance defaults by type; ``evidence_id`` is stable per catalog
+    position, so the same catalog always yields the same refs (the
+    assembler's dedup + footnote numbering depend on this order).
+    """
+    refs: list[EvidenceRef] = []
+    for i, s in enumerate(catalog, start=1):
+        typ = s.get("type") or "builtin"
+        refs.append(EvidenceRef(
+            evidence_id=f"w1-{typ}-{i:02d}",
+            type=typ,
+            ref=s.get("ref"),
+            title=s.get("title") or typ,
+            provenance=(
+                s.get("provenance")
+                or SOURCE_TYPE_PROVENANCE.get(typ, "unknown")
+            ),
+        ))
+    return refs
+
+
+def _typed_sources_yaml(catalog: list[dict[str, Any]]) -> str:
+    """Render the canonical typed ``sources:`` frontmatter block.
+
+    Omits SCHEMA.md's ``id`` field — footnote numbering is positional and
+    1-based, matching the compiler assembler's canonical rendering.
+    """
+    lines: list[str] = []
+    for s in catalog:
+        lines.append("  - type: " + s["type"])
+        ref = s.get("ref")
+        if ref:
+            lines.append(f'    ref: "{ref}"')
+        lines.append(f'    title: "{s["title"]}"')
+        lines.append(
+            "    provenance: "
+            + (s.get("provenance") or SOURCE_TYPE_PROVENANCE.get(s["type"], "unknown"))
+        )
+    return "\n".join(lines) if lines else "  []"
 
 
 def build_opus_prompt(
@@ -392,29 +465,35 @@ def build_opus_prompt(
 ) -> str:
     """Build the synthesis prompt for Opus 4.7.
 
-    Output format follows kb/wiki/SCHEMA.md (legacy single-type citation):
-    - Inline citations are `^[article:<10-char-hex>]` ONLY (article corpus only)
-    - Frontmatter `sources:` is a list of strings `article:<hex>` (legacy)
-    - Web sources surface in body as narrative `According to [Title]:` references
-      and aggregated in a `## Further Reading` section listing URLs
-    - Built-in knowledge supplements but is NOT inline-cited
+    Output format follows kb/wiki/SCHEMA.md canonical (W5A):
+    - Frontmatter `sources:` is a typed list of dicts
+      (type/ref/title/provenance); footnote numbers are 1-based catalog
+      positions — the compiler assembler renders the same shape (no `id`)
+    - Inline citations are GFM `[^N]` footnotes; footnote definitions live
+      in a trailing `## References` section
+    - Web + builtin sources are first-class citable sources (no legacy
+      `^[article:<hex>]` form, no narrative-only web references)
+    - Image markdown from LightRAG context MUST be preserved verbatim
     """
-    article_lines = []
-    web_lines = []
-    builtin_lines = []
+    source_lines = []
     for s in catalog:
+        n = s["id"]
         if s["type"] == "article":
-            article_lines.append(f"  - article:{s['ref']} — {s['title']!r}")
+            source_lines.append(
+                f"{n}. [article] ref={s['ref']} — {s['title']!r} "
+                f"(provenance: lightrag-corpus)"
+            )
         elif s["type"] == "web":
-            web_lines.append(
-                f"  - {s['ref']} — {s['title']!r}"
+            source_lines.append(
+                f"{n}. [web] ref={s['ref']} — {s['title']!r} "
+                f"(provenance: tavily-web)"
             )
         else:
-            builtin_lines.append(f"  - {s['title']}")
+            source_lines.append(
+                f"{n}. [builtin] — {s['title']} (provenance: training-knowledge)"
+            )
 
-    article_block = "\n".join(article_lines) if article_lines else "  (no article sources)"
-    web_block = "\n".join(web_lines) if web_lines else "  (no web sources)"
-    builtin_block = "\n".join(builtin_lines) if builtin_lines else "  (no builtin)"
+    source_block = "\n".join(source_lines) if source_lines else "  (no sources available)"
 
     tavily_content_block = ""
     if tavily_results:
@@ -430,9 +509,7 @@ def build_opus_prompt(
         if tavily_lines:
             tavily_content_block = "## Tavily Web Search Results\n\n" + "\n".join(tavily_lines)
 
-    # Articles list for frontmatter (legacy SCHEMA: list of strings)
-    article_yaml_lines = [f"  - article:{s['ref']}" for s in catalog if s["type"] == "article"]
-    article_yaml = "\n".join(article_yaml_lines) if article_yaml_lines else "  []"
+    sources_yaml = _typed_sources_yaml(catalog)
 
     return f"""You are a knowledge synthesizer building a wiki entry for `{entity_name}`.
 
@@ -440,8 +517,8 @@ def build_opus_prompt(
 
 Write a comprehensive wiki page about `{entity_name}` integrating THREE source types:
 1. LightRAG corpus context (curated articles in our knowledge base) — formally cited inline
-2. Tavily web search results (current web information) — referenced in body, listed in Further Reading
-3. Your own training knowledge (Claude Opus 4.7) — supplements the body, not inline-cited
+2. Tavily web search results (current web information) — formally cited inline
+3. Your own training knowledge (Claude Opus 4.7) — supplements the body, formally cited inline when used
 
 # CRITICAL OUTPUT FORMAT
 
@@ -453,43 +530,43 @@ title: {entity_name}
 created: '{today.isoformat()}'
 last_updated: '{today.isoformat()}'
 sources:
-{article_yaml}
+{sources_yaml}
 confidence_level: high | medium | low
 ---
 
 # {entity_name}
 
-<body with `^[article:<hash>]` inline citations on article-derived claims>
+<body with GFM `[^N]` footnote citations on every sourced claim>
 
-## Further Reading
+## References
 
-- [Title](URL) — short note
-- [Title](URL) — short note
+[^1]: **Source title** — ref (provenance)
+[^2]: **Source title** — ref (provenance)
 
 ```
 
 # CITATION RULES (MUST FOLLOW)
 
 Inline citations:
-- Format is exactly `^[article:<10-char-hex>]` — note the `^` caret prefix and the 10-char article hash.
-- Cite article-derived claims using ONLY hashes from the AVAILABLE ARTICLES list below.
-- DO NOT invent hashes. DO NOT cite web URLs or builtin knowledge inline.
-- Multiple citations stack: `^[article:abc1234567]^[article:def9876543]`.
-- For claims that come from web search or your own training knowledge, write the claim narratively (e.g. "According to the Hermes GitHub README, ...") and ensure the URL appears in `## Further Reading`.
+- Use GFM footnote form `[^N]` where N is the source number from the AVAILABLE SOURCES list below (1-based).
+- Cite article-derived claims using ONLY article source numbers; web-derived claims use web source numbers; builtin-derived claims may use the builtin source number.
+- DO NOT invent source numbers. DO NOT cite a source not in AVAILABLE SOURCES.
+- Multiple citations stack: `[^1][^3]`.
+- DO NOT use the legacy `^[article:<hash>]` inline form — it is deprecated for new pages.
 
 Frontmatter `sources:` list:
-- MUST equal the AVAILABLE ARTICLES list below (same hashes, same order, format `article:<hex>`).
-- DO NOT add web URLs or builtin to `sources:` — that field is for article corpus only.
+- MUST list every source you actually cite, in AVAILABLE SOURCES order (same order, same refs).
+- Format per entry: `type: article|web|builtin`; `ref:` (10-char hex for article, URL for web — OMIT for builtin); `title:` (short label); `provenance:` (`lightrag-corpus` | `tavily-web` | `training-knowledge`).
+- Do NOT add sources you never cite.
 
-`## Further Reading` section (append at end of body):
-- One bullet per web URL used.
-- Format: `- [Source title](URL) — one-sentence note`.
-- Omit this section entirely if no web URL was actually used.
+`## References` section (required, append at end of body):
+- One footnote definition line per cited source, exactly: `[^N]: **Title** — ref (provenance)`.
+- Omit `ref` in the definition for builtin sources.
 
 `confidence_level`:
-- `high` if ≥3 article citations spanning ≥2 distinct hashes
-- `medium` if 1-2 article citations
-- `low` if 0 article citations (pure web/builtin pages)
+- `high` if you cite ≥2 distinct source types
+- `medium` if you cite a single source type or only 1-2 sources
+- `low` if you cite no sources at all
 
 Required body sections (use `## Heading` for each, in this order):
 1. Definition / Overview
@@ -498,24 +575,16 @@ Required body sections (use `## Heading` for each, in this order):
 4. Key Concepts / Components
 5. Notable Use Cases / Examples
 6. Cross-references — list `[[entity-slug]]` mentions
-7. Further Reading — web URLs (omit if none used)
+7. References — footnote definitions (required)
 
-# AVAILABLE ARTICLES (cite hashes from this list ONLY)
+# AVAILABLE SOURCES (cite ONLY from this list; N = footnote number)
 
-{article_block}
-
-# AVAILABLE WEB SOURCES (use as narrative reference, list in Further Reading)
-
-{web_block}
-
-# AVAILABLE BUILTIN KNOWLEDGE
-
-{builtin_block}
+{source_block}
 
 DO NOT:
 - Output anything before the opening `---` of frontmatter
-- Use `[^N]` GFM-footnote form (NOT this SCHEMA's format)
-- Cite an article hash not in AVAILABLE ARTICLES above
+- Use the legacy `^[article:<hash>]` citation form
+- Cite a source number not in AVAILABLE SOURCES above
 - Output empty/placeholder pages — if zero articles available, still produce a page sourced from web + builtin (will land at confidence_level: low)
 
 # IMAGES (CRITICAL — preserve from LightRAG context)
@@ -645,47 +714,186 @@ def _strip_code_fences(text: str) -> str:
 def validate_and_parse(
     opus_output: str, catalog: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """Validate Opus output against legacy kb/wiki/SCHEMA.md citation contract.
+    """Validate Opus output against kb/wiki/SCHEMA.md, accepting BOTH formats.
 
-    Contract:
-    - Must start with `---` YAML frontmatter
-    - Frontmatter has 5 required fields
-    - `sources:` is a list of strings `article:<10-char-hex>`
-    - Body has at least one `^[article:<hex>]` inline citation
-    - Every body citation hash is in the catalog's article entries
-    - (Web/builtin go in `## Further Reading` body section, not validated here)
+    Canonical (new pages, W5A):
+    - ``sources:`` is a typed list of dicts (type/ref/title/provenance)
+    - body cites with GFM ``[^N]`` footnotes; a ``## References`` section
+      with a ``[^N]:`` definition line per cited number is required
+    - article refs ⊆ catalog article hashes; web refs ⊆ catalog web refs
+    - legacy ``^[article:<hex>]`` citations are rejected in canonical pages
 
-    Returns: {"post": Post|None, "errors": [...], "hashes_cited": [...]}
+    Legacy (pre-2026-05-20 pages, backward compat — never required to be GFM):
+    - ``sources:`` is a list of strings ``article:<hex>``
+    - body cites with the inline ``^[article:<hex>]`` form
+
+    Returns: {"post": Post|None, "errors": [...], "hashes_cited": [...],
+    "format": "canonical"|"legacy"|None, "evidence": [EvidenceRef-shaped dicts]}
+    — the format + evidence fields feed the compiler engine.
     """
     errors: list[str] = []
     text = _strip_code_fences(opus_output)
 
     if not text.startswith("---"):
         errors.append("output does not start with YAML frontmatter `---`")
-        return {"post": None, "errors": errors, "hashes_cited": []}
+        return {"post": None, "errors": errors, "hashes_cited": [],
+                "format": None, "evidence": []}
 
     try:
         post = frontmatter.loads(text)
     except Exception as e:
         errors.append(f"frontmatter parse failed: {type(e).__name__}: {e}")
-        return {"post": None, "errors": errors, "hashes_cited": []}
+        return {"post": None, "errors": errors, "hashes_cited": [],
+                "format": None, "evidence": []}
 
     required = {"title", "created", "last_updated", "sources", "confidence_level"}
     missing = required - set(post.metadata.keys())
     if missing:
         errors.append(f"missing frontmatter fields: {sorted(missing)}")
 
-    # Frontmatter sources must be list of strings 'article:<hex>'
+    body = post.content
+    fm_sources = post.metadata.get("sources") or []
+    fmt = _detect_source_format(fm_sources, body, errors)
+
+    if fmt == "canonical":
+        evidence, hashes_cited = _validate_canonical_format(post, catalog, errors)
+    elif fmt == "legacy":
+        evidence, hashes_cited = _validate_legacy_format(post, catalog, errors)
+    else:
+        evidence, hashes_cited = [], []
+
+    return {
+        "post": post if not errors else None,
+        "errors": errors,
+        "hashes_cited": hashes_cited,
+        "format": fmt,
+        "evidence": evidence,
+    }
+
+
+def _detect_source_format(
+    fm_sources: list[Any], body: str, errors: list[str]
+) -> str | None:
+    """Detect canonical (typed dicts) vs legacy (string article: refs) format."""
+    if fm_sources and all(isinstance(s, dict) for s in fm_sources):
+        return "canonical"
+    if fm_sources and all(isinstance(s, str) for s in fm_sources):
+        return "legacy"
+    if not fm_sources:
+        # Empty sources list — infer from the body citation style so
+        # web/builtin-only fallback pages still validate.
+        if WIKI_GFM_CITATION_RE.search(body):
+            return "canonical"
+        if WIKI_LEGACY_CITATION_RE.search(body):
+            return "legacy"
+        return None
+    errors.append(
+        "mixed sources format: entries must be all dicts (canonical) "
+        "or all strings (legacy)"
+    )
+    return None
+
+
+def _validate_canonical_format(
+    post, catalog: list[dict[str, Any]], errors: list[str]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Validate a canonical page: typed sources[] + GFM [^N] + References."""
+    fm_sources = post.metadata.get("sources") or []
+    body = post.content
+    catalog_article_hashes = {s["ref"] for s in catalog if s["type"] == "article"}
+    catalog_web_refs = {s["ref"] for s in catalog if s["type"] == "web"}
+    conf = str(post.metadata.get("confidence_level", "")).strip().lower()
+    if conf not in {"high", "medium", "low"}:
+        errors.append(f"confidence_level must be high|medium|low, got {conf!r}")
+
+    evidence: list[dict[str, Any]] = []
+    for i, s in enumerate(fm_sources, start=1):
+        if not isinstance(s, dict):
+            errors.append(f"sources[{i}] must be a typed dict, got {type(s).__name__}")
+            continue
+        typ = s.get("type")
+        title = s.get("title")
+        ref = s.get("ref")
+        if typ not in {"article", "web", "builtin"}:
+            errors.append(f"sources[{i}] unknown type {typ!r} (article|web|builtin)")
+            continue
+        if not title or not str(title).strip():
+            errors.append(f"sources[{i}] missing title")
+        if typ == "article":
+            if not isinstance(ref, str) or not re.fullmatch(r"[a-f0-9]{10}", ref):
+                errors.append(f"sources[{i}] article ref must be 10-char hex, got {ref!r}")
+            elif ref not in catalog_article_hashes:
+                errors.append(f"sources[{i}] article ref {ref!r} not in available catalog")
+        elif typ == "web":
+            if not isinstance(ref, str) or not ref.startswith("http"):
+                errors.append(f"sources[{i}] web ref must be a URL, got {ref!r}")
+            elif ref not in catalog_web_refs:
+                errors.append(f"sources[{i}] web ref {ref!r} not in available catalog")
+        # builtin: ref is optional and not validated
+        evidence.append({
+            "evidence_id": f"w1-{typ}-{i:02d}",
+            "type": typ,
+            "ref": ref if typ != "builtin" else None,
+            "title": title or f"source {i}",
+            "provenance": (
+                s.get("provenance")
+                or SOURCE_TYPE_PROVENANCE.get(typ, "unknown")
+            ),
+        })
+
+    if WIKI_LEGACY_CITATION_RE.search(body):
+        errors.append("legacy ^[article:<hash>] citations present in canonical page")
+
+    n_sources = len(fm_sources)
+    body_cites = [int(n) for n in WIKI_GFM_CITATION_RE.findall(body)]
+    if body_cites:
+        bad = sorted({n for n in body_cites if n < 1 or n > n_sources})
+        if bad:
+            errors.append(
+                f"body cites footnote numbers outside sources list: {bad[:5]}"
+            )
+    else:
+        if catalog_article_hashes:
+            errors.append("no [^N] GFM citations in body")
+        elif conf != "low":
+            errors.append("zero-article page must declare confidence_level: low")
+
+    cited = set(body_cites)
+    defs = {int(n) for n in WIKI_GFM_DEF_RE.findall(body)}
+    missing_defs = sorted(cited - defs)
+    if missing_defs:
+        errors.append(f"cited footnotes missing [^N]: definitions: {missing_defs[:5]}")
+
+    if "## References" not in body:
+        errors.append("canonical page must include a `## References` section")
+
+    # Article hashes cited (by position) — for hashes_cited compatibility
+    hashes_cited = sorted({
+        fm_sources[n - 1]["ref"]
+        for n in cited
+        if 1 <= n <= n_sources
+        and isinstance(fm_sources[n - 1], dict)
+        and fm_sources[n - 1].get("type") == "article"
+        and isinstance(fm_sources[n - 1].get("ref"), str)
+    })
+    return evidence, hashes_cited
+
+
+def _validate_legacy_format(
+    post, catalog: list[dict[str, Any]], errors: list[str]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Validate a legacy page: string article: sources + ^[article:<hex>]."""
     fm_sources = post.metadata.get("sources") or []
     fm_hashes: set[str] = set()
     for s in fm_sources:
         if isinstance(s, str) and s.startswith("article:"):
             fm_hashes.add(s.split(":", 1)[1])
 
-    # Catalog article hashes (the trusted list — Opus must not exceed it)
     catalog_article_hashes = {s["ref"] for s in catalog if s["type"] == "article"}
+    title_by_hash = {
+        s["ref"]: s["title"] for s in catalog if s["type"] == "article"
+    }
 
-    # Body citations
     body = post.content
     body_hashes_list = WIKI_LEGACY_CITATION_RE.findall(body)
     body_hashes = sorted(set(body_hashes_list))
@@ -714,14 +922,68 @@ def validate_and_parse(
             f"body cites hashes not declared in frontmatter sources: {orphans[:5]}"
         )
 
-    return {
-        "post": post if not errors else None,
-        "errors": errors,
-        "hashes_cited": body_hashes,
-    }
+    evidence = [
+        {
+            "evidence_id": f"w1-article-{i:02d}",
+            "type": "article",
+            "ref": h,
+            "title": title_by_hash.get(h, f"corpus article {h}"),
+            "provenance": SOURCE_TYPE_PROVENANCE["article"],
+        }
+        for i, h in enumerate(sorted(fm_hashes), start=1)
+    ]
+    return evidence, body_hashes
 
 
 # ----------------------------------------------------------------------------- per-entity
+
+
+def _compiler_engine():
+    """Return the shared patch-apply engine (W5A Task 3 seam).
+
+    Prefers the W5A plan module ``kb.wiki_compiler.apply.apply_patch_atomic``
+    and tolerates the alternative spec name
+    ``kb.wiki_compiler.engine.apply_patch``, so the seam works whichever
+    name Task 3 landed on. Returns a callable
+    ``fn(patch, *, wiki_root, known_article_hashes)``.
+    """
+    try:
+        from kb.wiki_compiler.apply import apply_patch_atomic  # type: ignore[import-not-found]
+        return apply_patch_atomic
+    except ImportError:
+        from kb.wiki_compiler.engine import apply_patch  # type: ignore[import-not-found]
+        return apply_patch
+
+
+def _w1_finalize_patch(patch: WikiPatch, candidate_text: str) -> WikiPatch:
+    """Carry the validated Opus candidate as the CREATE_PAGE content.
+
+    The assembler renders canonical body text from context blocks; W1's
+    candidate is the authoritative synthesized page, so the CREATE_PAGE
+    content is replaced with the validated candidate and the patch id is
+    recomputed deterministically. Existing-page patches (no CREATE_PAGE)
+    pass through untouched.
+    """
+    ops = patch.operations
+    if not ops or ops[0].op != "CREATE_PAGE":
+        return patch
+    new_ops = (
+        PatchOperation(
+            op="CREATE_PAGE",
+            section=None,
+            content=candidate_text,
+            metadata=ops[0].metadata,
+        ),
+    ) + ops[1:]
+    return replace(
+        patch,
+        operations=new_ops,
+        patch_id=stable_patch_id(
+            target_slug=patch.target_slug,
+            evidence_pack_id=patch.evidence_pack_id,
+            operations=new_ops,
+        ),
+    )
 
 
 async def generate_one_entity(
@@ -843,9 +1105,73 @@ async def generate_one_entity(
             "wallclock_s": round(time.monotonic() - t0, 1),
         }
 
-    # Write atomically
+    # --- Compiler seam: EvidencePack → WikiPatch → shared apply engine ---
     page_text = frontmatter.dumps(final_post)
-    _atomic_write(out_path, page_text)
+    evidence_refs = catalog_to_evidence_refs(catalog)
+    article_hashes = tuple(
+        sorted({s["ref"] for s in catalog if s["type"] == "article"})
+    )
+
+    existing_text = None
+    if out_path.exists():
+        try:
+            existing_text = out_path.read_text(encoding="utf-8")
+        except OSError:
+            logger.warning("[%s] could not read existing target %s", slug, out_path)
+
+    pack = EvidencePack(
+        pack_id=f"w1-{slug}-{today.isoformat()}",
+        subject_slug=slug,
+        subject_title=entity_name,
+        trigger="w1_generation",
+        article_hashes=article_hashes,
+        evidence=tuple(evidence_refs),
+        context_blocks=(final_post.content,) if final_post.content else (),
+        existing_page_path=str(out_path) if existing_text is not None else None,
+        existing_page_digest=(
+            page_digest(existing_text) if existing_text is not None else None
+        ),
+        created_at=f"{today.isoformat()}T00:00:00Z",
+        compiler_version="v2.0-w5a",
+    )
+    patch = assemble_patch(pack, target_kind="entity", today=today)
+    patch = _w1_finalize_patch(patch, page_text)
+
+    try:
+        apply_fn = _compiler_engine()
+        apply_result = apply_fn(
+            patch,
+            wiki_root=output_dir.parent,
+            known_article_hashes=set(article_hashes),
+        )
+    except Exception as e:
+        return {
+            "status": "failed",
+            "slug": slug,
+            "path": None,
+            "sources": len(final_post.metadata.get("sources") or []),
+            "confidence": final_post.metadata.get("confidence_level", "medium"),
+            "errors": [f"compiler apply raised: {type(e).__name__}: {e}"],
+            "wallclock_s": round(time.monotonic() - t0, 1),
+        }
+
+    status = getattr(apply_result, "status", "rejected")
+    target_path = getattr(apply_result, "target_path", None) or str(out_path)
+    suggestion_path = getattr(apply_result, "suggestion_path", None)
+    issues = list(getattr(apply_result, "issues", None) or ())
+
+    if status == "applied":
+        res_status, res_path, res_errors = "ok", str(out_path), []
+    elif status == "suggested":
+        res_status, res_path, res_errors = (
+            "suggested", suggestion_path or target_path, []
+        )
+    elif status == "conflict":
+        res_status, res_path, res_errors = "failed", None, ["conflict"] + issues
+    else:
+        res_status, res_path, res_errors = (
+            "failed", None, issues or ["patch rejected by compiler"]
+        )
 
     n_sources = len(final_post.metadata.get("sources") or [])
     confidence = final_post.metadata.get("confidence_level", "medium")
@@ -853,16 +1179,16 @@ async def generate_one_entity(
     with log_path.open("a", encoding="utf-8") as f:
         f.write(
             f"- {today.isoformat()} — generated entities/{slug}.md "
-            f"(sources: {n_sources}, confidence: {confidence})\n"
+            f"(status: {res_status}, sources: {n_sources}, confidence: {confidence})\n"
         )
 
     return {
-        "status": "ok",
+        "status": res_status,
         "slug": slug,
-        "path": str(out_path),
+        "path": res_path,
         "sources": n_sources,
         "confidence": confidence,
-        "errors": [],
+        "errors": res_errors,
         "wallclock_s": round(time.monotonic() - t0, 1),
     }
 
