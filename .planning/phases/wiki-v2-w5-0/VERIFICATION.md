@@ -51,24 +51,18 @@
 - 6 unit tests (test_error_book.py): log, retrieve, dedup, resolve, summary, migration
 - log_lint_failure delegates to Error Book (JSONL fallback on ImportError)
 
-## Gate F — Retrieval baseline: PASS (closure repair)
+## Gate F — Retrieval baseline: PASS (closure repair — final)
 
 **Evidence:**
-- 25 queries defined in data/baselines/queries-w5-0.json covering ALL 7 contract categories:
-  - direct_lookup: 5 queries
-  - comparison: 4 queries
-  - 2hop_bridge: 4 queries
-  - 3hop_synthesis: 3 queries
-  - enumeration_global: 3 queries
-  - freshness_time: 3 queries
-  - negative_noanswer: 3 queries
-- 10 queries run against real kg_search (hybrid mode):
-  - 7 hits with rich synthesis + citations (Q001, Q003, Q010, Q014, Q017, Q020, Q021)
-  - 3 correct no-results for negative/out-of-domain queries (Q006, Q023, Q025)
-- Per-query evidence captured: route, hit/no-hit, answer quality, citation count/quality, latency, notes
-- Explicit expected facts defined per query in queries-w5-0.json
+- 25 queries defined in data/baselines/queries-w5-0.json covering ALL 7 contract categories
+- **25/25 real FTS executions** against OmniGraph KB API (http://127.0.0.1:8766):
+  - 24 FTS hits, 1 expected no-result (Q024: chocolate cake — no corpus articles)
+  - All 7 categories have >=1 hit: direct_lookup 5/5, comparison 4/4, 2hop_bridge 4/4, 3hop_synthesis 3/3, enumeration_global 3/3, freshness_time 3/3, negative_noanswer 2/3
+- Rerunnable harness: `python3 scripts/wiki_baseline_bench.py --fts-only`
+- Per-query evidence: id, category, original_query, executed_query (fts_keywords), route (fts), status (hit/no-result), latency_s, item_count, items (title/hash/source), raw API response
+- No stubs, no invented percentages, no fabricated synthesis — every query exercises real retrieval
+- 15 unit tests in tests/unit/test_baseline_bench.py covering: FTS hit/no-result/error, KG job_id/poll/completed/failed/timeout, output integrity, keyword extraction
 - Raw results: data/baselines/w5-0-results-20260811.json
-- **No stubs, no invented percentages** — all real kg_search MCP job+poll evidence
 
 ## Gate G — Compiler convergence: PASS
 

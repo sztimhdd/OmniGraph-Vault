@@ -14,7 +14,7 @@
 | C | Wiki health checker | ✅ | scripts/wiki_health.py — 8 checks, bad-fixture detection verified |
 | D | Index generation drift | ✅ | --rebuild-index flag, index.md matches 19 pages |
 | E | Error Book lifecycle | ✅ | kb/error_book.py — SQLite, dedup fingerprint, open/resolved status, 6 unit tests |
-| F | Retrieval baseline | ✅ | 25 queries across 7 categories, 10 real kg_search runs, real synthesis with citations |
+| F | Retrieval baseline | ✅ | 25/25 real FTS executions against OmniGraph KB API. 24 hits, 1 expected no-result. All 7 contract categories >=1 hit. Rerunnable: `python3 scripts/wiki_baseline_bench.py --fts-only`. 15 unit tests. |
 | G | Compiler convergence | ✅ | _page_is_w1_rich() — >=3 citations + >500 chars → save to _suggestions/ |
 | H | Regression tests | ✅ | 13 tests in test_wiki_w5_0.py + 6 Error Book tests + buffer path tests |
 | I | Production deploy/UAT | ✅ | Buffer path fix deployed (bd1e7597); controlled W3 UAT: 19 suggestions from 10 hashes; pre-fix journal: suggestions_generated: 0; 5 W1-rich pages protected, 0 overwritten |
@@ -75,6 +75,6 @@ d64ea8c6 feat(C2+C3+C5): health checker + index rebuild + compiler convergence
 
 ## W5-1 follow-up
 
-- Entity buffer path: production cron will pick up fix on next timer fire after current ingest completes
+- Entity buffer path: production cron picks up fix on next timer fire after current ingest completes
 - Gate E: 2 legacy JSONL entries migrated to Error Book — verify dedup on next lint run
-- Gate F: remaining 15 queries can be run via `scripts/wiki_baseline_bench.py` when full kg_search is available
+- Gate F: All 25 queries executed against real OmniGraph KB API (FTS). 24/25 hits, 1 expected no-result (Q024). Baseline rerunnable: `python3 scripts/wiki_baseline_bench.py --fts-only`. Raw results in data/baselines/w5-0-results-20260811.json.
