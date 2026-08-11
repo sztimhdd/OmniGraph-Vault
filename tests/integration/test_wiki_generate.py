@@ -1,13 +1,14 @@
-"""Wiki page generation integration test (W1 deliverable, legacy SCHEMA format).
+"""Wiki page generation integration test (W1 deliverable, canonical SCHEMA format).
 
 Mocks the 3 sources (LightRAG context fetch, Tavily web search, Opus call)
-so the test is fast and deterministic — no LightRAG init, no real LLM, no
-network. Real end-to-end exercised by running `scripts/wiki_generate_pages.py`.
+and the shared compiler apply engine so the test is fast and deterministic —
+no LightRAG init, no real LLM, no network. Real end-to-end exercised by
+running `scripts/wiki_generate_pages.py`.
 
-Citation format follows kb/wiki/SCHEMA.md (legacy single-type):
-  Inline:        ^[article:<10-char-hex>]
-  Frontmatter:   sources: list of strings 'article:<hex>'
-  Web/builtin:   listed in body `## Further Reading` section, NOT inline-cited
+Citation format follows kb/wiki/SCHEMA.md (W5A canonical):
+  Inline:        GFM footnotes [^N] with definitions in `## References`
+  Frontmatter:   sources: typed list of dicts (type/ref/title/provenance)
+  Web/builtin:   first-class citable sources (no legacy ^[article:<hex>])
 """
 from __future__ import annotations
 
@@ -19,6 +20,8 @@ from pathlib import Path
 
 import frontmatter
 import pytest
+
+from kb.wiki_compiler.models import page_digest
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -50,8 +53,14 @@ title: OpenClaw
 created: '2026-05-20'
 last_updated: '2026-05-20'
 sources:
-  - article:16e23156b6
-  - article:e965180f9d
+  - type: article
+    ref: "16e23156b6"
+    title: "KOL OpenClaw deep-dive"
+    provenance: lightrag-corpus
+  - type: article
+    ref: "e965180f9d"
+    title: "Hermes/OpenClaw comparison"
+    provenance: lightrag-corpus
 confidence_level: medium
 ---
 
@@ -59,22 +68,22 @@ confidence_level: medium
 
 ## Definition
 
-**OpenClaw** is a Tauri-based AI desktop assistant ^[article:16e23156b6]. It
-implements a 5-layer agent architecture ^[article:e965180f9d].
+**OpenClaw** is a Tauri-based AI desktop assistant [^1]. It
+implements a 5-layer agent architecture [^2].
 
 ## Architecture
 
 The five layers are skill loader, gateway router, LLM dispatcher, memory store,
-and observability bus ^[article:16e23156b6]. Each layer has a defined contract
-^[article:e965180f9d].
+and observability bus [^1]. Each layer has a defined contract [^2].
 
 ## Cross-references
 
 - [[hermes-agent]]
 
-## Further Reading
+## References
 
-- [OpenClaw GitHub README](https://github.com/example/openclaw) — official repo
+[^1]: **KOL OpenClaw deep-dive** — 16e23156b6 (lightrag-corpus)
+[^2]: **Hermes/OpenClaw comparison** — e965180f9d (lightrag-corpus)
 """
 
 
@@ -85,9 +94,35 @@ def _fake_chunk_article_map() -> dict[str, dict[str, str]]:
     }
 
 
+def _fake_apply_engine(out_dir: Path, applied_paths: list[Path]):
+    """Sync stand-in for the shared compiler apply engine; writes the page
+    like apply_patch_atomic would for a CREATE_PAGE auto-apply."""
+    calls: list[tuple] = []
+
+    def _apply(patch, *, wiki_root, known_article_hashes):
+        calls.append((patch, wiki_root, known_article_hashes))
+        target = Path(wiki_root) / patch.target_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(patch.operations[0].content, encoding="utf-8")
+        applied_paths.append(target)
+        return type(
+            "ApplyResult", (), {
+                "status": "applied",
+                "patch_id": patch.patch_id,
+                "target_path": str(target),
+                "suggestion_path": None,
+                "issues": (),
+            },
+        )()
+
+    _apply.calls = calls
+    return _apply
+
+
 @pytest.mark.integration
 def test_one_entity_full(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Mocks all 3 sources + Opus call; verifies orchestration end-to-end."""
+    """Mocks all 3 sources + Opus call; verifies canonical orchestration
+    end-to-end and that the page routes through the compiler seam."""
     from scripts import wiki_generate_pages as wgp
 
     async def _fake_lr_ctx(entity_name: str) -> str:
@@ -100,15 +135,23 @@ def test_one_entity_full(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
 
     def _fake_opus(prompt: str) -> str:
         assert "OpenClaw" in prompt
-        assert "^[article:" in prompt or "AVAILABLE ARTICLES" in prompt
+        assert "AVAILABLE SOURCES" in prompt
+        assert "[^N]" in prompt
+        assert "^[article:" not in prompt  # legacy form never instructed
         return _FAKE_OPUS_OUTPUT
 
     monkeypatch.setattr(wgp, "fetch_lightrag_context", _fake_lr_ctx)
     monkeypatch.setattr(wgp, "fetch_tavily_results", _fake_tavily)
     monkeypatch.setattr(wgp, "call_opus", _fake_opus)
+    monkeypatch.setattr(
+        "scripts.wiki_generate_pages.requests.post",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("unexpected http call")))
 
     out_dir = tmp_path / "entities"
     log_path = tmp_path / "log.md"
+    applied: list[Path] = []
+    fake_apply = _fake_apply_engine(out_dir, applied)
+    monkeypatch.setattr(wgp, "_compiler_engine", lambda: fake_apply)
 
     res = asyncio.run(
         wgp.generate_one_entity(
@@ -126,26 +169,35 @@ def test_one_entity_full(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert res["status"] == "ok", f"generation failed: {res['errors']}"
     assert res["sources"] == 2, f"expected 2 article sources in frontmatter, got {res['sources']}"
 
+    # Routed through the compiler: one WikiPatch, CREATE_PAGE, candidate content
+    assert len(fake_apply.calls) == 1
+    patch, wiki_root, known_hashes = fake_apply.calls[0]
+    assert patch.operations[0].op == "CREATE_PAGE"
+    assert patch.operations[0].content == _FAKE_OPUS_OUTPUT
+    assert known_hashes == {"16e23156b6", "e965180f9d"}
+
     out_path = out_dir / "openclaw.md"
     assert out_path.exists()
+    assert applied == [out_path]
 
     post = frontmatter.load(out_path)
     required = {"title", "created", "last_updated", "sources", "confidence_level"}
     assert required.issubset(post.metadata.keys())
     assert post["title"] == "OpenClaw"
 
-    # Sources is list of strings 'article:<hex>' per legacy SCHEMA
+    # Sources is a typed list of dicts per canonical SCHEMA (no `id`)
     sources = post.metadata["sources"]
-    assert sorted(sources) == sorted(["article:16e23156b6", "article:e965180f9d"])
+    assert isinstance(sources, list) and all(isinstance(s, dict) for s in sources)
+    assert [s["ref"] for s in sources] == ["16e23156b6", "e965180f9d"]
+    assert all(s["type"] == "article" for s in sources)
+    assert all(s["provenance"] == "lightrag-corpus" for s in sources)
 
-    # Body has ^[article:<hex>] citations matching frontmatter
+    # Body has GFM [^N] citations; no legacy ^[article:<hex>] anywhere
     body_hashes = re.findall(r"\^\[article:([a-f0-9]{10})\]", post.content)
-    assert set(body_hashes) == {"16e23156b6", "e965180f9d"}
-
-    # Web URLs surface in Further Reading, not citations
-    assert "## Further Reading" in post.content
-    assert "https://github.com/example/openclaw" in post.content
-    assert "[^1]" not in post.content  # NOT GFM footnote form
+    assert body_hashes == []
+    assert "[^1]" in post.content and "[^2]" in post.content
+    assert "## References" in post.content
+    assert re.search(r"\[\^1\]:", post.content)
 
     assert log_path.exists()
     assert "generated entities/openclaw.md" in log_path.read_text(encoding="utf-8")
@@ -180,7 +232,7 @@ def test_dry_run_skips_llm(tmp_path: Path) -> None:
 def test_validation_rejects_uncited_response(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Opus output without ^[article:<hex>] citations triggers retries; max=0 fails fast."""
+    """Opus output without citations triggers retries; max=0 fails fast."""
     from scripts import wiki_generate_pages as wgp
 
     async def _fake_lr_ctx(entity_name: str) -> str:
@@ -196,10 +248,14 @@ def test_validation_rejects_uncited_response(
             "created: '2026-05-20'\n"
             "last_updated: '2026-05-20'\n"
             "sources:\n"
-            "  - article:16e23156b6\n"
+            "  - type: article\n"
+            "    ref: \"16e23156b6\"\n"
+            "    title: \"KOL OpenClaw deep-dive\"\n"
+            "    provenance: lightrag-corpus\n"
             "confidence_level: medium\n"
             "---\n\n"
-            "# Foo\n\nThis page has no inline citations.\n"
+            "# Foo\n\n"
+            "This page has no inline citations.\n"
         )
 
     monkeypatch.setattr(wgp, "fetch_lightrag_context", _fake_lr_ctx)
@@ -224,5 +280,5 @@ def test_validation_rejects_uncited_response(
     )
 
     assert res["status"] == "failed"
-    assert any("no ^[article" in e for e in res["errors"])
+    assert any("no [^N] GFM citations" in e for e in res["errors"])
     assert not (out_dir / "foo.md").exists()
