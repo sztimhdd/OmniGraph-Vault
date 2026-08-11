@@ -38,8 +38,44 @@ Contract
     4. ``auto_apply`` -> acquire ``kb/wiki/.locks/<slug>.md.lock``,
        re-read the page, compare its digest against ``patch.base_digest``
        (mismatch or unexpected existence/missing -> ``conflict``, never
-       overwrite), render the candidate, ``os.replace`` atomically,
-       release the lock
+       overwrite), render the candidate, run FINAL CANDIDATE VALIDATION
+       (design §7 order 6-8), ``os.replace`` atomically, release the lock
+
+Final candidate validation gates (design §7 order 6-8; GAP 1)
+--------------------------------------------------------------
+Run on the assembled candidate BEFORE any authoritative write, reusing
+the existing ``kb.wiki_lint`` primitives — never a second lint
+implementation. Candidate is staged to a throwaway temp file under the
+target kind dir so the lint functions see it exactly as it will be
+written (full page: frontmatter + body).
+
+* BLOCKING (status ``rejected``, NO write, Error Book with patch
+  provenance via ``lint_name=wiki_compiler:candidate_integrity``):
+    - candidate frontmatter parse failure (order 6) — malformed YAML
+      cannot be written (mirrors wiki_health ``check_yaml_validity``
+      ERROR);
+    - citation integrity failures (order 7) from
+      ``kb.wiki_lint.lint_citation_integrity`` — ``[^N]`` id not in
+      frontmatter ``sources[]``, unknown source type, or article ref
+      not in the known corpus (mirrors wiki_health ``check_citations``
+      ERROR for the structural cases; §10 "candidate health/lint ERROR
+      -> reject").
+* WARN (recorded on the result dict under ``warnings``, NEVER blocking):
+    - broken wikilinks (order 8, "under existing policy"). The repo's
+      existing policy is WARN-only: scripts/wiki_health.py
+      ``check_wikilinks`` appends broken backlinks to ``findings["warns"]``
+      (exit code 2 = WARNs only; ~185 pre-existing warnings). §10
+      "candidate WARN only -> conservative policy; no silent promotion"
+      therefore means apply proceeds with the warning recorded.
+* Contradiction/staleness checks (order 9-10) are intentionally not run
+  on auto-apply candidates: the candidate is fresh by construction
+  (``last_updated`` is being written now), and LLM-semantic contradiction
+  review is deferred to W5B (``kb.wiki_lint`` module docstring).
+
+The known article corpus for citation integrity = article refs from
+``patch.evidence`` plus article refs already present in the current page
+frontmatter sources (update candidates retain those sources; evidence
+alone only covers the new additions).
 
 * **Error Book** — the existing ``kb.error_book.log_lint_failure`` API is
   used, with the plan's payload keys (``lint_name`` prefix
@@ -59,12 +95,15 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import tempfile
 import time
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import frontmatter
 
 from kb.wiki_compiler.assembler import TYPE_PROVENANCE
 from kb.wiki_compiler.models import (
@@ -75,6 +114,7 @@ from kb.wiki_compiler.models import (
     WikiPatch,
     page_digest,
 )
+from kb.wiki_lint import lint_backlink_validity, lint_citation_integrity
 
 #: Metadata keys considered non-critical (safe to auto-apply). Design §5.3:
 #: ``SET_METADATA`` may change only compiler-approved fields such as
@@ -268,16 +308,23 @@ def apply_patch(
             "patch_id": str,
             "error": str | None,
             "suggestion_path": str | None,   # set when status == "suggestion"
+            "warnings": [str, ...],          # WARN-only findings (never block)
         }
 
-    * ``applied`` — page written atomically under the page lock.
+    * ``applied`` — page written atomically under the page lock after the
+      final candidate validation gates passed (design §7 order 6-8; see
+      the module docstring for the BLOCKING vs WARN policy). WARN-only
+      findings (broken wikilinks) are recorded in ``warnings`` and do not
+      block the write.
     * ``conflict`` — the page changed since *patch* was assembled (digest
       mismatch, target vanished, or create-target already exists). The
       on-disk content is never overwritten. Not logged to the Error Book.
     * ``suggestion`` — policy said ``suggestion_only``; a deterministic
-      suggestion JSON was written, the page is untouched.
+      suggestion JSON was written, the page is untouched. Candidate
+      validation gates do not run on this path (the page is never
+      written).
     * ``rejected`` — evidence or candidate failed integrity checks; the
-      failure is logged to the Error Book.
+      failure is logged to the Error Book and the page is never written.
 
     ``wiki_update``, when callable, is invoked with the result dict after a
     successful apply (post-commit, outside the lock); a hook failure is
@@ -291,6 +338,7 @@ def apply_patch(
         "patch_id": patch.patch_id,
         "error": None,
         "suggestion_path": None,
+        "warnings": [],
     }
 
     # 0. Schema-level validation. True integrity failures go to Error Book.
@@ -373,6 +421,25 @@ def apply_patch(
             result["status"] = "rejected"
             result["error"] = str(exc)
             return result
+
+        # GAP 1 (design §7 order 6-8): FINAL CANDIDATE VALIDATION on the
+        # assembled candidate BEFORE any authoritative write. Blocking
+        # failures (frontmatter parse, citation integrity) reject with an
+        # Error Book entry and NO write; WARN findings (broken wikilinks)
+        # are recorded and never block.
+        blocking, warnings = _validate_candidate(
+            patch, candidate, wiki_root, current_text
+        )
+        if blocking:
+            _report_error_book(
+                error_book, patch, wiki_root, blocking,
+                lint_name="wiki_compiler:candidate_integrity",
+            )
+            result["status"] = "rejected"
+            result["error"] = "; ".join(blocking)
+            return result
+        result["warnings"] = warnings
+
         _atomic_write(target, candidate)
         result["status"] = "applied"
     finally:
@@ -712,6 +779,108 @@ def _set_metadata(text: str, metadata: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Final candidate validation gates (design §7 order 6-8; GAP 1)
+# ---------------------------------------------------------------------------
+
+def _validate_candidate(
+    patch: WikiPatch,
+    candidate: str,
+    wiki_root: Path,
+    current_text: Optional[str],
+) -> Tuple[List[str], List[str]]:
+    """Run the final candidate-level integrity gates on the assembled
+    candidate BEFORE any authoritative write.
+
+    Returns ``(blocking_failures, warnings)``. The candidate is staged to
+    a throwaway temp file under the target kind dir so the shared
+    ``kb.wiki_lint`` primitives see it exactly as it will be written (a
+    full page: frontmatter + body).
+
+    BLOCKING (design §7 order 6-7): frontmatter parse failure and citation
+    integrity failures (``kb.wiki_lint.lint_citation_integrity``).
+    WARN (order 8, under existing wiki_health policy): broken wikilinks
+    (``kb.wiki_lint.lint_backlink_validity``). Contradiction/staleness
+    (order 9-10) are intentionally not run — the candidate is fresh by
+    construction and LLM-semantic contradiction review is W5B scope.
+    """
+    target = _resolve_target(wiki_root, patch.target_path)
+    # _atomic_write creates this dir anyway; create it now so the temp
+    # staging dir below can live next to the target (same kind dir).
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    known_hashes = _known_article_hashes(patch, current_text)
+    blocking: List[str] = []
+    warnings: List[str] = []
+    tmp_dir: Optional[str] = None
+    try:
+        tmp_dir = tempfile.mkdtemp(
+            prefix=".candidate-check-", dir=str(target.parent)
+        )
+        tmp_page = Path(tmp_dir) / f"{_safe_slug(patch.target_slug)}.md"
+        tmp_page.write_text(candidate, encoding="utf-8")
+
+        # Order 6: candidate frontmatter/schema parse. Malformed frontmatter
+        # can never be written (wiki_health check_yaml_validity ERROR).
+        try:
+            frontmatter.load(str(tmp_page))
+        except Exception as exc:  # noqa: BLE001 - any parse failure blocks
+            blocking.append(f"candidate frontmatter parse failed: {exc}")
+            return blocking, warnings
+
+        # Order 7: citation integrity (BLOCKING). Reuses the shared lint
+        # primitive — the known corpus is the evidence article refs plus
+        # article refs already present on the current page.
+        try:
+            blocking.extend(lint_citation_integrity(tmp_page, known_hashes))
+        except Exception as exc:  # noqa: BLE001 - lint failure blocks
+            blocking.append(f"candidate citation integrity check failed: {exc}")
+            return blocking, warnings
+
+        # Order 8: wikilink validity under existing policy (WARN only —
+        # scripts/wiki_health.py check_wikilinks records broken backlinks
+        # as warns; see module docstring).
+        try:
+            for slug in lint_backlink_validity(candidate, _wiki_dir(wiki_root)):
+                warnings.append(f"broken wikilink [[{slug}]] — target not found")
+        except Exception as exc:  # noqa: BLE001 - lint failure is WARN
+            warnings.append(f"wikilink check failed: {exc}")
+        return blocking, warnings
+    finally:
+        if tmp_dir is not None:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _known_article_hashes(
+    patch: WikiPatch, current_text: Optional[str]
+) -> set:
+    """Known article corpus for citation integrity on the candidate.
+
+    Article refs from ``patch.evidence`` plus article refs already present
+    in the current page's frontmatter ``sources`` (canonical dict entries
+    and legacy ``article:<hex>`` strings). Update candidates retain the
+    existing page's sources, so those hashes are part of the page's known
+    corpus even though the evidence only covers new additions.
+    """
+    known = {
+        ev.ref
+        for ev in (patch.evidence or ())
+        if ev.type == "article" and ev.ref
+    }
+    if current_text is None:
+        return known
+    fm, _ = _split_frontmatter(current_text)
+    if fm is None or not isinstance(fm.get("sources"), list):
+        return known
+    for s in fm["sources"]:
+        if isinstance(s, dict):
+            if str(s.get("type", "")).lower() == "article" and s.get("ref"):
+                known.add(str(s["ref"]))
+        elif isinstance(s, str) and s.startswith("article:"):
+            known.add(s.split(":", 1)[1])
+    return known
+
+
+# ---------------------------------------------------------------------------
 # Minimal frontmatter parsing/rendering helpers (no external YAML dependency)
 # ---------------------------------------------------------------------------
 
@@ -850,11 +1019,13 @@ def _report_error_book(
     patch: WikiPatch,
     wiki_root: Path,
     failures: List[str],
+    lint_name: str = "wiki_compiler:evidence_validation",
 ) -> None:
     """Log a true compiler-integrity failure to the existing Error Book.
 
-    The Error Book must never break the apply path — failures to log are
-    swallowed.
+    ``lint_name`` distinguishes the failure channel: evidence schema
+    validation vs. final candidate integrity gates (GAP 1). The Error Book
+    must never break the apply path — failures to log are swallowed.
     """
     log: Optional[Callable[[dict], None]] = None
     if error_book is None:
@@ -868,7 +1039,7 @@ def _report_error_book(
     target = _resolve_target(wiki_root, patch.target_path)
     try:
         log({
-            "lint_name": "wiki_compiler:evidence_validation",
+            "lint_name": lint_name,
             "page_path": str(target),
             "failures": failures,
             "suggestion_excerpt": patch.patch_id,

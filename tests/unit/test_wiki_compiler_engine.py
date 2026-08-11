@@ -117,7 +117,8 @@ title: 'Python Debugging'
 created: '2026-08-11'
 last_updated: '2026-08-11'
 sources:
-  - type: article
+  - id: 1
+    type: article
     ref: 'abcdef1234'
     title: 'Src'
     provenance: lightrag-corpus
@@ -138,7 +139,8 @@ title: 'Python Debugging'
 created: '2026-05-20'
 last_updated: '2026-05-20'
 sources:
-  - type: article
+  - id: 1
+    type: article
     ref: 'abcdef1234'
     title: 'Src'
     provenance: lightrag-corpus
