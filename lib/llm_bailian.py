@@ -14,6 +14,12 @@ Selection rationale (2026-08-11, quick bailian-1):
 - Key validation deferred to first call (same pattern as DeepSeek Defect D
   fix) so Gemini/DeepSeek-only workloads never require a Bailian key.
 
+NOTE (2026-08-12): the router's entity-extraction split is deprecated (see
+lib/llm_router.py) — ingest is back on pure DeepSeek. This module is RETAINED
+because it still backs the `bailian` provider branch of llm_complete.py and
+the classify fallback path (batch_classify_kol.py), both unaffected by the
+zero-Ent decision.
+
 IMPORTANT: mirrors deepseek_model_complete's signature so the LightRAG
 ``llm_model_func`` contract is satisfied — async, takes a single prompt
 string, returns plain text (not a stream).

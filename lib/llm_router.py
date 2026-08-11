@@ -1,5 +1,16 @@
 """Round-robin LLM router — DeepSeek (primary, company-paid) + Bailian (boost).
 
+DEPRECATED (2026-08-12): the Bailian entity-extraction split is disabled.
+Zero-Ent attribution: of 38 empty-entity chunks, 33 were ALL bailian-extracted
+(DeepSeek: 0). Root cause: qwen's [TUPLE_DELIM]→<|#|> output mapping fails on
+the production ingest entity-extraction path (the marker rewrite is bypassed
+or the output mapping is not applied there), silently dropping all entities.
+Decision: entity extraction returns to pure DeepSeek
+(OMNIGRAPH_LLM_PROVIDER=deepseek) — this router module is retained for
+reference/rollback only and must not be selected. Bailian itself is KEPT for
+other paths: vision (qwen3-vl-flash via lib/vision_cascade.py) and the
+classify fallback branch are unaffected.
+
 Rationale (2026-08-11, quick bailian-1):
 - DeepSeek is company-reimbursed and unlimited; NOT replaced 1:1.
 - Bailian qwen3.7-flash is user-funded (¥320) — used ONLY to raise the
@@ -42,6 +53,11 @@ async def router_model_complete(
     Deterministic per-prompt (same prompt → same provider) so retries
     land on the same backend and the LLM cache stays coherent.
     """
+    # DEPRECATED 2026-08-12 (zero-Ent fix): entity extraction is back on pure
+    # DeepSeek (OMNIGRAPH_LLM_PROVIDER=deepseek). 33/38 empty-entity chunks
+    # were bailian-extracted — qwen's [TUPLE_DELIM]→<|#|> output mapping fails
+    # on the production ingest path and silently drops ALL entities. This
+    # split must stay disabled (provider != "router"); code kept for reference.
     split = float(os.environ.get("LLM_ROUTER_BAILIAN_SPLIT", "0.4"))
     h = int(hashlib.md5(prompt.encode("utf-8")).hexdigest(), 16)
     use_bailian = (h % 1000) / 1000.0 < split
