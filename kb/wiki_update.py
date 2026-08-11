@@ -23,7 +23,17 @@ from kb.wiki_lint import (
     log_lint_failure,
 )
 
-DEFAULT_BUFFER_DIRS = [Path(".dev-runtime/entity_buffer"), Path("entity_buffer")]
+# W5-0 Gate I (2026-08-11): resolve entity buffer path from canonical config,
+# not cwd-relative. Production entity buffers live at ~/.hermes/omonigraph-vault/
+# (or OMNIGRAPH_BASE_DIR if set). The canonical dir is tried first; local-dev
+# fallbacks (.dev-runtime/entity_buffer, entity_buffer) are kept for local runs.
+_OMNIGRAPH_BASE = os.environ.get("OMNIGRAPH_BASE_DIR")
+_CANONICAL_BUFFER = (
+    Path(_OMNIGRAPH_BASE) / "entity_buffer"
+    if _OMNIGRAPH_BASE
+    else Path.home() / ".hermes" / "omonigraph-vault" / "entity_buffer"
+)
+DEFAULT_BUFFER_DIRS = [_CANONICAL_BUFFER, Path(".dev-runtime/entity_buffer"), Path("entity_buffer")]
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 _W1_CITATION_RE = re.compile(r"\^\[article:[a-f0-9]+\]")
 

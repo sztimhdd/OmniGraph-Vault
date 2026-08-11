@@ -229,3 +229,95 @@ Body text. [^1]
     findings = run_health(tmp_path)
     assert len(findings["errors"]) == 0
     assert findings["summary"]["pages_checked"] == 1
+
+
+# ── FINDING 1 regression: entity buffer path resolution ──
+
+def test_canonical_buffer_path_is_first(monkeypatch):
+    """Canonical ~/.hermes/omonigraph-vault/entity_buffer is first in search order."""
+    # Reload module after monkeypatching env
+    import importlib
+    import kb.wiki_update as wu
+
+    # Simulate production: OMNIGRAPH_BASE_DIR unset
+    monkeypatch.delenv("OMNIGRAPH_BASE_DIR", raising=False)
+    importlib.reload(wu)
+    assert wu.DEFAULT_BUFFER_DIRS[0].name == "entity_buffer"
+    assert ".hermes" in str(wu.DEFAULT_BUFFER_DIRS[0])
+    assert "omonigraph-vault" in str(wu.DEFAULT_BUFFER_DIRS[0])
+
+
+def test_canonical_buffer_respects_env_override(monkeypatch, tmp_path: Path):
+    """When OMNIGRAPH_BASE_DIR is set, canonical buffer uses it."""
+    import importlib
+    import kb.wiki_update as wu
+
+    custom_base = tmp_path / "custom-omnigraph"
+    custom_base.mkdir()
+    monkeypatch.setenv("OMNIGRAPH_BASE_DIR", str(custom_base))
+    importlib.reload(wu)
+    assert str(wu.DEFAULT_BUFFER_DIRS[0]) == str(custom_base / "entity_buffer")
+
+
+def test_buffer_search_finds_canonical_entities(monkeypatch, tmp_path: Path):
+    """generate_wiki_suggestions uses canonical buffer when entities exist there."""
+    import importlib
+    import kb.wiki_update as wu
+
+    # Set up canonical buffer with one entity
+    buf_dir = tmp_path / "prod-buffer"
+    buf_dir.mkdir(parents=True)
+    monkeypatch.setattr(wu, "DEFAULT_BUFFER_DIRS", [buf_dir])
+
+    # Create entity buffer for a hash
+    hash10 = "aaaaaaaaab"
+    entities = {"raw_entities": [{"name": "Test Entity"}, {"name": "Another Thing"}]}
+    (buf_dir / f"{hash10}_entities.json").write_text(json.dumps(entities))
+
+    # Seed DB with matching hash
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE articles (content_hash TEXT PRIMARY KEY)")
+    conn.execute("INSERT INTO articles VALUES (?)", (hash10,))
+    conn.commit()
+
+    suggestions = wu.generate_wiki_suggestions(
+        [hash10],
+        wiki_root=tmp_path / "wiki",
+        db_conn=conn,
+        min_frequency=1,
+    )
+    assert len(suggestions) == 2  # one per entity name
+    slugs = {s["entity_slug"] for s in suggestions}
+    assert "test-entity" in slugs
+    assert "another-thing" in slugs
+
+
+def test_buffer_not_found_still_falls_back_to_local(monkeypatch, tmp_path: Path):
+    """When canonical buffer has no matching file, local dirs are tried."""
+    import importlib
+    import kb.wiki_update as wu
+
+    canonical = tmp_path / "canonical-empty"
+    canonical.mkdir()
+    local_buf = tmp_path / "local-buf"
+    local_buf.mkdir(parents=True)
+
+    monkeypatch.setattr(wu, "DEFAULT_BUFFER_DIRS", [canonical, local_buf])
+
+    hash10 = "bbbbbbbbbc"
+    entities = {"raw_entities": [{"name": "Local Entity"}]}
+    (local_buf / f"{hash10}_entities.json").write_text(json.dumps(entities))
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE articles (content_hash TEXT PRIMARY KEY)")
+    conn.execute("INSERT INTO articles VALUES (?)", (hash10,))
+    conn.commit()
+
+    suggestions = wu.generate_wiki_suggestions(
+        [hash10],
+        wiki_root=tmp_path / "wiki",
+        db_conn=conn,
+        min_frequency=1,
+    )
+    assert len(suggestions) == 1
+    assert suggestions[0]["entity_slug"] == "local-entity"
