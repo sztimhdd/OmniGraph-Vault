@@ -1,140 +1,4200 @@
 {
   "meta": {
-    "tool": "OmniGraph kg_search (hybrid mode)",
-    "date": "2026-08-11",
+    "tool": "OmniGraph KB API (http://127.0.0.1:8766)",
+    "mode": "fts-only",
+    "date": "2026-08-11T04:52:22.343603+00:00",
     "executor": "Hermes W5-0 Gate F closure",
     "queries_defined": 25,
-    "queries_run": 10,
-    "categories": [
-      "direct_lookup",
-      "comparison",
-      "2hop_bridge",
-      "3hop_synthesis",
-      "enumeration_global",
-      "freshness_time",
-      "negative_noanswer"
-    ]
+    "queries_run": 25
   },
   "summary": {
-    "total_runs": 10,
-    "kg_search_hits": 7,
-    "kg_search_no_result": 3,
-    "kg_search_running": 0,
-    "queries_with_citations": 6
+    "total": 25,
+    "fts_hits": 24,
+    "fts_no_result": 1,
+    "kg_attempted": 0,
+    "kg_completed": 0,
+    "errors": 0
   },
   "results": [
     {
       "id": "Q001",
       "category": "direct_lookup",
-      "query": "OpenClaw agent framework",
-      "hit": true,
-      "route": "kg_search → kg_synthesize",
-      "answer_quality": "Comprehensive — 5 sections: Overview, Key Characteristics, Harness Implementation, Configuration, Version History, Ecosystem, Deployment, Community",
-      "citations": 5,
-      "citation_quality": "Real articles from WeChat KOL, sourced",
-      "latency_seconds": 120,
-      "notes": "Covered expected facts: OpenClaw is agent framework, supports MCP, has skills. Also found version history, deployment guides, community discussion."
+      "original_query": "What is OpenClaw?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.09,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "马化腾都没想到！OpenClaw，正在改变很多人对AI的付费观",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "首个龙虾模型？让我的OpenClaw稳定发挥职场邪恶人格~",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "手机版OpenClaw来了！把App当Skills用，还安全～",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "781c9ac2c3",
+              "title": "马化腾都没想到！OpenClaw，正在改变很多人对AI的付费观",
+              "snippet": "#  马化腾都没想到！<b>OpenClaw</b>，正在改变很多人对AI的付费观…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "54a36baa97",
+              "title": "首个龙虾模型？让我的OpenClaw稳定发挥职场邪恶人格~",
+              "snippet": "#  首个龙虾模型？让我的<b>OpenClaw</b>稳定发挥职场邪恶人格~\n\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8cc5b1fb7",
+              "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+              "snippet": "#  通透！吃透龙虾 <b>OpenClaw</b>：新手避坑，老手进阶\n\n原创 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c5ac4b9666",
+              "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+              "snippet": "#  <b>OpenClaw</b>爆火，本质上是一场关于Agent OS的全民预…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "6f77b617b9",
+              "title": "手机版OpenClaw来了！把App当Skills用，还安全～",
+              "snippet": "#  手机版<b>OpenClaw</b>来了！把App当Skills用，还安全～…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c958330a78",
+              "title": "自定义技能开发—— 教你写自己的 OpenClaw 技能",
+              "snippet": "…<b>openclaw</b> weather <城市名>\") sys.exit(…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1950549023",
+              "title": "OpenClaw 能力拉满，MiniMax M2.7 来了！",
+              "snippet": "#  <b>OpenClaw</b> 能力拉满，MiniMax M2.7 来了！\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bfbe690644",
+              "title": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于OpenClaw的观点值得一听。",
+              "snippet": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于<b>OpenClaw</b>的观点值得一…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "70ad173a75",
+              "title": "OpenClaw深入分析与教程(Clawdbot、Moltbot)",
+              "snippet": "#  <b>OpenClaw</b>深入分析与教程(Clawdbot、Moltbo…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "806cc2abe9",
+              "title": "OpenClaw(龙虾) 最强开源对手！Github 40K Star了，又一个爆火的Agent..",
+              "snippet": "#  <b>OpenClaw</b>(龙虾) 最强开源对手！Github 40K …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e781713458",
+              "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+              "snippet": "#  再见 <b>OpenClaw</b>，ZeroClaw 重磅开源！\n\n原创 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a750fc51e3",
+              "title": "《OpenClaw 从入门到精通指南》正式发布，开源免费！",
+              "snippet": "#  《<b>OpenClaw</b> 从入门到精通指南》正式发布，开源免费！\n\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "3d3c55810e",
+              "title": "用 Agent 写代码太贵？试试讯飞这款平价套餐",
+              "snippet": "…<b>OpenClaw</b> 接入指南\n\n首先，我们需要先安装<b>OpenClaw</b>。…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "4c42ec64bd",
+              "title": "Warelay -> OpenClaw",
+              "snippet": "…hub.com/<b>openclaw</b>/<b>openclaw</b>/commit/f…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "75905e6d0d",
+              "title": "对话钉钉无招：OpenClaw 解决了个人能不能跑，悟空解决了企业能不能进",
+              "snippet": "对话钉钉无招：<b>OpenClaw</b> 解决了个人能不能跑，悟空解决了企业能…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a6b73aaf24",
+              "title": "把 OpenClaw 和 Claude Code 装在一个产品里，享受无限 Token 的快感",
+              "snippet": "把 <b>OpenClaw</b> 和 Claude Code 装在一个产品里，享…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "65e13d41e3",
+              "title": "OpenClaw---\"小龙虾\"的原理分析，这一篇就够了",
+              "snippet": "#  <b>OpenClaw</b>---\"小龙虾\"的原理分析，这一篇就够了\n\n老…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "28c974c2cd",
+              "title": "OpenClaw 的第一批受害者，该换骡子了！",
+              "snippet": "<b>OpenClaw</b> 的第一批受害者，该换骡子了！",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a035a9ebd",
+              "title": "必装这5个Skills，你的Claude Code会直接进化成超级外挂！",
+              "snippet": "…司实践和个人成长。这里有 <b>OpenClaw</b>、Claude\nCode、…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e64563b6c6",
+              "title": "How AI Assistants are Moving the Security Goalposts",
+              "snippet": "…Wilson said far too many <b>OpenClaw</b> …",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "OpenClaw",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.09,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q002",
+      "category": "direct_lookup",
+      "original_query": "Define Hermes Agent architecture",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.05,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "马斯克的Grok终于和Hermes打通了！不只聊天，还会自学、有记忆、能生成图片视频！",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Hermes Agent：唯一能自我进化的 AI 代理",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "免费! Hermes Agent 薅小米MiMo V2 Pro两周",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Hermes Agent 王炸来了。。。",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "1.3k Stars！阿里高德开源Agent Skills自进化框架，还能实现Hermes与Claude Code技能共享",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "e85fd44dd4",
+              "title": "马斯克的Grok终于和Hermes打通了！不只聊天，还会自学、有记忆、能生成图片视频！",
+              "snippet": "马斯克的Grok终于和<b>Hermes</b>打通了！不只聊天，还会自学、有记忆…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "6c98c62a16",
+              "title": "Hermes Agent：唯一能自我进化的 AI 代理",
+              "snippet": "…自我学习闭环\n这是 <b>Hermes</b> Agent 最独特的功能：\n  *…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9f75b25295",
+              "title": "免费! Hermes Agent 薅小米MiMo V2 Pro两周",
+              "snippet": "…<b>Hermes</b> Agent详细的入门和使用教程可以看这里：[<b>Herme</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "98eed383c5",
+              "title": "Hermes Agent 王炸来了。。。",
+              "snippet": "…<b>Hermes</b> 概念深度解析、<b>Hermes</b> 安装 & 部署、<b>Herme</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "834eb5b95e",
+              "title": "1.3k Stars！阿里高德开源Agent Skills自进化框架，还能实现Hermes与Claude Code技能共享",
+              "snippet": "…在 <b>Hermes</b> 中集成\n\n  \n\n如果用户使用 <b>Hermes</b>，可以…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0a22ffc237",
+              "title": "我把多 Agent 协作搬进 Hermes Kanban，才发现群聊派活真的不够用了",
+              "snippet": "我把多 Agent 协作搬进 <b>Hermes</b> Kanban，才发现群聊…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "806cc2abe9",
+              "title": "OpenClaw(龙虾) 最强开源对手！Github 40K Star了，又一个爆火的Agent..",
+              "snippet": "…### 自带学习闭环  \n\n<b>Hermes</b> Agent 之所以能在短时…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f97dbece70",
+              "title": "Hermes Agent 终于出桌面应用了——和CLI/TUI共享一个核心",
+              "snippet": "<b>Hermes</b> Agent 终于出桌面应用了——和CLI/TUI共享一…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e0f72642f3",
+              "title": "耗时30天，WeSight正式开源：一个入口，用所有 Agent",
+              "snippet": "…odex、OpenClaw、<b>Hermes</b>\nAgent、OpenCod…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "cb93765a0a",
+              "title": "PawBench：给通用智能体一把可度量的尺",
+              "snippet": "…rness 分别是\n****<b>Hermes</b>**** 、****Open…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "5aa87b60e4",
+              "title": "光会写提示词，用不好 AI Agent",
+              "snippet": "…把多 Agent 协作搬进 <b>Hermes</b> Kanban，才发现群聊派…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2f826f0a02",
+              "title": "我用 13 个 Agent 跑完一个 AI 工具站，发现真正难的不是写代码",
+              "snippet": "…猜测，复盘等于没做。\n\n![<b>Hermes</b> Kanban\n官方教程截图…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "ea8fc42e5a",
+              "title": "Claude Code Token 账单飙升？先查这个环境变量",
+              "snippet": "…edirect)  \n\n[让<b>Hermes</b>\nAgent开口说话！免费的…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a3df74d91b",
+              "title": "给 OpenClaw 装上第二大脑，GBrain 开源！",
+              "snippet": "…发现 OpenClaw 和 <b>Hermes</b> Agent 的记忆系统，远…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d3a5b1a3bf",
+              "title": "flomo MCP 之后，笔记管理该重做了",
+              "snippet": "…AI 时代的时间管理：我用 <b>Hermes</b> 和滴答清单，把自己从牛马变…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0f9607f3f2",
+              "title": "Agent 的下半场，是账单｜对话 OpenClacky 李亚飞",
+              "snippet": "…law 省 50%，更只有 <b>Hermes</b> 的 1/6\n\n![](ht…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8ea90fb623",
+              "title": "300页！掌握所有Agent关键问题.pdf",
+              "snippet": "…读器中沉浸阅读\n\n最近，**<b>Hermes</b> Agent** 凭核心自进…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "979a8df521",
+              "title": "狂揽46.3k Star！Claude Code上下文优化神器RTK开源，Token节省高达88.9%",
+              "snippet": "…gent <b>hermes</b>         # <b>Hermes</b># 2. 重…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8d5597f9f3",
+              "title": "所有的浏览器自动化工具可以卸载了！Claude Code + Playwright CLI，零Token搞定一切重复工作！",
+              "snippet": "…，连<b>Hermes</b>和openclaw都可以使用，而且<b>Hermes</b>还有定…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "b1551a15bf",
+              "title": "暴涨23.2k！个人超级智能体OpenHuman自动记住你的一切，沉淀到卡帕西式知识库",
+              "snippet": "…\n如果说 OpenClaw、<b>Hermes</b> 更注重技能插件和边用边学，…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "Hermes",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.05,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
     },
     {
       "id": "Q003",
       "category": "direct_lookup",
-      "query": "Hermes Agent architecture providers model configuration",
-      "hit": true,
-      "route": "kg_search → kg_synthesize",
-      "answer_quality": "Comprehensive — Architecture (5-layer, dual loops, multi-agent), Providers (BYOM, Nous Portal, local, vision models), Model Configuration (/model, approvals, token optimization, memory)",
-      "citations": 8,
-      "citation_quality": "Multiple articles with images, well-referenced",
-      "latency_seconds": 90,
-      "notes": "Covered expected facts: multi-layer architecture, multiple providers, model-agnostic design."
+      "original_query": "What is Harness in the context of AI agents?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.09,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "Agent = Model + Harness：模型决定上限Harness 决定下限",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "正本清源：企业 AI 不是建在 Harness 上，而是用 Harness 承载业务流程",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "145种游戏中合法动作率100%！DeepMind新方法AutoHarness，让LLM自动合成代码约束智能体合规行动",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "PawBench：给通用智能体一把可度量的尺",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Agent一定要训练吗？4层Harness让性能平均提升88.5%",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "969a8eb1b7",
+              "title": "Agent = Model + Harness：模型决定上限Harness 决定下限",
+              "snippet": "Agent = Model + <b>Harness</b>：模型决定上限<b>Harn</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "340326323e",
+              "title": "正本清源：企业 AI 不是建在 Harness 上，而是用 Harness 承载业务流程",
+              "snippet": "正本清源：企业 AI 不是建在 <b>Harness</b> 上，而是用 <b>Harn</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c76e17a44d",
+              "title": "145种游戏中合法动作率100%！DeepMind新方法AutoHarness，让LLM自动合成代码约束智能体合规行动",
+              "snippet": "…Auto<b>Harness</b>: improving LLM agents …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "cb93765a0a",
+              "title": "PawBench：给通用智能体一把可度量的尺",
+              "snippet": "…出‘模型+<b>Harness</b>’的最佳组合，更能帮<b>Harness</b>开发者精准…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "6077133f80",
+              "title": "Agent一定要训练吗？4层Harness让性能平均提升88.5%",
+              "snippet": "#  Agent一定要训练吗？4层<b>Harness</b>让性能平均提升88.…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "4432a21218",
+              "title": "本体论落地中的5层7点错配及其注入Agent Harness的4个点位",
+              "snippet": "本体论落地中的5层7点错配及其注入Agent <b>Harness</b>的4个点…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f31803442a",
+              "title": "大模型技术综述推介：Code as Agent Harness及LALM语音大模型梳理",
+              "snippet": "大模型技术综述推介：Code as Agent <b>Harness</b>及LA…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "6bd1a55722",
+              "title": "踏马的 Agent",
+              "snippet": "…\n🐎🐎🐎\n先解释一下标题。<b>Harness</b> 这个词最近在 AI 圈很火…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "471f080993",
+              "title": "模型之外的智能：LLM Agent的外部化范式｜Agent Harness综述一作周宸宇博士「AgenticAICon 2026」预告",
+              "snippet": "模型之外的智能：LLM Agent的外部化范式｜Agent <b>Harn</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7b21fecb01",
+              "title": "76%的性能提升与模型无关？Karpathy 700次 Loop 实验揭开 Agent 最大误区",
+              "snippet": "…需堆叠 <b>Harness</b> 即可？答案并非如此。<b>Harness</b> 带来的提…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "883451d789",
+              "title": "Better Models: Worse Tools",
+              "snippet": "…The <b>harness</b> fully absorbs the erro…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "673c3f1ae7",
+              "title": "Letting Claude Play Text Adventures",
+              "snippet": "…\"\"\"\npass\n```\n\n\n# The Trivial <b>Harne</b>…",
+              "lang": "unknown",
+              "source": "rss"
+            },
+            {
+              "hash": "5a362bf61e",
+              "title": "Claude Code源码逆向工程与系统性分析！Harness Engineering:基于Claude Code的完全指南",
+              "snippet": "Claude Code源码逆向工程与系统性分析！<b>Harness</b> En…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "37f1a47840",
+              "title": "Anthropic的Harness工程白做了？Claude Code被曝不遵守CLAUDE.md，开发者烧光credits怒喊退钱！",
+              "snippet": "Anthropic的<b>Harness</b>工程白做了？Claude Code…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "57cc05633b",
+              "title": "The Coming Loop",
+              "snippet": "…If not, the <b>harness</b> continues the …",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "fae3d96254",
+              "title": "Managed agents are the new Lambda",
+              "snippet": "…All agent <b>harness</b>es have the same …",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "13042de2ad",
+              "title": "模型权重不动，Harness改写100轮：「递归自我改进」首获实证",
+              "snippet": "…gent 的 <b>harness</b>。\n这里的 <b>harness</b>，指承载搜索、…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9ab5664249",
+              "title": "Harness Engineering 实践案例：如何Agent 写一份行为规范",
+              "snippet": "…及评估 <b>harness</b>（evaluation <b>harness</b>es）。…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0f3b516a60",
+              "title": "刚刚，DeepSeek 大规模招人了！这波机会要抓住\n\n有同学建议我去试试，我笑着回复：机会留给你们年轻人。\n\n心里想着：就我这比样，哪配啊！\n\n6 月 25 日晚，DeepSeek 通过官方公众号发布了成立以来最大规模的招聘，覆盖算法、研发、运维、产品、数据工程师等 7 大类，一口气开放 33 个岗位，北京杭州都有，所有岗位都接受实习。\n\n官方宣称：要把所有部门的规模扩大至少一倍！\n\n这么好的机会，我怎么能不给自己的读者同步一下呢？\n\n咱们重点看看「全栈开发和算法」相关的 8 个岗位，其中 Agent Harness 团队专攻 AI 编程智能体，是我认为最吸引我、也是目前很有前景的方向。资深研究员曾公开说，要对标 Claude Code，做 DeepSeek Code Harness。\n\n还有个很特别的岗位叫「AI 跨界技术人才」，不限专业背景，面向「具备超乎常人才能，并希望参与创造和构建 AGI」的候选人开放。\n\n这个岗位的几个加分项非常魔幻：不走寻常路、在某个领域做到极致、有创业经历。想必难度还是很大的。\n\n我很佩服 DeepSeek 的用人原则：让新人直接承担最核心、最重要的任务。\n\n敢这么说的公司我估计没几个吧？\n\n大多数公司刚开始让新人写个模块都顶天了，难怪 DeepSeek 能做出 R1 这种模型。\n\n我一直把 DeepSeek 称为「国产之光」，写 AI 编程教程时它是我首选的国产模型，做 AI 应用开发也是，价格便宜、速度快、效果好。国内目前也就智谱 GLM 和 Kimi 能与之一战。\n\n想投的直接发简历到 talent@deepseek.com，邮件主题：姓名-岗位-联系方式\n\n另外，如果你正在准备 AI 方向的面试，RAG、Agent、MCP、Skills、Memory 这些高频考点建议提前到 面试鸭刷题神器 上刷一遍。想学 AI 编程的朋友也可以看我的免费教程，零基础就能上手。\n\n苟富贵，勿相忘啊！",
+              "snippet": "…个岗位，其中 Agent <b>Harness</b> 团队专攻 AI 编程智能体…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bfbe690644",
+              "title": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于OpenClaw的观点值得一听。",
+              "snippet": "…e最新的模型。同时它又通过<b>Harness</b>系统或者Skills体系等诸…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "Harness",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.09,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q004",
+      "category": "direct_lookup",
+      "original_query": "Describe the skills feature in OpenClaw",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.09,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "马化腾都没想到！OpenClaw，正在改变很多人对AI的付费观",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "首个龙虾模型？让我的OpenClaw稳定发挥职场邪恶人格~",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "手机版OpenClaw来了！把App当Skills用，还安全～",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "781c9ac2c3",
+              "title": "马化腾都没想到！OpenClaw，正在改变很多人对AI的付费观",
+              "snippet": "#  马化腾都没想到！<b>OpenClaw</b>，正在改变很多人对AI的付费观…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "54a36baa97",
+              "title": "首个龙虾模型？让我的OpenClaw稳定发挥职场邪恶人格~",
+              "snippet": "#  首个龙虾模型？让我的<b>OpenClaw</b>稳定发挥职场邪恶人格~\n\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8cc5b1fb7",
+              "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+              "snippet": "#  通透！吃透龙虾 <b>OpenClaw</b>：新手避坑，老手进阶\n\n原创 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c5ac4b9666",
+              "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+              "snippet": "#  <b>OpenClaw</b>爆火，本质上是一场关于Agent OS的全民预…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "6f77b617b9",
+              "title": "手机版OpenClaw来了！把App当Skills用，还安全～",
+              "snippet": "#  手机版<b>OpenClaw</b>来了！把App当Skills用，还安全～…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c958330a78",
+              "title": "自定义技能开发—— 教你写自己的 OpenClaw 技能",
+              "snippet": "…<b>openclaw</b> weather <城市名>\") sys.exit(…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1950549023",
+              "title": "OpenClaw 能力拉满，MiniMax M2.7 来了！",
+              "snippet": "#  <b>OpenClaw</b> 能力拉满，MiniMax M2.7 来了！\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bfbe690644",
+              "title": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于OpenClaw的观点值得一听。",
+              "snippet": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于<b>OpenClaw</b>的观点值得一…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "70ad173a75",
+              "title": "OpenClaw深入分析与教程(Clawdbot、Moltbot)",
+              "snippet": "#  <b>OpenClaw</b>深入分析与教程(Clawdbot、Moltbo…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "806cc2abe9",
+              "title": "OpenClaw(龙虾) 最强开源对手！Github 40K Star了，又一个爆火的Agent..",
+              "snippet": "#  <b>OpenClaw</b>(龙虾) 最强开源对手！Github 40K …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e781713458",
+              "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+              "snippet": "#  再见 <b>OpenClaw</b>，ZeroClaw 重磅开源！\n\n原创 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a750fc51e3",
+              "title": "《OpenClaw 从入门到精通指南》正式发布，开源免费！",
+              "snippet": "#  《<b>OpenClaw</b> 从入门到精通指南》正式发布，开源免费！\n\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "3d3c55810e",
+              "title": "用 Agent 写代码太贵？试试讯飞这款平价套餐",
+              "snippet": "…<b>OpenClaw</b> 接入指南\n\n首先，我们需要先安装<b>OpenClaw</b>。…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "4c42ec64bd",
+              "title": "Warelay -> OpenClaw",
+              "snippet": "…hub.com/<b>openclaw</b>/<b>openclaw</b>/commit/f…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "75905e6d0d",
+              "title": "对话钉钉无招：OpenClaw 解决了个人能不能跑，悟空解决了企业能不能进",
+              "snippet": "对话钉钉无招：<b>OpenClaw</b> 解决了个人能不能跑，悟空解决了企业能…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a6b73aaf24",
+              "title": "把 OpenClaw 和 Claude Code 装在一个产品里，享受无限 Token 的快感",
+              "snippet": "把 <b>OpenClaw</b> 和 Claude Code 装在一个产品里，享…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "65e13d41e3",
+              "title": "OpenClaw---\"小龙虾\"的原理分析，这一篇就够了",
+              "snippet": "#  <b>OpenClaw</b>---\"小龙虾\"的原理分析，这一篇就够了\n\n老…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "28c974c2cd",
+              "title": "OpenClaw 的第一批受害者，该换骡子了！",
+              "snippet": "<b>OpenClaw</b> 的第一批受害者，该换骡子了！",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a035a9ebd",
+              "title": "必装这5个Skills，你的Claude Code会直接进化成超级外挂！",
+              "snippet": "…司实践和个人成长。这里有 <b>OpenClaw</b>、Claude\nCode、…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e64563b6c6",
+              "title": "How AI Assistants are Moving the Security Goalposts",
+              "snippet": "…Wilson said far too many <b>OpenClaw</b> …",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "OpenClaw",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.09,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q005",
+      "category": "direct_lookup",
+      "original_query": "What is LightRAG and how does it work?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.12,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "RAG在当前为什么“已不怎么被人提起”？发展变体回顾及背后的几个原因思考",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Nexus：RAG 时代终结？编译器 AI 知识层来了",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "AI 知识库技术演进拆解：从 RAG 到 NotebookLM，再到 LLM Wiki",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Agent 需要 RAG 吗？",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "把 RAG 做成主流的公司，现在开始“做空”RAG 了",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "46186fce7b",
+              "title": "RAG在当前为什么“已不怎么被人提起”？发展变体回顾及背后的几个原因思考",
+              "snippet": "…<b>RAG</b> 和多模态<b>RAG</b>呢，跑哪儿去了** ？实际上，Graph<b>RAG</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a5a502c8b",
+              "title": "Nexus：RAG 时代终结？编译器 AI 知识层来了",
+              "snippet": "#  Nexus：<b>RAG</b> 时代终结？编译器 AI 知识层来了\n\n原创…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9b427c8cb5",
+              "title": "AI 知识库技术演进拆解：从 RAG 到 NotebookLM，再到 LLM Wiki",
+              "snippet": "AI 知识库技术演进拆解：从 <b>RAG</b> 到 NotebookLM，再到…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7e5ef8b137",
+              "title": "Agent 需要 RAG 吗？",
+              "snippet": "…Agentic <b>RAG</b> 把**数据当成证据来源** ，重要的是 Co…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1272b434a5",
+              "title": "把 RAG 做成主流的公司，现在开始“做空”RAG 了",
+              "snippet": "#  把 <b>RAG</b> 做成主流的公司，现在开始“做空”<b>RAG</b> 了\n\n[ …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1a1deaf024",
+              "title": "再见RAG！AI知识库还得是SAG，又快又准～",
+              "snippet": "…用 Graph<b>RAG</b>，但我一直都觉得 Graph<b>RAG</b> 太重了：\n!…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "70deefca15",
+              "title": "RAG 的尽头，是 SQL？",
+              "snippet": "<b>RAG</b> 的尽头，是 SQL？",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8a83233e0",
+              "title": "HyDE ：让 RAG 检索从\"匹配关键词\"升级到\"理解意图\"",
+              "snippet": "HyDE ：让 <b>RAG</b> 检索从\"匹配关键词\"升级到\"理解意图\"",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "681e3f73b8",
+              "title": "无 Embedding、无向量数据库的 RAG 方法：PageIndex 技术解析",
+              "snippet": "无 Embedding、无向量数据库的 <b>RAG</b> 方法：PageInd…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "aebec2e03d",
+              "title": "Memory as a Model：用 1.5B 小模型给任意 LLM 挂载外部知识",
+              "snippet": "…非参数化方法，即 <b>RAG</b> 和上下文学习（in-context lea…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "ec9201df59",
+              "title": "【万字】带你实现一个Agent（下），从记忆系统、ReAct到具体案例",
+              "snippet": "…用户输入 -> <b>RAG</b> 检索引擎\n  2. <b>RAG</b> 引擎 -> 并行…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9ab5664249",
+              "title": "Harness Engineering 实践案例：如何Agent 写一份行为规范",
+              "snippet": "… - <b>RAG</b> over approved OEM whitepape…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "97f1c10a9b",
+              "title": "技术索引：Agent Skill检索问题的三个工作",
+              "snippet": "…aw带火的大量Skill如何做<b>RAG</b>？一项实验报告及学科图表转LaT…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "dd4070c4e3",
+              "title": "A few words on DS4",
+              "snippet": "…My normal ave<b>rag</b>e is 4/6 since ear…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "9150f0779c",
+              "title": "开源「仓颉.Skill」，你现在可以蒸馏任何书！",
+              "snippet": "…且<b>RAG</b>很重，Skill则比较轻量，用起来更方便\n\n本质上<b>RAG</b>还是…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a4343411e",
+              "title": "LLMs and almost good code",
+              "snippet": "…The statement cove<b>rag</b>e check warns…",
+              "lang": "unknown",
+              "source": "rss"
+            },
+            {
+              "hash": "3f3bb93392",
+              "title": "文档解析经验分享：复杂表格解析的隐形断层表现、影响及评估方式",
+              "snippet": "…\n## <b>RAG</b> / 文档问答：检索正确，上下文错误\n<b>RAG</b> 系统在检…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "4d8170719d",
+              "title": "Using LLM in the shebang line of a script",
+              "snippet": "…ntage of [LLM f<b>rag</b>ments](https://l…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "1c3929e44b",
+              "title": "技术再总结：知识自进化的3个Demo级项目及9个基本问题",
+              "snippet": "…\nGBrain，更像是**一个<b>RAG</b>系统** ，实现如下：核心有2：…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "63686082ea",
+              "title": "Stevens: a hackable AI assistant using a single SQLite table and a handful of cron jobs",
+              "snippet": "…Agents, memory, <b>RAG</b>, assistants—so…",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "RAG",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.12,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
     },
     {
       "id": "Q006",
       "category": "comparison",
-      "query": "Compare OpenClaw vs Hermes Agent",
-      "hit": false,
-      "route": "kg_search → no-result",
-      "answer_quality": "N/A — kg_search returned no synthesis",
-      "citations": 0,
-      "latency_seconds": 2,
-      "notes": "Direct comparison query not synthesized. Covered indirectly by Q017 (ecosystem overview) which compares frameworks."
+      "original_query": "Compare OpenClaw vs Hermes Agent",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.09,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "马化腾都没想到！OpenClaw，正在改变很多人对AI的付费观",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "首个龙虾模型？让我的OpenClaw稳定发挥职场邪恶人格~",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "手机版OpenClaw来了！把App当Skills用，还安全～",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "781c9ac2c3",
+              "title": "马化腾都没想到！OpenClaw，正在改变很多人对AI的付费观",
+              "snippet": "#  马化腾都没想到！<b>OpenClaw</b>，正在改变很多人对AI的付费观…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "54a36baa97",
+              "title": "首个龙虾模型？让我的OpenClaw稳定发挥职场邪恶人格~",
+              "snippet": "#  首个龙虾模型？让我的<b>OpenClaw</b>稳定发挥职场邪恶人格~\n\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8cc5b1fb7",
+              "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+              "snippet": "#  通透！吃透龙虾 <b>OpenClaw</b>：新手避坑，老手进阶\n\n原创 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c5ac4b9666",
+              "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+              "snippet": "#  <b>OpenClaw</b>爆火，本质上是一场关于Agent OS的全民预…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "6f77b617b9",
+              "title": "手机版OpenClaw来了！把App当Skills用，还安全～",
+              "snippet": "#  手机版<b>OpenClaw</b>来了！把App当Skills用，还安全～…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c958330a78",
+              "title": "自定义技能开发—— 教你写自己的 OpenClaw 技能",
+              "snippet": "…<b>openclaw</b> weather <城市名>\") sys.exit(…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1950549023",
+              "title": "OpenClaw 能力拉满，MiniMax M2.7 来了！",
+              "snippet": "#  <b>OpenClaw</b> 能力拉满，MiniMax M2.7 来了！\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bfbe690644",
+              "title": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于OpenClaw的观点值得一听。",
+              "snippet": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于<b>OpenClaw</b>的观点值得一…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "70ad173a75",
+              "title": "OpenClaw深入分析与教程(Clawdbot、Moltbot)",
+              "snippet": "#  <b>OpenClaw</b>深入分析与教程(Clawdbot、Moltbo…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "806cc2abe9",
+              "title": "OpenClaw(龙虾) 最强开源对手！Github 40K Star了，又一个爆火的Agent..",
+              "snippet": "#  <b>OpenClaw</b>(龙虾) 最强开源对手！Github 40K …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e781713458",
+              "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+              "snippet": "#  再见 <b>OpenClaw</b>，ZeroClaw 重磅开源！\n\n原创 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a750fc51e3",
+              "title": "《OpenClaw 从入门到精通指南》正式发布，开源免费！",
+              "snippet": "#  《<b>OpenClaw</b> 从入门到精通指南》正式发布，开源免费！\n\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "3d3c55810e",
+              "title": "用 Agent 写代码太贵？试试讯飞这款平价套餐",
+              "snippet": "…<b>OpenClaw</b> 接入指南\n\n首先，我们需要先安装<b>OpenClaw</b>。…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "4c42ec64bd",
+              "title": "Warelay -> OpenClaw",
+              "snippet": "…hub.com/<b>openclaw</b>/<b>openclaw</b>/commit/f…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "75905e6d0d",
+              "title": "对话钉钉无招：OpenClaw 解决了个人能不能跑，悟空解决了企业能不能进",
+              "snippet": "对话钉钉无招：<b>OpenClaw</b> 解决了个人能不能跑，悟空解决了企业能…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a6b73aaf24",
+              "title": "把 OpenClaw 和 Claude Code 装在一个产品里，享受无限 Token 的快感",
+              "snippet": "把 <b>OpenClaw</b> 和 Claude Code 装在一个产品里，享…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "65e13d41e3",
+              "title": "OpenClaw---\"小龙虾\"的原理分析，这一篇就够了",
+              "snippet": "#  <b>OpenClaw</b>---\"小龙虾\"的原理分析，这一篇就够了\n\n老…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "28c974c2cd",
+              "title": "OpenClaw 的第一批受害者，该换骡子了！",
+              "snippet": "<b>OpenClaw</b> 的第一批受害者，该换骡子了！",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a035a9ebd",
+              "title": "必装这5个Skills，你的Claude Code会直接进化成超级外挂！",
+              "snippet": "…司实践和个人成长。这里有 <b>OpenClaw</b>、Claude\nCode、…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e64563b6c6",
+              "title": "How AI Assistants are Moving the Security Goalposts",
+              "snippet": "…Wilson said far too many <b>OpenClaw</b> …",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "OpenClaw",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.09,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q007",
+      "category": "comparison",
+      "original_query": "Compare Claude Code vs OpenClaw coding capabilities",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.07,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "LLM之Agent（五十四）｜Claude Code Plugins指南 —— 把超级英雄集结成复仇者联盟",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "退订Claude Code！全面拥抱Codex",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "狂揽29.3k Star！Anthropic官方插件目录开源，36个内部高质量插件打通AI编程工作流",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "合上MacBook盖子，让Claude Code替你干活！这5个技巧能让你的效率直接起飞！",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Anthropic的Harness工程白做了？Claude Code被曝不遵守CLAUDE.md，开发者烧光credits怒喊退钱！",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "7e2cc686c9",
+              "title": "LLM之Agent（五十四）｜Claude Code Plugins指南 —— 把超级英雄集结成复仇者联盟",
+              "snippet": "LLM之Agent（五十四）｜<b>Claude Code</b> Plugins…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9c53e463b1",
+              "title": "退订Claude Code！全面拥抱Codex",
+              "snippet": "#  退订<b>Claude Code</b>！全面拥抱Codex\n\n原创 字节笔…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2a87c78cf4",
+              "title": "狂揽29.3k Star！Anthropic官方插件目录开源，36个内部高质量插件打通AI编程工作流",
+              "snippet": "…式植入 <b>Claude Code</b>。\n在 <b>Claude Code</b> 的体系…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "476072496a",
+              "title": "合上MacBook盖子，让Claude Code替你干活！这5个技巧能让你的效率直接起飞！",
+              "snippet": "合上MacBook盖子，让<b>Claude Code</b>替你干活！这5个技巧…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "37f1a47840",
+              "title": "Anthropic的Harness工程白做了？Claude Code被曝不遵守CLAUDE.md，开发者烧光credits怒喊退钱！",
+              "snippet": "Anthropic的Harness工程白做了？<b>Claude Code</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "558d34810b",
+              "title": "Anthropic偷偷在Claude Code中植入了隐形代码，只为识别中国用户。",
+              "snippet": "Anthropic偷偷在<b>Claude Code</b>中植入了隐形代码，只为…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1908ad7a33",
+              "title": "斩获21.4k Star！编程智能体harness builder开源，用工作流引擎给Claude Code套上工程约束",
+              "snippet": "…laude Code 的投诉帖。发帖者直指最新版 <b>Claude Co</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "86efa058b6",
+              "title": "终于，Claude Code 封号的原因被曝光了！竟然针对中国用户，植入隐形代码？！",
+              "snippet": "终于，<b>Claude Code</b> 封号的原因被曝光了！竟然针对中国用户，…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e06dedf9bc",
+              "title": "天塌了！Claude Code 从 20 美元 Pro 套餐里移除了",
+              "snippet": "#  天塌了！<b>Claude Code</b> 从 20 美元 Pro 套餐里…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f141064f52",
+              "title": "Claude Code 源码泄露后，我反而更确定：终端 Agent 只该接 3 类活",
+              "snippet": "#  <b>Claude Code</b> 源码泄露后，我反而更确定：终端 Age…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "551f4272c2",
+              "title": "手机端 AI Coding 的两种路线：$200 套餐下，从 tmux 镜像到自搭 Workbench 的一次取舍复盘",
+              "snippet": "…-.<b>Claude Code</b> 写入.- G[<b>Claude Code</b> D…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a4bbd6aff8",
+              "title": "突发！Claude Code删掉了80%系统提示词",
+              "snippet": "突发！<b>Claude Code</b>删掉了80%系统提示词",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d71eb98218",
+              "title": "一句话让 Claude Code 自动剪视频，这开源项目有点猛...",
+              "snippet": "…观看更多 __\n\n转载\n\n,\n\n一句话让 <b>Claude Code</b> 自…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d3ea02e629",
+              "title": "初五开工！一个全新Claude Code日志桌面端查看工具",
+              "snippet": "…laude Code日志的查看工具[直击痛点! <b>Claude Cod</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "01c1069a8a",
+              "title": "只用一天Opus4.6+Agent Teams做了个ClaudeCode桌面端：已开源",
+              "snippet": "…\n我用一天时间做了个 <b>Claude Code</b> 桌面端 CodePil…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a07b44f168",
+              "title": "又一个神级 Claude Code 插件，开源了！",
+              "snippet": "#  又一个神级 <b>Claude Code</b> 插件，开源了！\n\n原创 小…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d9b53b033f",
+              "title": "从调 API 到造平台，AI 编程的鸿沟到底在哪",
+              "snippet": "… 、Cursor 到 <b>Claude Code</b>，AI 编程工具正以惊人…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "46d73b3550",
+              "title": "让你的 ClaudeCode 秒变 Openclaw（龙虾），连接飞书、Discord 远程控制",
+              "snippet": "…始这个项目的定位只是 <b>Claude Code</b> 的桌面端，现在已经支持…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2849b9b7e3",
+              "title": "Claude Code 省 Token 指南：慎用 1M 上下文，不开新会话或者总是开新会话都不对",
+              "snippet": "…<b>Claude Code</b> 团队的原话：\n> “<b>Claude Code</b> …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1767333f49",
+              "title": "Claude Code 80%的提示词说删就删，Anthropic用Fable 5打了个样：AI行业的“降本”才刚刚开始",
+              "snippet": "<b>Claude Code</b> 80%的提示词说删就删，Anthropic用…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "Claude Code",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.07,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q008",
+      "category": "comparison",
+      "original_query": "Contrast LightRAG with traditional RAG approaches",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.12,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "RAG在当前为什么“已不怎么被人提起”？发展变体回顾及背后的几个原因思考",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Nexus：RAG 时代终结？编译器 AI 知识层来了",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "AI 知识库技术演进拆解：从 RAG 到 NotebookLM，再到 LLM Wiki",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Agent 需要 RAG 吗？",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "把 RAG 做成主流的公司，现在开始“做空”RAG 了",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "46186fce7b",
+              "title": "RAG在当前为什么“已不怎么被人提起”？发展变体回顾及背后的几个原因思考",
+              "snippet": "…<b>RAG</b> 和多模态<b>RAG</b>呢，跑哪儿去了** ？实际上，Graph<b>RAG</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a5a502c8b",
+              "title": "Nexus：RAG 时代终结？编译器 AI 知识层来了",
+              "snippet": "#  Nexus：<b>RAG</b> 时代终结？编译器 AI 知识层来了\n\n原创…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9b427c8cb5",
+              "title": "AI 知识库技术演进拆解：从 RAG 到 NotebookLM，再到 LLM Wiki",
+              "snippet": "AI 知识库技术演进拆解：从 <b>RAG</b> 到 NotebookLM，再到…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7e5ef8b137",
+              "title": "Agent 需要 RAG 吗？",
+              "snippet": "…Agentic <b>RAG</b> 把**数据当成证据来源** ，重要的是 Co…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1272b434a5",
+              "title": "把 RAG 做成主流的公司，现在开始“做空”RAG 了",
+              "snippet": "#  把 <b>RAG</b> 做成主流的公司，现在开始“做空”<b>RAG</b> 了\n\n[ …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1a1deaf024",
+              "title": "再见RAG！AI知识库还得是SAG，又快又准～",
+              "snippet": "…用 Graph<b>RAG</b>，但我一直都觉得 Graph<b>RAG</b> 太重了：\n!…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "70deefca15",
+              "title": "RAG 的尽头，是 SQL？",
+              "snippet": "<b>RAG</b> 的尽头，是 SQL？",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8a83233e0",
+              "title": "HyDE ：让 RAG 检索从\"匹配关键词\"升级到\"理解意图\"",
+              "snippet": "HyDE ：让 <b>RAG</b> 检索从\"匹配关键词\"升级到\"理解意图\"",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "681e3f73b8",
+              "title": "无 Embedding、无向量数据库的 RAG 方法：PageIndex 技术解析",
+              "snippet": "无 Embedding、无向量数据库的 <b>RAG</b> 方法：PageInd…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "aebec2e03d",
+              "title": "Memory as a Model：用 1.5B 小模型给任意 LLM 挂载外部知识",
+              "snippet": "…非参数化方法，即 <b>RAG</b> 和上下文学习（in-context lea…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "ec9201df59",
+              "title": "【万字】带你实现一个Agent（下），从记忆系统、ReAct到具体案例",
+              "snippet": "…用户输入 -> <b>RAG</b> 检索引擎\n  2. <b>RAG</b> 引擎 -> 并行…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9ab5664249",
+              "title": "Harness Engineering 实践案例：如何Agent 写一份行为规范",
+              "snippet": "… - <b>RAG</b> over approved OEM whitepape…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "97f1c10a9b",
+              "title": "技术索引：Agent Skill检索问题的三个工作",
+              "snippet": "…aw带火的大量Skill如何做<b>RAG</b>？一项实验报告及学科图表转LaT…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "dd4070c4e3",
+              "title": "A few words on DS4",
+              "snippet": "…My normal ave<b>rag</b>e is 4/6 since ear…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "9150f0779c",
+              "title": "开源「仓颉.Skill」，你现在可以蒸馏任何书！",
+              "snippet": "…且<b>RAG</b>很重，Skill则比较轻量，用起来更方便\n\n本质上<b>RAG</b>还是…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a4343411e",
+              "title": "LLMs and almost good code",
+              "snippet": "…The statement cove<b>rag</b>e check warns…",
+              "lang": "unknown",
+              "source": "rss"
+            },
+            {
+              "hash": "3f3bb93392",
+              "title": "文档解析经验分享：复杂表格解析的隐形断层表现、影响及评估方式",
+              "snippet": "…\n## <b>RAG</b> / 文档问答：检索正确，上下文错误\n<b>RAG</b> 系统在检…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "4d8170719d",
+              "title": "Using LLM in the shebang line of a script",
+              "snippet": "…ntage of [LLM f<b>rag</b>ments](https://l…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "1c3929e44b",
+              "title": "技术再总结：知识自进化的3个Demo级项目及9个基本问题",
+              "snippet": "…\nGBrain，更像是**一个<b>RAG</b>系统** ，实现如下：核心有2：…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "63686082ea",
+              "title": "Stevens: a hackable AI assistant using a single SQLite table and a handful of cron jobs",
+              "snippet": "…Agents, memory, <b>RAG</b>, assistants—so…",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "RAG",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.12,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q009",
+      "category": "comparison",
+      "original_query": "Compare DeepSeek V4 vs previous versions",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.06,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "V3→V3.2→V4：DeepSeek预训练演变",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Distributing LLM inference in DwarfStar",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "A few words on DS4",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "天塌了！Claude Code 从 20 美元 Pro 套餐里移除了",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "深入理解DeepSeek V4 On-Policy Distillation背后的Reverse KL",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "77ef620ba8",
+              "title": "V3→V3.2→V4：DeepSeek预训练演变",
+              "snippet": "…<b>DeepSeek V4</b> 预训练解析\n\n<b>DeepSeek V4</b> 的预训…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a34dbbf213",
+              "title": "Distributing LLM inference in DwarfStar",
+              "snippet": "…Even 2-bit quantized, <b>DeepSeek v4</b> …",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "dd4070c4e3",
+              "title": "A few words on DS4",
+              "snippet": "… ends with <b>DeepSeek v4</b> Flash? Nope…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "e06dedf9bc",
+              "title": "天塌了！Claude Code 从 20 美元 Pro 套餐里移除了",
+              "snippet": "…<b>DeepSeek V4</b>出来之后才会有所改观。\n\n<b>DeepSeek V</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d87ea9f19e",
+              "title": "深入理解DeepSeek V4 On-Policy Distillation背后的Reverse KL",
+              "snippet": "深入理解<b>DeepSeek V4</b> On-Policy Distilla…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "337869123c",
+              "title": "大模型后训练新范式：On-Policy Distillation (OPD)",
+              "snippet": "…小男孩。从近期发布的 <b>DeepSeek V4</b>、GLM\n等前沿大模型的…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "cbfabcf40f",
+              "title": "腾讯发布WorkBuddy Bench!",
+              "snippet": "…Y3表现还不错，超过了<b>DeepSeek V4</b>?\n另外GLM5.2表现…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d33cfc0139",
+              "title": "LLMs break down in funny ways when told the Jacobian Conjecture counterargument",
+              "snippet": "…3.5-flash)[<b>DeepSeek V4</b> Pro](https:…",
+              "lang": "unknown",
+              "source": "rss"
+            },
+            {
+              "hash": "b75ac3d32c",
+              "title": "DeepSeek 版 Claude Code 火了，暴涨 11000+ Star！",
+              "snippet": "…的子 AI 干活。\n\n<b>DeepSeek V4</b> Flash 的输出价格…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f64678d6e5",
+              "title": "Pushing Local Models With Focus And Polish",
+              "snippet": "…engine for <b>DeepSeek V4</b>\nFlash on Ma…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "c002fcd74f",
+              "title": "Alternatives for the EDIT tool of LLM agents",
+              "snippet": "…ng is that <b>DeepSeek v4</b> Flash is ab…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "e85fd44dd4",
+              "title": "马斯克的Grok终于和Hermes打通了！不只聊天，还会自学、有记忆、能生成图片视频！",
+              "snippet": "…Hermes上免费使用<b>DeepSeek v4</b>的flash，可以关注这…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9f75b25295",
+              "title": "免费! Hermes Agent 薅小米MiMo V2 Pro两周",
+              "snippet": "…时间，不少人误认为是 <b>DeepSeek V4</b>。\n![](data:i…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "070f64c95c",
+              "title": "Not just development, distribution of software may change as well",
+              "snippet": "…ll the new <b>DeepSeek v4</b> Flash check…",
+              "lang": "unknown",
+              "source": "rss"
+            },
+            {
+              "hash": "4560e2f61d",
+              "title": "第 11 篇 · 上下文压缩：让 Agent 在长会话中持续工作",
+              "snippet": "…右。例如：\n\n  * <b>DeepSeek V4</b> Flash / V4 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d3a5b1a3bf",
+              "title": "flomo MCP 之后，笔记管理该重做了",
+              "snippet": "…rect)\n  * [<b>DeepSeek V4</b> 上线火山方舟：Agen…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2f826f0a02",
+              "title": "我用 13 个 Agent 跑完一个 AI 工具站，发现真正难的不是写代码",
+              "snippet": "…rect)\n  * [<b>DeepSeek V4</b> 上线火山方舟：Agen…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "fdf78771df",
+              "title": "DeepSeek-V4-Flash means LLM steering is interesting again",
+              "snippet": "…### <b>DeepSeek V4</b> Flash\n\nI was inspi…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "8ad309a9ed",
+              "title": "怎么知道 Agent 真干完活了？",
+              "snippet": "…任务的话，最新发布的 <b>DeepSeek V4</b> 是强于 GLM 和 M…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "86efa058b6",
+              "title": "终于，Claude Code 封号的原因被曝光了！竟然针对中国用户，植入隐形代码？！",
+              "snippet": "…3E)\n再看国内这边，<b>DeepSeek V4</b> 正式版即将引入峰谷定价…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "DeepSeek V4",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.06,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
     },
     {
       "id": "Q010",
       "category": "2hop_bridge",
-      "query": "OpenClaw MCP server integration skills tools",
-      "hit": true,
-      "route": "kg_search → kg_synthesize",
-      "answer_quality": "Comprehensive — MCP standard, Tool Layer (dedup, deny rules, access control), Skills (workflow abstractions, skill evolution), Tool Mediation (sandbox optimization), Security",
-      "citations": 5,
-      "citation_quality": "Detailed with diagrams, code architecture",
-      "latency_seconds": 110,
-      "notes": "Covered expected facts: MCP servers provide tools, OpenClaw can call MCP tools, tool discovery. Also found deduplication, security concerns."
+      "original_query": "How does OpenClaw integrate with MCP servers?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.06,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "MCP已死，CLI当立！Perplexity首先放弃使用MCP，全网赞成",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "我用阿里 AgentScope 复刻了一个 WorkBuddy",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "第 08 篇 · MCP：让 Agent 跟外部生态对接",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Introducing the Safari MCP Server for Web Developers",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Adding a custom MCP server to Claude and ChatGPT",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "209a6f5c42",
+              "title": "MCP已死，CLI当立！Perplexity首先放弃使用MCP，全网赞成",
+              "snippet": "<b>MCP</b>已死，CLI当立！Perplexity首先放弃使用<b>MCP</b>，全网…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "498d0c614c",
+              "title": "我用阿里 AgentScope 复刻了一个 WorkBuddy",
+              "snippet": "…        <b>mcp</b>_config = Stdio<b>MCP</b>Confi…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1e1c05f3cc",
+              "title": "第 08 篇 · MCP：让 Agent 跟外部生态对接",
+              "snippet": "…Server 暴露能力\n\n一个 <b>MCP</b> server 可以暴露三类能…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7945464d45",
+              "title": "Introducing the Safari MCP Server for Web Developers",
+              "snippet": "Introducing the Safari <b>MCP</b> Server …",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "237c8d75f0",
+              "title": "Adding a custom MCP server to Claude and ChatGPT",
+              "snippet": "Adding a custom <b>MCP</b> server to Clau…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "c1dd81698d",
+              "title": "斩获32.9k Star！代码库分析工具GitNexus开源，让Claude Code读懂代码深度结构",
+              "snippet": "…t <b>mcp</b>  \n    # Windowsclaude <b>mcp</b> ad…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c5ac4b9666",
+              "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+              "snippet": "…。\n\n## <b>MCP</b>：Agent的\"神经系统\"\n\n<b>MCP</b>是Anthro…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d3a5b1a3bf",
+              "title": "flomo MCP 之后，笔记管理该重做了",
+              "snippet": "#  flomo <b>MCP</b> 之后，笔记管理该重做了\n\n原创 孟健的AI…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "51fec1ced1",
+              "title": "LLM之Agent（五十七）｜Claude Code Agentic Loop：从入门到精通的实战指南",
+              "snippet": "…<b>MCP</b> 提示注入\n**规避：** 使用 PreToolUse Hoo…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7e2cc686c9",
+              "title": "LLM之Agent（五十四）｜Claude Code Plugins指南 —— 把超级英雄集结成复仇者联盟",
+              "snippet": "…── .<b>mcp</b>.json            # <b>MCP</b> 服务器配…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "5a362bf61e",
+              "title": "Claude Code源码逆向工程与系统性分析！Harness Engineering:基于Claude Code的完全指南",
+              "snippet": "…<b>MCP</b> 服务器指令  \n      for (const <b>mcp</b> o…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "b75c3a4fcc",
+              "title": "Claude Code 在大型代码库里的最佳实践",
+              "snippet": "…```\n// .<b>mcp</b>.json{  \"<b>mcp</b>Servers\": {…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2a87c78cf4",
+              "title": "狂揽29.3k Star！Anthropic官方插件目录开源，36个内部高质量插件打通AI编程工作流",
+              "snippet": "…带 <b>MCP</b> Server 配置；官方插件结构里也把 `.<b>mcp</b>.js…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f75b97fbc3",
+              "title": "Pi: The Minimal Agent Within OpenClaw",
+              "snippet": "…<b>mcp</b>orter exposes <b>MCP</b> calls via\na C…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "ffd45b0849",
+              "title": "未来的 AI Coding：不同模型负责不同类型的认知劳动",
+              "snippet": "… <b>MCP</b>？\nCodexSaver 的另一个设计选择是：通过 <b>MCP</b> …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0f5115b742",
+              "title": "2026 年开源 Agent 工具包选型指南：延迟、审计、可移植性与语言栈",
+              "snippet": "…体验的 <b>MCP</b> 写法。<b>mcp</b>-agent 是一个围绕 <b>MCP</b> 作为主…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "428aa5e215",
+              "title": "来自 Codex 官方团队的分享：如何把 Codex 用到极致",
+              "snippet": "…6]、以及各种 <b>MCP</b> 工具连接器[7] 和 <b>MCP</b> 指南[7]\n之…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7290dac62d",
+              "title": "Tracking MCP Server Growth",
+              "snippet": "Tracking <b>MCP</b> Server Growth",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "aa78ca0409",
+              "title": "simonw/browser-compat-db",
+              "snippet": "…la's\n\n[new MDN <b>MCP</b> service](https:…",
+              "lang": "unknown",
+              "source": "rss"
+            },
+            {
+              "hash": "80aa2dbc4b",
+              "title": "Beyond the Hype: Real-World MCP Support Across Major AI APIs",
+              "snippet": "…Real-World <b>MCP</b> Support Across Majo…",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "MCP",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.06,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q011",
+      "category": "2hop_bridge",
+      "original_query": "What model providers does Hermes support for inference?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.05,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "马斯克的Grok终于和Hermes打通了！不只聊天，还会自学、有记忆、能生成图片视频！",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Hermes Agent：唯一能自我进化的 AI 代理",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "免费! Hermes Agent 薅小米MiMo V2 Pro两周",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Hermes Agent 王炸来了。。。",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "1.3k Stars！阿里高德开源Agent Skills自进化框架，还能实现Hermes与Claude Code技能共享",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "e85fd44dd4",
+              "title": "马斯克的Grok终于和Hermes打通了！不只聊天，还会自学、有记忆、能生成图片视频！",
+              "snippet": "马斯克的Grok终于和<b>Hermes</b>打通了！不只聊天，还会自学、有记忆…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "6c98c62a16",
+              "title": "Hermes Agent：唯一能自我进化的 AI 代理",
+              "snippet": "…自我学习闭环\n这是 <b>Hermes</b> Agent 最独特的功能：\n  *…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9f75b25295",
+              "title": "免费! Hermes Agent 薅小米MiMo V2 Pro两周",
+              "snippet": "…<b>Hermes</b> Agent详细的入门和使用教程可以看这里：[<b>Herme</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "98eed383c5",
+              "title": "Hermes Agent 王炸来了。。。",
+              "snippet": "…<b>Hermes</b> 概念深度解析、<b>Hermes</b> 安装 & 部署、<b>Herme</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "834eb5b95e",
+              "title": "1.3k Stars！阿里高德开源Agent Skills自进化框架，还能实现Hermes与Claude Code技能共享",
+              "snippet": "…在 <b>Hermes</b> 中集成\n\n  \n\n如果用户使用 <b>Hermes</b>，可以…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0a22ffc237",
+              "title": "我把多 Agent 协作搬进 Hermes Kanban，才发现群聊派活真的不够用了",
+              "snippet": "我把多 Agent 协作搬进 <b>Hermes</b> Kanban，才发现群聊…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "806cc2abe9",
+              "title": "OpenClaw(龙虾) 最强开源对手！Github 40K Star了，又一个爆火的Agent..",
+              "snippet": "…### 自带学习闭环  \n\n<b>Hermes</b> Agent 之所以能在短时…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f97dbece70",
+              "title": "Hermes Agent 终于出桌面应用了——和CLI/TUI共享一个核心",
+              "snippet": "<b>Hermes</b> Agent 终于出桌面应用了——和CLI/TUI共享一…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e0f72642f3",
+              "title": "耗时30天，WeSight正式开源：一个入口，用所有 Agent",
+              "snippet": "…odex、OpenClaw、<b>Hermes</b>\nAgent、OpenCod…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "cb93765a0a",
+              "title": "PawBench：给通用智能体一把可度量的尺",
+              "snippet": "…rness 分别是\n****<b>Hermes</b>**** 、****Open…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "5aa87b60e4",
+              "title": "光会写提示词，用不好 AI Agent",
+              "snippet": "…把多 Agent 协作搬进 <b>Hermes</b> Kanban，才发现群聊派…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2f826f0a02",
+              "title": "我用 13 个 Agent 跑完一个 AI 工具站，发现真正难的不是写代码",
+              "snippet": "…猜测，复盘等于没做。\n\n![<b>Hermes</b> Kanban\n官方教程截图…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "ea8fc42e5a",
+              "title": "Claude Code Token 账单飙升？先查这个环境变量",
+              "snippet": "…edirect)  \n\n[让<b>Hermes</b>\nAgent开口说话！免费的…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a3df74d91b",
+              "title": "给 OpenClaw 装上第二大脑，GBrain 开源！",
+              "snippet": "…发现 OpenClaw 和 <b>Hermes</b> Agent 的记忆系统，远…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d3a5b1a3bf",
+              "title": "flomo MCP 之后，笔记管理该重做了",
+              "snippet": "…AI 时代的时间管理：我用 <b>Hermes</b> 和滴答清单，把自己从牛马变…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0f9607f3f2",
+              "title": "Agent 的下半场，是账单｜对话 OpenClacky 李亚飞",
+              "snippet": "…law 省 50%，更只有 <b>Hermes</b> 的 1/6\n\n![](ht…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8ea90fb623",
+              "title": "300页！掌握所有Agent关键问题.pdf",
+              "snippet": "…读器中沉浸阅读\n\n最近，**<b>Hermes</b> Agent** 凭核心自进…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "979a8df521",
+              "title": "狂揽46.3k Star！Claude Code上下文优化神器RTK开源，Token节省高达88.9%",
+              "snippet": "…gent <b>hermes</b>         # <b>Hermes</b># 2. 重…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8d5597f9f3",
+              "title": "所有的浏览器自动化工具可以卸载了！Claude Code + Playwright CLI，零Token搞定一切重复工作！",
+              "snippet": "…，连<b>Hermes</b>和openclaw都可以使用，而且<b>Hermes</b>还有定…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "b1551a15bf",
+              "title": "暴涨23.2k！个人超级智能体OpenHuman自动记住你的一切，沉淀到卡帕西式知识库",
+              "snippet": "…\n如果说 OpenClaw、<b>Hermes</b> 更注重技能插件和边用边学，…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "Hermes",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.05,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q012",
+      "category": "2hop_bridge",
+      "original_query": "How does entity extraction work in OmniGraph ingestion pipeline?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.06,
+        "item_count": 18,
+        "items": [
+          {
+            "title": "Mem0 vs WorkBuddy：Agent 记忆层的两条路线，谁才是终极答案？",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "RAG 的尽头，是 SQL？",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Introducing touring_test: A Cucumber Extension For Agentic Usability Testing",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "6422b1eac5",
+              "title": "Mem0 vs WorkBuddy：Agent 记忆层的两条路线，谁才是终极答案？",
+              "snippet": "…{\"data\": \"Project Atlas\",\"<b>entity</b>_t…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e781713458",
+              "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+              "snippet": "…准化的维度：\n\n  * Id<b>entity</b> (身份)：姓名、背景、籍贯…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "70deefca15",
+              "title": "RAG 的尽头，是 SQL？",
+              "snippet": "…ent 关联的 <b>entity</b>，再查这些 <b>entity</b> 还连着哪些别的…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8cc5b1fb7",
+              "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+              "snippet": "…做事的原则│├─ 读取 ID<b>ENTITY</b>.md，知道自己是谁│├─ …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "064b992447",
+              "title": "Introducing touring_test: A Cucumber Extension For Agentic Usability Testing",
+              "snippet": "…“Can a reasonable <b>entity</b> figure ou…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "14fe49d637",
+              "title": "Solving a chess puzzle with Claude and Prolog",
+              "snippet": "…3 transform(id<b>entity</b>, R, C, R, C).…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "64c03af05d",
+              "title": "Benchmarking Qwen 3.6 35B MoE (3B active) on an RTX 3090",
+              "snippet": "…Matches id<b>entity</b>, concise, friendl…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "8e4a11eb5b",
+              "title": "Orchestrator 为什么比 Agentic Loop 快：LLM 决策与执行分离的架构解析",
+              "snippet": "…t for a given <b>entity</b>\",    \n       …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a5a502c8b",
+              "title": "Nexus：RAG 时代终结？编译器 AI 知识层来了",
+              "snippet": "…f\",  \n        <b>entity</b>={  \n         …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "aebec2e03d",
+              "title": "Memory as a Model：用 1.5B 小模型给任意 LLM 挂载外部知识",
+              "snippet": "…轮。\n\n阶段 2，实体识别（<b>Entity</b> identificatio…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bca98659a8",
+              "title": "当Agent真正走进复杂数据分析场景：DataClawBench 用492个真实任务，给前沿模型做了一次过程级体检",
+              "snippet": "…\n对于 **实体属性查找 (<b>Entity</b> Attribute Loo…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c88685bc75",
+              "title": "暴涨56.2k Star！生化危机女主开源智能体记忆系统，专治Claude Code、Codex失忆症",
+              "snippet": "…塞进上下文。\nL0 是 Id<b>entity</b>，也就是 AI 的身份设定和…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1a1deaf024",
+              "title": "再见RAG！AI知识库还得是SAG，又快又准～",
+              "snippet": "…「事项（event）-实体（<b>entity</b>）」索引存进 SQL 关系型…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9ab5664249",
+              "title": "Harness Engineering 实践案例：如何Agent 写一份行为规范",
+              "snippet": "… - `id<b>entity</b>`: users, JWT, RBAC, g…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0f1f34cfd0",
+              "title": "LLM Memory",
+              "snippet": "…Things core to id<b>entity</b>, motivatio…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "70ad173a75",
+              "title": "OpenClaw深入分析与教程(Clawdbot、Moltbot)",
+              "snippet": "…系统健康检查清单├── ID<b>ENTITY</b>.md        # o…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "3b304b8fd9",
+              "title": "A Fireside Chat with Cat and Thariq from the Claude Code team",
+              "snippet": "…laude as an id<b>entity</b>, and that als…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "f441bca13c",
+              "title": "Writing an LLM from scratch, part 34a -- building a JAX training loop for an LLM training run",
+              "snippet": "…A pure \"id<b>entity</b>\" model without th…",
+              "lang": "unknown",
+              "source": "rss"
+            }
+          ],
+          "total": 18,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "entity",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.06,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q013",
+      "category": "2hop_bridge",
+      "original_query": "What is the relationship between WeChat articles and knowledge graph entities?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.08,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "用 Agent 写代码太贵？试试讯飞这款平价套餐",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "对话钉钉无招：OpenClaw 解决了个人能不能跑，悟空解决了企业能不能进",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Claude Code 源码泄露后，我反而更确定：终端 Agent 只该接 3 类活",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "光会写提示词，用不好 AI Agent",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "flomo MCP 之后，笔记管理该重做了",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "3d3c55810e",
+              "title": "用 Agent 写代码太贵？试试讯飞这款平价套餐",
+              "snippet": "…6401&scene=21#<b>wechat</b>_redirect)\n\n[《…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "75905e6d0d",
+              "title": "对话钉钉无招：OpenClaw 解决了个人能不能跑，悟空解决了企业能不能进",
+              "snippet": "…06e1&scene=21#<b>wechat</b>_redirect)\n\n[《…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f141064f52",
+              "title": "Claude Code 源码泄露后，我反而更确定：终端 Agent 只该接 3 类活",
+              "snippet": "…9793&scene=21#<b>wechat</b>_redirect)\n\n![…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "5aa87b60e4",
+              "title": "光会写提示词，用不好 AI Agent",
+              "snippet": "…9793&scene=21#<b>wechat</b>_redirect)\n\n![…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d3a5b1a3bf",
+              "title": "flomo MCP 之后，笔记管理该重做了",
+              "snippet": "…9793&scene=21#<b>wechat</b>_redirect)\n\n![…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0a22ffc237",
+              "title": "我把多 Agent 协作搬进 Hermes Kanban，才发现群聊派活真的不够用了",
+              "snippet": "…9793&scene=21#<b>wechat</b>_redirect)\n\n![…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9c53e463b1",
+              "title": "退订Claude Code！全面拥抱Codex",
+              "snippet": "…eff7&scene=21#<b>wechat</b>_redirect)\n\n[G…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d60848cc70",
+              "title": "面试官皱眉：“你简历上写精通 AI 编程？” 我自信：“不就是 Vibe Coding？” 他没绷住笑：“就这？”",
+              "snippet": "…7ab8&scene=21#<b>wechat</b>_redirect)\n里用最…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2f826f0a02",
+              "title": "我用 13 个 Agent 跑完一个 AI 工具站，发现真正难的不是写代码",
+              "snippet": "…9793&scene=21#<b>wechat</b>_redirect)\n\n![…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "51a6c2b237",
+              "title": "一行代码没手写，OpenClaw 前端 Agent 100 分钟做完一个站",
+              "snippet": "…9793&scene=21#<b>wechat</b>_redirect)\n\n![…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "5d1a44a813",
+              "title": "我把 Claude Code 切到 Fable 5，先别急着兴奋",
+              "snippet": "…9793&scene=21#<b>wechat</b>_redirect)\n![别…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bdcfc198a7",
+              "title": "突发！OpenAI 创始成员 Andrej Karpathy 加入 Anthropic",
+              "snippet": "…61d3&scene=21#<b>wechat</b>_redirect)\n\n[曝…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "92b7a162f9",
+              "title": "面试官皱眉：“你连 Skills 都不会写？” 我得意：“Codex 新出的录制功能，夯爆了！” 他：“求你入职，给我讲讲~”",
+              "snippet": "…26fc&scene=21#<b>wechat</b>_redirect)，从安装…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "af412098a6",
+              "title": "Claude 工程师亲授 OpenClaw 调教指南：Skills 的工程化心法",
+              "snippet": "…06e1&scene=21#<b>wechat</b>_redirect)\n\n[《…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c434b61d8e",
+              "title": "为 AI 智能体设计记忆机制：揭秘 LinkedIn 的认知记忆智能体",
+              "snippet": "…b195&scene=21#<b>wechat</b>_redirect)\n\n[C…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f5f44ab394",
+              "title": "10分钟Codex桌面端极速入门使用指南",
+              "snippet": "…id=2247515311#<b>wechat</b>_redirect)免费章节…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "5b46e182cb",
+              "title": "砍掉 90% 冗余词元，省下 70 万美元：Netflix 开源工具狙击 AI 账单黑洞",
+              "snippet": "…7b5d&scene=21#<b>wechat</b>_redirect)\n[Re…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "b7c007f015",
+              "title": "Zod 作者推出 Pullfrog：一个跑在 GitHub Actions 里的开源 AI 编程 Agent",
+              "snippet": "…7226&scene=21#<b>wechat</b>_redirect)\n\n[编…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "312b66a6ce",
+              "title": "从 Manus 启蒙到 Claude 收割：Agent 迎来“深水区”暗战 | GAIR Live 027期预告",
+              "snippet": "…cb71&scene=21#<b>wechat</b>_redirect)\n\n[从…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c51c5913f3",
+              "title": "传统编程，可能比我们想象中更早终结",
+              "snippet": "…853c&scene=21#<b>wechat</b>_redirect)  \n\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "WeChat",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.08,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
     },
     {
       "id": "Q014",
       "category": "3hop_synthesis",
-      "query": "evolution from Harness to OpenClaw to Hermes agent framework history",
-      "hit": true,
-      "route": "kg_search → kg_synthesize",
-      "answer_quality": "Excellent — OpenClaw open-source revolution, Hermes Agent migration path (hermes101.dev, 7-day onboarding, 105K+ stars, 22+ platforms), Claude Code Harness reference (512K LOC, 43+ tools, 5 modes, 41% market share), Harness layer (Mini Harness, Harness Builder, AI-Infra-Guard security)",
-      "citations": 5,
-      "citation_quality": "Multiple high-quality articles with images, GitHub stats, version history",
-      "latency_seconds": 130,
-      "notes": "Single best result — covered all three frameworks, their relationships, migration paths, and the Harness engineering discipline."
+      "original_query": "How do agent frameworks evolve from Harness to OpenClaw to Hermes?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.09,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "马化腾都没想到！OpenClaw，正在改变很多人对AI的付费观",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "首个龙虾模型？让我的OpenClaw稳定发挥职场邪恶人格~",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "手机版OpenClaw来了！把App当Skills用，还安全～",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "781c9ac2c3",
+              "title": "马化腾都没想到！OpenClaw，正在改变很多人对AI的付费观",
+              "snippet": "#  马化腾都没想到！<b>OpenClaw</b>，正在改变很多人对AI的付费观…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "54a36baa97",
+              "title": "首个龙虾模型？让我的OpenClaw稳定发挥职场邪恶人格~",
+              "snippet": "#  首个龙虾模型？让我的<b>OpenClaw</b>稳定发挥职场邪恶人格~\n\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8cc5b1fb7",
+              "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+              "snippet": "#  通透！吃透龙虾 <b>OpenClaw</b>：新手避坑，老手进阶\n\n原创 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c5ac4b9666",
+              "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+              "snippet": "#  <b>OpenClaw</b>爆火，本质上是一场关于Agent OS的全民预…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "6f77b617b9",
+              "title": "手机版OpenClaw来了！把App当Skills用，还安全～",
+              "snippet": "#  手机版<b>OpenClaw</b>来了！把App当Skills用，还安全～…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c958330a78",
+              "title": "自定义技能开发—— 教你写自己的 OpenClaw 技能",
+              "snippet": "…<b>openclaw</b> weather <城市名>\") sys.exit(…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1950549023",
+              "title": "OpenClaw 能力拉满，MiniMax M2.7 来了！",
+              "snippet": "#  <b>OpenClaw</b> 能力拉满，MiniMax M2.7 来了！\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bfbe690644",
+              "title": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于OpenClaw的观点值得一听。",
+              "snippet": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于<b>OpenClaw</b>的观点值得一…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "70ad173a75",
+              "title": "OpenClaw深入分析与教程(Clawdbot、Moltbot)",
+              "snippet": "#  <b>OpenClaw</b>深入分析与教程(Clawdbot、Moltbo…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "806cc2abe9",
+              "title": "OpenClaw(龙虾) 最强开源对手！Github 40K Star了，又一个爆火的Agent..",
+              "snippet": "#  <b>OpenClaw</b>(龙虾) 最强开源对手！Github 40K …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e781713458",
+              "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+              "snippet": "#  再见 <b>OpenClaw</b>，ZeroClaw 重磅开源！\n\n原创 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a750fc51e3",
+              "title": "《OpenClaw 从入门到精通指南》正式发布，开源免费！",
+              "snippet": "#  《<b>OpenClaw</b> 从入门到精通指南》正式发布，开源免费！\n\n…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "3d3c55810e",
+              "title": "用 Agent 写代码太贵？试试讯飞这款平价套餐",
+              "snippet": "…<b>OpenClaw</b> 接入指南\n\n首先，我们需要先安装<b>OpenClaw</b>。…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "4c42ec64bd",
+              "title": "Warelay -> OpenClaw",
+              "snippet": "…hub.com/<b>openclaw</b>/<b>openclaw</b>/commit/f…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "75905e6d0d",
+              "title": "对话钉钉无招：OpenClaw 解决了个人能不能跑，悟空解决了企业能不能进",
+              "snippet": "对话钉钉无招：<b>OpenClaw</b> 解决了个人能不能跑，悟空解决了企业能…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a6b73aaf24",
+              "title": "把 OpenClaw 和 Claude Code 装在一个产品里，享受无限 Token 的快感",
+              "snippet": "把 <b>OpenClaw</b> 和 Claude Code 装在一个产品里，享…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "65e13d41e3",
+              "title": "OpenClaw---\"小龙虾\"的原理分析，这一篇就够了",
+              "snippet": "#  <b>OpenClaw</b>---\"小龙虾\"的原理分析，这一篇就够了\n\n老…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "28c974c2cd",
+              "title": "OpenClaw 的第一批受害者，该换骡子了！",
+              "snippet": "<b>OpenClaw</b> 的第一批受害者，该换骡子了！",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a035a9ebd",
+              "title": "必装这5个Skills，你的Claude Code会直接进化成超级外挂！",
+              "snippet": "…司实践和个人成长。这里有 <b>OpenClaw</b>、Claude\nCode、…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e64563b6c6",
+              "title": "How AI Assistants are Moving the Security Goalposts",
+              "snippet": "…Wilson said far too many <b>OpenClaw</b> …",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "OpenClaw",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.09,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q015",
+      "category": "3hop_synthesis",
+      "original_query": "What is the full pipeline from WeChat article to knowledge graph entity?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.06,
+        "item_count": 18,
+        "items": [
+          {
+            "title": "Mem0 vs WorkBuddy：Agent 记忆层的两条路线，谁才是终极答案？",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "RAG 的尽头，是 SQL？",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Introducing touring_test: A Cucumber Extension For Agentic Usability Testing",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "6422b1eac5",
+              "title": "Mem0 vs WorkBuddy：Agent 记忆层的两条路线，谁才是终极答案？",
+              "snippet": "…{\"data\": \"Project Atlas\",\"<b>entity</b>_t…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e781713458",
+              "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+              "snippet": "…准化的维度：\n\n  * Id<b>entity</b> (身份)：姓名、背景、籍贯…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "70deefca15",
+              "title": "RAG 的尽头，是 SQL？",
+              "snippet": "…ent 关联的 <b>entity</b>，再查这些 <b>entity</b> 还连着哪些别的…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8cc5b1fb7",
+              "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+              "snippet": "…做事的原则│├─ 读取 ID<b>ENTITY</b>.md，知道自己是谁│├─ …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "064b992447",
+              "title": "Introducing touring_test: A Cucumber Extension For Agentic Usability Testing",
+              "snippet": "…“Can a reasonable <b>entity</b> figure ou…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "14fe49d637",
+              "title": "Solving a chess puzzle with Claude and Prolog",
+              "snippet": "…3 transform(id<b>entity</b>, R, C, R, C).…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "64c03af05d",
+              "title": "Benchmarking Qwen 3.6 35B MoE (3B active) on an RTX 3090",
+              "snippet": "…Matches id<b>entity</b>, concise, friendl…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "8e4a11eb5b",
+              "title": "Orchestrator 为什么比 Agentic Loop 快：LLM 决策与执行分离的架构解析",
+              "snippet": "…t for a given <b>entity</b>\",    \n       …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a5a502c8b",
+              "title": "Nexus：RAG 时代终结？编译器 AI 知识层来了",
+              "snippet": "…f\",  \n        <b>entity</b>={  \n         …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "aebec2e03d",
+              "title": "Memory as a Model：用 1.5B 小模型给任意 LLM 挂载外部知识",
+              "snippet": "…轮。\n\n阶段 2，实体识别（<b>Entity</b> identificatio…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bca98659a8",
+              "title": "当Agent真正走进复杂数据分析场景：DataClawBench 用492个真实任务，给前沿模型做了一次过程级体检",
+              "snippet": "…\n对于 **实体属性查找 (<b>Entity</b> Attribute Loo…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c88685bc75",
+              "title": "暴涨56.2k Star！生化危机女主开源智能体记忆系统，专治Claude Code、Codex失忆症",
+              "snippet": "…塞进上下文。\nL0 是 Id<b>entity</b>，也就是 AI 的身份设定和…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1a1deaf024",
+              "title": "再见RAG！AI知识库还得是SAG，又快又准～",
+              "snippet": "…「事项（event）-实体（<b>entity</b>）」索引存进 SQL 关系型…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9ab5664249",
+              "title": "Harness Engineering 实践案例：如何Agent 写一份行为规范",
+              "snippet": "… - `id<b>entity</b>`: users, JWT, RBAC, g…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0f1f34cfd0",
+              "title": "LLM Memory",
+              "snippet": "…Things core to id<b>entity</b>, motivatio…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "70ad173a75",
+              "title": "OpenClaw深入分析与教程(Clawdbot、Moltbot)",
+              "snippet": "…系统健康检查清单├── ID<b>ENTITY</b>.md        # o…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "3b304b8fd9",
+              "title": "A Fireside Chat with Cat and Thariq from the Claude Code team",
+              "snippet": "…laude as an id<b>entity</b>, and that als…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "f441bca13c",
+              "title": "Writing an LLM from scratch, part 34a -- building a JAX training loop for an LLM training run",
+              "snippet": "…A pure \"id<b>entity</b>\" model without th…",
+              "lang": "unknown",
+              "source": "rss"
+            }
+          ],
+          "total": 18,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "entity",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.06,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q016",
+      "category": "3hop_synthesis",
+      "original_query": "How do wiki pages, entity buffers, and kg_search interact in OmniGraph?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.02,
+        "item_count": 3,
+        "items": [
+          {
+            "title": "LLM Memory",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "The Factory Model：Coding Agents 如何改变软件工程",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "4300万论文、30亿三元组，科研Agent实现多视角创新评估",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "0f1f34cfd0",
+              "title": "LLM Memory",
+              "snippet": "…## <b>Knowledge graph</b>s\n\n<b>Knowledge gra</b>…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "32fd683705",
+              "title": "The Factory Model：Coding Agents 如何改变软件工程",
+              "snippet": "…构决策的知识图谱（<b>knowledge graph</b>）。文档正在变成自主…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d0d1eb6158",
+              "title": "4300万论文、30亿三元组，科研Agent实现多视角创新评估",
+              "snippet": "…A Large-Scale <b>Knowledge Graph</b> for …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 3,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "knowledge graph",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.02,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
     },
     {
       "id": "Q017",
       "category": "enumeration_global",
-      "query": "AI agent frameworks list OpenClaw Hermes Claude Code Harness ecosystem 2026",
-      "hit": true,
-      "route": "kg_search → kg_synthesize",
-      "answer_quality": "Excellent — 5-section ecosystem overview: OpenClaw, Hermes Agent (hermes101.dev, migration guide), Claude Code (512K LOC, 43+ tools, 41% market share), Harness Layer (Mini Harness, Harness Builder, AutoHarness), Broader Ecosystem (Skills, MCP, AI-Infra-Guard security)",
-      "citations": 5,
-      "citation_quality": "Rich with code analysis, market data, security framework comparison",
-      "latency_seconds": 125,
-      "notes": "Covered all expected facts: listed all major frameworks, their relationships, Harness engineering discipline."
+      "original_query": "List all AI agent frameworks mentioned in the knowledge base",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.09,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "Agent 原生通讯协议：从传递代码，到传递认知",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "[翻译] AI Agent 的 Zero Trust 框架｜Anthropic 安全白皮书",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "我把多 Agent 协作搬进 Hermes Kanban，才发现群聊派活真的不够用了",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "578e2d60bc",
+              "title": "Agent 原生通讯协议：从传递代码，到传递认知",
+              "snippet": "#  <b>Agent</b> 原生通讯协议：从传递代码，到传递认知\n\n原创 歸藏…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "4c9dc2ba4d",
+              "title": "[翻译] AI Agent 的 Zero Trust 框架｜Anthropic 安全白皮书",
+              "snippet": "[翻译] AI <b>Agent</b> 的 Zero Trust 框架｜Anth…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c5ac4b9666",
+              "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+              "snippet": "#  OpenClaw爆火，本质上是一场关于<b>Agent</b> OS的全民预…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8cc5b1fb7",
+              "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+              "snippet": "…用户↓<b>Agent</b>理解意图（理解问题/决策/规划）↓<b>Agent</b>使用天气…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0a22ffc237",
+              "title": "我把多 Agent 协作搬进 Hermes Kanban，才发现群聊派活真的不够用了",
+              "snippet": "我把多 <b>Agent</b> 协作搬进 Hermes Kanban，才发现群聊…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "329a221da5",
+              "title": "老板买了十几个 Agent，要求高管每天陪聊：企业 AI 最典型的认知误区",
+              "snippet": "老板买了十几个 <b>Agent</b>，要求高管每天陪聊：企业 AI 最典型的认…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9cbd555c68",
+              "title": "我来预测下一代企业数字化架构：系统CLI化、流程Skill化、员工Agent化",
+              "snippet": "…工<b>Agent</b>化：** 让每个员工拥有岗位<b>Agent</b>，由<b>Agent</b>代替…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a6ac9d3e60",
+              "title": "2026 编程巨变：Anthropic 报告揭示 Agent 编程八大趋势",
+              "snippet": "2026 编程巨变：Anthropic 报告揭示 <b>Agent</b> 编程八…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "5aa87b60e4",
+              "title": "光会写提示词，用不好 AI Agent",
+              "snippet": "#  光会写提示词，用不好 AI <b>Agent</b>\n\n原创 孟健的AI编程…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "26b555ac6b",
+              "title": "聊聊Agent的记忆系统，到底应该记什么？",
+              "snippet": "#  聊聊<b>Agent</b>的记忆系统，到底应该记什么？\n\n原创 好奇的小逸…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "834eb5b95e",
+              "title": "1.3k Stars！阿里高德开源Agent Skills自进化框架，还能实现Hermes与Claude Code技能共享",
+              "snippet": "1.3k Stars！阿里高德开源<b>Agent</b> Skills自进化框架…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8e4a11eb5b",
+              "title": "Orchestrator 为什么比 Agentic Loop 快：LLM 决策与执行分离的架构解析",
+              "snippet": "Orchestrator 为什么比 <b>Agent</b>ic Loop 快：L…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "19c08ca449",
+              "title": "用 Agent 团队来做知识管理，非常顶！",
+              "snippet": "#  用 <b>Agent</b> 团队来做知识管理，非常顶！\n\n原创 苍何 苍何…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7e5ef8b137",
+              "title": "Agent 需要 RAG 吗？",
+              "snippet": "…如果你是**放大能力** ，选协同类，走 Workspace <b>Age</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2dca93e289",
+              "title": "用 Agent 写代码很爽？三个月后的代码库会让你崩溃",
+              "snippet": "#  用 <b>Agent</b> 写代码很爽？三个月后的代码库会让你崩溃\n\n原创…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "05eb64c268",
+              "title": "Coze 3.0 的背后：AI 编程杀进来后，Dify、n8n 还能活多久？",
+              "snippet": "…为什么 Coding <b>Agent</b> 会对 Coze/Dify/n8n …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bfbe690644",
+              "title": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于OpenClaw的观点值得一听。",
+              "snippet": "…gent层。很高兴今天能和大家一起探讨，主要的关键词是开源和<b>Agen</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1e1c05f3cc",
+              "title": "第 08 篇 · MCP：让 Agent 跟外部生态对接",
+              "snippet": "我们前面开发出来的<b>Agent</b>已经有两类能力：\n\n  * **Tool…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "b9e9ae1535",
+              "title": "Datasette Agent",
+              "snippet": "## Datasette <b>Agent</b>\n\n21st May 2026\n…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "2c0cba5ca0",
+              "title": "十个 AI Agent 工作流模板，照着搭就能用",
+              "snippet": "#  十个 AI <b>Agent</b> 工作流模板，照着搭就能用\n\nP**nH…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "agent",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.09,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q018",
+      "category": "enumeration_global",
+      "original_query": "What are all the AI topics tracked by OmniGraph KOL scan?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.06,
+        "item_count": 18,
+        "items": [
+          {
+            "title": "Mem0 vs WorkBuddy：Agent 记忆层的两条路线，谁才是终极答案？",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "RAG 的尽头，是 SQL？",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Introducing touring_test: A Cucumber Extension For Agentic Usability Testing",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "6422b1eac5",
+              "title": "Mem0 vs WorkBuddy：Agent 记忆层的两条路线，谁才是终极答案？",
+              "snippet": "…{\"data\": \"Project Atlas\",\"<b>entity</b>_t…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e781713458",
+              "title": "再见 OpenClaw，ZeroClaw 重磅开源！",
+              "snippet": "…准化的维度：\n\n  * Id<b>entity</b> (身份)：姓名、背景、籍贯…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "70deefca15",
+              "title": "RAG 的尽头，是 SQL？",
+              "snippet": "…ent 关联的 <b>entity</b>，再查这些 <b>entity</b> 还连着哪些别的…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8cc5b1fb7",
+              "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+              "snippet": "…做事的原则│├─ 读取 ID<b>ENTITY</b>.md，知道自己是谁│├─ …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "064b992447",
+              "title": "Introducing touring_test: A Cucumber Extension For Agentic Usability Testing",
+              "snippet": "…“Can a reasonable <b>entity</b> figure ou…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "14fe49d637",
+              "title": "Solving a chess puzzle with Claude and Prolog",
+              "snippet": "…3 transform(id<b>entity</b>, R, C, R, C).…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "64c03af05d",
+              "title": "Benchmarking Qwen 3.6 35B MoE (3B active) on an RTX 3090",
+              "snippet": "…Matches id<b>entity</b>, concise, friendl…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "8e4a11eb5b",
+              "title": "Orchestrator 为什么比 Agentic Loop 快：LLM 决策与执行分离的架构解析",
+              "snippet": "…t for a given <b>entity</b>\",    \n       …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8a5a502c8b",
+              "title": "Nexus：RAG 时代终结？编译器 AI 知识层来了",
+              "snippet": "…f\",  \n        <b>entity</b>={  \n         …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "aebec2e03d",
+              "title": "Memory as a Model：用 1.5B 小模型给任意 LLM 挂载外部知识",
+              "snippet": "…轮。\n\n阶段 2，实体识别（<b>Entity</b> identificatio…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bca98659a8",
+              "title": "当Agent真正走进复杂数据分析场景：DataClawBench 用492个真实任务，给前沿模型做了一次过程级体检",
+              "snippet": "…\n对于 **实体属性查找 (<b>Entity</b> Attribute Loo…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c88685bc75",
+              "title": "暴涨56.2k Star！生化危机女主开源智能体记忆系统，专治Claude Code、Codex失忆症",
+              "snippet": "…塞进上下文。\nL0 是 Id<b>entity</b>，也就是 AI 的身份设定和…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1a1deaf024",
+              "title": "再见RAG！AI知识库还得是SAG，又快又准～",
+              "snippet": "…「事项（event）-实体（<b>entity</b>）」索引存进 SQL 关系型…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9ab5664249",
+              "title": "Harness Engineering 实践案例：如何Agent 写一份行为规范",
+              "snippet": "… - `id<b>entity</b>`: users, JWT, RBAC, g…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0f1f34cfd0",
+              "title": "LLM Memory",
+              "snippet": "…Things core to id<b>entity</b>, motivatio…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "70ad173a75",
+              "title": "OpenClaw深入分析与教程(Clawdbot、Moltbot)",
+              "snippet": "…系统健康检查清单├── ID<b>ENTITY</b>.md        # o…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "3b304b8fd9",
+              "title": "A Fireside Chat with Cat and Thariq from the Claude Code team",
+              "snippet": "…laude as an id<b>entity</b>, and that als…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "f441bca13c",
+              "title": "Writing an LLM from scratch, part 34a -- building a JAX training loop for an LLM training run",
+              "snippet": "…A pure \"id<b>entity</b>\" model without th…",
+              "lang": "unknown",
+              "source": "rss"
+            }
+          ],
+          "total": 18,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "entity",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.06,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q019",
+      "category": "enumeration_global",
+      "original_query": "List the key platforms and tools in the agent development ecosystem",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.06,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "MCP已死，CLI当立！Perplexity首先放弃使用MCP，全网赞成",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "我用阿里 AgentScope 复刻了一个 WorkBuddy",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "第 08 篇 · MCP：让 Agent 跟外部生态对接",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Introducing the Safari MCP Server for Web Developers",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Adding a custom MCP server to Claude and ChatGPT",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "209a6f5c42",
+              "title": "MCP已死，CLI当立！Perplexity首先放弃使用MCP，全网赞成",
+              "snippet": "<b>MCP</b>已死，CLI当立！Perplexity首先放弃使用<b>MCP</b>，全网…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "498d0c614c",
+              "title": "我用阿里 AgentScope 复刻了一个 WorkBuddy",
+              "snippet": "…        <b>mcp</b>_config = Stdio<b>MCP</b>Confi…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1e1c05f3cc",
+              "title": "第 08 篇 · MCP：让 Agent 跟外部生态对接",
+              "snippet": "…Server 暴露能力\n\n一个 <b>MCP</b> server 可以暴露三类能…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7945464d45",
+              "title": "Introducing the Safari MCP Server for Web Developers",
+              "snippet": "Introducing the Safari <b>MCP</b> Server …",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "237c8d75f0",
+              "title": "Adding a custom MCP server to Claude and ChatGPT",
+              "snippet": "Adding a custom <b>MCP</b> server to Clau…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "c1dd81698d",
+              "title": "斩获32.9k Star！代码库分析工具GitNexus开源，让Claude Code读懂代码深度结构",
+              "snippet": "…t <b>mcp</b>  \n    # Windowsclaude <b>mcp</b> ad…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c5ac4b9666",
+              "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+              "snippet": "…。\n\n## <b>MCP</b>：Agent的\"神经系统\"\n\n<b>MCP</b>是Anthro…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d3a5b1a3bf",
+              "title": "flomo MCP 之后，笔记管理该重做了",
+              "snippet": "#  flomo <b>MCP</b> 之后，笔记管理该重做了\n\n原创 孟健的AI…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "51fec1ced1",
+              "title": "LLM之Agent（五十七）｜Claude Code Agentic Loop：从入门到精通的实战指南",
+              "snippet": "…<b>MCP</b> 提示注入\n**规避：** 使用 PreToolUse Hoo…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7e2cc686c9",
+              "title": "LLM之Agent（五十四）｜Claude Code Plugins指南 —— 把超级英雄集结成复仇者联盟",
+              "snippet": "…── .<b>mcp</b>.json            # <b>MCP</b> 服务器配…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "5a362bf61e",
+              "title": "Claude Code源码逆向工程与系统性分析！Harness Engineering:基于Claude Code的完全指南",
+              "snippet": "…<b>MCP</b> 服务器指令  \n      for (const <b>mcp</b> o…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "b75c3a4fcc",
+              "title": "Claude Code 在大型代码库里的最佳实践",
+              "snippet": "…```\n// .<b>mcp</b>.json{  \"<b>mcp</b>Servers\": {…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2a87c78cf4",
+              "title": "狂揽29.3k Star！Anthropic官方插件目录开源，36个内部高质量插件打通AI编程工作流",
+              "snippet": "…带 <b>MCP</b> Server 配置；官方插件结构里也把 `.<b>mcp</b>.js…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f75b97fbc3",
+              "title": "Pi: The Minimal Agent Within OpenClaw",
+              "snippet": "…<b>mcp</b>orter exposes <b>MCP</b> calls via\na C…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "ffd45b0849",
+              "title": "未来的 AI Coding：不同模型负责不同类型的认知劳动",
+              "snippet": "… <b>MCP</b>？\nCodexSaver 的另一个设计选择是：通过 <b>MCP</b> …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0f5115b742",
+              "title": "2026 年开源 Agent 工具包选型指南：延迟、审计、可移植性与语言栈",
+              "snippet": "…体验的 <b>MCP</b> 写法。<b>mcp</b>-agent 是一个围绕 <b>MCP</b> 作为主…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "428aa5e215",
+              "title": "来自 Codex 官方团队的分享：如何把 Codex 用到极致",
+              "snippet": "…6]、以及各种 <b>MCP</b> 工具连接器[7] 和 <b>MCP</b> 指南[7]\n之…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7290dac62d",
+              "title": "Tracking MCP Server Growth",
+              "snippet": "Tracking <b>MCP</b> Server Growth",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "aa78ca0409",
+              "title": "simonw/browser-compat-db",
+              "snippet": "…la's\n\n[new MDN <b>MCP</b> service](https:…",
+              "lang": "unknown",
+              "source": "rss"
+            },
+            {
+              "hash": "80aa2dbc4b",
+              "title": "Beyond the Hype: Real-World MCP Support Across Major AI APIs",
+              "snippet": "…Real-World <b>MCP</b> Support Across Majo…",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "MCP",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.06,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
     },
     {
       "id": "Q020",
       "category": "freshness_time",
-      "query": "latest AI agent developments August 2026 DeepSeek V4 Claude Code features",
-      "hit": true,
-      "route": "kg_search → kg_synthesize",
-      "answer_quality": "Comprehensive — DeepSeek V4 family (V4-Pro, Flash, TUI), Claude Code Desktop (refactor, source leak), OpenClaw ecosystem, Agent OS, multi-agent practice. KG correctly notes no August 2026 material — latest is May 2026.",
-      "citations": 5,
-      "latency_seconds": 200,
-      "citation_quality": "Real articles: DeepSeek版Claude Code, Claude Code Desktop, OpenClaw Agent OS, Hermes Agent architecture",
-      "notes": "Covered expected facts: DeepSeek V4 (Pro/Flash variants, TUI agent), Claude Code (Desktop refactor, 2026 features), OpenClaw ecosystem (v2026.4.24, 百虾大战). Honest about knowledge cutoff."
+      "original_query": "What are the latest developments in AI agent frameworks as of August 2026?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.09,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "Agent 原生通讯协议：从传递代码，到传递认知",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "[翻译] AI Agent 的 Zero Trust 框架｜Anthropic 安全白皮书",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "我把多 Agent 协作搬进 Hermes Kanban，才发现群聊派活真的不够用了",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "578e2d60bc",
+              "title": "Agent 原生通讯协议：从传递代码，到传递认知",
+              "snippet": "#  <b>Agent</b> 原生通讯协议：从传递代码，到传递认知\n\n原创 歸藏…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "4c9dc2ba4d",
+              "title": "[翻译] AI Agent 的 Zero Trust 框架｜Anthropic 安全白皮书",
+              "snippet": "[翻译] AI <b>Agent</b> 的 Zero Trust 框架｜Anth…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c5ac4b9666",
+              "title": "OpenClaw爆火，本质上是一场关于Agent OS的全民预演。",
+              "snippet": "#  OpenClaw爆火，本质上是一场关于<b>Agent</b> OS的全民预…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "c8cc5b1fb7",
+              "title": "通透！吃透龙虾 OpenClaw：新手避坑，老手进阶",
+              "snippet": "…用户↓<b>Agent</b>理解意图（理解问题/决策/规划）↓<b>Agent</b>使用天气…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "0a22ffc237",
+              "title": "我把多 Agent 协作搬进 Hermes Kanban，才发现群聊派活真的不够用了",
+              "snippet": "我把多 <b>Agent</b> 协作搬进 Hermes Kanban，才发现群聊…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "329a221da5",
+              "title": "老板买了十几个 Agent，要求高管每天陪聊：企业 AI 最典型的认知误区",
+              "snippet": "老板买了十几个 <b>Agent</b>，要求高管每天陪聊：企业 AI 最典型的认…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9cbd555c68",
+              "title": "我来预测下一代企业数字化架构：系统CLI化、流程Skill化、员工Agent化",
+              "snippet": "…工<b>Agent</b>化：** 让每个员工拥有岗位<b>Agent</b>，由<b>Agent</b>代替…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a6ac9d3e60",
+              "title": "2026 编程巨变：Anthropic 报告揭示 Agent 编程八大趋势",
+              "snippet": "2026 编程巨变：Anthropic 报告揭示 <b>Agent</b> 编程八…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "5aa87b60e4",
+              "title": "光会写提示词，用不好 AI Agent",
+              "snippet": "#  光会写提示词，用不好 AI <b>Agent</b>\n\n原创 孟健的AI编程…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "26b555ac6b",
+              "title": "聊聊Agent的记忆系统，到底应该记什么？",
+              "snippet": "#  聊聊<b>Agent</b>的记忆系统，到底应该记什么？\n\n原创 好奇的小逸…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "834eb5b95e",
+              "title": "1.3k Stars！阿里高德开源Agent Skills自进化框架，还能实现Hermes与Claude Code技能共享",
+              "snippet": "1.3k Stars！阿里高德开源<b>Agent</b> Skills自进化框架…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "8e4a11eb5b",
+              "title": "Orchestrator 为什么比 Agentic Loop 快：LLM 决策与执行分离的架构解析",
+              "snippet": "Orchestrator 为什么比 <b>Agent</b>ic Loop 快：L…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "19c08ca449",
+              "title": "用 Agent 团队来做知识管理，非常顶！",
+              "snippet": "#  用 <b>Agent</b> 团队来做知识管理，非常顶！\n\n原创 苍何 苍何…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "7e5ef8b137",
+              "title": "Agent 需要 RAG 吗？",
+              "snippet": "…如果你是**放大能力** ，选协同类，走 Workspace <b>Age</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2dca93e289",
+              "title": "用 Agent 写代码很爽？三个月后的代码库会让你崩溃",
+              "snippet": "#  用 <b>Agent</b> 写代码很爽？三个月后的代码库会让你崩溃\n\n原创…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "05eb64c268",
+              "title": "Coze 3.0 的背后：AI 编程杀进来后，Dify、n8n 还能活多久？",
+              "snippet": "…为什么 Coding <b>Agent</b> 会对 Coze/Dify/n8n …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "bfbe690644",
+              "title": "杨植麟、张鹏、罗福莉等齐聚一堂，他们关于OpenClaw的观点值得一听。",
+              "snippet": "…gent层。很高兴今天能和大家一起探讨，主要的关键词是开源和<b>Agen</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1e1c05f3cc",
+              "title": "第 08 篇 · MCP：让 Agent 跟外部生态对接",
+              "snippet": "我们前面开发出来的<b>Agent</b>已经有两类能力：\n\n  * **Tool…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "b9e9ae1535",
+              "title": "Datasette Agent",
+              "snippet": "## Datasette <b>Agent</b>\n\n21st May 2026\n…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "2c0cba5ca0",
+              "title": "十个 AI Agent 工作流模板，照着搭就能用",
+              "snippet": "#  十个 AI <b>Agent</b> 工作流模板，照着搭就能用\n\nP**nH…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "agent",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.09,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q021",
+      "category": "freshness_time",
+      "original_query": "What recent articles discuss DeepSeek V4?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.06,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "V3→V3.2→V4：DeepSeek预训练演变",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Distributing LLM inference in DwarfStar",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "A few words on DS4",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "天塌了！Claude Code 从 20 美元 Pro 套餐里移除了",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "深入理解DeepSeek V4 On-Policy Distillation背后的Reverse KL",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "77ef620ba8",
+              "title": "V3→V3.2→V4：DeepSeek预训练演变",
+              "snippet": "…<b>DeepSeek V4</b> 预训练解析\n\n<b>DeepSeek V4</b> 的预训…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a34dbbf213",
+              "title": "Distributing LLM inference in DwarfStar",
+              "snippet": "…Even 2-bit quantized, <b>DeepSeek v4</b> …",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "dd4070c4e3",
+              "title": "A few words on DS4",
+              "snippet": "… ends with <b>DeepSeek v4</b> Flash? Nope…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "e06dedf9bc",
+              "title": "天塌了！Claude Code 从 20 美元 Pro 套餐里移除了",
+              "snippet": "…<b>DeepSeek V4</b>出来之后才会有所改观。\n\n<b>DeepSeek V</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d87ea9f19e",
+              "title": "深入理解DeepSeek V4 On-Policy Distillation背后的Reverse KL",
+              "snippet": "深入理解<b>DeepSeek V4</b> On-Policy Distilla…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "337869123c",
+              "title": "大模型后训练新范式：On-Policy Distillation (OPD)",
+              "snippet": "…小男孩。从近期发布的 <b>DeepSeek V4</b>、GLM\n等前沿大模型的…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "cbfabcf40f",
+              "title": "腾讯发布WorkBuddy Bench!",
+              "snippet": "…Y3表现还不错，超过了<b>DeepSeek V4</b>?\n另外GLM5.2表现…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d33cfc0139",
+              "title": "LLMs break down in funny ways when told the Jacobian Conjecture counterargument",
+              "snippet": "…3.5-flash)[<b>DeepSeek V4</b> Pro](https:…",
+              "lang": "unknown",
+              "source": "rss"
+            },
+            {
+              "hash": "b75ac3d32c",
+              "title": "DeepSeek 版 Claude Code 火了，暴涨 11000+ Star！",
+              "snippet": "…的子 AI 干活。\n\n<b>DeepSeek V4</b> Flash 的输出价格…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f64678d6e5",
+              "title": "Pushing Local Models With Focus And Polish",
+              "snippet": "…engine for <b>DeepSeek V4</b>\nFlash on Ma…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "c002fcd74f",
+              "title": "Alternatives for the EDIT tool of LLM agents",
+              "snippet": "…ng is that <b>DeepSeek v4</b> Flash is ab…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "e85fd44dd4",
+              "title": "马斯克的Grok终于和Hermes打通了！不只聊天，还会自学、有记忆、能生成图片视频！",
+              "snippet": "…Hermes上免费使用<b>DeepSeek v4</b>的flash，可以关注这…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9f75b25295",
+              "title": "免费! Hermes Agent 薅小米MiMo V2 Pro两周",
+              "snippet": "…时间，不少人误认为是 <b>DeepSeek V4</b>。\n![](data:i…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "070f64c95c",
+              "title": "Not just development, distribution of software may change as well",
+              "snippet": "…ll the new <b>DeepSeek v4</b> Flash check…",
+              "lang": "unknown",
+              "source": "rss"
+            },
+            {
+              "hash": "4560e2f61d",
+              "title": "第 11 篇 · 上下文压缩：让 Agent 在长会话中持续工作",
+              "snippet": "…右。例如：\n\n  * <b>DeepSeek V4</b> Flash / V4 …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d3a5b1a3bf",
+              "title": "flomo MCP 之后，笔记管理该重做了",
+              "snippet": "…rect)\n  * [<b>DeepSeek V4</b> 上线火山方舟：Agen…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2f826f0a02",
+              "title": "我用 13 个 Agent 跑完一个 AI 工具站，发现真正难的不是写代码",
+              "snippet": "…rect)\n  * [<b>DeepSeek V4</b> 上线火山方舟：Agen…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "fdf78771df",
+              "title": "DeepSeek-V4-Flash means LLM steering is interesting again",
+              "snippet": "…### <b>DeepSeek V4</b> Flash\n\nI was inspi…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "8ad309a9ed",
+              "title": "怎么知道 Agent 真干完活了？",
+              "snippet": "…任务的话，最新发布的 <b>DeepSeek V4</b> 是强于 GLM 和 M…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "86efa058b6",
+              "title": "终于，Claude Code 封号的原因被曝光了！竟然针对中国用户，植入隐形代码？！",
+              "snippet": "…3E)\n再看国内这边，<b>DeepSeek V4</b> 正式版即将引入峰谷定价…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "DeepSeek V4",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.06,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q022",
+      "category": "freshness_time",
+      "original_query": "Latest Claude Code features released in 2026",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.07,
+        "item_count": 20,
+        "items": [
+          {
+            "title": "LLM之Agent（五十四）｜Claude Code Plugins指南 —— 把超级英雄集结成复仇者联盟",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "退订Claude Code！全面拥抱Codex",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "狂揽29.3k Star！Anthropic官方插件目录开源，36个内部高质量插件打通AI编程工作流",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "合上MacBook盖子，让Claude Code替你干活！这5个技巧能让你的效率直接起飞！",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Anthropic的Harness工程白做了？Claude Code被曝不遵守CLAUDE.md，开发者烧光credits怒喊退钱！",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "7e2cc686c9",
+              "title": "LLM之Agent（五十四）｜Claude Code Plugins指南 —— 把超级英雄集结成复仇者联盟",
+              "snippet": "LLM之Agent（五十四）｜<b>Claude Code</b> Plugins…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "9c53e463b1",
+              "title": "退订Claude Code！全面拥抱Codex",
+              "snippet": "#  退订<b>Claude Code</b>！全面拥抱Codex\n\n原创 字节笔…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2a87c78cf4",
+              "title": "狂揽29.3k Star！Anthropic官方插件目录开源，36个内部高质量插件打通AI编程工作流",
+              "snippet": "…式植入 <b>Claude Code</b>。\n在 <b>Claude Code</b> 的体系…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "476072496a",
+              "title": "合上MacBook盖子，让Claude Code替你干活！这5个技巧能让你的效率直接起飞！",
+              "snippet": "合上MacBook盖子，让<b>Claude Code</b>替你干活！这5个技巧…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "37f1a47840",
+              "title": "Anthropic的Harness工程白做了？Claude Code被曝不遵守CLAUDE.md，开发者烧光credits怒喊退钱！",
+              "snippet": "Anthropic的Harness工程白做了？<b>Claude Code</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "558d34810b",
+              "title": "Anthropic偷偷在Claude Code中植入了隐形代码，只为识别中国用户。",
+              "snippet": "Anthropic偷偷在<b>Claude Code</b>中植入了隐形代码，只为…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1908ad7a33",
+              "title": "斩获21.4k Star！编程智能体harness builder开源，用工作流引擎给Claude Code套上工程约束",
+              "snippet": "…laude Code 的投诉帖。发帖者直指最新版 <b>Claude Co</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "86efa058b6",
+              "title": "终于，Claude Code 封号的原因被曝光了！竟然针对中国用户，植入隐形代码？！",
+              "snippet": "终于，<b>Claude Code</b> 封号的原因被曝光了！竟然针对中国用户，…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "e06dedf9bc",
+              "title": "天塌了！Claude Code 从 20 美元 Pro 套餐里移除了",
+              "snippet": "#  天塌了！<b>Claude Code</b> 从 20 美元 Pro 套餐里…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "f141064f52",
+              "title": "Claude Code 源码泄露后，我反而更确定：终端 Agent 只该接 3 类活",
+              "snippet": "#  <b>Claude Code</b> 源码泄露后，我反而更确定：终端 Age…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "551f4272c2",
+              "title": "手机端 AI Coding 的两种路线：$200 套餐下，从 tmux 镜像到自搭 Workbench 的一次取舍复盘",
+              "snippet": "…-.<b>Claude Code</b> 写入.- G[<b>Claude Code</b> D…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a4bbd6aff8",
+              "title": "突发！Claude Code删掉了80%系统提示词",
+              "snippet": "突发！<b>Claude Code</b>删掉了80%系统提示词",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d71eb98218",
+              "title": "一句话让 Claude Code 自动剪视频，这开源项目有点猛...",
+              "snippet": "…观看更多 __\n\n转载\n\n,\n\n一句话让 <b>Claude Code</b> 自…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d3ea02e629",
+              "title": "初五开工！一个全新Claude Code日志桌面端查看工具",
+              "snippet": "…laude Code日志的查看工具[直击痛点! <b>Claude Cod</b>…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "01c1069a8a",
+              "title": "只用一天Opus4.6+Agent Teams做了个ClaudeCode桌面端：已开源",
+              "snippet": "…\n我用一天时间做了个 <b>Claude Code</b> 桌面端 CodePil…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "a07b44f168",
+              "title": "又一个神级 Claude Code 插件，开源了！",
+              "snippet": "#  又一个神级 <b>Claude Code</b> 插件，开源了！\n\n原创 小…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "d9b53b033f",
+              "title": "从调 API 到造平台，AI 编程的鸿沟到底在哪",
+              "snippet": "… 、Cursor 到 <b>Claude Code</b>，AI 编程工具正以惊人…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "46d73b3550",
+              "title": "让你的 ClaudeCode 秒变 Openclaw（龙虾），连接飞书、Discord 远程控制",
+              "snippet": "…始这个项目的定位只是 <b>Claude Code</b> 的桌面端，现在已经支持…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "2849b9b7e3",
+              "title": "Claude Code 省 Token 指南：慎用 1M 上下文，不开新会话或者总是开新会话都不对",
+              "snippet": "…<b>Claude Code</b> 团队的原话：\n> “<b>Claude Code</b> …",
+              "lang": "zh-CN",
+              "source": "wechat"
+            },
+            {
+              "hash": "1767333f49",
+              "title": "Claude Code 80%的提示词说删就删，Anthropic用Fable 5打了个样：AI行业的“降本”才刚刚开始",
+              "snippet": "<b>Claude Code</b> 80%的提示词说删就删，Anthropic用…",
+              "lang": "zh-CN",
+              "source": "wechat"
+            }
+          ],
+          "total": 20,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "Claude Code",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.07,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
     },
     {
       "id": "Q023",
       "category": "negative_noanswer",
-      "query": "capital of France Paris population",
-      "hit": false,
-      "route": "kg_search → no-result",
-      "answer_quality": "Correct — no relevant results for general knowledge query outside OmniGraph domain",
-      "citations": 0,
-      "latency_seconds": 2,
-      "notes": "Negative query correctly returns no results. KG does not fabricate answers for out-of-domain questions."
+      "original_query": "What is the capital of France?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.01,
+        "item_count": 3,
+        "items": [
+          {
+            "title": "Thoughts on Role Confusion",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "LLM 0.32a0  is a major backwards-compatible refactor",
+            "source": "",
+            "hash": ""
+          },
+          {
+            "title": "Why do OpenAI's GPT-2 weights beat mine?",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "bfe1dfdbc1",
+              "title": "Thoughts on Role Confusion",
+              "snippet": "…What is the capital of <b>France</b>?\nBot…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "f6340a5eb3",
+              "title": "LLM 0.32a0  is a major backwards-compatible refactor",
+              "snippet": "…t(\"Capital of <b>France</b>?\")\nprint(r1.t…",
+              "lang": "en",
+              "source": "rss"
+            },
+            {
+              "hash": "a28a59a478",
+              "title": "Why do OpenAI's GPT-2 weights beat mine?",
+              "snippet": "…maybe that the capital of <b>France</b> i…",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 3,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "France",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.01,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "Q024",
+      "category": "negative_noanswer",
+      "original_query": "How to bake a chocolate cake?",
+      "fts": {
+        "route": "fts",
+        "status": "no-result",
+        "latency_s": 0.0,
+        "item_count": 0,
+        "items": [],
+        "raw": {
+          "items": [],
+          "total": 0,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "chocolate cake",
+      "route": "fts",
+      "status": "no-result",
+      "latency_s": 0.0,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
     },
     {
       "id": "Q025",
       "category": "negative_noanswer",
-      "query": "GDP of Japan 2025",
-      "hit": false,
-      "route": "kg_search → no-result",
-      "answer_quality": "Correct — no relevant results for general knowledge query",
-      "citations": 0,
-      "latency_seconds": 1
+      "original_query": "What is the GDP of Japan in 2025?",
+      "fts": {
+        "route": "fts",
+        "status": "hit",
+        "latency_s": 0.01,
+        "item_count": 1,
+        "items": [
+          {
+            "title": "Codifying a ChatGPT workflow into a malleable GUI",
+            "source": "",
+            "hash": ""
+          }
+        ],
+        "raw": {
+          "items": [
+            {
+              "hash": "644f65592f",
+              "title": "Codifying a ChatGPT workflow into a malleable GUI",
+              "snippet": "…I grew up in <b>Japan</b> but my writing …",
+              "lang": "en",
+              "source": "rss"
+            }
+          ],
+          "total": 1,
+          "mode": "fts"
+        }
+      },
+      "executed_query": "Japan",
+      "route": "fts",
+      "status": "hit",
+      "latency_s": 0.01,
+      "kg": {
+        "route": "kg",
+        "status": "skipped"
+      }
     }
-  ],
-  "category_coverage": {
-    "direct_lookup": 2,
-    "comparison": 1,
-    "2hop_bridge": 1,
-    "3hop_synthesis": 1,
-    "enumeration_global": 1,
-    "freshness_time": 1,
-    "negative_noanswer": 2
-  }
+  ]
 }
