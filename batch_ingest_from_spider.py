@@ -2202,9 +2202,13 @@ async def ingest_from_db(
 
             # llm-wiki-W3 T3 (2026-05-19): post-drain wiki entity update hook.
             # Fire-and-forget with 120s timeout; never blocks the main flow.
+            # W5-0 fix (2026-08-11): use canonical 10-char MD5 article-identity
+            # hash matching DB content_hash + entity buffer filenames, NOT the
+            # 16-char SHA256 checkpoint hash from get_article_hash.
             try:
                 batch_hashes = [
-                    get_article_hash(r[3]) for r in candidate_rows if r[3]
+                    hashlib.md5(r[3].encode()).hexdigest()[:10]
+                    for r in candidate_rows if r[3]
                 ]
                 wiki_stats = await asyncio.wait_for(
                     _wiki_update_check(batch_hashes, conn), timeout=120

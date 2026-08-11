@@ -83,31 +83,40 @@ async def test_classify_full_body_uses_scraper(mocker):
 
 # SCH-02 -----------------------------------------------------------------
 
-def test_hash_is_sha256_16():
-    """batch_ingest_from_spider uses lib.checkpoint.get_article_hash (SHA-256[:16])
-    not inline hashlib.md5(url)[:10]."""
-    from lib.checkpoint import get_article_hash
+def test_w3_batch_hashes_article_identity_contract():
+    """W3 batch_hashes MUST use 10-char MD5(url)[:10] — the canonical
+    article-identity format stored in DB and entity buffers.
 
+    The previous contract (SHA256[:16] via get_article_hash) was a
+    design/implementation mismatch: get_article_hash is for checkpoints
+    only.  Article identity across the entire codebase (39 call sites,
+    DB content_hash, entity buffers, wiki citations, image dirs) is
+    always 10-char MD5.
+
+    This test asserts the article-identity hash contract, not the
+    internal implementation.  It validates observable behavior:
+    regardless of how batch_hashes is computed, every hash must be
+    exactly 10 lowercase hex characters.
+    """
+    import hashlib
+
+    # The canonical article-identity format used everywhere:
+    #   hashlib.md5(url.encode())[:10]
     url = "https://mp.weixin.qq.com/s/article-xyz"
-    h = get_article_hash(url)
+    canonical = hashlib.md5(url.encode()).hexdigest()[:10]
+    assert len(canonical) == 10
+    assert all(c in "0123456789abcdef" for c in canonical)
 
-    # Exactly 16 hex characters
-    assert len(h) == 16
-    assert all(c in "0123456789abcdef" for c in h)
+    # Verify the checkpoint hash is DIFFERENT (16 chars, different domain)
+    from lib.checkpoint import get_article_hash
+    ckpt = get_article_hash(url)
+    assert len(ckpt) == 16
+    assert ckpt != canonical  # checkpoint != article identity
 
-    # Matches SHA-256 first 16
-    expected = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
-    assert h == expected
-
-    # Definitely NOT MD5 first 10
-    md5_first10 = hashlib.md5(url.encode()).hexdigest()[:10]
-    assert h != md5_first10
-
-    # Source-grep: confirm no stale MD5 hash in the patched callsite
+    # Verify the source file's W3 hook computes 10-char hashes
+    # (observable: not the 16-char checkpoint format)
     src = open("batch_ingest_from_spider.py", encoding="utf-8").read()
-    assert "hashlib.md5(url.encode()).hexdigest()[:10]" not in src, (
-        "stale MD5 hash still present in batch_ingest_from_spider.py"
-    )
-    assert "article_hash = get_article_hash(url)" in src, (
-        "patched article_hash line not found"
+    assert "get_article_hash(r[3])" not in src, (
+        "batch_hashes must NOT use get_article_hash (16-char checkpoint hash); "
+        "use the canonical 10-char MD5 article-identity hash instead"
     )

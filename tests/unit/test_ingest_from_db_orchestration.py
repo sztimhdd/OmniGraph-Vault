@@ -523,9 +523,9 @@ async def test_wiki_update_hook_called_after_drain_with_observable_post_conditio
         f"— hashes={passed_hashes!r}"
     )
     for h in passed_hashes:
-        assert isinstance(h, str) and len(h) == 16, (
-            f"each hash should be 16-char sha256 prefix "
-            f"(lib.checkpoint.get_article_hash contract); got {h!r}"
+        assert isinstance(h, str) and len(h) == 10, (
+            f"each hash should be 10-char md5 article-identity prefix "
+            f"(canonical across DB + entity buffers + wiki citations); got {h!r}"
         )
 
     # Behavior 3: hook exception did not block ingest_from_db. Both
