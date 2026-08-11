@@ -114,3 +114,7 @@ kol_scan.db
 venv-aim1/
 venv-*/
 kb/wiki/error_book.db
+
+# Wiki compiler runtime artifacts (W5A Task 3) — never Git-tracked
+kb/wiki/.locks/
+kb/wiki/_suggestions/*.json
