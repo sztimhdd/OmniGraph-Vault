@@ -1,189 +1,288 @@
 #!/usr/bin/env python3
-"""W5-0 Gate F: Retrieval baseline benchmark — rerunnable, real results.
+"""W5-0 Gate F: Retrieval baseline benchmark — real OmniGraph KB API.
 
-Runs 25 queries across 5 categories against OmniGraph KG API (kg_search + kg_synthesize).
-Captures wiki_inject hit/miss, search result count, and synthesis quality rating.
-Outputs JSON baseline to data/baselines/w5-0-retrieval-<date>.json.
+Runs all 25 queries from data/baselines/queries-w5-0.json against the
+OmniGraph KB API (FTS search mode). Every query exercises a real retrieval
+path with no stubs. Captures: route, status, latency, hit count, source
+evidence. KG synthesis runs are attempted for FTS-hit queries but never
+fabricated — timeouts/errors become terminal states.
 
 Usage:
-    # Requires Hermes MCP omnigraph tools (kg_search + kg_poll + kg_synthesize)
-    # Run via: hermes execute_code --script scripts/wiki_baseline_bench.py
-
-    # Or directly (only search; synthesis requires MCP):
-    python scripts/wiki_baseline_bench.py --search-only
-
-Categories:
-  1. Direct entity lookup (8 queries)
-  2. Definition/description (5 queries)
-  3. Cross-entity comparison (4 queries)
-  4. Relationship/connection (5 queries)
-  5. Negative/unknown (3 queries)
+  python3 scripts/wiki_baseline_bench.py                          # local API
+  python3 scripts/wiki_baseline_bench.py --api-url http://...     # remote
+  python3 scripts/wiki_baseline_bench.py --fts-only               # skip KG
 """
 from __future__ import annotations
 
 import json
+import os
+import re
 import sys
 import time
-from datetime import UTC, datetime
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
-try:
-    from hermes_tools import terminal
-    HAS_HERMES = True
-except ImportError:
-    HAS_HERMES = False
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+QUERIES_PATH = REPO_ROOT / "data" / "baselines" / "queries-w5-0.json"
+RESULTS_PATH = REPO_ROOT / "data" / "baselines" / "w5-0-results-20260811.json"
 
-QUERIES = {
-    "direct_entity_lookup": [
-        "What is OpenClaw?",
-        "What is Hermes Agent?",
-        "What is Claude Code?",
-        "What is Harness Engineering?",
-        "What is LangChain?",
-        "What is Anthropic?",
-        "What is Context Engineering?",
-        "What is Agent Skills?",
-    ],
-    "definition_description": [
-        "Define LLM Wiki and its key principles.",
-        "What is the Model Context Protocol (MCP)?",
-        "Explain declarative agent architecture.",
-        "What is skill-as-code pattern?",
-        "Describe the agent harness pattern.",
-    ],
-    "cross_entity_comparison": [
-        "Compare OpenClaw and Hermes Agent.",
-        "Compare Claude Code and Cursor for AI coding.",
-        "LangChain vs LlamaIndex for agent development.",
-        "Compare Anthropic and OpenAI agent strategies.",
-    ],
-    "relationship_connection": [
-        "How does Harness Engineering relate to Hermes Agent?",
-        "How does MCP connect to Agent Skills?",
-        "What is the relationship between Claude Code and Agent Harness?",
-        "Connection between Gateway and MCP in agent systems.",
-        "How do memory systems enhance Hermes Agent?",
-    ],
-    "negative_unknown": [
-        "What is Flux Capacitor architecture?",
-        "Explain Quantum Entangled Agent Protocol.",
-        "What is BananaFold protein folding agent?",
-    ],
-}
+API_URL = os.environ.get("OMNIGRAPH_KB_API_URL", "http://127.0.0.1:8766")
+FTS_TIMEOUT = 15
+KG_TIMEOUT = 10   # POST timeout
+KG_POLL_TIMEOUT = 240  # total poll budget
+KG_POLL_INTERVAL = 5
+
+# Stop-words stripped for FTS keyword extraction on original-query no-result
+_FTS_STOP_WORDS = frozenset({
+    "what", "is", "the", "of", "in", "a", "an", "to", "for", "and",
+    "or", "are", "does", "do", "how", "can", "when", "why", "who",
+    "was", "were", "be", "been", "has", "have", "had", "that", "this",
+    "these", "those", "it", "its", "with", "from", "on", "at", "by",
+    "as", "not", "no", "all", "any", "but", "if", "than", "then",
+    "about", "into", "over", "after", "before", "between", "through",
+    "vs", "list", "latest", "recent", "discuss", "describe", "define",
+    "compare", "contrast", "explain", "difference", "between",
+})
 
 
-def search_kg(query: str) -> dict[str, Any]:
-    """Run a kg_search query via Hermes MCP tool.
-
-    Falls back to local FTS if MCP unavailable — returns structured stub.
+def _extract_keywords(query: str) -> str:
+    """Strip stop-words from query for FTS keyword matching.
+    
+    Falls back to original query if stripping would leave empty string.
     """
-    if not HAS_HERMES:
-        return {"method": "stub", "query": query, "results": [], "hit": False}
+    tokens = query.lower().replace("?", "").replace(",", "").replace(".", "").split()
+    keywords = [t for t in tokens if t not in _FTS_STOP_WORDS and len(t) >= 2]
+    return " ".join(keywords) if keywords else query
 
-    # Try kg_search via terminal (uses Hermes MCP context)
+
+def fts_search(query: str, timeout: int = FTS_TIMEOUT) -> dict:
+    """Synchronous FTS search against KB API. Never raises — returns error dict."""
+    t0 = time.time()
     try:
-        result = terminal(
-            f'echo "KG_SEARCH: {query}" && '
-            f'echo "STUB: kg_search unavailable outside MCP context"',
-            timeout=5,
-        )
-        return {"method": "terminal-stub", "query": query, "output": result["output"].strip()}
+        encoded = urllib.parse.quote(query)
+        url = f"{API_URL}/api/search?q={encoded}&mode=fts"
+        req = urllib.request.Request(url)
+        resp = urllib.request.urlopen(req, timeout=timeout)
+        data = json.loads(resp.read())
+        return {
+            "route": "fts",
+            "status": "hit" if data.get("items") else "no-result",
+            "latency_s": round(time.time() - t0, 2),
+            "item_count": len(data.get("items", [])),
+            "items": _summarize_items(data.get("items", [])[:5]),
+            "raw": data,
+        }
+    except urllib.error.HTTPError as e:
+        return {"route": "fts", "status": f"http-{e.code}", "latency_s": round(time.time() - t0, 2),
+                "error": str(e)}
     except Exception as e:
-        return {"method": "stub", "query": query, "error": str(e), "results": [], "hit": False}
+        return {"route": "fts", "status": "error", "latency_s": round(time.time() - t0, 2),
+                "error": f"{type(e).__name__}: {e}"}
 
 
-def check_wiki_inject(query: str) -> dict[str, Any]:
-    """Check if any wiki entity page matches query keywords."""
-    wiki_root = Path("kb/wiki/entities")
-    if not wiki_root.exists():
-        return {"method": "no-wiki", "hit": False, "matches": []}
+def kg_search(query: str) -> dict:
+    """Async KG search. Returns job_id or immediate no-result. Never raises."""
+    t0 = time.time()
+    try:
+        payload = json.dumps({"query": query}).encode()
+        req = urllib.request.Request(
+            f"{API_URL}/api/search?mode=kg",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        resp = urllib.request.urlopen(req, timeout=KG_TIMEOUT)
+        data = json.loads(resp.read())
+        if data.get("job_id"):
+            return {"route": "kg", "status": "running", "job_id": data["job_id"],
+                    "latency_s": round(time.time() - t0, 2)}
+        # Immediate result (no async needed)
+        result_text = data.get("result", "")
+        if result_text and "[no-result]" not in str(result_text):
+            return {"route": "kg", "status": "hit",
+                    "latency_s": round(time.time() - t0, 2), "raw": data}
+        return {"route": "kg", "status": "no-result",
+                "latency_s": round(time.time() - t0, 2)}
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")[:200] if e.fp else ""
+        return {"route": "kg", "status": f"http-{e.code}", "latency_s": round(time.time() - t0, 2),
+                "error": f"HTTP {e.code}: {body}"}
+    except Exception as e:
+        return {"route": "kg", "status": "error", "latency_s": round(time.time() - t0, 2),
+                "error": f"{type(e).__name__}: {e}"}
 
-    query_lower = query.lower()
-    matches = []
-    for f in sorted(wiki_root.glob("*.md")):
-        stem = f.stem.lower().replace("-", " ")
-        # Simple keyword overlap
-        words = set(query_lower.split())
-        stem_words = set(stem.split())
-        overlap = words & stem_words
-        if overlap or stem in query_lower or any(w in stem for w in words if len(w) > 3):
-            matches.append({"slug": f.stem, "file": f.name, "overlap": list(overlap)})
+
+def kg_poll(job_id: str, timeout: float = KG_POLL_TIMEOUT,
+            interval: float = KG_POLL_INTERVAL) -> dict:
+    """Poll KG job until completion or timeout. Never raises."""
+    t0 = time.time()
+    deadline = t0 + timeout
+    while time.time() < deadline:
+        try:
+            req = urllib.request.Request(f"{API_URL}/api/search/{job_id}")
+            resp = urllib.request.urlopen(req, timeout=10)
+            data = json.loads(resp.read())
+            if data.get("status") == "completed":
+                result = data.get("result", "")
+                citations = _count_citations(result)
+                return {"route": "kg→synthesize", "status": "hit",
+                        "latency_s": round(time.time() - t0, 2),
+                        "result_length": len(result),
+                        "citation_count": citations,
+                        "result_preview": result[:500] if result else "",
+                        "raw": data}
+            if data.get("status") == "failed":
+                return {"route": "kg→synthesize", "status": "kg-failed",
+                        "latency_s": round(time.time() - t0, 2),
+                        "error": data.get("error", "unknown")}
+            # still running — wait
+            time.sleep(interval)
+        except Exception as e:
+            return {"route": "kg→synthesize", "status": "poll-error",
+                    "latency_s": round(time.time() - t0, 2),
+                    "error": f"{type(e).__name__}: {e}"}
+    return {"route": "kg→synthesize", "status": "timeout",
+            "latency_s": round(time.time() - t0, 2)}
+
+
+def _summarize_items(items: list) -> list[dict]:
+    """Extract key fields from FTS results."""
+    out = []
+    for item in items:
+        out.append({
+            "title": (item.get("title") or "")[:80],
+            "source": item.get("source_name", ""),
+            "hash": item.get("content_hash", ""),
+        })
+    return out
+
+
+def _count_citations(result: str) -> int:
+    """Count citation references in synthesis result."""
+    if not result:
+        return 0
+    import re
+    refs = re.findall(r"\[(\d+)\]", result)
+    article_refs = re.findall(r"articles/([a-f0-9]+)\.html", result)
+    return max(len(refs), len(article_refs))
+
+
+def run_benchmark(fts_only: bool = False) -> dict:
+    """Run all 25 queries. Every query gets a terminal state."""
+    queries = json.loads(QUERIES_PATH.read_text())
+    results = []
+    total = len(queries["queries"])
+    kg_jobs: dict[str, dict] = {}  # job_id -> result entry
+
+    for i, q in enumerate(queries["queries"], 1):
+        qid = q["id"]
+        original = q["query"]
+        category = q["category"]
+        print(f"[{i}/{total}] {qid} ({category}): {original[:60]}...", end=" ", flush=True)
+
+        entry = {
+            "id": qid, "category": category, "original_query": original,
+        }
+
+        # Phase 1: FTS (always run — real retrieval)
+        # Use fts_keywords if provided; fall back to original query
+        fts_query = q.get("fts_keywords", original)
+        fts = fts_search(fts_query)
+        entry["fts"] = fts
+        if fts_query != original:
+            entry["executed_query"] = fts_query
+        entry["route"] = fts["route"]
+        entry["status"] = fts["status"]
+        entry["latency_s"] = fts["latency_s"]
+
+        # Phase 2: KG (only if FTS found hits and not fts_only)
+        if fts["status"] == "hit" and not fts_only:
+            kg = kg_search(original)
+            entry["kg"] = kg
+            if kg.get("job_id"):
+                entry["route"] = "fts+kg→poll"
+                entry["status"] = "kg-running"
+                kg_jobs[kg["job_id"]] = entry
+            elif kg["status"] == "hit":
+                entry["route"] = "fts+kg-direct"
+                entry["status"] = "hit"
+            else:
+                entry["status"] = f"fts-hit/kg-{kg['status']}"
+        else:
+            entry["kg"] = {"route": "kg", "status": "skipped" if fts_only else "no-fts-hit"}
+
+        results.append(entry)
+        print(f"→ {entry['status']} ({entry['latency_s']}s)")
+
+    # Phase 3: Poll KG jobs
+    if kg_jobs:
+        print(f"\nPolling {len(kg_jobs)} KG jobs (budget {KG_POLL_TIMEOUT}s per job)...")
+        for job_id, entry in kg_jobs.items():
+            qid = entry["id"]
+            print(f"  {qid} job={job_id[:12]}...", end=" ", flush=True)
+            kg_result = kg_poll(job_id)
+            entry["kg"] = kg_result
+            # Only update status if KG succeeded
+            if kg_result["status"] == "hit":
+                entry["route"] = "fts+kg→synthesis"
+                entry["status"] = "hit"
+                entry["latency_s"] = round(entry.get("latency_s", 0) + kg_result["latency_s"], 1)
+            else:
+                entry["route"] = "fts+kg→timeout"
+            print(f"→ {kg_result['status']} ({kg_result.get('latency_s', 0)}s)")
+
+    # Build output
+    summary = {
+        "total": total,
+        "fts_hits": sum(1 for r in results if r["fts"]["status"] == "hit"),
+        "fts_no_result": sum(1 for r in results if r["fts"]["status"] == "no-result"),
+        "kg_attempted": len(kg_jobs),
+        "kg_completed": sum(1 for r in results if r.get("kg", {}).get("status") == "hit"),
+        "errors": sum(1 for r in results if "error" in r.get("fts", {}) or "error" in r.get("kg", {})),
+    }
+
     return {
-        "method": "local-kw-match",
-        "hit": len(matches) > 0,
-        "matches": matches,
-    }
-
-
-def run_benchmark(search_only: bool = False) -> dict[str, Any]:
-    """Run all 25 queries, capture results."""
-    results: dict[str, Any] = {
         "meta": {
-            "date": datetime.now(UTC).isoformat(),
-            "tool": "kg_search" if not search_only else "local-kw-only",
-            "total_queries": sum(len(v) for v in QUERIES.values()),
-            "categories": {k: len(v) for k, v in QUERIES.items()},
+            "tool": f"OmniGraph KB API ({API_URL})",
+            "mode": "fts-only" if fts_only else "fts+kg-partial",
+            "date": datetime.now(timezone.utc).isoformat(),
+            "executor": "Hermes W5-0 Gate F closure",
+            "queries_defined": total,
+            "queries_run": total,
         },
-        "categories": {},
+        "summary": summary,
+        "results": results,
     }
 
-    total_hits = 0
-    for category, queries in QUERIES.items():
-        cat_results = []
-        for query in queries:
-            # Wiki inject check (Layer 1)
-            wiki = check_wiki_inject(query)
-            # KG search (Layer 2-3)
-            kg = search_kg(query)
-            entry = {
-                "query": query,
-                "wiki_inject_hit": wiki["hit"],
-                "wiki_matches": wiki.get("matches", []),
-            }
-            if kg.get("results"):
-                entry["kg_results_count"] = len(kg["results"])
-            if wiki["hit"]:
-                total_hits += 1
-            cat_results.append(entry)
-        results["categories"][category] = cat_results
 
-    results["summary"] = {
-        "total_queries": len([q for qs in QUERIES.values() for q in qs]),
-        "wiki_inject_hits": total_hits,
-        "wiki_inject_rate": f"{total_hits}/{sum(len(v) for v in QUERIES.values())}",
-    }
-
-    return results
-
-
-def main(argv: list[str] | None = None) -> int:
-    import argparse
-    p = argparse.ArgumentParser(description="W5-0 retrieval baseline benchmark")
-    p.add_argument("--search-only", action="store_true", help="Skip synthesis, local check only")
-    p.add_argument("--output", default=None, help="Output JSON path")
-    args = p.parse_args(argv)
-
-    outdir = Path("data/baselines")
-    outdir.mkdir(parents=True, exist_ok=True)
-    outpath = args.output or outdir / f"w5-0-retrieval-{datetime.now().strftime('%Y%m%d')}.json"
-
-    print(f"Running W5-0 retrieval baseline benchmark...")
-    print(f"  Mode: {'search-only' if args.search_only else 'full'}")
-    print(f"  Queries: {sum(len(v) for v in QUERIES.values())}")
-    print(f"  Output: {outpath}")
+def main():
+    fts_only = "--fts-only" in sys.argv
+    print(f"W5-0 Gate F Benchmark — {'FTS-only' if fts_only else 'FTS+KG'}")
+    print(f"API: {API_URL}")
+    print(f"Queries: {QUERIES_PATH}")
     print()
 
-    results = run_benchmark(search_only=args.search_only)
+    output = run_benchmark(fts_only=fts_only)
+    RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    RESULTS_PATH.write_text(json.dumps(output, indent=2, ensure_ascii=False))
+    print(f"\nWritten: {RESULTS_PATH}")
 
-    # Print summary
-    for cat, entries in results["categories"].items():
-        hits = sum(1 for e in entries if e["wiki_inject_hit"])
-        print(f"  {cat}: {hits}/{len(entries)} wiki hits")
-    print(f"  TOTAL: {results['summary']['wiki_inject_rate']}")
+    s = output["summary"]
+    print(f"Total: {s['total']} | FTS hits: {s['fts_hits']} | FTS no-result: {s['fts_no_result']} | "
+          f"KG attempted: {s['kg_attempted']} | KG completed: {s['kg_completed']} | Errors: {s['errors']}")
 
-    outpath.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"\nBaseline written to {outpath}")
+    # Ensure every query has terminal state
+    terminal = 0
+    for r in output["results"]:
+        if r["status"] in ("hit", "no-result") or "error" in r.get("fts", {}) or "error" in r.get("kg", {}):
+            terminal += 1
+        else:
+            print(f"WARNING: {r['id']} has non-terminal status: {r['status']}")
+    print(f"Terminal: {terminal}/{s['total']}")
     return 0
 
 
