@@ -110,14 +110,19 @@ def test_staleness_check(tmp_path: Path) -> None:
 
 
 def test_log_lint_failure_appends_jsonl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    log_path = tmp_path / "out.jsonl"
-    import kb.wiki_lint as wl
+    """log_lint_failure writes to Error Book (SQLite). Legacy JSONL path no longer used
+    since W5-0 Gate E — test validates Error Book storage instead."""
+    db_path = tmp_path / "error_book.db"
 
-    monkeypatch.setattr(wl, "JSONL_LOG_PATH", log_path)
+    # Prevent migration of real legacy JSONL
+    monkeypatch.setattr("kb.error_book._LEGACY_JSONL", tmp_path / "nonexistent.jsonl")
+    # Redirect Error Book to test path
+    monkeypatch.setattr("kb.error_book._DEFAULT_DB_PATH", db_path)
+
+    from kb.error_book import get_open_errors
+
     log_lint_failure({"page_path": "x.md", "lint_name": "citation", "failures": ["^[article:0000000000]"]})
     log_lint_failure({"page_path": "y.md", "lint_name": "backlink", "failures": ["dangling"]})
-    lines = log_path.read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 2
-    import json
-    obj0 = json.loads(lines[0])
-    assert obj0["lint_name"] == "citation" and "ts" in obj0
+
+    open_errors = get_open_errors(db_path=db_path)
+    assert len(open_errors) == 2

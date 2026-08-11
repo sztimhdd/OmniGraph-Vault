@@ -56,8 +56,17 @@ def test_end_of_cron_fires(tmp_path, monkeypatch):
 
 
 def test_lint_blocks_unresolved_citation(tmp_path, monkeypatch):
-    fails_path = tmp_path / "fails.jsonl"
-    monkeypatch.setattr("kb.wiki_lint.JSONL_LOG_PATH", fails_path)
+    """Lint failure is recorded in Error Book (W5-0 Gate E), not JSONL.
+    Unresolved citation blocks page creation — result is False, page not written."""
+    db_path = tmp_path / "error_book.db"
+    monkeypatch.setattr("kb.wiki_lint.JSONL_LOG_PATH", tmp_path / "unused.jsonl")
+    # Prevent migration of real legacy JSONL
+    monkeypatch.setattr("kb.error_book._LEGACY_JSONL", tmp_path / "nonexistent.jsonl")
+    # Redirect Error Book to test path
+    monkeypatch.setattr("kb.error_book._DEFAULT_DB_PATH", db_path)
+
+    from kb.error_book import get_open_errors
+
     conn = _seed_db(["aaaaaaaaaa"])
     wiki_root = tmp_path / "wiki"
     (wiki_root / "entities").mkdir(parents=True)
@@ -76,6 +85,6 @@ def test_lint_blocks_unresolved_citation(tmp_path, monkeypatch):
     result = apply_suggestion_atomic(suggestion, conn, wiki_root=wiki_root)
     assert result is False
     assert not page_path.exists()
-    assert fails_path.exists()
-    lines = [json.loads(ln) for ln in fails_path.read_text(encoding="utf-8").splitlines()]
-    assert any(e.get("lint_name") == "lint_citation_integrity" for e in lines)
+
+    open_errors = get_open_errors(db_path=db_path)
+    assert any(e["check_type"] == "lint_citation_integrity" for e in open_errors)
