@@ -469,6 +469,120 @@ def test_build_chunk_article_map_missing_stores_returns_empty(tmp_path) -> None:
     assert build_chunk_article_map(empty_dir, sqlite3.connect(":memory:")) == {}
 
 
+def _write_chunk_stores(d: Path, chunks: dict, docs: dict) -> None:
+    (d / "kv_store_text_chunks.json").write_text(json.dumps(chunks), encoding="utf-8")
+    (d / "kv_store_full_docs.json").write_text(json.dumps(docs), encoding="utf-8")
+
+
+def test_chunk_map_source_prefix_resolves_colliding_url_to_own_source(conn, tmp_path) -> None:
+    """Regression: the same canonical URL living in BOTH articles and
+    rss_articles used to collapse to a single flat URL key, so a chunk whose
+    full_doc_id is ``wechat_<ref>`` wrongly resolved to the RSS record (the
+    RSS row overwrote the URL key). A source-prefixed full doc id must
+    resolve ONLY its own source."""
+    url = "https://example.com/shared/collision"
+    ref = _ref(url)
+    conn.execute(
+        "INSERT INTO articles(id, url, title, body) VALUES (1, ?, ?, ?)",
+        (url, "WX title", "wx body"),
+    )
+    conn.execute(
+        "INSERT INTO rss_articles(id, url, title, summary) VALUES (1, ?, ?, ?)",
+        (url, "RSS title", "rss body"),
+    )
+    d = tmp_path / "lightrag"
+    d.mkdir()
+    _write_chunk_stores(
+        d,
+        {"chunk-wx": {"full_doc_id": f"wechat_{ref}"}, "chunk-rss": {"full_doc_id": f"rss_{ref}"}},
+        {
+            f"wechat_{ref}": {"content": f"Title: WX Doc\nURL: {url}\nbody"},
+            f"rss_{ref}": {"content": f"Title: RSS Doc\nURL: {url}\nbody"},
+        },
+    )
+    mapped = build_chunk_article_map(d, conn)
+    wx_rec = mapped["chunk-wx"]
+    assert wx_rec["source"] == "wechat"
+    assert wx_rec["title"] == "WX title"
+    assert wx_rec["url"] == url
+    rss_rec = mapped["chunk-rss"]
+    assert rss_rec["source"] == "rss"
+    assert rss_rec["title"] == "RSS title"
+    assert rss_rec["url"] == url
+
+
+def test_chunk_map_unprefixed_ambiguous_url_omits_chunk_never_guesses(conn, tmp_path) -> None:
+    """full_doc_id WITHOUT a recognized source prefix whose URL resolves to
+    BOTH sources must omit the chunk — never silently pick one source."""
+    url = "https://example.com/shared/ambiguous"
+    conn.execute(
+        "INSERT INTO articles(id, url, title) VALUES (1, ?, ?)", (url, "WX title")
+    )
+    conn.execute(
+        "INSERT INTO rss_articles(id, url, title) VALUES (1, ?, ?)", (url, "RSS title")
+    )
+    d = tmp_path / "lightrag"
+    d.mkdir()
+    _write_chunk_stores(
+        d,
+        {"chunk-amb": {"full_doc_id": "legacy-doc"}},
+        {"legacy-doc": {"content": f"Title: X\nURL: {url}\nbody"}},
+    )
+    assert "chunk-amb" not in build_chunk_article_map(d, conn)
+
+
+def test_chunk_map_unprefixed_unique_url_still_maps(conn, tmp_path) -> None:
+    """full_doc_id WITHOUT a source prefix resolving to exactly ONE source
+    keeps mapping (W1-era plain doc ids stay supported)."""
+    url = "https://example.com/only/one"
+    conn.execute(
+        "INSERT INTO rss_articles(id, url, title, summary) VALUES (1, ?, ?, ?)",
+        (url, "Only RSS", "rss text"),
+    )
+    d = tmp_path / "lightrag"
+    d.mkdir()
+    _write_chunk_stores(
+        d,
+        {"chunk-u": {"full_doc_id": "plain-doc"}},
+        {"plain-doc": {"content": f"Title: U\nURL: {url}\nbody"}},
+    )
+    mapped = build_chunk_article_map(d, conn)
+    assert mapped["chunk-u"]["source"] == "rss"
+    assert mapped["chunk-u"]["title"] == "Only RSS"
+
+
+def test_chunk_map_normalized_url_keeps_source_identity(conn, tmp_path) -> None:
+    """HTTP<->HTTPS normalization still applies AND stays source-scoped: the
+    wechat row stores http:// while the doc content carries https:// of the
+    same canonical article (also present in rss_articles) — the wechat-prefixed
+    full doc id must still land on the wechat record."""
+    http_url = "http://example.com/shared/scheme"
+    https_url = "https://example.com/shared/scheme"
+    conn.execute(
+        "INSERT INTO articles(id, url, title, body) VALUES (1, ?, ?, ?)",
+        (http_url, "WX scheme", "wx body"),
+    )
+    conn.execute(
+        "INSERT INTO rss_articles(id, url, title, summary) VALUES (1, ?, ?, ?)",
+        (https_url, "RSS scheme", "rss body"),
+    )
+    d = tmp_path / "lightrag"
+    d.mkdir()
+    _write_chunk_stores(
+        d,
+        {"chunk-wx": {"full_doc_id": lightrag_doc_id("wechat", http_url)}},
+        {
+            lightrag_doc_id("wechat", http_url): {
+                "content": f"Title: W\nURL: {https_url}\nbody"
+            }
+        },
+    )
+    mapped = build_chunk_article_map(d, conn)
+    assert mapped["chunk-wx"]["source"] == "wechat"
+    assert mapped["chunk-wx"]["title"] == "WX scheme"
+    assert mapped["chunk-wx"]["url"] == http_url
+
+
 # ---------------------------------------------------------------------------
 # known_wiki_article_refs: canonical refs + legacy 10-char WeChat, no 32-char MD5
 # ---------------------------------------------------------------------------

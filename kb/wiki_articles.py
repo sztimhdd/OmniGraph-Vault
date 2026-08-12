@@ -218,6 +218,19 @@ def processed_ingestions(
     return processed
 
 
+def _source_from_doc_id(doc_id: str) -> str | None:
+    """Return the source named by a LightRAG full-doc id prefix.
+
+    Full-doc ids for the supported sources are ``wechat_<ref>`` / ``rss_<ref>``
+    (``lightrag_doc_id``); anything else has no recognized source prefix and
+    returns None.
+    """
+    for source in SUPPORTED_ARTICLE_SOURCES:
+        if doc_id.startswith(source + "_"):
+            return source
+    return None
+
+
 def build_chunk_article_map(
     lightrag_dir: Path,
     conn: sqlite3.Connection,
@@ -233,9 +246,17 @@ def build_chunk_article_map(
          -> local source-aware URL index
          -> source/ref/title/text record
 
+    Source identity is preserved end to end: a full doc id with a recognized
+    source prefix (``wechat_<ref>`` / ``rss_<ref>``) resolves ONLY inside that
+    source's URL index, so the same canonical URL ingested under both sources
+    can never collide. A full doc id WITHOUT a source prefix resolves by URL:
+    when exactly one source matches, it maps; when zero or multiple sources
+    match, the chunk is omitted — never a silent guess.
+
     HTTP<->HTTPS normalization is retained for lookup robustness (as in the
-    previous W1-local implementation). Chunks whose URL does not resolve in
-    the local source-aware index are absent from the result.
+    previous W1-local implementation) and stays scoped to the same source.
+    Chunks whose URL does not resolve in the local source-aware index are
+    absent from the result.
     """
     chunks_path = Path(lightrag_dir) / "kv_store_text_chunks.json"
     docs_path = Path(lightrag_dir) / "kv_store_full_docs.json"
@@ -244,14 +265,17 @@ def build_chunk_article_map(
     chunks = json.loads(chunks_path.read_text(encoding="utf-8"))
     docs = json.loads(docs_path.read_text(encoding="utf-8"))
 
-    url_index: dict[str, dict] = {}
+    # Per-source URL index: the same URL may legitimately exist in both
+    # sources; a flat URL->record map would silently drop one of them.
+    url_index: dict[str, dict[str, dict]] = {}
     for (_key, rec) in load_article_index(conn).items():
+        src_index = url_index.setdefault(rec["source"], {})
         url = rec["url"]
-        url_index[url] = rec
+        src_index[url] = rec
         if url.startswith("http://"):
-            url_index.setdefault("https://" + url[7:], rec)
+            src_index.setdefault("https://" + url[7:], rec)
         elif url.startswith("https://"):
-            url_index.setdefault("http://" + url[8:], rec)
+            src_index.setdefault("http://" + url[8:], rec)
 
     result: dict[str, dict] = {}
     for chunk_id, chunk_data in chunks.items():
@@ -266,9 +290,18 @@ def build_chunk_article_map(
         m = _URL_RE.search(doc_data.get("content", ""))
         if not m:
             continue
-        rec = url_index.get(m.group(1).strip())
-        if rec is not None:
-            result[chunk_id] = rec
+        url = m.group(1).strip()
+        source = _source_from_doc_id(doc_id)
+        if source is not None:
+            rec = url_index.get(source, {}).get(url)
+            if rec is not None:
+                result[chunk_id] = rec
+            continue
+        matches = [idx.get(url) for idx in url_index.values()]
+        matches = [rec for rec in matches if rec is not None]
+        if len(matches) == 1:
+            result[chunk_id] = matches[0]
+        # zero or multiple source matches: omit the chunk, never guess
     return result
 
 
