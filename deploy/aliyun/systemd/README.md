@@ -10,6 +10,24 @@ All units use the ingest venv at `/root/OmniGraph-Vault/venv-aim1/` (Python 3.11
 created in aim-1 DEPLOY-02). The kb-api venv at `/root/OmniGraph-Vault/venv/`
 (Python 3.10) must NOT be used for any of these units.
 
+## Current authoritative ingest scheduler contract (2026-08-13)
+
+The three-ingest-unit schedule below has been consolidated. Authoritative contract:
+
+- `omnigraph-daily-ingest.timer` is the **sole recurring ingest scheduler**
+  (`OnCalendar=*-*-* 00/2:00:00 UTC`, every 2h, `Persistent=true`).
+- `omnigraph-afternoon-ingest.timer` and `omnigraph-evening-ingest.timer` are
+  **DISABLED** on production (`systemctl disable --now`); their files remain for
+  history only. Do not re-enable them.
+- The daily ingest service uses `Restart=no`. A later timer fire — not a systemd
+  auto-restart — is the retry mechanism.
+- The application receives a cooperative budget via `--batch-timeout 6300`
+  (105 min) on `ExecStart`; it stops itself normally around that budget.
+- `RuntimeMaxSec=14400` (4h) in the daily-ingest drop-in is an **emergency safety
+  wall only**, intentionally larger than the 2h timer interval. It must not be
+  used as the normal scheduling mechanism.
+- `TimeoutStopSec=300`: on stop, SIGTERM escalates to SIGKILL after 5min.
+
 ## Deployment
 
 Copy the unit files to `/etc/systemd/system/` and enable the timers:
