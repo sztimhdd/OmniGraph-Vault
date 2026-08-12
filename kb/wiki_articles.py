@@ -222,12 +222,18 @@ def _source_from_doc_id(doc_id: str) -> str | None:
     """Return the source named by a LightRAG full-doc id prefix.
 
     Full-doc ids for the supported sources are ``wechat_<ref>`` / ``rss_<ref>``
-    (``lightrag_doc_id``); anything else has no recognized source prefix and
-    returns None.
+    (``lightrag_doc_id``), where the ref suffix must be a valid 10-char
+    lowercase hex canonical ref (``_LEGACY_REF_RE``). Any other suffix —
+    empty, uppercase, wrong length, or garbage — carries no source identity
+    and returns None, so the caller falls back to source-less URL
+    resolution (omitting on ambiguity) instead of trusting the prefix.
     """
     for source in SUPPORTED_ARTICLE_SOURCES:
-        if doc_id.startswith(source + "_"):
-            return source
+        prefix = source + "_"
+        if doc_id.startswith(prefix):
+            suffix = doc_id[len(prefix):]
+            if _LEGACY_REF_RE.fullmatch(suffix):
+                return source
     return None
 
 
@@ -282,7 +288,7 @@ def build_chunk_article_map(
         if not isinstance(chunk_data, dict):
             continue
         doc_id = chunk_data.get("full_doc_id")
-        if not doc_id:
+        if not isinstance(doc_id, str) or not doc_id:
             continue
         doc_data = docs.get(doc_id)
         if not isinstance(doc_data, dict):

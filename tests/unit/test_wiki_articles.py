@@ -584,6 +584,102 @@ def test_chunk_map_normalized_url_keeps_source_identity(conn, tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Malformed source prefixes: source identity requires a valid canonical ref
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "malformed_doc_id",
+    [
+        "rss_bogus",  # non-hex garbage suffix
+        "wechat_",  # empty suffix
+        "rss_DEADBEEF00",  # uppercase suffix (not [a-f0-9])
+        "wechat_123456789",  # wrong length (9 chars)
+    ],
+)
+def test_chunk_map_malformed_source_prefix_ambiguous_url_omits(
+    conn, tmp_path, malformed_doc_id
+) -> None:
+    """A ``wechat_``/``rss_`` doc id whose suffix is NOT a valid 10-char
+    lowercase hex canonical ref must not be trusted as source identity:
+    with the URL present in BOTH sources the chunk is omitted — never
+    assigned a source."""
+    url = "https://example.com/shared/malformed"
+    conn.execute(
+        "INSERT INTO articles(id, url, title, body) VALUES (1, ?, ?, ?)",
+        (url, "WX title", "wx body"),
+    )
+    conn.execute(
+        "INSERT INTO rss_articles(id, url, title, summary) VALUES (1, ?, ?, ?)",
+        (url, "RSS title", "rss body"),
+    )
+    d = tmp_path / "lightrag"
+    d.mkdir()
+    _write_chunk_stores(
+        d,
+        {"chunk-bad": {"full_doc_id": malformed_doc_id}},
+        {malformed_doc_id: {"content": f"Title: X\nURL: {url}\nbody"}},
+    )
+    assert "chunk-bad" not in build_chunk_article_map(d, conn)
+
+
+@pytest.mark.parametrize(
+    "malformed_doc_id",
+    [
+        "rss_bogus",  # claims rss, URL lives only in wechat
+        "rss_DEADBEEF00",  # claims rss, URL lives only in wechat
+    ],
+)
+def test_chunk_map_malformed_source_prefix_falls_back_to_unique_source(
+    conn, tmp_path, malformed_doc_id
+) -> None:
+    """A malformed source prefix must be IGNORED, not trusted: the URL is
+    present in exactly ONE source, so the source-less fallback resolves the
+    chunk to that unique correct record — no wrong-source omission, no
+    guess (security case: a forged ``rss_<garbage>`` doc id must not pin a
+    wechat-only URL to rss or drop it)."""
+    url = "https://example.com/only/wechat"
+    conn.execute(
+        "INSERT INTO articles(id, url, title, body) VALUES (1, ?, ?, ?)",
+        (url, "WX title", "wx body"),
+    )
+    d = tmp_path / "lightrag"
+    d.mkdir()
+    _write_chunk_stores(
+        d,
+        {"chunk-fb": {"full_doc_id": malformed_doc_id}},
+        {malformed_doc_id: {"content": f"Title: X\nURL: {url}\nbody"}},
+    )
+    mapped = build_chunk_article_map(d, conn)
+    assert mapped["chunk-fb"]["source"] == "wechat"
+    assert mapped["chunk-fb"]["title"] == "WX title"
+    assert mapped["chunk-fb"]["url"] == url
+
+
+@pytest.mark.parametrize("bad_doc_id", [123, ["not", "hashable"]])
+def test_chunk_map_truthy_non_string_full_doc_id_omitted(
+    conn, tmp_path, bad_doc_id
+) -> None:
+    """A truthy non-string full_doc_id (JSON number 123, or an unhashable
+    list) is skipped without raising — never fed to string-only source
+    parsing or dict lookup."""
+    url = "https://example.com/nonstring"
+    conn.execute(
+        "INSERT INTO rss_articles(id, url, title, summary) VALUES (1, ?, ?, ?)",
+        (url, "Num RSS", "rss text"),
+    )
+    d = tmp_path / "lightrag"
+    d.mkdir()
+    _write_chunk_stores(
+        d,
+        {"chunk-ns": {"full_doc_id": bad_doc_id}},
+        {"123": {"content": f"Title: N\nURL: {url}\nbody"}},
+    )
+    mapped = build_chunk_article_map(d, conn)
+    assert "chunk-ns" not in mapped
+
+
+# ---------------------------------------------------------------------------
 # known_wiki_article_refs: canonical refs + legacy 10-char WeChat, no 32-char MD5
 # ---------------------------------------------------------------------------
 
