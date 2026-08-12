@@ -37,8 +37,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from kb.wiki_articles import load_article_index, resolve_article
+from kb.wiki_articles import (
+    build_chunk_article_map,
+    load_article_index,
+    processed_ingestions,
+    resolve_article,
+)
 from kb.wiki_compiler.adapters.w3 import engine_wiki_root
+from kb.wiki_update import DEFAULT_BUFFER_DIRS
 from kb.wiki_compiler.engine import (
     WikiValidationError,
     _parse_frontmatter,
@@ -994,6 +1000,335 @@ def hydrate_evidence(
 
 
 # ---------------------------------------------------------------------------
+# 6. Historical bootstrap discovery + exact coverage accounting (W5B Task 6)
+# ---------------------------------------------------------------------------
+
+class BootstrapAccountingError(ValueError):
+    """Raised when final bootstrap accounting does not reconcile.
+
+    Every eligible article key must end in exactly one terminal class
+    (represented / no_wiki_entity / retry_unresolved); a mismatch is a
+    process-integrity failure, never a silent drop.
+    """
+
+
+def _slugify_entity(name: str) -> str:
+    """Canonical entity slug — byte-identical to the W3 adapter slugify."""
+    return re.sub(r"[^a-z0-9]+", "-", str(name).lower()).strip("-")
+
+
+def _load_entity_buffer(
+    article_key: tuple[str, str], buffer_dirs: list[Path]
+) -> list[str]:
+    """Resolve canonical ``<ref>_entities.json`` entities (first dir wins).
+
+    Returns slugified, deduped entity names for one article. Malformed
+    buffers (bad JSON, non-dict document, missing/non-list ``raw_entities``,
+    junk list items) fail safe: they resolve to no entities — never a crash,
+    never a silent mapping, and the article stays for graph/fallback.
+    """
+    _source, ref = article_key
+    for buf_dir in buffer_dirs:
+        path = Path(buf_dir) / f"{ref}_entities.json"
+        if not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        raw = data.get("raw_entities")
+        if not isinstance(raw, list):
+            continue
+        names: list[str] = []
+        for item in raw:
+            if isinstance(item, dict) and isinstance(item.get("name"), str) and item["name"].strip():
+                names.append(item["name"].strip())
+            elif isinstance(item, str) and item.strip():
+                names.append(item.strip())
+        slugs: list[str] = []
+        seen: set[str] = set()
+        for name in names:
+            slug = _slugify_entity(name)
+            if slug and slug not in seen:
+                seen.add(slug)
+                slugs.append(slug)
+        return slugs
+    return []
+
+
+def _split_source_chunks(source_id: object) -> list[str]:
+    """W1 ``source_id`` split semantics — ``re.split(r\"[<>|\\s]+\", ...)``,
+    ``chunk-*`` tokens only."""
+    if not isinstance(source_id, str):
+        return []
+    return [
+        token.strip()
+        for token in re.split(r"[<>|\s]+", source_id)
+        if token.strip().startswith("chunk-")
+    ]
+
+
+def _load_graph_entity_map(
+    lightrag_dir: Path,
+    conn: sqlite3.Connection,
+) -> dict[str, set[tuple[str, str]]]:
+    """Map entity slug -> article keys via vdb files + chunk->article map.
+
+    Scans EVERY row of ``vdb_entities.json`` / ``vdb_relationships.json``
+    — no top-N cutoff. Entity rows attach their ``source_id`` chunks; each
+    relationship row attaches its ``source_id`` chunks to BOTH ``src_id``
+    and ``tgt_id`` entity names. Chunks resolve to source-aware articles
+    through ``build_chunk_article_map`` (Task 1 helper). Eligibility is the
+    caller's job: returned key sets may include non-eligible articles.
+    Malformed/missing vdb files fail safe: no mapping, never a crash.
+    """
+    chunk_map = build_chunk_article_map(lightrag_dir, conn)
+    if not chunk_map:
+        return {}
+    entity_chunks: dict[str, set[str]] = {}
+
+    def _scan(path_name: str, extract_row: Callable[[dict], None]) -> None:
+        path = Path(lightrag_dir) / path_name
+        if not path.exists():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        rows = data.get("data", data) if isinstance(data, dict) else data
+        if not isinstance(rows, list):
+            return
+        for row in rows:
+            if isinstance(row, dict):
+                extract_row(row)
+
+    def _entity_row(row: dict) -> None:
+        name = row.get("entity_name")
+        if not (isinstance(name, str) and name.strip()):
+            return
+        chunks = _split_source_chunks(row.get("source_id"))
+        if chunks:
+            entity_chunks.setdefault(name.strip(), set()).update(chunks)
+
+    def _relationship_row(row: dict) -> None:
+        names: list[str] = []
+        for key in ("src_id", "tgt_id"):
+            value = row.get(key)
+            if isinstance(value, str) and value.strip():
+                names.append(value.strip())
+        chunks = _split_source_chunks(row.get("source_id"))
+        if not names or not chunks:
+            return
+        for name in names:
+            entity_chunks.setdefault(name, set()).update(chunks)
+
+    _scan("vdb_entities.json", _entity_row)
+    _scan("vdb_relationships.json", _relationship_row)
+
+    result: dict[str, set[tuple[str, str]]] = {}
+    for name, chunks in entity_chunks.items():
+        slug = _slugify_entity(name)
+        if not slug or slug in result:
+            continue
+        keys: set[tuple[str, str]] = set()
+        for chunk_id in chunks:
+            rec = chunk_map.get(chunk_id)
+            if rec is not None:
+                keys.add((rec["source"], rec["ref"]))
+        if keys:
+            result[slug] = keys
+    return result
+
+
+def _build_fallback_prompt(record: dict) -> str:
+    """Local title + text only — never wiki answers, Tavily, or web content."""
+    return (
+        "From the local article below, extract up to 3 entity names that "
+        "deserve their own Wiki entity page (people, projects, tools, "
+        "companies, techniques).\n"
+        'Return STRICT JSON only: {"entities": ["name1", "name2", "name3"]} '
+        'or {"entities": []}.\n'
+        f"Title: {record.get('title') or ''}\n"
+        f"Text:\n{record.get('text') or ''}"
+    )
+
+
+def parse_fallback_entities(raw: str) -> list[str] | None:
+    """Parse a strict ``{"entities": [...]}`` fallback payload.
+
+    Returns slugified, deduped entity names, or ``None`` when the payload is
+    structurally invalid (malformed JSON, non-dict, missing/non-list
+    ``entities``). Strict contract: 0-3 names are valid; MORE than 3 names
+    invalidates the payload (callers map ``None`` to ``retry_unresolved``) —
+    the model contract is never silently truncated.
+    """
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    ents = data.get("entities")
+    if not isinstance(ents, list):
+        return None
+    names: list[str] = []
+    for item in ents:
+        if isinstance(item, str) and item.strip():
+            names.append(item.strip())
+    if len(names) > 3:
+        return None
+    slugs: list[str] = []
+    seen: set[str] = set()
+    for name in names:
+        slug = _slugify_entity(name)
+        if slug and slug not in seen:
+            seen.add(slug)
+            slugs.append(slug)
+    return slugs
+
+
+def _check_accounting(
+    eligible: int, represented: int, no_wiki_entity: int, retry_unresolved: int
+) -> None:
+    """Raise ``BootstrapAccountingError`` when the invariant does not hold."""
+    total = represented + no_wiki_entity + retry_unresolved
+    if total != eligible:
+        raise BootstrapAccountingError(
+            f"eligible {eligible} != represented {represented} + "
+            f"no_wiki_entity {no_wiki_entity} + retry_unresolved {retry_unresolved}"
+        )
+
+
+async def bootstrap_existing_discovery(
+    conn: sqlite3.Connection,
+    *,
+    lightrag_dir: Path,
+    buffer_dirs: list[Path] | None = None,
+    complete: Callable[..., Any] | None = None,
+    dry_run: bool = False,
+) -> dict:
+    """Run historical bootstrap discovery and return the exact accounting report.
+
+    Denominator: ``processed_ingestions`` (ok + LightRAG-processed), keyed by
+    the canonical ``(source, ref)`` article key. Resolution pipeline: buffer
+    mapping first, then LightRAG graph fallback (no top-N cutoff), then
+    repeated-entity grouping (only >=2-key entities seed; articles in no
+    seedable group stay uncovered), then the bootstrap-only fallback for
+    every remaining uncovered article. Every eligible key ends in exactly one
+    terminal class (represented / no_wiki_entity / retry_unresolved).
+    ``dry_run`` resolves nothing (no provider calls, no writes) and reports
+    ``would_need_llm_fallback``.
+    """
+    eligible_rows = processed_ingestions(conn, lightrag_dir)
+    keys: list[tuple[str, str]] = []
+    seen_keys: set[tuple[str, str]] = set()
+    for row in eligible_rows:
+        key = (row["source"], row["ref"])
+        if key not in seen_keys:
+            seen_keys.add(key)
+            keys.append(key)
+    index = load_article_index(conn)
+
+    # Phase 1: entity-buffer mapping (canonical-first dir list). Buffer-mapped
+    # articles skip the graph phase; their entities join the same group table
+    # as graph entities, and a buffer-mapped singleton still reaches fallback
+    # (S4 coverage decides seedability, not this phase).
+    effective_buffer_dirs = (
+        list(buffer_dirs) if buffer_dirs is not None else DEFAULT_BUFFER_DIRS
+    )
+    groups: dict[str, set[tuple[str, str]]] = {}
+    buffer_mapped: set[tuple[str, str]] = set()
+    for key in keys:
+        slugs = _load_entity_buffer(key, effective_buffer_dirs)
+        if slugs:
+            buffer_mapped.add(key)
+            for slug in slugs:
+                groups.setdefault(slug, set()).add(key)
+
+    uncovered = [key for key in keys if key not in buffer_mapped]
+
+    # Phase 2: LightRAG graph fallback — no top-N cutoff, W1 ``source_id``
+    # split semantics; runs only for eligible articles with no usable
+    # buffer mapping (S3).
+    graph_entity_map = _load_graph_entity_map(lightrag_dir, conn)
+    graph_mapped: set[tuple[str, str]] = set()
+    uncovered_set = set(uncovered)
+    for slug, key_set in graph_entity_map.items():
+        mapped = key_set & uncovered_set
+        if mapped:
+            graph_mapped.update(mapped)
+            groups.setdefault(slug, set()).update(mapped)
+
+    articles: dict[str, str] = {
+        f"{source}/{ref}": "uncovered" for (source, ref) in keys
+    }
+    # Phase 3: repeated-entity grouping (S4) — an entity seen in >=2
+    # distinct eligible article keys becomes a seedable historical job;
+    # article coverage comes from those groups, so articles with only
+    # singleton local entities stay uncovered and reach the fallback
+    # (mapped != represented).
+    seedable_groups = {
+        slug: key_set for slug, key_set in groups.items() if len(key_set) >= 2
+    }
+    seeded: set[str] = set(seedable_groups)
+    represented_keys: set[tuple[str, str]] = set()
+    for key_set in seedable_groups.values():
+        represented_keys.update(key_set)
+    for source, ref in represented_keys:
+        articles[f"{source}/{ref}"] = "represented"
+    uncovered = [key for key in keys if key not in represented_keys]
+    no_wiki_entity = 0
+    retry_unresolved = 0
+    if not dry_run:
+        for source, ref in uncovered:
+            record = index.get((source, ref)) or {
+                "source": source, "ref": ref, "title": ref, "text": "",
+            }
+            prompt = _build_fallback_prompt(record)
+            try:
+                if complete is None:
+                    # lazy provider import — the only network seam
+                    from lib.llm_deepseek import deepseek_model_complete
+                    fn = deepseek_model_complete
+                else:
+                    fn = complete
+                raw = await fn(prompt)
+            except Exception as exc:
+                retry_unresolved += 1
+                articles[f"{source}/{ref}"] = "retry_unresolved"
+                continue
+            slugs = parse_fallback_entities(raw)
+            if slugs is None:
+                retry_unresolved += 1
+                articles[f"{source}/{ref}"] = "retry_unresolved"
+            elif not slugs:
+                no_wiki_entity += 1
+                articles[f"{source}/{ref}"] = "no_wiki_entity"
+            else:
+                articles[f"{source}/{ref}"] = "represented"
+                seeded.update(slugs)
+
+    report = {
+        "eligible_processed_ingestions": len(keys),
+        "mapped_via_entity_buffer": len(buffer_mapped),
+        "mapped_via_lightrag_graph": len(graph_mapped),
+        "unmapped_needing_llm_fallback": len(uncovered),
+        "seeded_entity_jobs": sorted(seeded),
+        "no_wiki_entity": no_wiki_entity,
+        "retry_unresolved": retry_unresolved,
+        "articles": articles,
+    }
+    if dry_run:
+        report["would_need_llm_fallback"] = len(uncovered)
+    else:
+        represented = sum(1 for v in articles.values() if v == "represented")
+        _check_accounting(len(keys), represented, no_wiki_entity, retry_unresolved)
+    return report
+
+
+# ---------------------------------------------------------------------------
 # 4.6 CLI shell
 # ---------------------------------------------------------------------------
 
@@ -1003,11 +1338,16 @@ def main(argv: list[str] | None = None) -> int:
     - ``--dry-run`` scans + classifies the suggestion queue only: prints
       the JSON scan report, never opens the article DB, never calls a
       provider, writes nothing.
-    - ``--bootstrap-existing`` PARSES but is explicitly deferred: exits
-      nonzero with a stable neutral stderr message before any DB
-      open, scan, provider call, or write (Task 6 owns historical
-      bootstrap discovery) — never fake success.
-    - Normal mode fails closed when ``--db-path`` is missing/not a
+    - ``--bootstrap-existing`` runs historical bootstrap discovery
+      (Task 6): denominator, buffer mapping, LightRAG graph mapping,
+      >=2-entity grouping, then the bootstrap-only fallback for every
+      uncovered article. Normal exit codes: 0 = exact accounting and
+      retry_unresolved == 0; 2 = retry_unresolved > 0; 1 = integrity/
+      runtime failure or accounting mismatch. With ``--dry-run`` only
+      denominator/buffer/graph/uncovered run — no fallback calls, no
+      writes — reporting ``would_need_llm_fallback`` (0 completed /
+      1 failure). The DB is opened READ-ONLY and never created.
+    - Normal worker mode fails closed when ``--db-path`` is missing/not a
       regular file (``database not found: <path>`` on stderr, nonzero
       exit, the DB file is never created). With an existing DB it loads
       the article index through a read-only SQLite connection
@@ -1021,7 +1361,8 @@ def main(argv: list[str] | None = None) -> int:
         prog="wiki_evolve.py",
         description=(
             "Scan the wiki suggestion queue and evaluate due suggestions "
-            "(W5B Task 4 slice)."
+            "(W5B Task 4 slice), or run historical bootstrap discovery "
+            "(--bootstrap-existing)."
         ),
     )
     parser.add_argument(
@@ -1041,7 +1382,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--bootstrap-existing",
         action="store_true",
-        help="reserved: historical suggestion bootstrap is Task 6 (not implemented)",
+        help=(
+            "run historical bootstrap discovery (with --dry-run: mapping "
+            "only — no fallback calls, no writes)"
+        ),
     )
     parser.add_argument(
         "--wiki-root",
@@ -1055,17 +1399,16 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="article index SQLite database (default: <wiki-root>/data/kol_scan.db)",
     )
+    parser.add_argument(
+        "--lightrag-dir",
+        type=Path,
+        default=None,
+        help=(
+            "LightRAG storage dir for doc-status + entity discovery "
+            "(default: <wiki-root>/.dev-runtime/lightrag_storage)"
+        ),
+    )
     args = parser.parse_args(argv)
-
-    if args.bootstrap_existing:
-        # Task 4 exposes the explicit deferred/unsupported behavior: the
-        # flag PARSES and exits nonzero with a stable neutral message.
-        # Task 6 owns historical bootstrap discovery — never fake success.
-        print(
-            "--bootstrap-existing is not implemented (Task 6 owns historical bootstrap)",
-            file=sys.stderr,
-        )
-        return 2
 
     wiki_root = args.wiki_root
     db_path = (
@@ -1073,6 +1416,42 @@ def main(argv: list[str] | None = None) -> int:
         if args.db_path is not None
         else wiki_root / "data" / "kol_scan.db"
     )
+
+    if args.bootstrap_existing:
+        # Task 6: historical bootstrap discovery — a mode of this script.
+        # The DB is opened READ-ONLY and never created; the JSON report goes
+        # to stdout. Normal exit codes: 0 = exact accounting and
+        # retry_unresolved == 0; 2 = retry_unresolved > 0 (retryable/
+        # incomplete coverage); 1 = integrity/runtime failure or accounting
+        # mismatch. With --dry-run only denominator/buffer/graph/uncovered
+        # run — no fallback calls, no writes — reporting
+        # would_need_llm_fallback (0 completed / 1 failure).
+        lightrag_dir = (
+            args.lightrag_dir
+            if args.lightrag_dir is not None
+            else wiki_root / ".dev-runtime" / "lightrag_storage"
+        )
+        if not db_path.is_file():
+            print(f"database not found: {db_path}", file=sys.stderr)
+            return 1
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            report = asyncio.run(
+                bootstrap_existing_discovery(
+                    conn,
+                    lightrag_dir=lightrag_dir,
+                    dry_run=args.dry_run,
+                )
+            )
+        except BootstrapAccountingError as exc:
+            print(f"bootstrap accounting mismatch: {exc}", file=sys.stderr)
+            return 1
+        finally:
+            conn.close()
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        if args.dry_run:
+            return 0
+        return 2 if report["retry_unresolved"] > 0 else 0
 
     if args.dry_run:
         # S8: dry-run MAY evaluate — an existing DB is opened READ-ONLY

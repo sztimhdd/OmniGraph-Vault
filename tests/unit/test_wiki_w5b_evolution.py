@@ -2756,11 +2756,9 @@ def test_cli_bootstrap_existing_explicit_deferral_both_forms(wiki_root: Path) ->
     )
 
     for proc in (proc_alone, proc_with_dry_run):
-        assert proc.returncode != 0, "deferral must exit nonzero, never fake success"
-        assert proc.stderr.strip() == (
-            "--bootstrap-existing is not implemented (Task 6 owns historical bootstrap)"
-        ), "one stable neutral stderr message"
-        assert proc.stdout == "", "deferral must not print a fake scan report"
+        assert proc.returncode != 0, "bootstrap must exit nonzero on missing DB"
+        assert "database not found" in proc.stderr, "bootstrap must fail closed on missing DB"
+        assert proc.stdout == "", "bootstrap must not print a fake scan report"
 
     assert p.read_bytes() == before_sugg
     assert page.read_bytes() == before_page
