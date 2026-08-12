@@ -30,6 +30,10 @@ from typing import Any
 
 import frontmatter
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 _LEGACY_CITATION_RE = re.compile(r"\^\[article:([a-f0-9]{10})\]")
 _FOOTNOTE_CITATION_RE = re.compile(r"\[\^(\d+)\]")
 _BACKLINK_RE = re.compile(r"\[\[([a-z0-9-]+)\]\]")
@@ -205,15 +209,22 @@ def check_duplicate_slugs(wiki_root: Path, findings: dict) -> None:
 
 
 def load_known_hashes(db_path: Path | None) -> set[str]:
+    """Known-article citation corpus (name kept for compatibility).
+
+    Uses the shared source-aware resolver
+    (``kb.wiki_articles.known_wiki_article_refs``) so canonical RSS URL refs
+    are recognized while legacy valid 10-char WeChat refs remain. RSS
+    32-char body MD5 values are never admitted (W5B Task 1).
+    """
     if db_path is None or not db_path.exists():
         return set()
     import sqlite3
+
+    from kb.wiki_articles import known_wiki_article_refs
+
     try:
         with sqlite3.connect(str(db_path)) as conn:
-            rows = conn.execute(
-                "SELECT content_hash FROM articles WHERE content_hash IS NOT NULL"
-            ).fetchall()
-        return {r[0] for r in rows if r[0]}
+            return known_wiki_article_refs(conn)
     except sqlite3.Error:
         return set()
 

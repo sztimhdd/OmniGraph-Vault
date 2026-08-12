@@ -52,6 +52,7 @@ from typing import Any
 import frontmatter
 import requests
 
+from kb import wiki_articles
 from kb.wiki_compiler.assembler import assemble_patch
 from kb.wiki_compiler.models import (
     EvidencePack,
@@ -170,60 +171,26 @@ def _resolve_lightrag_dir() -> Path:
 
 
 def _build_chunk_article_map(lightrag_dir: Path, db_path: Path) -> dict[str, dict[str, str]]:
-    """Pre-compute {chunk_id: {hash: '...', title: '...', url: '...'}}."""
-    chunks_path = lightrag_dir / "kv_store_text_chunks.json"
-    docs_path = lightrag_dir / "kv_store_full_docs.json"
-    if not chunks_path.exists() or not docs_path.exists():
+    """Backward-compatible wrapper over the shared source-aware resolver.
+
+    Keeps the historical ``{chunk_id: {hash, title, url}}`` catalog shape while
+    ``kb.wiki_articles.build_chunk_article_map`` now derives canonical refs
+    source-aware (md5(url)[:10] for both wechat and rss). W1 acquisition
+    (Tavily / LightRAG query / Opus) is unchanged.
+    """
+    if not (lightrag_dir / "kv_store_text_chunks.json").exists() or not (
+        lightrag_dir / "kv_store_full_docs.json"
+    ).exists():
         logger.warning("chunk/doc kv store missing; chunk→article map will be empty")
         return {}
-
-    chunks = json.load(chunks_path.open(encoding="utf-8"))
-    docs = json.load(docs_path.open(encoding="utf-8"))
-
-    # Build URL → (hash, title) from SQLite (only when DB exists)
-    url_map: dict[str, tuple[str, str]] = {}
-    if db_path.exists():
-        conn = sqlite3.connect(str(db_path))
-        try:
-            for url, h, title in conn.execute(
-                "SELECT url, content_hash, title FROM articles "
-                "WHERE url IS NOT NULL AND content_hash IS NOT NULL"
-            ):
-                if not url or not h:
-                    continue
-                url_map[url] = (h, title or "")
-                # Normalize http⇆https for lookup robustness
-                if url.startswith("http://"):
-                    url_map.setdefault("https://" + url[7:], (h, title or ""))
-                elif url.startswith("https://"):
-                    url_map.setdefault("http://" + url[8:], (h, title or ""))
-        finally:
-            conn.close()
-
-    url_re = re.compile(r"URL:\s*(\S+)")
-    result: dict[str, dict[str, str]] = {}
-    for chunk_id, chunk_data in chunks.items():
-        if not isinstance(chunk_data, dict):
-            continue
-        doc_id = chunk_data.get("full_doc_id")
-        if not doc_id:
-            continue
-        doc_data = docs.get(doc_id)
-        if not isinstance(doc_data, dict):
-            continue
-        content = doc_data.get("content", "")
-        m = url_re.search(content)
-        if not m:
-            continue
-        url = m.group(1).strip()
-        info = url_map.get(url)
-        if info:
-            result[chunk_id] = {"hash": info[0], "title": info[1], "url": url}
-        else:
-            # Article exists in LightRAG but not in local SQLite — record URL
-            # without hash so we can still cite the URL as a web source.
-            result[chunk_id] = {"hash": "", "title": "", "url": url}
-    return result
+    if not db_path.exists():
+        return {}
+    with sqlite3.connect(str(db_path)) as conn:
+        mapped = wiki_articles.build_chunk_article_map(lightrag_dir, conn)
+    return {
+        cid: {"hash": row["ref"], "title": row["title"], "url": row["url"]}
+        for cid, row in mapped.items()
+    }
 
 
 def _entity_chunks_from_vdb(
