@@ -21,6 +21,8 @@ pattern, same DB_PATH override approach, same caplog basicConfig defence).
 """
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import logging
 import os
 import sqlite3
@@ -446,8 +448,9 @@ async def test_wiki_update_hook_called_after_drain_with_observable_post_conditio
     behaviors are pinned:
 
       1. Spy is called exactly once after the final _drain_layer2_queue
-      2. Spy receives a list of 10-char md5-prefixed url hashes (the
-         get_article_hash output for candidate_rows[*][3])
+      2. Spy receives the current-batch wiki success set: source-aware
+         {"source", "ref"} mappings of ok+doc_confirmed articles only
+         (empty here, since both rows are layer2=reject)
       3. A raised exception inside the hook is swallowed — ingest_from_db
          completes normally and the seeded ingestions rows persist
     """
@@ -510,23 +513,19 @@ async def test_wiki_update_hook_called_after_drain_with_observable_post_conditio
         f"got {spy.await_count} awaits"
     )
 
-    # Behavior 2: positional arg 0 is list of 10-char hashes from
-    # candidate_rows urls. seed_kol_article sets url='https://example.com/kol/{art_id}'.
+    # Behavior 2: positional arg 0 is the current-batch WIKI SUCCESS SET —
+    # source-aware {"source", "ref"} mappings. Both seeded articles are
+    # layer2=reject here, so neither reached status='ok': the hook must
+    # receive an EMPTY list (never all-candidate bare hashes — W5B Task 2).
     call_args = spy.await_args
     assert call_args is not None, "spy was never awaited"
-    passed_hashes = call_args.args[0]
-    assert isinstance(passed_hashes, list), (
-        f"first arg should be list[str]; got {type(passed_hashes).__name__}"
+    passed = call_args.args[0]
+    assert isinstance(passed, list), (
+        f"first arg should be list[dict]; got {type(passed).__name__}"
     )
-    assert len(passed_hashes) == 2, (
-        f"expected 2 hashes (one per candidate row); got {len(passed_hashes)} "
-        f"— hashes={passed_hashes!r}"
+    assert passed == [], (
+        f"rejected/skipped articles must not seed the wiki hook; got {passed!r}"
     )
-    for h in passed_hashes:
-        assert isinstance(h, str) and len(h) == 10, (
-            f"each hash should be 10-char md5 article-identity prefix "
-            f"(canonical across DB + entity buffers + wiki citations); got {h!r}"
-        )
 
     # Behavior 3: hook exception did not block ingest_from_db. Both
     # seeded layer1=reject articles MUST have ingestions rows written.
@@ -534,4 +533,156 @@ async def test_wiki_update_hook_called_after_drain_with_observable_post_conditio
     assert len(rows) == 2, (
         f"hook RuntimeError leaked and aborted ingest_from_db before "
         f"per-article writes — expected 2 ingestions rows; got {rows!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T7 — W5B Task 2: post-drain W3 hook receives ONLY the current batch's
+# ok+doc_confirmed source-aware refs (never failed/skipped), pinned
+# timeout=120, and TimeoutError isolation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_wiki_hook_receives_only_ok_doc_confirmed_source_refs(
+    monkeypatch, tmp_path: Path
+):
+    """W5B Task 2 Step 2.4/2.5 contract.
+
+    Fixture: wechat A -> ok+doc_confirmed, rss B -> ok+doc_confirmed,
+    wechat C -> failed, rss D -> skipped (layer2=reject). The post-drain
+    ``_wiki_update_check`` spy must receive EXACTLY A/B as source-aware
+    ``{"source", "ref"}`` mappings — never C/D, never bare hashes of the
+    whole candidate pool — and the call site must keep ``timeout=120``.
+    A second run pins TimeoutError isolation: a hook timeout never aborts
+    ``ingest_from_db`` and per-article ingestions rows still persist.
+    """
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    urls = {
+        "A": "https://mp.weixin.qq.com/s/w5b-t2-A",
+        "B": "https://example.com/rss/w5b-t2-B",
+        "C": "https://mp.weixin.qq.com/s/w5b-t2-C",
+        "D": "https://example.com/rss/w5b-t2-D",
+    }
+    refs = {k: hashlib.md5(v.encode()).hexdigest()[:10] for k, v in urls.items()}
+
+    seed_kol_article(
+        conn, art_id=1, body="ok A body " * 50, url=urls["A"],
+        layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    seed_rss_article(
+        conn, art_id=1, body="ok B body " * 50, url=urls["B"],
+        layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    seed_kol_article(
+        conn, art_id=2, body="fail C body " * 50, url=urls["C"],
+        layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    seed_rss_article(
+        conn, art_id=2, body="skip D body " * 50, url=urls["D"],
+        layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+
+    candidate = FilterResult(verdict="candidate", reason="ok",
+                             prompt_version=PROMPT_VERSION_LAYER1)
+    ok = FilterResult(verdict="ok", reason="depth=2",
+                      prompt_version=PROMPT_VERSION_LAYER2)
+    reject = FilterResult(verdict="reject", reason="shallow",
+                          prompt_version=PROMPT_VERSION_LAYER2)
+    # Candidate SELECT is source DESC, id ASC -> queue order A, C, B, D.
+    patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[candidate, candidate, candidate, candidate],
+        layer2_results=[ok, ok, ok, reject],
+        ingest_outcome=(True, 1.0, True),  # overridden per-url below
+    )
+
+    # Hermetic: the ok-path inline title translation must never hit the
+    # network from this test (also proves the W3 hook path is LLM-free).
+    import lib.translate
+
+    monkeypatch.setattr(
+        lib.translate, "translate_title_with_deepseek_tavily",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(lib.translate, "detect_source_lang", lambda s: "zh")
+
+    async def _ingest(source, url, dry_run, rag, effective_timeout=0):
+        if url == urls["C"]:
+            return (False, 1.0, False)
+        return (True, 1.0, True)
+
+    monkeypatch.setattr(bi, "ingest_article", AsyncMock(side_effect=_ingest))
+
+    captured: dict = {"timeouts": []}
+    real_wait_for = asyncio.wait_for
+
+    def spy_wait_for(coro, timeout=None):
+        captured["timeouts"].append(timeout)
+        return real_wait_for(coro, timeout=timeout)
+
+    monkeypatch.setattr(asyncio, "wait_for", spy_wait_for)
+
+    spy = AsyncMock(return_value={"suggestions_generated": 0, "applied": 0, "dropped": 0})
+    monkeypatch.setattr(bi, "_wiki_update_check", spy)
+
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False,
+        batch_timeout=None, max_articles=None,
+    )
+
+    # Behavior 1: hook fired exactly once after the final drain.
+    assert spy.await_count == 1, (
+        f"_wiki_update_check should fire exactly once; got {spy.await_count}"
+    )
+    # Behavior 2: receives EXACTLY A/B source-aware mappings — never C/D,
+    # never all-candidate bare hashes.
+    passed = spy.await_args.args[0]
+    assert passed == [
+        {"source": "wechat", "ref": refs["A"]},
+        {"source": "rss", "ref": refs["B"]},
+    ], f"expected exactly A/B source-aware refs; got {passed!r}"
+    # Behavior 3: the 120s outer timeout is preserved at the call site.
+    assert captured["timeouts"] and captured["timeouts"][-1] == 120, (
+        f"_wiki_update_check must be awaited with timeout=120; "
+        f"got {captured['timeouts']!r}"
+    )
+
+    # Behavior 4: TimeoutError isolation — a timed-out hook never aborts
+    # ingest_from_db; per-article ingestions rows still persist.
+    async def _raise_timeout(coro, timeout=None):
+        coro.close()
+        raise asyncio.TimeoutError()
+
+    monkeypatch.setattr(asyncio, "wait_for", _raise_timeout)
+
+    fake2 = tmp_path / "fake2.db"
+    monkeypatch.setattr(bi, "DB_PATH", fake2)
+    conn2 = sqlite3.connect(str(fake2))
+    init_schema(conn2)
+    seed_kol_article(
+        conn2, art_id=10, body="timeout body " * 50,
+        layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[candidate],
+        layer2_results=[ok],
+        ingest_outcome=(True, 1.0, True),
+    )
+
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False,
+        batch_timeout=None, max_articles=None,
+    )
+
+    rows2 = conn2.execute(
+        "SELECT article_id, status FROM ingestions ORDER BY article_id"
+    ).fetchall()
+    assert rows2 == [(10, "ok")], (
+        f"hook TimeoutError must be swallowed and the article still ingested; "
+        f"got {rows2!r}"
     )

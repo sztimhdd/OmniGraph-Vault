@@ -33,6 +33,7 @@ target path) to the engine. Both helpers are idempotent.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import replace
@@ -40,6 +41,12 @@ from datetime import UTC, datetime, date
 from pathlib import Path
 from typing import Optional, Tuple
 
+from kb.wiki_articles import (
+    SUPPORTED_ARTICLE_SOURCES,
+    UnsupportedArticleSource,
+    load_article_index,
+    resolve_article,
+)
 from kb.wiki_compiler.assembler import assemble_patch
 from kb.wiki_compiler.models import (
     EvidencePack,
@@ -147,6 +154,93 @@ def build_w3_pack_for_entity(
     )
 
 
+def _legacy_content_hash_record(db_conn, ref: str) -> dict | None:
+    """Legacy wechat fallback: bare ref present in ``articles.content_hash``.
+
+    W5-0 era fixtures (and pre-Task-2 production) keyed article existence by
+    ``articles.content_hash`` only (no ``url`` column), where the value
+    historically equals ``md5(url)[:10]``. Kept ONLY for bare-ref inputs that
+    the Task 1 URL index cannot resolve; RSS 32-char body hashes never reach
+    this path because ``resolve_article`` returns a record for canonical refs.
+    """
+    cols = {row[1] for row in db_conn.execute("PRAGMA table_info(articles)").fetchall()}
+    if "content_hash" not in cols:
+        return None
+    row = db_conn.execute(
+        "SELECT 1 FROM articles WHERE content_hash=?", (ref,)
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "source": "wechat",
+        "article_id": None,
+        "ref": ref,
+        "url": None,
+        "title": ref,
+        "text": "",
+    }
+
+
+def _build_pack_from_records(
+    slug: str,
+    records: list[dict],
+    wiki_root,
+) -> EvidencePack:
+    """Build one EvidencePack from already-resolved source-aware records.
+
+    Deterministic identity: all-wechat groups keep the legacy W5A pack_id
+    (``w3-<slug>-<refs>``); any RSS evidence switches to a source-aware
+    sha256 form so ``(source, ref)`` collisions can never alias. Evidence
+    carries the real local title + ``metadata={"source": ...}``.
+    """
+    wiki = Path(wiki_root)
+    page = wiki / "entities" / f"{slug}.md"
+    existing_path: Optional[str] = None
+    existing_digest: Optional[str] = None
+    if page.exists():
+        existing_path = f"entities/{slug}.md"
+        existing_digest = page_digest(page.read_text(encoding="utf-8"))
+
+    records = sorted(records, key=lambda r: (r["source"], r["ref"]))
+    refs = tuple(r["ref"] for r in records)
+    evidence = tuple(
+        EvidenceRef(
+            evidence_id=f"w3-{i}",
+            type="article",
+            ref=r["ref"],
+            title=r["title"],
+            provenance="w3-entity-buffer",
+            metadata={"source": r["source"]},
+        )
+        for i, r in enumerate(records)
+    )
+    if all(r["source"] in (None, "wechat") for r in records):
+        pack_id = f"w3-{slug}-{'-'.join(sorted(refs))}"
+    else:
+        material = "|".join(
+            sorted(f"{r['source']}:{r['ref']}" for r in records)
+        )
+        pack_id = (
+            f"w3-{slug}-{hashlib.sha256(material.encode()).hexdigest()[:16]}"
+        )
+    return EvidencePack(
+        pack_id=pack_id,
+        subject_slug=slug,
+        subject_title=slug.replace("-", " ").title(),
+        trigger="w3_incremental",
+        article_hashes=refs,
+        evidence=evidence,
+        context_blocks=(
+            f"Observed in {len(records)} newly ingested OmniGraph source "
+            "articles.",
+        ),
+        existing_page_path=existing_path,
+        existing_page_digest=existing_digest,
+        created_at=datetime.now(UTC).isoformat(),
+        compiler_version=COMPILER_VERSION,
+    )
+
+
 def build_w3_evidence_packs(
     article_hashes,
     *,
@@ -155,41 +249,72 @@ def build_w3_evidence_packs(
     entity_buffer_dirs,
     min_frequency: int = 2,
 ) -> list:
-    """Discover entities from article hashes + entity buffers → EvidencePacks.
+    """Discover entities from source-aware article evidence + entity buffers.
 
-    Preserves the W3 discovery contract:
+    Input items are either ``{"source": "wechat"|"rss", "ref": "<10hex>"}``
+    mappings (production hook) or bare 10-char refs (legacy callers). All
+    resolution goes through the Task 1 local resolver/index:
 
-    * unknown article hashes (not in ``articles.content_hash``) are ignored;
-    * buffer search order is canonical-first (caller-supplied dir list;
-      production passes ``kb.wiki_update.DEFAULT_BUFFER_DIRS``);
-    * the first directory holding a matching ``<hash>_entities.json`` wins
-      per article (legacy behavior);
-    * entity frequency = distinct article hashes; packs below
+    * mappings resolve strictly inside their own source; an unsupported
+      source raises ``UnsupportedArticleSource`` (explicit, never silent);
+    * bare refs resolve source-less only when unambiguous (ambiguous ->
+      ValueError); unresolved bare refs fall back to the legacy wechat
+      ``articles.content_hash`` check and are otherwise ignored;
+    * entity frequency = distinct ``(source, ref)`` pairs; packs below
       ``min_frequency`` are dropped;
+    * buffer search order is canonical-first (caller-supplied dir list;
+      production passes ``kb.wiki_update.DEFAULT_BUFFER_DIRS``); the first
+      directory holding a matching ``<ref>_entities.json`` wins per article;
     * each pack captures the existing page path/digest when present.
+
+    No network / LLM / Tavily / Databricks work happens here.
     """
     wiki = Path(wiki_root)
-    entity_to_hashes: dict[str, set] = {}
-    for h in article_hashes:
-        if not db_conn.execute(
-            "SELECT 1 FROM articles WHERE content_hash=?", (h,)
-        ).fetchone():
-            continue
+    index = load_article_index(db_conn)
+    legacy: dict[tuple[str, str], dict] = {}
+    entity_to_keys: dict[str, set] = {}
+    for item in article_hashes:
+        if isinstance(item, dict):
+            source = item.get("source")
+            ref = item.get("ref")
+            if source not in SUPPORTED_ARTICLE_SOURCES:
+                raise UnsupportedArticleSource(source)
+            rec = index.get((source, ref))
+            if rec is None:
+                continue
+            key = (rec["source"], rec["ref"])
+        else:
+            ref = str(item)
+            rec = resolve_article(index, ref)
+            if rec is None:
+                rec = _legacy_content_hash_record(db_conn, ref)
+                if rec is None:
+                    continue
+                key = (rec["source"], rec["ref"])
+                legacy[key] = rec
+            else:
+                key = (rec["source"], rec["ref"])
         for d in entity_buffer_dirs:
-            p = Path(d) / f"{h}_entities.json"
+            p = Path(d) / f"{key[1]}_entities.json"
             if not p.exists():
                 continue
             data = json.loads(p.read_text(encoding="utf-8"))
             for e in data.get("raw_entities", []):
                 name = e.get("name", "") if isinstance(e, dict) else str(e)
                 if (slug := _slugify(name)):
-                    entity_to_hashes.setdefault(slug, set()).add(h)
+                    entity_to_keys.setdefault(slug, set()).add(key)
             break
     packs = []
-    for slug, hset in entity_to_hashes.items():
-        if len(hset) < min_frequency:
+    for slug, keys in entity_to_keys.items():
+        if len(keys) < min_frequency:
             continue
-        packs.append(build_w3_pack_for_entity(slug, tuple(sorted(hset)), wiki))
+        records = []
+        for key in sorted(keys):
+            rec = index.get(key)
+            if rec is None:
+                rec = legacy.get(key)
+            records.append(rec)
+        packs.append(_build_pack_from_records(slug, records, wiki))
     return packs
 
 

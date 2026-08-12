@@ -1577,7 +1577,7 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
 
 
 async def _wiki_update_check(
-    article_hashes: list[str],
+    article_hashes: list[str] | list[dict[str, str]],
     db_conn,
     wiki_root: Path = Path("kb/wiki"),
 ) -> dict:
@@ -1700,6 +1700,11 @@ async def ingest_from_db(
             for i in range(0, len(rows), LAYER1_BATCH_SIZE)
         ]
         candidate_rows: list = []
+        # W5B Task 2 (2026-08-12): current-batch success set for the
+        # post-drain W3 hook — only articles that reached status='ok' AND
+        # doc_confirmed=True, keyed by (source, canonical_ref) so the hook
+        # receives source-aware {"source", "ref"} mappings (design §6.3).
+        wiki_success_refs: dict[tuple[str, str], dict[str, str]] = {}
         for chunk_idx, chunk in enumerate(chunks):
             # v3.5 ir-4 (LF-4.4): row tuple is now 7 cols
             # (id, source, title, url, source_name, body, summary).
@@ -1942,6 +1947,16 @@ async def ingest_from_db(
                         if wall >= effective_timeout:
                             timed_out_count += 1
                             timeout_histogram["900s+"] += 1
+
+                    # W5B Task 2: accumulate ONLY ok+doc_confirmed articles
+                    # into the wiki success set (failed/skipped/dry-run never
+                    # seed the wiki hook). Ref = canonical md5(url)[:10].
+                    if status == "ok" and doc_confirmed and url_d:
+                        ref = hashlib.md5(url_d.encode()).hexdigest()[:10]
+                        wiki_success_refs[(source_d, ref)] = {
+                            "source": source_d,
+                            "ref": ref,
+                        }
 
                     # 260520-trans-inc: inline title translation. Runs after
                     # successful ingest_article (status='ok'), BEFORE the
@@ -2202,16 +2217,14 @@ async def ingest_from_db(
 
             # llm-wiki-W3 T3 (2026-05-19): post-drain wiki entity update hook.
             # Fire-and-forget with 120s timeout; never blocks the main flow.
-            # W5-0 fix (2026-08-11): use canonical 10-char MD5 article-identity
-            # hash matching DB content_hash + entity buffer filenames, NOT the
-            # 16-char SHA256 checkpoint hash from get_article_hash.
+            # W5B Task 2 fix (2026-08-12): feed ONLY the current batch's
+            # ok+doc_confirmed articles, as source-aware {source, ref}
+            # mappings (canonical 10-char MD5 url ref, matching DB +
+            # entity-buffer filenames) — failed/skipped/dry-run articles
+            # never reach W3. Timeout + handlers unchanged.
             try:
-                batch_hashes = [
-                    hashlib.md5(r[3].encode()).hexdigest()[:10]
-                    for r in candidate_rows if r[3]
-                ]
                 wiki_stats = await asyncio.wait_for(
-                    _wiki_update_check(batch_hashes, conn), timeout=120
+                    _wiki_update_check(list(wiki_success_refs.values()), conn), timeout=120
                 )
                 logger.info("W3 wiki hook: %s", wiki_stats)
             except asyncio.TimeoutError:

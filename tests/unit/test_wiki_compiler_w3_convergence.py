@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+import kb.wiki_articles as wiki_articles_mod
 import kb.wiki_compiler.assembler as assembler_mod
 import kb.wiki_compiler.engine as engine_mod
 import kb.wiki_compiler.models as models_mod
@@ -39,6 +40,23 @@ def _seed_db(hashes: list[str]) -> sqlite3.Connection:
     for h in hashes:
         conn.execute("INSERT INTO articles (content_hash) VALUES (?)", (h,))
     conn.commit()
+    return conn
+
+
+def _seed_source_db() -> sqlite3.Connection:
+    """Source-aware fixture (W5B Task 2): articles + rss_articles with
+    url/title; rss_articles carries a 32-char body content_hash that is
+    never article identity."""
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE articles ("
+        "id INTEGER PRIMARY KEY, title TEXT, url TEXT, content_hash TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE rss_articles ("
+        "id INTEGER PRIMARY KEY, title TEXT, url TEXT, summary TEXT, "
+        "content_hash TEXT)"
+    )
     return conn
 
 
@@ -358,6 +376,7 @@ def test_no_network_or_llm_imports_in_compiler_path():
     not import network/LLM/external-provider modules (W5A constraint §4.6)."""
     modules = [
         wiki_update, w3, engine_mod, assembler_mod, models_mod,
+        wiki_articles_mod,
     ]
     for mod in modules:
         tree = ast.parse(inspect.getsource(mod))
@@ -398,6 +417,50 @@ def test_w3_flow_makes_no_network_calls(tmp_path, monkeypatch):
     )
     assert stats["applied"] == 1
     assert (wiki / "entities" / "test-entity.md").exists()
+
+    # W5B Task 2: the source-aware RSS path (mapping inputs resolving
+    # through rss_articles) is equally network-free end to end.
+    import hashlib
+
+    from kb.wiki_articles import canonical_article_ref
+
+    conn2 = _seed_source_db()
+    wx_url = "https://mp.weixin.qq.com/s/w5b-t2-wx"
+    rss_url = "https://example.com/rss/w5b-t2"
+    wx_ref = canonical_article_ref(wx_url)
+    rss_ref = canonical_article_ref(rss_url)
+    conn2.execute(
+        "INSERT INTO articles (id, title, url, content_hash) VALUES (1, ?, ?, ?)",
+        ("WeChat Real Title", wx_url, wx_ref),
+    )
+    conn2.execute(
+        "INSERT INTO rss_articles (id, title, url, summary, content_hash) "
+        "VALUES (1, ?, ?, ?, ?)",
+        (
+            "RSS Real Title",
+            rss_url,
+            "unrelated summary",
+            hashlib.md5(b"unrelated body text").hexdigest(),
+        ),
+    )
+    conn2.commit()
+    _write_buffer(buf, wx_ref, ["Test Entity"])
+    _write_buffer(buf, rss_ref, ["Test Entity"])
+
+    # Fresh wiki for the source-aware leg: part 1 already created
+    # test-entity.md, and existing pages are never overwritten
+    # (suggestion_only) — a fresh wiki proves the RSS mapping path
+    # auto-applies end to end exactly like the legacy one.
+    wiki2 = _make_wiki(tmp_path / "wiki2")
+    stats2 = wiki_update.run_wiki_update_pipeline(
+        [{"source": "wechat", "ref": wx_ref}, {"source": "rss", "ref": rss_ref}],
+        wiki2,
+        conn2,
+        min_frequency=2,
+        entity_buffer_dirs=[buf],
+    )
+    assert stats2["applied"] == 1
+    assert (wiki2 / "entities" / "test-entity.md").exists()
 
 
 # ---------------------------------------------------------------------------

@@ -61,10 +61,11 @@ a patch legitimately changes identity when the date changes; same-day
 re-runs are stable.)
 
 W5-0 compat preserved: canonical entity-buffer discovery
-(``DEFAULT_BUFFER_DIRS``), ``min_frequency`` as distinct article hashes,
-unknown DB hashes ignored, rich existing pages never overwritten, W3
-failure never fails main ingest, 120s outer timeout unchanged, and no
-network/LLM/Tavily/Databricks calls anywhere in this path.
+(``DEFAULT_BUFFER_DIRS``), ``min_frequency`` as distinct source-aware
+article evidence (``(source, ref)`` pairs), unknown DB hashes ignored, rich
+existing pages never overwritten, W3 failure never fails main ingest, 120s
+outer timeout unchanged, and no network/LLM/Tavily/Databricks calls anywhere
+in this path.
 """
 from __future__ import annotations
 
@@ -92,7 +93,7 @@ DEFAULT_BUFFER_DIRS = [
 
 
 def generate_wiki_suggestions(
-    article_hashes: list[str],
+    article_hashes: list[str] | list[dict[str, str]],
     wiki_root: Path,
     db_conn,
     min_frequency: int = 2,
@@ -105,6 +106,11 @@ def generate_wiki_suggestions(
     proposal to ``w3.propose_w3_patch``. Each returned dict carries the
     engine-ready ``WikiPatch`` under ``patch`` plus the legacy
     informational fields.
+
+    W5B Task 2: ``article_hashes`` may be bare 10-char refs (legacy callers)
+    or source-aware ``{"source", "ref"}`` mappings (production hook). All
+    resolution happens in the W3 adapter — this compatibility module only
+    passes the items through.
     """
     buf_dirs = entity_buffer_dirs or DEFAULT_BUFFER_DIRS
     packs = w3.build_w3_evidence_packs(
@@ -181,7 +187,7 @@ def apply_suggestion_atomic(
 
 
 def run_wiki_update_pipeline(
-    article_hashes: list[str],
+    article_hashes: list[str] | list[dict[str, str]],
     wiki_root: Path,
     db_conn,
     min_frequency: int = 2,
