@@ -322,3 +322,104 @@ def test_update_suggestion_evolution_replaces_only_evolution_key(
     with pytest.raises(WikiValidationError):
         update_suggestion_evolution(malformed, new_evolution)
     assert malformed.read_bytes() == before
+
+
+# ---------------------------------------------------------------------------
+# 5. W5A-era payloads (valid JSON without the `evolution` key) are NOT
+#    malformed — lazily initialized, never rejected or clobbered
+# ---------------------------------------------------------------------------
+
+def test_reemit_w5a_payload_without_evolution_initializes_fresh_state(
+    wiki_root: Path,
+):
+    """A valid existing suggestion JSON lacking the ``evolution`` key is a
+    W5A-era payload (the W5A writer never emitted that key), NOT malformed:
+    re-emitting the same deterministic path lazily initializes a fresh
+    design §7 evolution object (pending/0/all-null) and atomically refreshes
+    the authoritative payload."""
+    from kb.wiki_compiler.engine import apply_patch
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    patch = _make_patch(
+        base_digest=page_digest(target.read_text(encoding="utf-8")),
+        patch_id="wpatch-w5b-w5aera-0001",
+    )
+    # Seed a valid W5A-era payload: every key the W5A writer emitted,
+    # minus the W5B-only `evolution` key.
+    r1 = apply_patch(patch, wiki_root)
+    assert r1["status"] == "suggestion"
+    path = Path(r1["suggestion_path"])
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert "evolution" in payload
+    del payload["evolution"]
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    r2 = apply_patch(patch, wiki_root)
+    assert r2["status"] == "suggestion"
+    assert Path(r2["suggestion_path"]) == path
+    refreshed = json.loads(path.read_text(encoding="utf-8"))
+    assert refreshed["evolution"] == FRESH_EVOLUTION
+    # The authoritative payload was refreshed (fresh evolution included),
+    # not the stale W5A-era file left in place.
+    assert refreshed["patch"]["patch_id"] == "wpatch-w5b-w5aera-0001"
+
+
+def test_update_suggestion_evolution_adds_only_evolution_to_w5a_payload(
+    wiki_root: Path,
+):
+    """``update_suggestion_evolution`` on a valid W5A-era payload (no
+    ``evolution`` key) atomically adds ONLY that key, preserving every other
+    key exactly — while an existing non-dict ``evolution`` value remains an
+    integrity failure and is never silently overwritten."""
+    from kb.wiki_compiler.engine import (
+        WikiValidationError,
+        apply_patch,
+        update_suggestion_evolution,
+    )
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    patch = _make_patch(
+        base_digest=page_digest(target.read_text(encoding="utf-8")),
+        patch_id="wpatch-w5b-update-w5aera-0001",
+    )
+    r = apply_patch(patch, wiki_root)
+    path = Path(r["suggestion_path"])
+    w5a_payload = json.loads(path.read_text(encoding="utf-8"))
+    del w5a_payload["evolution"]
+    path.write_text(
+        json.dumps(w5a_payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    new_evolution = {
+        "status": "retry",
+        "attempts": 1,
+        "next_retry_at": "2026-08-13T06:00:00Z",
+        "last_evaluated_at": "2026-08-12T03:00:00Z",
+        "last_decision": "retry",
+        "last_reason": "transient LLM failure",
+        "applied_patch_id": None,
+    }
+    update_suggestion_evolution(path, new_evolution)
+
+    refreshed = json.loads(path.read_text(encoding="utf-8"))
+    assert refreshed["evolution"] == new_evolution
+    # ONLY the evolution key was added; every other key preserved exactly.
+    assert set(refreshed) == set(w5a_payload) | {"evolution"}
+    for key, value in w5a_payload.items():
+        assert refreshed[key] == value, f"key changed: {key}"
+
+    # Non-dict evolution value is still an integrity failure — never
+    # silently overwritten.
+    corrupt = _suggestion_path(wiki_root, "wpatch-w5b-update-nondict")
+    corrupt_payload = dict(w5a_payload)
+    corrupt_payload["evolution"] = "not-a-dict"
+    corrupt.write_text(
+        json.dumps(corrupt_payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    before = corrupt.read_bytes()
+    with pytest.raises(WikiValidationError):
+        update_suggestion_evolution(corrupt, new_evolution)
+    assert corrupt.read_bytes() == before

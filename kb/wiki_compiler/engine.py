@@ -134,6 +134,14 @@ _FRESH_EVOLUTION_STATE: Dict[str, Any] = {
     "applied_patch_id": None,
 }
 
+#: Operations allowed to ride the W5B semantic-approval promotion: the
+#: non-destructive update ops only. A raw/unknown op mixed into an
+#: UPSERT_SECTION patch must never be auto-applied (or silently dropped
+#: by the renderer) — it stays suggestion_only.
+_W5B_PROMOTABLE_OPS = frozenset(
+    {"UPSERT_SECTION", "MERGE_SOURCES", "SET_METADATA"}
+)
+
 #: Default H2 section for UPSERT_SECTION when the op omits one.
 DEFAULT_SECTION = "Definition / Overview"
 
@@ -257,14 +265,19 @@ def classify_patch(
         # W5A property 5: substantive body mutation on existing pages is
         # blocked from auto-apply. W5B seam: semantic_approved=True may
         # promote an existing-page UPSERT_SECTION patch, but a missing
-        # page stays suggestion_only (nothing to merge into), and a
-        # legacy page with web/builtin evidence stays suggestion_only
-        # (old `- article:<hex>` provenance cannot represent those).
+        # page stays suggestion_only (nothing to merge into), a legacy
+        # page with web/builtin evidence stays suggestion_only (old
+        # `- article:<hex>` provenance cannot represent those), and a
+        # patch mixing in any operation outside the allowed non-destructive
+        # update set stays suggestion_only (a raw/unknown op must never be
+        # auto-applied or silently dropped by the renderer).
         if not semantic_approved:
             return "suggestion_only"
         if not exists:
             return "suggestion_only"
         if legacy and _has_non_article_evidence(patch.evidence):
+            return "suggestion_only"
+        if any(getattr(o, "op", None) not in _W5B_PROMOTABLE_OPS for o in ops):
             return "suggestion_only"
         return "auto_apply"
 
@@ -592,13 +605,16 @@ def _atomic_write(target_path: Path, content: str) -> None:
 
 def _carried_evolution(path: Path) -> Dict[str, Any]:
     """Return the existing suggestion file's ``evolution`` object EXACTLY,
-    or a copy of the design §7 fresh state when no file exists yet.
+    or a copy of the design §7 fresh state when no file exists yet — or
+    when the existing file is a valid W5A-era payload (deterministic JSON
+    WITHOUT the ``evolution`` key, which the W5A writer never emitted).
 
     Re-emitting the same deterministic patch must never reset durable
-    evolution state (design §7: the suggestion JSON remains the queue).
-    An existing file that is malformed JSON — or a payload without a
-    proper ``evolution`` object — is a compiler-integrity failure:
-    :class:`WikiValidationError` is raised and the file is never
+    evolution state (design §7: the suggestion JSON remains the queue);
+    a W5A-era payload is valid and is lazily initialized to fresh §7 state.
+    An existing file that is malformed JSON, a non-dict payload, or a
+    payload whose ``evolution`` value is not a dict is a compiler-integrity
+    failure: :class:`WikiValidationError` is raised and the file is never
     silently overwritten.
     """
     if not path.exists():
@@ -609,12 +625,19 @@ def _carried_evolution(path: Path) -> Dict[str, Any]:
         raise WikiValidationError(
             f"malformed suggestion JSON at {path}: {exc}"
         ) from exc
-    if not isinstance(payload, dict) or not isinstance(
-        payload.get("evolution"), dict
-    ):
+    if not isinstance(payload, dict):
         raise WikiValidationError(
             f"malformed suggestion payload at {path}: "
-            "'evolution' object missing or invalid"
+            "payload must be a JSON object"
+        )
+    if "evolution" not in payload:
+        # Valid W5A-era payload (pre-W5B writer): lazily initialize fresh
+        # design §7 state rather than treating the file as corrupted.
+        return dict(_FRESH_EVOLUTION_STATE)
+    if not isinstance(payload["evolution"], dict):
+        raise WikiValidationError(
+            f"malformed suggestion payload at {path}: "
+            "'evolution' object invalid"
         )
     return payload["evolution"]
 
@@ -662,9 +685,11 @@ def update_suggestion_evolution(path: Path, evolution: dict) -> None:
     """Atomically replace ONLY ``payload['evolution']`` in an existing
     suggestion JSON file (design §7 worker transitions: retry/reject/apply).
 
-    Every other payload key is preserved exactly. A missing or malformed
-    file is a compiler-integrity failure (:class:`WikiValidationError`) —
-    never created or clobbered.
+    Every other payload key is preserved exactly. A valid W5A-era payload
+    (no ``evolution`` key) simply gains the key — the file is never
+    rejected or clobbered. A missing file, malformed JSON, non-dict payload,
+    or an existing non-dict ``evolution`` value is a compiler-integrity
+    failure (:class:`WikiValidationError`) — never created or overwritten.
     """
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -672,12 +697,15 @@ def update_suggestion_evolution(path: Path, evolution: dict) -> None:
         raise WikiValidationError(
             f"cannot read suggestion JSON at {path}: {exc}"
         ) from exc
-    if not isinstance(payload, dict) or not isinstance(
-        payload.get("evolution"), dict
-    ):
+    if not isinstance(payload, dict):
         raise WikiValidationError(
             f"malformed suggestion payload at {path}: "
-            "'evolution' object missing or invalid"
+            "payload must be a JSON object"
+        )
+    if "evolution" in payload and not isinstance(payload["evolution"], dict):
+        raise WikiValidationError(
+            f"malformed suggestion payload at {path}: "
+            "'evolution' object invalid"
         )
     payload["evolution"] = evolution
     _atomic_write(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")

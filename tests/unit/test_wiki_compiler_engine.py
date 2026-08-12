@@ -554,6 +554,43 @@ def test_apply_patch_semantic_approved_digest_conflict_still_conflicts(wiki_root
     assert target.read_text(encoding="utf-8") == before
 
 
+def test_apply_patch_semantic_approved_unknown_op_mixed_stays_suggestion(
+    wiki_root: Path,
+):
+    """W5B attack: a raw-constructed patch mixing an UNKNOWN operation with
+    UPSERT_SECTION must NOT be promoted by semantic_approved=True — only the
+    allowed non-destructive W5B update ops (UPSERT_SECTION / MERGE_SOURCES /
+    SET_METADATA) may ride the seam. It stays suggestion_only and the page
+    is never written (the unknown op is never silently dropped into the
+    page)."""
+    from kb.wiki_compiler.engine import apply_patch
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    before = target.read_text(encoding="utf-8")
+    patch = _raw_patch(
+        patch_id="wpatch-w5b-unknown-0001",
+        target_slug="python-debugging",
+        target_path="kb/wiki/entities/python-debugging.md",
+        base_digest=page_digest(before),
+        operations=(
+            PatchOperation(
+                op="UPSERT_SECTION", section="Definition / Overview",
+                content="New body [^1]", metadata=None,
+            ),
+            _make_op(op="EXECUTE_SCRIPT", content="side effect"),
+        ),
+        evidence=(EvidenceRef(
+            evidence_id="e1", type="article", ref="abcdef1234",
+            title="Src", provenance="lightrag-corpus", metadata={},
+        ),),
+    )
+    result = apply_patch(patch, wiki_root, semantic_approved=True)
+    assert result["status"] == "suggestion"
+    assert target.read_text(encoding="utf-8") == before
+    # A suggestion JSON was written for review — the page itself untouched.
+    assert result["suggestion_path"] is not None
+    assert Path(result["suggestion_path"]).exists()
+
+
 # ---------------------------------------------------------------------------
 # 3. apply_patch — atomicity, concurrency, suggestions, error book
 # ---------------------------------------------------------------------------
