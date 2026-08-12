@@ -168,6 +168,7 @@ Properties:
 - no web calls;
 - no new index/database;
 - use the current article text/title fields discovered from live repository schema;
+- rebuild the promoted patch's article `EvidenceRef` values with the **real local article title** while preserving the canonical hash/provenance, so W3's placeholder hash-as-title never leaks into evolved Wiki frontmatter;
 - bounded prompt size with a simple fixed cap documented in code; no token-budget framework;
 - missing/unreadable required article evidence causes `RETRY`, never a fabricated rewrite.
 
@@ -175,9 +176,11 @@ The model sees:
 
 1. current page text;
 2. current page style (canonical or legacy);
-3. hydrated article evidence with stable article hashes;
+3. hydrated article evidence with stable article hashes and real titles;
 4. the original suggestion's subject/patch provenance;
 5. strict structured-output instructions.
+
+The old suggestion's `suggested_content` is **not** treated as authoritative content. The suggestion is an evidence trigger; W5B produces a fresh scoped patch against the latest page.
 
 ---
 
@@ -388,9 +391,10 @@ The existing W5A compiler already validates the candidate before write and perfo
 After `apply_patch(..., semantic_approved=True)` returns `applied`:
 
 - mark the suggestion JSON `applied`;
-- store `applied_patch_id`, timestamp, decision reason;
-- optionally perform the existing lightweight target health/lint smoke if it is already exposed cheaply;
-- do not run a new snapshot lifecycle.
+- store `applied_patch_id`, timestamp, and decision reason;
+- do **not** run a second post-write validation/rollback framework in W5B v1.
+
+Standalone Wiki health remains a deployment/UAT regression check, not a per-patch transaction layer.
 
 A later bad semantic conclusion is corrected by future evidence/evolution, not by maintaining a second transactional history store. Git/runtime backups remain the operational rollback mechanism.
 
@@ -408,7 +412,7 @@ python scripts/wiki_evolve.py --dry-run
 python scripts/wiki_evolve.py --limit N
 ```
 
-`--dry-run` may call the evaluator but must not mutate Wiki pages; it may report decisions without changing suggestion state unless explicitly documented for testing.
+`--dry-run` may call the evaluator but MUST NOT mutate either Wiki pages **or suggestion JSON state**. It reports the decision/result only.
 
 `--limit N` exists only to bound controlled runs/UAT and timer workload.
 
@@ -422,14 +426,16 @@ Behavior-anchor tests must prove at least:
 
 ### Queue/state
 
-- suggestion without `evolution` initializes as pending;
+- suggestion without `evolution` initializes as pending during a normal run;
 - terminal states are skipped;
 - retry due-time logic follows 1d/3d/7d schedule;
-- repeated runs mutate the same JSON file, not create duplicates.
+- repeated runs mutate the same JSON file, not create duplicates;
+- dry-run does not mutate suggestion state.
 
 ### Evidence
 
 - W3 article hashes hydrate from local corpus read-only;
+- promoted article EvidenceRefs use real local titles, not hash placeholders;
 - missing required evidence -> RETRY;
 - no Tavily/web/network dependency is introduced for evidence hydration.
 
@@ -452,11 +458,12 @@ Behavior-anchor tests must prove at least:
 
 ### Worker end-to-end
 
-- APPLY -> promoted patch -> compiler applied -> suggestion state `applied`;
+- APPLY -> fresh promoted patch -> compiler applied -> suggestion state `applied`;
 - RETRY -> no page mutation -> next retry persisted;
 - REJECT -> no page mutation -> terminal rejected;
 - conflict -> no page mutation -> retry;
-- target superseded -> terminal superseded.
+- target superseded -> terminal superseded;
+- original historical `suggested_content` is never blindly applied.
 
 ### Regression
 
@@ -497,11 +504,11 @@ One evolution script + small W5A compiler extension + one systemd oneshot/timer.
 
 ### Gate B — Zero-human state machine
 
-Every suggestion autonomously converges toward `applied`, `rejected`, `retry`, or `superseded`; no approval queue is required.
+Every due W3 suggestion autonomously converges toward `applied`, `rejected`, `retry`, or `superseded`; no approval queue is required.
 
 ### Gate C — Local evidence grounding
 
-W3 autonomous evolution uses real locally stored article evidence by canonical hash; missing evidence fails to RETRY rather than hallucinating.
+W3 autonomous evolution uses real locally stored article evidence by canonical hash and real titles; missing evidence fails to RETRY rather than hallucinating.
 
 ### Gate D — One-call semantic decision
 
@@ -547,7 +554,8 @@ new articles
   -> daily wiki_evolve.py reads local article evidence
   -> one DeepSeek semantic decision
   -> APPLY | RETRY | REJECT
-  -> APPLY uses the existing W5A compiler with semantic_approved=True
+  -> APPLY builds a fresh scoped patch against the latest page
+  -> W5A compiler runs with semantic_approved=True
   -> digest/lock/lint/atomic safety remains intact
   -> suggestion state updates automatically
 ```
