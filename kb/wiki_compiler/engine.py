@@ -122,6 +122,18 @@ from kb.wiki_lint import lint_backlink_validity, lint_citation_integrity
 #: ``title``, ``sources``, ...) must always be preserved.
 NON_CRITICAL_METADATA_KEYS = frozenset({"last_updated", "confidence_level"})
 
+#: Design §7 fresh suggestion-evolution state. Copied per write (never
+#: shared/mutated): status=pending, attempts=0, all lifecycle fields null.
+_FRESH_EVOLUTION_STATE: Dict[str, Any] = {
+    "status": "pending",
+    "attempts": 0,
+    "next_retry_at": None,
+    "last_evaluated_at": None,
+    "last_decision": None,
+    "last_reason": None,
+    "applied_patch_id": None,
+}
+
 #: Default H2 section for UPSERT_SECTION when the op omits one.
 DEFAULT_SECTION = "Definition / Overview"
 
@@ -199,12 +211,21 @@ def classify_patch(
     patch: WikiPatch,
     wiki_root: Path,
     page_registry: Optional[dict] = None,
+    *,
+    semantic_approved: bool = False,
 ) -> str:
     """Deterministic policy: ``auto_apply``, ``suggestion_only``, or ``rejected``.
 
     ``page_registry`` optionally maps ``target_slug`` to
     ``{"exists": bool, "legacy": bool}`` (or a bare bool for ``exists``);
     when a slug is absent, existence/legacy are read from ``wiki_root``.
+
+    ``semantic_approved`` (W5B seam) is keyword-only and defaults to
+    ``False``: with the flag, an existing-page patch containing
+    ``UPSERT_SECTION`` may be promoted to ``auto_apply`` — but only after
+    every pre-existing gate (DELETE_PAGE, critical metadata, missing page,
+    legacy provenance) has been passed. Default behavior is byte-for-byte
+    W5A-compatible.
     """
     ops = patch.operations or ()
 
@@ -234,8 +255,18 @@ def classify_patch(
 
     if any(o.op == "UPSERT_SECTION" for o in ops):
         # W5A property 5: substantive body mutation on existing pages is
-        # blocked from auto-apply.
-        return "suggestion_only"
+        # blocked from auto-apply. W5B seam: semantic_approved=True may
+        # promote an existing-page UPSERT_SECTION patch, but a missing
+        # page stays suggestion_only (nothing to merge into), and a
+        # legacy page with web/builtin evidence stays suggestion_only
+        # (old `- article:<hex>` provenance cannot represent those).
+        if not semantic_approved:
+            return "suggestion_only"
+        if not exists:
+            return "suggestion_only"
+        if legacy and _has_non_article_evidence(patch.evidence):
+            return "suggestion_only"
+        return "auto_apply"
 
     if any(o.op == "MERGE_SOURCES" for o in ops):
         if not exists:
@@ -297,6 +328,8 @@ def apply_patch(
     wiki_root: Path,
     wiki_update: Optional[Callable[[dict], None]] = None,
     error_book: Optional[Callable[[dict], None]] = None,
+    *,
+    semantic_approved: bool = False,
 ) -> dict:
     """Apply *patch* atomically with per-page locking and optimistic
     concurrency.
@@ -332,6 +365,11 @@ def apply_patch(
 
     ``error_book`` defaults to ``kb.error_book.log_lint_failure``; pass a
     callable to intercept (tests) or a module exposing ``log_lint_failure``.
+
+    ``semantic_approved`` (W5B seam, keyword-only, default ``False``) is
+    passed through to :func:`classify_patch` only — every later step
+    (digest check, lock, render, candidate validation, atomic write) is
+    unchanged.
     """
     result: Dict[str, Any] = {
         "status": None,
@@ -349,8 +387,15 @@ def apply_patch(
         result["error"] = "; ".join(errors)
         return result
 
-    # 1. Deterministic policy.
-    policy = classify_patch(patch, wiki_root)
+    # 1. Deterministic policy. The W5B semantic-approval flag only feeds
+    # the classifier; every later gate (digest, lock, render, candidate
+    # lint, atomic write) is identical for flagged and unflagged patches.
+    # The default path keeps the exact W5A call shape (no extra keyword),
+    # so existing W5A-era classify_patch stand-ins stay compatible.
+    if semantic_approved:
+        policy = classify_patch(patch, wiki_root, semantic_approved=True)
+    else:
+        policy = classify_patch(patch, wiki_root)
     if policy == "rejected":
         result["status"] = "rejected"
         result["error"] = (
@@ -545,6 +590,35 @@ def _atomic_write(target_path: Path, content: str) -> None:
 # Suggestion files
 # ---------------------------------------------------------------------------
 
+def _carried_evolution(path: Path) -> Dict[str, Any]:
+    """Return the existing suggestion file's ``evolution`` object EXACTLY,
+    or a copy of the design §7 fresh state when no file exists yet.
+
+    Re-emitting the same deterministic patch must never reset durable
+    evolution state (design §7: the suggestion JSON remains the queue).
+    An existing file that is malformed JSON — or a payload without a
+    proper ``evolution`` object — is a compiler-integrity failure:
+    :class:`WikiValidationError` is raised and the file is never
+    silently overwritten.
+    """
+    if not path.exists():
+        return dict(_FRESH_EVOLUTION_STATE)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise WikiValidationError(
+            f"malformed suggestion JSON at {path}: {exc}"
+        ) from exc
+    if not isinstance(payload, dict) or not isinstance(
+        payload.get("evolution"), dict
+    ):
+        raise WikiValidationError(
+            f"malformed suggestion payload at {path}: "
+            "'evolution' object missing or invalid"
+        )
+    return payload["evolution"]
+
+
 def _write_suggestion(patch: WikiPatch, wiki_root: Path) -> Path:
     """Write a deterministic suggestion JSON (atomic), return its path.
 
@@ -560,6 +634,7 @@ def _write_suggestion(patch: WikiPatch, wiki_root: Path) -> Path:
             current_text = target.read_text(encoding="utf-8")
         except OSError:
             current_text = None
+    path = sugg_dir / f"{_safe_slug(patch.target_slug)}-{patch.patch_id}.json"
     payload = {
         # Design §5.4: the suggestion file stores the FULL serialized
         # WikiPatch (re-deserializable via WikiPatch.from_dict) plus the
@@ -568,15 +643,44 @@ def _write_suggestion(patch: WikiPatch, wiki_root: Path) -> Path:
         "policy_hint": "suggestion_only",
         "reason": patch.reason,
         "suggested_content": _render_candidate(patch, current_text),
+        # Design §7: durable evolution state. Fresh on first write; on a
+        # re-emission of the same patch the existing deterministic file's
+        # evolution object is carried forward EXACTLY (terminal/retry state
+        # must never be reset by compiler reruns).
+        "evolution": _carried_evolution(path),
         # Flat convenience mirrors (kept for existing readers/tests).
         "patch_id": patch.patch_id,
         "target_slug": patch.target_slug,
         "operations": [asdict(o) for o in patch.operations],
         "evidence": [asdict(ev) for ev in patch.evidence],
     }
-    path = sugg_dir / f"{_safe_slug(patch.target_slug)}-{patch.patch_id}.json"
     _atomic_write(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     return path
+
+
+def update_suggestion_evolution(path: Path, evolution: dict) -> None:
+    """Atomically replace ONLY ``payload['evolution']`` in an existing
+    suggestion JSON file (design §7 worker transitions: retry/reject/apply).
+
+    Every other payload key is preserved exactly. A missing or malformed
+    file is a compiler-integrity failure (:class:`WikiValidationError`) —
+    never created or clobbered.
+    """
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise WikiValidationError(
+            f"cannot read suggestion JSON at {path}: {exc}"
+        ) from exc
+    if not isinstance(payload, dict) or not isinstance(
+        payload.get("evolution"), dict
+    ):
+        raise WikiValidationError(
+            f"malformed suggestion payload at {path}: "
+            "'evolution' object missing or invalid"
+        )
+    payload["evolution"] = evolution
+    _atomic_write(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
 
 
 # ---------------------------------------------------------------------------

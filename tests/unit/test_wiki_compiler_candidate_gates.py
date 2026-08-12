@@ -332,6 +332,58 @@ def test_error_book_records_candidate_integrity_failure(wiki_root: Path):
 
 
 # ---------------------------------------------------------------------------
+# 5b. W5B attack: semantic_approved=True does not bypass the candidate gates
+# ---------------------------------------------------------------------------
+
+def test_semantic_approved_upsert_candidate_invalid_citation_still_rejected(
+    wiki_root: Path,
+):
+    """W5B attack: semantic_approved=True promotes an existing-page
+    UPSERT_SECTION to auto_apply, but the FINAL CANDIDATE VALIDATION gate
+    still rejects an unresolvable [^N] citation — rejected, no write,
+    Error Book entry with patch provenance."""
+    from kb.wiki_compiler.engine import apply_patch
+    from kb.wiki_compiler.models import page_digest
+
+    target = _target(wiki_root, "gated")
+    target.write_text(_CANONICAL_PAGE, encoding="utf-8")
+    before = target.read_text(encoding="utf-8")
+
+    calls = []
+    recorder = lambda failure: calls.append(failure)  # noqa: E731
+
+    patch = WikiPatch(
+        patch_schema_version=1,
+        patch_id="wpatch-w5b-cite-0001",
+        target_slug="gated",
+        target_path="kb/wiki/entities/gated.md",
+        target_kind="entity",
+        base_digest=page_digest(before),
+        trigger="test",
+        evidence_pack_id="pack-1",
+        operations=(PatchOperation(
+            op="UPSERT_SECTION", section="Definition / Overview",
+            content="Body with a dangling citation [^9]", metadata={},
+        ),),
+        evidence=(_article("aaaaaaaaaa"),),
+        policy_hint="auto_apply",
+        reason="candidate gate test",
+        created_at=_EPOCH,
+        compiler_version="v2.0-w5a",
+    )
+
+    result = apply_patch(patch, wiki_root, error_book=recorder,
+                         semantic_approved=True)
+    assert result["status"] == "rejected"
+    assert len(calls) == 1, f"expected exactly one Error Book entry: {calls}"
+    assert calls[0]["lint_name"] == "wiki_compiler:candidate_integrity"
+    assert calls[0]["patch_id"] == "wpatch-w5b-cite-0001"
+    # Page never written, suggestion never emitted.
+    assert target.read_text(encoding="utf-8") == before
+    assert not list((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
+
+
+# ---------------------------------------------------------------------------
 # 6. Guard: existing W5A UAT-good fixture shape still passes the gates
 # ---------------------------------------------------------------------------
 

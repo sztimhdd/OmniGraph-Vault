@@ -421,6 +421,139 @@ def test_classify_page_registry_override(wiki_root: Path):
     assert classify_patch(patch, wiki_root, page_registry=registry) == "auto_apply"
 
 
+def test_classify_semantic_approved_promotes_existing_update_patch(wiki_root: Path):
+    """W5B seam: an existing-page MERGE_SOURCES + UPSERT_SECTION +
+    SET_METADATA(last_updated) patch is auto_apply ONLY with
+    semantic_approved=True; the default stays suggestion_only (W5A)."""
+    from kb.wiki_compiler.engine import classify_patch
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    patch = _make_patch(
+        ops=(
+            PatchOperation(op="MERGE_SOURCES", section=None, content=None, metadata=None),
+            PatchOperation(
+                op="UPSERT_SECTION", section="Definition / Overview",
+                content="New body [^1]", metadata=None,
+            ),
+            PatchOperation(
+                op="SET_METADATA", section=None, content=None,
+                metadata={"last_updated": "2026-08-12"},
+            ),
+        ),
+        base_digest=page_digest(target.read_text(encoding="utf-8")),
+        patch_id="wpatch-w5b-promo-0001",
+    )
+    assert classify_patch(patch, wiki_root) == "suggestion_only"
+    assert classify_patch(patch, wiki_root, semantic_approved=True) == "auto_apply"
+
+
+def test_classify_semantic_approved_legacy_non_article_still_suggestion(wiki_root: Path):
+    """W5B attack: semantic_approved=True must NOT promote an UPSERT_SECTION
+    patch whose evidence is provenance-incompatible with the legacy page
+    (web/builtin cannot be represented in the old `- article:<hex>` format)."""
+    from kb.wiki_compiler.engine import classify_patch
+    target = _write_page(wiki_root, "agent", _LEGACY_PAGE)
+    web_ev = EvidenceRef(
+        evidence_id="e2", type="web", ref="https://example.com/doc",
+        title="Web Doc", provenance="tavily-web", metadata={},
+    )
+    patch = _make_patch(
+        slug="agent",
+        ops=(PatchOperation(
+            op="UPSERT_SECTION", section="Definition / Overview",
+            content="New body [^1]", metadata=None,
+        ),),
+        base_digest=page_digest(target.read_text(encoding="utf-8")),
+        evidence=(web_ev,),
+        patch_id="wpatch-w5b-legacy-0001",
+    )
+    assert classify_patch(patch, wiki_root) == "suggestion_only"
+    assert classify_patch(patch, wiki_root, semantic_approved=True) == "suggestion_only"
+
+
+def test_classify_semantic_approved_critical_metadata_still_suggestion(wiki_root: Path):
+    """W5B attack: semantic_approved=True must NOT bypass the critical
+    metadata gate — SET_METADATA on `created`/`title`/`sources` forces
+    suggestion_only even as a sibling of an UPSERT_SECTION (design §5.3)."""
+    from kb.wiki_compiler.engine import classify_patch
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    patch = _make_patch(
+        ops=(
+            PatchOperation(
+                op="UPSERT_SECTION", section="Definition / Overview",
+                content="New body [^1]", metadata=None,
+            ),
+            PatchOperation(
+                op="SET_METADATA", section=None, content=None,
+                metadata={"created": "1999-01-01"},
+            ),
+        ),
+        base_digest=page_digest(target.read_text(encoding="utf-8")),
+        patch_id="wpatch-w5b-critmd-0001",
+    )
+    assert classify_patch(patch, wiki_root, semantic_approved=True) == "suggestion_only"
+
+
+def test_classify_semantic_approved_delete_page_never_promoted(wiki_root: Path):
+    """W5B attack: semantic_approved=True must NOT promote DELETE_PAGE
+    (W5A property 7: deletes are always rejected)."""
+    from kb.wiki_compiler.engine import classify_patch
+    patch = _raw_patch(
+        operations=(_make_op(op="DELETE_PAGE"),),
+        patch_id="wpatch-w5b-del-0001",
+    )
+    assert classify_patch(patch, wiki_root, semantic_approved=True) == "rejected"
+
+
+def test_classify_semantic_approved_create_page_behavior_unchanged(wiki_root: Path):
+    """W5B compat: CREATE_PAGE policy is byte-for-byte unchanged — the flag
+    only affects existing-page UPSERT_SECTION promotion, and the default
+    call (no flag) is identical to an explicit semantic_approved=False."""
+    from kb.wiki_compiler.engine import classify_patch
+    # CREATE_PAGE on a missing page: auto_apply with and without the flag.
+    missing = _make_patch(patch_id="wpatch-w5b-create-0001")
+    assert classify_patch(missing, wiki_root) == "auto_apply"
+    assert classify_patch(missing, wiki_root, semantic_approved=True) == "auto_apply"
+    # CREATE_PAGE on an existing page: never clobber, flag or not.
+    _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    existing = _make_patch(
+        ops=(PatchOperation(
+            op="CREATE_PAGE", section=None,
+            content=_PAGE_CONTENT, metadata={"title": "Python Debugging"},
+        ),),
+        patch_id="wpatch-w5b-create-0002",
+    )
+    assert classify_patch(existing, wiki_root) == "suggestion_only"
+    assert classify_patch(existing, wiki_root, semantic_approved=True) == "suggestion_only"
+    # Default call is exactly the explicit-False call.
+    assert classify_patch(missing, wiki_root) == classify_patch(
+        missing, wiki_root, semantic_approved=False
+    )
+
+
+def test_apply_patch_semantic_approved_digest_conflict_still_conflicts(wiki_root: Path):
+    """W5B seam at apply: semantic_approved=True is passed through to
+    classify_patch only — the optimistic-concurrency digest check still
+    conflicts on a stale base and never overwrites the page."""
+    from kb.wiki_compiler.engine import apply_patch
+    target = _write_page(wiki_root, "python-debugging", _EXISTING_PAGE)
+    before = target.read_text(encoding="utf-8")
+    patch = _make_patch(
+        ops=(PatchOperation(
+            op="UPSERT_SECTION", section="Definition / Overview",
+            content="New body [^1]", metadata=None,
+        ),),
+        base_digest=page_digest("stale-content-that-never-existed"),
+        patch_id="wpatch-w5b-conflict-0001",
+    )
+    # Without the flag the same patch stays suggestion_only (W5A default).
+    assert apply_patch(patch, wiki_root)["status"] == "suggestion"
+    # With the flag it is promoted to auto_apply, then hits the digest gate.
+    result = apply_patch(patch, wiki_root, semantic_approved=True)
+    assert result["status"] == "conflict"
+    assert "digest" in result["error"].lower()
+    assert target.read_text(encoding="utf-8") == before
+
+
 # ---------------------------------------------------------------------------
 # 3. apply_patch — atomicity, concurrency, suggestions, error book
 # ---------------------------------------------------------------------------
