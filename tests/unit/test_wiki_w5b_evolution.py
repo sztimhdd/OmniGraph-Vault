@@ -39,6 +39,7 @@ from kb.wiki_compiler.models import (
     PatchOperation,
     WikiPatch,
     page_digest,
+    stable_patch_id,
 )
 
 _EPOCH = "2026-08-11T00:00:00Z"
@@ -332,7 +333,13 @@ def test_worker_scan_sorted_deterministic_and_eligibility(wiki_root: Path) -> No
     assert report["eligible"] == [str(p_pending)]
     assert sorted(report["skipped"]) == sorted([str(p_terminal), str(p_notdue)])
     assert report["attempted"] == [str(p_pending)]
-    assert report["outcomes"] == {}
+    # S8: dry-run now EVALUATES attempted suggestions — with no index the
+    # evidence cannot hydrate, so the outcome is a would_retry report,
+    # never a persisted state.
+    outcome = report["outcomes"][str(p_pending)]
+    assert outcome["status"] == "would_retry"
+    assert outcome["attempt"] is True
+    assert "missing local evidence" in outcome["reason"]
 
 
 def test_worker_limit_counts_eligible_attempts_only(wiki_root: Path) -> None:
@@ -359,7 +366,13 @@ def test_worker_limit_counts_eligible_attempts_only(wiki_root: Path) -> None:
     assert report["scanned"] == 5
     assert report["attempted"] == [str(p_ccc), str(p_ddd)]  # first 2 eligible, sorted
     assert len(report["skipped"]) == 2  # the terminal files
-    assert report["outcomes"] == {}
+    # S8: the attempted eligible suggestions report would_* outcomes (no
+    # index -> hydration missing -> would_retry), nothing is written.
+    assert set(report["outcomes"]) == {str(p_ccc), str(p_ddd)}
+    assert all(
+        o["status"] == "would_retry" and o["attempt"] is True
+        for o in report["outcomes"].values()
+    )
 
     # without a limit every eligible file is attempted
     unlimited = run_worker(wiki_root, now=now, dry_run=True)
@@ -397,7 +410,10 @@ def test_dry_run_no_mutation_no_lazy_state_no_new_files(wiki_root: Path) -> None
     # the missing pending evolution state was NOT lazily written
     assert "evolution" not in json.loads(p_w5a.read_text(encoding="utf-8"))
     assert json.loads(p_retry.read_text(encoding="utf-8"))["evolution"]["status"] == "retry"
-    assert report["outcomes"] == {}
+    # S8: both attempted suggestions are hydration-missing (no index) so
+    # the outcomes are would_retry reports — still zero bytes written.
+    assert set(report["outcomes"]) == {str(p_w5a), str(p_retry)}
+    assert all(o["status"] == "would_retry" for o in report["outcomes"].values())
 
 
 # ---------------------------------------------------------------------------
@@ -566,13 +582,21 @@ def test_hydration_is_local_only_no_network_imports(conn: sqlite3.Connection, mo
 def test_worker_evaluates_with_exactly_one_call_and_fresh_page(
     wiki_root: Path,
     conn: sqlite3.Connection,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A hydration-ready suggestion is evaluated with exactly one injected
-    provider call; the prompt carries the current page read FRESH from disk
-    (the payload's ``suggested_content`` is never used as authority), and
-    the outcome is reported without writing anything."""
+    """An APPLY decision promotes the suggestion to a FRESH patch bound to
+    the page currently on disk and applies it through the engine with
+    ``semantic_approved=True``: exactly one injected provider call, the
+    prompt carries the current page read FRESH from disk (the payload's
+    ``suggested_content`` is never used as authority), ``apply_patch`` is
+    called EXACTLY ONCE with a FRESH patch id, the page on disk is updated
+    (new body, merged source, refreshed ``last_updated``), the applied
+    transition is persisted (attempts=1, ``applied_patch_id`` == fresh
+    patch id, no retry), and the injected Error Book recorder stays
+    empty."""
     from kb.wiki_articles import load_article_index
-    from scripts.wiki_evolve import SYSTEM_PROMPT, run_worker
+    from kb.wiki_compiler.engine import apply_patch as engine_apply_patch
+    from scripts.wiki_evolve import SYSTEM_PROMPT, _parse_iso_dt, run_worker
 
     url = "https://example.com/rss/evolution-post"
     ref = _ref(url)
@@ -600,35 +624,307 @@ def test_worker_evaluates_with_exactly_one_call_and_fresh_page(
     )
     # the page on disk is the authority
     _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
-    before = path.read_bytes()
 
-    calls: list[tuple[str, str | None]] = []
+    eval_calls: list[tuple[str, str | None]] = []
 
     async def complete(prompt: str, system_prompt: str | None = None) -> str:
-        calls.append((prompt, system_prompt))
+        eval_calls.append((prompt, system_prompt))
         return json.dumps({
             "decision": "APPLY",
             "reason": "evidence supports",
             "sections": [{"heading": "Definition / Overview", "content": "New body [^1]"}],
         })
 
-    report = run_worker(wiki_root, now=now, index=index, complete=complete)
+    # Record the worker's engine call and delegate to the REAL apply_patch
+    # so the page write, digest gate and candidate validation all run.
+    apply_calls: list[tuple[WikiPatch, dict]] = []
+
+    def recording_apply_patch(
+        candidate, wiki_root_arg, wiki_update=None, error_book=None, *,
+        semantic_approved=False,
+    ):
+        apply_calls.append((candidate, {
+            "wiki_root": wiki_root_arg, "wiki_update": wiki_update,
+            "error_book": error_book, "semantic_approved": semantic_approved,
+        }))
+        return engine_apply_patch(
+            candidate, wiki_root_arg, wiki_update=wiki_update,
+            error_book=error_book, semantic_approved=semantic_approved,
+        )
+
+    monkeypatch.setattr("scripts.wiki_evolve.apply_patch", recording_apply_patch)
+    error_book: list[dict] = []
+
+    def record_error(entry: dict) -> None:
+        error_book.append(entry)
+
+    report = run_worker(
+        wiki_root, now=now, index=index, complete=complete,
+        error_book=record_error,
+    )
 
     assert report["attempted"] == [str(path)]
     outcome = report["outcomes"][str(path)]
-    assert outcome["status"] == "evaluated"
-    assert outcome["decision"] == "APPLY"
-    assert outcome["reason"] == "evidence supports"
-    assert len(outcome["sections"]) == 1
-    assert len(calls) == 1, "exactly one evaluator call per eligible suggestion"
-    prompt, system_prompt = calls[0]
+    assert outcome["status"] == "applied"
+    assert outcome["attempt"] is True
+    assert outcome["reason"] == "applied"
+    assert len(eval_calls) == 1, "exactly one evaluator call per eligible suggestion"
+    prompt, system_prompt = eval_calls[0]
     assert system_prompt == SYSTEM_PROMPT
     assert "Old section body [^1]" in prompt  # fresh disk page, not suggested_content
     assert "STALE SUGGESTED CONTENT" not in prompt
     assert "Real RSS Title" in prompt  # hydrated real title
     assert "Real RSS summary body." in prompt
-    assert path.read_bytes() == before
-    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+
+    # the promoted patch is FRESH (new id), has the W5B op shape, and the
+    # engine is reached exactly once with semantic approval
+    assert len(apply_calls) == 1, "apply_patch must be called exactly once"
+    fresh, apply_kwargs = apply_calls[0]
+    assert apply_kwargs["semantic_approved"] is True
+    assert fresh.patch_id != patch.patch_id, "a FRESH patch id, never the suggestion's"
+    assert [o.op for o in fresh.operations] == [
+        "MERGE_SOURCES", "UPSERT_SECTION", "SET_METADATA",
+    ]
+    assert fresh.base_digest == page_digest(CANONICAL_PAGE)
+
+    # the page on disk is updated: new body, merged source (id 2), refreshed
+    page_text = (wiki_root / "kb" / "wiki" / "entities" / f"{patch.target_slug}.md").read_text(
+        encoding="utf-8"
+    )
+    assert "New body [^1]" in page_text
+    assert "Old section body [^1]" not in page_text
+    assert "Real RSS Title" in page_text, "the RSS source is merged into sources"
+    assert "- id: 2" in page_text
+    assert "2026-08-12" in page_text, "last_updated is refreshed by SET_METADATA"
+
+    # the applied transition is persisted; no retry scheduled
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "applied"
+    assert evolution["attempts"] == 1
+    assert evolution["applied_patch_id"] == fresh.patch_id
+    assert evolution["last_decision"] == "APPLY"
+    assert evolution["next_retry_at"] is None
+    assert _parse_iso_dt(evolution["last_evaluated_at"]) == now
+    assert error_book == [], "a clean apply must never reach the Error Book"
+
+
+def test_worker_apply_conflict_page_drift_retry_never_overwrites(
+    wiki_root: Path,
+    conn: sqlite3.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A concurrent page write between the worker's page read and the
+    engine's apply is an optimistic-concurrency CONFLICT: the promoted
+    patch's base digest no longer matches the page on disk. The worker
+    maps it to a RETRY transition (one attempt, +1 day backoff) carrying
+    the engine's digest-mismatch reason — the concurrent writer's content
+    is NEVER overwritten, the Error Book stays empty (a conflict is a
+    race, not a candidate-integrity failure), and exactly one evaluator
+    call is made."""
+    from kb.wiki_articles import load_article_index
+    from kb.wiki_compiler.engine import apply_patch as engine_apply_patch
+    from scripts.wiki_evolve import _parse_iso_dt, run_worker
+
+    url = "https://example.com/rss/evolution-post"
+    ref = _ref(url)
+    conn.execute(
+        "INSERT INTO rss_articles (id, url, title, summary, content_hash) VALUES (?, ?, ?, ?, ?)",
+        (1, url, "Real RSS Title", "Real RSS summary body.", "x" * 32),
+    )
+    index = load_article_index(conn)
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
+
+    patch = _make_patch(
+        patch_id="wpatch-w5b-t4-aaa",
+        evidence=(
+            EvidenceRef(
+                evidence_id="e1", type="article", ref=ref, title=ref,
+                provenance="lightrag-corpus", metadata={"source": "rss"},
+            ),
+        ),
+    )
+    path = _write_suggestion(wiki_root, patch)
+    page_path = _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
+
+    eval_calls: list[str] = []
+
+    async def complete(prompt: str, system_prompt: str | None = None) -> str:
+        eval_calls.append(prompt)
+        # Simulate a concurrent writer between the worker's page read and
+        # the engine's apply: the on-disk page drifts under the candidate.
+        with page_path.open("a", encoding="utf-8") as fh:
+            fh.write("\nCONCURRENT WRITER APPEND\n")
+        return json.dumps({
+            "decision": "APPLY",
+            "reason": "evidence supports",
+            "sections": [{"heading": "Definition / Overview", "content": "New body [^1]"}],
+        })
+
+    # Record the worker's engine call and delegate to the REAL apply_patch
+    # so the digest gate (conflict) and candidate validation all run.
+    apply_calls: list[tuple[WikiPatch, dict]] = []
+
+    def recording_apply_patch(
+        candidate, wiki_root_arg, wiki_update=None, error_book=None, *,
+        semantic_approved=False,
+    ):
+        apply_calls.append((candidate, {
+            "wiki_root": wiki_root_arg, "wiki_update": wiki_update,
+            "error_book": error_book, "semantic_approved": semantic_approved,
+        }))
+        return engine_apply_patch(
+            candidate, wiki_root_arg, wiki_update=wiki_update,
+            error_book=error_book, semantic_approved=semantic_approved,
+        )
+
+    monkeypatch.setattr("scripts.wiki_evolve.apply_patch", recording_apply_patch)
+    error_book: list[dict] = []
+
+    def record_error(entry: dict) -> None:
+        error_book.append(entry)
+
+    report = run_worker(
+        wiki_root, now=now, index=index, complete=complete,
+        error_book=record_error,
+    )
+
+    outcome = report["outcomes"][str(path)]
+    assert outcome["status"] == "retry"
+    assert outcome["attempt"] is True
+    assert "digest mismatch" in outcome["reason"]
+    assert len(eval_calls) == 1, "exactly one evaluator call per eligible suggestion"
+    assert len(apply_calls) == 1, "apply_patch must be called exactly once"
+    fresh, apply_kwargs = apply_calls[0]
+    assert apply_kwargs["semantic_approved"] is True
+    assert fresh.base_digest == page_digest(CANONICAL_PAGE), \
+        "the promoted patch pins the PRE-mutation page text"
+
+    # the concurrent writer's content survives: never overwritten
+    page_text = page_path.read_text(encoding="utf-8")
+    assert "CONCURRENT WRITER APPEND" in page_text
+    assert "New body [^1]" not in page_text
+
+    # the retry transition is PERSISTED: one attempt, +1 day backoff
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "retry"
+    assert evolution["attempts"] == 1
+    assert _parse_iso_dt(evolution["next_retry_at"]) == now + timedelta(days=1)
+    assert _parse_iso_dt(evolution["last_evaluated_at"]) == now
+    assert evolution["last_decision"] == "RETRY"
+    assert "digest mismatch" in evolution["last_reason"]
+    assert error_book == [], "a digest conflict is a race, never an Error Book failure"
+
+
+def test_worker_apply_candidate_rejected_retry_never_applied_error_book_once(
+    wiki_root: Path,
+    conn: sqlite3.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A compiler candidate-integrity rejection at apply time (dangling
+    ``[^N]`` citation in the model's section content) is NEVER applied:
+    the page stays byte-identical, the engine writes EXACTLY ONE Error
+    Book entry (``wiki_compiler:candidate_integrity``) carrying the fresh
+    patch's id, and the worker maps the rejection to a RETRY transition
+    (one attempt, +1 day backoff) with the engine's reason — never a
+    second Error Book entry from the worker."""
+    from kb.wiki_articles import load_article_index
+    from kb.wiki_compiler.engine import apply_patch as engine_apply_patch
+    from scripts.wiki_evolve import _parse_iso_dt, run_worker
+
+    url = "https://example.com/rss/evolution-post"
+    ref = _ref(url)
+    conn.execute(
+        "INSERT INTO rss_articles (id, url, title, summary, content_hash) VALUES (?, ?, ?, ?, ?)",
+        (1, url, "Real RSS Title", "Real RSS summary body.", "x" * 32),
+    )
+    index = load_article_index(conn)
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
+
+    patch = _make_patch(
+        patch_id="wpatch-w5b-t4-aaa",
+        evidence=(
+            EvidenceRef(
+                evidence_id="e1", type="article", ref=ref, title=ref,
+                provenance="lightrag-corpus", metadata={"source": "rss"},
+            ),
+        ),
+    )
+    path = _write_suggestion(wiki_root, patch)
+    page_path = _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
+
+    eval_calls: list[str] = []
+
+    async def complete(prompt: str, system_prompt: str | None = None) -> str:
+        eval_calls.append(prompt)
+        # The model's approved section carries a citation token with no
+        # matching frontmatter sources[] entry — the engine's final
+        # candidate-integrity gate (GAP 1) must reject it, not write it.
+        return json.dumps({
+            "decision": "APPLY",
+            "reason": "evidence supports",
+            "sections": [{"heading": "Definition / Overview", "content": "Bogus [^99]"}],
+        })
+
+    # Record the worker's engine call and delegate to the REAL apply_patch
+    # so the candidate validation, Error Book entry and no-write all run.
+    apply_calls: list[tuple[WikiPatch, dict]] = []
+
+    def recording_apply_patch(
+        candidate, wiki_root_arg, wiki_update=None, error_book=None, *,
+        semantic_approved=False,
+    ):
+        apply_calls.append((candidate, {
+            "wiki_root": wiki_root_arg, "wiki_update": wiki_update,
+            "error_book": error_book, "semantic_approved": semantic_approved,
+        }))
+        return engine_apply_patch(
+            candidate, wiki_root_arg, wiki_update=wiki_update,
+            error_book=error_book, semantic_approved=semantic_approved,
+        )
+
+    monkeypatch.setattr("scripts.wiki_evolve.apply_patch", recording_apply_patch)
+    error_book: list[dict] = []
+
+    def record_error(entry: dict) -> None:
+        error_book.append(entry)
+
+    report = run_worker(
+        wiki_root, now=now, index=index, complete=complete,
+        error_book=record_error,
+    )
+
+    outcome = report["outcomes"][str(path)]
+    assert outcome["status"] == "retry"
+    assert outcome["attempt"] is True
+    assert "id not in frontmatter sources[]" in outcome["reason"]
+    assert len(eval_calls) == 1, "exactly one evaluator call per eligible suggestion"
+    assert len(apply_calls) == 1, "apply_patch must be called exactly once"
+    fresh, apply_kwargs = apply_calls[0]
+    assert apply_kwargs["semantic_approved"] is True
+
+    # NEVER applied: the page is byte-identical, the bogus citation never
+    # reached it
+    page_text = page_path.read_text(encoding="utf-8")
+    assert "Old section body [^1]" in page_text
+    assert "Bogus [^99]" not in page_text
+
+    # EXACTLY ONE Error Book entry, written by the ENGINE's candidate
+    # gate — the worker must not add a second one
+    assert len(error_book) == 1
+    assert error_book[0]["lint_name"] == "wiki_compiler:candidate_integrity"
+    assert error_book[0]["patch_id"] == fresh.patch_id
+    assert error_book[0]["failures"] == ["[^99]: id not in frontmatter sources[]"]
+
+    # the retry transition is PERSISTED: one attempt, +1 day backoff
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "retry"
+    assert evolution["attempts"] == 1
+    assert _parse_iso_dt(evolution["next_retry_at"]) == now + timedelta(days=1)
+    assert _parse_iso_dt(evolution["last_evaluated_at"]) == now
+    assert evolution["last_decision"] == "RETRY"
+    assert "id not in frontmatter sources[]" in evolution["last_reason"]
+    assert evolution["applied_patch_id"] is None, \
+        "a compiler-rejected candidate is NEVER applied"
 
 
 def test_worker_provider_exception_retryable_exactly_one_call(
@@ -637,9 +933,9 @@ def test_worker_provider_exception_retryable_exactly_one_call(
 ) -> None:
     """A provider exception/timeout is a retryable outcome: exactly one
     call was made, no retry inside the same attempt, no second judge, and
-    nothing is written."""
+    the retry transition is persisted with a +1 day backoff."""
     from kb.wiki_articles import load_article_index
-    from scripts.wiki_evolve import run_worker
+    from scripts.wiki_evolve import _parse_iso_dt, run_worker
 
     url = "https://example.com/rss/evolution-post"
     ref = _ref(url)
@@ -661,7 +957,6 @@ def test_worker_provider_exception_retryable_exactly_one_call(
     )
     path = _write_suggestion(wiki_root, patch)
     _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
-    before = path.read_bytes()
 
     calls: list[str] = []
 
@@ -673,10 +968,21 @@ def test_worker_provider_exception_retryable_exactly_one_call(
 
     outcome = report["outcomes"][str(path)]
     assert outcome["status"] == "retry"
+    assert outcome["attempt"] is True
     assert "evaluator call failed" in outcome["reason"]
     assert len(calls) == 1, "no second call after a provider failure"
-    assert path.read_bytes() == before
-    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    # the retry transition is PERSISTED: one attempt, +1 day backoff
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "retry"
+    assert evolution["attempts"] == 1
+    assert _parse_iso_dt(evolution["next_retry_at"]) == now + timedelta(days=1)
+    assert _parse_iso_dt(evolution["last_evaluated_at"]) == now
+    assert evolution["last_decision"] == "RETRY"
+    assert "evaluator call failed" in evolution["last_reason"]
+    page = (wiki_root / "kb" / "wiki" / "entities" / f"{patch.target_slug}.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Old section body [^1]" in page, "a retry must never touch the page"
 
 
 def test_worker_malformed_evaluator_output_retryable_exactly_one_call(
@@ -685,9 +991,10 @@ def test_worker_malformed_evaluator_output_retryable_exactly_one_call(
 ) -> None:
     """Malformed evaluator output is a retryable outcome: exactly one call
     was made, the strict parser's rejection is surfaced (no immediate
-    repeat, no second judge), and nothing is written."""
+    repeat, no second judge), and the retry transition is persisted with
+    a +1 day backoff."""
     from kb.wiki_articles import load_article_index
-    from scripts.wiki_evolve import run_worker
+    from scripts.wiki_evolve import _parse_iso_dt, run_worker
 
     url = "https://example.com/rss/evolution-post"
     ref = _ref(url)
@@ -709,7 +1016,6 @@ def test_worker_malformed_evaluator_output_retryable_exactly_one_call(
     )
     path = _write_suggestion(wiki_root, patch)
     _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
-    before = path.read_bytes()
 
     calls: list[str] = []
 
@@ -721,21 +1027,34 @@ def test_worker_malformed_evaluator_output_retryable_exactly_one_call(
 
     outcome = report["outcomes"][str(path)]
     assert outcome["status"] == "retry"
+    assert outcome["attempt"] is True
     assert "malformed evaluator response" in outcome["reason"]
     assert len(calls) == 1, "no immediate repeat after a malformed response"
-    assert path.read_bytes() == before
-    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    # the retry transition is PERSISTED: one attempt, +1 day backoff
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "retry"
+    assert evolution["attempts"] == 1
+    assert _parse_iso_dt(evolution["next_retry_at"]) == now + timedelta(days=1)
+    assert _parse_iso_dt(evolution["last_evaluated_at"]) == now
+    assert evolution["last_decision"] == "RETRY"
+    assert "malformed evaluator response" in evolution["last_reason"]
+    page = (wiki_root / "kb" / "wiki" / "entities" / f"{patch.target_slug}.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Old section body [^1]" in page, "a retry must never touch the page"
 
 
-def test_worker_missing_current_page_retryable_no_provider_call(
+def test_worker_missing_target_page_superseded_no_provider_call(
     wiki_root: Path,
     conn: sqlite3.Connection,
 ) -> None:
-    """A suggestion whose target page cannot be read fresh from disk is a
-    retryable pre-evaluation outcome — the evaluator is never invoked and
-    nothing is written."""
+    """A suggestion whose target page does NOT exist on disk is a TERMINAL
+    ``superseded`` transition — the target is gone, so the suggestion is
+    meaningless: the transition is persisted with exactly one attempt, the
+    evaluator is never invoked, no page is created, and a later scan skips
+    the file forever (never re-attempted)."""
     from kb.wiki_articles import load_article_index
-    from scripts.wiki_evolve import run_worker
+    from scripts.wiki_evolve import _parse_iso_dt, run_worker
 
     url = "https://example.com/rss/evolution-post"
     ref = _ref(url)
@@ -757,7 +1076,7 @@ def test_worker_missing_current_page_retryable_no_provider_call(
     )
     path = _write_suggestion(wiki_root, patch)
     # NOTE: no page is written on disk — the target entity is missing
-    before = path.read_bytes()
+    page_path = wiki_root / "kb" / "wiki" / "entities" / f"{patch.target_slug}.md"
 
     calls: list[str] = []
 
@@ -768,11 +1087,25 @@ def test_worker_missing_current_page_retryable_no_provider_call(
     report = run_worker(wiki_root, now=now, index=index, complete=complete)
 
     outcome = report["outcomes"][str(path)]
-    assert outcome["status"] == "retry"
-    assert "cannot read current page" in outcome["reason"]
-    assert calls == [], "no provider call when the current page is unreadable"
-    assert path.read_bytes() == before
-    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    assert outcome["status"] == "superseded"
+    assert outcome["attempt"] is True
+    assert "no longer exists" in outcome["reason"]
+    assert calls == [], "no provider call when the target page is missing"
+    assert not page_path.exists(), "superseding must never create the page"
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "superseded"
+    assert evolution["attempts"] == 1
+    assert evolution["next_retry_at"] is None
+    assert _parse_iso_dt(evolution["last_evaluated_at"]) == now
+    assert evolution["last_decision"] == "SUPERSEDE"
+    assert "no longer exists" in evolution["last_reason"]
+    assert evolution["applied_patch_id"] is None
+
+    # superseded is terminal: a later scan skips the file without re-attempting
+    report2 = run_worker(wiki_root, now=now, index=index, complete=complete)
+    assert report2["skipped"] == [str(path)]
+    assert str(path) not in report2["attempted"]
+    assert str(path) not in report2["outcomes"]
 
 
 def test_worker_malicious_target_slug_reads_only_valid_target_path_page(
@@ -826,7 +1159,6 @@ def test_worker_malicious_target_slug_reads_only_valid_target_path_page(
         "TOPSECRET EXTERNAL MARKER, never part of the wiki\n",
         encoding="utf-8",
     )
-    before = path.read_bytes()
 
     calls: list[tuple[str, str | None]] = []
 
@@ -842,7 +1174,8 @@ def test_worker_malicious_target_slug_reads_only_valid_target_path_page(
 
     assert report["attempted"] == [str(path)]
     outcome = report["outcomes"][str(path)]
-    assert outcome["status"] == "evaluated"
+    assert outcome["status"] == "applied"
+    assert outcome["attempt"] is True
     assert len(calls) == 1, "exactly one evaluator call per eligible suggestion"
     prompt, system_prompt = calls[0]
     assert "Old section body [^1]" in prompt, (
@@ -851,8 +1184,12 @@ def test_worker_malicious_target_slug_reads_only_valid_target_path_page(
     assert "TOPSECRET EXTERNAL MARKER" not in prompt, (
         "a malicious target_slug must never read outside the target_path page"
     )
-    assert path.read_bytes() == before
-    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    # the applied transition is persisted on the VALID sibling
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "applied"
+    assert evolution["attempts"] == 1
+    assert evolution["last_decision"] == "APPLY"
+    assert evolution["next_retry_at"] is None
 
 
 def test_worker_w3_wiki_relative_target_path_reads_real_page_once(
@@ -898,7 +1235,6 @@ def test_worker_w3_wiki_relative_target_path_reads_real_page_once(
         "WRONG LOCATION DECOY, must never reach the evaluator\n",
         encoding="utf-8",
     )
-    before = path.read_bytes()
 
     calls: list[tuple[str, str | None]] = []
 
@@ -914,8 +1250,8 @@ def test_worker_w3_wiki_relative_target_path_reads_real_page_once(
 
     assert report["attempted"] == [str(path)]
     outcome = report["outcomes"][str(path)]
-    assert outcome["status"] == "evaluated"
-    assert outcome["decision"] == "APPLY"
+    assert outcome["status"] == "applied"
+    assert outcome["attempt"] is True
     assert len(calls) == 1, "exactly one evaluator call per eligible suggestion"
     prompt, _ = calls[0]
     assert "Old section body [^1]" in prompt, (
@@ -924,8 +1260,18 @@ def test_worker_w3_wiki_relative_target_path_reads_real_page_once(
     assert "WRONG LOCATION DECOY" not in prompt, (
         "a repo-root decoy must never be read for a wiki-relative target_path"
     )
-    assert path.read_bytes() == before
-    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    # the applied transition is persisted; the WRITE goes to the real page
+    # under kb/wiki, never the decoy
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "applied"
+    assert evolution["attempts"] == 1
+    assert evolution["last_decision"] == "APPLY"
+    assert evolution["next_retry_at"] is None
+    real_page = (wiki_root / "kb" / "wiki" / "entities" / f"{patch.target_slug}.md").read_text(
+        encoding="utf-8"
+    )
+    assert "New body [^1]" in real_page
+    assert "WRONG LOCATION DECOY" not in real_page
 
 
 def test_worker_outside_wiki_root_target_path_integrity_no_evaluator(
@@ -989,7 +1335,7 @@ def test_worker_outside_wiki_root_target_path_integrity_no_evaluator(
     assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
 
 
-def test_worker_symlink_escape_target_path_integrity_sibling_evaluated(
+def test_worker_symlink_escape_target_path_integrity_sibling_rejected(
     wiki_root: Path,
     conn: sqlite3.Connection,
 ) -> None:
@@ -999,7 +1345,8 @@ def test_worker_symlink_escape_target_path_integrity_sibling_evaluated(
     containment check resolves the FINAL path (following the symlink), so
     the external content is never read and never reaches the evaluator —
     and a later hydration-ready valid sibling is still evaluated exactly
-    once with nothing written (a naive in-name-only containment check
+    once — its REJECT decision persists a TERMINAL ``rejected`` transition
+    (Task 5), never a page write (a naive in-name-only containment check
     would exfiltrate the external file into the DeepSeek prompt)."""
     from kb.wiki_articles import load_article_index
     from scripts.wiki_evolve import run_worker
@@ -1074,7 +1421,7 @@ def test_worker_symlink_escape_target_path_integrity_sibling_evaluated(
     # its outcome is a NON-ATTEMPT integrity descriptor; the valid sibling
     # is still attempted and processed normally
     assert report["attempted"] == [str(p_bad), str(p_ok)]
-    assert report["outcomes"][str(p_ok)]["status"] == "evaluated"
+    assert report["outcomes"][str(p_ok)]["status"] == "rejected"
     assert len(calls) == 1, "only the valid sibling may reach the evaluator"
     assert "TOPSECRET EXFIL MARKER" not in calls[0], (
         "a symlink escape must never leak external content into the prompt"
@@ -1083,20 +1430,23 @@ def test_worker_symlink_escape_target_path_integrity_sibling_evaluated(
         "the single evaluator call must read the valid sibling's real page"
     )
 
-    after = {
-        p.name: p.read_bytes()
-        for p in sorted((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
-    }
     after_pages = {
         p.name: p.read_bytes()
         for p in sorted((wiki_root / "kb" / "wiki" / "entities").glob("*.md"))
     }
-    assert after == before, "worker must not write any suggestion"
-    assert after_pages == before_pages, "worker must not write any page"
+    assert after_pages == before_pages, "a reject must never write a page"
     assert external.read_bytes() == before_external, "external file unchanged"
     assert escaped.is_symlink(), "the escaped target must not be replaced"
+    # the corrupted file stays byte-for-byte untouched (non-attempt
+    # integrity); only the valid sibling persists its terminal REJECT
+    # transition (Task 5) — its page is never written
+    assert p_bad.read_bytes() == before[str(p_bad.name)]
     assert "evolution" not in json.loads(p_bad.read_text(encoding="utf-8"))
-    assert "evolution" not in json.loads(p_ok.read_text(encoding="utf-8"))
+    p_ok_evolution = json.loads(p_ok.read_text(encoding="utf-8"))["evolution"]
+    assert p_ok_evolution["status"] == "rejected"
+    assert p_ok_evolution["attempts"] == 1
+    assert p_ok_evolution["last_decision"] == "REJECT"
+    assert p_ok_evolution["next_retry_at"] is None
 
 
 def test_module_import_keeps_provider_import_lazy() -> None:
@@ -1131,9 +1481,10 @@ def test_worker_without_complete_reaches_lazy_provider_import(
     """Without an injected ``complete`` the worker reaches the provider
     import only at evaluation time: with the network-capable modules
     poisoned, that lazy import failure surfaces as a retryable outcome —
-    no crash, no write, and the provider import is proven call-time-local."""
+    no crash, the retry transition is persisted, and the provider import
+    is proven call-time-local."""
     from kb.wiki_articles import load_article_index
-    from scripts.wiki_evolve import run_worker
+    from scripts.wiki_evolve import _parse_iso_dt, run_worker
 
     url = "https://example.com/rss/evolution-post"
     ref = _ref(url)
@@ -1155,7 +1506,6 @@ def test_worker_without_complete_reaches_lazy_provider_import(
     )
     path = _write_suggestion(wiki_root, patch)
     _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
-    before = path.read_bytes()
 
     poisoned = {}
     for mod in ("lib.llm_deepseek", "openai", "httpx", "requests", "tavily"):
@@ -1172,26 +1522,32 @@ def test_worker_without_complete_reaches_lazy_provider_import(
 
     outcome = report["outcomes"][str(path)]
     assert outcome["status"] == "retry"
+    assert outcome["attempt"] is True
     assert "evaluator call failed" in outcome["reason"]
     assert "lib.llm_deepseek" in outcome["reason"], (
         "the lazy provider import must be the attempted call path"
     )
-    assert path.read_bytes() == before
-    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    # the retry transition is PERSISTED: one attempt, +1 day backoff
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "retry"
+    assert evolution["attempts"] == 1
+    assert _parse_iso_dt(evolution["next_retry_at"]) == now + timedelta(days=1)
+    assert evolution["last_decision"] == "RETRY"
+    assert "lib.llm_deepseek" in evolution["last_reason"]
 
 
 def test_worker_missing_local_evidence_retryable_no_provider_call(
     wiki_root: Path,
 ) -> None:
-    """A suggestion whose article evidence has no local record produces an
-    explicit retryable worker pre-evaluation outcome — the evaluator (the
-    single allowed DeepSeek call) is never invoked, no state is persisted,
-    and the suggestion file stays byte-for-byte untouched."""
-    from scripts.wiki_evolve import run_worker
+    """A suggestion whose article evidence has no local record produces a
+    retryable worker pre-evaluation outcome — the evaluator (the single
+    allowed DeepSeek call) is never invoked, yet the retry transition IS
+    persisted with one attempt and a +1 day backoff (an evidence
+    condition requiring a scheduled retry counts as an attempt)."""
+    from scripts.wiki_evolve import _parse_iso_dt, run_worker
 
     now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
     path = _write_suggestion(wiki_root, _make_patch(patch_id="wpatch-w5b-t4-aaa"))
-    before = path.read_bytes()
 
     calls: list[str] = []
 
@@ -1204,10 +1560,17 @@ def test_worker_missing_local_evidence_retryable_no_provider_call(
     assert report["attempted"] == [str(path)]
     outcome = report["outcomes"][str(path)]
     assert outcome["status"] == "retry"
+    assert outcome["attempt"] is True
     assert "missing local evidence" in outcome["reason"]
     assert calls == [], "no provider call for a hydration-failed suggestion"
-    assert path.read_bytes() == before
-    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    # the retry transition is PERSISTED: one attempt, +1 day backoff
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "retry"
+    assert evolution["attempts"] == 1
+    assert _parse_iso_dt(evolution["next_retry_at"]) == now + timedelta(days=1)
+    assert _parse_iso_dt(evolution["last_evaluated_at"]) == now
+    assert evolution["last_decision"] == "RETRY"
+    assert "missing local evidence" in evolution["last_reason"]
 
 
 def test_worker_malformed_suggestion_payload_integrity_descriptor(
@@ -1254,7 +1617,8 @@ def test_worker_malformed_retry_timestamp_integrity_scan_continues(
     timestamp is a non-attempt integrity descriptor in BOTH dry-run and
     normal mode — the eligibility parse never crashes the scan, never
     calls the evaluator, never writes; a later valid suggestion is still
-    classified (dry-run) and processed (normal mode)."""
+    classified (dry-run) and processed (normal mode, persisting its own
+    terminal REJECT transition)."""
     from kb.wiki_articles import load_article_index
     from scripts.wiki_evolve import run_worker
 
@@ -1310,16 +1674,21 @@ def test_worker_malformed_retry_timestamp_integrity_scan_continues(
     report2 = run_worker(wiki_root, now=now, index=index, complete=complete)
     assert report2["outcomes"][str(p_bad)]["status"] == "integrity"
     assert report2["attempted"] == [str(p_ok)]
-    # the valid sibling is processed normally (its evidence resolves)
-    assert report2["outcomes"][str(p_ok)]["status"] == "evaluated"
+    # the valid sibling is processed normally (its evidence resolves):
+    # its REJECT decision persists a terminal rejected transition
+    assert report2["outcomes"][str(p_ok)]["status"] == "rejected"
+    assert report2["outcomes"][str(p_ok)]["attempt"] is True
     assert len(calls) == 1, "only the valid sibling may reach the evaluator"
 
-    after = {
-        p.name: p.read_bytes()
-        for p in sorted((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
-    }
-    assert after == before, "integrity classification must not write anything"
-    assert "evolution" not in json.loads(p_ok.read_text(encoding="utf-8"))
+    # the malformed file stays byte-for-byte untouched (non-attempt
+    # integrity, its malformed retry state never rewritten); only the
+    # valid sibling persists its terminal REJECT transition (Task 5)
+    assert p_bad.read_bytes() == before[str(p_bad.name)]
+    p_ok_evolution = json.loads(p_ok.read_text(encoding="utf-8"))["evolution"]
+    assert p_ok_evolution["status"] == "rejected"
+    assert p_ok_evolution["attempts"] == 1
+    assert p_ok_evolution["last_decision"] == "REJECT"
+    assert p_ok_evolution["next_retry_at"] is None
 
 
 def test_worker_incomplete_serialized_patch_integrity_scan_continues(
@@ -1386,17 +1755,22 @@ def test_worker_incomplete_serialized_patch_integrity_scan_continues(
     assert "malformed suggestion payload" in bad_outcome["reason"]
     # the broken file was eligible (missing evolution -> pending) but its
     # outcome is a NON-ATTEMPT integrity descriptor; the valid sibling is
-    # still attempted and processed normally
+    # still attempted and processed normally — its REJECT decision
+    # persists a terminal rejected transition
     assert report["attempted"] == [str(p_bad), str(p_ok)]
-    assert report["outcomes"][str(p_ok)]["status"] == "evaluated"
+    assert report["outcomes"][str(p_ok)]["status"] == "rejected"
     assert len(calls) == 1, "only the valid sibling may reach the evaluator"
 
-    after = {
-        p.name: p.read_bytes()
-        for p in sorted((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
-    }
-    assert after == before, "integrity classification must not write anything"
-    assert "evolution" not in json.loads(p_ok.read_text(encoding="utf-8"))
+    # the broken file stays byte-for-byte untouched (non-attempt
+    # integrity); only the valid sibling persists its terminal REJECT
+    # transition (Task 5)
+    assert p_bad.read_bytes() == before[str(p_bad.name)]
+    assert "evolution" not in json.loads(p_bad.read_text(encoding="utf-8"))
+    p_ok_evolution = json.loads(p_ok.read_text(encoding="utf-8"))["evolution"]
+    assert p_ok_evolution["status"] == "rejected"
+    assert p_ok_evolution["attempts"] == 1
+    assert p_ok_evolution["last_decision"] == "REJECT"
+    assert p_ok_evolution["next_retry_at"] is None
 
 
 def test_worker_non_dict_patch_item_attribute_error_integrity_scan_continues(
@@ -1465,20 +1839,25 @@ def test_worker_non_dict_patch_item_attribute_error_integrity_scan_continues(
     assert "malformed suggestion payload" in bad_outcome["reason"]
     # the broken file was eligible (missing evolution -> pending) but its
     # outcome is a NON-ATTEMPT integrity descriptor; the valid sibling is
-    # still attempted and processed normally
+    # still attempted and processed normally — its REJECT decision
+    # persists a terminal rejected transition
     assert report["attempted"] == [str(p_bad), str(p_ok)]
-    assert report["outcomes"][str(p_ok)]["status"] == "evaluated"
+    assert report["outcomes"][str(p_ok)]["status"] == "rejected"
     assert len(calls) == 1, "only the valid sibling may reach the evaluator"
 
-    after = {
-        p.name: p.read_bytes()
-        for p in sorted((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
-    }
-    assert after == before, "integrity classification must not write anything"
-    assert "evolution" not in json.loads(p_ok.read_text(encoding="utf-8"))
+    # the broken file stays byte-for-byte untouched (non-attempt
+    # integrity); only the valid sibling persists its terminal REJECT
+    # transition (Task 5)
+    assert p_bad.read_bytes() == before[str(p_bad.name)]
+    assert "evolution" not in json.loads(p_bad.read_text(encoding="utf-8"))
+    p_ok_evolution = json.loads(p_ok.read_text(encoding="utf-8"))["evolution"]
+    assert p_ok_evolution["status"] == "rejected"
+    assert p_ok_evolution["attempts"] == 1
+    assert p_ok_evolution["last_decision"] == "REJECT"
+    assert p_ok_evolution["next_retry_at"] is None
 
 
-def test_worker_non_dict_evidence_metadata_fail_closed_sibling_evaluated(
+def test_worker_non_dict_evidence_metadata_fail_closed_sibling_rejected(
     wiki_root: Path,
     conn: sqlite3.Connection,
 ) -> None:
@@ -1487,7 +1866,8 @@ def test_worker_non_dict_evidence_metadata_fail_closed_sibling_evaluated(
     BEFORE the evaluator, never crash the worker: the malformed metadata
     normalizes away, the unmatched ref becomes a retryable missing-evidence
     outcome, and a later valid hydration-ready sibling is still evaluated
-    exactly once with nothing written."""
+    exactly once — its REJECT decision persists a terminal ``rejected``
+    transition, never a page write."""
     from kb.wiki_articles import load_article_index
     from scripts.wiki_evolve import run_worker
 
@@ -1520,10 +1900,6 @@ def test_worker_non_dict_evidence_metadata_fail_closed_sibling_evaluated(
         ),
     )
     _write_page(wiki_root, "python-debugging", CANONICAL_PAGE)
-    before = {
-        p.name: p.read_bytes()
-        for p in sorted((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
-    }
 
     conn.execute(
         "INSERT INTO rss_articles (id, url, title, summary, content_hash) VALUES (?, ?, ?, ?, ?)",
@@ -1544,21 +1920,29 @@ def test_worker_non_dict_evidence_metadata_fail_closed_sibling_evaluated(
     # no source, so the unmatched ref is a retryable missing-evidence
     # outcome — never a crash and never an evaluator call.
     assert bad_outcome["status"] == "retry"
+    assert bad_outcome["attempt"] is True
     assert "missing local evidence" in bad_outcome["reason"]
     assert "abcdef1234" in bad_outcome["reason"]
     assert report["attempted"] == [str(p_bad), str(p_ok)]
-    assert report["outcomes"][str(p_ok)]["status"] == "evaluated"
+    assert report["outcomes"][str(p_ok)]["status"] == "rejected"
     assert len(calls) == 1, "only the valid sibling may reach the evaluator"
 
-    after = {
-        p.name: p.read_bytes()
-        for p in sorted((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
-    }
-    assert after == before, "worker must not write anything"
-    assert "evolution" not in json.loads(p_ok.read_text(encoding="utf-8"))
+    # the corrupt-first suggestion's retry transition IS persisted ...
+    p_bad_evolution = json.loads(p_bad.read_text(encoding="utf-8"))["evolution"]
+    assert p_bad_evolution["status"] == "retry"
+    assert p_bad_evolution["attempts"] == 1
+    assert "missing local evidence" in p_bad_evolution["last_reason"]
+    # ... while the valid sibling persists ITS OWN terminal REJECT
+    # transition (its REJECT decision is handled now, Task 5) — its page
+    # is never written
+    p_ok_evolution = json.loads(p_ok.read_text(encoding="utf-8"))["evolution"]
+    assert p_ok_evolution["status"] == "rejected"
+    assert p_ok_evolution["attempts"] == 1
+    assert p_ok_evolution["last_decision"] == "REJECT"
+    assert p_ok_evolution["next_retry_at"] is None
 
 
-def test_worker_corrupt_utf8_current_page_retryable_sibling_evaluated(
+def test_worker_corrupt_utf8_current_page_retryable_sibling_rejected(
     wiki_root: Path,
     conn: sqlite3.Connection,
 ) -> None:
@@ -1566,7 +1950,8 @@ def test_worker_corrupt_utf8_current_page_retryable_sibling_evaluated(
     pre-evaluation outcome, never a worker crash: the corrupt-first eligible
     suggestion returns the existing page-read retry descriptor with NO
     evaluator call, and a later hydration-ready valid sibling is still
-    evaluated exactly once with nothing written."""
+    evaluated exactly once — its REJECT decision persists a terminal
+    ``rejected`` transition, never a page write."""
     from kb.wiki_articles import load_article_index
     from scripts.wiki_evolve import run_worker
 
@@ -1606,10 +1991,6 @@ def test_worker_corrupt_utf8_current_page_retryable_sibling_evaluated(
         b"---\ntitle: 'Corrupt'\n---\n\n# Corrupt\n\n\xff\xfe damaged bytes\n"
     )
     _write_page(wiki_root, "python-debugging-zzz", CANONICAL_PAGE)
-    before = {
-        p.name: p.read_bytes()
-        for p in sorted((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
-    }
     before_pages = {
         p.name: p.read_bytes()
         for p in sorted((wiki_root / "kb" / "wiki" / "entities").glob("*.md"))
@@ -1627,25 +2008,32 @@ def test_worker_corrupt_utf8_current_page_retryable_sibling_evaluated(
     assert report["attempted"] == [str(p_bad), str(p_ok)]
     bad_outcome = report["outcomes"][str(p_bad)]
     # Existing page-read retry descriptor: corrupt bytes are a read
-    # failure, never a crash and never an evaluator call.
+    # failure, never a crash and never an evaluator call — and the retry
+    # transition IS persisted (present-but-corrupt stays retryable, never
+    # terminal superseded).
     assert bad_outcome["status"] == "retry"
+    assert bad_outcome["attempt"] is True
     assert "cannot read current page" in bad_outcome["reason"]
     assert "python-debugging" in bad_outcome["reason"]
-    assert report["outcomes"][str(p_ok)]["status"] == "evaluated"
+    assert report["outcomes"][str(p_ok)]["status"] == "rejected"
     assert len(calls) == 1, "only the valid sibling may reach the evaluator"
 
-    after = {
-        p.name: p.read_bytes()
-        for p in sorted((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
-    }
+    p_bad_evolution = json.loads(p_bad.read_text(encoding="utf-8"))["evolution"]
+    assert p_bad_evolution["status"] == "retry"
+    assert p_bad_evolution["attempts"] == 1
+    assert "cannot read current page" in p_bad_evolution["last_reason"]
     after_pages = {
         p.name: p.read_bytes()
         for p in sorted((wiki_root / "kb" / "wiki" / "entities").glob("*.md"))
     }
-    assert after == before, "worker must not write any suggestion"
-    assert after_pages == before_pages, "worker must not write any page"
-    assert "evolution" not in json.loads(p_bad.read_text(encoding="utf-8"))
-    assert "evolution" not in json.loads(p_ok.read_text(encoding="utf-8"))
+    assert after_pages == before_pages, "a reject must never write a page"
+    # the valid sibling persists its own terminal REJECT transition
+    # (Task 5) — its page is never written
+    p_ok_evolution = json.loads(p_ok.read_text(encoding="utf-8"))["evolution"]
+    assert p_ok_evolution["status"] == "rejected"
+    assert p_ok_evolution["attempts"] == 1
+    assert p_ok_evolution["last_decision"] == "REJECT"
+    assert p_ok_evolution["next_retry_at"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -2217,7 +2605,10 @@ def test_cli_dry_run_prints_json_report_and_writes_nothing(wiki_root: Path) -> N
     assert report["scanned"] == 1
     assert report["eligible"] == [str(p)]
     assert report["attempted"] == [str(p)]
-    assert report["outcomes"] == {}
+    # S8: dry-run reports would_* outcomes — the default DB path is
+    # missing, so hydration short-circuits to would_retry; no DB is ever
+    # created and no suggestion bytes change.
+    assert report["outcomes"][str(p)]["status"] == "would_retry"
     after = {
         q.name: q.read_bytes()
         for q in sorted((wiki_root / "kb" / "wiki" / "_suggestions").glob("*.json"))
@@ -2253,8 +2644,9 @@ def test_cli_normal_mode_reaches_real_provider_lazy_import_once(
 ) -> None:
     """Normal CLI mode with a hydration-ready suggestion must reach the real
     provider through ``evaluate_suggestion``'s lazy import — never an
-    artificial CLI stub: exactly one provider call, an evaluated outcome is
-    printed, and nothing is written (no Wiki/suggestion mutation).
+    artificial CLI stub: exactly one provider call, an APPLY decision is
+    applied end-to-end (page written, evolution persisted), and nothing is
+    mutated otherwise.
 
     The network-capable ``lib.llm_deepseek`` module is substituted in
     ``sys.modules`` by a recording fake BEFORE ``main()`` runs; the
@@ -2319,8 +2711,6 @@ def test_cli_normal_mode_reaches_real_provider_lazy_import_once(
     )
     path = _write_suggestion(wiki_root, patch)
     page = _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
-    before_sugg = path.read_bytes()
-    before_page = page.read_bytes()
 
     rc = main(["--wiki-root", str(wiki_root), "--db-path", str(db_path)])
 
@@ -2328,15 +2718,19 @@ def test_cli_normal_mode_reaches_real_provider_lazy_import_once(
     report = json.loads(capsys.readouterr().out)
     assert report["attempted"] == [str(path)]
     outcome = report["outcomes"][str(path)]
-    assert outcome["status"] == "evaluated"
-    assert outcome["decision"] == "APPLY"
+    assert outcome["status"] == "applied"
+    assert outcome["attempt"] is True
     assert len(calls) == 1, "normal CLI must make exactly one provider call"
     assert calls[0][1] == SYSTEM_PROMPT, (
         "the CLI default path must go through evaluate_suggestion's lazy import"
     )
-    assert path.read_bytes() == before_sugg
-    assert page.read_bytes() == before_page
-    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    # the APPLY decision is applied end-to-end through the real engine
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "applied"
+    assert evolution["attempts"] == 1
+    assert evolution["last_decision"] == "APPLY"
+    assert evolution["next_retry_at"] is None
+    assert "New body [^1]" in page.read_text(encoding="utf-8")
 
 
 def test_cli_bootstrap_existing_explicit_deferral_both_forms(wiki_root: Path) -> None:
@@ -2371,3 +2765,539 @@ def test_cli_bootstrap_existing_explicit_deferral_both_forms(wiki_root: Path) ->
     assert p.read_bytes() == before_sugg
     assert page.read_bytes() == before_page
     assert not db_path.exists(), "the DB must never be opened or created"
+
+
+# ---------------------------------------------------------------------------
+# 5.1 W5B Task 5: RETRY transitions (persisted + backoff)
+# ---------------------------------------------------------------------------
+
+def test_worker_retry_transition_persisted_and_backoff_schedule(
+    wiki_root: Path,
+    conn: sqlite3.Connection,
+) -> None:
+    """Every retryable outcome persists a ``retry`` transition — exactly
+    one attempt increment over the prior state, ``last_decision: RETRY``,
+    ``last_reason``, ``last_evaluated_at``, and a ``next_retry_at``
+    backoff of +1 day after attempt 1, +3 days after attempt 2, +7 days
+    from attempt 3 on. The page is never touched and exactly one provider
+    call is made per attempted suggestion (no same-attempt retry)."""
+    from kb.wiki_articles import load_article_index
+    from scripts.wiki_evolve import _parse_iso_dt, run_worker
+
+    url = "https://example.com/rss/evolution-post"
+    ref = _ref(url)
+    conn.execute(
+        "INSERT INTO rss_articles (id, url, title, summary, content_hash) VALUES (?, ?, ?, ?, ?)",
+        (1, url, "Real RSS Title", "Real RSS summary body.", "x" * 32),
+    )
+    index = load_article_index(conn)
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
+
+    evidence = (
+        EvidenceRef(
+            evidence_id="e1", type="article", ref=ref, title=ref,
+            provenance="lightrag-corpus", metadata={"source": "rss"},
+        ),
+    )
+    # three hydration-ready suggestions at prior attempt counts 0/1/2
+    # (slugs sort lexicographically so attempted order is aaa/bbb/ccc)
+    p_first = _write_suggestion(  # fresh -> attempt 1 -> +1 day
+        wiki_root,
+        _make_patch(slug="python-debugging-aaa", patch_id="wpatch-w5b-t4-aaa", evidence=evidence),
+    )
+    p_second = _write_suggestion(  # prior 1 -> attempt 2 -> +3 days
+        wiki_root,
+        _make_patch(slug="python-debugging-bbb", patch_id="wpatch-w5b-t4-bbb", evidence=evidence),
+        evolution=_retry_state(attempts=1, next_retry_at="2026-08-12T06:00:00Z"),
+    )
+    p_third = _write_suggestion(  # prior 2 -> attempt 3 -> +7 days
+        wiki_root,
+        _make_patch(slug="python-debugging-ccc", patch_id="wpatch-w5b-t4-ccc", evidence=evidence),
+        evolution=_retry_state(attempts=2, next_retry_at="2026-08-12T06:00:00Z"),
+    )
+    for slug in ("python-debugging-aaa", "python-debugging-bbb", "python-debugging-ccc"):
+        _write_page(wiki_root, slug, CANONICAL_PAGE)
+    before_pages = {
+        p.name: p.read_bytes()
+        for p in sorted((wiki_root / "kb" / "wiki" / "entities").glob("*.md"))
+    }
+
+    calls: list[str] = []
+
+    async def complete(prompt: str, system_prompt: str | None = None) -> str:
+        calls.append(prompt)
+        raise RuntimeError("provider timeout")
+
+    report = run_worker(wiki_root, now=now, index=index, complete=complete)
+
+    assert report["attempted"] == [str(p_first), str(p_second), str(p_third)]
+    assert len(calls) == 3, "exactly one provider call per attempted suggestion"
+    expected = {
+        str(p_first): (1, timedelta(days=1)),
+        str(p_second): (2, timedelta(days=3)),
+        str(p_third): (3, timedelta(days=7)),
+    }
+    for path_str, (attempts, delay) in expected.items():
+        outcome = report["outcomes"][path_str]
+        assert outcome["status"] == "retry"
+        assert outcome["attempt"] is True
+        assert "evaluator call failed" in outcome["reason"]
+        evolution = json.loads(Path(path_str).read_text(encoding="utf-8"))["evolution"]
+        assert evolution["status"] == "retry"
+        assert evolution["attempts"] == attempts
+        assert _parse_iso_dt(evolution["next_retry_at"]) == now + delay
+        assert _parse_iso_dt(evolution["last_evaluated_at"]) == now
+        assert evolution["last_decision"] == "RETRY"
+        assert "evaluator call failed" in evolution["last_reason"]
+        assert evolution["applied_patch_id"] is None
+    after_pages = {
+        p.name: p.read_bytes()
+        for p in sorted((wiki_root / "kb" / "wiki" / "entities").glob("*.md"))
+    }
+    assert after_pages == before_pages, "a retry transition must never touch the page"
+
+
+# ---------------------------------------------------------------------------
+# 5.2 W5B Task 5: REJECT transitions (terminal, no Error Book)
+# ---------------------------------------------------------------------------
+
+def test_worker_reject_terminal_persisted_no_error_book(
+    wiki_root: Path,
+    conn: sqlite3.Connection,
+) -> None:
+    """A semantic REJECT is a TERMINAL ``rejected`` transition: persisted
+    with exactly one attempt and the model's reason, the page is never
+    touched, the engine is never reached (so the injected Error Book
+    recorder stays EMPTY), exactly one provider call was made, and a later
+    scan skips the file forever."""
+    from kb.wiki_articles import load_article_index
+    from scripts.wiki_evolve import _parse_iso_dt, run_worker
+
+    url = "https://example.com/rss/evolution-post"
+    ref = _ref(url)
+    conn.execute(
+        "INSERT INTO rss_articles (id, url, title, summary, content_hash) VALUES (?, ?, ?, ?, ?)",
+        (1, url, "Real RSS Title", "Real RSS summary body.", "x" * 32),
+    )
+    index = load_article_index(conn)
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
+
+    patch = _make_patch(
+        patch_id="wpatch-w5b-t4-aaa",
+        evidence=(
+            EvidenceRef(
+                evidence_id="e1", type="article", ref=ref, title=ref,
+                provenance="lightrag-corpus", metadata={"source": "rss"},
+            ),
+        ),
+    )
+    path = _write_suggestion(wiki_root, patch)
+    _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
+
+    error_book: list[dict] = []
+    calls: list[str] = []
+
+    async def complete(prompt: str, system_prompt: str | None = None) -> str:
+        calls.append(prompt)
+        return json.dumps({"decision": "REJECT", "reason": "contradicts current page"})
+
+    report = run_worker(
+        wiki_root, now=now, index=index, complete=complete, error_book=error_book
+    )
+
+    outcome = report["outcomes"][str(path)]
+    assert outcome["status"] == "rejected"
+    assert outcome["attempt"] is True
+    assert outcome["reason"] == "contradicts current page"
+    assert len(calls) == 1, "exactly one provider call per attempted suggestion"
+    assert error_book == [], (
+        "a semantic REJECT must never reach the engine, so the Error Book stays empty"
+    )
+    page = (wiki_root / "kb" / "wiki" / "entities" / f"{patch.target_slug}.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Old section body [^1]" in page, "a reject must never touch the page"
+    evolution = json.loads(path.read_text(encoding="utf-8"))["evolution"]
+    assert evolution["status"] == "rejected"
+    assert evolution["attempts"] == 1
+    assert evolution["next_retry_at"] is None
+    assert _parse_iso_dt(evolution["last_evaluated_at"]) == now
+    assert evolution["last_decision"] == "REJECT"
+    assert evolution["last_reason"] == "contradicts current page"
+    assert evolution["applied_patch_id"] is None
+
+    # rejected is terminal: a later scan skips the file without re-attempting
+    report2 = run_worker(
+        wiki_root, now=now, index=index, complete=complete, error_book=error_book
+    )
+    assert report2["skipped"] == [str(path)]
+    assert str(path) not in report2["attempted"]
+    assert str(path) not in report2["outcomes"]
+
+
+# ---------------------------------------------------------------------------
+# 5.3 W5B Task 5: promoted patch builder (pure helper)
+# ---------------------------------------------------------------------------
+
+def test_build_promoted_patch_fresh_identity_and_ops() -> None:
+    """``build_promoted_patch`` rebuilds the suggestion patch as a FRESH
+    auto-apply candidate bound to the page currently on disk: operations
+    are EXACTLY ``[MERGE_SOURCES, UPSERT_SECTION per model section,
+    SET_METADATA(last_updated = now.date())]`` — never CREATE_PAGE,
+    REPLACE_PAGE, or any delete/whole-page op; ``base_digest`` pins the
+    CURRENT page text; the promoted ``evidence_pack_id`` embeds the
+    current page digest; the fresh ``patch_id`` is deterministic over the
+    inputs (same inputs at a different created_at -> same patch_id; a
+    different current page -> different patch_id); and evidence is
+    rebuilt from the hydrated dicts (real local titles) with provenance
+    and metadata carried from the ORIGINAL evidence by ``evidence_id``
+    match."""
+    from scripts.wiki_evolve import build_promoted_patch
+
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
+    patch = _make_patch(
+        patch_id="wpatch-w5b-t4-aaa",
+        evidence=(
+            EvidenceRef(
+                evidence_id="e1", type="article", ref="abcdef1234",
+                title="abcdef1234", provenance="lightrag-corpus",
+                metadata={"source": "rss"},
+            ),
+        ),
+    )
+    current_page = CANONICAL_PAGE
+    sections = [
+        {"heading": "Definition / Overview", "content": "New body [^1]"},
+        {"heading": "Deployment Notes", "content": "Extra body."},
+    ]
+    hydrated_evidence = [
+        {
+            "evidence_id": "e1", "type": "article", "ref": "abcdef1234",
+            "title": "Real RSS Title", "text": "Real RSS summary body.",
+            "metadata": {"source": "rss"},
+        },
+    ]
+
+    promoted = build_promoted_patch(
+        patch=patch,
+        current_page=current_page,
+        sections=sections,
+        hydrated_evidence=hydrated_evidence,
+        now=now,
+    )
+
+    # operations: exactly MERGE_SOURCES + one UPSERT_SECTION per model
+    # section + SET_METADATA(last_updated), in that order
+    assert promoted.operations == (
+        PatchOperation(op="MERGE_SOURCES", section=None, content=None, metadata=None),
+        PatchOperation(
+            op="UPSERT_SECTION", section="Definition / Overview",
+            content="New body [^1]", metadata=None,
+        ),
+        PatchOperation(
+            op="UPSERT_SECTION", section="Deployment Notes",
+            content="Extra body.", metadata=None,
+        ),
+        PatchOperation(
+            op="SET_METADATA", section=None, content=None,
+            metadata={"last_updated": "2026-08-12"},
+        ),
+    )
+    op_names = {o.op for o in promoted.operations}
+    assert op_names == {"MERGE_SOURCES", "UPSERT_SECTION", "SET_METADATA"}
+    assert "CREATE_PAGE" not in op_names and "REPLACE_PAGE" not in op_names
+    assert not any(
+        o.op in ("DELETE_PAGE", "REPLACE_PAGE", "CREATE_PAGE") for o in promoted.operations
+    ), "a promoted patch must never carry a delete/whole-page op"
+
+    # identity: digest-pinned base, promoted pack id embedding the current
+    # page digest, deterministic stable patch_id, w5b trigger
+    digest = page_digest(current_page)
+    assert promoted.base_digest == digest
+    assert promoted.evidence_pack_id == f"{patch.evidence_pack_id}:w5b:{digest[:16]}"
+    assert promoted.patch_id == stable_patch_id(
+        target_slug=promoted.target_slug,
+        evidence_pack_id=promoted.evidence_pack_id,
+        operations=promoted.operations,
+    )
+    assert promoted.trigger == f"{patch.trigger}:w5b"
+
+    # carried fields: same target/schema/version, promoted policy hint
+    assert promoted.target_slug == patch.target_slug
+    assert promoted.target_path == patch.target_path
+    assert promoted.target_kind == patch.target_kind
+    assert promoted.patch_schema_version == patch.patch_schema_version
+    assert promoted.compiler_version == patch.compiler_version
+    assert promoted.policy_hint == "auto_apply"
+
+    # evidence rebuilt from hydrated dicts: real title, provenance and
+    # metadata carried from the original by evidence_id match
+    assert len(promoted.evidence) == 1
+    rebuilt = promoted.evidence[0]
+    assert rebuilt.evidence_id == "e1"
+    assert rebuilt.type == "article"
+    assert rebuilt.ref == "abcdef1234"
+    assert rebuilt.title == "Real RSS Title"
+    assert rebuilt.provenance == "lightrag-corpus"
+    assert rebuilt.metadata == {"source": "rss"}
+
+    # determinism: same inputs at a different created_at -> same patch_id
+    promoted_later = build_promoted_patch(
+        patch=patch,
+        current_page=current_page,
+        sections=sections,
+        hydrated_evidence=hydrated_evidence,
+        now=datetime(2026, 8, 12, 18, 30, 0, tzinfo=UTC),
+    )
+    assert promoted_later.patch_id == promoted.patch_id
+    assert promoted_later.created_at != promoted.created_at
+    assert promoted_later.operations[-1].metadata == {
+        "last_updated": "2026-08-12"
+    }
+
+    # determinism: a different current page -> different patch_id
+    promoted_drifted = build_promoted_patch(
+        patch=patch,
+        current_page=current_page + "\n# Drifted\n",
+        sections=sections,
+        hydrated_evidence=hydrated_evidence,
+        now=now,
+    )
+    assert promoted_drifted.patch_id != promoted.patch_id
+    assert promoted_drifted.base_digest == page_digest(current_page + "\n# Drifted\n")
+    assert promoted_drifted.evidence_pack_id != promoted.evidence_pack_id
+
+
+# ---------------------------------------------------------------------------
+# 5.4 W5B Task 5 slice S8: dry-run evaluates and reports would_* outcomes
+# ---------------------------------------------------------------------------
+
+def test_dry_run_apply_would_applied_no_engine_no_writes(
+    wiki_root: Path,
+    conn: sqlite3.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dry-run with a hydration-ready suggestion and an APPLY decision
+    reports ``would_applied`` carrying the promoted patch id — the engine
+    (``apply_patch``) is NEVER reached, and page bytes, suggestion bytes
+    and the missing evolution state stay byte-for-byte untouched."""
+    from kb.wiki_articles import load_article_index
+    from scripts.wiki_evolve import build_promoted_patch, run_worker
+
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
+    url = "https://example.com/rss/evolution-post"
+    ref = _ref(url)
+    patch = _make_patch(
+        patch_id="wpatch-w5b-t4-aaa",
+        evidence=(
+            EvidenceRef(
+                evidence_id="e1", type="article", ref=ref, title=ref,
+                provenance="lightrag-corpus", metadata={"source": "rss"},
+            ),
+        ),
+    )
+    path = _write_suggestion(wiki_root, patch)
+    page_path = _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
+    conn.execute(
+        "INSERT INTO rss_articles (id, url, title, summary, content_hash) VALUES (?, ?, ?, ?, ?)",
+        (1, url, "Real RSS Title", "Real RSS summary body.", "x" * 32),
+    )
+    index = load_article_index(conn)
+    page_before = page_path.read_bytes()
+    sugg_before = path.read_bytes()
+
+    async def complete(prompt: str, system_prompt: str | None = None) -> str:
+        return json.dumps({
+            "decision": "APPLY",
+            "reason": "evidence supports",
+            "sections": [{"heading": "Definition / Overview", "content": "New body [^1]"}],
+        })
+
+    def boom(*args, **kwargs):  # pragma: no cover - fails the test if called
+        raise AssertionError("apply_patch must never be called in dry-run")
+
+    monkeypatch.setattr("scripts.wiki_evolve.apply_patch", boom)
+    error_book: list[dict] = []
+
+    def record_error(entry: dict) -> None:
+        error_book.append(entry)
+
+    report = run_worker(
+        wiki_root, now=now, index=index, dry_run=True,
+        complete=complete, error_book=record_error,
+    )
+
+    outcome = report["outcomes"][str(path)]
+    assert outcome["status"] == "would_applied"
+    assert outcome["attempt"] is True
+    assert "evidence supports" in outcome["reason"]
+    # the promoted patch id is deterministic over the same inputs
+    promoted = build_promoted_patch(
+        patch=patch,
+        current_page=CANONICAL_PAGE,
+        sections=[{"heading": "Definition / Overview", "content": "New body [^1]"}],
+        hydrated_evidence=[{
+            "evidence_id": "e1", "type": "article", "ref": ref,
+            "title": "Real RSS Title", "text": "Real RSS summary body.",
+            "metadata": {"source": "rss"},
+        }],
+        now=now,
+    )
+    assert outcome["applied_patch_id"] == promoted.patch_id
+    assert promoted.patch_id != patch.patch_id
+    # zero side effects: page untouched, suggestion untouched, no
+    # evolution state, no Error Book entry
+    assert page_path.read_bytes() == page_before
+    assert path.read_bytes() == sugg_before
+    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    assert error_book == []
+
+
+def test_dry_run_retry_would_retry_no_state_written(
+    wiki_root: Path, conn: sqlite3.Connection,
+) -> None:
+    """Dry-run with a hydration-ready suggestion and a RETRY decision
+    reports ``would_retry`` and never persists the retry transition — the
+    suggestion keeps its W5A-era payload (no evolution key)."""
+    from kb.wiki_articles import load_article_index
+    from scripts.wiki_evolve import run_worker
+
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
+    url = "https://example.com/rss/evolution-post"
+    ref = _ref(url)
+    patch = _make_patch(
+        patch_id="wpatch-w5b-t4-aaa",
+        evidence=(
+            EvidenceRef(
+                evidence_id="e1", type="article", ref=ref, title=ref,
+                provenance="lightrag-corpus", metadata={"source": "rss"},
+            ),
+        ),
+    )
+    path = _write_suggestion(wiki_root, patch)
+    page_path = _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
+    conn.execute(
+        "INSERT INTO rss_articles (id, url, title, summary, content_hash) VALUES (?, ?, ?, ?, ?)",
+        (1, url, "Real RSS Title", "Real RSS summary body.", "x" * 32),
+    )
+    index = load_article_index(conn)
+    page_before = page_path.read_bytes()
+    sugg_before = path.read_bytes()
+
+    async def complete(prompt: str, system_prompt: str | None = None) -> str:
+        return json.dumps({"decision": "RETRY", "reason": "needs more evidence"})
+
+    report = run_worker(
+        wiki_root, now=now, index=index, dry_run=True, complete=complete,
+    )
+
+    outcome = report["outcomes"][str(path)]
+    assert outcome["status"] == "would_retry"
+    assert outcome["attempt"] is True
+    assert "needs more evidence" in outcome["reason"]
+    # zero side effects: the retry transition is reported, never persisted
+    assert path.read_bytes() == sugg_before
+    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    assert page_path.read_bytes() == page_before
+
+
+def test_dry_run_reject_would_rejected_no_state_written(
+    wiki_root: Path, conn: sqlite3.Connection,
+) -> None:
+    """Dry-run with a hydration-ready suggestion and a REJECT decision
+    reports ``would_rejected`` (the terminal transition) without persisting
+    it, touching the page, or reaching the Error Book."""
+    from kb.wiki_articles import load_article_index
+    from scripts.wiki_evolve import run_worker
+
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
+    url = "https://example.com/rss/evolution-post"
+    ref = _ref(url)
+    patch = _make_patch(
+        patch_id="wpatch-w5b-t4-aaa",
+        evidence=(
+            EvidenceRef(
+                evidence_id="e1", type="article", ref=ref, title=ref,
+                provenance="lightrag-corpus", metadata={"source": "rss"},
+            ),
+        ),
+    )
+    path = _write_suggestion(wiki_root, patch)
+    page_path = _write_page(wiki_root, patch.target_slug, CANONICAL_PAGE)
+    conn.execute(
+        "INSERT INTO rss_articles (id, url, title, summary, content_hash) VALUES (?, ?, ?, ?, ?)",
+        (1, url, "Real RSS Title", "Real RSS summary body.", "x" * 32),
+    )
+    index = load_article_index(conn)
+    page_before = page_path.read_bytes()
+    sugg_before = path.read_bytes()
+    error_book: list[dict] = []
+
+    def record_error(entry: dict) -> None:
+        error_book.append(entry)
+
+    async def complete(prompt: str, system_prompt: str | None = None) -> str:
+        return json.dumps({"decision": "REJECT", "reason": "poor fit for this page"})
+
+    report = run_worker(
+        wiki_root, now=now, index=index, dry_run=True,
+        complete=complete, error_book=record_error,
+    )
+
+    outcome = report["outcomes"][str(path)]
+    assert outcome["status"] == "would_rejected"
+    assert outcome["attempt"] is True
+    assert "poor fit for this page" in outcome["reason"]
+    assert path.read_bytes() == sugg_before
+    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))
+    assert page_path.read_bytes() == page_before
+    assert error_book == [], "REJECT never reaches the engine or Error Book"
+
+
+def test_dry_run_missing_target_would_superseded_no_page_no_evaluator(
+    wiki_root: Path, conn: sqlite3.Connection,
+) -> None:
+    """Dry-run with a hydration-ready suggestion whose target page no
+    longer exists reports ``would_superseded`` — the page is never
+    created, the evaluator is never called, and nothing is written."""
+    from kb.wiki_articles import load_article_index
+    from scripts.wiki_evolve import run_worker
+
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=UTC)
+    url = "https://example.com/rss/evolution-post"
+    ref = _ref(url)
+    patch = _make_patch(
+        patch_id="wpatch-w5b-t4-aaa",
+        evidence=(
+            EvidenceRef(
+                evidence_id="e1", type="article", ref=ref, title=ref,
+                provenance="lightrag-corpus", metadata={"source": "rss"},
+            ),
+        ),
+    )
+    path = _write_suggestion(wiki_root, patch)  # NO page written on disk
+    conn.execute(
+        "INSERT INTO rss_articles (id, url, title, summary, content_hash) VALUES (?, ?, ?, ?, ?)",
+        (1, url, "Real RSS Title", "Real RSS summary body.", "x" * 32),
+    )
+    index = load_article_index(conn)
+    page_path = wiki_root / "kb" / "wiki" / "entities" / f"{patch.target_slug}.md"
+    sugg_before = path.read_bytes()
+    calls: list[str] = []
+
+    async def complete(prompt: str, system_prompt: str | None = None) -> str:
+        calls.append(prompt)
+        return json.dumps({"decision": "APPLY", "reason": "must not run"})
+
+    report = run_worker(
+        wiki_root, now=now, index=index, dry_run=True, complete=complete,
+    )
+
+    outcome = report["outcomes"][str(path)]
+    assert outcome["status"] == "would_superseded"
+    assert outcome["attempt"] is True
+    assert "no longer exists" in outcome["reason"]
+    assert calls == [], "the superseded check precedes any evaluator call"
+    assert not page_path.exists(), "dry-run must never create the page"
+    assert path.read_bytes() == sugg_before
+    assert "evolution" not in json.loads(path.read_text(encoding="utf-8"))

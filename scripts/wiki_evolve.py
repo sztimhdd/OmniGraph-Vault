@@ -39,8 +39,21 @@ if str(_REPO_ROOT) not in sys.path:
 
 from kb.wiki_articles import load_article_index, resolve_article
 from kb.wiki_compiler.adapters.w3 import engine_wiki_root
-from kb.wiki_compiler.engine import _parse_frontmatter, _resolve_target, _split_frontmatter
-from kb.wiki_compiler.models import WikiPatch
+from kb.wiki_compiler.engine import (
+    WikiValidationError,
+    _parse_frontmatter,
+    _resolve_target,
+    _split_frontmatter,
+    apply_patch,
+    update_suggestion_evolution,
+)
+from kb.wiki_compiler.models import (
+    EvidenceRef,
+    PatchOperation,
+    WikiPatch,
+    page_digest,
+    stable_patch_id,
+)
 
 #: Fixed character caps for hydrated evidence — the ONLY caps. No
 #: token-budget framework.
@@ -118,6 +131,165 @@ def retry_delay(attempts: int) -> timedelta:
     return timedelta(days=1)
 
 
+def _fmt_iso(dt: datetime) -> str:
+    """Format a datetime as UTC ISO-8601 with the ``Z`` suffix — the
+    queue's stored-timestamp convention (``_parse_iso_dt`` round-trips
+    it exactly)."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _next_attempt(prior: dict | None) -> int:
+    """Attempt counter for the transition being recorded: exactly one
+    increment over the prior state (a fresh/missing evolution counts as
+    attempt 1). Malformed prior counters fail closed to 1, never crash."""
+    if isinstance(prior, dict):
+        try:
+            return int(prior.get("attempts") or 0) + 1
+        except (TypeError, ValueError):
+            return 1
+    return 1
+
+
+def _transition(
+    path: Path,
+    prior: dict | None,
+    *,
+    now: datetime,
+    status: str,
+    decision: str,
+    reason: str,
+    applied_patch_id: str | None = None,
+    dry_run: bool = False,
+) -> dict:
+    """Record a design §7 state transition for one suggestion.
+
+    Builds the next evolution state (one attempt increment, timestamps
+    from *now*, ``next_retry_at`` scheduled only for ``retry`` via
+    :func:`retry_delay`) and persists it atomically — replacing ONLY
+    ``payload['evolution']`` via the engine helper, never any other
+    payload key. A persistence integrity failure (e.g. the file became
+    unreadable between scan and write) degrades to a non-attempt
+    integrity descriptor, never a queue crash.
+
+    With ``dry_run`` the transition is only REPORTED (``would_<status>``
+    outcome) — nothing is persisted (Task 5 dry-run contract).
+    """
+    outcome_status = f"would_{status}" if dry_run else status
+    outcome: dict = {"status": outcome_status, "attempt": True, "reason": reason}
+    if status == "applied":
+        outcome["applied_patch_id"] = applied_patch_id
+    if dry_run:
+        return outcome
+    attempts = _next_attempt(prior)
+    state = default_evolution_state() if not isinstance(prior, dict) else dict(prior)
+    state["status"] = status
+    state["attempts"] = attempts
+    state["next_retry_at"] = (
+        _fmt_iso(now + retry_delay(attempts)) if status == "retry" else None
+    )
+    state["last_evaluated_at"] = _fmt_iso(now)
+    state["last_decision"] = decision
+    state["last_reason"] = reason
+    if status == "applied":
+        state["applied_patch_id"] = applied_patch_id
+    try:
+        update_suggestion_evolution(path, state)
+    except WikiValidationError as exc:
+        return {
+            "status": "integrity",
+            "attempt": False,
+            "reason": f"cannot persist evolution state: {exc}",
+        }
+    return outcome
+
+
+# ---------------------------------------------------------------------------
+# Promoted patch builder (design §7 promote step)
+# ---------------------------------------------------------------------------
+
+def build_promoted_patch(
+    *,
+    patch: WikiPatch,
+    current_page: str,
+    sections: list[dict],
+    hydrated_evidence: list[dict],
+    now: datetime,
+) -> WikiPatch:
+    """Rebuild *patch* as a FRESH auto-apply candidate bound to the page
+    currently on disk (design §7 promote step).
+
+    The promoted operations are EXACTLY ``MERGE_SOURCES``, one
+    ``UPSERT_SECTION`` per model section (in order), then
+    ``SET_METADATA(last_updated=now.date())`` — never CREATE_PAGE,
+    REPLACE_PAGE, or any delete/whole-page op. ``base_digest`` pins the
+    current page text and the promoted ``evidence_pack_id`` embeds the
+    current page digest, so the deterministic ``patch_id`` changes when
+    the on-disk page drifts but stays stable across re-evaluations of
+    the same page (``created_at`` is the only time-dependent field).
+    Evidence is rebuilt from the hydrated dicts (real local titles),
+    carrying provenance from the ORIGINAL evidence by ``evidence_id``
+    match; every other identity field (target, schema, reason, compiler
+    version) is carried from the original patch with ``policy_hint``
+    promoted to ``auto_apply``.
+    """
+    digest = page_digest(current_page)
+    promoted_pack_id = f"{patch.evidence_pack_id}:w5b:{digest[:16]}"
+    operations = (
+        PatchOperation(op="MERGE_SOURCES", section=None, content=None, metadata=None),
+        *(
+            PatchOperation(
+                op="UPSERT_SECTION", section=s["heading"], content=s["content"],
+                metadata=None,
+            )
+            for s in sections
+        ),
+        PatchOperation(
+            op="SET_METADATA", section=None, content=None,
+            metadata={"last_updated": now.date().isoformat()},
+        ),
+    )
+    original_by_id = {ev.evidence_id: ev for ev in patch.evidence}
+    rebuilt_evidence = []
+    for item in hydrated_evidence:
+        original = original_by_id.get(item["evidence_id"])
+        rebuilt_evidence.append(
+            EvidenceRef(
+                evidence_id=item["evidence_id"],
+                type=item["type"],
+                ref=item["ref"],
+                title=item["title"],
+                provenance=(
+                    original.provenance if original is not None else "lightrag-corpus"
+                ),
+                metadata=(
+                    item["metadata"] if isinstance(item.get("metadata"), dict) else {}
+                ),
+            )
+        )
+    return WikiPatch(
+        patch_schema_version=patch.patch_schema_version,
+        patch_id=stable_patch_id(
+            target_slug=patch.target_slug,
+            evidence_pack_id=promoted_pack_id,
+            operations=operations,
+        ),
+        target_slug=patch.target_slug,
+        target_path=patch.target_path,
+        target_kind=patch.target_kind,
+        base_digest=digest,
+        trigger=f"{patch.trigger}:w5b",
+        evidence_pack_id=promoted_pack_id,
+        operations=operations,
+        evidence=tuple(rebuilt_evidence),
+        policy_hint="auto_apply",
+        reason=patch.reason,
+        created_at=_fmt_iso(now),
+        compiler_version=patch.compiler_version,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Queue scan
 # ---------------------------------------------------------------------------
@@ -150,6 +322,7 @@ def run_worker(
     limit: int | None = None,
     index: dict | None = None,
     complete: Callable[..., Any] | None = None,
+    error_book: Callable[..., Any] | None = None,
 ) -> dict:
     """Scan the suggestion queue and process eligible suggestions.
 
@@ -160,14 +333,16 @@ def run_worker(
             "eligible": [path, ...],   # due (up to limit in ``attempted``)
             "skipped": [path, ...],    # terminal or retry-before
             "attempted": [path, ...],  # eligible capped by ``limit``
-            "outcomes": {path: dict},  # normal mode only
+            "outcomes": {path: dict},  # attempted suggestions only
         }
 
-    Task 4 semantics: dry-run scans + classifies ONLY (no DB, no hydration,
-    no evaluator call, no writes). Normal mode additionally hydrates and
-    evaluates each attempted suggestion but still never writes anything —
-    state transitions are Task 5. ``--limit N`` caps eligible attempts, not
-    scanned/skipped files.
+    Every attempted suggestion is hydrated and evaluated (Task 5 state
+    transitions); ``dry_run`` reports ``would_<status>`` outcomes and
+    never persists or applies anything (Task 5 S8 dry-run contract). An
+    attempted suggestion without an index (or with unresolved evidence)
+    short-circuits to a ``would_retry`` outcome BEFORE any evaluator
+    call. ``--limit N`` caps eligible attempts, not scanned/skipped
+    files.
     """
     now = now if now is not None else datetime.now(UTC)
     paths = scan_suggestion_paths(wiki_root)
@@ -209,11 +384,11 @@ def run_worker(
             skipped.append(str(path))
 
     attempted = eligible if limit is None else eligible[: max(limit, 0)]
-    if not dry_run:
-        for path_str in attempted:
-            outcomes[path_str] = _process_suggestion(
-                path_str, wiki_root=wiki_root, now=now, index=index, complete=complete
-            )
+    for path_str in attempted:
+        outcomes[path_str] = _process_suggestion(
+            path_str, wiki_root=wiki_root, now=now, index=index,
+            complete=complete, error_book=error_book, dry_run=dry_run,
+        )
 
     return {
         "scanned": len(paths),
@@ -231,6 +406,8 @@ def _process_suggestion(
     now: datetime,
     index: dict | None,
     complete: Callable[..., Any] | None,
+    error_book: Callable[..., Any] | None = None,
+    dry_run: bool = False,
 ) -> dict:
     """Read the serialized ``patch`` from the suggestion payload, hydrate
     local article evidence, and evaluate.
@@ -240,8 +417,23 @@ def _process_suggestion(
     and nothing is persisted (Task 5 owns state transitions). A payload
     without a usable ``patch`` object is a non-attempt integrity failure,
     not a crash.
+
+    Task 5 transitions: ``RETRY`` (and provider/parse failures) persist a
+    retry state with backoff, ``REJECT`` is a TERMINAL ``rejected``
+    transition (the engine is never reached, so the Error Book stays
+    untouched), and ``APPLY`` rebuilds a FRESH promoted patch bound to the
+    on-disk page and applies it through the engine with
+    ``semantic_approved=True``. With ``dry_run`` the one evaluator call
+    MAY happen but every transition is only REPORTED as ``would_<status>``
+    — never persisted, never applied (Task 5 S8 dry-run contract).
     """
-    payload = _load_suggestion(Path(path_str))
+    path = Path(path_str)
+    payload = _load_suggestion(path)
+    # The prior evolution state (missing/legacy payloads have none — the
+    # first transition then counts as attempt 1). A present-but-non-dict
+    # evolution is never trusted as state; the persist layer refuses to
+    # overwrite it (engine integrity failure), never silently clobbers it.
+    prior = payload.get("evolution") if isinstance(payload.get("evolution"), dict) else None
     patch_dict = payload.get("patch")
     if not isinstance(patch_dict, dict):
         return {
@@ -263,7 +455,13 @@ def _process_suggestion(
         }
     hydration = hydrate_evidence(patch.evidence, index or {})
     if hydration["status"] != "ready":
-        return {"status": "retry", "reason": hydration["reason"]}
+        # An evidence condition requiring a scheduled retry (missing or
+        # ambiguous local evidence) counts as one attempt: the retry
+        # transition is persisted with the backoff schedule.
+        return _transition(
+            path, prior, now=now, status="retry", decision="RETRY",
+            reason=hydration["reason"], dry_run=dry_run,
+        )
     # Resolve ``patch.target_path`` against the ACTUAL wiki root (the
     # directory holding ``entities/``), not the repo root: W3-era
     # suggestions carry wiki-relative paths (``entities/<slug>.md``) and
@@ -283,24 +481,125 @@ def _process_suggestion(
                 f"{patch.target_path!r} resolves outside the wiki root"
             ),
         }
+    # Missing is NOT unreadable: a target page that no longer exists on
+    # disk makes the suggestion meaningless — a terminal ``superseded``
+    # transition (one attempt, never re-evaluated). Present-but-corrupt
+    # stays a retryable read failure below.
+    if not page_path.exists():
+        return _transition(
+            path, prior, now=now, status="superseded", decision="SUPERSEDE",
+            reason=(
+                f"target page {patch.target_path} no longer exists; "
+                "suggestion superseded"
+            ),
+            dry_run=dry_run,
+        )
     try:
         current_page = page_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        return {
-            "status": "retry",
-            "reason": f"cannot read current page {patch.target_path}: {exc}",
-        }
+        return _transition(
+            path, prior, now=now, status="retry", decision="RETRY",
+            reason=f"cannot read current page {patch.target_path}: {exc}",
+            dry_run=dry_run,
+        )
     candidate_sections = [
         {"heading": op.section, "content": op.content}
         for op in patch.operations
         if op.op == "UPSERT_SECTION"
     ]
-    return asyncio.run(evaluate_suggestion(
+    evaluated = asyncio.run(evaluate_suggestion(
         current_page=current_page,
         evidence=hydration["evidence"],
         sections=candidate_sections,
         complete=complete,
     ))
+    if evaluated["status"] != "evaluated":
+        # Provider/import/parse failure: the single call was already made;
+        # the retry transition is persisted with the backoff schedule.
+        return _transition(
+            path, prior, now=now, status="retry", decision="RETRY",
+            reason=evaluated["reason"], dry_run=dry_run,
+        )
+    if evaluated["decision"] == "RETRY":
+        return _transition(
+            path, prior, now=now, status="retry", decision="RETRY",
+            reason=evaluated.get("reason") or "semantic evaluator requested retry",
+            dry_run=dry_run,
+        )
+    if evaluated["decision"] == "REJECT":
+        # A semantic REJECT is TERMINAL: exactly one attempt, the model's
+        # reason, and the engine is never reached — so the injected Error
+        # Book recorder stays empty and the page is never touched. A later
+        # scan skips the file forever (rejected is a terminal status).
+        return _transition(
+            path, prior, now=now, status="rejected", decision="REJECT",
+            reason=evaluated.get("reason") or "semantic evaluator rejected the update",
+            dry_run=dry_run,
+        )
+    # APPLY: promote the suggestion to a FRESH patch bound to the page
+    # currently on disk (design §7 promote step) and apply it through the
+    # engine with semantic approval. The promoted patch carries a new
+    # deterministic patch_id (digest-pinned base, w5b pack id), so the
+    # engine sees a candidate that exactly matches what the evaluator
+    # approved.
+    fresh = build_promoted_patch(
+        patch=patch,
+        current_page=current_page,
+        sections=evaluated["sections"],
+        hydrated_evidence=hydration["evidence"],
+        now=now,
+    )
+    if dry_run:
+        # Dry-run contract: report the would-be applied transition; the
+        # engine is never reached and nothing is persisted.
+        return _transition(
+            path, prior, now=now, status="applied", decision="APPLY",
+            reason=evaluated.get("reason") or "semantic evaluator approved the update",
+            applied_patch_id=fresh.patch_id, dry_run=True,
+        )
+    result = apply_patch(
+        fresh, wiki_dir, error_book=error_book, semantic_approved=True
+    )
+    if result["status"] == "applied":
+        return _transition(
+            path, prior, now=now, status="applied", decision="APPLY",
+            reason=result.get("error") or "applied",
+            applied_patch_id=fresh.patch_id,
+        )
+    if result["status"] == "conflict":
+        # The page drifted between the worker's read and the engine's
+        # optimistic-concurrency digest gate (design §7 apply order): a
+        # retryable race, NEVER an overwrite of the concurrent writer's
+        # content, and no Error Book entry (not a candidate-integrity
+        # failure).
+        return _transition(
+            path, prior, now=now, status="retry", decision="RETRY",
+            reason=result.get("error") or "base digest mismatch",
+        )
+    if result["status"] == "rejected":
+        # The engine rejected the candidate at its final candidate-
+        # integrity gates (design §7 order 6-8) and ALREADY logged the
+        # Error Book entry — the worker maps the rejection to a retry
+        # transition with backoff, never an apply, and never writes a
+        # second Error Book entry.
+        return _transition(
+            path, prior, now=now, status="retry", decision="RETRY",
+            reason=result.get("error") or "candidate rejected by compiler",
+        )
+    if result["status"] == "suggestion":
+        # Policy re-check race (the target vanished or became ineligible
+        # between the worker's read and the engine's classify): a
+        # transient anomaly — retry with backoff, never applied.
+        return _transition(
+            path, prior, now=now, status="retry", decision="RETRY",
+            reason=result.get("error") or "apply returned suggestion",
+        )
+    # Unknown apply status: keep the safe retry fallback — never the stale
+    # ``evaluated`` pass-through.
+    return _transition(
+        path, prior, now=now, status="retry", decision="RETRY",
+        reason=f"apply_patch returned unexpected status {result['status']!r}",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -728,7 +1027,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="scan and classify only; never open the DB or call a provider",
+        help=(
+            "evaluate and report would_* outcomes; never writes pages, "
+            "suggestions, or evolution state"
+        ),
     )
     parser.add_argument(
         "--limit",
@@ -773,7 +1075,21 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.dry_run:
-        report = run_worker(wiki_root, dry_run=True, limit=args.limit)
+        # S8: dry-run MAY evaluate — an existing DB is opened READ-ONLY
+        # and used for hydration (so outcomes reflect real would_*
+        # decisions); a missing DB keeps scan-only classification (every
+        # eligible suggestion reports a hydration-missing would_retry) and
+        # is NEVER created.
+        index = None
+        if db_path.is_file():
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            try:
+                index = load_article_index(conn)
+            finally:
+                conn.close()
+        report = run_worker(
+            wiki_root, dry_run=True, limit=args.limit, index=index,
+        )
         print(json.dumps(report, indent=2, ensure_ascii=False))
         return 0
 
