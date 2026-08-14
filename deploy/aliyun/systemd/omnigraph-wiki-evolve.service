@@ -1,0 +1,17 @@
+[Unit]
+Description=OmniGraph wiki suggestion evolution worker (normal mode, W5B)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/OmniGraph-Vault
+EnvironmentFile=/root/.hermes/.env
+ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/wiki_evolve.py --limit 10
+TimeoutStartSec=3600
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

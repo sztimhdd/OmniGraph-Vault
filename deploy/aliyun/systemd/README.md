@@ -153,6 +153,40 @@ ingest invocation in a tmux session to bypass Hermes agent's 900s inactivity cei
 systemd has no such ceiling — it is the process manager. Direct Python invocation is
 the correct pattern.
 
+## omnigraph-wiki-evolve.service — W5B normal evolution worker (no timer yet)
+
+`omnigraph-wiki-evolve.service` is a **standalone oneshot worker** for W5B wiki
+suggestion evolution. It is NOT part of the 13 ingest service+timer pairs above.
+
+**(a) Scope — normal autonomous suggestion evolution only.** The unit runs the
+worker in its normal mode: deterministic scan of `kb/wiki/_suggestions/*.json`,
+source-aware local hydration of article evidence (read-only SQLite, never the
+network), and exactly **one DeepSeek call per due suggestion** (`--limit 10`
+caps eligible attempts). No timer file exists for this unit yet — the service
+is started manually (or by the T9 timer, once selected).
+
+**(b) Historical bootstrap is NEVER a systemd unit.** `--bootstrap-existing`
+is a manual, rollout-only mode (denominator/buffer/LightRAG-graph accounting,
+fallback LLM pass, exit codes 0/1/2 for operators). It is intentionally absent
+from `ExecStart` and must not be added: bootstrap is a one-time migration tool,
+not an autonomous routine.
+
+**(c) Timer schedule intentionally NOT created here.** No
+`omnigraph-wiki-evolve.timer` exists in this directory. The schedule is
+selected and deployed in T9, after live production recon (queue volume,
+provider latency) — do not invent a cadence before then.
+
+**TimeoutStartSec=3600 (1h) — evidence basis (measured 2026-08-14, isolated
+temp wiki root + temp DB copy, real DeepSeek):** one attempt (hydration +
+single evaluator call, ~19.6K-char page + ~15K-char evidence prompt) measured
+10.8 s and 6.1 s wall-clock (mean ~8.4 s). `--limit 10` ⇒ typical run ~1–2
+min. Provider ceiling per attempt: 300 s client timeout
+(`OMNIGRAPH_DEEPSEEK_TIMEOUT` default) × (1 + 2 SDK retries) ≈ 900 s, so the
+full-run pathological ceiling is ~9,000 s. 3600 s ≈ 33× the measured typical
+run, ≈ 4× a single fully-wedged attempt, and 0.4× the pathological ceiling —
+a hung run is killed at 1 h instead of hanging ~2.5 h. No `Restart=` directive:
+a later timer fire (T9) is the retry mechanism, matching the ingest contract.
+
 ## References
 
 - `.planning/phases/aim-3-cutover/aim-3-CONTEXT.md` — Full FINDINGS 1-10 from Hermes SSH audit, ExecStart equivalents, UTC schedule table
