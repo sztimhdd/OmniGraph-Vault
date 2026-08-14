@@ -484,6 +484,96 @@ async def test_batch_ingest_hook_surface_unchanged(monkeypatch, tmp_path):
     assert result == {"suggestions_generated": 0, "applied": 0, "dropped": 0}
 
 
+# ---------------------------------------------------------------------------
+# 9. W5B Task 7: public historical pack helper (build_w3_pack_from_records)
+# ---------------------------------------------------------------------------
+
+def _source_records() -> list[dict]:
+    """Two source-aware records (one wechat, one rss) with real titles."""
+    return [
+        {"source": "wechat", "ref": "aaaaaaaaaa", "title": "WeChat Real Title",
+         "text": "wechat body"},
+        {"source": "rss", "ref": "bbbbbbbbbb", "title": "RSS Real Title",
+         "text": "rss body"},
+    ]
+
+
+def test_build_w3_pack_from_records_historical_trigger_context_and_determinism(
+    tmp_path,
+) -> None:
+    """Public Task 7 helper: trigger ``w3_historical_bootstrap``, context
+    never claims "newly ingested", and the pack_id is deterministic over the
+    sorted ``(source, ref)`` set (input order irrelevant, no timestamp)."""
+    wiki = _make_wiki(tmp_path)
+
+    import hashlib
+
+    pack = w3.build_w3_pack_from_records("test-entity", _source_records(), wiki)
+
+    assert pack.trigger == "w3_historical_bootstrap"
+    assert all("newly ingested" not in b for b in pack.context_blocks)
+    assert "historical" in pack.context_blocks[0]
+
+    # Deterministic identity: reversed input order -> identical pack_id,
+    # and the pack_id carries no wall-clock component (pure slug + refs).
+    rev = w3.build_w3_pack_from_records(
+        "test-entity", list(reversed(_source_records())), wiki
+    )
+    assert pack.pack_id == rev.pack_id
+    assert pack.pack_id == "w3-test-entity-" + hashlib.sha256(
+        "rss:bbbbbbbbbb|wechat:aaaaaaaaaa".encode()
+    ).hexdigest()[:16]
+
+    # Evidence carries the real local title + source-aware metadata.
+    by_ref = {ev.ref: ev for ev in pack.evidence}
+    assert by_ref["aaaaaaaaaa"].title == "WeChat Real Title"
+    assert by_ref["bbbbbbbbbb"].title == "RSS Real Title"
+    assert by_ref["aaaaaaaaaa"].metadata == {"source": "wechat"}
+    assert by_ref["bbbbbbbbbb"].metadata == {"source": "rss"}
+
+
+def test_build_w3_pack_from_records_wechat_legacy_id_and_incremental_default(
+    tmp_path,
+) -> None:
+    """All-wechat records keep the legacy deterministic ``w3-<slug>-<refs>``
+    pack_id form under the public helper, and the private builder's default
+    trigger stays ``w3_incremental`` (ongoing W3 identity untouched)."""
+    wiki = _make_wiki(tmp_path)
+    records = [
+        {"source": "wechat", "ref": "aaaaaaaaaa", "title": "WeChat Real Title",
+         "text": ""},
+        {"source": "wechat", "ref": "bbbbbbbbbb", "title": "WeChat Real Title",
+         "text": ""},
+    ]
+
+    pack = w3.build_w3_pack_from_records("legacy-entity", records, wiki)
+
+    assert pack.trigger == "w3_historical_bootstrap"
+    assert pack.pack_id == "w3-legacy-entity-aaaaaaaaaa-bbbbbbbbbb"
+    # Same records through the PRIVATE builder keep the incremental identity.
+    inc = w3._build_pack_from_records("legacy-entity", records, wiki)
+    assert inc.trigger == "w3_incremental"
+    assert "newly ingested" in inc.context_blocks[0]
+
+
+def test_build_w3_pack_from_records_captures_existing_page_digest(tmp_path) -> None:
+    """The helper captures existing-page path + digest so the shared engine
+    can run optimistic concurrency on the follow-up evolution patch."""
+    wiki = _make_wiki(tmp_path)
+    page = wiki / "entities" / "hermes.md"
+    page.write_text(_RICH_PAGE, encoding="utf-8")
+    before = page_digest(page.read_text(encoding="utf-8"))
+
+    pack = w3.build_w3_pack_from_records("hermes", _source_records(), wiki)
+
+    assert pack.existing_page_path == "entities/hermes.md"
+    assert pack.existing_page_digest == before
+
+
+# ---------------------------------------------------------------------------
+# 8. batch_ingest_from_spider surface: unchanged shape, swallowed failures
+# ---------------------------------------------------------------------------
+
 @pytest.mark.asyncio
 async def test_batch_ingest_hook_routes_through_compiler(tmp_path, monkeypatch):
     """End-to-end: the real hook call routes through the compiler — new entity

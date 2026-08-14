@@ -43,7 +43,12 @@ from kb.wiki_articles import (
     processed_ingestions,
     resolve_article,
 )
-from kb.wiki_compiler.adapters.w3 import engine_wiki_root
+from kb.wiki_compiler.adapters.w3 import (
+    build_w3_pack_from_records,
+    engine_ready_patch,
+    engine_wiki_root,
+    propose_w3_patch,
+)
 from kb.wiki_update import DEFAULT_BUFFER_DIRS
 from kb.wiki_compiler.engine import (
     WikiValidationError,
@@ -1201,6 +1206,33 @@ def _check_accounting(
         )
 
 
+def _seed_historical_job(slug: str, records: list[dict], wiki_root: Path) -> dict:
+    """Seed one historical job through the shared W5A/W3 compiler path.
+
+    ``build_w3_pack_from_records`` (historical trigger) -> ``propose_w3_patch``
+    -> the shared engine's ``apply_patch`` with the DEFAULT policy
+    (``semantic_approved`` stays False): existing pages produce the
+    deterministic structured suggestion JSON, missing pages auto-create.
+    Returns the engine apply result dict (status/suggestion_path/error).
+
+    Create-then-evolve: when the first apply lands a CREATE_PAGE, the fresh
+    page is re-read and a second proposal + apply runs so the job ALSO
+    produces the follow-up existing-page suggestion. A create without a
+    follow-up suggestion is NOT a successful seeding (the returned result
+    is whatever the follow-up apply reported).
+    """
+    pack = build_w3_pack_from_records(slug, records, wiki_root)
+    patch = propose_w3_patch(pack, wiki_root=wiki_root)
+    result = apply_patch(engine_ready_patch(patch), engine_wiki_root(wiki_root))
+    if result["status"] == "applied":
+        # Fresh page: evolve it. Rebuild the pack so the existing-page
+        # path/digest are captured, then propose + apply again.
+        pack = build_w3_pack_from_records(slug, records, wiki_root)
+        patch = propose_w3_patch(pack, wiki_root=wiki_root)
+        result = apply_patch(engine_ready_patch(patch), engine_wiki_root(wiki_root))
+    return result
+
+
 async def bootstrap_existing_discovery(
     conn: sqlite3.Connection,
     *,
@@ -1208,6 +1240,7 @@ async def bootstrap_existing_discovery(
     buffer_dirs: list[Path] | None = None,
     complete: Callable[..., Any] | None = None,
     dry_run: bool = False,
+    wiki_root: Path | None = None,
 ) -> dict:
     """Run historical bootstrap discovery and return the exact accounting report.
 
@@ -1220,6 +1253,13 @@ async def bootstrap_existing_discovery(
     terminal class (represented / no_wiki_entity / retry_unresolved).
     ``dry_run`` resolves nothing (no provider calls, no writes) and reports
     ``would_need_llm_fallback``.
+
+    Task 7 (``wiki_root`` given, non-dry-run): after discovery + fallback,
+    every discovered job (``job_sources``: seedable groups AND fallback
+    singletons) is seeded through the shared W5A/W3 compiler path
+    (:func:`_seed_historical_job`) and the per-job engine result is reported
+    under ``seeding``. ``wiki_root=None`` keeps the pure Task 6 discovery
+    report (no seeding, no writes).
     """
     eligible_rows = processed_ingestions(conn, lightrag_dir)
     keys: list[tuple[str, str]] = []
@@ -1273,6 +1313,12 @@ async def bootstrap_existing_discovery(
         slug: key_set for slug, key_set in groups.items() if len(key_set) >= 2
     }
     seeded: set[str] = set(seedable_groups)
+    # Task 7: every discovered job keeps its article-key association —
+    # seedable groups here, fallback-selected singletons below — so the
+    # seeding phase can resolve records and recompute coverage per job.
+    job_sources: dict[str, set[tuple[str, str]]] = {
+        slug: set(key_set) for slug, key_set in seedable_groups.items()
+    }
     represented_keys: set[tuple[str, str]] = set()
     for key_set in seedable_groups.values():
         represented_keys.update(key_set)
@@ -1309,6 +1355,8 @@ async def bootstrap_existing_discovery(
             else:
                 articles[f"{source}/{ref}"] = "represented"
                 seeded.update(slugs)
+                for slug in slugs:
+                    job_sources.setdefault(slug, set()).add((source, ref))
 
     report = {
         "eligible_processed_ingestions": len(keys),
@@ -1316,10 +1364,73 @@ async def bootstrap_existing_discovery(
         "mapped_via_lightrag_graph": len(graph_mapped),
         "unmapped_needing_llm_fallback": len(uncovered),
         "seeded_entity_jobs": sorted(seeded),
+        "job_sources": {
+            slug: sorted(assoc) for slug, assoc in sorted(job_sources.items())
+        },
         "no_wiki_entity": no_wiki_entity,
         "retry_unresolved": retry_unresolved,
         "articles": articles,
     }
+    if not dry_run and wiki_root is not None:
+        # Task 7 seeding phase: one compiler round-trip per job. Failures
+        # are contained per job (plain result dict, never an exception out
+        # of the discovery run); coverage recompute follows the persistence
+        # attempt so only actually-seeded jobs represent their articles.
+        seeding: dict[str, dict] = {}
+        for slug in sorted(job_sources):
+            # NOTE: this local MUST NOT be named ``keys`` — it would shadow
+            # the outer eligible-keys list the recompute + accounting use.
+            job_keys = sorted(job_sources[slug])
+            missing = [k for k in job_keys if index.get(k) is None]
+            if missing:
+                seeding[slug] = {
+                    "status": "failed",
+                    "patch_id": None,
+                    "error": f"unresolved article record(s): {missing}",
+                    "suggestion_path": None,
+                    "warnings": [],
+                }
+                continue
+            records = [index[k] for k in job_keys]
+            try:
+                seeding[slug] = _seed_historical_job(slug, records, wiki_root)
+            except Exception as exc:  # noqa: BLE001 - fail closed per job
+                seeding[slug] = {
+                    "status": "failed",
+                    "patch_id": None,
+                    "error": str(exc),
+                    "suggestion_path": None,
+                    "warnings": [],
+                }
+        report["seeding"] = seeding
+        # S5: coverage recompute AFTER the persistence attempt. A job counts
+        # as seeded only when its final engine result is a persisted
+        # structured suggestion; an article is represented iff >=1 of its
+        # associated jobs seeded (all failed -> retry_unresolved).
+        # ``no_wiki_entity`` stays terminal only for fallback {"entities":[]}
+        # (no job exists for those articles). The accounting invariant below
+        # therefore reflects the POST-persistence state.
+        successful_jobs = {
+            slug for slug, res in seeding.items()
+            if res.get("status") == "suggestion"
+        }
+        represented_keys: set[tuple[str, str]] = set()
+        for slug in successful_jobs:
+            represented_keys.update(job_sources[slug])
+        for source, ref in keys:
+            label = f"{source}/{ref}"
+            if (source, ref) in represented_keys:
+                articles[label] = "represented"
+            elif articles.get(label) != "no_wiki_entity":
+                articles[label] = "retry_unresolved"
+        no_wiki_entity = sum(
+            1 for v in articles.values() if v == "no_wiki_entity"
+        )
+        retry_unresolved = sum(
+            1 for v in articles.values() if v == "retry_unresolved"
+        )
+        report["no_wiki_entity"] = no_wiki_entity
+        report["retry_unresolved"] = retry_unresolved
     if dry_run:
         report["would_need_llm_fallback"] = len(uncovered)
     else:
@@ -1346,7 +1457,9 @@ def main(argv: list[str] | None = None) -> int:
       runtime failure or accounting mismatch. With ``--dry-run`` only
       denominator/buffer/graph/uncovered run — no fallback calls, no
       writes — reporting ``would_need_llm_fallback`` (0 completed /
-      1 failure). The DB is opened READ-ONLY and never created.
+      1 failure). The DB is opened READ-ONLY and never created. Normal
+      (non-dry-run) bootstrap threads ``--wiki-root`` into the Task 7
+      seeding phase (create-then-evolve + structured suggestions).
     - Normal worker mode fails closed when ``--db-path`` is missing/not a
       regular file (``database not found: <path>`` on stderr, nonzero
       exit, the DB file is never created). With an existing DB it loads
@@ -1441,6 +1554,7 @@ def main(argv: list[str] | None = None) -> int:
                     conn,
                     lightrag_dir=lightrag_dir,
                     dry_run=args.dry_run,
+                    wiki_root=wiki_root,
                 )
             )
         except BootstrapAccountingError as exc:

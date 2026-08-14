@@ -14,6 +14,10 @@ Public API
   hashes per entity), existing-page path/digest capture.
 * ``build_w3_pack_for_entity(slug, hashes, wiki_root) -> EvidencePack`` —
   single-entity pack from already-validated hashes.
+* ``build_w3_pack_from_records(slug, records, wiki_root, *,
+  trigger="w3_historical_bootstrap") -> EvidencePack`` — public
+  deterministic pack builder for the W5B historical bootstrap seeding
+  path (same pack_id/evidence rules, distinct trigger + context).
 * ``propose_w3_patch(pack, *, wiki_root, today=None) -> WikiPatch`` —
   delegates to the pure assembler (CREATE_PAGE for new pages, scoped
   update ops for existing pages).
@@ -185,6 +189,8 @@ def _build_pack_from_records(
     slug: str,
     records: list[dict],
     wiki_root,
+    *,
+    trigger: str = "w3_incremental",
 ) -> EvidencePack:
     """Build one EvidencePack from already-resolved source-aware records.
 
@@ -192,6 +198,10 @@ def _build_pack_from_records(
     (``w3-<slug>-<refs>``); any RSS evidence switches to a source-aware
     sha256 form so ``(source, ref)`` collisions can never alias. Evidence
     carries the real local title + ``metadata={"source": ...}``.
+
+    ``trigger`` defaults to ``w3_incremental`` so the ongoing W3 identity
+    is untouched; the W5B historical bootstrap passes its own trigger
+    through the public wrapper (context wording follows the trigger).
     """
     wiki = Path(wiki_root)
     page = wiki / "entities" / f"{slug}.md"
@@ -223,22 +233,47 @@ def _build_pack_from_records(
         pack_id = (
             f"w3-{slug}-{hashlib.sha256(material.encode()).hexdigest()[:16]}"
         )
+    if trigger == "w3_incremental":
+        context_blocks = (
+            f"Observed in {len(records)} newly ingested OmniGraph source "
+            "articles.",
+        )
+    else:
+        context_blocks = (
+            f"Observed in {len(records)} historical OmniGraph source "
+            "articles.",
+        )
     return EvidencePack(
         pack_id=pack_id,
         subject_slug=slug,
         subject_title=slug.replace("-", " ").title(),
-        trigger="w3_incremental",
+        trigger=trigger,
         article_hashes=refs,
         evidence=evidence,
-        context_blocks=(
-            f"Observed in {len(records)} newly ingested OmniGraph source "
-            "articles.",
-        ),
+        context_blocks=context_blocks,
         existing_page_path=existing_path,
         existing_page_digest=existing_digest,
         created_at=datetime.now(UTC).isoformat(),
         compiler_version=COMPILER_VERSION,
     )
+
+
+def build_w3_pack_from_records(
+    slug: str,
+    records: list[dict],
+    wiki_root,
+    *,
+    trigger: str = "w3_historical_bootstrap",
+) -> EvidencePack:
+    """Public deterministic pack builder for the W5B historical bootstrap.
+
+    Thin wrapper over :func:`_build_pack_from_records` for the shared
+    W5A/W3 compiler seeding path: identical pack_id + evidence rules as
+    the incremental W3 builder, with a distinct trigger and context
+    wording so historical seeding is never mistaken for newly-ingested
+    evidence. No network / LLM work happens here.
+    """
+    return _build_pack_from_records(slug, records, wiki_root, trigger=trigger)
 
 
 def build_w3_evidence_packs(
