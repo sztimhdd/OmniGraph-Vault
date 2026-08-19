@@ -875,18 +875,30 @@ def _render_entity_pages(
     entities_dir.mkdir(parents=True, exist_ok=True)
     count = 0
     for ent in qualifying:
-        articles = entity_articles_query(
-            ent["name"], min_freq=KB_ENTITY_MIN_FREQ, conn=conn
-        )
-        prepared = [_record_to_card_dict(rec) for rec in articles]
-        page_url = f"{config.KB_BASE_PATH}/entities/{ent['slug']}.html"
-        html = tpl.render(
-            lang=lang,
-            entity=ent,
-            articles=prepared,
-            page_url=page_url,
-        )
-        _write_atomic(entities_dir / f"{ent['slug']}.html", html)
+        try:
+            articles = entity_articles_query(
+                ent["name"], min_freq=KB_ENTITY_MIN_FREQ, conn=conn
+            )
+            prepared = [_record_to_card_dict(rec) for rec in articles]
+            page_url = f"{config.KB_BASE_PATH}/entities/{ent['slug']}.html"
+            html = tpl.render(
+                lang=lang,
+                entity=ent,
+                articles=prepared,
+                page_url=page_url,
+            )
+            _write_atomic(entities_dir / f"{ent['slug']}.html", html)
+        except OSError as exc:
+            # Windows rejects slugs containing < > : " / \ | ? * (e.g. a
+            # censored entity name with literal asterisks). One unwritable
+            # page must not abort the remaining entities + every phase after
+            # this loop (wiki pages, sitemap, _url_index, static copy) —
+            # mirror the article loop's log-and-continue contract.
+            print(
+                f"ERROR rendering entity page slug={ent['slug']!r}: {exc}",
+                file=sys.stderr,
+            )
+            continue
         count += 1
     return count
 
