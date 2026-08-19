@@ -59,13 +59,14 @@ META_FIELDS_BY_NAMESPACE: dict[str, set[str]] = {
 # Maps the Qdrant collection name to the on-disk vdb_<n>.json filename
 # LightRAG NanoVectorDBStorage expects. Collection naming follows
 # QdrantVectorDBStorage's `final_namespace = f"lightrag_vdb_{namespace}_{model_suffix}"`
-# (qdrant_impl.py) — the model_suffix `gemini_embedding_2_3072d` is appended by
-# LightRAG when the embed func sets `model + dim` metadata. HC-2 locks 3072d
-# `gemini-embedding-2` for v1.x; if these change we update here and bump phase.
+# (qdrant_impl.py) — the model_suffix `bge_m3_1024d` is appended by LightRAG
+# when the embed func sets `model + dim` metadata (lib/models.py:
+# EMBEDDING_MODEL="bge-m3", EMBEDDING_DIM=1024 since the BGE-M3 migration).
+# If these change we update here in the same commit as lib/models.py.
 NAMESPACE_TO_QDRANT_COLLECTION: dict[str, str] = {
-    "chunks": "lightrag_vdb_chunks_gemini_embedding_2_3072d",
-    "entities": "lightrag_vdb_entities_gemini_embedding_2_3072d",
-    "relationships": "lightrag_vdb_relationships_gemini_embedding_2_3072d",
+    "chunks": "lightrag_vdb_chunks_bge_m3_1024d",
+    "entities": "lightrag_vdb_entities_bge_m3_1024d",
+    "relationships": "lightrag_vdb_relationships_bge_m3_1024d",
 }
 
 
@@ -93,19 +94,19 @@ def _build_data_row(payload: dict[str, Any], meta_fields: set[str]) -> dict[str,
 # Peak-RSS note (ISSUES #41 fix): the matrix is accumulated as ONE contiguous
 # float32 byte buffer (`bytearray`), streaming each point's raw bytes in scroll
 # order — NOT a nested per-row Python float list and NOT a separate full-array
-# numpy copy. The on-disk schema still requires a single base64 string
-# (load_storage reshapes one blob), so the bytes must exist contiguously at
-# encode time; the win is that they exist exactly ONCE (no double hold, no
-# per-float object overhead). Peak RSS ≈ (points×dim×4 bytes, the buffer) +
-# (the small metadata `rows` list) + (a transient base64 string at the single
-# encode). For relationships (82582×3072×4 ≈ 1.0 GB buffer + ≈1.35 GB transient
-# b64 string ≈ ~2.4 GB peak) this clears the 14G box; the prior per-row boxed
-# float lists (≈ tens of GB of boxed floats) were the OOM root cause.
+# numpy copy. The prior per-row boxed float lists (≈ tens of GB of boxed
+# floats) were the original OOM root cause. CAUTION on the remaining peak:
+# tracemalloc measurement (2026-08-18 audit) puts true peak at ~5× the raw
+# matrix bytes, not the ~2.4× a buffer+b64 sum suggests — the encode/write
+# path transiently holds bytearray + bytes() copy + b64 bytes + decoded str
+# + JSON-escaped copy + utf-8 write copy. At 1024d/169k points (~0.7 GB raw)
+# that is ~3.5 GB peak — fits the 14G box; at 3072d it did NOT (~10 GB).
+# Re-verify with /usr/bin/time -v on any dim/point-count regime change.
 def export_collection_to_nanovdb(
     client: Any,
     collection_name: str,
     output_path: str,
-    embedding_dim: int = 3072,
+    embedding_dim: int = 1024,
     meta_fields: set[str] | None = None,
     scroll_batch: int = 500,
 ) -> dict[str, Any]:
@@ -115,7 +116,7 @@ def export_collection_to_nanovdb(
         client: An initialized ``qdrant_client.QdrantClient``.
         collection_name: Qdrant collection name (e.g. ``lightrag_vdb_chunks``).
         output_path: Absolute path to write the ``vdb_<n>.json`` file.
-        embedding_dim: Expected vector dimensionality (default 3072 = Vertex Gemini).
+        embedding_dim: Expected vector dimensionality (default 1024 = BGE-M3).
         meta_fields: Set of payload keys to carry over (per LightRAG namespace).
             If ``None``, all non-LightRAG-special keys in payload are kept.
         scroll_batch: Per-scroll page size (Qdrant default-OK at 500).
@@ -242,7 +243,7 @@ def main() -> int:
         )
     )
     qdrant_url = os.environ.get("QDRANT_URL", "http://127.0.0.1:6333")
-    embedding_dim = int(os.environ.get("OMNIGRAPH_EMBEDDING_DIM", "3072"))
+    embedding_dim = int(os.environ.get("OMNIGRAPH_EMBEDDING_DIM", "1024"))
 
     # Imported here so the module remains importable without qdrant_client
     # (unit tests use ``QdrantClient(":memory:")`` via importorskip).
