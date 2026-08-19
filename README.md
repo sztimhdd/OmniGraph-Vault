@@ -18,7 +18,7 @@
 > - Production cron: 11 Hermes agent cron jobs daily, 10/11 typical pass rate
 > - Quality controls: Layer 1 v1 (HARD-KEEP RULE 0) + Layer 2 (v0 + scrape_fail defense)
 > - Observability: daily reconcile canary (RSS+KOL dual scope), h09 verification, Pattern A budget logger
-> - Resilience: atomic commits, version-bumped prompts auto-reclassify, Vertex AI paid embedding
+> - Resilience: atomic commits, version-bumped prompts auto-reclassify, local BGE-M3 embedding (Vertex retired 2026-08-19)
 >
 > ### v1.0.x — closed 2026-05-17
 > - **Patch A (closed 2026-05-13)**: Layer 2 v1 prompt with HARD-KEEP RULE 0 + LF-2.7 English long-form relaxation — RSS pass rate 21%→74% (3.5x), 5/5 false-negatives flipped.
@@ -61,7 +61,7 @@ Modern AI agents (like Openclaw and Hermes Agent) excel at task execution but la
 ### 🛠 Technology Stack
 - **KG Engine**: [LightRAG](https://github.com/HKU-Smart-OT/LightRAG) (vendored atomic-write patch — see CLAUDE.md)
 - **LLM**: DeepSeek chat (production primary, openai-compatible client)
-- **Embedding**: Vertex AI Gemini SA JSON (`gemini-embedding-2` on `GOOGLE_CLOUD_LOCATION=global`, paid tier since 2026-05-17)
+- **Embedding**: local BGE-M3 (`BAAI/bge-m3`, 1024-dim, Aliyun embed-server `:7997` — `OMNIGRAPH_LOCAL_EMBED=1`; Vertex Gemini retired 2026-08-19)
 - **Vision**: SiliconFlow Qwen3-VL-32B primary → OpenRouter → Gemini fallback cascade
 - **Scraping**: Apify SDK 3.0 + Playwright CDP (local production) / Playwright MCP server (remote testing)
 - **Vector storage**: Qdrant (Aliyun production) / NanoVectorDB JSON (local dev)
@@ -273,9 +273,10 @@ MIT License.
 - **代理就绪的 API**：提供简单的 Python 接口用于入库、查询与合成，可供 Openclaw、Hermes Agent 或其他自动化工作流调用。
 
 ### 🛠 技术栈
-- **图谱引擎**：[LightRAG](https://github.com/HKU-Smart-OT/LightRAG)
-- **记忆层**：[Cognee](https://github.com/topoteretes/cognee)
-- **大模型 / 视觉**：Google Gemini 2.5 Pro 与 Flash 模型
+- **图谱引擎**：[LightRAG](https://github.com/HKU-Smart-OT/LightRAG)（含原子写补丁，见 CLAUDE.md；Cognee 记忆层已于 2026-05-10 退役）
+- **大模型**：DeepSeek chat（生产主力）
+- **嵌入**：本地 BGE-M3（`BAAI/bge-m3`，1024 维，阿里云 embed-server `:7997`；Vertex Gemini 嵌入已于 2026-08-19 退役）
+- **视觉**：SiliconFlow Qwen3-VL-32B → OpenRouter → Gemini 级联
 - **爬虫**：Apify SDK + Playwright（CDP 后备）
 - **基础设施**：Python 3.11+、本地 HTTP 服务器、配置驱动的路径管理
 
