@@ -16,11 +16,20 @@ from typing import Any
 
 import numpy as np
 import requests
-from google import genai
-from google.genai import types
 
-
-from google.genai.errors import ClientError
+# De-Google (260819): google-genai is OPTIONAL. Deployments running the
+# local BGE-M3 path (OMNIGRAPH_LOCAL_EMBED=1 — Aliyun, Databricks App)
+# never touch the Gemini/Vertex branches, so the package need not be
+# installed there. Import errors only surface if a Gemini/Vertex code
+# path is actually invoked without the package.
+try:
+    from google import genai
+    from google.genai import types
+    from google.genai.errors import ClientError
+except ImportError:  # pragma: no cover — exercised on de-Googled deploys
+    genai = None  # type: ignore[assignment]
+    types = None  # type: ignore[assignment]
+    ClientError = None  # type: ignore[assignment,misc]
 
 from .api_keys import (
     current_embedding_key,
@@ -75,7 +84,7 @@ _VERTEX_MIN_GAP_S = 5.5         # empirical safe gap (was 1.2; see 260719 race r
 
 def _is_429(exc: BaseException) -> bool:
     """Return True for Gemini 429 / RESOURCE_EXHAUSTED. Rotation-only; 5xx/network propagate."""
-    if not isinstance(exc, ClientError):
+    if ClientError is None or not isinstance(exc, ClientError):
         return False
     if getattr(exc, "code", None) == 429:
         return True
@@ -211,10 +220,26 @@ async def _embed_once(contents: list, model: str) -> np.ndarray:
 
 
 async def _embed_local(texts: list[str]) -> np.ndarray:
-    """BGE-M3 local embedding via embed-server on port 7997."""
+    """BGE-M3 embedding via embed-server (:7997) or its authenticated proxy.
+
+    Remote callers (Databricks App → Aliyun Caddy route) set
+    OMNIGRAPH_LOCAL_EMBED_URL to the WAN proxy and OMNIGRAPH_LOCAL_EMBED_TOKEN
+    to the shared bearer secret. connect=10s keeps an unreachable server a
+    fast, loud failure (KG mode degrades; FTS stays up) instead of a hang.
+    """
     import httpx
     url = os.environ.get("OMNIGRAPH_LOCAL_EMBED_URL", "http://localhost:7997/embeddings")
-    async with httpx.AsyncClient(timeout=120) as client:
+    read_timeout = float(os.environ.get("OMNIGRAPH_LOCAL_EMBED_TIMEOUT", "120"))
+    headers = {}
+    token = os.environ.get("OMNIGRAPH_LOCAL_EMBED_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    transport = httpx.AsyncHTTPTransport(retries=1)
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(read_timeout, connect=10),
+        transport=transport,
+        headers=headers,
+    ) as client:
         resp = await client.post(url, json={"input": texts, "model": "BAAI/bge-m3"})
         resp.raise_for_status()
         embeddings = [d["embedding"] for d in resp.json()["data"]]

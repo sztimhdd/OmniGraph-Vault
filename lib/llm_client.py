@@ -24,8 +24,18 @@ import asyncio
 import logging
 import os
 
-from google import genai
-from google.genai.errors import APIError
+# De-Google (260819): google-genai is OPTIONAL — this module's Gemini/Vertex
+# entry points are only exercised on deployments that still route LLM calls
+# to Google. De-Googled deploys (Databricks App: databricks_serving LLM +
+# local BGE-M3 embedding) import lib eagerly but never call these paths.
+# The `()` fallback for APIError is valid in both `isinstance(exc, APIError)`
+# (always False) and `except APIError` (catches nothing).
+try:
+    from google import genai
+    from google.genai.errors import APIError
+except ImportError:  # pragma: no cover — exercised on de-Googled deploys
+    genai = None  # type: ignore[assignment]
+    APIError = ()  # type: ignore[assignment,misc]
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from .api_keys import current_key, rotate_key
@@ -44,6 +54,12 @@ def _make_client() -> genai.Client:
     Vertex mode (both env vars set) uses SA JSON auth — api_key is not
     forwarded. Free-tier mode uses the rotation-managed key as before.
     """
+    if genai is None:
+        raise RuntimeError(
+            "google-genai is not installed — this deployment is de-Googled "
+            "(260819). Gemini/Vertex LLM calls are unavailable; route via "
+            "OMNIGRAPH_LLM_PROVIDER=databricks_serving or deepseek instead."
+        )
     if _is_vertex_mode():
         # Quick 260511-n0b mirror of b3y (b1e7fc8) — Vertex 'global' endpoint pools quota
         # across projects + avoids 404 NOT_FOUND on gemini-embedding-2 / GA endpoints.

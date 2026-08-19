@@ -48,21 +48,27 @@ env:
   - name: KB_LLM_MODEL
     value: "databricks-claude-sonnet-4-6"
 
-  # arx-2: Vertex AI SA for 3072-dim embedding (unconditional; Aliyun storage canonical)
-  - name: GOOGLE_APPLICATION_CREDENTIALS
-    value: "/tmp/omnigraph_vault/gcp-paid-sa.json"
+  # 260819 de-Google: embedding is local BGE-M3 (1024-dim) served by the
+  # Aliyun ingest box's embed-server (:7997), reached through the
+  # bearer-gated Caddy route /omnigraph/embed. Same literal model process
+  # that built the corpus vectors — no embedding-space drift possible.
+  # Token lives in the kb-translate secret scope (embed-token resource
+  # below) — NEVER plaintext here. Failure mode: connect timeout (10s) →
+  # KG degrades to FTS5; fast-search stays up.
+  - name: OMNIGRAPH_LOCAL_EMBED
+    value: "1"
 
-  - name: GOOGLE_CLOUD_PROJECT
-    value: "banded-totality-485901"
+  - name: OMNIGRAPH_LOCAL_EMBED_URL
+    value: "http://47.117.244.253/omnigraph/embed"
 
-  - name: GOOGLE_CLOUD_LOCATION
-    value: "global"
+  - name: OMNIGRAPH_LOCAL_EMBED_TOKEN
+    valueFrom: embed-token
 
-  - name: KB_VOLUME_GCP_SA_PATH
-    value: "/Volumes/mdlg_ai_shared/kb_v2/omnigraph_vault/gcp-paid-sa.json"
-
-  - name: KB_KG_GCP_SA_KEY_PATH
-    value: "/tmp/omnigraph_vault/gcp-paid-sa.json"
+  # KOL_SCAN_DB_PATH: kg_synthesize.py:13 reads THIS var (not KB_DB_PATH)
+  # for the entity_canonical mapping; unset it is silently empty (found in
+  # 260818 plan audit). Point at the same hydrated sqlite file.
+  - name: KOL_SCAN_DB_PATH
+    value: "/tmp/kol_scan.db"
 
   # kdb-3 LightRAG storage hydration (UC volume → /tmp at boot).
   # _db_bootstrap.py mirrors the dir via SDK Files API; RAG_WORKING_DIR is
@@ -148,4 +154,13 @@ resources:
     secret:
       scope: kb-translate
       key: omnigraph_research_tavily_key
+      permission: READ
+
+  # 260819: bearer token for the Aliyun /omnigraph/embed Caddy route
+  # (BGE-M3 query-time embedding). Stored via
+  # `databricks secrets put-secret kb-translate omnigraph_embed_token`.
+  - name: embed-token
+    secret:
+      scope: kb-translate
+      key: omnigraph_embed_token
       permission: READ

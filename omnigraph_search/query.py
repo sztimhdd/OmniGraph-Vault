@@ -31,12 +31,12 @@ from lib.llm_complete import get_llm_func
 
 _log = logging.getLogger(__name__)
 
-# Embedding auth: lib.lightrag_embedding runs in Vertex-SA mode when
-# GOOGLE_APPLICATION_CREDENTIALS is set (SA JSON auth, api_key unused) and in
-# free-tier mode when only GEMINI_API_KEY is set. The guard below accepts
-# EITHER — requiring GEMINI_API_KEY unconditionally was a stale check that
-# wrongly blocked the Databricks deploy (Vertex SA + databricks_serving Claude,
-# no GEMINI_API_KEY). LLM uses OMNIGRAPH_LLM_PROVIDER (deepseek/databricks/vertex).
+# Embedding auth (260819 de-Google): the primary path is local BGE-M3
+# (OMNIGRAPH_LOCAL_EMBED=1 — Aliyun embed-server or its authenticated WAN
+# proxy; no credential file). Legacy Gemini/Vertex modes are still accepted
+# for pre-260819 deployments. LLM uses OMNIGRAPH_LLM_PROVIDER
+# (deepseek/databricks/vertex) independently of the embedding side.
+_LOCAL_EMBED_MODE = os.environ.get("OMNIGRAPH_LOCAL_EMBED") == "1"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # Mirror lib.lightrag_embedding._is_vertex_mode() — SA mode needs no api key.
 _VERTEX_SA_MODE = bool(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
@@ -69,10 +69,11 @@ async def search(
         ValueError: If GEMINI_API_KEY is not present in the environment
             (required for the embedding path).
     """
-    if not GEMINI_API_KEY and not _VERTEX_SA_MODE:
+    if not _LOCAL_EMBED_MODE and not GEMINI_API_KEY and not _VERTEX_SA_MODE:
         raise ValueError(
-            "No embedding auth: set GEMINI_API_KEY (free-tier) or "
-            "GOOGLE_APPLICATION_CREDENTIALS (Vertex SA mode)."
+            "No embedding auth: set OMNIGRAPH_LOCAL_EMBED=1 (local BGE-M3, "
+            "primary), or GEMINI_API_KEY / GOOGLE_APPLICATION_CREDENTIALS "
+            "(legacy Gemini modes)."
         )
 
     if rag is None:

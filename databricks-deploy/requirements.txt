@@ -15,16 +15,18 @@ databricks-sdk>=0.30.0
 #
 # Tier 2 (kdb-3 — needed by kb/services/synthesize.py → kg_synthesize.py path).
 # lib/__init__.py eagerly imports lightrag_embedding + llm_client at module
-# load, which transitively pull google-genai, tenacity, aiolimiter, numpy,
-# requests. They MUST be installed even though the Databricks runtime
-# routes embeddings/LLM through the MosaicAI provider — the imports happen
-# before the provider dispatch.
+# load, which transitively pull tenacity, aiolimiter, numpy, requests.
+# 260819 de-Google: google-genai removed — lib/lightrag_embedding.py now
+# lazy-imports it (optional); this deploy embeds via the Aliyun BGE-M3
+# route (httpx, OMNIGRAPH_LOCAL_EMBED=1) and has zero Google dependency.
 lightrag-hku==1.4.15
-google-genai
 tenacity
 aiolimiter
 numpy
 requests
+# _embed_local() (lib/lightrag_embedding.py) imports httpx at call time —
+# without this pin the KG query path dies with ModuleNotFoundError.
+httpx
 # kb/services/wiki_inject.py -> kb/wiki_lint.py imports `frontmatter`
 # (python-frontmatter). Loaded at api startup via:
 #   kb.api -> kb.api_routers.search -> kb.services.synthesize ->
