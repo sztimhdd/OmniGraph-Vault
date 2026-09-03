@@ -1710,6 +1710,80 @@ def _stamp_layer2_attempt(
         raise
 
 
+# ---------------------------------------------------------------------------
+# T6/T8 (2026-09): Layer 1 candidate pre-bucket — skip repeated rescoring.
+#
+# Failure mode: the candidate SELECT's bucket (c) (layer1_verdict='candidate')
+# keeps every Layer-1-passed row in scope on each 2h ingest tick UNTIL an
+# ingestions row retires it; ingest_from_db fed EVERY selected row through
+# layer1_pre_filter, so rows a prior tick already fully scored (candidate +
+# current prompt + reason persisted) were re-sent to the DeepSeek Layer 1
+# batch every tick — repeat spend over the same corpus.
+#
+# Ready gate (derived purely from persisted state): layer1_verdict='candidate'
+# AND layer1_prompt_version == PROMPT_VERSION_LAYER1 AND layer1_reason IS NOT
+# NULL → straight to the candidate pool below, no Layer 1 call this tick.
+# ``layer1_reason`` is the discriminator: the ingest path's
+# persist_layer1_verdicts always writes verdict+reason+at+prompt_version,
+# while the batch_classify_kol.py bridge writes only verdict+prompt_version
+# (reason/at NULL) — bridge-virgin candidates must pass through Layer 1
+# exactly once so the reason lands, then they are ready. Old-prompt rows
+# re-enter via SQL bucket (b) and fail this gate (prompt_version mismatch) →
+# re-scored on a prompt bump. The gate expires with any re-write, so it can
+# never block a row forever. The candidate SELECT above is untouched.
+# ---------------------------------------------------------------------------
+
+
+def _fetch_layer1_state(
+    conn: sqlite3.Connection,
+    rows: list[tuple],
+) -> dict[tuple[str, int], tuple[str | None, str | None, str | None]]:
+    """Read each candidate row's persisted Layer 1 state from its source table.
+
+    Returns ``{(source, id): (layer1_verdict, layer1_prompt_version,
+    layer1_reason)}`` — one IN-query per source table, mirroring
+    ``_fetch_layer2_state``. Rows absent from the DB are simply not in the
+    dict; callers treat a missing entry as never-scored (needs Layer 1).
+    """
+    by_source: dict[str, list[int]] = {"wechat": [], "rss": []}
+    for row in rows:
+        by_source[row[1]].append(row[0])
+    table_for: dict[str, str] = {"wechat": "articles", "rss": "rss_articles"}
+    state: dict[tuple[str, int], tuple[str | None, str | None, str | None]] = {}
+    for source, ids in by_source.items():
+        if not ids:
+            continue
+        placeholders = ",".join("?" for _ in ids)
+        fetched = conn.execute(
+            f"SELECT id, layer1_verdict, layer1_prompt_version, layer1_reason "
+            f"FROM {table_for[source]} WHERE id IN ({placeholders})",
+            ids,
+        ).fetchall()
+        for art_id, verdict, prompt_version, reason in fetched:
+            state[(source, art_id)] = (verdict, prompt_version, reason)
+    return state
+
+
+def _layer1_candidate_ready(
+    state: dict[tuple[str, int], tuple[str | None, str | None, str | None]],
+    source: str,
+    art_id: int,
+) -> bool:
+    """True when this row needs NO Layer 1 call this tick.
+
+    Fully scored = persisted verdict 'candidate' for the CURRENT prompt
+    version WITH a reason (the ingest path always writes one). Anything else
+    — verdict NULL, old prompt version, bridge-virgin candidate with reason
+    NULL — returns False so the row goes through Layer 1 (see module comment).
+    """
+    verdict, prompt_version, reason = state.get((source, art_id), (None, None, None))
+    return (
+        verdict == "candidate"
+        and prompt_version == PROMPT_VERSION_LAYER1
+        and reason is not None
+    )
+
+
 async def ingest_from_db(
     topic: str | list[str],
     dry_run: bool,
@@ -1802,11 +1876,39 @@ async def ingest_from_db(
         # ingestions for rejects, and accumulate candidates for the per-article
         # loop below. Whole-batch failure (verdict=None for every result) leaves
         # rows NULL — they will be re-evaluated on the next ingest tick.
-        chunks = [
-            rows[i:i + LAYER1_BATCH_SIZE]
-            for i in range(0, len(rows), LAYER1_BATCH_SIZE)
+        #
+        # T6/T8 (2026-09): pre-bucket BEFORE the Layer 1 call. Rows a PRIOR
+        # tick already fully scored — persisted layer1_verdict='candidate' AND
+        # layer1_prompt_version == current AND layer1_reason IS NOT NULL — are
+        # ready: they keep their Layer 2 / ingest eligibility below but MUST
+        # NOT be re-scored by the Layer 1 LLM on every 2h tick. The candidate
+        # SELECT above is untouched — ready rows still enter every tick until
+        # an ingestions row retires them (SQL bucket (c) preserved); we only
+        # stop re-calling the LLM for them. Everything else (verdict NULL, old
+        # prompt version, bridge-virgin candidate with reason NULL) still
+        # needs Layer 1.
+        l1_state = _fetch_layer1_state(conn, rows)
+        needs_l1_rows = [
+            row for row in rows
+            if not _layer1_candidate_ready(l1_state, row[1], row[0])
         ]
-        candidate_rows: list = []
+        ready_rows = [
+            row for row in rows
+            if _layer1_candidate_ready(l1_state, row[1], row[0])
+        ]
+        # Seed the candidate pool with ready rows (relative order preserved);
+        # the Layer 1 chunks below run over the needs-Layer-1 rows only.
+        candidate_rows: list = list(ready_rows)
+        if ready_rows:
+            logger.info(
+                "[layer1] %d/%d row(s) already candidate@current — "
+                "skipping Layer 1 re-score",
+                len(ready_rows), len(rows),
+            )
+        chunks = [
+            needs_l1_rows[i:i + LAYER1_BATCH_SIZE]
+            for i in range(0, len(needs_l1_rows), LAYER1_BATCH_SIZE)
+        ]
         # W5B Task 2 (2026-08-12): current-batch success set for the
         # post-drain W3 hook — only articles that reached status='ok' AND
         # doc_confirmed=True, keyed by (source, canonical_ref) so the hook

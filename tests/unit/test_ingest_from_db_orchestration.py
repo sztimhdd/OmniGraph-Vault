@@ -1058,3 +1058,339 @@ async def test_layer2_backoff_gate_passes_fresh_rows_both_sources(
         (1, "rss", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
         (1, "wechat", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
     ], f"reject verdicts must persist as skipped; got {_ingestion_rows(conn)!r}"
+
+
+# ---------------------------------------------------------------------------
+# T6/T8 (修正版 T6, 2026-09) — Layer 1 candidate pre-bucket: skip repeated
+# rescoring of already-fully-scored candidates on every 2h tick.
+#
+# Failure mode: the candidate SELECT's bucket (c) (layer1_verdict='candidate')
+# keeps every Layer-1-passed row in scope each tick UNTIL an ingestions row
+# retires it, and ingest_from_db fed EVERY selected row through
+# layer1_pre_filter — so rows a prior tick already scored (candidate +
+# current prompt + reason persisted by persist_layer1_verdicts) were re-sent
+# to the DeepSeek Layer 1 batch every tick.
+#
+# Ready gate (pure persisted state): layer1_verdict='candidate' AND
+# layer1_prompt_version == PROMPT_VERSION_LAYER1 AND layer1_reason IS NOT
+# NULL → straight to candidate pool, no Layer 1 call. layer1_reason is the
+# discriminator: the ingest path always writes it, the batch_classify_kol.py
+# bridge (verdict + prompt_version only) leaves it NULL → bridge-virgin
+# candidates pass through Layer 1 exactly once, then are ready.
+#
+# Buckets anchored below:
+#   (a) verdict NULL                    → Layer 1 call
+#   (b) candidate + OLD prompt + reason → Layer 1 call (prompt-bump re-eval)
+#   (c) candidate + current + reason    → NO Layer 1 call, downstream kept
+#   (d) reject + current prompt         → not even selected by the SQL
+#   (e) bridge-virgin candidate (reason NULL) → Layer 1 once; then ready
+# ---------------------------------------------------------------------------
+
+
+def _set_layer1_reason(
+    conn: sqlite3.Connection, source: str, art_id: int, reason: str | None
+) -> None:
+    """UPDATE layer1_reason on the source-aware table (seed helpers do not
+    expose reason — bridge/ingest writers are what set it in production)."""
+    tbl = "articles" if source == "wechat" else "rss_articles"
+    conn.execute(f"UPDATE {tbl} SET layer1_reason = ? WHERE id = ?", (reason, art_id))
+    conn.commit()
+
+
+def _layer1_sent_ids(handles: dict) -> list[tuple]:
+    """[(id, source), ...] actually handed to the mocked Layer 1 LLM."""
+    metas = handles["layer1"].call_args.args[0]
+    return sorted((m.id, m.source) for m in metas)
+
+
+@pytest.mark.asyncio
+async def test_t6_verdict_null_rows_still_go_through_layer1(
+    monkeypatch, tmp_path: Path
+):
+    """Bucket (a) — rows with layer1_verdict IS NULL must reach the Layer 1
+    LLM (both sources), not be treated as ready. Guard against an
+    over-broad ready gate that would skip never-scored rows."""
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    # No layer1_* state at all — never evaluated.
+    seed_kol_article(conn, art_id=1, body="kol body " * 50)
+    seed_rss_article(conn, art_id=1, body="rss body " * 50)
+
+    reject = FilterResult(
+        verdict="reject", reason="off-topic", prompt_version=PROMPT_VERSION_LAYER1
+    )
+    spy = AsyncMock(return_value={"suggestions_generated": 0, "applied": 0, "dropped": 0})
+    handles = patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[reject, reject],
+        layer2_results=[],
+    )
+    monkeypatch.setattr(bi, "_wiki_update_check", spy)
+
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+
+    assert handles["layer1"].call_count == 1, (
+        f"NULL-verdict rows must be sent to Layer 1 in one batch; "
+        f"got {handles['layer1'].call_count} calls"
+    )
+    assert _layer1_sent_ids(handles) == [(1, "rss"), (1, "wechat")], (
+        f"both never-scored rows must reach the Layer 1 LLM; "
+        f"got {_layer1_sent_ids(handles)!r}"
+    )
+    # rejects persisted as skipped on both source tables.
+    assert _ingestion_rows(conn) == [
+        (1, "rss", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
+        (1, "wechat", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
+    ], f"reject verdicts must land as skipped; got {_ingestion_rows(conn)!r}"
+
+
+@pytest.mark.asyncio
+async def test_t6_candidate_old_prompt_with_reason_is_rescored(
+    monkeypatch, tmp_path: Path
+):
+    """Bucket (b) — a candidate scored under an OLD prompt version must be
+    re-sent to the Layer 1 LLM even though verdict+reason are already set
+    (prompt-bump re-evaluation pattern, LF-1.8)."""
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    seed_kol_article(
+        conn,
+        art_id=1,
+        body="kol body " * 50,
+        layer1_verdict="candidate",
+        layer1_prompt_version="layer1_v1_stale",  # != PROMPT_VERSION_LAYER1
+    )
+    _set_layer1_reason(conn, "wechat", 1, "ok")
+
+    reject = FilterResult(
+        verdict="reject", reason="off-topic", prompt_version=PROMPT_VERSION_LAYER1
+    )
+    spy = AsyncMock(return_value={"suggestions_generated": 0, "applied": 0, "dropped": 0})
+    handles = patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[reject],
+        layer2_results=[],
+    )
+    monkeypatch.setattr(bi, "_wiki_update_check", spy)
+
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+
+    assert handles["layer1"].call_count == 1, (
+        f"old-prompt candidate must be re-scored by Layer 1; "
+        f"got {handles['layer1'].call_count} calls"
+    )
+    assert _layer1_sent_ids(handles) == [(1, "wechat")], (
+        f"old-prompt row must reach the Layer 1 LLM; got {_layer1_sent_ids(handles)!r}"
+    )
+    assert _ingestion_rows(conn) == [
+        (1, "wechat", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
+    ], f"re-score reject must land as skipped; got {_ingestion_rows(conn)!r}"
+
+
+@pytest.mark.asyncio
+async def test_t6_ready_current_candidate_skips_layer1_but_reaches_layer2(
+    monkeypatch, tmp_path: Path
+):
+    """Bucket (c) — the core fix. A row fully scored by a prior tick
+    (candidate + CURRENT prompt + reason persisted) must NOT be re-sent to
+    the Layer 1 LLM, but must still flow to Layer 2 / ingestions downstream
+    (candidate eligibility preserved — it stays in the SQL's bucket (c)
+    until an ingestions row retires it)."""
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    seed_kol_article(
+        conn, art_id=1, body="kol body " * 50,
+        layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    seed_rss_article(
+        conn, art_id=1, body="rss body " * 50,
+        layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    # Ingest-path writers always persist a reason alongside the verdict.
+    _set_layer1_reason(conn, "wechat", 1, "ok")
+    _set_layer1_reason(conn, "rss", 1, "ok")
+
+    reject = FilterResult(
+        verdict="reject", reason="shallow", prompt_version=PROMPT_VERSION_LAYER2
+    )
+    spy = AsyncMock(return_value={"suggestions_generated": 0, "applied": 0, "dropped": 0})
+    handles = patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[],  # must never be used
+        layer2_results=[reject, reject],
+    )
+    monkeypatch.setattr(bi, "_wiki_update_check", spy)
+
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+
+    assert handles["layer1"].call_count == 0, (
+        f"ready candidate@current rows must NOT be re-scored by Layer 1; "
+        f"got {handles['layer1'].call_count} calls"
+    )
+    assert handles["persist_layer1"].call_count == 0, (
+        "no Layer 1 verdicts to persist when every row is already ready; "
+        f"got {handles['persist_layer1'].call_count} calls"
+    )
+    # Downstream preserved: both ready rows reach the Layer 2 LLM in one batch.
+    assert handles["layer2"].call_count == 1, (
+        f"ready rows must still reach Layer 2; got {handles['layer2'].call_count} calls"
+    )
+    sent = handles["layer2"].call_args.args[0]
+    assert sorted((a.source, a.id) for a in sent) == [("rss", 1), ("wechat", 1)], (
+        f"both ready rows must be queued for Layer 2; got {sent!r}"
+    )
+    assert _ingestion_rows(conn) == [
+        (1, "rss", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
+        (1, "wechat", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
+    ], f"ready rows must still be retired via ingestions; got {_ingestion_rows(conn)!r}"
+
+
+@pytest.mark.asyncio
+async def test_t6_reject_current_prompt_not_selected_by_sql(
+    monkeypatch, tmp_path: Path
+):
+    """Bucket (d) — a reject scored under the CURRENT prompt is excluded by
+    the candidate SELECT itself (never handed to Layer 1, never re-processed).
+    A NULL-verdict control row proves the pipeline still runs: only the
+    control row reaches the Layer 1 LLM."""
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    # Reject@current + its production-parity skipped ingestions row.
+    seed_kol_article(
+        conn, art_id=1, body="kol body " * 50,
+        layer1_verdict="reject", layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    _set_layer1_reason(conn, "wechat", 1, "off-topic")
+    conn.execute(
+        "INSERT INTO ingestions(article_id, source, status, skip_reason_version) "
+        "VALUES (1, 'wechat', 'skipped', ?)",
+        (bi.SKIP_REASON_VERSION_CURRENT,),
+    )
+    conn.commit()
+    # Control row: never scored — must still be picked up.
+    seed_kol_article(conn, art_id=2, body="kol body " * 50)
+
+    candidate = FilterResult(
+        verdict="candidate", reason="ok", prompt_version=PROMPT_VERSION_LAYER1
+    )
+    spy = AsyncMock(return_value={"suggestions_generated": 0, "applied": 0, "dropped": 0})
+    handles = patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[candidate],
+        layer2_results=[],
+    )
+    monkeypatch.setattr(bi, "_wiki_update_check", spy)
+
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+
+    assert handles["layer1"].call_count == 1, (
+        f"exactly the control row must reach Layer 1; "
+        f"got {handles['layer1'].call_count} calls"
+    )
+    assert _layer1_sent_ids(handles) == [(2, "wechat")], (
+        f"reject@current must be excluded from the candidate SELECT; "
+        f"Layer 1 received {_layer1_sent_ids(handles)!r}"
+    )
+    # The reject row is untouched — no new ingestions row, verdict intact.
+    assert _ingestion_rows(conn) == [
+        (1, "wechat", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
+    ], f"reject row must not be re-processed; got {_ingestion_rows(conn)!r}"
+    verdict = conn.execute(
+        "SELECT layer1_verdict FROM articles WHERE id = 1"
+    ).fetchone()[0]
+    assert verdict == "reject", f"reject verdict must survive untouched; got {verdict!r}"
+
+
+@pytest.mark.asyncio
+async def test_t6_bridge_virgin_candidate_layer1_once_then_ready(
+    monkeypatch, tmp_path: Path
+):
+    """Bucket (e) — batch_classify_kol.py bridge shape (candidate + CURRENT
+    prompt, reason NULL). Tick 1 must send it through Layer 1 EXACTLY once
+    (real persist_layer1_verdicts lands the reason). Tick 2 (reason now set)
+    must NOT call Layer 1 again — the row is ready. Clearing the reason
+    re-arms the gate (tick 3 calls Layer 1 again): proves the gate is
+    derived from persisted state, not in-memory bookkeeping."""
+    import lib.article_filter as af
+
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    seed_kol_article(
+        conn, art_id=1, body="bridge body " * 50,
+        layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    # reason stays NULL — bridge-virgin shape.
+
+    candidate = FilterResult(
+        verdict="candidate", reason="ok", prompt_version=PROMPT_VERSION_LAYER1
+    )
+    spy = AsyncMock(return_value={"suggestions_generated": 0, "applied": 0, "dropped": 0})
+    handles = patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[candidate],
+        layer2_results=[],
+    )
+    monkeypatch.setattr(bi, "_wiki_update_check", spy)
+    # Real persist so tick 1's Layer 1 result lands reason + prompt_version.
+    monkeypatch.setattr(bi, "persist_layer1_verdicts", af.persist_layer1_verdicts)
+
+    # Tick 1 (dry-run: Layer 1 runs + persists; no scrape/Layer 2/ingestions):
+    # bridge-virgin row must be sent through Layer 1 exactly once.
+    await bi.ingest_from_db(
+        topic="ai", dry_run=True, batch_timeout=None, max_articles=None,
+    )
+    assert handles["layer1"].call_count == 1, (
+        f"bridge-virgin candidate must pass through Layer 1 once on tick 1; "
+        f"got {handles['layer1'].call_count} calls"
+    )
+    row = conn.execute(
+        "SELECT layer1_verdict, layer1_prompt_version, layer1_reason "
+        "FROM articles WHERE id = 1"
+    ).fetchone()
+    assert row[0] == "candidate" and row[1] == PROMPT_VERSION_LAYER1 and row[2] == "ok", (
+        f"real persist must land verdict/prompt/reason after tick 1; got {row!r}"
+    )
+    assert _ingestion_rows(conn) == [], (
+        "dry-run tick must not write ingestions rows; "
+        f"got {_ingestion_rows(conn)!r}"
+    )
+
+    # Tick 2: reason now persisted → ready → Layer 1 must NOT be called.
+    tick2_layer1 = AsyncMock(return_value=[candidate])
+    monkeypatch.setattr(bi, "layer1_pre_filter", tick2_layer1)
+    await bi.ingest_from_db(
+        topic="ai", dry_run=True, batch_timeout=None, max_articles=None,
+    )
+    assert tick2_layer1.call_count == 0, (
+        f"ready candidate@current must skip Layer 1 on tick 2; "
+        f"got {tick2_layer1.call_count} calls"
+    )
+
+    # Reason cleared → gate re-arms: tick 3 calls Layer 1 again (persisted
+    # state is the ONLY source of truth for the gate).
+    _set_layer1_reason(conn, "wechat", 1, None)
+    await bi.ingest_from_db(
+        topic="ai", dry_run=True, batch_timeout=None, max_articles=None,
+    )
+    assert tick2_layer1.call_count == 1, (
+        f"clearing layer1_reason must re-arm the Layer 1 path; "
+        f"got {tick2_layer1.call_count} calls"
+    )
