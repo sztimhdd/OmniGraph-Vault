@@ -272,11 +272,17 @@ class SynthesizeResult:
 #   kg_credentials_unreadable — file exists but cannot be opened (permissions, etc.)
 def _check_kg_mode_available() -> tuple[bool, str]:
     """Return (available, reason) — reason is empty string when available."""
-    # arx-2: All deployments use the Vertex AI embedding path
-    # (lib.lightrag_embedding, 3072-dim) regardless of OMNIGRAPH_LLM_PROVIDER.
-    # The LLM provider may differ (DeepSeek / Vertex Gemini / Databricks
-    # serving), but the embedding side always needs a GCP service-account
-    # JSON, so the SA file existence is the universal KG-mode gate.
+    # De-Google (260819): the primary embedding path is local BGE-M3
+    # (lib.lightrag_embedding._embed_local, 1024-dim) — an embed-server on
+    # :7997 (Aliyun) or its authenticated WAN proxy (Databricks App). When
+    # OMNIGRAPH_LOCAL_EMBED=1, KG mode is available with no credential file;
+    # reachability failures surface at query time as a fast, loud degrade
+    # (connect timeout → FTS5 fallback), not a boot gate.
+    if os.environ.get("OMNIGRAPH_LOCAL_EMBED") == "1":
+        return True, ""
+    # Legacy Vertex-SA gate (pre-260819 deployments only): the Gemini/Vertex
+    # embedding path needs a GCP service-account JSON, so the SA file
+    # existence was the KG-mode gate.
     p = kb_config.KB_KG_GCP_SA_KEY_PATH
     if p is None:
         return False, "kg_disabled"
@@ -297,8 +303,8 @@ if not KG_MODE_AVAILABLE:
     _log.warning(
         "KG mode unavailable (reason=%s) — /api/search?mode=kg will return "
         "controlled-degraded response; /api/synthesize will fall back to FTS5. "
-        "Set KB_KG_GCP_SA_KEY_PATH or GOOGLE_APPLICATION_CREDENTIALS to a "
-        "readable GCP service-account JSON to enable KG mode.",
+        "Set OMNIGRAPH_LOCAL_EMBED=1 (+ OMNIGRAPH_LOCAL_EMBED_URL/_TOKEN for "
+        "remote embed-server) to enable KG mode.",
         KG_MODE_UNAVAILABLE_REASON,
     )
 

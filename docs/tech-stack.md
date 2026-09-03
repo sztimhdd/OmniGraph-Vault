@@ -19,7 +19,7 @@
 
 ## Key Dependencies
 - google-genai - Google Gemini API client (used in vision cascade fallback only — primary LLM is DeepSeek via openai client; primary vision is SiliconFlow via openai client)
-- google-cloud-aiplatform - Vertex AI SDK + SA JSON authentication (production embedding via `gemini-embedding-2` on `GOOGLE_CLOUD_LOCATION=global` since 2026-05-17 aim-1 cutover)
+- BGE-M3 embed-server (Infinity, Aliyun `:7997`) - production embedding (`BAAI/bge-m3`, 1024-dim, `OMNIGRAPH_LOCAL_EMBED=1`; Vertex Gemini embedding retired 2026-08-19, `google-genai` now an optional lazy import)
 - openai - openai-compatible client used for DeepSeek (primary LLM) + SiliconFlow (primary vision)
 - apify-client (3.0+) - Apify platform SDK for web scraping (dual-compat with 2.x typed `Run` per a5ccc0c)
 - playwright - Browser automation with CDP (Chrome DevTools Protocol) fallback

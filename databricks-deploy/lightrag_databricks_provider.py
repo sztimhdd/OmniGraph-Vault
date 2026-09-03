@@ -116,6 +116,15 @@ async def _embed(texts: list[str], **_kwargs: Any) -> np.ndarray:
 
     Returns ``np.ndarray`` of shape ``(N, EMBEDDING_DIM)``, ``dtype=float32``.
     """
+    # 260819 split-brain guard: when the App embeds queries via the Aliyun
+    # BGE-M3 route (OMNIGRAPH_LOCAL_EMBED=1), any reindex through this
+    # provider MUST embed in the same space. Qwen3 is also 1024-dim, so it
+    # passes every dimension assert while silently rewriting the snapshot
+    # in a different embedding space — the exact Candidate-B trap.
+    if os.environ.get("OMNIGRAPH_LOCAL_EMBED") == "1":
+        from lib.lightrag_embedding import _embed_local
+
+        return await _embed_local(texts)
     from _db_client import get_databricks_client
 
     w = get_databricks_client()

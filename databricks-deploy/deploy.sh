@@ -40,10 +40,16 @@ rm -f ./databricks-deploy/_ssg/.gitignore
 # nobody re-bakes it on every deploy, so JS / CSS edits in kb/static/
 # silently fail to ship. Explicitly overwrite _ssg/static/ from
 # kb/static/ so Databricks always serves the same source-of-truth
-# files Aliyun does. Cheap (~10 small files); safe (kb/static/ is the
-# canonical asset dir).
-echo ">>> Pass 0a-fix: overlay kb/static/ -> _ssg/static/ (defeats stale bake)"
-cp -R ./kb/static/. ./databricks-deploy/_ssg/static/
+# files Aliyun does.
+# 260819: EXCLUDE kb/static/img/ — article images grew to ~926MB there,
+# and shipping them in _ssg blew the App's 10-minute source-download
+# boot deadline ("App process did not start within 10 minutes").
+# At runtime /static/img is served from KB_IMAGES_DIR (UC-Volume
+# hydrated, kb/api.py:149 StaticFiles mount), never from _ssg — the
+# copies were pure dead weight in the source bundle.
+echo ">>> Pass 0a-fix: overlay kb/static/ -> _ssg/static/ (defeats stale bake; img/ excluded)"
+find ./kb/static -maxdepth 1 -mindepth 1 ! -name img -exec cp -R {} ./databricks-deploy/_ssg/static/ \;
+rm -rf ./databricks-deploy/_ssg/static/img
 
 echo ">>> Pass 0b: flip KB_DEFAULT_LANG zh-CN -> en for Databricks audience"
 find ./databricks-deploy/_ssg -name '*.html' -print0 | \

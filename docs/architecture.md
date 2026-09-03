@@ -5,7 +5,7 @@
 ## Pattern Overview
 - Asynchronous pipeline-based processing (all I/O operations use `async`/`await`)
 - Dual-fallback scraping strategy (primary + redundant methods)
-- Pluggable LLM backends — DeepSeek for generation (production primary, openai-compatible client via `lib/llm_deepseek.py`), Vertex AI Gemini for embeddings (SA JSON, `gemini-embedding-2` on `GOOGLE_CLOUD_LOCATION=global` since 2026-05-17 aim-1 cutover); `OMNIGRAPH_LLM_PROVIDER=vertex_gemini` available as local-dev sandbox per `docs/LOCAL_DEV_SETUP.md`
+- Pluggable LLM backends — DeepSeek for generation (production primary, openai-compatible client via `lib/llm_deepseek.py`), local BGE-M3 for embeddings (`BAAI/bge-m3`, 1024-dim, Aliyun embed-server `:7997` via `OMNIGRAPH_LOCAL_EMBED=1`; Vertex Gemini embedding retired 2026-08-19); `OMNIGRAPH_LLM_PROVIDER=vertex_gemini` remains only as a legacy local-dev sandbox per `docs/LOCAL_DEV_SETUP.md`
 - Local-first data persistence (all artifacts stored in `~/.hermes/omonigraph-vault/`)
 
 ## Layers
@@ -17,7 +17,7 @@
 - Purpose: Build and maintain the graph structure (entities, relationships, concepts)
 - Location: LightRAG (external library in `requirements.txt`)
 - Contains: Graph construction via `ainsert()`, querying via `aquery()`
-- Depends on: DeepSeek LLM (entity / relationship extraction via `lib/llm_deepseek.py`, primary) + Vertex AI Gemini embeddings (via SA JSON, `gemini-embedding-2`); LightRAG ctor passes `default_embedding_timeout=int(os.environ.get('LIGHTRAG_EMBEDDING_TIMEOUT', '180'))` and `default_llm_timeout=int(os.environ.get('LIGHTRAG_LLM_TIMEOUT', '300'))` per fix #31 commit `dc924d7`
+- Depends on: DeepSeek LLM (entity / relationship extraction via `lib/llm_deepseek.py`, primary) + local BGE-M3 embeddings (`OMNIGRAPH_LOCAL_EMBED=1`, 1024-dim); LightRAG ctor passes `default_embedding_timeout=int(os.environ.get('LIGHTRAG_EMBEDDING_TIMEOUT', '180'))` and `default_llm_timeout=int(os.environ.get('LIGHTRAG_LLM_TIMEOUT', '300'))` per fix #31 commit `dc924d7`
 - Used by: Synthesis layer for retrieval and inference
 - Purpose: Answer queries by combining LightRAG retrieval with synthesis
 - Location: `kg_synthesize.py`, `query_lightrag.py`
