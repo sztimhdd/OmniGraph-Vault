@@ -175,3 +175,31 @@ def test_env_override_changes_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
         ld._get_client()
 
     assert captured_timeout == 60.0, f"Expected 60.0, got {captured_timeout}"
+
+
+def test_client_explicit_max_retries_is_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AsyncOpenAI client must be constructed with explicit max_retries=1.
+
+    Pins the retry bound (T2): the OpenAI SDK default is max_retries=2
+    (hidden retries on 429/5xx/connection errors). Batch scheduling owns the
+    retry policy, so the DeepSeek client must not add SDK-level retries on
+    top. lib.llm_bailian already pins max_retries=1 — DeepSeek matches it.
+    """
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    _purge_modules(["lib", "lib.llm_deepseek", "lightrag_llm"])
+
+    import lib.llm_deepseek as ld
+
+    ld._client = None
+
+    captured_max_retries = None
+
+    def mock_ctor(**kwargs):
+        nonlocal captured_max_retries
+        captured_max_retries = kwargs.get("max_retries")
+        return MagicMock()
+
+    with patch.object(ld, "AsyncOpenAI", side_effect=mock_ctor):
+        ld._get_client()
+
+    assert captured_max_retries == 1, f"Expected 1, got {captured_max_retries}"

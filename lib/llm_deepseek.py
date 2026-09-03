@@ -96,6 +96,10 @@ def _get_client() -> AsyncOpenAI:
             api_key=api_key,
             base_url=_DEEPSEEK_BASE_URL,
             timeout=_DEEPSEEK_TIMEOUT_S,
+            # Explicit retry bound (T2): SDK default is max_retries=2 (hidden
+            # retries on 429/5xx). Batch scheduling owns retry policy, so the
+            # client must not add SDK-level retries on top. Matches Bailian.
+            max_retries=1,
         )
     return _client
 
