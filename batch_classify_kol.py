@@ -49,6 +49,10 @@ from lib import INGESTION_LLM, generate_sync
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
 GEMINI_CLASSIFY_SLEEP = 5.0
+# T4 (perf(classify)): minimum idle between consecutive DeepSeek batches so a
+# long topic run does not fire back-to-back requests. Skipped before the first
+# batch and never after the last (a single-batch topic pays zero cost).
+DEEPSEEK_BATCH_PACE = 2.0
 # Minimum batch size below which a truncated slice is abandoned rather than
 # split further.  A slice smaller than this is so short it should not overflow
 # the model's max_tokens ceiling; if it still truncates something else is wrong.
@@ -558,6 +562,9 @@ def run(topic: str, min_depth: int, classifier: str, dry_run: bool) -> None:
                 return
             all_cls.extend(result)
         else:
+            if batch_start > 0:
+                logger.info("  Rate limit: sleeping %.1fs between DeepSeek batches", DEEPSEEK_BATCH_PACE)
+                time.sleep(DEEPSEEK_BATCH_PACE)
             result = _classify_batch(batch_titles, batch_digests, topic, min_depth, api_key, batch_start)
             if result is None:
                 logger.warning("DeepSeek API failed — aborting classification")
