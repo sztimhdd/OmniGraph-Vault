@@ -232,8 +232,22 @@ except Exception:
     pass
 
 # ── Report ──
+# The "mcp" check above probes the ohca/Playwright cookie MCP reverse tunnel
+# (127.0.0.1:58931), NOT the knowledge-base KG MCP (:8767/:8768). Alert text
+# must say ohca-mcp=down so it isn't misread as the KG MCP being down. Only the
+# human-visible label changes: the throttle signature below still uses the raw
+# "mcp" name, so alert state/throttle semantics are unchanged.
+ALERT_LABELS = {"mcp": "ohca-mcp"}
+
+
+def alert_detail(problems):
+    """Render the human-visible alert summary, mapping raw check names to
+    clearer display labels (see ALERT_LABELS)."""
+    return "; ".join(f"{ALERT_LABELS.get(name, name)}={status}" for name, status in problems)
+
+
 if problems:
-    detail = "; ".join(f"{name}={status}" for name, status in problems)
+    detail = alert_detail(problems)
     log.warning(json.dumps({"health": "problems", "checks": [dict(name=n, status=s) for n, s in problems]}))
 
     # Throttle: only notify if the problem signature changed or the last
