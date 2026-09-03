@@ -40,7 +40,7 @@ import os
 # setdefault preserves any explicit override from shell env or ~/.hermes/.env.
 os.environ.setdefault("LLM_TIMEOUT", "600")
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:
@@ -74,6 +74,7 @@ from lib.article_filter import (
     LAYER1_BATCH_SIZE,
     LAYER2_BATCH_SIZE,
     PROMPT_VERSION_LAYER1,
+    PROMPT_VERSION_LAYER2,
     layer1_pre_filter,
     layer2_full_body_score,
     persist_layer1_verdicts,
@@ -121,6 +122,19 @@ logger = logging.getLogger(__name__)
 
 SLEEP_BETWEEN_ARTICLES = 5  # 2026-08-11: DeepSeek no-429 verified; halved from 10 (Phase 5-00c): DeepSeek LLM + 2-key Gemini embedding rotation (not 15 RPM Gemini)
 GEMINI_BATCH_SLEEP = 2.0   # DeepSeek: no RPM concern; light pause for API stability
+
+# T5 (2026-09): Layer 2 whole-batch NULL retry backoff. The ingest cron tick
+# runs every ~2h; a Layer 2 batch that fails for every row leaves
+# layer2_verdict=NULL and those rows re-enter the candidate pool next tick.
+# Without backoff, every tick re-calls the expensive full-body DeepSeek batch
+# on the same stuck rows (78 such rows in prod at T5 time). Window = 4h
+# (> 2x tick period) so the tick(s) immediately after a failure skip the LLM
+# and a still-stuck batch is re-attempted only after the window expires.
+# Eligibility derives purely from persisted (layer2_verdict IS NULL AND
+# layer2_at within window) state — rows are never marked ok/failed, never
+# removed, and the gate expires automatically with layer2_at.
+LAYER2_NULL_RETRY_BACKOFF_S = 4 * 3600
+
 DB_PATH = Path(os.environ.get(
     "KOL_SCAN_DB_PATH",
     str(PROJECT_ROOT / "data" / "kol_scan.db"),
@@ -1603,6 +1617,99 @@ async def _wiki_update_check(
     return result
 
 
+# ---------------------------------------------------------------------------
+# T5 (2026-09): Layer 2 whole-batch NULL retry backoff helpers.
+#
+# Failure mode: a Layer 2 batch that fails for every row returns all-None
+# verdicts; rows stay layer2_verdict=NULL and re-enter the candidate pool on
+# the next 2h tick, which unconditionally re-called the full-body DeepSeek
+# batch. Backoff contract:
+#   * whole-batch NULL failure stamps ONLY layer2_at (verdict/reason/
+#     prompt_version untouched — rows stay NULL per LF-2.6, never marked
+#     ok/failed, never removed from the candidate pool);
+#   * before the next LLM call, rows whose persisted state is
+#     (layer2_verdict IS NULL AND layer2_at inside the backoff window) are
+#     dropped from the batch — the gate is derived purely from persisted
+#     state and expires with layer2_at, so it cannot block forever.
+# ---------------------------------------------------------------------------
+
+
+def _layer2_backoff_cutoff_iso() -> str:
+    """ISO-8601 UTC cutoff: a layer2_at >= this value is still in backoff."""
+    return (
+        datetime.now(timezone.utc)
+        - timedelta(seconds=LAYER2_NULL_RETRY_BACKOFF_S)
+    ).isoformat()
+
+
+def _fetch_layer2_state(
+    conn: sqlite3.Connection,
+    queue_snapshot: list[tuple[tuple, str]],
+) -> dict[tuple[str, int], tuple[str | None, str | None]]:
+    """Read each queued article's persisted Layer 2 state from its source table.
+
+    Returns ``{(source, id): (layer2_verdict, layer2_at)}`` for the queued
+    rows (one IN-query per source table). Rows absent from the DB are simply
+    not in the dict — callers treat a missing entry as never-attempted.
+    """
+    by_source: dict[str, list[int]] = {"wechat": [], "rss": []}
+    for row, _body in queue_snapshot:
+        by_source[row[1]].append(row[0])
+    table_for: dict[str, str] = {"wechat": "articles", "rss": "rss_articles"}
+    state: dict[tuple[str, int], tuple[str | None, str | None]] = {}
+    for source, ids in by_source.items():
+        if not ids:
+            continue
+        placeholders = ",".join("?" for _ in ids)
+        rows = conn.execute(
+            f"SELECT id, layer2_verdict, layer2_at FROM {table_for[source]} "
+            f"WHERE id IN ({placeholders})",
+            ids,
+        ).fetchall()
+        for art_id, verdict, at in rows:
+            state[(source, art_id)] = (verdict, at)
+    return state
+
+
+def _layer2_in_backoff(
+    state: dict[tuple[str, int], tuple[str | None, str | None]],
+    source: str,
+    art_id: int,
+    cutoff_iso: str,
+) -> bool:
+    """True when this row's LAST Layer 2 attempt failed (verdict NULL) and
+    happened inside the backoff window — it must NOT be re-requested yet."""
+    verdict, at = state.get((source, art_id), (None, None))
+    return verdict is None and at is not None and at >= cutoff_iso
+
+
+def _stamp_layer2_attempt(
+    conn: sqlite3.Connection,
+    articles_with_body: list[ArticleWithBody],
+) -> None:
+    """Record a Layer 2 attempt time ONLY, leaving the verdict NULL.
+
+    Called on whole-batch NULL failure. Only ``layer2_at`` is written —
+    layer2_verdict / layer2_reason / layer2_prompt_version stay untouched
+    (LF-2.6: rows stay NULL so a future tick re-evaluates; the stamp gives
+    that future tick a durable time anchor to back off from instead of
+    re-requesting the DeepSeek batch on every 2h tick).
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    table_for: dict[str, str] = {"wechat": "articles", "rss": "rss_articles"}
+    try:
+        conn.execute("BEGIN")
+        for a in articles_with_body:
+            conn.execute(
+                f"UPDATE {table_for[a.source]} SET layer2_at = ? WHERE id = ?",
+                (now, a.id),
+            )
+        conn.commit()
+    except sqlite3.Error:
+        conn.rollback()
+        raise
+
+
 async def ingest_from_db(
     topic: str | list[str],
     dry_run: bool,
@@ -1820,6 +1927,9 @@ async def ingest_from_db(
                 queue_snapshot = list(layer2_queue)
                 layer2_queue.clear()
 
+                chunk_idx = layer2_chunk_idx
+                layer2_chunk_idx += 1
+
                 # v3.5 ir-4 (LF-4.4): row is the 7-col candidate tuple
                 # (id, source, title, url, source_name, body, summary).
                 # ArticleWithBody.source from row[1] so persist_layer2_verdicts
@@ -1834,24 +1944,71 @@ async def ingest_from_db(
                     for row, body in queue_snapshot
                 ]
 
+                # T5 (2026-09): Layer 2 NULL-retry backoff gate. Rows whose
+                # LAST Layer 2 attempt failed (persisted layer2_verdict IS
+                # NULL with layer2_at inside LAYER2_NULL_RETRY_BACKOFF_S) are
+                # dropped BEFORE the LLM call — a just-failed batch must not
+                # be re-requested on the next 2h tick. Rows stay NULL and in
+                # the candidate pool; the gate expires with layer2_at, so a
+                # still-stuck batch is re-attempted after the window. Fresh
+                # rows (layer2_at NULL or stale) are never suppressed.
+                l2_state = _fetch_layer2_state(conn, queue_snapshot)
+                l2_cutoff = _layer2_backoff_cutoff_iso()
+                kept_pairs = [
+                    (q, a) for q, a in zip(queue_snapshot, articles_with_body)
+                    if not _layer2_in_backoff(l2_state, a.source, a.id, l2_cutoff)
+                ]
+                dropped_backoff = len(queue_snapshot) - len(kept_pairs)
+                if dropped_backoff:
+                    logger.warning(
+                        "[layer2] batch %d backoff: %d/%d row(s) NULL-verdict "
+                        "attempted within last %ds — skipping re-request",
+                        chunk_idx, dropped_backoff, len(queue_snapshot),
+                        LAYER2_NULL_RETRY_BACKOFF_S,
+                    )
+                if not kept_pairs:
+                    logger.info(
+                        "[layer2] batch %d all %d row(s) in NULL-retry backoff "
+                        "— skipping Layer 2 LLM call",
+                        chunk_idx, len(queue_snapshot),
+                    )
+                    return
+                queue_snapshot = [k[0] for k in kept_pairs]
+                articles_with_body = [k[1] for k in kept_pairs]
+
                 t0 = time.monotonic()
-                layer2_results = await layer2_full_body_score(articles_with_body)
+                try:
+                    layer2_results = await layer2_full_body_score(articles_with_body)
+                except Exception as exc:  # noqa: BLE001 -- mirror article_filter's whole-batch-NULL normalization
+                    logger.warning(
+                        "[layer2] batch %d Layer 2 call raised %s: %s — "
+                        "treating as whole-batch NULL",
+                        chunk_idx, type(exc).__name__, str(exc)[:200],
+                    )
+                    layer2_results = [
+                        FilterResult(
+                            verdict=None,
+                            reason=f"exception:{type(exc).__name__}",
+                            prompt_version=PROMPT_VERSION_LAYER2,
+                        )
+                        for _ in articles_with_body
+                    ]
                 wall_ms = int((time.monotonic() - t0) * 1000)
 
                 ok_count = sum(1 for r in layer2_results if r.verdict == "ok")
                 rej_count = sum(1 for r in layer2_results if r.verdict == "reject")
                 null_count = sum(1 for r in layer2_results if r.verdict is None)
 
-                chunk_idx = layer2_chunk_idx
-                layer2_chunk_idx += 1
-
                 if null_count == len(layer2_results):
                     err_class = layer2_results[0].reason if layer2_results else "empty_batch"
                     logger.warning(
                         "[layer2] batch %d NULL reason=%s n=%d wall_ms=%d — "
-                        "rows stay layer2_verdict=NULL, retry next tick",
+                        "rows stay layer2_verdict=NULL; layer2_at stamped for "
+                        "retry backoff (%ds)",
                         chunk_idx, err_class, len(queue_snapshot), wall_ms,
+                        LAYER2_NULL_RETRY_BACKOFF_S,
                     )
+                    _stamp_layer2_attempt(conn, articles_with_body)
                     return
 
                 logger.info(

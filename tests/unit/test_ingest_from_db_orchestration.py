@@ -27,6 +27,7 @@ import logging
 import os
 import sqlite3
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -686,3 +687,374 @@ async def test_wiki_hook_receives_only_ok_doc_confirmed_source_refs(
         f"hook TimeoutError must be swallowed and the article still ingested; "
         f"got {rows2!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# T8/T9/T10/T11 — Layer 2 whole-batch NULL retry backoff (plan T5, 2026-09).
+# A Layer 2 batch that fails for every row leaves layer2_verdict=NULL; the
+# 2h cron tick then re-selects those rows and re-calls the full-body DeepSeek
+# batch unconditionally. The fix: stamp layer2_at on a whole-batch NULL
+# failure (verdict stays NULL — never marked ok/failed, never dropped) and
+# drop rows whose last attempt was NULL and lies inside the backoff window
+# BEFORE the LLM call. Backoff derives purely from persisted state and
+# expires with layer2_at, so a stuck batch is re-attempted after
+# LAYER2_NULL_RETRY_BACKOFF_S and fresh rows are never suppressed.
+# ---------------------------------------------------------------------------
+
+_ALL_NULL = [
+    FilterResult(
+        verdict=None, reason="exception:MockTimeout",
+        prompt_version=PROMPT_VERSION_LAYER2,
+    )
+]
+
+
+@pytest.mark.asyncio
+async def test_layer2_whole_batch_null_backs_off_then_retries_after_window(
+    monkeypatch, tmp_path: Path
+):
+    """T5 anchor — the 2h-tick retry-amplification failure mode.
+
+    Seed one KOL Layer2-NULL candidate. Tick 1: Layer 2 LLM called, whole
+    batch NULL → layer2_at stamped, verdict stays NULL, no ingestions row
+    (candidate preserved). Tick 2 (inside backoff window): Layer 2 LLM must
+    NOT be called again and the row must be byte-identical. Window expiry
+    (layer2_at rewritten to a stale value): tick 3 re-attempts the LLM.
+    """
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    seed_kol_article(
+        conn,
+        art_id=1,
+        body="backoff body " * 200,
+        layer1_verdict="candidate",
+        layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+
+    candidate = FilterResult(
+        verdict="candidate", reason="ok", prompt_version=PROMPT_VERSION_LAYER1
+    )
+
+    handles = patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[candidate],
+        layer2_results=_ALL_NULL,
+    )
+
+    # Tick 1: first (failed) attempt → Layer 2 LLM called exactly once.
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+    assert handles["layer2"].call_count == 1, (
+        f"tick 1 should call Layer 2 LLM once; got {handles['layer2'].call_count}"
+    )
+    row = conn.execute(
+        "SELECT layer2_verdict, layer2_at FROM articles WHERE id = 1"
+    ).fetchone()
+    assert row[0] is None, (
+        f"whole-batch NULL failure must leave layer2_verdict NULL; got {row[0]!r}"
+    )
+    assert row[1] is not None, (
+        "whole-batch NULL failure must stamp layer2_at so the next tick can back off"
+    )
+    assert _ingestion_rows(conn) == [], (
+        "failed candidate must not be marked ok/failed in ingestions; "
+        f"got {_ingestion_rows(conn)!r}"
+    )
+    stamped_at = row[1]
+
+    # Tick 2: immediate next tick — inside the backoff window → NO LLM call,
+    # row untouched (verdict NULL, layer2_at not re-stamped, still no
+    # ingestions row = candidate not dropped, not converted to ok/failed).
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+    assert handles["layer2"].call_count == 1, (
+        "tick inside the backoff window must NOT re-call the Layer 2 LLM; "
+        f"got {handles['layer2'].call_count} calls"
+    )
+    row = conn.execute(
+        "SELECT layer2_verdict, layer2_at FROM articles WHERE id = 1"
+    ).fetchone()
+    assert row == (None, stamped_at), (
+        "backoff-suppressed tick must leave the row byte-identical "
+        f"(verdict NULL, layer2_at unstamped); got {row!r}"
+    )
+    assert _ingestion_rows(conn) == []
+
+    # Window expires → next tick re-attempts the row (still NULL until the
+    # LLM succeeds; failure re-stamps layer2_at at the new attempt time).
+    stale = (
+        datetime.now(timezone.utc)
+        - timedelta(seconds=bi.LAYER2_NULL_RETRY_BACKOFF_S + 60)
+    ).isoformat()
+    conn.execute("UPDATE articles SET layer2_at = ? WHERE id = 1", (stale,))
+    conn.commit()
+
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+    assert handles["layer2"].call_count == 2, (
+        "tick after backoff expiry must re-attempt the Layer 2 LLM; "
+        f"got {handles['layer2'].call_count} calls"
+    )
+    row = conn.execute(
+        "SELECT layer2_verdict, layer2_at FROM articles WHERE id = 1"
+    ).fetchone()
+    assert row[0] is None, (
+        f"re-attempt still failing must leave layer2_verdict NULL; got {row[0]!r}"
+    )
+    assert row[1] is not None and row[1] != stale, (
+        "failed re-attempt must re-stamp layer2_at at the new attempt time"
+    )
+
+
+@pytest.mark.asyncio
+async def test_layer2_llm_exception_is_caught_stamped_and_backed_off(
+    monkeypatch, tmp_path: Path
+):
+    """T5 failure path — a raising Layer 2 call must not abort the run.
+
+    layer2_full_body_score normalizes every error to all-None, but a raised
+    exception (defensive: mock side_effect / future bug) must be caught by
+    the drain, stamped for backoff, and let the run finish — not propagate
+    and abort the remaining tick. Next tick inside the window is suppressed.
+    """
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    seed_kol_article(
+        conn,
+        art_id=1,
+        body="exception body " * 200,
+        layer1_verdict="candidate",
+        layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    candidate = FilterResult(
+        verdict="candidate", reason="ok", prompt_version=PROMPT_VERSION_LAYER1
+    )
+
+    patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[candidate],
+        layer2_results=[],
+    )
+    raising = AsyncMock(side_effect=RuntimeError("simulated Layer 2 outage"))
+    monkeypatch.setattr(bi, "layer2_full_body_score", raising)
+
+    # Tick 1: the raise is caught inside the drain; run completes normally.
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+    assert raising.await_count == 1, (
+        f"tick 1 should attempt Layer 2 once; got {raising.await_count} awaits"
+    )
+    row = conn.execute(
+        "SELECT layer2_verdict, layer2_at FROM articles WHERE id = 1"
+    ).fetchone()
+    assert row[0] is None and row[1] is not None, (
+        f"raised Layer 2 call must be stamped as a NULL attempt; got {row!r}"
+    )
+    assert _ingestion_rows(conn) == []
+
+    # Tick 2 inside the window: suppressed — the raising mock is never
+    # awaited again (had the gate failed, the RuntimeError would propagate).
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+    assert raising.await_count == 1, (
+        "within-window tick must suppress the (raising) Layer 2 call; "
+        f"got {raising.await_count} awaits"
+    )
+
+
+@pytest.mark.asyncio
+async def test_layer2_mixed_batch_ok_ingested_null_row_backed_off(
+    monkeypatch, tmp_path: Path
+):
+    """T5 failure path — partial (mixed) batch: ok row ingests normally;
+    the NULL slot is backed off on the next tick, then retried after expiry.
+
+    Uses the REAL persist_layer2_verdicts (un-mocked) so the NULL slot's
+    layer2_at stamp comes from the production persist path, mirroring how a
+    mixed-batch failure lands in the DB.
+    """
+    import lib.article_filter as af
+
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    seed_kol_article(
+        conn,
+        art_id=1,
+        body="mixed ok body " * 200,
+        layer1_verdict="candidate",
+        layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    seed_kol_article(
+        conn,
+        art_id=2,
+        body="mixed null body " * 200,
+        layer1_verdict="candidate",
+        layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+
+    candidate = FilterResult(
+        verdict="candidate", reason="ok", prompt_version=PROMPT_VERSION_LAYER1
+    )
+    ok = FilterResult(verdict="ok", reason="depth=2", prompt_version=PROMPT_VERSION_LAYER2)
+    fail = FilterResult(
+        verdict=None, reason="exception:MockOutage", prompt_version=PROMPT_VERSION_LAYER2
+    )
+
+    handles = patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[candidate, candidate],
+        layer2_results=[ok, fail],
+        ingest_outcome=(True, 1.0, True),
+    )
+    # Real persist: production layer2_at stamp for the NULL slot must land.
+    monkeypatch.setattr(bi, "persist_layer2_verdicts", af.persist_layer2_verdicts)
+
+    # Hermetic: ok-path inline title translation must never hit the network.
+    import lib.translate
+
+    monkeypatch.setattr(
+        lib.translate, "translate_title_with_deepseek_tavily",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(lib.translate, "detect_source_lang", lambda s: "zh")
+
+    # Tick 1: id1 → ok + ingested; id2 → NULL verdict, stamped via persist.
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+    assert handles["layer2"].call_count == 1
+    assert _ingestion_rows(conn) == [(1, "wechat", "ok", bi.SKIP_REASON_VERSION_CURRENT)], (
+        f"ok slot must ingest; got {_ingestion_rows(conn)!r}"
+    )
+    row2 = conn.execute(
+        "SELECT layer2_verdict, layer2_at FROM articles WHERE id = 2"
+    ).fetchone()
+    assert row2[0] is None and row2[1] is not None, (
+        f"NULL slot must stay NULL and be stamped; got {row2!r}"
+    )
+    row2_stamped_at = row2[1]
+
+    # Tick 2 inside the window: id1 excluded (ingestions ok), id2's recent
+    # NULL attempt suppresses the Layer 2 LLM; row byte-identical. A fresh
+    # mock is installed so ticks 2+3 are counted independently of tick 1.
+    monkeypatch.setattr(
+        bi, "layer1_pre_filter", AsyncMock(return_value=[candidate])
+    )
+    tick23_layer2 = AsyncMock(return_value=[ok])
+    monkeypatch.setattr(bi, "layer2_full_body_score", tick23_layer2)
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+    assert handles["layer2"].call_count == 1, (
+        "within-window tick must suppress the Layer 2 LLM for the NULL slot; "
+        f"got {handles['layer2'].call_count} calls"
+    )
+    assert tick23_layer2.call_count == 0, (
+        "within-window tick must not reach the Layer 2 LLM at all; "
+        f"got {tick23_layer2.call_count} calls"
+    )
+    row2 = conn.execute(
+        "SELECT layer2_verdict, layer2_at FROM articles WHERE id = 2"
+    ).fetchone()
+    assert row2 == (None, row2_stamped_at), (
+        f"backoff-suppressed tick must leave the NULL slot untouched; got {row2!r}"
+    )
+    assert _ingestion_rows(conn) == [
+        (1, "wechat", "ok", bi.SKIP_REASON_VERSION_CURRENT)
+    ]
+
+    # Window expires → tick 3 re-attempts id2 and it ingests as ok.
+    stale = (
+        datetime.now(timezone.utc)
+        - timedelta(seconds=bi.LAYER2_NULL_RETRY_BACKOFF_S + 60)
+    ).isoformat()
+    conn.execute("UPDATE articles SET layer2_at = ? WHERE id = 2", (stale,))
+    conn.commit()
+
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+    assert tick23_layer2.call_count == 1, (
+        "tick after backoff expiry must re-attempt the NULL slot; "
+        f"got {tick23_layer2.call_count} calls"
+    )
+    assert _ingestion_rows(conn) == [
+        (1, "wechat", "ok", bi.SKIP_REASON_VERSION_CURRENT),
+        (2, "wechat", "ok", bi.SKIP_REASON_VERSION_CURRENT),
+    ], f"both slots should be ingested after retry; got {_ingestion_rows(conn)!r}"
+    row2 = conn.execute(
+        "SELECT layer2_verdict FROM articles WHERE id = 2"
+    ).fetchone()
+    assert row2[0] == "ok", f"retried NULL slot should now be ok; got {row2!r}"
+
+
+@pytest.mark.asyncio
+async def test_layer2_backoff_gate_passes_fresh_rows_both_sources(
+    monkeypatch, tmp_path: Path
+):
+    """T5 normal path — the gate must never suppress FRESH (never-attempted,
+    layer2_at NULL) rows, on either source table. Both queued rows reach the
+    Layer 2 LLM in one batch and get their (reject) verdicts persisted.
+    """
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(exist_ok=True)
+
+    seed_kol_article(
+        conn,
+        art_id=1,
+        body="fresh kol body " * 200,
+        layer1_verdict="candidate",
+        layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+    seed_rss_article(
+        conn,
+        art_id=1,
+        body="fresh rss body " * 200,
+        layer1_verdict="candidate",
+        layer1_prompt_version=PROMPT_VERSION_LAYER1,
+    )
+
+    candidate = FilterResult(
+        verdict="candidate", reason="ok", prompt_version=PROMPT_VERSION_LAYER1
+    )
+    reject = FilterResult(
+        verdict="reject", reason="shallow", prompt_version=PROMPT_VERSION_LAYER2
+    )
+    # Candidate SELECT orders source DESC, id ASC → wechat id=1, then rss id=1.
+    handles = patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[candidate, candidate],
+        layer2_results=[reject, reject],
+    )
+
+    await bi.ingest_from_db(
+        topic="ai", dry_run=False, batch_timeout=None, max_articles=None,
+    )
+    assert handles["layer2"].call_count == 1, (
+        f"fresh rows must reach the Layer 2 LLM; got {handles['layer2'].call_count} calls"
+    )
+    sent = handles["layer2"].call_args.args[0]
+    assert len(sent) == 2, (
+        f"both fresh rows (kol + rss) must be sent in one batch; got {len(sent)}"
+    )
+    sources = sorted((a.source, a.id) for a in sent)
+    assert sources == [("rss", 1), ("wechat", 1)], (
+        f"both source tables must be fetched through the gate; got {sources!r}"
+    )
+    # _ingestion_rows orders by source ASC, article_id → rss before wechat.
+    assert _ingestion_rows(conn) == [
+        (1, "rss", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
+        (1, "wechat", "skipped", bi.SKIP_REASON_VERSION_CURRENT),
+    ], f"reject verdicts must persist as skipped; got {_ingestion_rows(conn)!r}"
