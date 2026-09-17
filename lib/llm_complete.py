@@ -35,7 +35,7 @@ import os
 from typing import Callable
 
 
-_VALID = ("deepseek", "vertex_gemini", "databricks_serving", "bailian", "router")
+_VALID = ("deepseek", "vertex_gemini", "databricks_serving", "bailian", "router", "hermes")
 
 
 def get_llm_func() -> Callable:
@@ -56,6 +56,9 @@ def get_llm_func() -> Callable:
     if provider == "vertex_gemini":
         from lib.vertex_gemini_complete import vertex_gemini_model_complete
         return vertex_gemini_model_complete
+    if provider == "hermes":
+        from lib.llm_hermes import hermes_model_complete
+        return hermes_model_complete
     if provider == "databricks_serving":
         # kdb-2-02 LLM-DBX-01 + LLM-DBX-04 (Decision 1 — translation in dispatcher).
         # Wraps the kdb-1.5 factory at databricks-deploy/lightrag_databricks_provider.py.

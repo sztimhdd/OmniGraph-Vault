@@ -1,0 +1,18 @@
+{
+  "artifact_file_count": 2,
+  "artifact_hashes": {
+    "wiki/.locks/entity-extraction.md.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "wiki/entities/entity-extraction.md": "722c06f89dbde370afa0e43d7bff536de104e27f4748f1b99e979fcf8553fa57"
+  },
+  "candidate_dir": "/home/sztimhdd/.local/share/vitax-probes/vitax-vx001.H8iYB3wq/runs/vitax-wiki-candidate-mt6cr6le",
+  "network_or_model_execution": "not attempted",
+  "page_sha256": "722c06f89dbde370afa0e43d7bff536de104e27f4748f1b99e979fcf8553fa57",
+  "patch_id": "wpatch-4000727676739e66",
+  "receipt_sha256": "e6372a2f63ccd52e8df15c569cf573d36922206753f16d29cc1f13d32ac8bb7b",
+  "repository_manifest_sha256": "c8dae55791f3ddf33a3c939da80252162cfc2a3c5ce0d156dd294f671b5d3047",
+  "repository_wiki_file_count": 29,
+  "source": "synthetic",
+  "source_input_manifest_file_count": 20,
+  "source_ref": "9955937e7a",
+  "status": "APPLIED"
+}

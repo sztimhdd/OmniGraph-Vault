@@ -65,7 +65,9 @@ do_rsync_all() {
     local src="${pair%%|*}"
     local dst="${pair##*|}"
     log "rsync ${src} → ${dst}"
-    if ! do_one_rsync "${src}" "${dst}"; then
+    if do_one_rsync "${src}" "${dst}"; then
+      :
+    else
       local code=$?
       log "  → rsync FAILED (exit ${code}) for ${src}"
       rc=${code}

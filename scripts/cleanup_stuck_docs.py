@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Phase 21 STK-02 + STK-03: cleanup CLI for FAILED / PROCESSING LightRAG docs.
+"""Phase 21 STK-02 + STK-03: cleanup CLI for failed LightRAG docs.
 
-Lists or deletes stuck documents via `LightRAG.adelete_by_doc_id` (verified
-residue-free per `.planning/phases/21-stuck-doc-spike/21-00-SPIKE-FINDINGS.md`).
+Reports stuck documents and refuses deletion until every RAG writer shares a
+single process lock. This preserves original documents and avoids racing an
+active ingest process.
 
 Flags:
-    --dry-run        list candidates only; no mutation (combinable with --all-failed)
-    --all-failed     delete every doc with status in {failed, processing}
-    --hash <doc_id>  delete one specific doc; idempotent if already absent
+    --dry-run        count diagnostic candidates only; no mutation (combinable with --all-failed)
+    --all-failed     report failed docs, reject processing, then fail closed
+    --hash <doc_id>  report one failed doc, then fail closed
 
 Exit codes:
-    0  dry-run / nothing-to-clean / all-cleaned / idempotent-missing-hash
-    1  --hash targets a PROCESSED doc, OR an unexpected exception occurred
+    0  dry-run / nothing-to-clean / idempotent-missing-hash
+    1  a requested deletion is refused, or an unexpected exception occurred
     2  argparse usage error
 """
 from __future__ import annotations
@@ -35,7 +36,8 @@ logger = logging.getLogger("cleanup_stuck_docs")
 
 # JSON report schema — single source of truth (tests import these)
 SkipReason = Literal[
-    "pipeline_busy", "not_failed_status", "doc_not_found", "delete_returned_error",
+    "pipeline_lock_unshared", "processing_not_eligible", "not_failed_status",
+    "doc_not_found", "invalid_status_entry",
 ]
 
 
@@ -53,7 +55,8 @@ class CleanupReport(TypedDict):
     elapsed_ms: int
 
 
-_ELIGIBLE_STATUSES = ("failed", "processing")
+_ELIGIBLE_STATUSES = ("failed",)
+_DIAGNOSTIC_STATUSES = ("failed", "processing")
 
 
 def _load_doc_status(storage_dir: Path) -> dict[str, dict]:
@@ -71,31 +74,20 @@ def _filter_candidates(status_map: dict[str, dict]) -> list[tuple[str, str]]:
     ]
 
 
+def _processing_entries(status_map: dict[str, dict]) -> list[tuple[str, str]]:
+    return [
+        (doc_id, "processing")
+        for doc_id, entry in status_map.items()
+        if isinstance(entry, dict) and entry.get("status") == "processing"
+    ]
+
+
 def _skip(doc_id: str, status: str, reason: SkipReason) -> SkipEntry:
     return {"doc_id": doc_id, "status": status, "reason": reason}
 
 
-def _emit_pipeline_busy_warning(storage_dir: Path) -> None:
-    """Best-effort advisory; NEVER raises. Empty signal = silent."""
-    try:
-        from lightrag.kg.shared_storage import get_pipeline_status_lock  # noqa: F401
-    except (ImportError, AttributeError):
-        pass
-    try:
-        path = storage_dir / "kv_store_doc_status.json"
-        if path.exists():
-            age_s = time.time() - path.stat().st_mtime
-            if age_s < 60:
-                sys.stderr.write(
-                    f"WARNING: pipeline appears busy (kv_store_doc_status.json "
-                    f"modified {int(age_s)}s ago) — deletion may race\n"
-                )
-    except OSError:
-        pass
-
-
 async def _build_rag() -> Any:
-    """Seam for tests. Late import so .env loads first."""
+    """Reserved write seam; fail-closed modes must not call it."""
     from ingest_wechat import get_rag
     return await get_rag(flush=False)
 
@@ -111,41 +103,49 @@ async def main_async(args: argparse.Namespace) -> int:
     exit_code = 0
 
     if args.dry_run:
-        report["docs_identified"] = len(_filter_candidates(status_map))
+        report["docs_identified"] = sum(
+            1
+            for entry in status_map.values()
+            if isinstance(entry, dict)
+            and entry.get("status") in _DIAGNOSTIC_STATUSES
+        )
     elif args.all_failed:
         candidates = _filter_candidates(status_map)
         report["docs_identified"] = len(candidates)
+        report["skipped_reasons"].extend(
+            _skip(doc_id, status, "processing_not_eligible")
+            for doc_id, status in _processing_entries(status_map)
+        )
         if candidates:
-            _emit_pipeline_busy_warning(storage_dir)
-            rag = await _build_rag()
-            for doc_id, status in candidates:
-                result = await rag.adelete_by_doc_id(doc_id)
-                if getattr(result, "status", None) == "success":
-                    report["docs_deleted"] += 1
-                else:
-                    report["skipped_reasons"].append(
-                        _skip(doc_id, status, "delete_returned_error"))
+            report["skipped_reasons"].extend(
+                _skip(doc_id, status, "pipeline_lock_unshared")
+                for doc_id, status in candidates
+            )
+            exit_code = 1
     elif args.hash is not None:
         doc_id = args.hash
         entry = status_map.get(doc_id)
         if entry is None:
             report["skipped_reasons"].append(_skip(doc_id, "missing", "doc_not_found"))
+        elif not isinstance(entry, dict):
+            report["skipped_reasons"].append(
+                _skip(doc_id, "invalid", "invalid_status_entry"))
+            exit_code = 1
         else:
             actual_status = entry.get("status", "")
-            if actual_status not in _ELIGIBLE_STATUSES:
+            if actual_status == "processing":
+                report["skipped_reasons"].append(
+                    _skip(doc_id, actual_status, "processing_not_eligible"))
+                exit_code = 1
+            elif actual_status not in _ELIGIBLE_STATUSES:
                 report["skipped_reasons"].append(
                     _skip(doc_id, actual_status, "not_failed_status"))
                 exit_code = 1
             else:
                 report["docs_identified"] = 1
-                _emit_pipeline_busy_warning(storage_dir)
-                rag = await _build_rag()
-                result = await rag.adelete_by_doc_id(doc_id)
-                if getattr(result, "status", None) == "success":
-                    report["docs_deleted"] = 1
-                else:
-                    report["skipped_reasons"].append(
-                        _skip(doc_id, actual_status, "delete_returned_error"))
+                report["skipped_reasons"].append(
+                    _skip(doc_id, actual_status, "pipeline_lock_unshared"))
+                exit_code = 1
 
     report["docs_skipped"] = len(report["skipped_reasons"])
     report["elapsed_ms"] = int(round((time.perf_counter() - t0) * 1000))
@@ -157,12 +157,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dry-run", action="store_true",
-                        help="list candidates only; combinable with --all-failed")
+                        help="count candidates only; combinable with --all-failed")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--all-failed", action="store_true",
-                       help="delete every doc with status in (failed, processing)")
+                       help="report failed docs, reject processing, then fail closed")
     group.add_argument("--hash", metavar="DOC_ID", default=None,
-                       help="delete exactly one doc by id (idempotent if absent)")
+                       help="report one failed doc, then fail closed")
     return parser
 
 

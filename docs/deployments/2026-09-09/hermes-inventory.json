@@ -1,0 +1,1328 @@
+{
+  "timestamp_utc": "2026-09-09T13:24:31.277898+00:00",
+  "hostname": "OH-Desktop",
+  "repo": "/home/sztimhdd/OmniGraph-Vault",
+  "vault": "/home/sztimhdd/.hermes/omonigraph-vault",
+  "os": {
+    "code": 0,
+    "out": "Linux 5.15.167.4-microsoft-standard-WSL2",
+    "error": ""
+  },
+  "capacity": {
+    "disk": {
+      "code": 0,
+      "out": "Filesystem         1B-blocks         Used    Available Use% Mounted on\n/dev/sdc       1081101176832 155372814336 870736007168  16% /",
+      "error": ""
+    },
+    "inodes": {
+      "code": 0,
+      "out": "Filesystem       Inodes   IUsed    IFree IUse% Mounted on\n/dev/sdc       67108864 2829066 64279798    5% /",
+      "error": ""
+    },
+    "memory": {
+      "code": 0,
+      "out": "total        used        free      shared  buff/cache   available\nMem:     16444108800  4854734848  6805970944   174178304  5309927424 11589373952\nSwap:    16777216000     5066752 16772149248",
+      "error": ""
+    },
+    "uptime": {
+      "code": 0,
+      "out": "10:24:31 up 6 days,  6:07,  6 users,  load average: 0.44, 0.27, 0.20",
+      "error": ""
+    }
+  },
+  "git": {
+    "head": {
+      "code": 0,
+      "out": "dca7c772a8c95125d275ec50b2944ff00713667a",
+      "error": ""
+    },
+    "branch": {
+      "code": 0,
+      "out": "main",
+      "error": ""
+    },
+    "status": {
+      "code": 0,
+      "out": "M scripts/wiki_evolve.py\n M tests/unit/test_wiki_w5b_bootstrap.py",
+      "error": ""
+    },
+    "untracked": {
+      "code": 0,
+      "out": "docs/CODEX-HANDOFF-2026-09-09.md\ndocs/DSH-MASTER-HANDOFF-20260822.md\ndocs/HERMES-OMNIGRAPH-OPERATIONS-HANDOFF-20260822.md\ndocs/MASTER-CONTROL-SESSION.md",
+      "error": ""
+    },
+    "worktrees": {
+      "code": 0,
+      "out": "worktree /home/sztimhdd/OmniGraph-Vault\nHEAD dca7c772a8c95125d275ec50b2944ff00713667a\nbranch refs/heads/main\n\nworktree /home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t2\nHEAD f0515516ceae50d9c247a26a950aae8f289fd5e9\nbranch refs/heads/w5b-t2-isolated\n\nworktree /home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t3\nHEAD e2296e0a2e4a3998ea97014da7b4bd08e8cf16cd\nbranch refs/heads/w5b-t3-isolated\n\nworktree /home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t4\nHEAD 21bb9f4a5f2e7f7df565697999b60b1091b0ec56\nbranch refs/heads/w5b-t4-isolated\n\nworktree /home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t4-retry\nHEAD 54a81ce9e575758c77f42eaeb2708fa78bfc62ae\nbranch refs/heads/w5b-t4-retry-isolated\n\nworktree /home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t5\nHEAD 4aa662a5f694e733f9588ed04972a04491f1a90b\nbranch refs/heads/w5b-t5-isolated\n\nworktree /home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t6\nHEAD 0161a24cf62f9697157afed900e9b1754a43515e\nbranch refs/heads/w5b-t6-isolated\n\nworktree /home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t7\nHEAD e947d4c583093c0c5ce7a1b3a4f5b8e6bd0e2308\nbranch refs/heads/w5b-t7-isolated\n\nworktree /home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t8\nHEAD 8b702de3048a9cb5d298b8f9523381699cfacc75\nbranch refs/heads/w5b-t8-isolated\n\nworktree /tmp/omnigraph-embedding-fix\nHEAD b887b52665e5dfbb3f3fc11fda1d7a39de3ab145\nbranch refs/heads/fix/embedding-admission-lock\nprunable gitdir file points to non-existent location\n\nworktree /tmp/w5a-verify\nHEAD cbec5264ab95198ec05174987317c12ad5a550e7\ndetached\nprunable gitdir file points to non-existent location",
+      "error": ""
+    }
+  },
+  "env_file": {
+    "GEMINI_BACKUP_KEY": "[SET]",
+    "APIFY_TOKEN": "[SET]",
+    "DEEPSEEK_API_KEY": "[SET]",
+    "DEEPSEEK_API_KEY_BACKUP": "[SET]",
+    "TELEGRAM_BOT_TOKEN": "[SET]",
+    "GATEWAY_ALLOW_ALL_USERS": "[SET]",
+    "BRAVE_SEARCH_API_KEY": "[SET]",
+    "BRAVE_API_KEY": "[SET]",
+    "FIRECRAWL_API_KEY": "[SET]",
+    "TAVILY_API_KEY": "[SET]",
+    "EMBEDDING_MODEL": "gemini-embedding-2",
+    "RAILWAY_TOKEN": "[SET]",
+    "GEMINI_API_KEY": "[SET]",
+    "GEMINI_API_KEY_BACKUP": "[SET]",
+    "HERMES_DASHBOARD_PASSWORD": "[SET]",
+    "HERMES_DASHBOARD_SECRET": "[SET]",
+    "CDP_URL": "http://localhost:9223",
+    "OPENROUTER_API_KEY": "[SET]",
+    "OMNIGRAPH_EMBEDDING_KEYS": "[SET]",
+    "SILICONFLOW_API_KEY": "[SET]",
+    "OMNIGRAPH_VISION_SKIP_BALANCE_CHECK": "1",
+    "GOOGLE_CLOUD_PROJECT": "[SET]",
+    "GOOGLE_CLOUD_LOCATION": "[SET]",
+    "GOOGLE_APPLICATION_CREDENTIALS": "[SET]",
+    "GOOGLE_GENAI_USE_VERTEXAI": "[SET]",
+    "HERMES_MAX_ITERATIONS": "[SET]",
+    "WEIXIN_ACCOUNT_ID": "[SET]",
+    "WEIXIN_TOKEN": "[SET]",
+    "WEIXIN_BASE_URL": "[SET]",
+    "WEIXIN_CDN_BASE_URL": "[SET]",
+    "WEIXIN_DM_POLICY": "[SET]",
+    "WEIXIN_ALLOW_ALL_USERS": "[SET]",
+    "WEIXIN_ALLOWED_USERS": "[EMPTY]",
+    "WEIXIN_GROUP_POLICY": "[SET]",
+    "WEIXIN_GROUP_ALLOWED_USERS": "[EMPTY]",
+    "WEIXIN_HOME_CHANNEL": "[SET]",
+    "HINDSIGHT_API_KEY": "[SET]",
+    "HINDSIGHT_LLM_API_KEY": "[SET]",
+    "TELEGRAM_CHAT_ID": "[SET]",
+    "HERMES_CRON_TIMEOUT": "[SET]",
+    "OMNIGRAPH_GEMINI_KEY": "[SET]",
+    "TERMINAL_MAX_FOREGROUND_TIMEOUT": "[SET]",
+    "APIFY_TOKEN_BACKUP": "[SET]",
+    "SCRAPE_CASCADE": "[SET]",
+    "OMNIGRAPH_PROCESSED_RETRY": "[SET]",
+    "OMNIGRAPH_PROCESSED_BACKOFF": "2.0"
+  },
+  "units": [
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "infinity",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 02:00:00 ADT",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 02:00:48 ADT",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "/home/sztimhdd/OmniGraph-Vault",
+      "User": "sztimhdd",
+      "Id": "omnigraph-daily-pull.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-daily-pull.service",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/home/sztimhdd/OmniGraph-Vault/scripts/sync-from-aliyun.sh ; argv[]=/home/sztimhdd/OmniGraph-Vault/scripts/sync-from-aliyun.sh ; ignore_errors=no ; start_time=[Wed 2026-09-09 02:00:00 ADT] ; stop_time=[Wed 2026-09-09 02:00:48 ADT] ; pid=66844 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-daily-pull.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 05:00:00 UTC ; next_elapse=Thu 2026-09-10 02:00:00 ADT }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 02:00:00 ADT",
+      "LastTriggerUSec": "Wed 2026-09-09 02:00:00 ADT",
+      "Result": "success",
+      "Id": "omnigraph-daily-pull.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-daily-pull.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "always",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "336",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Tue 2026-09-08 13:19:46 ADT",
+      "ExecMainExitTimestamp": "",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "!/home/sztimhdd",
+      "User": "",
+      "Id": "aliyun-tunnel.service",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running",
+      "FragmentPath": "/home/sztimhdd/.config/systemd/user/aliyun-tunnel.service",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "user",
+      "process": {
+        "cmdline": "/home/sztimhdd/.local/lib/autossh/autossh -M 0 -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new -N -R 58931:127.0.0.1:8931 -R 58932:127.0.0.1:22 -R 58933:127.0.0.1:9223 vitaclaw-aliyun ",
+        "exe": "/home/sztimhdd/.local/lib/autossh/autossh",
+        "cwd": "/home/sztimhdd",
+        "env": {}
+      },
+      "ExecStart": "{ path=/home/sztimhdd/.local/bin/autossh ; argv[]=/home/sztimhdd/.local/bin/autossh -M 0 -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new -N -R 58931:127.0.0.1:8931 -R 58932:127.0.0.1:22 -R 58933:127.0.0.1:9223 vitaclaw-aliyun ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Restart": "always",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "2min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "333",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Tue 2026-09-08 13:19:46 ADT",
+      "ExecMainExitTimestamp": "",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/home/sztimhdd/.hermes/.env (ignore_errors=yes)",
+      "WorkingDirectory": "/home/sztimhdd/.hermes",
+      "User": "",
+      "Id": "hermes-gateway.service",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running",
+      "FragmentPath": "/home/sztimhdd/.config/systemd/user/hermes-gateway.service",
+      "DropInPaths": "/home/sztimhdd/.config/systemd/user/hermes-gateway.service.d/env.conf /home/sztimhdd/.config/systemd/user/hermes-gateway.service.d/timeout.conf",
+      "UnitFileState": "enabled",
+      "scope": "user",
+      "process": {
+        "cmdline": "/home/sztimhdd/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main gateway run ",
+        "exe": "/home/sztimhdd/.hermes/hermes-agent/.hermes-runtime/python/generation-1785107898-391076-a6fc0016/cpython-3.11.15-linux-x86_64-gnu/bin/python3.11",
+        "cwd": "/home/sztimhdd/.hermes",
+        "env": {
+          "DEEPSEEK_API_KEY": "[SET]",
+          "DEEPSEEK_API_KEY_BACKUP": "[SET]",
+          "EMBEDDING_MODEL": "gemini-embedding-2",
+          "CDP_URL": "http://localhost:9223",
+          "OMNIGRAPH_EMBEDDING_KEYS": "[SET]",
+          "OMNIGRAPH_VISION_SKIP_BALANCE_CHECK": "1",
+          "OMNIGRAPH_GEMINI_KEY": "[SET]",
+          "OMNIGRAPH_PROCESSED_RETRY": "[SET]",
+          "OMNIGRAPH_PROCESSED_BACKOFF": "2.0"
+        }
+      },
+      "ExecStart": "{ path=/home/sztimhdd/.hermes/hermes-agent/venv/bin/python ; argv[]=/home/sztimhdd/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main gateway run ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Restart": "always",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "334",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Tue 2026-09-08 13:19:46 ADT",
+      "ExecMainExitTimestamp": "",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "!/home/sztimhdd",
+      "User": "",
+      "Id": "omnigraph-tunnel.service",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running",
+      "FragmentPath": "/home/sztimhdd/.config/systemd/user/omnigraph-tunnel.service",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "user",
+      "process": {
+        "cmdline": "ssh -N -L 8767:127.0.0.1:8767 -o ServerAliveInterval=60 -o ExitOnForwardFailure=yes aliyun-new ",
+        "exe": "/usr/bin/ssh",
+        "cwd": "/home/sztimhdd",
+        "env": {}
+      },
+      "ExecStart": "{ path=ssh ; argv[]=ssh -N -L 8767:127.0.0.1:8767 -o ServerAliveInterval=60 -o ExitOnForwardFailure=yes aliyun-new ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Restart": "always",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "335",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Tue 2026-09-08 13:19:46 ADT",
+      "ExecMainExitTimestamp": "",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "!/home/sztimhdd",
+      "User": "",
+      "Id": "playwright-mcp.service",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running",
+      "FragmentPath": "/home/sztimhdd/.config/systemd/user/playwright-mcp.service",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "user",
+      "process": {
+        "cmdline": "npm exec @playwright/mcp --cdp-endpoint http://127.0.0.1:9223 --port 8931 --host 127.0.0.1             ",
+        "exe": "/usr/bin/node",
+        "cwd": "/home/sztimhdd",
+        "env": {}
+      },
+      "ExecStart": "{ path=/bin/sh ; argv[]=/bin/sh -c exec npx -y @playwright/mcp --cdp-endpoint http://127.0.0.1:9223 --port 8931 --host 127.0.0.1 ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Restart": "on-failure",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "",
+      "ExecMainExitTimestamp": "",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "/home/sztimhdd/.local/share/qwen3.8-27b-in-16gb",
+      "User": "",
+      "Id": "qwen3.8-27b.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/home/sztimhdd/.config/systemd/user/qwen3.8-27b.service",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "user",
+      "ExecStart": "{ path=/home/sztimhdd/.local/share/qwen3.8-27b-in-16gb/run.sh ; argv[]=/home/sztimhdd/.local/share/qwen3.8-27b-in-16gb/run.sh ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Restart": "on-failure",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "exit-code",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 10:24:31 ADT",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 10:24:31 ADT",
+      "ExecMainStatus": "203",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "/home/sztimhdd/vertex-proxy",
+      "User": "",
+      "Id": "vertex-proxy.service",
+      "LoadState": "loaded",
+      "ActiveState": "activating",
+      "SubState": "auto-restart",
+      "FragmentPath": "/home/sztimhdd/.config/systemd/user/vertex-proxy.service",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "user",
+      "ExecStart": "{ path=/home/sztimhdd/vertex-proxy/.venv/bin/python ; argv[]=/home/sztimhdd/vertex-proxy/.venv/bin/python -m vertex_proxy ; ignore_errors=no ; start_time=[Wed 2026-09-09 10:24:31 ADT] ; stop_time=[Wed 2026-09-09 10:24:31 ADT] ; pid=91255 ; code=exited ; status=203 }"
+    }
+  ],
+  "listeners": {
+    "code": 0,
+    "out": "State  Recv-Q Send-Q  Local Address:Port  Peer Address:PortProcess                               \nLISTEN 0      200         127.0.0.1:5433       0.0.0.0:*    users:((\"postgres\",pid=90215,fd=7))  \nLISTEN 0      511           0.0.0.0:3080       0.0.0.0:*    users:((\"MainThread\",pid=3742,fd=21))\nLISTEN 0      1000   10.255.255.254:53         0.0.0.0:*                                         \nLISTEN 0      4096          0.0.0.0:22         0.0.0.0:*                                         \nLISTEN 0      2048          0.0.0.0:9119       0.0.0.0:*    users:((\"hermes\",pid=86149,fd=22))   \nLISTEN 0      4096       127.0.0.54:53         0.0.0.0:*                                         \nLISTEN 0      2048        127.0.0.1:9177       0.0.0.0:*    users:((\"python3\",pid=90113,fd=23))  \nLISTEN 0      128         127.0.0.1:8767       0.0.0.0:*    users:((\"ssh\",pid=334,fd=5))         \nLISTEN 0      511         127.0.0.1:8931       0.0.0.0:*    users:((\"MainThread\",pid=1804,fd=21))\nLISTEN 0      4096        127.0.0.1:43269      0.0.0.0:*                                         \nLISTEN 0      4096    127.0.0.53%lo:53         0.0.0.0:*                                         \nLISTEN 0      128             [::1]:8767          [::]:*    users:((\"ssh\",pid=334,fd=4))         \nLISTEN 0      4096             [::]:22            [::]:*",
+    "error": ""
+  },
+  "docker": [],
+  "files": {
+    "batch_ingest_from_spider.py": {
+      "sha256": "e01b92537eb5ff07529c9ad8227d845f0cdf5b0dd036fa8ddc557d4cbcc73fdf",
+      "bytes": 120919,
+      "mtime_utc": "2026-09-03T18:37:19.737666+00:00"
+    },
+    "batch_classify_kol.py": {
+      "sha256": "7552316ce8faae3f53fce20edde2482e8b1f0589e0a5e1ede9c58a638c32579e",
+      "bytes": 28916,
+      "mtime_utc": "2026-09-03T14:34:43.887343+00:00"
+    },
+    "ingest_wechat.py": {
+      "sha256": "79c8e972283e640b14cfe90fd433e3e6564214a9eda42f214fff9af88b39ee5e",
+      "bytes": 80549,
+      "mtime_utc": "2026-08-11T18:03:08.037828+00:00"
+    },
+    "image_pipeline.py": {
+      "sha256": "2430d00d564aa246cb5c520225f9a112a889ff912c7682282d18f58dc23d647f",
+      "bytes": 18330,
+      "mtime_utc": "2026-08-11T18:00:41.653025+00:00"
+    },
+    "config.py": {
+      "sha256": "8d743524d4d8531eccf1679a392276357081c7309705052a3b10f5257ab3cccc",
+      "bytes": 4687,
+      "mtime_utc": "2026-06-22T18:04:41.642143+00:00"
+    },
+    "lib/models.py": {
+      "sha256": "bb2458877303c8907c76d1a18d4605c90d9be02cb2063989a49fd9cb0527287b",
+      "bytes": 2280,
+      "mtime_utc": "2026-07-30T03:24:04+00:00"
+    },
+    "lib/vision_cascade.py": {
+      "sha256": "541dc987db0bfc16417d39ad38a6c7db8db810a0418323dfb9a5254afc3b0432",
+      "bytes": 14501,
+      "mtime_utc": "2026-08-11T18:00:08.338094+00:00"
+    },
+    "lib/llm_deepseek.py": {
+      "sha256": "38455622aec6dea6c046b4381faf30876d962e35bb828b0feb87f4114df6b168",
+      "bytes": 5471,
+      "mtime_utc": "2026-09-03T14:23:27.817299+00:00"
+    },
+    "lib/lightrag_embedding.py": {
+      "sha256": "5a2e4ec784ec8e1c1c88d6176a3c962868addcf01e552170a9a9cf56c10f70b9",
+      "bytes": 15552,
+      "mtime_utc": "2026-09-03T14:24:16.300746+00:00"
+    },
+    "lib/lightrag_llm.py": null,
+    "mcp_server_standalone.py": {
+      "sha256": "9c58129bd006570e6ad00ef7964e9e8d73e91e7fe7f3e1eae754556d99c6859d",
+      "bytes": 6861,
+      "mtime_utc": "2026-08-06T12:49:19.398602+00:00"
+    },
+    "mcp_kg_server.py": {
+      "sha256": "7120ff4b69220c6dc4c3962c33ec752bc628795f9815f339cfab2828afa96b70",
+      "bytes": 5824,
+      "mtime_utc": "2026-07-24T00:59:14.784027+00:00"
+    },
+    "kg_api.py": {
+      "sha256": "a37c4e83ea13244b79e7455d99b6bf7dc165ec606ab6ab716980a9fa2a7c7f45",
+      "bytes": 3793,
+      "mtime_utc": "2026-07-24T00:59:30.258491+00:00"
+    },
+    "kg_synthesize.py": {
+      "sha256": "3b15d9905e0e1683c88a2907378fff942ae4b87c9044dea4010064efb64e0042",
+      "bytes": 11974,
+      "mtime_utc": "2026-06-03T13:04:49.818144+00:00"
+    },
+    "embed_server.py": {
+      "sha256": "1ddb117a7930bf3944202bc1f9e66d293a458be3894e9d1a8c4ab198bcce9556",
+      "bytes": 2707,
+      "mtime_utc": "2026-07-30T02:37:42+00:00"
+    },
+    "scripts/mcp-healthcheck.py": {
+      "sha256": "4542f97204e4f22d2906643e4e18beaa4918b11cc7564b18f985d72b8d220892",
+      "bytes": 11304,
+      "mtime_utc": "2026-09-03T18:57:27.268285+00:00"
+    },
+    "scripts/dajiala_kol_scan.py": {
+      "sha256": "60d9db5db6edefef3be682e7a6f51852d4633832894ee751aa0121a50f86d95c",
+      "bytes": 10465,
+      "mtime_utc": "2026-08-10T17:51:53.549345+00:00"
+    },
+    "scripts/wiki_evolve.py": {
+      "sha256": "372f36db4dcd6e624a807a3587be5ab1679f74d38ad490adec7b2c8de6e4ba62",
+      "bytes": 66358,
+      "mtime_utc": "2026-08-14T17:16:18.189182+00:00"
+    },
+    "tests/unit/test_wiki_w5b_bootstrap.py": {
+      "sha256": "e52f7da2d002dc12b91fecf8d207b62980c7cd6dd28613c7952a0e486494e355",
+      "bytes": 80485,
+      "mtime_utc": "2026-08-14T18:26:12.803055+00:00"
+    },
+    "scripts/sync_kq_to_new.py": null,
+    "deploy/sync_kq_to_new.py": {
+      "sha256": "62083486f916d33431efc60529f8442598072eb0dea06cfca5be68b758874cdf",
+      "bytes": 7487,
+      "mtime_utc": "2026-08-04T13:52:17.775582+00:00"
+    },
+    "pyproject.toml": {
+      "sha256": "a21f1aab12ee14ffd60a4c1a623a41cba5ed80fc5ae82d00de234babf12a38ef",
+      "bytes": 1356,
+      "mtime_utc": "2026-06-01T15:00:45.997990+00:00"
+    },
+    "requirements.txt": {
+      "sha256": "64b5647cd33a8a53a59208005b4715298db8d1dbf312d4147a030d94395d261b",
+      "bytes": 497,
+      "mtime_utc": "2026-06-01T15:00:45.997990+00:00"
+    },
+    "requirements-kb.txt": {
+      "sha256": "fb5435fbb81b3fa3fe06d3480876ae8558fa16cdc789095e3537209226bd45be",
+      "bytes": 350,
+      "mtime_utc": "2026-05-13T15:16:04.202969+00:00"
+    }
+  },
+  "data_files": [
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/kol_scan.db",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/kol_scan.db",
+      "bytes": 155172864,
+      "mtime_utc": "2026-09-08T23:50:40.062406+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/OmniGraph-Vault/data/kol_scan.db",
+      "realpath": "/home/sztimhdd/OmniGraph-Vault/data/kol_scan.db",
+      "bytes": 150904832,
+      "mtime_utc": "2026-09-03T06:15:19.202230+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/OmniGraph-Vault/kol_scan.db",
+      "realpath": "/home/sztimhdd/OmniGraph-Vault/kol_scan.db",
+      "bytes": 0,
+      "mtime_utc": "2026-06-03T22:44:53.261549+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/hermes-agent/data/kol_scan.db",
+      "realpath": "/home/sztimhdd/.hermes/hermes-agent/data/kol_scan.db",
+      "bytes": 0,
+      "mtime_utc": "2026-05-20T11:31:54.743628+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260515_105603",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260515_105603",
+      "bytes": 201585,
+      "mtime_utc": "2026-05-14T23:59:07.063529+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260706_105504",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260706_105504",
+      "bytes": 890378,
+      "mtime_utc": "2026-07-06T10:18:58.192882+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260511_011922",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260511_011922",
+      "bytes": 2419508,
+      "mtime_utc": "2026-05-11T01:07:10.232654+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260704_105503",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260704_105503",
+      "bytes": 13075578,
+      "mtime_utc": "2026-07-04T10:46:36.791794+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260518_110020",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260518_110020",
+      "bytes": 317490,
+      "mtime_utc": "2026-05-18T10:55:17.959125+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260626_105518",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260626_105518",
+      "bytes": 12343193,
+      "mtime_utc": "2026-06-26T02:23:28.844131+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260516_105539",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260516_105539",
+      "bytes": 286305,
+      "mtime_utc": "2026-05-15T22:52:33.009130+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260511_011922",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260511_011922",
+      "bytes": 147905,
+      "mtime_utc": "2026-05-11T01:07:10.393713+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260711_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260711_105501",
+      "bytes": 951959,
+      "mtime_utc": "2026-07-11T10:39:08.136225+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260725_135136",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260725_135136",
+      "bytes": 18699178,
+      "mtime_utc": "2026-07-25T08:50:46.095927+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260702_105502",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260702_105502",
+      "bytes": 12552566,
+      "mtime_utc": "2026-07-01T02:02:16.171601+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260509_105523",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260509_105523",
+      "bytes": 1597313,
+      "mtime_utc": "2026-05-08T22:09:17.043106+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260509_110116",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260509_110116",
+      "bytes": 1521709,
+      "mtime_utc": "2026-05-09T10:55:23.887306+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260702_105502",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260702_105502",
+      "bytes": 810118,
+      "mtime_utc": "2026-07-01T10:55:01.509920+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/vdb_chunks.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/vdb_chunks.json",
+      "bytes": 124744191,
+      "mtime_utc": "2026-07-27T09:10:12.434395+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260511_110015",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260511_110015",
+      "bytes": 2430663,
+      "mtime_utc": "2026-05-11T01:33:38.092011+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260630_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260630_105501",
+      "bytes": 782482,
+      "mtime_utc": "2026-06-29T10:55:18.076116+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260719_115521",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260719_115521",
+      "bytes": 16362593,
+      "mtime_utc": "2026-07-18T17:45:55.270782+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json",
+      "bytes": 18983148,
+      "mtime_utc": "2026-07-27T14:16:02.400624+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260709_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260709_105501",
+      "bytes": 909459,
+      "mtime_utc": "2026-07-09T10:37:52.516840+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260704_105503",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260704_105503",
+      "bytes": 856655,
+      "mtime_utc": "2026-07-04T10:46:36.863796+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260719_204251",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260719_204251",
+      "bytes": 1123677,
+      "mtime_utc": "2026-07-19T20:21:50.177936+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260714_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260714_105501",
+      "bytes": 1008728,
+      "mtime_utc": "2026-07-14T10:42:43.038520+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260516_105539",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260516_105539",
+      "bytes": 4849970,
+      "mtime_utc": "2026-05-15T22:52:27.543942+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260522_105511",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260522_105511",
+      "bytes": 411512,
+      "mtime_utc": "2026-05-22T00:12:43.007941+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260719_204251",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260719_204251",
+      "bytes": 16413602,
+      "mtime_utc": "2026-07-19T20:21:50.117935+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_relations.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_relations.json",
+      "bytes": 8634623,
+      "mtime_utc": "2026-07-27T14:14:42.304613+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260705_105502",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260705_105502",
+      "bytes": 873008,
+      "mtime_utc": "2026-07-04T15:54:28.267057+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260716_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260716_105501",
+      "bytes": 14572594,
+      "mtime_utc": "2026-07-16T10:29:05.233358+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260520_110015",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260520_110015",
+      "bytes": 5862271,
+      "mtime_utc": "2026-05-20T10:47:53.476231+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260715_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260715_105501",
+      "bytes": 1008728,
+      "mtime_utc": "2026-07-15T10:42:22.631118+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260510_110013",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260510_110013",
+      "bytes": 1871646,
+      "mtime_utc": "2026-05-09T22:34:24.729904+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260703_105502",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260703_105502",
+      "bytes": 815696,
+      "mtime_utc": "2026-07-02T18:00:48.782859+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260707_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260707_105501",
+      "bytes": 13543261,
+      "mtime_utc": "2026-07-06T19:13:19.953081+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json",
+      "bytes": 1345590,
+      "mtime_utc": "2026-07-27T14:16:02.481626+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260509_223424",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260509_223424",
+      "bytes": 155669,
+      "mtime_utc": "2026-05-09T21:41:20.933957+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260516_110438",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260516_110438",
+      "bytes": 4808533,
+      "mtime_utc": "2026-05-16T10:55:39.591562+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260708_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260708_105501",
+      "bytes": 907520,
+      "mtime_utc": "2026-07-07T10:55:01.550335+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_relation_chunks.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_relation_chunks.json",
+      "bytes": 28329324,
+      "mtime_utc": "2026-07-27T14:14:43.591645+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/graph_chunk_entity_relation.graphml",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/graph_chunk_entity_relation.graphml",
+      "bytes": 71840581,
+      "mtime_utc": "2026-07-27T14:14:48.632771+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260513_105514",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260513_105514",
+      "bytes": 174433,
+      "mtime_utc": "2026-05-12T15:58:31.489221+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260718_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260718_105501",
+      "bytes": 16250744,
+      "mtime_utc": "2026-07-18T02:16:50.758365+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260518_105517",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260518_105517",
+      "bytes": 320758,
+      "mtime_utc": "2026-05-17T15:55:24.391654+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260510_105550",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260510_105550",
+      "bytes": 123495,
+      "mtime_utc": "2026-05-09T22:34:24.698132+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260520_105512",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260520_105512",
+      "bytes": 5862271,
+      "mtime_utc": "2026-05-20T10:47:53.476231+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260521_105545",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260521_105545",
+      "bytes": 6173551,
+      "mtime_utc": "2026-05-21T00:14:24.074506+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260514_110100",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260514_110100",
+      "bytes": 179067,
+      "mtime_utc": "2026-05-14T10:55:11.283830+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260521_110036",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260521_110036",
+      "bytes": 6173551,
+      "mtime_utc": "2026-05-21T00:14:24.074506+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260510_110013",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260510_110013",
+      "bytes": 123495,
+      "mtime_utc": "2026-05-10T10:55:50.881249+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260510_105550",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260510_105550",
+      "bytes": 1871646,
+      "mtime_utc": "2026-05-09T22:34:24.729904+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260718_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260718_105501",
+      "bytes": 1111025,
+      "mtime_utc": "2026-07-18T04:00:13.344285+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260628_105516",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260628_105516",
+      "bytes": 12343193,
+      "mtime_utc": "2026-06-26T02:23:28.844131+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260523_105540",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260523_105540",
+      "bytes": 428349,
+      "mtime_utc": "2026-05-23T00:02:21.397335+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260720_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260720_105501",
+      "bytes": 16449325,
+      "mtime_utc": "2026-07-20T07:35:52.993216+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260629_105518",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260629_105518",
+      "bytes": 12343193,
+      "mtime_utc": "2026-06-26T02:23:28.844131+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260514_105511",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260514_105511",
+      "bytes": 180415,
+      "mtime_utc": "2026-05-13T19:26:45.409329+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260706_105504",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260706_105504",
+      "bytes": 13336020,
+      "mtime_utc": "2026-07-06T10:15:01.165913+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260701_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260701_105501",
+      "bytes": 810118,
+      "mtime_utc": "2026-07-01T02:02:16.198601+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260711_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260711_105501",
+      "bytes": 13936102,
+      "mtime_utc": "2026-07-11T10:39:08.072224+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260522_110056",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260522_110056",
+      "bytes": 6463235,
+      "mtime_utc": "2026-05-22T10:56:36.926213+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260727_133334",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260727_133334",
+      "bytes": 1346385,
+      "mtime_utc": "2026-07-27T09:12:10.840377+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260627_105508",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260627_105508",
+      "bytes": 782482,
+      "mtime_utc": "2026-06-26T10:55:18.254375+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260708_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260708_105501",
+      "bytes": 13503587,
+      "mtime_utc": "2026-07-07T10:55:01.753340+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260519_110231",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260519_110231",
+      "bytes": 351443,
+      "mtime_utc": "2026-05-19T10:55:32.357555+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260712_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260712_105501",
+      "bytes": 984185,
+      "mtime_utc": "2026-07-12T10:44:38.727988+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260721_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260721_105501",
+      "bytes": 16744536,
+      "mtime_utc": "2026-07-21T10:23:46.429953+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260517_110048",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260517_110048",
+      "bytes": 5004959,
+      "mtime_utc": "2026-05-17T00:01:56.497690+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260521_105545",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260521_105545",
+      "bytes": 391993,
+      "mtime_utc": "2026-05-21T00:19:25.844744+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260518_105517",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260518_105517",
+      "bytes": 5441073,
+      "mtime_utc": "2026-05-17T15:48:18.692592+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260724_151254",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260724_151254",
+      "bytes": 1267771,
+      "mtime_utc": "2026-07-24T09:12:00.913741+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260513_110030",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260513_110030",
+      "bytes": 2914581,
+      "mtime_utc": "2026-05-13T10:55:14.669050+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260709_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260709_105501",
+      "bytes": 13535809,
+      "mtime_utc": "2026-07-09T10:37:52.441838+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260707_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260707_105501",
+      "bytes": 909351,
+      "mtime_utc": "2026-07-06T19:13:19.984082+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260627_105508",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260627_105508",
+      "bytes": 12343193,
+      "mtime_utc": "2026-06-26T02:23:28.844131+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260511_105510",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260511_105510",
+      "bytes": 147953,
+      "mtime_utc": "2026-05-11T01:31:09.809311+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260703_105502",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260703_105502",
+      "bytes": 12673754,
+      "mtime_utc": "2026-07-02T18:00:43.838735+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260724_151254",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260724_151254",
+      "bytes": 18031072,
+      "mtime_utc": "2026-07-24T09:12:00.840739+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260519_105532",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260519_105532",
+      "bytes": 351443,
+      "mtime_utc": "2026-05-18T21:41:03.173640+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260723_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260723_105501",
+      "bytes": 17718955,
+      "mtime_utc": "2026-07-23T10:51:51.285500+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260523_105540",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260523_105540",
+      "bytes": 6744555,
+      "mtime_utc": "2026-05-23T00:02:21.386568+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260717_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260717_105501",
+      "bytes": 15651572,
+      "mtime_utc": "2026-07-17T10:28:50.749655+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260723_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260723_105501",
+      "bytes": 1233815,
+      "mtime_utc": "2026-07-23T10:51:51.332501+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260719_115521",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260719_115521",
+      "bytes": 1120685,
+      "mtime_utc": "2026-07-18T17:45:55.311783+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260726_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260726_105501",
+      "bytes": 1339038,
+      "mtime_utc": "2026-07-26T10:13:26.231262+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260520_105512",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260520_105512",
+      "bytes": 368890,
+      "mtime_utc": "2026-05-20T10:50:21.316160+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260512_105550",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260512_105550",
+      "bytes": 190473,
+      "mtime_utc": "2026-05-12T00:56:12.820046+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260713_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260713_105501",
+      "bytes": 14348088,
+      "mtime_utc": "2026-07-13T10:49:42.648106+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_entity_chunks.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_entity_chunks.json",
+      "bytes": 18083772,
+      "mtime_utc": "2026-07-27T14:14:42.814626+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260710_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260710_105501",
+      "bytes": 944357,
+      "mtime_utc": "2026-07-09T22:41:10.425405+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260513_105514",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260513_105514",
+      "bytes": 2934325,
+      "mtime_utc": "2026-05-12T15:58:31.478987+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260725_135136",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260725_135136",
+      "bytes": 1323052,
+      "mtime_utc": "2026-07-25T08:50:46.188930+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260517_110048",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260517_110048",
+      "bytes": 296706,
+      "mtime_utc": "2026-05-17T10:55:10.226489+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260701_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260701_105501",
+      "bytes": 12552566,
+      "mtime_utc": "2026-07-01T02:02:16.171601+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260512_105550",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260512_105550",
+      "bytes": 2943311,
+      "mtime_utc": "2026-05-12T00:55:35.051119+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260509_223424",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260509_223424",
+      "bytes": 2916711,
+      "mtime_utc": "2026-05-09T21:36:31.074773+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260515_105603",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260515_105603",
+      "bytes": 3408284,
+      "mtime_utc": "2026-05-14T23:57:57.355503+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260516_110438",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260516_110438",
+      "bytes": 280604,
+      "mtime_utc": "2026-05-16T10:55:39.525562+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260514_110100",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260514_110100",
+      "bytes": 3000192,
+      "mtime_utc": "2026-05-14T10:55:11.327830+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260511_110015",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260511_110015",
+      "bytes": 147953,
+      "mtime_utc": "2026-05-11T10:55:10.961294+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260721_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260721_105501",
+      "bytes": 1147352,
+      "mtime_utc": "2026-07-21T10:23:46.514955+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260514_105511",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260514_105511",
+      "bytes": 3000192,
+      "mtime_utc": "2026-05-13T12:44:42.739412+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_llm_response_cache.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_llm_response_cache.json",
+      "bytes": 110931591,
+      "mtime_utc": "2026-07-27T17:44:22.504487+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260521_110036",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260521_110036",
+      "bytes": 391993,
+      "mtime_utc": "2026-05-21T10:55:45.149431+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_text_chunks.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_text_chunks.json",
+      "bytes": 23354274,
+      "mtime_utc": "2026-07-27T14:14:41.951604+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260705_105502",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260705_105502",
+      "bytes": 13160174,
+      "mtime_utc": "2026-07-04T15:54:28.237056+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak",
+      "bytes": 428813,
+      "mtime_utc": "2026-04-29T00:34:33.127855+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260630_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260630_105501",
+      "bytes": 12343193,
+      "mtime_utc": "2026-06-26T02:23:28.844131+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/vdb_entities.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/vdb_entities.json",
+      "bytes": 1509533648,
+      "mtime_utc": "2026-07-23T15:13:25.565431+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_entities.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_entities.json",
+      "bytes": 3003515,
+      "mtime_utc": "2026-07-27T14:14:42.039606+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260710_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260710_105501",
+      "bytes": 13831155,
+      "mtime_utc": "2026-07-09T22:41:10.389404+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260509_105523",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260509_105523",
+      "bytes": 97933,
+      "mtime_utc": "2026-05-08T22:09:17.043106+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260716_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260716_105501",
+      "bytes": 1011738,
+      "mtime_utc": "2026-07-16T10:29:05.306360+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260517_105510",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260517_105510",
+      "bytes": 5004959,
+      "mtime_utc": "2026-05-17T00:01:56.497690+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260519_105532",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260519_105532",
+      "bytes": 5681943,
+      "mtime_utc": "2026-05-18T21:39:54.136124+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260726_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260726_105501",
+      "bytes": 18910945,
+      "mtime_utc": "2026-07-26T10:04:27.390728+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/vdb_relationships.json",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/vdb_relationships.json",
+      "bytes": 967851903,
+      "mtime_utc": "2026-05-23T12:08:17.798500+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_llm_response_cache.json.bak-arx1-260525",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_llm_response_cache.json.bak-arx1-260525",
+      "bytes": 93071087,
+      "mtime_utc": "2026-05-25T12:15:57.194031+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260518_110020",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260518_110020",
+      "bytes": 5351915,
+      "mtime_utc": "2026-05-18T10:55:18.014125+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260523_111028",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260523_111028",
+      "bytes": 6744555,
+      "mtime_utc": "2026-05-23T00:02:21.386568+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260715_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260715_105501",
+      "bytes": 14519313,
+      "mtime_utc": "2026-07-15T10:42:22.556116+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260713_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260713_105501",
+      "bytes": 1000703,
+      "mtime_utc": "2026-07-13T10:49:42.714108+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260628_105516",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260628_105516",
+      "bytes": 782482,
+      "mtime_utc": "2026-06-27T10:55:08.569895+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260522_110056",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260522_110056",
+      "bytes": 412577,
+      "mtime_utc": "2026-05-22T10:59:27.735684+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260626_105518",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260626_105518",
+      "bytes": 782482,
+      "mtime_utc": "2026-06-26T02:24:27.785612+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260513_110030",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260513_110030",
+      "bytes": 173068,
+      "mtime_utc": "2026-05-13T10:55:14.647050+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260712_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260712_105501",
+      "bytes": 14211202,
+      "mtime_utc": "2026-07-12T10:44:38.655986+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260727_133334",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260727_133334",
+      "bytes": 18998159,
+      "mtime_utc": "2026-07-27T09:12:10.786376+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260523_111028",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260523_111028",
+      "bytes": 428349,
+      "mtime_utc": "2026-05-23T10:55:40.485068+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260629_105518",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260629_105518",
+      "bytes": 782482,
+      "mtime_utc": "2026-06-28T10:55:16.839821+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260519_110231",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260519_110231",
+      "bytes": 5681943,
+      "mtime_utc": "2026-05-18T21:39:54.136124+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260717_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260717_105501",
+      "bytes": 1074652,
+      "mtime_utc": "2026-07-17T10:34:16.636850+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260714_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260714_105501",
+      "bytes": 14519313,
+      "mtime_utc": "2026-07-14T10:42:42.967519+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260520_110015",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260520_110015",
+      "bytes": 368890,
+      "mtime_utc": "2026-05-20T10:55:12.974942+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260509_110116",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260509_110116",
+      "bytes": 94248,
+      "mtime_utc": "2026-05-09T10:55:23.876306+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260517_105510",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260517_105510",
+      "bytes": 296706,
+      "mtime_utc": "2026-05-17T00:05:38.363260+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260720_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260720_105501",
+      "bytes": 1127267,
+      "mtime_utc": "2026-07-20T07:37:58.733374+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260722_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260722_105501",
+      "bytes": 17364994,
+      "mtime_utc": "2026-07-22T10:49:10.180372+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260511_105510",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260511_105510",
+      "bytes": 2430663,
+      "mtime_utc": "2026-05-11T01:33:38.092011+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260522_105511",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260522_105511",
+      "bytes": 6450436,
+      "mtime_utc": "2026-05-22T00:10:16.805135+00:00"
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260722_105501",
+      "realpath": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260722_105501",
+      "bytes": 1187572,
+      "mtime_utc": "2026-07-22T10:49:10.225373+00:00"
+    }
+  ],
+  "http": {
+    "http://127.0.0.1:8766/health": {
+      "error": "URLError"
+    },
+    "http://127.0.0.1:8768/live": {
+      "error": "URLError"
+    },
+    "http://127.0.0.1:8768/ready": {
+      "error": "URLError"
+    },
+    "http://127.0.0.1:8768/status": {
+      "error": "URLError"
+    },
+    "http://127.0.0.1:7997/health": {
+      "error": "URLError"
+    },
+    "http://127.0.0.1:6333/collections": {
+      "error": "URLError"
+    }
+  }
+}

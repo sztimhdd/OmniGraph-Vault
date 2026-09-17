@@ -1,0 +1,37 @@
+{
+  "control_socket_absent": true,
+  "embedding_port_17997_free": true,
+  "first": {
+    "body_marker": true,
+    "context_marker": true,
+    "degraded": false,
+    "error_free": true,
+    "fresh_reader_llm_calls": 0,
+    "graph_entities": 8,
+    "graph_relationships": 8,
+    "processed": true,
+    "status": "PASS",
+    "target_chunk_count": 1
+  },
+  "network_or_model_execution": "attempted",
+  "receipt_status": "READY_FOR_REVIEW",
+  "request_budget": {
+    "entity_canonicalization": 2,
+    "lightrag_extraction": 2
+  },
+  "request_budget_limit": 12,
+  "rerun": {
+    "body_marker": true,
+    "context_marker": true,
+    "degraded": false,
+    "error_free": true,
+    "fresh_reader_llm_calls": 0,
+    "graph_entities": 8,
+    "graph_relationships": 8,
+    "processed": true,
+    "status": "PASS",
+    "target_chunk_count": 1
+  },
+  "run_dir": "/home/sztimhdd/.local/share/vitax-probes/vitax-vx001.H8iYB3wq/runs/vitax-single-article-lao1z1rb",
+  "runner_exit_code": 0
+}

@@ -40,6 +40,14 @@ FIRECRAWL_API_KEY=os.environ.get("FIRECRAWL_API_KEY", "")
 ENV_PATH = Path.home() / ".hermes" / ".env"
 
 def load_env():
+    env_loading = os.environ.get("OMNIGRAPH_LOAD_ENV", "1")
+    if env_loading == "0":
+        return
+    if env_loading != "1":
+        raise ValueError(
+            "OMNIGRAPH_LOAD_ENV must be '0' or '1'; "
+            f"got {env_loading!r}"
+        )
     if os.path.exists(ENV_PATH):
         with open(ENV_PATH, "r") as f:
             for line in f:

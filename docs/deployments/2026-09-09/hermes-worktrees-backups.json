@@ -1,0 +1,157 @@
+{
+  "timestamp_utc": "2026-09-09T13:37:41.296032+00:00",
+  "worktrees": [
+    {
+      "worktree": "/home/sztimhdd/OmniGraph-Vault",
+      "HEAD": "dca7c772a8c95125d275ec50b2944ff00713667a",
+      "branch": "refs/heads/main",
+      "exists": true,
+      "status": " M scripts/wiki_evolve.py\n M tests/unit/test_wiki_w5b_bootstrap.py\n?? docs/CODEX-HANDOFF-2026-09-09.md\n?? docs/DSH-MASTER-HANDOFF-20260822.md\n?? docs/HERMES-OMNIGRAPH-OPERATIONS-HANDOFF-20260822.md\n?? docs/MASTER-CONTROL-SESSION.md\n",
+      "status_code": 0,
+      "diff_stat": " scripts/wiki_evolve.py                | 24 ++++++++---\n tests/unit/test_wiki_w5b_bootstrap.py | 81 +++++++++++++++++++++++++++++++++++\n 2 files changed, 98 insertions(+), 7 deletions(-)\n",
+      "diff_stat_code": 0,
+      "last_commit": "dca7c772 2026-09-03T15:57:43-03:00 fix(healthcheck): distinguish Playwright MCP alerts\n",
+      "last_commit_code": 0
+    },
+    {
+      "worktree": "/home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t2",
+      "HEAD": "f0515516ceae50d9c247a26a950aae8f289fd5e9",
+      "branch": "refs/heads/w5b-t2-isolated",
+      "exists": true,
+      "status": "",
+      "status_code": 0,
+      "diff_stat": "",
+      "diff_stat_code": 0,
+      "last_commit": "f0515516 2026-08-12T10:51:33-03:00 fix(wiki-v2-w5b): make ongoing W3 article coverage source-aware\n",
+      "last_commit_code": 0
+    },
+    {
+      "worktree": "/home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t3",
+      "HEAD": "e2296e0a2e4a3998ea97014da7b4bd08e8cf16cd",
+      "branch": "refs/heads/w5b-t3-isolated",
+      "exists": true,
+      "status": "",
+      "status_code": 0,
+      "diff_stat": "",
+      "diff_stat_code": 0,
+      "last_commit": "e2296e0a 2026-08-12T11:34:09-03:00 fix(wiki-v2-w5b): honor W5A-era suggestion payloads and gate semantic promotion to allowed ops\n",
+      "last_commit_code": 0
+    },
+    {
+      "worktree": "/home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t4",
+      "HEAD": "21bb9f4a5f2e7f7df565697999b60b1091b0ec56",
+      "branch": "refs/heads/w5b-t4-isolated",
+      "exists": true,
+      "status": "",
+      "status_code": 0,
+      "diff_stat": "",
+      "diff_stat_code": 0,
+      "last_commit": "21bb9f4a 2026-08-12T14:05:07-03:00 feat(wiki-v2-w5b): add autonomous evolution queue and evaluator\n",
+      "last_commit_code": 0
+    },
+    {
+      "worktree": "/home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t4-retry",
+      "HEAD": "54a81ce9e575758c77f42eaeb2708fa78bfc62ae",
+      "branch": "refs/heads/w5b-t4-retry-isolated",
+      "exists": true,
+      "status": "",
+      "status_code": 0,
+      "diff_stat": "",
+      "diff_stat_code": 0,
+      "last_commit": "54a81ce9 2026-08-12T11:53:12-03:00 feat(wiki-v2-w5b): add autonomous evolution queue and evaluator\n",
+      "last_commit_code": 0
+    },
+    {
+      "worktree": "/home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t5",
+      "HEAD": "4aa662a5f694e733f9588ed04972a04491f1a90b",
+      "branch": "refs/heads/w5b-t5-isolated",
+      "exists": true,
+      "status": "",
+      "status_code": 0,
+      "diff_stat": "",
+      "diff_stat_code": 0,
+      "last_commit": "4aa662a5 2026-08-12T15:22:14-03:00 feat(wiki-v2-w5b): promote approved scoped Wiki updates safely\n",
+      "last_commit_code": 0
+    },
+    {
+      "worktree": "/home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t6",
+      "HEAD": "0161a24cf62f9697157afed900e9b1754a43515e",
+      "branch": "refs/heads/w5b-t6-isolated",
+      "exists": true,
+      "status": "",
+      "status_code": 0,
+      "diff_stat": "",
+      "diff_stat_code": 0,
+      "last_commit": "0161a24c 2026-08-12T17:02:16-03:00 feat(wiki-v2-w5b): add historical article coverage discovery\n",
+      "last_commit_code": 0
+    },
+    {
+      "worktree": "/home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t7",
+      "HEAD": "e947d4c583093c0c5ce7a1b3a4f5b8e6bd0e2308",
+      "branch": "refs/heads/w5b-t7-isolated",
+      "exists": true,
+      "status": "",
+      "status_code": 0,
+      "diff_stat": "",
+      "diff_stat_code": 0,
+      "last_commit": "e947d4c5 2026-08-14T11:45:50-03:00 feat(wiki-v2-w5b): seed historical coverage through shared compiler\n",
+      "last_commit_code": 0
+    },
+    {
+      "worktree": "/home/sztimhdd/.hermes/worktrees/omnigraph-w5b-t8",
+      "HEAD": "8b702de3048a9cb5d298b8f9523381699cfacc75",
+      "branch": "refs/heads/w5b-t8-isolated",
+      "exists": true,
+      "status": "",
+      "status_code": 0,
+      "diff_stat": "",
+      "diff_stat_code": 0,
+      "last_commit": "8b702de3 2026-08-14T13:05:57-03:00 test(wiki-v2-w5b): close adversarial and Ponytail gates\n",
+      "last_commit_code": 0
+    },
+    {
+      "worktree": "/tmp/omnigraph-embedding-fix",
+      "HEAD": "b887b52665e5dfbb3f3fc11fda1d7a39de3ab145",
+      "branch": "refs/heads/fix/embedding-admission-lock",
+      "prunable": "gitdir file points to non-existent location",
+      "exists": false
+    },
+    {
+      "worktree": "/tmp/w5a-verify",
+      "HEAD": "cbec5264ab95198ec05174987317c12ad5a550e7",
+      "detached": "",
+      "prunable": "gitdir file points to non-existent location",
+      "exists": false
+    }
+  ],
+  "backup_entries": [
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage.backup-pre-cron-20260510",
+      "is_dir": true,
+      "is_symlink": false,
+      "mtime_utc": "2026-05-09T23:40:10.233373+00:00",
+      "bytes_if_file": null
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/kol_scan.db.bak-pre-260522-translate-20260523-013247",
+      "is_dir": false,
+      "is_symlink": false,
+      "mtime_utc": "2026-05-23T04:32:47.562249+00:00",
+      "bytes_if_file": 22355968
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/kol_scan.db.bak-pre-retranslate-260523",
+      "is_dir": false,
+      "is_symlink": false,
+      "mtime_utc": "2026-05-23T04:32:56.848480+00:00",
+      "bytes_if_file": 25522176
+    },
+    {
+      "path": "/home/sztimhdd/.hermes/omonigraph-vault/lightrag_storage_backup",
+      "is_dir": true,
+      "is_symlink": false,
+      "mtime_utc": "2026-04-20T19:04:05.771174+00:00",
+      "bytes_if_file": null
+    }
+  ]
+}

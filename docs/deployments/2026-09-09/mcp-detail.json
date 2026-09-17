@@ -1,0 +1,768 @@
+{
+  "timestamp_utc": "2026-09-09T13:27:38.667811+00:00",
+  "unit_io": {
+    "omnigraph-daily-ingest": "StandardOutput=inherit\nStandardError=inherit\n",
+    "omnigraph-kg-sync": "StandardOutput=inherit\nStandardError=inherit\n",
+    "mcp-healthcheck": "StandardOutput=inherit\nStandardError=inherit\n",
+    "omni-kb-api": "StandardOutput=journal\nStandardError=journal\n",
+    "omni-mcp": "StandardOutput=journal\nStandardError=journal\n"
+  },
+  "sources": {
+    "scripts/sync-from-aliyun.sh": [
+      {
+        "line": 1,
+        "text": "#!/usr/bin/env bash"
+      },
+      {
+        "line": 2,
+        "text": "# scripts/sync-from-aliyun.sh"
+      },
+      {
+        "line": 3,
+        "text": "#"
+      },
+      {
+        "line": 4,
+        "text": "# Pull articles SSG output / kol_scan.db / images / kb/wiki from"
+      },
+      {
+        "line": 5,
+        "text": "# Aliyun (47.117.244.253, root) → Hermes ${HERMES_DATA_DIR}."
+      },
+      {
+        "line": 6,
+        "text": "# Runs as oneshot on Hermes (systemd timer). Pure bash + rsync + ssh."
+      },
+      {
+        "line": 7,
+        "text": "#"
+      },
+      {
+        "line": 8,
+        "text": "# Idempotent (re-run on same day = no-op transfer). Exit 0 on full"
+      },
+      {
+        "line": 9,
+        "text": "# success across all 4 targets; non-zero on any rsync failure after 3"
+      },
+      {
+        "line": 10,
+        "text": "# retries with exponential backoff (60s / 300s / 1800s)."
+      },
+      {
+        "line": 11,
+        "text": "#"
+      },
+      {
+        "line": 12,
+        "text": "# Retry exhaustion writes /tmp/aliyun-sync-failed-<date> marker per"
+      },
+      {
+        "line": 13,
+        "text": "# SYNC-04. Stale markers (any failed-<date>) are cleaned up on next"
+      },
+      {
+        "line": 14,
+        "text": "# success per FINDING 10 (prevents aim-5 STAB-03 false-trip)."
+      },
+      {
+        "line": 15,
+        "text": "#"
+      },
+      {
+        "line": 16,
+        "text": "# REQs: SYNC-01 (script + idempotency + exit semantics)"
+      },
+      {
+        "line": 17,
+        "text": "#       SYNC-04 (retry/backoff/marker logic)"
+      },
+      {
+        "line": 18,
+        "text": "#"
+      },
+      {
+        "line": 19,
+        "text": "# Aliyun side prep: aim-4-1 installed Hermes pubkey on"
+      },
+      {
+        "line": 20,
+        "text": "# /root/.ssh/authorized_keys."
+      },
+      {
+        "line": 21,
+        "text": ""
+      },
+      {
+        "line": 22,
+        "text": "set -u"
+      },
+      {
+        "line": 23,
+        "text": ""
+      },
+      {
+        "line": 24,
+        "text": "# --- Config (overridable via env) -------------------------------------"
+      },
+      {
+        "line": 25,
+        "text": "ALIYUN_SSH_HOST=\"${ALIYUN_SSH_HOST:-root@47.117.244.253}\""
+      },
+      {
+        "line": 26,
+        "text": "ALIYUN_SSH_KEY=\"${ALIYUN_SSH_KEY:-${HOME}/.ssh/hermes_to_aliyun_ed25519}\""
+      },
+      {
+        "line": 27,
+        "text": "HERMES_DATA_DIR=\"${HERMES_DATA_DIR:-${HOME}/.hermes/omonigraph-vault}\""
+      },
+      {
+        "line": 28,
+        "text": ""
+      },
+      {
+        "line": 29,
+        "text": "SSH_OPTS=\"-i ${ALIYUN_SSH_KEY} -o StrictHostKeyChecking=accept-new -o BatchMode=yes\""
+      },
+      {
+        "line": 30,
+        "text": "RSYNC_OPTS=\"-az --delete\""
+      },
+      {
+        "line": 31,
+        "text": ""
+      },
+      {
+        "line": 32,
+        "text": "# --- Sync targets: SRC (Aliyun) → DST (Hermes) ------------------------"
+      },
+      {
+        "line": 33,
+        "text": "# Order: cheapest first so a fail-fast on later targets still gets"
+      },
+      {
+        "line": 34,
+        "text": "# small early targets to disk. Verified 2026-05-24 via SSH probe."
+      },
+      {
+        "line": 35,
+        "text": "SYNC_PAIRS=("
+      },
+      {
+        "line": 36,
+        "text": "  \"/root/OmniGraph-Vault/data/kol_scan.db|${HERMES_DATA_DIR}/kol_scan.db\""
+      },
+      {
+        "line": 37,
+        "text": "  \"/root/OmniGraph-Vault/kb/wiki/|${HERMES_DATA_DIR}/kb/wiki/\""
+      },
+      {
+        "line": 38,
+        "text": "  \"/root/OmniGraph-Vault/kb/output/articles/|${HERMES_DATA_DIR}/articles/\""
+      },
+      {
+        "line": 39,
+        "text": "  \"/root/.hermes/omonigraph-vault/images/|${HERMES_DATA_DIR}/images/\""
+      },
+      {
+        "line": 40,
+        "text": ")"
+      },
+      {
+        "line": 41,
+        "text": ""
+      },
+      {
+        "line": 42,
+        "text": "# --- Helpers ----------------------------------------------------------"
+      },
+      {
+        "line": 43,
+        "text": "log() {"
+      },
+      {
+        "line": 44,
+        "text": "  echo \"[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*\""
+      },
+      {
+        "line": 45,
+        "text": "}"
+      },
+      {
+        "line": 46,
+        "text": ""
+      },
+      {
+        "line": 47,
+        "text": "ensure_parent_dirs() {"
+      },
+      {
+        "line": 48,
+        "text": "  mkdir -p \\"
+      },
+      {
+        "line": 49,
+        "text": "    \"${HERMES_DATA_DIR}/kb/wiki\" \\"
+      },
+      {
+        "line": 50,
+        "text": "    \"${HERMES_DATA_DIR}/articles\" \\"
+      },
+      {
+        "line": 51,
+        "text": "    \"${HERMES_DATA_DIR}/images\""
+      },
+      {
+        "line": 52,
+        "text": "}"
+      },
+      {
+        "line": 53,
+        "text": ""
+      },
+      {
+        "line": 54,
+        "text": "do_one_rsync() {"
+      },
+      {
+        "line": 55,
+        "text": "  local src=\"$1\" dst=\"$2\""
+      },
+      {
+        "line": 56,
+        "text": "  rsync ${RSYNC_OPTS} \\"
+      },
+      {
+        "line": 57,
+        "text": "    -e \"ssh ${SSH_OPTS}\" \\"
+      },
+      {
+        "line": 58,
+        "text": "    \"${ALIYUN_SSH_HOST}:${src}\" \\"
+      },
+      {
+        "line": 59,
+        "text": "    \"${dst}\""
+      },
+      {
+        "line": 60,
+        "text": "}"
+      },
+      {
+        "line": 61,
+        "text": ""
+      },
+      {
+        "line": 62,
+        "text": "do_rsync_all() {"
+      },
+      {
+        "line": 63,
+        "text": "  local rc=0"
+      },
+      {
+        "line": 64,
+        "text": "  for pair in \"${SYNC_PAIRS[@]}\"; do"
+      },
+      {
+        "line": 65,
+        "text": "    local src=\"${pair%%|*}\""
+      },
+      {
+        "line": 66,
+        "text": "    local dst=\"${pair##*|}\""
+      },
+      {
+        "line": 67,
+        "text": "    log \"rsync ${src} → ${dst}\""
+      },
+      {
+        "line": 68,
+        "text": "    if ! do_one_rsync \"${src}\" \"${dst}\"; then"
+      },
+      {
+        "line": 69,
+        "text": "      local code=$?"
+      },
+      {
+        "line": 70,
+        "text": "      log \"  → rsync FAILED (exit ${code}) for ${src}\""
+      },
+      {
+        "line": 71,
+        "text": "      rc=${code}"
+      },
+      {
+        "line": 72,
+        "text": "    fi"
+      },
+      {
+        "line": 73,
+        "text": "  done"
+      },
+      {
+        "line": 74,
+        "text": "  return ${rc}"
+      },
+      {
+        "line": 75,
+        "text": "}"
+      },
+      {
+        "line": 76,
+        "text": ""
+      },
+      {
+        "line": 77,
+        "text": "clean_stale_markers() {"
+      },
+      {
+        "line": 78,
+        "text": "  # FINDING 10: clear all markers on success so a transient old"
+      },
+      {
+        "line": 79,
+        "text": "  # failure does not falsely trip aim-5 STAB-03."
+      },
+      {
+        "line": 80,
+        "text": "  rm -f /tmp/aliyun-sync-failed-* 2>/dev/null || true"
+      },
+      {
+        "line": 81,
+        "text": "}"
+      },
+      {
+        "line": 82,
+        "text": ""
+      },
+      {
+        "line": 83,
+        "text": "write_failure_marker() {"
+      },
+      {
+        "line": 84,
+        "text": "  local date_str"
+      },
+      {
+        "line": 85,
+        "text": "  date_str=\"$(date +%Y-%m-%d)\""
+      },
+      {
+        "line": 86,
+        "text": "  touch \"/tmp/aliyun-sync-failed-${date_str}\""
+      },
+      {
+        "line": 87,
+        "text": "  log \"MARKER /tmp/aliyun-sync-failed-${date_str} written\""
+      },
+      {
+        "line": 88,
+        "text": "}"
+      },
+      {
+        "line": 89,
+        "text": ""
+      },
+      {
+        "line": 90,
+        "text": "# --- Main retry loop --------------------------------------------------"
+      },
+      {
+        "line": 91,
+        "text": "main() {"
+      },
+      {
+        "line": 92,
+        "text": "  ensure_parent_dirs"
+      },
+      {
+        "line": 93,
+        "text": ""
+      },
+      {
+        "line": 94,
+        "text": "  local delays=(60 300 1800)"
+      },
+      {
+        "line": 95,
+        "text": "  local attempt"
+      },
+      {
+        "line": 96,
+        "text": ""
+      },
+      {
+        "line": 97,
+        "text": "  for attempt in 0 1 2; do"
+      },
+      {
+        "line": 98,
+        "text": "    if do_rsync_all; then"
+      },
+      {
+        "line": 99,
+        "text": "      clean_stale_markers"
+      },
+      {
+        "line": 100,
+        "text": "      log \"sync OK on attempt $((attempt + 1))\""
+      },
+      {
+        "line": 101,
+        "text": "      exit 0"
+      },
+      {
+        "line": 102,
+        "text": "    fi"
+      },
+      {
+        "line": 103,
+        "text": "    local d=\"${delays[${attempt}]}\""
+      },
+      {
+        "line": 104,
+        "text": "    log \"attempt $((attempt + 1)) failed; sleeping ${d}s before retry\""
+      },
+      {
+        "line": 105,
+        "text": "    sleep \"${d}\""
+      },
+      {
+        "line": 106,
+        "text": "  done"
+      },
+      {
+        "line": 107,
+        "text": ""
+      },
+      {
+        "line": 108,
+        "text": "  # 4th and final attempt"
+      },
+      {
+        "line": 109,
+        "text": "  if do_rsync_all; then"
+      },
+      {
+        "line": 110,
+        "text": "    clean_stale_markers"
+      },
+      {
+        "line": 111,
+        "text": "    log \"sync OK on final attempt (4)\""
+      },
+      {
+        "line": 112,
+        "text": "    exit 0"
+      },
+      {
+        "line": 113,
+        "text": "  fi"
+      },
+      {
+        "line": 114,
+        "text": ""
+      },
+      {
+        "line": 115,
+        "text": "  write_failure_marker"
+      },
+      {
+        "line": 116,
+        "text": "  echo \"ERROR: aliyun sync exhausted 3 retries on $(date +%Y-%m-%d)\" >&2"
+      },
+      {
+        "line": 117,
+        "text": "  exit 1"
+      },
+      {
+        "line": 118,
+        "text": "}"
+      },
+      {
+        "line": 119,
+        "text": ""
+      },
+      {
+        "line": 120,
+        "text": "main \"$@\""
+      }
+    ],
+    "lib/vision_cascade.py": [
+      {
+        "line": 11,
+        "text": "    - DEFAULT_PROVIDERS     (\"siliconflow\", \"openrouter\", \"gemini\")"
+      },
+      {
+        "line": 31,
+        "text": "DEFAULT_PROVIDERS: tuple[str, ...] = (\"siliconflow\", \"openrouter\", \"gemini\")"
+      },
+      {
+        "line": 124,
+        "text": "        providers: tuple[str, ...] | list[str] = DEFAULT_PROVIDERS,"
+      },
+      {
+        "line": 156,
+        "text": "        all_known = set(DEFAULT_PROVIDERS) | set(self.providers)"
+      }
+    ],
+    "lib/llm_deepseek.py": [
+      {
+        "line": 1,
+        "text": "\"\"\"Deepseek LLM wrapper — Plan 05-00c Task 0c.1."
+      },
+      {
+        "line": 3,
+        "text": "Single source of truth for DeepSeek chat completion. Matches LightRAG's"
+      },
+      {
+        "line": 5,
+        "text": "``LightRAG(..., llm_model_func=deepseek_model_complete, ...)``."
+      },
+      {
+        "line": 11,
+        "text": "    all LightRAG LLM work to DeepSeek (via this wrapper) decouples failure"
+      },
+      {
+        "line": 12,
+        "text": "    modes — Gemini quota only throttles embeddings, DeepSeek quota only"
+      },
+      {
+        "line": 24,
+        "text": "      hashing_kv (obj for caching). We ignore them — DeepSeek doesn't"
+      },
+      {
+        "line": 28,
+        "text": "Endpoint: ``https://api.deepseek.com/v1`` (OpenAI-compatible)."
+      },
+      {
+        "line": 29,
+        "text": "Model: ``DEEPSEEK_MODEL`` env var, default ``deepseek-v4-flash``."
+      },
+      {
+        "line": 31,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 33,
+        "text": "Gemini/Vertex-only workloads can ``from lib.llm_deepseek import ...`` without"
+      },
+      {
+        "line": 34,
+        "text": "needing a DeepSeek key; the key is only required when ``deepseek_model_complete``"
+      },
+      {
+        "line": 44,
+        "text": "# instead of duplicating the .env parser. lib.llm_deepseek may import before"
+      },
+      {
+        "line": 52,
+        "text": "_DEEPSEEK_BASE_URL = \"https://api.deepseek.com/v1\""
+      },
+      {
+        "line": 53,
+        "text": "_DEFAULT_MODEL = \"deepseek-v4-flash\""
+      },
+      {
+        "line": 57,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 60,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 66,
+        "text": "_MODEL = os.environ.get(\"DEEPSEEK_MODEL\", _DEFAULT_MODEL).strip() or _DEFAULT_MODEL"
+      },
+      {
+        "line": 69,
+        "text": "# Raised to 300s default (was 120s); override via OMNIGRAPH_DEEPSEEK_TIMEOUT."
+      },
+      {
+        "line": 74,
+        "text": "_DEEPSEEK_TIMEOUT_S: float = float("
+      },
+      {
+        "line": 75,
+        "text": "    os.environ.get(\"OMNIGRAPH_DEEPSEEK_TIMEOUT\", \"300\") or \"300\""
+      },
+      {
+        "line": 79,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 80,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 87,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 88,
+        "text": "    ``lib.llm_deepseek`` without ever calling ``deepseek_model_complete`` does"
+      },
+      {
+        "line": 97,
+        "text": "            base_url=_DEEPSEEK_BASE_URL,"
+      },
+      {
+        "line": 98,
+        "text": "            timeout=_DEEPSEEK_TIMEOUT_S,"
+      },
+      {
+        "line": 103,
+        "text": "async def deepseek_model_complete("
+      },
+      {
+        "line": 113,
+        "text": "    ``hashing_kv``). DeepSeek chat completions do not use them."
+      },
+      {
+        "line": 116,
+        "text": "    a single call (e.g. SSG-bake callers pinning ``deepseek-v4-pro``); when"
+      },
+      {
+        "line": 126,
+        "text": "    effective_model = model or _MODEL"
+      },
+      {
+        "line": 128,
+        "text": "        model=effective_model,"
+      },
+      {
+        "line": 135,
+        "text": "__all__ = [\"deepseek_model_complete\"]"
+      }
+    ],
+    "lib/lightrag_embedding.py": [
+      {
+        "line": 30,
+        "text": "from .models import EMBEDDING_MODEL, EMBEDDING_DIM, EMBEDDING_MAX_TOKENS"
+      },
+      {
+        "line": 39,
+        "text": "_OUTPUT_DIM = EMBEDDING_DIM  # native full-capacity dim (3072); change requires NanoVectorDB wipe"
+      },
+      {
+        "line": 199,
+        "text": "        model=model,"
+      },
+      {
+        "line": 216,
+        "text": "    url = os.environ.get(\"OMNIGRAPH_LOCAL_EMBED_URL\", \"http://localhost:7997/embeddings\")"
+      },
+      {
+        "line": 218,
+        "text": "        resp = await client.post(url, json={\"input\": texts, \"model\": \"BAAI/bge-m3\"})"
+      },
+      {
+        "line": 227,
+        "text": "    When OMNIGRAPH_LOCAL_EMBED=1, uses local embed-server (no API call)."
+      },
+      {
+        "line": 231,
+        "text": "    if os.environ.get(\"OMNIGRAPH_LOCAL_EMBED\") == \"1\":"
+      },
+      {
+        "line": 234,
+        "text": "    model = EMBEDDING_MODEL"
+      },
+      {
+        "line": 319,
+        "text": "    embedding_dim: int"
+      },
+      {
+        "line": 334,
+        "text": "    embedding_dim=EMBEDDING_DIM,"
+      }
+    ],
+    "mcp_server_standalone.py": [
+      {
+        "line": 33,
+        "text": "#   /ready — dependency check (KB-API + Qdrant reachable)"
+      },
+      {
+        "line": 44,
+        "text": "    \"\"\"Check KB-API is reachable (Qdrant is accessed via KB-API).\"\"\""
+      },
+      {
+        "line": 89,
+        "text": "async def fts_search(query: str, limit: int = 10, lang: str = \"zh-CN\") -> str:"
+      },
+      {
+        "line": 93,
+        "text": "            f\"{KB_API}/api/search\","
+      },
+      {
+        "line": 111,
+        "text": "async def kg_search(query: str) -> str:"
+      },
+      {
+        "line": 119,
+        "text": "            f\"{KB_API}/api/search\","
+      },
+      {
+        "line": 132,
+        "text": "            poll = await client.get(f\"{KB_API}/api/search/{jid}\")"
+      },
+      {
+        "line": 146,
+        "text": "async def kg_poll(job_id: str) -> str:"
+      },
+      {
+        "line": 152,
+        "text": "        poll = await client.get(f\"{KB_API}/api/search/{job_id}\")"
+      }
+    ],
+    "embed_server.py": [
+      {
+        "line": 10,
+        "text": "MODEL_PATH = os.environ.get(\"EMBED_MODEL_PATH\", \"/models/bge-m3/BAAI/bge-m3\")"
+      },
+      {
+        "line": 16,
+        "text": "_model = None"
+      },
+      {
+        "line": 24,
+        "text": "        _model = BGEM3FlagModel(MODEL_PATH, use_fp16=True, local_files_only=True)"
+      },
+      {
+        "line": 42,
+        "text": "            model = get_model()"
+      }
+    ]
+  },
+  "logs": {},
+  "processes": [
+    {
+      "pid": "338297",
+      "comm": "python",
+      "argv": "/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/embed_server.py ",
+      "cgroup": "0::/system.slice/embed-server.service",
+      "stdout": "/var/log/embed-server.log",
+      "stderr": "/var/log/embed-server.log"
+    },
+    {
+      "pid": "488505",
+      "comm": "python",
+      "argv": "/root/OmniGraph-Vault/venv-aim1/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766 --workers 1 ",
+      "cgroup": "0::/system.slice/omni-kb-api.service",
+      "stdout": "socket:[2084860]",
+      "stderr": "socket:[2084860]"
+    },
+    {
+      "pid": "2440870",
+      "comm": "python3",
+      "argv": "/root/OmniGraph-Vault/venv-aim1/bin/python3 /root/OmniGraph-Vault/mcp_server_standalone.py ",
+      "cgroup": "0::/system.slice/omni-mcp.service",
+      "stdout": "socket:[224394063]",
+      "stderr": "socket:[224394063]"
+    }
+  ],
+  "timezone": "CST +0800"
+}

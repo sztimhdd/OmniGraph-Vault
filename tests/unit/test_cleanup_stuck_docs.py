@@ -58,8 +58,6 @@ def mock_rag(monkeypatch):
         return rag
 
     monkeypatch.setattr(cleanup_stuck_docs, "_build_rag", fake_build_rag)
-    monkeypatch.setattr(
-        cleanup_stuck_docs, "_emit_pipeline_busy_warning", lambda _: None)
     return rag
 
 
@@ -92,6 +90,18 @@ def test_no_flag_prints_help_exits_0(fake_doc_status, mock_rag, capsys):
         json.loads(captured.out)
 
 
+def test_write_flag_help_states_that_cleanup_fails_closed():
+    help_text = cleanup_stuck_docs._build_parser().format_help()
+    assert "delete every doc" not in help_text
+    assert "report failed docs" in help_text
+
+
+def test_dry_run_help_states_that_it_counts_candidates():
+    help_text = cleanup_stuck_docs._build_parser().format_help()
+    assert "count candidates only" in help_text
+    assert "list candidates" not in help_text
+
+
 def test_json_schema_complete(fake_doc_status, mock_rag, capsys):
     rc = cleanup_stuck_docs.main(["--dry-run"])
     assert rc == 0
@@ -118,35 +128,70 @@ def test_dry_run_with_all_failed_combined_is_dry_run(fake_doc_status, mock_rag, 
 # --- Task 2: --all-failed / --hash / advisory / exception ---------------------
 
 
-def test_all_failed_calls_delete_once_per_failed_doc(fake_doc_status, mock_rag, capsys):
+def test_all_failed_fails_closed_without_a_shared_pipeline_lock(
+    fake_doc_status, mock_rag, capsys
+):
     rc = cleanup_stuck_docs.main(["--all-failed"])
-    assert rc == 0
-    assert mock_rag.adelete_by_doc_id.call_count == 2
-    called_ids = {c.args[0] for c in mock_rag.adelete_by_doc_id.call_args_list}
-    assert called_ids == {"doc_a_failed", "doc_b_processing"}
+    assert rc == 1
+    assert mock_rag.adelete_by_doc_id.call_count == 0
     report = json.loads(capsys.readouterr().out)
-    assert report["docs_deleted"] == 2
+    assert report["docs_deleted"] == 0
+    assert report["docs_identified"] == 1
+    assert report["skipped_reasons"] == [{
+        "doc_id": "doc_b_processing",
+        "status": "processing",
+        "reason": "processing_not_eligible",
+    }, {
+        "doc_id": "doc_a_failed",
+        "status": "failed",
+        "reason": "pipeline_lock_unshared",
+    }]
+
+
+def test_dry_run_keeps_processing_visible_for_diagnostics(
+    fake_doc_status, mock_rag, capsys
+):
+    rc = cleanup_stuck_docs.main(["--dry-run"])
+    assert rc == 0
+    assert mock_rag.adelete_by_doc_id.call_count == 0
+    report = json.loads(capsys.readouterr().out)
     assert report["docs_identified"] == 2
 
 
-def test_all_failed_zero_candidates_exits_0(empty_doc_status, mock_rag, capsys):
+def test_all_failed_with_only_processing_is_no_eligible_exit_0(
+    empty_doc_status, mock_rag, capsys
+):
+    (empty_doc_status / "kv_store_doc_status.json").write_text(
+        json.dumps({"only_processing": {"status": "processing"}}),
+        encoding="utf-8",
+    )
     rc = cleanup_stuck_docs.main(["--all-failed"])
     assert rc == 0
     assert mock_rag.adelete_by_doc_id.call_count == 0
     report = json.loads(capsys.readouterr().out)
     assert report["docs_identified"] == 0
     assert report["docs_deleted"] == 0
-    assert report["skipped_reasons"] == []
+    assert report["skipped_reasons"] == [{
+        "doc_id": "only_processing",
+        "status": "processing",
+        "reason": "processing_not_eligible",
+    }]
 
 
-def test_hash_deletes_one_doc(fake_doc_status, mock_rag, capsys):
+def test_hash_fails_closed_without_a_shared_pipeline_lock(
+    fake_doc_status, mock_rag, capsys
+):
     rc = cleanup_stuck_docs.main(["--hash", "doc_a_failed"])
-    assert rc == 0
-    assert mock_rag.adelete_by_doc_id.call_count == 1
-    assert mock_rag.adelete_by_doc_id.call_args.args[0] == "doc_a_failed"
+    assert rc == 1
+    assert mock_rag.adelete_by_doc_id.call_count == 0
     report = json.loads(capsys.readouterr().out)
     assert report["docs_identified"] == 1
-    assert report["docs_deleted"] == 1
+    assert report["docs_deleted"] == 0
+    assert report["skipped_reasons"] == [{
+        "doc_id": "doc_a_failed",
+        "status": "failed",
+        "reason": "pipeline_lock_unshared",
+    }]
 
 
 def test_hash_refuses_processed_doc(fake_doc_status, mock_rag, capsys):
@@ -160,6 +205,19 @@ def test_hash_refuses_processed_doc(fake_doc_status, mock_rag, capsys):
     assert report["skipped_reasons"][0]["doc_id"] == "doc_c_processed"
 
 
+def test_hash_refuses_processing_doc(fake_doc_status, mock_rag, capsys):
+    rc = cleanup_stuck_docs.main(["--hash", "doc_b_processing"])
+    assert rc == 1
+    assert mock_rag.adelete_by_doc_id.call_count == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["docs_deleted"] == 0
+    assert report["skipped_reasons"] == [{
+        "doc_id": "doc_b_processing",
+        "status": "processing",
+        "reason": "processing_not_eligible",
+    }]
+
+
 def test_hash_missing_doc_is_idempotent_exit_0(fake_doc_status, mock_rag, capsys):
     rc = cleanup_stuck_docs.main(["--hash", "totally_unknown_doc"])
     assert rc == 0
@@ -170,52 +228,24 @@ def test_hash_missing_doc_is_idempotent_exit_0(fake_doc_status, mock_rag, capsys
     assert report["skipped_reasons"][0]["reason"] == "doc_not_found"
 
 
-def test_delete_returning_error_is_recorded_as_skip(fake_doc_status, monkeypatch, capsys):
-    rag = MagicMock()
-    rag.adelete_by_doc_id = AsyncMock(return_value=SimpleNamespace(
-        status="error", status_code=500, message="kuzu lock", doc_id="doc_a_failed"))
-
-    async def fake_build_rag():
-        return rag
-
-    monkeypatch.setattr(cleanup_stuck_docs, "_build_rag", fake_build_rag)
-    monkeypatch.setattr(cleanup_stuck_docs, "_emit_pipeline_busy_warning", lambda _: None)
-    rc = cleanup_stuck_docs.main(["--all-failed"])
-    assert rc == 0
-    report = json.loads(capsys.readouterr().out)
-    assert report["docs_deleted"] == 0
-    reasons = {e["reason"] for e in report["skipped_reasons"]}
-    assert "delete_returned_error" in reasons
-
-
-def test_pipeline_busy_advisory_emits_stderr_does_not_block(
-    fake_doc_status, monkeypatch, capsys
+def test_hash_rejects_invalid_status_entry_without_echoing_value(
+    empty_doc_status, mock_rag, capsys
 ):
-    rag = MagicMock()
-    rag.adelete_by_doc_id = AsyncMock(return_value=SimpleNamespace(
-        status="success", doc_id="x", message="ok", status_code=200))
+    (empty_doc_status / "kv_store_doc_status.json").write_text(
+        json.dumps({"bad_entry": ["untrusted", "value"]}), encoding="utf-8"
+    )
 
-    async def fake_build_rag():
-        return rag
+    rc = cleanup_stuck_docs.main(["--hash", "bad_entry"])
 
-    monkeypatch.setattr(cleanup_stuck_docs, "_build_rag", fake_build_rag)
-    monkeypatch.setattr(cleanup_stuck_docs, "_emit_pipeline_busy_warning",
-                        lambda _: sys.stderr.write("WARNING: pipeline busy advisory\n"))
-    rc = cleanup_stuck_docs.main(["--all-failed"])
-    assert rc == 0
     captured = capsys.readouterr()
-    assert "WARNING: pipeline busy advisory" in captured.err
-    assert rag.adelete_by_doc_id.call_count == 2
-
-
-def test_unexpected_exception_returns_exit_1(fake_doc_status, monkeypatch, capsys):
-    rag = MagicMock()
-    rag.adelete_by_doc_id = AsyncMock(side_effect=RuntimeError("boom"))
-
-    async def fake_build_rag():
-        return rag
-
-    monkeypatch.setattr(cleanup_stuck_docs, "_build_rag", fake_build_rag)
-    monkeypatch.setattr(cleanup_stuck_docs, "_emit_pipeline_busy_warning", lambda _: None)
-    rc = cleanup_stuck_docs.main(["--all-failed"])
+    report = json.loads(captured.out)
     assert rc == 1
+    assert mock_rag.adelete_by_doc_id.call_count == 0
+    assert report["docs_deleted"] == 0
+    assert report["skipped_reasons"] == [{
+        "doc_id": "bad_entry",
+        "status": "invalid",
+        "reason": "invalid_status_entry",
+    }]
+    assert "untrusted" not in captured.out
+    assert "untrusted" not in captured.err

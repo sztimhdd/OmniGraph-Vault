@@ -1,0 +1,1877 @@
+{
+  "timestamp_utc": "2026-09-09T13:27:39.488905+00:00",
+  "unit_io": {
+    "omnigraph-daily-ingest": "ExecStartPre={ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed ; ignore_errors=no ; start_time=[Wed 2026-09-09 20:00:00 CST] ; stop_time=[Wed 2026-09-09 20:00:02 CST] ; pid=460470 ; code=exited ; status=0 }\nStandardOutput=journal\nStandardError=journal\n",
+    "omnigraph-kg-sync": "StandardOutput=journal\nStandardError=journal\n",
+    "mcp-healthcheck": "StandardOutput=journal\nStandardError=inherit\n",
+    "omni-kb-api": "StandardOutput=inherit\nStandardError=inherit\n",
+    "omni-mcp": "StandardOutput=inherit\nStandardError=inherit\n"
+  },
+  "sources": {
+    "deploy/sync_kq_to_new.py": [
+      {
+        "line": 1,
+        "text": "#!/usr/bin/env python3"
+      },
+      {
+        "line": 2,
+        "text": "\"\"\"sync_kq_to_new.py — incremental KG + SQLite sync from old machine to new MCP machine."
+      },
+      {
+        "line": 3,
+        "text": ""
+      },
+      {
+        "line": 4,
+        "text": "Run ON THE OLD MACHINE. Both machines run the same bge-m3 1024d embeddings, so"
+      },
+      {
+        "line": 5,
+        "text": "vectors are copied as-is (no re-embedding)."
+      },
+      {
+        "line": 6,
+        "text": ""
+      },
+      {
+        "line": 7,
+        "text": "Strategy:"
+      },
+      {
+        "line": 8,
+        "text": "- KG (Qdrant): point-ID diff. Scroll ALL point IDs on both machines, diff"
+      },
+      {
+        "line": 9,
+        "text": "  (old - new), fetch missing points (vector+payload) from old, upsert to new."
+      },
+      {
+        "line": 10,
+        "text": "  Idempotent by construction; no watermark file needed."
+      },
+      {
+        "line": 11,
+        "text": "- SQLite (kol_scan.db): full .backup on old, scp to new, atomic replace"
+      },
+      {
+        "line": 12,
+        "text": "  (new machine's copy is read-only for FTS — verified)."
+      },
+      {
+        "line": 13,
+        "text": ""
+      },
+      {
+        "line": 14,
+        "text": "Exit code: 0 = sync complete, 1 = failure (for systemd OnFailure alerting)."
+      },
+      {
+        "line": 15,
+        "text": "\"\"\""
+      },
+      {
+        "line": 16,
+        "text": "import json"
+      },
+      {
+        "line": 17,
+        "text": "import os"
+      },
+      {
+        "line": 18,
+        "text": "import shutil"
+      },
+      {
+        "line": 19,
+        "text": "import subprocess"
+      },
+      {
+        "line": 20,
+        "text": "import sys"
+      },
+      {
+        "line": 21,
+        "text": "import time"
+      },
+      {
+        "line": 22,
+        "text": ""
+      },
+      {
+        "line": 23,
+        "text": "OLD_QDRANT = \"http://127.0.0.1:6333\""
+      },
+      {
+        "line": 24,
+        "text": "NEW_QDRANT = \"http://127.0.0.1:16333\"  # via SSH tunnel below (public 6333 not open)"
+      },
+      {
+        "line": 25,
+        "text": "NEW_SSH = os.environ.get(\"SYNC_NEW_SSH\", \"root@47.103.73.20\")"
+      },
+      {
+        "line": 26,
+        "text": "TUNNEL_PORT = 16333"
+      },
+      {
+        "line": 27,
+        "text": "DB = \"/root/OmniGraph-Vault/data/kol_scan.db\""
+      },
+      {
+        "line": 28,
+        "text": "COLLECTIONS = [\"entities\", \"chunks\", \"relationships\"]"
+      },
+      {
+        "line": 29,
+        "text": "PAGE = 1000"
+      },
+      {
+        "line": 30,
+        "text": "UPSERT_BATCH = 512"
+      },
+      {
+        "line": 31,
+        "text": "LOG = \"/var/log/omnigraph-kg-sync.log\""
+      },
+      {
+        "line": 32,
+        "text": ""
+      },
+      {
+        "line": 33,
+        "text": ""
+      },
+      {
+        "line": 34,
+        "text": "def start_tunnel() -> subprocess.Popen:"
+      },
+      {
+        "line": 35,
+        "text": "    \"\"\"SSH local-forward tunnel: 127.0.0.1:16333 -> new:6333.\"\"\""
+      },
+      {
+        "line": 36,
+        "text": "    proc = subprocess.Popen("
+      },
+      {
+        "line": 37,
+        "text": "        ["
+      },
+      {
+        "line": 38,
+        "text": "            \"ssh\","
+      },
+      {
+        "line": 39,
+        "text": "            \"-N\","
+      },
+      {
+        "line": 40,
+        "text": "            \"-o\","
+      },
+      {
+        "line": 41,
+        "text": "            \"ConnectTimeout=15\","
+      },
+      {
+        "line": 42,
+        "text": "            \"-o\","
+      },
+      {
+        "line": 43,
+        "text": "            \"StrictHostKeyChecking=no\","
+      },
+      {
+        "line": 44,
+        "text": "            \"-o\","
+      },
+      {
+        "line": 45,
+        "text": "            \"ServerAliveInterval=30\","
+      },
+      {
+        "line": 46,
+        "text": "            \"-L\","
+      },
+      {
+        "line": 47,
+        "text": "            f\"{TUNNEL_PORT}:127.0.0.1:6333\","
+      },
+      {
+        "line": 48,
+        "text": "            NEW_SSH,"
+      },
+      {
+        "line": 49,
+        "text": "        ],"
+      },
+      {
+        "line": 50,
+        "text": "        stdout=subprocess.DEVNULL,"
+      },
+      {
+        "line": 51,
+        "text": "        stderr=subprocess.DEVNULL,"
+      },
+      {
+        "line": 52,
+        "text": "    )"
+      },
+      {
+        "line": 53,
+        "text": "    # wait for port to open"
+      },
+      {
+        "line": 54,
+        "text": "    for _ in range(20):"
+      },
+      {
+        "line": 55,
+        "text": "        import socket"
+      },
+      {
+        "line": 56,
+        "text": ""
+      },
+      {
+        "line": 57,
+        "text": "        s = socket.socket()"
+      },
+      {
+        "line": 58,
+        "text": "        try:"
+      },
+      {
+        "line": 59,
+        "text": "            s.connect((\"127.0.0.1\", TUNNEL_PORT))"
+      },
+      {
+        "line": 60,
+        "text": "            s.close()"
+      },
+      {
+        "line": 61,
+        "text": "            return proc"
+      },
+      {
+        "line": 62,
+        "text": "        except OSError:"
+      },
+      {
+        "line": 63,
+        "text": "            time.sleep(1)"
+      },
+      {
+        "line": 64,
+        "text": "    log(f\"FATAL: tunnel to {NEW_SSH} did not open\")"
+      },
+      {
+        "line": 65,
+        "text": "    proc.terminate()"
+      },
+      {
+        "line": 66,
+        "text": "    sys.exit(1)"
+      },
+      {
+        "line": 67,
+        "text": ""
+      },
+      {
+        "line": 68,
+        "text": ""
+      },
+      {
+        "line": 69,
+        "text": "def log(msg: str) -> None:"
+      },
+      {
+        "line": 70,
+        "text": "    line = f\"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\""
+      },
+      {
+        "line": 71,
+        "text": "    print(line, flush=True)"
+      },
+      {
+        "line": 72,
+        "text": "    with open(LOG, \"a\") as f:"
+      },
+      {
+        "line": 73,
+        "text": "        f.write(line + \"\\n\")"
+      },
+      {
+        "line": 74,
+        "text": ""
+      },
+      {
+        "line": 75,
+        "text": ""
+      },
+      {
+        "line": 76,
+        "text": "def scroll_ids(url: str, coll: str) -> set:"
+      },
+      {
+        "line": 77,
+        "text": "    \"\"\"Scroll all point IDs of a collection. Returns set of str IDs.\"\"\""
+      },
+      {
+        "line": 78,
+        "text": "    import urllib.request"
+      },
+      {
+        "line": 79,
+        "text": ""
+      },
+      {
+        "line": 80,
+        "text": "    ids: set = set()"
+      },
+      {
+        "line": 81,
+        "text": "    offset = None"
+      },
+      {
+        "line": 82,
+        "text": "    while True:"
+      },
+      {
+        "line": 83,
+        "text": "        body = {\"with_payload\": False, \"with_vector\": False, \"limit\": PAGE}"
+      },
+      {
+        "line": 84,
+        "text": "        if offset is not None:"
+      },
+      {
+        "line": 85,
+        "text": "            body[\"offset\"] = offset"
+      },
+      {
+        "line": 86,
+        "text": "        req = urllib.request.Request("
+      },
+      {
+        "line": 87,
+        "text": "            f\"{url}/collections/{coll}/points/scroll\","
+      },
+      {
+        "line": 88,
+        "text": "            data=json.dumps(body).encode(),"
+      },
+      {
+        "line": 89,
+        "text": "            headers={\"Content-Type\": \"application/json\"},"
+      },
+      {
+        "line": 90,
+        "text": "        )"
+      },
+      {
+        "line": 91,
+        "text": "        with urllib.request.urlopen(req, timeout=60) as resp:"
+      },
+      {
+        "line": 92,
+        "text": "            data = json.loads(resp.read())"
+      },
+      {
+        "line": 93,
+        "text": "        pts = data.get(\"result\", {}).get(\"points\", [])"
+      },
+      {
+        "line": 94,
+        "text": "        for p in pts:"
+      },
+      {
+        "line": 95,
+        "text": "            ids.add(p[\"id\"])"
+      },
+      {
+        "line": 96,
+        "text": "        nxt = data.get(\"result\", {}).get(\"next_page_offset\")"
+      },
+      {
+        "line": 97,
+        "text": "        if not nxt:"
+      },
+      {
+        "line": 98,
+        "text": "            break"
+      },
+      {
+        "line": 99,
+        "text": "        offset = nxt"
+      },
+      {
+        "line": 100,
+        "text": "    return ids"
+      },
+      {
+        "line": 101,
+        "text": ""
+      },
+      {
+        "line": 102,
+        "text": ""
+      },
+      {
+        "line": 103,
+        "text": "def fetch_points(url: str, coll: str, ids: list) -> list:"
+      },
+      {
+        "line": 104,
+        "text": "    \"\"\"Fetch full points (vector+payload) for given IDs from old machine.\"\"\""
+      },
+      {
+        "line": 105,
+        "text": "    import urllib.request"
+      },
+      {
+        "line": 106,
+        "text": ""
+      },
+      {
+        "line": 107,
+        "text": "    out = []"
+      },
+      {
+        "line": 108,
+        "text": "    for i in range(0, len(ids), 512):"
+      },
+      {
+        "line": 109,
+        "text": "        chunk = ids[i : i + 512]"
+      },
+      {
+        "line": 110,
+        "text": "        body = {\"ids\": chunk, \"with_payload\": True, \"with_vector\": True}"
+      },
+      {
+        "line": 111,
+        "text": "        req = urllib.request.Request("
+      },
+      {
+        "line": 112,
+        "text": "            f\"{url}/collections/{coll}/points\","
+      },
+      {
+        "line": 113,
+        "text": "            data=json.dumps(body).encode(),"
+      },
+      {
+        "line": 114,
+        "text": "            headers={\"Content-Type\": \"application/json\"},"
+      },
+      {
+        "line": 115,
+        "text": "        )"
+      },
+      {
+        "line": 116,
+        "text": "        with urllib.request.urlopen(req, timeout=120) as resp:"
+      },
+      {
+        "line": 117,
+        "text": "            data = json.loads(resp.read())"
+      },
+      {
+        "line": 118,
+        "text": "        out.extend(data.get(\"result\", []))"
+      },
+      {
+        "line": 119,
+        "text": "    return out"
+      },
+      {
+        "line": 120,
+        "text": ""
+      },
+      {
+        "line": 121,
+        "text": ""
+      },
+      {
+        "line": 122,
+        "text": "def upsert(url: str, coll: str, points: list, retries: int = 3) -> bool:"
+      },
+      {
+        "line": 123,
+        "text": "    \"\"\"Upsert points to new machine with retry+backoff.\"\"\""
+      },
+      {
+        "line": 124,
+        "text": "    import urllib.request"
+      },
+      {
+        "line": 125,
+        "text": ""
+      },
+      {
+        "line": 126,
+        "text": "    for attempt in range(1, retries + 1):"
+      },
+      {
+        "line": 127,
+        "text": "        try:"
+      },
+      {
+        "line": 128,
+        "text": "            body = {\"points\": points}"
+      },
+      {
+        "line": 129,
+        "text": "            req = urllib.request.Request("
+      },
+      {
+        "line": 130,
+        "text": "                f\"{url}/collections/{coll}/points\","
+      },
+      {
+        "line": 131,
+        "text": "                data=json.dumps(body).encode(),"
+      },
+      {
+        "line": 132,
+        "text": "                headers={\"Content-Type\": \"application/json\"},"
+      },
+      {
+        "line": 133,
+        "text": "                method=\"PUT\","
+      },
+      {
+        "line": 134,
+        "text": "            )"
+      },
+      {
+        "line": 135,
+        "text": "            with urllib.request.urlopen(req, timeout=180) as resp:"
+      },
+      {
+        "line": 136,
+        "text": "                if resp.status == 200:"
+      },
+      {
+        "line": 137,
+        "text": "                    return True"
+      },
+      {
+        "line": 138,
+        "text": "        except Exception as e:"
+      },
+      {
+        "line": 139,
+        "text": "            log(f\"  upsert attempt {attempt}/{retries} failed: {e}\")"
+      },
+      {
+        "line": 140,
+        "text": "            time.sleep(5 * attempt)"
+      },
+      {
+        "line": 141,
+        "text": "    return False"
+      },
+      {
+        "line": 142,
+        "text": ""
+      },
+      {
+        "line": 143,
+        "text": ""
+      },
+      {
+        "line": 144,
+        "text": "def sync_collection(coll: str) -> None:"
+      },
+      {
+        "line": 145,
+        "text": "    from qdrant_client import QdrantClient"
+      },
+      {
+        "line": 146,
+        "text": ""
+      },
+      {
+        "line": 147,
+        "text": "    name = f\"lightrag_vdb_{coll}_bge_m3_1024d\""
+      },
+      {
+        "line": 148,
+        "text": "    log(f\"[{coll}] scrolling IDs (old={OLD_QDRANT}, new={NEW_QDRANT})...\")"
+      },
+      {
+        "line": 149,
+        "text": "    old_ids = scroll_ids(OLD_QDRANT, name)"
+      },
+      {
+        "line": 150,
+        "text": "    new_ids = scroll_ids(NEW_QDRANT, name)"
+      },
+      {
+        "line": 151,
+        "text": "    diff = old_ids - new_ids"
+      },
+      {
+        "line": 152,
+        "text": "    log(f\"[{coll}] old={len(old_ids)} new={len(new_ids)} diff={len(diff)}\")"
+      },
+      {
+        "line": 153,
+        "text": "    if not diff:"
+      },
+      {
+        "line": 154,
+        "text": "        log(f\"[{coll}] up to date, nothing to sync\")"
+      },
+      {
+        "line": 155,
+        "text": "        return"
+      },
+      {
+        "line": 156,
+        "text": ""
+      },
+      {
+        "line": 157,
+        "text": "    # Fetch from old in chunks"
+      },
+      {
+        "line": 158,
+        "text": "    id_list = sorted(diff)"
+      },
+      {
+        "line": 159,
+        "text": "    missing = 0"
+      },
+      {
+        "line": 160,
+        "text": "    for i in range(0, len(id_list), UPSERT_BATCH):"
+      },
+      {
+        "line": 161,
+        "text": "        chunk_ids = id_list[i : i + UPSERT_BATCH]"
+      },
+      {
+        "line": 162,
+        "text": "        pts = fetch_points(OLD_QDRANT, name, chunk_ids)"
+      },
+      {
+        "line": 163,
+        "text": "        # Qdrant may return fewer than requested if some IDs vanished"
+      },
+      {
+        "line": 164,
+        "text": "        got = {p[\"id\"] for p in pts}"
+      },
+      {
+        "line": 165,
+        "text": "        missing += len(chunk_ids) - len(got)"
+      },
+      {
+        "line": 166,
+        "text": "        clean = ["
+      },
+      {
+        "line": 167,
+        "text": "            {"
+      },
+      {
+        "line": 168,
+        "text": "                \"id\": p[\"id\"],"
+      },
+      {
+        "line": 169,
+        "text": "                \"vector\": p.get(\"vector\"),"
+      },
+      {
+        "line": 170,
+        "text": "                \"payload\": p.get(\"payload\") or {},"
+      },
+      {
+        "line": 171,
+        "text": "            }"
+      },
+      {
+        "line": 172,
+        "text": "            for p in pts"
+      },
+      {
+        "line": 173,
+        "text": "            if p.get(\"vector\") is not None"
+      },
+      {
+        "line": 174,
+        "text": "        ]"
+      },
+      {
+        "line": 175,
+        "text": "        if not clean:"
+      },
+      {
+        "line": 176,
+        "text": "            continue"
+      },
+      {
+        "line": 177,
+        "text": "        if not upsert(NEW_QDRANT, name, clean):"
+      },
+      {
+        "line": 178,
+        "text": "            log(f\"[{coll}] FATAL upsert failed at chunk {i}; aborting\")"
+      },
+      {
+        "line": 179,
+        "text": "            sys.exit(1)"
+      },
+      {
+        "line": 180,
+        "text": "        log(f\"[{coll}] +{len(clean)} upserted (chunk {i // UPSERT_BATCH + 1}/{(len(id_list) - 1) // UPSERT_BATCH + 1})\")"
+      },
+      {
+        "line": 181,
+        "text": "    log(f\"[{coll}] done. diff={len(diff)} missing={missing}\")"
+      },
+      {
+        "line": 182,
+        "text": ""
+      },
+      {
+        "line": 183,
+        "text": ""
+      },
+      {
+        "line": 184,
+        "text": "def sync_sqlite() -> None:"
+      },
+      {
+        "line": 185,
+        "text": "    \"\"\"Full kol_scan.db backup on old, scp to new, atomic replace.\"\"\""
+      },
+      {
+        "line": 186,
+        "text": "    import urllib.request"
+      },
+      {
+        "line": 187,
+        "text": ""
+      },
+      {
+        "line": 188,
+        "text": "    tmp = \"/tmp/kol_scan.db.bak\""
+      },
+      {
+        "line": 189,
+        "text": "    subprocess.run("
+      },
+      {
+        "line": 190,
+        "text": "        [\"sqlite3\", DB, f\".backup '{tmp}'\"], check=True, timeout=300"
+      },
+      {
+        "line": 191,
+        "text": "    )"
+      },
+      {
+        "line": 192,
+        "text": "    size = os.path.getsize(tmp)"
+      },
+      {
+        "line": 193,
+        "text": "    log(f\"[sqlite] backup {size} bytes, scp to {NEW_SSH}...\")"
+      },
+      {
+        "line": 194,
+        "text": "    subprocess.run("
+      },
+      {
+        "line": 195,
+        "text": "        ["
+      },
+      {
+        "line": 196,
+        "text": "            \"scp\","
+      },
+      {
+        "line": 197,
+        "text": "            \"-o\","
+      },
+      {
+        "line": 198,
+        "text": "            \"ConnectTimeout=15\","
+      },
+      {
+        "line": 199,
+        "text": "            \"-o\","
+      },
+      {
+        "line": 200,
+        "text": "            \"StrictHostKeyChecking=no\","
+      },
+      {
+        "line": 201,
+        "text": "            tmp,"
+      },
+      {
+        "line": 202,
+        "text": "            f\"{NEW_SSH}:/tmp/kol_scan.db.new\","
+      },
+      {
+        "line": 203,
+        "text": "        ],"
+      },
+      {
+        "line": 204,
+        "text": "        check=True,"
+      },
+      {
+        "line": 205,
+        "text": "        timeout=600,"
+      },
+      {
+        "line": 206,
+        "text": "    )"
+      },
+      {
+        "line": 207,
+        "text": "    # Atomic replace on new machine"
+      },
+      {
+        "line": 208,
+        "text": "    subprocess.run("
+      },
+      {
+        "line": 209,
+        "text": "        ["
+      },
+      {
+        "line": 210,
+        "text": "            \"ssh\","
+      },
+      {
+        "line": 211,
+        "text": "            \"-o\","
+      },
+      {
+        "line": 212,
+        "text": "            \"ConnectTimeout=15\","
+      },
+      {
+        "line": 213,
+        "text": "            NEW_SSH,"
+      },
+      {
+        "line": 214,
+        "text": "            \"mv /tmp/kol_scan.db.new /root/OmniGraph-Vault/data/kol_scan.db && \""
+      },
+      {
+        "line": 215,
+        "text": "            \"ls -la /root/OmniGraph-Vault/data/kol_scan.db\","
+      },
+      {
+        "line": 216,
+        "text": "        ],"
+      },
+      {
+        "line": 217,
+        "text": "        check=True,"
+      },
+      {
+        "line": 218,
+        "text": "        timeout=120,"
+      },
+      {
+        "line": 219,
+        "text": "    )"
+      },
+      {
+        "line": 220,
+        "text": "    os.remove(tmp)"
+      },
+      {
+        "line": 221,
+        "text": "    log(f\"[sqlite] replaced on new machine\")"
+      },
+      {
+        "line": 222,
+        "text": ""
+      },
+      {
+        "line": 223,
+        "text": ""
+      },
+      {
+        "line": 224,
+        "text": "def main() -> None:"
+      },
+      {
+        "line": 225,
+        "text": "    log(\"=== KG sync start ===\")"
+      },
+      {
+        "line": 226,
+        "text": "    tunnel = start_tunnel()"
+      },
+      {
+        "line": 227,
+        "text": "    try:"
+      },
+      {
+        "line": 228,
+        "text": "        for coll in COLLECTIONS:"
+      },
+      {
+        "line": 229,
+        "text": "            sync_collection(coll)"
+      },
+      {
+        "line": 230,
+        "text": "        sync_sqlite()"
+      },
+      {
+        "line": 231,
+        "text": "    finally:"
+      },
+      {
+        "line": 232,
+        "text": "        tunnel.terminate()"
+      },
+      {
+        "line": 233,
+        "text": "        tunnel.wait(timeout=10)"
+      },
+      {
+        "line": 234,
+        "text": "    log(\"=== KG sync complete ===\")"
+      },
+      {
+        "line": 235,
+        "text": ""
+      },
+      {
+        "line": 236,
+        "text": ""
+      },
+      {
+        "line": 237,
+        "text": "if __name__ == \"__main__\":"
+      },
+      {
+        "line": 238,
+        "text": "    try:"
+      },
+      {
+        "line": 239,
+        "text": "        main()"
+      },
+      {
+        "line": 240,
+        "text": "    except Exception as e:"
+      },
+      {
+        "line": 241,
+        "text": "        log(f\"FATAL: {e}\")"
+      },
+      {
+        "line": 242,
+        "text": "        sys.exit(1)"
+      }
+    ],
+    "scripts/sync-from-aliyun.sh": [
+      {
+        "line": 1,
+        "text": "#!/usr/bin/env bash"
+      },
+      {
+        "line": 2,
+        "text": "# scripts/sync-from-aliyun.sh"
+      },
+      {
+        "line": 3,
+        "text": "#"
+      },
+      {
+        "line": 4,
+        "text": "# Pull articles SSG output / kol_scan.db / images / kb/wiki from"
+      },
+      {
+        "line": 5,
+        "text": "# Aliyun (47.117.244.253, root) → Hermes ${HERMES_DATA_DIR}."
+      },
+      {
+        "line": 6,
+        "text": "# Runs as oneshot on Hermes (systemd timer). Pure bash + rsync + ssh."
+      },
+      {
+        "line": 7,
+        "text": "#"
+      },
+      {
+        "line": 8,
+        "text": "# Idempotent (re-run on same day = no-op transfer). Exit 0 on full"
+      },
+      {
+        "line": 9,
+        "text": "# success across all 4 targets; non-zero on any rsync failure after 3"
+      },
+      {
+        "line": 10,
+        "text": "# retries with exponential backoff (60s / 300s / 1800s)."
+      },
+      {
+        "line": 11,
+        "text": "#"
+      },
+      {
+        "line": 12,
+        "text": "# Retry exhaustion writes /tmp/aliyun-sync-failed-<date> marker per"
+      },
+      {
+        "line": 13,
+        "text": "# SYNC-04. Stale markers (any failed-<date>) are cleaned up on next"
+      },
+      {
+        "line": 14,
+        "text": "# success per FINDING 10 (prevents aim-5 STAB-03 false-trip)."
+      },
+      {
+        "line": 15,
+        "text": "#"
+      },
+      {
+        "line": 16,
+        "text": "# REQs: SYNC-01 (script + idempotency + exit semantics)"
+      },
+      {
+        "line": 17,
+        "text": "#       SYNC-04 (retry/backoff/marker logic)"
+      },
+      {
+        "line": 18,
+        "text": "#"
+      },
+      {
+        "line": 19,
+        "text": "# Aliyun side prep: aim-4-1 installed Hermes pubkey on"
+      },
+      {
+        "line": 20,
+        "text": "# /root/.ssh/authorized_keys."
+      },
+      {
+        "line": 21,
+        "text": ""
+      },
+      {
+        "line": 22,
+        "text": "set -u"
+      },
+      {
+        "line": 23,
+        "text": ""
+      },
+      {
+        "line": 24,
+        "text": "# --- Config (overridable via env) -------------------------------------"
+      },
+      {
+        "line": 25,
+        "text": "ALIYUN_SSH_HOST=\"${ALIYUN_SSH_HOST:-root@47.117.244.253}\""
+      },
+      {
+        "line": 26,
+        "text": "ALIYUN_SSH_KEY=\"${ALIYUN_SSH_KEY:-${HOME}/.ssh/hermes_to_aliyun_ed25519}\""
+      },
+      {
+        "line": 27,
+        "text": "HERMES_DATA_DIR=\"${HERMES_DATA_DIR:-${HOME}/.hermes/omonigraph-vault}\""
+      },
+      {
+        "line": 28,
+        "text": ""
+      },
+      {
+        "line": 29,
+        "text": "SSH_OPTS=\"-i ${ALIYUN_SSH_KEY} -o StrictHostKeyChecking=accept-new -o BatchMode=yes\""
+      },
+      {
+        "line": 30,
+        "text": "RSYNC_OPTS=\"-az --delete\""
+      },
+      {
+        "line": 31,
+        "text": ""
+      },
+      {
+        "line": 32,
+        "text": "# --- Sync targets: SRC (Aliyun) → DST (Hermes) ------------------------"
+      },
+      {
+        "line": 33,
+        "text": "# Order: cheapest first so a fail-fast on later targets still gets"
+      },
+      {
+        "line": 34,
+        "text": "# small early targets to disk. Verified 2026-05-24 via SSH probe."
+      },
+      {
+        "line": 35,
+        "text": "SYNC_PAIRS=("
+      },
+      {
+        "line": 36,
+        "text": "  \"/root/OmniGraph-Vault/data/kol_scan.db|${HERMES_DATA_DIR}/kol_scan.db\""
+      },
+      {
+        "line": 37,
+        "text": "  \"/root/OmniGraph-Vault/kb/wiki/|${HERMES_DATA_DIR}/kb/wiki/\""
+      },
+      {
+        "line": 38,
+        "text": "  \"/root/OmniGraph-Vault/kb/output/articles/|${HERMES_DATA_DIR}/articles/\""
+      },
+      {
+        "line": 39,
+        "text": "  \"/root/.hermes/omonigraph-vault/images/|${HERMES_DATA_DIR}/images/\""
+      },
+      {
+        "line": 40,
+        "text": ")"
+      },
+      {
+        "line": 41,
+        "text": ""
+      },
+      {
+        "line": 42,
+        "text": "# --- Helpers ----------------------------------------------------------"
+      },
+      {
+        "line": 43,
+        "text": "log() {"
+      },
+      {
+        "line": 44,
+        "text": "  echo \"[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*\""
+      },
+      {
+        "line": 45,
+        "text": "}"
+      },
+      {
+        "line": 46,
+        "text": ""
+      },
+      {
+        "line": 47,
+        "text": "ensure_parent_dirs() {"
+      },
+      {
+        "line": 48,
+        "text": "  mkdir -p \\"
+      },
+      {
+        "line": 49,
+        "text": "    \"${HERMES_DATA_DIR}/kb/wiki\" \\"
+      },
+      {
+        "line": 50,
+        "text": "    \"${HERMES_DATA_DIR}/articles\" \\"
+      },
+      {
+        "line": 51,
+        "text": "    \"${HERMES_DATA_DIR}/images\""
+      },
+      {
+        "line": 52,
+        "text": "}"
+      },
+      {
+        "line": 53,
+        "text": ""
+      },
+      {
+        "line": 54,
+        "text": "do_one_rsync() {"
+      },
+      {
+        "line": 55,
+        "text": "  local src=\"$1\" dst=\"$2\""
+      },
+      {
+        "line": 56,
+        "text": "  rsync ${RSYNC_OPTS} \\"
+      },
+      {
+        "line": 57,
+        "text": "    -e \"ssh ${SSH_OPTS}\" \\"
+      },
+      {
+        "line": 58,
+        "text": "    \"${ALIYUN_SSH_HOST}:${src}\" \\"
+      },
+      {
+        "line": 59,
+        "text": "    \"${dst}\""
+      },
+      {
+        "line": 60,
+        "text": "}"
+      },
+      {
+        "line": 61,
+        "text": ""
+      },
+      {
+        "line": 62,
+        "text": "do_rsync_all() {"
+      },
+      {
+        "line": 63,
+        "text": "  local rc=0"
+      },
+      {
+        "line": 64,
+        "text": "  for pair in \"${SYNC_PAIRS[@]}\"; do"
+      },
+      {
+        "line": 65,
+        "text": "    local src=\"${pair%%|*}\""
+      },
+      {
+        "line": 66,
+        "text": "    local dst=\"${pair##*|}\""
+      },
+      {
+        "line": 67,
+        "text": "    log \"rsync ${src} → ${dst}\""
+      },
+      {
+        "line": 68,
+        "text": "    if ! do_one_rsync \"${src}\" \"${dst}\"; then"
+      },
+      {
+        "line": 69,
+        "text": "      local code=$?"
+      },
+      {
+        "line": 70,
+        "text": "      log \"  → rsync FAILED (exit ${code}) for ${src}\""
+      },
+      {
+        "line": 71,
+        "text": "      rc=${code}"
+      },
+      {
+        "line": 72,
+        "text": "    fi"
+      },
+      {
+        "line": 73,
+        "text": "  done"
+      },
+      {
+        "line": 74,
+        "text": "  return ${rc}"
+      },
+      {
+        "line": 75,
+        "text": "}"
+      },
+      {
+        "line": 76,
+        "text": ""
+      },
+      {
+        "line": 77,
+        "text": "clean_stale_markers() {"
+      },
+      {
+        "line": 78,
+        "text": "  # FINDING 10: clear all markers on success so a transient old"
+      },
+      {
+        "line": 79,
+        "text": "  # failure does not falsely trip aim-5 STAB-03."
+      },
+      {
+        "line": 80,
+        "text": "  rm -f /tmp/aliyun-sync-failed-* 2>/dev/null || true"
+      },
+      {
+        "line": 81,
+        "text": "}"
+      },
+      {
+        "line": 82,
+        "text": ""
+      },
+      {
+        "line": 83,
+        "text": "write_failure_marker() {"
+      },
+      {
+        "line": 84,
+        "text": "  local date_str"
+      },
+      {
+        "line": 85,
+        "text": "  date_str=\"$(date +%Y-%m-%d)\""
+      },
+      {
+        "line": 86,
+        "text": "  touch \"/tmp/aliyun-sync-failed-${date_str}\""
+      },
+      {
+        "line": 87,
+        "text": "  log \"MARKER /tmp/aliyun-sync-failed-${date_str} written\""
+      },
+      {
+        "line": 88,
+        "text": "}"
+      },
+      {
+        "line": 89,
+        "text": ""
+      },
+      {
+        "line": 90,
+        "text": "# --- Main retry loop --------------------------------------------------"
+      },
+      {
+        "line": 91,
+        "text": "main() {"
+      },
+      {
+        "line": 92,
+        "text": "  ensure_parent_dirs"
+      },
+      {
+        "line": 93,
+        "text": ""
+      },
+      {
+        "line": 94,
+        "text": "  local delays=(60 300 1800)"
+      },
+      {
+        "line": 95,
+        "text": "  local attempt"
+      },
+      {
+        "line": 96,
+        "text": ""
+      },
+      {
+        "line": 97,
+        "text": "  for attempt in 0 1 2; do"
+      },
+      {
+        "line": 98,
+        "text": "    if do_rsync_all; then"
+      },
+      {
+        "line": 99,
+        "text": "      clean_stale_markers"
+      },
+      {
+        "line": 100,
+        "text": "      log \"sync OK on attempt $((attempt + 1))\""
+      },
+      {
+        "line": 101,
+        "text": "      exit 0"
+      },
+      {
+        "line": 102,
+        "text": "    fi"
+      },
+      {
+        "line": 103,
+        "text": "    local d=\"${delays[${attempt}]}\""
+      },
+      {
+        "line": 104,
+        "text": "    log \"attempt $((attempt + 1)) failed; sleeping ${d}s before retry\""
+      },
+      {
+        "line": 105,
+        "text": "    sleep \"${d}\""
+      },
+      {
+        "line": 106,
+        "text": "  done"
+      },
+      {
+        "line": 107,
+        "text": ""
+      },
+      {
+        "line": 108,
+        "text": "  # 4th and final attempt"
+      },
+      {
+        "line": 109,
+        "text": "  if do_rsync_all; then"
+      },
+      {
+        "line": 110,
+        "text": "    clean_stale_markers"
+      },
+      {
+        "line": 111,
+        "text": "    log \"sync OK on final attempt (4)\""
+      },
+      {
+        "line": 112,
+        "text": "    exit 0"
+      },
+      {
+        "line": 113,
+        "text": "  fi"
+      },
+      {
+        "line": 114,
+        "text": ""
+      },
+      {
+        "line": 115,
+        "text": "  write_failure_marker"
+      },
+      {
+        "line": 116,
+        "text": "  echo \"ERROR: aliyun sync exhausted 3 retries on $(date +%Y-%m-%d)\" >&2"
+      },
+      {
+        "line": 117,
+        "text": "  exit 1"
+      },
+      {
+        "line": 118,
+        "text": "}"
+      },
+      {
+        "line": 119,
+        "text": ""
+      },
+      {
+        "line": 120,
+        "text": "main \"$@\""
+      }
+    ],
+    "lib/vision_cascade.py": [
+      {
+        "line": 3,
+        "text": "CASC-01 (single-provider): the vision cascade is now pure DeepSeek"
+      },
+      {
+        "line": 4,
+        "text": "deepseek-v4-flash-vision-exp. SiliconFlow / OpenRouter / Gemini branches were removed"
+      },
+      {
+        "line": 12,
+        "text": "    - DEFAULT_PROVIDERS     (\"deepseek\",)"
+      },
+      {
+        "line": 29,
+        "text": "# CASC-01 -- single provider: DeepSeek deepseek-v4-flash-vision-exp (replaces the"
+      },
+      {
+        "line": 32,
+        "text": "DEFAULT_PROVIDERS: tuple[str, ...] = (\"deepseek\",)"
+      },
+      {
+        "line": 125,
+        "text": "        providers: tuple[str, ...] | list[str] = DEFAULT_PROVIDERS,"
+      },
+      {
+        "line": 157,
+        "text": "        all_known = set(DEFAULT_PROVIDERS) | set(self.providers)"
+      },
+      {
+        "line": 334,
+        "text": "        Single-provider cascade (CASC-01): only \"bailian\" is wired."
+      },
+      {
+        "line": 336,
+        "text": "        if provider == \"deepseek\":"
+      },
+      {
+        "line": 337,
+        "text": "            return self._call_deepseek(image_bytes, mime)"
+      },
+      {
+        "line": 338,
+        "text": "        if provider == \"bailian\":"
+      },
+      {
+        "line": 339,
+        "text": "            return self._call_bailian(image_bytes, mime)"
+      },
+      {
+        "line": 342,
+        "text": "    def _call_bailian(self, image_bytes: bytes, mime: str) -> str:"
+      },
+      {
+        "line": 343,
+        "text": "        \"\"\"Bailian qwen3-vl (CASC-01 single provider; replaces the"
+      },
+      {
+        "line": 353,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 354,
+        "text": "        base_url = os.environ.get("
+      },
+      {
+        "line": 355,
+        "text": "            \"BAILIAN_BASE_URL\", \"https://dashscope.aliyuncs.com/compatible-mode/v1\""
+      },
+      {
+        "line": 357,
+        "text": "        model = os.environ.get(\"BAILIAN_VISION_MODEL\", \"qwen3-vl-flash\")"
+      },
+      {
+        "line": 359,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 365,
+        "text": "                f\"{base_url}/chat/completions\","
+      },
+      {
+        "line": 400,
+        "text": "    def _call_deepseek(self, image_bytes: bytes, mime: str) -> str:"
+      },
+      {
+        "line": 401,
+        "text": "        \"\"\"DeepSeek vision (deepseek-v4-flash-vision-exp) adapter."
+      },
+      {
+        "line": 403,
+        "text": "        OpenAI-compatible chat/completions with base64 image. Replaces Bailian"
+      },
+      {
+        "line": 412,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 413,
+        "text": "        base_url = os.environ.get("
+      },
+      {
+        "line": 414,
+        "text": "            \"DEEPSEEK_BASE_URL\", \"https://api.deepseek.com\""
+      },
+      {
+        "line": 416,
+        "text": "        model = os.environ.get("
+      },
+      {
+        "line": 417,
+        "text": "            \"DEEPSEEK_VISION_MODEL\", \"deepseek-v4-flash-vision-exp\""
+      },
+      {
+        "line": 420,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 426,
+        "text": "                f\"{base_url}/chat/completions\","
+      }
+    ],
+    "lib/llm_deepseek.py": [
+      {
+        "line": 1,
+        "text": "\"\"\"Deepseek LLM wrapper — Plan 05-00c Task 0c.1."
+      },
+      {
+        "line": 3,
+        "text": "Single source of truth for DeepSeek chat completion. Matches LightRAG's"
+      },
+      {
+        "line": 5,
+        "text": "``LightRAG(..., llm_model_func=deepseek_model_complete, ...)``."
+      },
+      {
+        "line": 11,
+        "text": "    all LightRAG LLM work to DeepSeek (via this wrapper) decouples failure"
+      },
+      {
+        "line": 12,
+        "text": "    modes — Gemini quota only throttles embeddings, DeepSeek quota only"
+      },
+      {
+        "line": 24,
+        "text": "      hashing_kv (obj for caching). We ignore them — DeepSeek doesn't"
+      },
+      {
+        "line": 28,
+        "text": "Endpoint: ``https://api.deepseek.com/v1`` (OpenAI-compatible)."
+      },
+      {
+        "line": 29,
+        "text": "Model: ``DEEPSEEK_MODEL`` env var, default ``deepseek-v4-flash``."
+      },
+      {
+        "line": 31,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 33,
+        "text": "Gemini/Vertex-only workloads can ``from lib.llm_deepseek import ...`` without"
+      },
+      {
+        "line": 34,
+        "text": "needing a DeepSeek key; the key is only required when ``deepseek_model_complete``"
+      },
+      {
+        "line": 44,
+        "text": "# instead of duplicating the .env parser. lib.llm_deepseek may import before"
+      },
+      {
+        "line": 52,
+        "text": "_DEEPSEEK_BASE_URL = \"https://api.deepseek.com/v1\""
+      },
+      {
+        "line": 53,
+        "text": "_DEFAULT_MODEL = \"deepseek-v4-flash\""
+      },
+      {
+        "line": 57,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 60,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 66,
+        "text": "_MODEL = os.environ.get(\"DEEPSEEK_MODEL\", _DEFAULT_MODEL).strip() or _DEFAULT_MODEL"
+      },
+      {
+        "line": 69,
+        "text": "# Raised to 300s default (was 120s); override via OMNIGRAPH_DEEPSEEK_TIMEOUT."
+      },
+      {
+        "line": 74,
+        "text": "_DEEPSEEK_TIMEOUT_S: float = float("
+      },
+      {
+        "line": 75,
+        "text": "    os.environ.get(\"OMNIGRAPH_DEEPSEEK_TIMEOUT\", \"300\") or \"300\""
+      },
+      {
+        "line": 79,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 80,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 87,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 88,
+        "text": "    ``lib.llm_deepseek`` without ever calling ``deepseek_model_complete`` does"
+      },
+      {
+        "line": 97,
+        "text": "            base_url=_DEEPSEEK_BASE_URL,"
+      },
+      {
+        "line": 98,
+        "text": "            timeout=_DEEPSEEK_TIMEOUT_S,"
+      },
+      {
+        "line": 101,
+        "text": "            # client must not add SDK-level retries on top. Matches Bailian."
+      },
+      {
+        "line": 107,
+        "text": "async def deepseek_model_complete("
+      },
+      {
+        "line": 117,
+        "text": "    ``hashing_kv``). DeepSeek chat completions do not use them."
+      },
+      {
+        "line": 120,
+        "text": "    a single call (e.g. SSG-bake callers pinning ``deepseek-v4-pro``); when"
+      },
+      {
+        "line": 130,
+        "text": "    effective_model = model or _MODEL"
+      },
+      {
+        "line": 132,
+        "text": "        model=effective_model,"
+      },
+      {
+        "line": 139,
+        "text": "__all__ = [\"deepseek_model_complete\"]"
+      }
+    ],
+    "lib/lightrag_embedding.py": [
+      {
+        "line": 30,
+        "text": "from .models import EMBEDDING_MODEL, EMBEDDING_DIM, EMBEDDING_MAX_TOKENS"
+      },
+      {
+        "line": 39,
+        "text": "_OUTPUT_DIM = EMBEDDING_DIM  # native full-capacity dim (3072); change requires NanoVectorDB wipe"
+      },
+      {
+        "line": 199,
+        "text": "        model=model,"
+      },
+      {
+        "line": 216,
+        "text": "    url = os.environ.get(\"OMNIGRAPH_LOCAL_EMBED_URL\", \"http://localhost:7997/embeddings\")"
+      },
+      {
+        "line": 218,
+        "text": "        resp = await client.post(url, json={\"input\": texts, \"model\": \"BAAI/bge-m3\"})"
+      },
+      {
+        "line": 227,
+        "text": "    When OMNIGRAPH_LOCAL_EMBED=1, uses local embed-server (no API call)."
+      },
+      {
+        "line": 231,
+        "text": "    if os.environ.get(\"OMNIGRAPH_LOCAL_EMBED\") == \"1\":"
+      },
+      {
+        "line": 234,
+        "text": "    model = EMBEDDING_MODEL"
+      },
+      {
+        "line": 319,
+        "text": "    embedding_dim: int"
+      },
+      {
+        "line": 334,
+        "text": "    embedding_dim=EMBEDDING_DIM,"
+      }
+    ],
+    "embed_server.py": [
+      {
+        "line": 10,
+        "text": "MODEL_PATH = os.environ.get(\"EMBED_MODEL_PATH\", \"/models/bge-m3/BAAI/bge-m3\")"
+      },
+      {
+        "line": 16,
+        "text": "_model = None"
+      },
+      {
+        "line": 24,
+        "text": "        _model = BGEM3FlagModel(MODEL_PATH, use_fp16=False, local_files_only=True)"
+      },
+      {
+        "line": 42,
+        "text": "            model = get_model()"
+      }
+    ]
+  },
+  "logs": {
+    "/var/log/omnigraph-kg-sync.log": [
+      "[2026-09-04 02:30:02] [entities] scrolling IDs (old=http://127.0.0.1:6333, new=http://127.0.0.1:16333)...",
+      "[2026-09-04 02:30:12] [entities] old=126897 new=168814 diff=17",
+      "[2026-09-04 02:30:12]   upsert attempt 1/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-04 02:30:17]   upsert attempt 2/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-04 02:30:27]   upsert attempt 3/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-04 02:30:42] [entities] FATAL upsert failed at chunk 0; aborting",
+      "[2026-09-05 02:30:00] === KG sync start ===",
+      "[2026-09-05 02:30:02] [entities] scrolling IDs (old=http://127.0.0.1:6333, new=http://127.0.0.1:16333)...",
+      "[2026-09-05 02:30:13] [entities] old=126897 new=168814 diff=17",
+      "[2026-09-05 02:30:13]   upsert attempt 1/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-05 02:30:18]   upsert attempt 2/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-05 02:30:28]   upsert attempt 3/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-05 02:30:43] [entities] FATAL upsert failed at chunk 0; aborting",
+      "[2026-09-06 02:30:00] === KG sync start ===",
+      "[2026-09-06 02:30:02] [entities] scrolling IDs (old=http://127.0.0.1:6333, new=http://127.0.0.1:16333)...",
+      "[2026-09-06 02:30:13] [entities] old=126897 new=168814 diff=17",
+      "[2026-09-06 02:30:13] [entities] +17 upserted (chunk 1/1)",
+      "[2026-09-06 02:30:13] [entities] done. diff=17 missing=0",
+      "[2026-09-06 02:30:13] [chunks] scrolling IDs (old=http://127.0.0.1:6333, new=http://127.0.0.1:16333)...",
+      "[2026-09-06 02:30:14] [chunks] old=8925 new=12363 diff=3",
+      "[2026-09-06 02:30:14] [chunks] +3 upserted (chunk 1/1)",
+      "[2026-09-06 02:30:14] [chunks] done. diff=3 missing=0",
+      "[2026-09-06 02:30:14] [relationships] scrolling IDs (old=http://127.0.0.1:6333, new=http://127.0.0.1:16333)...",
+      "[2026-09-06 02:30:31] [relationships] old=200842 new=250848 diff=37",
+      "[2026-09-06 02:30:31] [relationships] +37 upserted (chunk 1/1)",
+      "[2026-09-06 02:30:31] [relationships] done. diff=37 missing=0",
+      "[2026-09-06 02:30:31] [sqlite] backup 151830528 bytes, scp to root@47.103.73.20...",
+      "[2026-09-06 02:34:11] [sqlite] replaced on new machine",
+      "[2026-09-06 02:34:11] === KG sync complete ===",
+      "[2026-09-07 02:30:00] === KG sync start ===",
+      "[2026-09-07 02:30:02] [entities] scrolling IDs (old=http://127.0.0.1:6333, new=http://127.0.0.1:16333)...",
+      "[2026-09-07 02:30:13] [entities] old=127682 new=168831 diff=785",
+      "[2026-09-07 02:30:23]   upsert attempt 1/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-07 02:30:37]   upsert attempt 2/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-07 02:30:57]   upsert attempt 3/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-07 02:31:12] [entities] FATAL upsert failed at chunk 0; aborting",
+      "[2026-09-08 02:30:00] === KG sync start ===",
+      "[2026-09-08 02:30:02] [entities] scrolling IDs (old=http://127.0.0.1:6333, new=http://127.0.0.1:16333)...",
+      "[2026-09-08 02:30:13] [entities] old=128153 new=168831 diff=1256",
+      "[2026-09-08 02:30:24]   upsert attempt 1/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-08 02:30:39]   upsert attempt 2/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-08 02:30:58]   upsert attempt 3/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-08 02:31:13] [entities] FATAL upsert failed at chunk 0; aborting",
+      "[2026-09-09 02:30:00] === KG sync start ===",
+      "[2026-09-09 02:30:02] [entities] scrolling IDs (old=http://127.0.0.1:6333, new=http://127.0.0.1:16333)...",
+      "[2026-09-09 02:30:13] [entities] old=128375 new=168831 diff=1478",
+      "[2026-09-09 02:30:23]   upsert attempt 1/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-09 02:30:38]   upsert attempt 2/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-09 02:30:57]   upsert attempt 3/3 failed: HTTP Error 500: Internal Server Error",
+      "[2026-09-09 02:31:12] [entities] FATAL upsert failed at chunk 0; aborting"
+    ]
+  },
+  "processes": [
+    {
+      "pid": "460480",
+      "comm": "python",
+      "argv": "/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10 --batch-timeout 6300 ",
+      "cgroup": "0::/system.slice/omnigraph-daily-ingest.service",
+      "stdout": "socket:[371920114]",
+      "stderr": "socket:[371920114]"
+    },
+    {
+      "pid": "2002587",
+      "comm": "python",
+      "argv": "/root/embed-venv/bin/python /root/OmniGraph-Vault/embed_server.py ",
+      "cgroup": "0::/system.slice/embed-server.service",
+      "stdout": "/var/log/embed-server.log",
+      "stderr": "/var/log/embed-server.log"
+    },
+    {
+      "pid": "2018841",
+      "comm": "python",
+      "argv": "venv-aim1/bin/python kg_api.py --port 8933 ",
+      "cgroup": "0::/user.slice/user-0.slice/session-14476.scope",
+      "stdout": "/tmp/kg_api.log",
+      "stderr": "/tmp/kg_api.log"
+    },
+    {
+      "pid": "3134716",
+      "comm": "caddy",
+      "argv": "caddy run --config /etc/caddy/Caddyfile ",
+      "cgroup": "0::/user.slice/user-0.slice/session-3891.scope",
+      "stdout": "/var/log/caddy/vitaclaw-ip-uat.log",
+      "stderr": "/var/log/caddy/vitaclaw-ip-uat.log"
+    },
+    {
+      "pid": "3733493",
+      "comm": "python",
+      "argv": "/root/OmniGraph-Vault/venv-aim1/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766 ",
+      "cgroup": "0::/system.slice/kb-api.service",
+      "stdout": "socket:[317010071]",
+      "stderr": "socket:[317010071]"
+    }
+  ],
+  "timezone": "CST +0800"
+}

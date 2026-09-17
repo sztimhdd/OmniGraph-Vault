@@ -27,11 +27,15 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import os
+import subprocess
+import sys
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 
 import lib.research.stages.reasoner as reasoner_mod
 from lib.research.stages.reasoner import _LLMDecision, _ToolCall
@@ -69,6 +73,36 @@ def _make_retrieved(image_path: Path) -> RetrieverOutput:
             )
         ],
     )
+
+
+@pytest.mark.unit
+def test_reasoner_collection_does_not_import_or_stub_search():
+    """Collecting this module must not import or globally fake LightRAG."""
+    probe = '''
+import importlib.abc
+import runpy
+import sys
+
+class BlockSearch(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path, target=None):
+        if fullname == "lightrag" or fullname == "omnigraph_search.query":
+            raise AssertionError("eager search import: " + fullname)
+
+sys.meta_path.insert(0, BlockSearch())
+runpy.run_path(sys.argv[1])
+assert "lightrag" not in sys.modules
+assert "lightrag.lightrag" not in sys.modules
+assert "omnigraph_search.query" not in sys.modules
+'''
+    result = subprocess.run(
+        [sys.executable, "-c", probe, str(Path(__file__).resolve())],
+        cwd=Path(__file__).resolve().parents[3],
+        env={**os.environ, "OMNIGRAPH_LOAD_ENV": "0"},
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +311,232 @@ async def test_reasoner_kg_search_tool_appends_chunk(tmp_path, monkeypatch):
     assert result.additional_chunks[0].kind == "kg_chunk"
     assert result.additional_chunks[0].snippet == "stub kg result"
     assert result.additional_chunks[0].uri == "omnigraph_search.query.search"
+
+
+@pytest.mark.unit
+async def test_reasoner_kg_search_requests_bounded_raw_evidence(tmp_path, monkeypatch):
+    """Dropping raw mode or top_k would turn evidence collection into synthesis."""
+    vision_cascade = MagicMock()
+    vision_cascade.describe = AsyncMock(return_value="<MOCK_CAPTION>")
+    calls = []
+
+    async def mock_llm(prompt, tools):
+        if not calls:
+            return _LLMDecision(
+                is_final=False,
+                tool_calls=(
+                    _ToolCall(name="kg_search", args={"query": "subq", "top_k": 7}),
+                ),
+            )
+        return _LLMDecision(is_final=True, content="done")
+
+    async def stub_kg_search(q, **kwargs):
+        calls.append((q, kwargs))
+        return "raw evidence from chunk 7"
+
+    monkeypatch.setattr(
+        "lib.research.stages.reasoner.kg_search", stub_kg_search
+    )
+    cfg = _make_cfg(mock_llm, vision_cascade)
+    cfg = dataclasses.replace(cfg, rag=object())
+
+    result = await run_reasoner(
+        "test", cfg, _make_retrieved(tmp_path / "deadbeef00" / "1.jpg")
+    )
+
+    assert result.status == "ok"
+    assert result.additional_chunks[0].snippet == "raw evidence from chunk 7"
+    assert calls == [
+        (
+            "subq",
+            {
+                "mode": "mix",
+                "only_context": True,
+                "top_k": 7,
+                "rag": cfg.rag,
+            },
+        )
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("top_k", [11, True, "5"])
+async def test_reasoner_reports_invalid_kg_top_k(tmp_path, monkeypatch, top_k):
+    """Bypassing the wrapper's validation must fail the bounded tool call."""
+    vision_cascade = MagicMock()
+    vision_cascade.describe = AsyncMock(return_value="<MOCK_CAPTION>")
+
+    async def mock_llm(prompt, tools):
+        return _LLMDecision(
+            is_final=False,
+            tool_calls=(_ToolCall(name="kg_search", args={"top_k": top_k}),),
+        )
+
+    async def stub_kg_search(q, **kwargs):
+        raise ValueError("top_k must be an integer from 1 to 10")
+
+    monkeypatch.setattr(
+        "lib.research.stages.reasoner.kg_search", stub_kg_search
+    )
+    result = await run_reasoner(
+        "test",
+        _make_cfg(mock_llm, vision_cascade),
+        _make_retrieved(tmp_path / "deadbeef00" / "1.jpg"),
+    )
+
+    assert result.status == "failed"
+    assert result.reason == "top_k must be an integer from 1 to 10"
+
+
+@pytest.mark.unit
+async def test_reasoner_rejects_explicit_null_kg_top_k(tmp_path, monkeypatch):
+    """Forwarding null would silently restore the wrapper's unbounded default."""
+    vision_cascade = MagicMock()
+    vision_cascade.describe = AsyncMock(return_value="<MOCK_CAPTION>")
+    calls = []
+
+    async def mock_llm(prompt, tools):
+        return _LLMDecision(
+            is_final=False,
+            tool_calls=(_ToolCall(name="kg_search", args={"top_k": None}),),
+        )
+
+    async def stub_kg_search(q, **kwargs):
+        calls.append((q, kwargs))
+        return "unexpected evidence"
+
+    monkeypatch.setattr(
+        "lib.research.stages.reasoner.kg_search", stub_kg_search
+    )
+    result = await run_reasoner(
+        "test",
+        _make_cfg(mock_llm, vision_cascade),
+        _make_retrieved(tmp_path / "deadbeef00" / "1.jpg"),
+    )
+
+    assert result.status == "failed"
+    assert result.reason == "top_k must be an integer from 1 to 10"
+    assert calls == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("excess", ["snippet", "uri", "many_sources"])
+async def test_reasoner_caps_prompt_evidence_without_changing_sources(
+    monkeypatch, excess
+):
+    """Bound aggregate evidence characters, including URIs and truncation marks."""
+    if excess == "many_sources":
+        initial = [
+            Source(kind="kg_chunk", uri=f"article://{i}", snippet="初" * 1000)
+            for i in range(10)
+        ]
+    else:
+        initial = [Source(
+            kind="kg_chunk",
+            uri="article://" + ("u" * 15000 if excess == "uri" else "initial"),
+            snippet="INITIAL_FACT " + "初😀" * 10000,
+        )]
+    raw_evidence = "NEW_FACT " + "补😀" * 10000
+    prompts = []
+
+    async def decide(prompt, tools):
+        prompts.append(prompt)
+        if len(prompts) == 1:
+            return _LLMDecision(
+                is_final=False,
+                tool_calls=(_ToolCall("kg_search", {"query": "supplement"}),),
+            )
+        return _LLMDecision(is_final=True, content="done")
+
+    async def fake_search(q, **kwargs):
+        return raw_evidence
+
+    monkeypatch.setattr(reasoner_mod, "kg_search", fake_search)
+    retrieved = RetrieverOutput(chunks=initial, image_candidates=[])
+    result = await run_reasoner("test", _make_cfg(decide, MagicMock()), retrieved)
+
+    assert result.status == "ok", result.reason
+    assert result.iter_count == len(prompts) == 2
+    prompt = prompts[1]
+    assert "NEW_FACT" in prompt
+    assert "article://" in prompt
+    assert "omnigraph_search.query.search" in prompt
+    initial_excerpt = prompt.split("BEGIN INITIAL EVIDENCE\n", 1)[1].split(
+        "\nEND INITIAL EVIDENCE", 1
+    )[0]
+    additional_excerpt = prompt.split("BEGIN ADDITIONAL EVIDENCE\n", 1)[1].split(
+        "\nEND ADDITIONAL EVIDENCE", 1
+    )[0]
+    assert 0 < len(initial_excerpt) <= 6000
+    assert 0 < len(additional_excerpt) <= 6000
+    assert len(initial_excerpt) + len(additional_excerpt) <= 12000
+    assert initial_excerpt.endswith("[truncated]")
+    assert additional_excerpt.endswith("[truncated]")
+    assert retrieved.chunks == initial
+    assert result.additional_chunks == [Source(
+        kind="kg_chunk",
+        uri="omnigraph_search.query.search",
+        snippet=raw_evidence,
+    )]
+
+
+@pytest.mark.unit
+async def test_reasoner_third_prompt_prioritizes_new_evidence(monkeypatch):
+    """An oversized earlier result must not hide the next tool's evidence."""
+    old_evidence = "OLD_FACT " + "旧" * 10000
+    new_evidence = "NEW_FACT_FOR_TURN_THREE_83"
+    search = AsyncMock(side_effect=[old_evidence, new_evidence])
+    monkeypatch.setattr(reasoner_mod, "kg_search", search)
+    initial = [
+        Source(kind="kg_chunk", uri="article://first", snippet="INITIAL_FIRST"),
+        Source(kind="kg_chunk", uri="article://second", snippet="INITIAL_SECOND"),
+    ]
+    prompts = []
+
+    async def decide(prompt, tools):
+        prompts.append(prompt)
+        if len(prompts) == 1:
+            return _LLMDecision(
+                is_final=False,
+                tool_calls=(_ToolCall("kg_search", {"query": "first lookup"}),),
+            )
+        if len(prompts) == 2:
+            assert "OLD_FACT" in prompt
+            assert "[additional-1]" in prompt
+            assert new_evidence not in prompt
+            return _LLMDecision(
+                is_final=False,
+                tool_calls=(_ToolCall("kg_search", {"query": "second lookup"}),),
+            )
+        assert new_evidence in prompt, "latest tool evidence missing on turn three"
+        assert prompt.index(new_evidence) < prompt.index("OLD_FACT")
+        assert prompt.index("[additional-2]") < prompt.index("[additional-1]")
+        assert prompt.index("INITIAL_FIRST") < prompt.index("INITIAL_SECOND")
+        return _LLMDecision(is_final=True, content="Answer based on the latest fact.")
+
+    result = await run_reasoner(
+        "test",
+        _make_cfg(decide, MagicMock()),
+        RetrieverOutput(chunks=initial, image_candidates=[]),
+    )
+
+    assert result.status == "ok", result.reason
+    assert result.inferences_md == "Answer based on the latest fact."
+    assert result.iter_count == len(prompts) == 3
+    assert search.await_count == 2
+    excerpt = prompts[2].split("BEGIN ADDITIONAL EVIDENCE\n", 1)[1].split(
+        "\nEND ADDITIONAL EVIDENCE", 1
+    )[0]
+    assert len(excerpt) <= 6000
+    assert excerpt.endswith("[truncated]")
+    assert result.additional_chunks == [
+        Source(
+            kind="kg_chunk", uri="omnigraph_search.query.search", snippet=old_evidence
+        ),
+        Source(
+            kind="kg_chunk", uri="omnigraph_search.query.search", snippet=new_evidence
+        ),
+    ]
 
 
 # ---------------------------------------------------------------------------

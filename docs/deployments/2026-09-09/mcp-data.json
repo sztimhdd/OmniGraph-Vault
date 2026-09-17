@@ -1,0 +1,159 @@
+{
+  "timestamp_utc": "2026-09-09T13:26:08.765939+00:00",
+  "databases": [
+    {
+      "path": "/root/OmniGraph-Vault/data/kol_scan.db",
+      "wal_bytes": 0,
+      "tables": [
+        "accounts",
+        "articles",
+        "articles_fts",
+        "articles_fts_config",
+        "articles_fts_content",
+        "articles_fts_data",
+        "articles_fts_docsize",
+        "articles_fts_idx",
+        "classifications",
+        "entity_canonical",
+        "extracted_entities",
+        "ingestions",
+        "rss_articles",
+        "rss_classifications",
+        "rss_feeds",
+        "sqlite_sequence"
+      ],
+      "counts": {
+        "articles": 4705,
+        "rss_articles": 3537,
+        "ingestions": 8237,
+        "classifications": 49811,
+        "rss_classifications": 0,
+        "accounts": 58,
+        "rss_feeds": 92,
+        "extracted_entities": 55197,
+        "entity_canonical": 13
+      },
+      "freshness": {
+        "articles.scanned_at": "2026-08-30 23:04:38",
+        "articles.layer1_at": "2026-09-02T14:40:44.450109+00:00",
+        "articles.layer2_at": "2026-09-02T15:46:23.217360+00:00",
+        "rss_articles.fetched_at": "2026-09-05 17:10:31",
+        "rss_articles.layer1_at": "2026-09-05T10:00:18.564815+00:00",
+        "rss_articles.layer2_at": "2026-09-05T10:01:52.706570+00:00",
+        "ingestions.ingested_at": "2026-09-05 18:01:52",
+        "classifications.classified_at": "2026-08-31 00:09:20",
+        "rss_classifications.classified_at": null,
+        "accounts.created_at": "2026-07-20 04:04:11",
+        "rss_feeds.created_at": "2026-05-03 00:11:43",
+        "rss_feeds.last_fetched_at": "2026-09-05 17:10:59",
+        "entity_canonical.updated_at": "2026-04-27 03:48:01"
+      },
+      "layer1": [
+        [
+          null,
+          44
+        ],
+        [
+          "candidate",
+          1363
+        ],
+        [
+          "reject",
+          3298
+        ]
+      ],
+      "ingestion_schema": [
+        "id",
+        "article_id",
+        "source",
+        "status",
+        "ingested_at",
+        "enrichment_id",
+        "skip_reason_version"
+      ],
+      "ingestion_groups": [
+        [
+          "rss",
+          "failed",
+          22,
+          "2026-08-14 22:27:23"
+        ],
+        [
+          "rss",
+          "ok",
+          192,
+          "2026-09-03 02:51:58"
+        ],
+        [
+          "rss",
+          "skipped",
+          3318,
+          "2026-09-05 18:01:52"
+        ],
+        [
+          "wechat",
+          "failed",
+          188,
+          "2026-09-02 23:58:39"
+        ],
+        [
+          "wechat",
+          "ok",
+          1025,
+          "2026-09-03 00:24:59"
+        ],
+        [
+          "wechat",
+          "skipped",
+          3492,
+          "2026-09-02 23:43:03"
+        ]
+      ],
+      "naive_utc_window_counts": [],
+      "time_caveat": "Database timestamps mix timezone-aware and naive values. The naive_utc_window_counts query is not a normalized 24-hour throughput metric."
+    }
+  ],
+  "journal": {
+    "omnigraph-daily-ingest": {
+      "counts": {},
+      "events_tail": [],
+      "records_read": 0
+    },
+    "omnigraph-kg-sync": {
+      "counts": {},
+      "events_tail": [],
+      "records_read": 0
+    },
+    "mcp-healthcheck": {
+      "counts": {},
+      "events_tail": [],
+      "records_read": 0
+    },
+    "omnigraph-rss-fetch": {
+      "counts": {},
+      "events_tail": [],
+      "records_read": 0
+    },
+    "omnigraph-dajiala-scan": {
+      "counts": {},
+      "events_tail": [],
+      "records_read": 0
+    },
+    "omni-kb-api": {
+      "counts": {},
+      "events_tail": [],
+      "records_read": 6
+    },
+    "omni-mcp": {
+      "counts": {},
+      "events_tail": [],
+      "records_read": 771
+    },
+    "vertex-proxy": {
+      "counts": {},
+      "events_tail": [],
+      "records_read": 0
+    }
+  },
+  "logfiles": {}
+}

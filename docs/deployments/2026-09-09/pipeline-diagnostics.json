@@ -1,0 +1,536 @@
+{
+  "timestamp_utc": "2026-09-09T13:28:51.515194+00:00",
+  "ingest_events": {
+    "code": 0,
+    "events": [
+      {
+        "timestamp_us": "1788883200032868",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788883202294265",
+        "matches": [
+          "Started OmniGraph daily ingest 09:00 ADT (12:00 UTC)."
+        ]
+      },
+      {
+        "timestamp_us": "1788890400058197",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788890402043209",
+        "matches": [
+          "Started OmniGraph daily ingest 09:00 ADT (12:00 UTC)."
+        ]
+      },
+      {
+        "timestamp_us": "1788896791161259",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791161259",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788896791161259",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791162064",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791162064",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788896791162064",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791162064",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791162064",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788896791162064",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791163127",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791163127",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788896791163127",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791163127",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791163127",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788896791163127",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791164836",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788896791164836",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788896791164836",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788904802336097",
+        "matches": [
+          "Failed with result 'timeout'."
+        ]
+      },
+      {
+        "timestamp_us": "1788904802346765",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788904935037284",
+        "matches": [
+          "Starting deletion process for document wechat_8a6aebb602"
+        ]
+      },
+      {
+        "timestamp_us": "1788904949977875",
+        "matches": [
+          "Starting deletion process for document wechat_8a6aebb602_images"
+        ]
+      },
+      {
+        "timestamp_us": "1788904966640206",
+        "matches": [
+          "Started OmniGraph daily ingest 09:00 ADT (12:00 UTC)."
+        ]
+      },
+      {
+        "timestamp_us": "1788910634996130",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910634996313",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910635013358",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910635014409",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910658162442",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910658162652",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910658167810",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910658168700",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910658169220",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910684563523",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910684564177",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910684567711",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910684567711",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910684569194",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788910684620506",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788911313846716",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343296053",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343296053",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788911343296053",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343297160",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343297160",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788911343297160",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343297160",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343297160",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788911343297160",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343298169",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343298169",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788911343298169",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343298169",
+        "matches": [
+          "Starting Ingestion: [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911343298169",
+        "matches": [
+          "Starting ingestion process..."
+        ]
+      },
+      {
+        "timestamp_us": "1788911343298169",
+        "matches": [
+          "Starting Apify actor for [article URL omitted]"
+        ]
+      },
+      {
+        "timestamp_us": "1788911378547649",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788911440060764",
+        "matches": [
+          "Error code: 402",
+          "Insufficient Balance"
+        ]
+      },
+      {
+        "timestamp_us": "1788912000760231",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788912300837153",
+        "matches": [
+          ".service: start-pre operation timed out. Terminating."
+        ]
+      },
+      {
+        "timestamp_us": "1788912300963757",
+        "matches": [
+          "Failed with result 'timeout'."
+        ]
+      },
+      {
+        "timestamp_us": "1788919200013327",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788919500045135",
+        "matches": [
+          ".service: start-pre operation timed out. Terminating."
+        ]
+      },
+      {
+        "timestamp_us": "1788919500164493",
+        "matches": [
+          "Failed with result 'timeout'."
+        ]
+      },
+      {
+        "timestamp_us": "1788926400011442",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788926700029150",
+        "matches": [
+          ".service: start-pre operation timed out. Terminating."
+        ]
+      },
+      {
+        "timestamp_us": "1788926700143329",
+        "matches": [
+          "Failed with result 'timeout'."
+        ]
+      },
+      {
+        "timestamp_us": "1788933600261328",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788933900263051",
+        "matches": [
+          ".service: start-pre operation timed out. Terminating."
+        ]
+      },
+      {
+        "timestamp_us": "1788933900378686",
+        "matches": [
+          "Failed with result 'timeout'."
+        ]
+      },
+      {
+        "timestamp_us": "1788940800011568",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788941100016094",
+        "matches": [
+          ".service: start-pre operation timed out. Terminating."
+        ]
+      },
+      {
+        "timestamp_us": "1788941100129670",
+        "matches": [
+          "Failed with result 'timeout'."
+        ]
+      },
+      {
+        "timestamp_us": "1788948000011444",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788948300061147",
+        "matches": [
+          ".service: start-pre operation timed out. Terminating."
+        ]
+      },
+      {
+        "timestamp_us": "1788948300173453",
+        "matches": [
+          "Failed with result 'timeout'."
+        ]
+      },
+      {
+        "timestamp_us": "1788955200513358",
+        "matches": [
+          "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+        ]
+      },
+      {
+        "timestamp_us": "1788955202535281",
+        "matches": [
+          "Started OmniGraph daily ingest 09:00 ADT (12:00 UTC)."
+        ]
+      }
+    ],
+    "error": ""
+  },
+  "qdrant_log": {
+    "code": 0,
+    "lines_read": 3001,
+    "matches": {
+      "disk_full": [],
+      "wal_error": [],
+      "io_error": [],
+      "http500": []
+    }
+  },
+  "disk_directories": {
+    "code": 1,
+    "output": "313860096\t/var/lib/docker\n18411732992\t/var/lib/containerd\n9866633216\t/root/.hermes/omonigraph-vault\n440987648\t/root/.cache\n7326404608\t/root/OmniGraph-Vault\n",
+    "error": "du: cannot access '/root/vault': No such file or directory\ndu: cannot access '/root/qdrant_storage': No such file or directory\n"
+  },
+  "docker_usage": {
+    "code": 0,
+    "output": "TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          1         1         275.3MB   0B (0%)\nContainers      1         1         6.762GB   0B (0%)\nLocal Volumes   0         0         0B        0B\nBuild Cache     0         0         0B        0B\n",
+    "error": ""
+  },
+  "failed_units": [
+    "● omnigraph-evening-ingest.service   loaded failed failed OmniGraph evening ingest 21:00 ADT (00:00 UTC next day)",
+    "● omnigraph-kg-sync.service          loaded failed failed OmniGraph KG+SQLite incremental sync old->new",
+    "● omnigraph-kol-scan-batch@1.service loaded failed failed OmniGraph KOL scan batch 1 (WeChat MP API, staleness-partitioned)",
+    "● omnigraph-kol-scan-batch@2.service loaded failed failed OmniGraph KOL scan batch 2 (WeChat MP API, staleness-partitioned)",
+    "● omnigraph-kol-scan-batch@3.service loaded failed failed OmniGraph KOL scan batch 3 (WeChat MP API, staleness-partitioned)",
+    "● omnigraph-kol-scan-batch@4.service loaded failed failed OmniGraph KOL scan batch 4 (WeChat MP API, staleness-partitioned)",
+    "● qdrant-snapshot.service            loaded failed failed OmniGraph Qdrant -> nano-vectordb JSON snapshot"
+  ]
+}

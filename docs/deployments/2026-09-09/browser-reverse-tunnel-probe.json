@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "2026-09-09T13:32:17.713650+00:00",
+  "url": "http://127.0.0.1:58931/mcp",
+  "steps": [],
+  "error": {
+    "type": "HTTPError",
+    "message": "HTTP Error 403: Forbidden"
+  }
+}

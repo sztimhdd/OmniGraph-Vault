@@ -1,0 +1,54 @@
+{
+  "timestamp_utc": "2026-09-09T13:37:44.359536+00:00",
+  "worktrees": [
+    {
+      "worktree": "/root/OmniGraph-Vault",
+      "HEAD": "a5d3694faa3d3a59b6a250af2b05813510be9188",
+      "branch": "refs/heads/main",
+      "exists": true,
+      "status": " M .gitignore\n M batch_classify_kol.py\n M batch_ingest_from_spider.py\n M batch_scan_kol.py\n M deploy/aliyun/systemd/README.md\n M image_pipeline.py\n M ingest_wechat.py\n M kb/wiki/index.md\n M kb/wiki_lint.py\n M kb/wiki_update.py\n M lib/article_filter.py\n M lib/lightrag_embedding.py\n M lib/lightrag_queue_probe.py\n M lib/llm_complete.py\n M lib/llm_deepseek.py\n M lib/models.py\n M lib/scraper.py\n M lib/vision_cascade.py\n M scripts/qdrant_to_nanovdb.py\n M scripts/refresh_wechat_cookie.py\n M scripts/wiki_generate_pages.py\n M spiders/wechat_spider.py\n M tests/integration/test_wiki_hook.py\n M tests/unit/test_batch_ingest_hash.py\n M tests/unit/test_ingest_from_db_orchestration.py\n M tests/unit/test_wiki_lint.py\n?? .dajiala_env\n?? .healthcheck-backup-20260904-025758/\n?? .planning/phases/wiki-v2-w5-0/\n?? .t6-deploy-backup-20260903T184234Z/\n?? .t7-backup-20260903T183039Z/\n?? .w5b-backup-20260815-011736/\n?? .w5b-backup-20260815003447/\n?? aliyun-old\n?? article_filter.py\n?? batch_ingest_from_spider.py.w5-0-bak\n?? config/\n?? data/baselines/\n?? deploy/aliyun/systemd/omnigraph-wiki-evolve.service\n?? deploy/kg_sync_alert.sh\n?? deploy/migrate_qdrant_to_bgem3.py\n?? deploy/sync_kq_to_new.py\n?? embed_server.py\n?? kb/error_book.py\n?? kb/wiki/_suggestions/agent-1786463422.md\n?? kb/wiki/_suggestions/claude-code-1786456241.md\n?? kb/wiki/_suggestions/claude-code-1786463422.md\n?? kb/wiki/_suggestions/openclaw-1786456241.md\n?? kb/wiki/_suggestions/openclaw-1786463422.md\n?? kb/wiki/entities/agent-loop.md\n?? kb/wiki/entities/ai-agent.md\n?? kb/wiki/entities/ai.md\n?? kb/wiki/entities/api-key.md\n?? kb/wiki/entities/api.md\n?? kb/wiki/entities/batch-size.md\n?? kb/wiki/entities/claude.md\n?? kb/wiki/entities/codex.md\n?? kb/wiki/entities/coding-agent.md\n?? kb/wiki/entities/cursor.md\n?? kb/wiki/entities/deephub-imba.md\n?? kb/wiki/entities/deepseek.md\n?? kb/wiki/entities/embedding.md\n?? kb/wiki/entities/github.md\n?? kb/wiki/entities/gpu.md\n?? kb/wiki/entities/graphrag.md\n?? kb/wiki/entities/harness-engineering.md\n?? kb/wiki/entities/hermes-agent.md\n?? kb/wiki/entities/hugging-face.md\n?? kb/wiki/entities/ide.md\n?? kb/wiki/entities/llm.md\n?? kb/wiki/entities/mcp.md\n?? kb/wiki/entities/mini-program.md\n?? kb/",
+      "status_code": 0,
+      "diff_stat": " .gitignore                                      |  18 +\n batch_classify_kol.py                           | 107 ++++-\n batch_ingest_from_spider.py                     | 368 +++++++++++++--\n batch_scan_kol.py                               |  22 +-\n deploy/aliyun/systemd/README.md                 |  52 +++\n image_pipeline.py                               | 120 ++---\n ingest_wechat.py                                |  54 ++-\n kb/wiki/index.md                                |  45 +-\n kb/wiki_lint.py                                 |  18 +-\n kb/wiki_update.py                               | 332 +++++++++----\n lib/article_filter.py                           |  51 +-\n lib/lightrag_embedding.py                       | 101 ++--\n lib/lightrag_queue_probe.py                     |   2 +-\n lib/llm_complete.py                             |   8 +-\n lib/llm_deepseek.py                             |   4 +\n lib/models.py                                   |   4 +-\n lib/scraper.py                                  |  23 +-\n lib/vision_cascade.py                           | 149 +++---\n scripts/qdrant_to_nanovdb.py                    |  35 +-\n scripts/refresh_wechat_cookie.py                | 190 ++++++--\n scripts/wiki_generate_pages.py                  | 589 ++++++++++++++++++------\n spiders/wechat_spider.py                        |  24 +-\n tests/integration/test_wiki_hook.py             |  19 +-\n tests/unit/test_batch_ingest_hash.py            |  53 ++-\n tests/unit/test_ingest_from_db_orchestration.py |   6 +-\n tests/unit/test_wiki_lint.py                    |  21 +-\n 26 files changed, 1785 insertions(+), 630 deletions(-)\n",
+      "diff_stat_code": 0,
+      "last_commit": "a5d3694 2026-07-10T16:07:22-03:00 fix(kb-v2.3-4): h1 overflow-wrap break-word — long EN tokens clipped at 390px\n",
+      "last_commit_code": 0
+    }
+  ],
+  "backup_entries": [
+    {
+      "path": "/root/OmniGraph-Vault/.w5b-backup-20260815003447",
+      "is_dir": true,
+      "is_symlink": false,
+      "mtime_utc": "2026-08-14T16:34:47.506815+00:00",
+      "bytes_if_file": null
+    },
+    {
+      "path": "/root/OmniGraph-Vault/.t7-backup-20260903T183039Z",
+      "is_dir": true,
+      "is_symlink": false,
+      "mtime_utc": "2026-09-03T18:30:39.174891+00:00",
+      "bytes_if_file": null
+    },
+    {
+      "path": "/root/OmniGraph-Vault/.t6-deploy-backup-20260903T184234Z",
+      "is_dir": true,
+      "is_symlink": false,
+      "mtime_utc": "2026-09-03T18:42:34.275817+00:00",
+      "bytes_if_file": null
+    },
+    {
+      "path": "/root/OmniGraph-Vault/.w5b-backup-20260815-011736",
+      "is_dir": true,
+      "is_symlink": false,
+      "mtime_utc": "2026-08-14T17:17:36.138929+00:00",
+      "bytes_if_file": null
+    },
+    {
+      "path": "/root/OmniGraph-Vault/.healthcheck-backup-20260904-025758",
+      "is_dir": true,
+      "is_symlink": false,
+      "mtime_utc": "2026-09-03T18:57:58.210065+00:00",
+      "bytes_if_file": null
+    }
+  ]
+}

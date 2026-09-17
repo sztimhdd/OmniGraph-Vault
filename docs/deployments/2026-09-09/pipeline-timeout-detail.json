@@ -1,0 +1,117 @@
+{
+  "command": [
+    "journalctl",
+    "-u",
+    "omnigraph-daily-ingest",
+    "--since",
+    "2026-09-09 08:00:00",
+    "--until",
+    "2026-09-09 18:06:00",
+    "--grep",
+    "timed out|Control process exited|Starting OmniGraph|Failed with result|start-pre",
+    "-n",
+    "60",
+    "-o",
+    "json",
+    "--no-pager"
+  ],
+  "code": 0,
+  "events": [
+    {
+      "timestamp_us": "1788912000760231",
+      "message": "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+    },
+    {
+      "timestamp_us": "1788912300837153",
+      "message": "omnigraph-daily-ingest.service: start-pre operation timed out. Terminating."
+    },
+    {
+      "timestamp_us": "1788912300963575",
+      "message": "omnigraph-daily-ingest.service: Control process exited, code=killed, status=15/TERM"
+    },
+    {
+      "timestamp_us": "1788912300963757",
+      "message": "omnigraph-daily-ingest.service: Failed with result 'timeout'."
+    },
+    {
+      "timestamp_us": "1788919200013327",
+      "message": "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+    },
+    {
+      "timestamp_us": "1788919500045135",
+      "message": "omnigraph-daily-ingest.service: start-pre operation timed out. Terminating."
+    },
+    {
+      "timestamp_us": "1788919500164353",
+      "message": "omnigraph-daily-ingest.service: Control process exited, code=killed, status=15/TERM"
+    },
+    {
+      "timestamp_us": "1788919500164493",
+      "message": "omnigraph-daily-ingest.service: Failed with result 'timeout'."
+    },
+    {
+      "timestamp_us": "1788926400011442",
+      "message": "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+    },
+    {
+      "timestamp_us": "1788926700029150",
+      "message": "omnigraph-daily-ingest.service: start-pre operation timed out. Terminating."
+    },
+    {
+      "timestamp_us": "1788926700143227",
+      "message": "omnigraph-daily-ingest.service: Control process exited, code=killed, status=15/TERM"
+    },
+    {
+      "timestamp_us": "1788926700143329",
+      "message": "omnigraph-daily-ingest.service: Failed with result 'timeout'."
+    },
+    {
+      "timestamp_us": "1788933600261328",
+      "message": "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+    },
+    {
+      "timestamp_us": "1788933900263051",
+      "message": "omnigraph-daily-ingest.service: start-pre operation timed out. Terminating."
+    },
+    {
+      "timestamp_us": "1788933900378479",
+      "message": "omnigraph-daily-ingest.service: Control process exited, code=killed, status=15/TERM"
+    },
+    {
+      "timestamp_us": "1788933900378686",
+      "message": "omnigraph-daily-ingest.service: Failed with result 'timeout'."
+    },
+    {
+      "timestamp_us": "1788940800011568",
+      "message": "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+    },
+    {
+      "timestamp_us": "1788941100016094",
+      "message": "omnigraph-daily-ingest.service: start-pre operation timed out. Terminating."
+    },
+    {
+      "timestamp_us": "1788941100129550",
+      "message": "omnigraph-daily-ingest.service: Control process exited, code=killed, status=15/TERM"
+    },
+    {
+      "timestamp_us": "1788941100129670",
+      "message": "omnigraph-daily-ingest.service: Failed with result 'timeout'."
+    },
+    {
+      "timestamp_us": "1788948000011444",
+      "message": "Starting OmniGraph daily ingest 09:00 ADT (12:00 UTC)..."
+    },
+    {
+      "timestamp_us": "1788948300061147",
+      "message": "omnigraph-daily-ingest.service: start-pre operation timed out. Terminating."
+    },
+    {
+      "timestamp_us": "1788948300173282",
+      "message": "omnigraph-daily-ingest.service: Control process exited, code=killed, status=15/TERM"
+    },
+    {
+      "timestamp_us": "1788948300173453",
+      "message": "omnigraph-daily-ingest.service: Failed with result 'timeout'."
+    }
+  ]
+}

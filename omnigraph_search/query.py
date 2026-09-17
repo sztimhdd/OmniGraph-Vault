@@ -41,12 +41,19 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # Mirror lib.lightrag_embedding._is_vertex_mode() — SA mode needs no api key.
 _VERTEX_SA_MODE = bool(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
 
+# This caps graph/entity and vector-chunk retrieval candidates for explicit,
+# bounded wrapper calls. It does not bound the size of LightRAG's returned
+# context.
+MAX_TOP_K = 10
+
 
 async def search(
     query_text: str,
     mode: str = "hybrid",
     only_context: bool = False,
     rag: LightRAG | None = None,
+    *,
+    top_k: int | None = None,
 ) -> str:
     """Query LightRAG at RAG_WORKING_DIR and return the retrieval text.
 
@@ -59,8 +66,14 @@ async def search(
             reference list, with embedded ``file_path`` markers carrying the
             10-char hex article hash). When False (default), return the
             LLM-synthesized answer text. Additive — pre-existing callers
-            (kb/api_routers/search.py, lib/research/stages/reasoner.py)
-            keep their LLM-synthesized behavior unchanged.
+            callers that omit the flag keep their LLM-synthesized behavior;
+            the internal reasoner explicitly requests raw context.
+        top_k: Optional maximum number of graph/entity and vector-chunk
+            retrieval candidates. When supplied, it is passed as both
+            LightRAG ``top_k`` and ``chunk_top_k``; when omitted, preserve
+            LightRAG's standard QueryParam defaults. Supplied values must be
+            a non-bool integer from 1 through ``MAX_TOP_K``. This does not
+            constrain total returned-context size.
 
     Returns:
         Response string from LightRAG.aquery.
@@ -76,6 +89,13 @@ async def search(
             "(legacy Gemini modes)."
         )
 
+    if top_k is not None and (
+        type(top_k) is not int or not 1 <= top_k <= MAX_TOP_K
+    ):
+        raise ValueError(
+            f"top_k must be an integer from 1 to {MAX_TOP_K}"
+        )
+
     if rag is None:
         # CLI fallback (skill_runner / `python -m omnigraph_search.query`):
         # build a one-shot LightRAG. Production callers (kb-api routers) reach
@@ -87,10 +107,11 @@ async def search(
         )
         if hasattr(rag, "initialize_storages"):
             await rag.initialize_storages()
-    return await rag.aquery(
-        query_text,
-        param=QueryParam(mode=mode, only_need_context=only_context),
-    )
+    param_kwargs = {"mode": mode, "only_need_context": only_context}
+    if top_k is not None:
+        param_kwargs["top_k"] = top_k
+        param_kwargs["chunk_top_k"] = top_k
+    return await rag.aquery(query_text, param=QueryParam(**param_kwargs))
 
 
 def main() -> None:

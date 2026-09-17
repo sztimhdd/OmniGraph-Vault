@@ -1,0 +1,327 @@
+{
+  "timestamp_utc": "2026-09-09T13:33:43.706398+00:00",
+  "cron": [
+    "0 0 * * * /home/sztimhdd/.hermes/kg-vault/venv/bin/python /home/sztimhdd/OmniGraph-Vault/cognee_batch_processor.py",
+    "0 3 * * 0 $HOME/OmniGraph-Vault/scripts/graphify-refresh.sh"
+  ],
+  "matching_config": {
+    "/etc/systemd/system/omnigraph-daily-pull.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily pull from Aliyun"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 8,
+        "text": "User=sztimhdd"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/home/sztimhdd/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "ExecStart=/home/sztimhdd/OmniGraph-Vault/scripts/sync-from-aliyun.sh"
+      },
+      {
+        "line": 11,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 12,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 14,
+        "text": "[Install]"
+      },
+      {
+        "line": 15,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-pull.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily pull from Aliyun timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-daily-pull.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 05:00:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/home/sztimhdd/.config/systemd/user/omnigraph-tunnel.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=SSH tunnel for OmniGraph MCP"
+      },
+      {
+        "line": 3,
+        "text": "After=network.target"
+      },
+      {
+        "line": 5,
+        "text": "[Service]"
+      },
+      {
+        "line": 6,
+        "text": "ExecStart=ssh -N -L 8767:127.0.0.1:8767 -o ServerAliveInterval=60 -o ExitOnForwardFailure=yes aliyun-new"
+      },
+      {
+        "line": 7,
+        "text": "Restart=always"
+      },
+      {
+        "line": 8,
+        "text": "RestartSec=10"
+      },
+      {
+        "line": 10,
+        "text": "[Install]"
+      },
+      {
+        "line": 11,
+        "text": "WantedBy=default.target"
+      }
+    ]
+  },
+  "cdp": {
+    "http://127.0.0.1:9223/json/version": {
+      "http": 200,
+      "Browser": "Edg/152.0.4191.19",
+      "Protocol-Version": "1.3"
+    },
+    "http://127.0.0.1:58933/json/version": {
+      "error": "URLError"
+    }
+  },
+  "hermes_cron": [
+    {
+      "id": "df7dc3fa0390",
+      "name": "每日KOL扫描",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "display": "0 8 * * *"
+      },
+      "last_run_at": "2026-05-24T08:17:22.753725-03:00",
+      "next_run_at": "2026-05-25T08:00:00-03:00"
+    },
+    {
+      "id": "e7afccd9931b",
+      "name": "KOL扫描前健康检查",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "55 7 * * *",
+        "display": "55 7 * * *"
+      },
+      "last_run_at": "2026-05-24T08:10:07.746534-03:00",
+      "next_run_at": "2026-05-25T07:55:00-03:00"
+    },
+    {
+      "id": "9a917f7209eb",
+      "name": "batch-watchdog",
+      "enabled": false,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 10,
+        "display": "every 10m"
+      },
+      "last_run_at": "2026-04-30T11:27:04.395068-03:00",
+      "next_run_at": "2026-05-03T00:13:43.252336-03:00"
+    },
+    {
+      "id": "29c3facf5023",
+      "name": "rss-fetch",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6 * * *",
+        "display": "0 6 * * *"
+      },
+      "last_run_at": "2026-05-24T06:05:12.554513-03:00",
+      "next_run_at": "2026-05-25T06:00:00-03:00"
+    },
+    {
+      "id": "2b7a8bee53e0",
+      "name": "daily-ingest",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * *",
+        "display": "0 9 * * *"
+      },
+      "last_run_at": "2026-05-24T09:07:35.762255-03:00",
+      "next_run_at": "2026-05-25T09:00:00-03:00"
+    },
+    {
+      "id": "43e85ec247e5",
+      "name": "daily-digest",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 9 * * *",
+        "display": "30 9 * * *"
+      },
+      "last_run_at": "2026-05-24T09:30:47.174446-03:00",
+      "next_run_at": "2026-05-25T09:30:00-03:00"
+    },
+    {
+      "id": "d6421e78107a",
+      "name": "vertex-probe-monthly",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 1 * *",
+        "display": "0 8 1 * *"
+      },
+      "last_run_at": null,
+      "next_run_at": "2026-06-01T08:00:00-03:00"
+    },
+    {
+      "id": "b14b9f9f1f53",
+      "name": "daily-classify-kol",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 8 * * *",
+        "display": "15 8 * * *"
+      },
+      "last_run_at": "2026-05-24T08:18:27.573563-03:00",
+      "next_run_at": "2026-05-25T08:15:00-03:00"
+    },
+    {
+      "id": "9925f75c91e5",
+      "name": "daily-enrich",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 8 * * *",
+        "display": "30 8 * * *"
+      },
+      "last_run_at": "2026-05-24T08:37:18.020092-03:00",
+      "next_run_at": "2026-05-25T08:30:00-03:00"
+    },
+    {
+      "id": "54dff1f2d08c",
+      "name": "reconcile-ingestions",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 9 * * *",
+        "display": "30 9 * * *"
+      },
+      "last_run_at": "2026-05-24T09:30:49.892820-03:00",
+      "next_run_at": "2026-05-25T09:30:00-03:00"
+    },
+    {
+      "id": "6b5ef8d85cea",
+      "name": "daily-classify-rss-layer2",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "20 8 * * *",
+        "display": "20 8 * * *"
+      },
+      "last_run_at": "2026-05-24T08:20:21.603153-03:00",
+      "next_run_at": "2026-05-25T08:20:00-03:00"
+    },
+    {
+      "id": "c6bd0b4429d2",
+      "name": "rss-rescrape-bodies",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 6 * * *",
+        "display": "30 6 * * *"
+      },
+      "last_run_at": "2026-05-24T06:30:48.688763-03:00",
+      "next_run_at": "2026-05-25T06:30:00-03:00"
+    },
+    {
+      "id": "7a6a7c28138b",
+      "name": "daily-ingest-afternoon",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 14 * * *",
+        "display": "0 14 * * *"
+      },
+      "last_run_at": "2026-05-24T14:01:46.396857-03:00",
+      "next_run_at": "2026-05-25T14:00:00-03:00"
+    },
+    {
+      "id": "69164af13a7c",
+      "name": "daily-ingest-evening",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 21 * * *",
+        "display": "0 21 * * *"
+      },
+      "last_run_at": "2026-05-22T21:03:13.201916-03:00",
+      "next_run_at": "2026-05-24T21:00:00-03:00"
+    },
+    {
+      "id": "410fc1a7c87b",
+      "name": "sync-kol-db-from-aliyun",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 3 * * *",
+        "display": "0 3 * * *"
+      },
+      "last_run_at": "2026-09-09T03:06:00.171231-03:00",
+      "next_run_at": "2026-09-10T03:00:00-03:00"
+    }
+  ]
+}

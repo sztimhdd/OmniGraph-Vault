@@ -1,0 +1,2375 @@
+{
+  "timestamp_utc": "2026-09-09T13:24:33.088780+00:00",
+  "hostname": "iZj1imk39yc55iZ",
+  "repo": "/root/OmniGraph-Vault",
+  "vault": "/root/.hermes/omonigraph-vault",
+  "os": {
+    "code": 0,
+    "out": "Linux 5.15.0-1032-realtime",
+    "error": ""
+  },
+  "capacity": {
+    "disk": {
+      "code": 0,
+      "out": "Filesystem        1B-blocks        Used   Available Use% Mounted on\n/dev/vda3      105286258688 67791568896 32982036480  68% /",
+      "error": ""
+    },
+    "inodes": {
+      "code": 0,
+      "out": "Filesystem      Inodes  IUsed   IFree IUse% Mounted on\n/dev/vda3      6532624 587970 5944654   10% /",
+      "error": ""
+    },
+    "memory": {
+      "code": 0,
+      "out": "total        used        free      shared  buff/cache   available\nMem:     15830700032  9920147456   335335424    32292864  5575217152  5691555840\nSwap:     4294963200           0  4294963200",
+      "error": ""
+    },
+    "uptime": {
+      "code": 0,
+      "out": "21:24:33 up 84 days,  1:18,  0 users,  load average: 0.64, 1.08, 1.87",
+      "error": ""
+    }
+  },
+  "git": {
+    "head": {
+      "code": 0,
+      "out": "a5d3694faa3d3a59b6a250af2b05813510be9188",
+      "error": ""
+    },
+    "branch": {
+      "code": 0,
+      "out": "main",
+      "error": ""
+    },
+    "status": {
+      "code": 0,
+      "out": "M .gitignore\n M batch_classify_kol.py\n M batch_ingest_from_spider.py\n M batch_scan_kol.py\n M deploy/aliyun/systemd/README.md\n M image_pipeline.py\n M ingest_wechat.py\n M kb/wiki/index.md\n M kb/wiki_lint.py\n M kb/wiki_update.py\n M lib/article_filter.py\n M lib/lightrag_embedding.py\n M lib/lightrag_queue_probe.py\n M lib/llm_complete.py\n M lib/llm_deepseek.py\n M lib/models.py\n M lib/scraper.py\n M lib/vision_cascade.py\n M scripts/qdrant_to_nanovdb.py\n M scripts/refresh_wechat_cookie.py\n M scripts/wiki_generate_pages.py\n M spiders/wechat_spider.py\n M tests/integration/test_wiki_hook.py\n M tests/unit/test_batch_ingest_hash.py\n M tests/unit/test_ingest_from_db_orchestration.py\n M tests/unit/test_wiki_lint.py",
+      "error": ""
+    },
+    "untracked": {
+      "code": 0,
+      "out": ".dajiala_env\n.healthcheck-backup-20260904-025758/MANIFEST.txt\n.healthcheck-backup-20260904-025758/mcp-healthcheck.py\n.planning/phases/wiki-v2-w5-0/PLAN.md\n.planning/phases/wiki-v2-w5-0/RESEARCH.md\n.planning/phases/wiki-v2-w5-0/SUMMARY.md\n.t6-deploy-backup-20260903T184234Z/MANIFEST.txt\n.t6-deploy-backup-20260903T184234Z/batch_ingest_from_spider.py.pre-deploy\n.t7-backup-20260903T183039Z/MANIFEST.sha256\n.t7-backup-20260903T183039Z/batch_classify_kol.py\n.t7-backup-20260903T183039Z/batch_ingest_from_spider.py\n.t7-backup-20260903T183039Z/llm_deepseek.py\n.w5b-backup-20260815-011736/wiki_evolve.py\n.w5b-backup-20260815003447/batch_ingest_from_spider.py\n.w5b-backup-20260815003447/deploy/aliyun/systemd/README.md\n.w5b-backup-20260815003447/kb/wiki_compiler/adapters/w3.py\n.w5b-backup-20260815003447/kb/wiki_compiler/engine.py\n.w5b-backup-20260815003447/kb/wiki_update.py\n.w5b-backup-20260815003447/scripts/wiki_generate_pages.py\n.w5b-backup-20260815003447/scripts/wiki_health.py\naliyun-old\narticle_filter.py\nbatch_ingest_from_spider.py.w5-0-bak\nconfig/topic_keywords_2026.json\ndata/baselines/queries-w5-0.json\ndata/baselines/w5-0-results-20260811.json\ndata/baselines/w5-0-retrieval-20260811.json\ndeploy/aliyun/systemd/omnigraph-wiki-evolve.service\ndeploy/kg_sync_alert.sh\ndeploy/migrate_qdrant_to_bgem3.py\ndeploy/sync_kq_to_new.py\nembed_server.py\nkb/error_book.py\nkb/wiki/_suggestions/agent-1786463422.md\nkb/wiki/_suggestions/claude-code-1786456241.md\nkb/wiki/_suggestions/claude-code-1786463422.md\nkb/wiki/_suggestions/openclaw-1786456241.md\nkb/wiki/_suggestions/openclaw-1786463422.md\nkb/wiki/entities/agent-loop.md\nkb/wiki/entities/ai-agent.md\nkb/wiki/entities/ai.md\nkb/wiki/entities/api-key.md\nkb/wiki/entities/api.md\nkb/wiki/entities/batch-size.md\nkb/wiki/entities/claude.md\nkb/wiki/entities/codex.md\nkb/wiki/entities/coding-agent.md\nkb/wiki/entities/cursor.md\nkb/wiki/entities/deephub-imba.md\nkb/wiki/entities/deepseek.md\nkb/wiki/entities/embedding.md\nkb/wiki/entities/github.md\nkb/wiki/entities/gpu.md\nkb/wiki/entities/graphrag.md\nkb/wiki/entities/harness-engineering.md\nkb/wiki/entities/hermes-agent.md\nkb/wiki/entities/hugging-face.md\nkb/wiki/entities/ide.md\nkb/wiki/entities/llm.md\nkb/wiki/entities/mcp.md\nkb/wiki/entities/mini-program.md\nkb/wiki/entities/moe.md\nkb/wiki/entities/ontology.md\nkb/wiki/entities/openai.md\nkb/wiki/entities/openrouter.md\nkb/wiki/entities/owl.md\nkb/wiki/entities/palantir.md\nkb/wiki/entities/pipeline.md\nkb/wiki/entities/qdrant.md\nkb/wiki/entities/rag.md\nkb/wiki/entities/rdf.md\nkb/wiki/entities/shell.md\nkb/wiki/entities/skill.md\nkb/wiki/entities/token.md\nkb/wiki/entities/transformer.md\nkb/wiki/entities/video.md\nkb/wiki/entities/workbuddy.md\nkb/wiki/entities/x.md\nkb/wiki_articles.py\nkb/wiki_compiler/__init__.py\nkb/wiki_compiler/adapters/__init__.py\nkb/wiki_compiler/adapters/w3.py\nkb/wiki_compiler/assembler.py\nkb/wiki_compiler/engine.py\nkb/wiki_compiler/models.py\nkb/wiki_update.py.w5-0-bak\nkg_api.py\nkol_config.bak2.py\nkol_config.old.20260711.py\nkol_config.py.bak-260610\nkol_config.py.bak-pre-cvdelete-260629\nlib/checkpoint.db\nlib/image_pipeline.py\nlib/ingest_wechat.py\nlib/lightrag_embedding.py.gemini-backup\nlib/llm_bailian.py\nlib/llm_router.py\nlib/models.py.gemini-backup\nlib/research/stages/synthesizer.py.bak-pre-arx2-260615\nlightrag_queue_probe.py\nmcp_kg_server.py\norchestrate_daily.py\nrun_migration.sh\nscraper.py\nscripts/daily_disk_cleanup.sh\nscripts/dajiala_kol_scan.py\nscripts/ingest_daily_summary.py\nscripts/mcp-healthcheck.py\nscripts/mcp-healthcheck.py.bak-260810\nscripts/qdrant_reingest_252.sh.bak-pre-collection-suffix\nscripts/wechat_probe.py\nscripts/wiki_baseline_bench.py\nscripts/wiki_evolve.py\nscripts/wiki_health.py\ntests/unit/test_error_book.py\ntests/unit/test_topic_v2_migration.py\ntests/unit/test_wiki_w5_0.py\ntopic_keywords_2026.json\nwechat_spider.py",
+      "error": ""
+    },
+    "worktrees": {
+      "code": 0,
+      "out": "worktree /root/OmniGraph-Vault\nHEAD a5d3694faa3d3a59b6a250af2b05813510be9188\nbranch refs/heads/main",
+      "error": ""
+    }
+  },
+  "env_file": {
+    "GEMINI_BACKUP_KEY": "[SET]",
+    "APIFY_TOKEN": "[SET]",
+    "DEEPSEEK_API_KEY": "[SET]",
+    "TELEGRAM_BOT_TOKEN": "[SET]",
+    "GATEWAY_ALLOW_ALL_USERS": "[SET]",
+    "BRAVE_SEARCH_API_KEY": "[SET]",
+    "BRAVE_API_KEY": "[SET]",
+    "FIRECRAWL_API_KEY": "[SET]",
+    "TAVILY_API_KEY": "[SET]",
+    "EMBEDDING_MODEL": "gemini-embedding-2",
+    "RAILWAY_TOKEN": "[SET]",
+    "GEMINI_API_KEY": "[SET]",
+    "GEMINI_API_KEY_BACKUP": "[SET]",
+    "CDP_URL": "http://localhost:58933",
+    "OPENROUTER_API_KEY": "[SET]",
+    "OMNIGRAPH_EMBEDDING_KEYS": "[SET]",
+    "SILICONFLOW_API_KEY": "[SET]",
+    "OMNIGRAPH_VISION_SKIP_BALANCE_CHECK": "1",
+    "GOOGLE_CLOUD_PROJECT": "[SET]",
+    "GOOGLE_CLOUD_LOCATION": "[SET]",
+    "GOOGLE_APPLICATION_CREDENTIALS": "[SET]",
+    "GOOGLE_GENAI_USE_VERTEXAI": "[SET]",
+    "AUXILIARY_VISION_MODEL": "[SET]",
+    "HERMES_MAX_ITERATIONS": "[SET]",
+    "WEIXIN_ACCOUNT_ID": "[SET]",
+    "WEIXIN_TOKEN": "[SET]",
+    "WEIXIN_BASE_URL": "[SET]",
+    "WEIXIN_CDN_BASE_URL": "[SET]",
+    "WEIXIN_DM_POLICY": "[SET]",
+    "WEIXIN_ALLOW_ALL_USERS": "[SET]",
+    "WEIXIN_ALLOWED_USERS": "[EMPTY]",
+    "WEIXIN_GROUP_POLICY": "[SET]",
+    "WEIXIN_GROUP_ALLOWED_USERS": "[EMPTY]",
+    "WEIXIN_HOME_CHANNEL": "[SET]",
+    "HINDSIGHT_API_KEY": "[SET]",
+    "HINDSIGHT_LLM_API_KEY": "[SET]",
+    "TELEGRAM_CHAT_ID": "[SET]",
+    "HERMES_CRON_TIMEOUT": "[SET]",
+    "OMNIGRAPH_GEMINI_KEY": "[SET]",
+    "TERMINAL_MAX_FOREGROUND_TIMEOUT": "[SET]",
+    "OMNIGRAPH_VERTEX_SA_JSON_PATH": "[SET]",
+    "APIFY_TOKEN_BACKUP": "[SET]",
+    "OMNIGRAPH_VECTOR_STORAGE": "qdrant",
+    "QDRANT_URL": "[SET]",
+    "LIGHTRAG_EMBEDDING_TIMEOUT": "[SET]",
+    "OMNIGRAPH_VISION_SKIP_PROVIDERS": "openrouter",
+    "LIGHTRAG_LLM_TIMEOUT": "[SET]",
+    "OMNIGRAPH_PROCESSED_BACKOFF": "35.0",
+    "NO_PROXY": "[SET]",
+    "MCP_URL": "[SET]",
+    "OMNIGRAPH_LOCAL_EMBED": "1",
+    "OMNIGRAPH_LOCAL_EMBED_URL": "http://localhost:7997/embeddings",
+    "BAILIAN_API_KEY": "[SET]",
+    "BAILIAN_BASE_URL": "[SET]",
+    "BAILIAN_MODEL": "qwen3.7-flash",
+    "BAILIAN_EMBED_MODEL": "[SET]",
+    "OMNIGRAPH_LLM_PROVIDER": "deepseek",
+    "OMNIGRAPH_EMBED_TOKEN": "[SET]",
+    "VISION_INTER_IMAGE_SLEEP": "1.0"
+  },
+  "units": [
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "5s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "n/a",
+      "ExecMainExitTimestamp": "n/a",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "",
+      "User": "caddy",
+      "Id": "caddy-api.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/lib/systemd/system/caddy-api.service",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/usr/bin/caddy ; argv[]=/usr/bin/caddy run --environ --resume ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "5s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Tue 2026-06-23 01:50:58 CST",
+      "ExecMainExitTimestamp": "Tue 2026-06-23 07:47:14 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "",
+      "User": "caddy",
+      "Id": "caddy.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/lib/systemd/system/caddy.service",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": "{ path=/usr/bin/caddy ; argv[]=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Restart": "always",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "2002587",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Sun 2026-08-02 09:04:52 CST",
+      "ExecMainExitTimestamp": "n/a",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "embed-server.service",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running",
+      "FragmentPath": "/etc/systemd/system/embed-server.service",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "process": {
+        "cmdline": "/root/embed-venv/bin/python /root/OmniGraph-Vault/embed_server.py ",
+        "exe": "/usr/bin/python3.10",
+        "cwd": "/root/OmniGraph-Vault",
+        "env": {
+          "EMBED_MODEL_PATH": "[SET]",
+          "EMBED_PORT": "[SET]"
+        }
+      },
+      "ExecStart": "{ path=/root/embed-venv/bin/python ; argv[]=/root/embed-venv/bin/python /root/OmniGraph-Vault/embed_server.py ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Restart": "on-failure",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "3733493",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Sun 2026-08-23 03:42:16 CST",
+      "ExecMainExitTimestamp": "n/a",
+      "ExecMainStatus": "0",
+      "MemoryMax": "12884901888",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "kb-api.service",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running",
+      "FragmentPath": "/etc/systemd/system/kb-api.service",
+      "DropInPaths": "/etc/systemd/system/kb-api.service.d/override.conf",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "process": {
+        "cmdline": "/root/OmniGraph-Vault/venv-aim1/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766 ",
+        "exe": "/usr/bin/python3.11",
+        "cwd": "/root/OmniGraph-Vault",
+        "env": {
+          "KB_DB_PATH": "/root/OmniGraph-Vault/data/kol_scan.db",
+          "OMNIGRAPH_LLM_PROVIDER": "deepseek",
+          "OMNIGRAPH_BASE_DIR": "/root/.hermes/omonigraph-vault",
+          "KB_BASE_PATH": "[EMPTY]",
+          "KB_IMAGES_DIR": "[SET]",
+          "KB_DEFAULT_LANG": "[SET]",
+          "KB_SYNTHESIZE_TIMEOUT": "[SET]",
+          "KB_LIGHTRAG_INNER_TIMEOUT": "[SET]",
+          "OMNIGRAPH_VECTOR_STORAGE": "qdrant",
+          "OMNIGRAPH_LLM_RERANK_PROVIDER": "[SET]",
+          "OMNIGRAPH_LLM_RERANK_TOP_K": "[SET]",
+          "OMNIGRAPH_LLM_RERANK_TIMEOUT": "[SET]",
+          "DEEPSEEK_API_KEY": "[SET]",
+          "EMBEDDING_MODEL": "gemini-embedding-2",
+          "CDP_URL": "http://localhost:58933",
+          "OMNIGRAPH_EMBEDDING_KEYS": "[SET]",
+          "OMNIGRAPH_VISION_SKIP_BALANCE_CHECK": "1",
+          "OMNIGRAPH_GEMINI_KEY": "[SET]",
+          "OMNIGRAPH_VERTEX_SA_JSON_PATH": "[SET]",
+          "OMNIGRAPH_VISION_SKIP_PROVIDERS": "openrouter",
+          "OMNIGRAPH_PROCESSED_BACKOFF": "35.0",
+          "MCP_URL": "[SET]",
+          "OMNIGRAPH_LOCAL_EMBED": "1",
+          "OMNIGRAPH_LOCAL_EMBED_URL": "http://localhost:7997/embeddings",
+          "BAILIAN_API_KEY": "[SET]",
+          "BAILIAN_BASE_URL": "[SET]",
+          "BAILIAN_MODEL": "qwen3.7-flash",
+          "BAILIAN_EMBED_MODEL": "[SET]",
+          "OMNIGRAPH_EMBED_TOKEN": "[SET]"
+        }
+      },
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766 ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "infinity",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 06:30:01 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 06:30:29 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "",
+      "User": "root",
+      "Id": "mcp-healthcheck.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/mcp-healthcheck.service",
+      "DropInPaths": "",
+      "UnitFileState": "static",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/scripts/mcp-healthcheck.py ; argv[]=/root/OmniGraph-Vault/scripts/mcp-healthcheck.py ; ignore_errors=no ; start_time=[Wed 2026-09-09 06:30:01 CST] ; stop_time=[Wed 2026-09-09 06:30:29 CST] ; pid=4175778 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "mcp-healthcheck.service",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "Wed 2026-09-09 06:30:01 CST",
+      "Result": "success",
+      "Id": "mcp-healthcheck.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/mcp-healthcheck.timer",
+      "DropInPaths": "/etc/systemd/system/mcp-healthcheck.timer.d/override.conf",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "on-failure",
+      "TimeoutStartUSec": "5min",
+      "TimeoutStopUSec": "5min",
+      "RuntimeMaxUSec": "3h",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-06-24 14:00:03 CST",
+      "ExecMainExitTimestamp": "Wed 2026-06-24 14:00:59 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "4294967296",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-afternoon-ingest.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-afternoon-ingest.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-afternoon-ingest.service.d/embed.conf /etc/systemd/system/omnigraph-afternoon-ingest.service.d/override.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10 ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Unit": "omnigraph-afternoon-ingest.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 06:00:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "omnigraph-afternoon-ingest.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-afternoon-ingest.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 20:30:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 20:30:02 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-daily-digest.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-daily-digest.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-daily-digest.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/export_vitaclaw_agent_news.py --output /opt/vitaclaw/control-plane/vitaclaw-site/dist/data/agent-news.json ; ignore_errors=no ; start_time=[Wed 2026-09-09 20:30:00 CST] ; stop_time=[Wed 2026-09-09 20:30:02 CST] ; pid=477576 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-daily-digest.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 12:30:00 UTC ; next_elapse=Thu 2026-09-10 20:30:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 20:30:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 20:30:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-daily-digest.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-daily-digest.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "5min",
+      "TimeoutStopUSec": "5min",
+      "RuntimeMaxUSec": "4h",
+      "MainPID": "460480",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 20:00:02 CST",
+      "ExecMainExitTimestamp": "n/a",
+      "ExecMainStatus": "0",
+      "MemoryMax": "5368709120",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-daily-ingest.service",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running",
+      "FragmentPath": "/etc/systemd/system/omnigraph-daily-ingest.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-daily-ingest.service.d/embed.conf /etc/systemd/system/omnigraph-daily-ingest.service.d/override.conf",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "process": {
+        "cmdline": "/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10 --batch-timeout 6300 ",
+        "exe": "/usr/bin/python3.11",
+        "cwd": "/root/OmniGraph-Vault",
+        "env": {
+          "OMNIGRAPH_LOCAL_EMBED": "1",
+          "OMNIGRAPH_LOCAL_EMBED_URL": "http://localhost:7997/embeddings",
+          "OMNIGRAPH_VECTOR_STORAGE": "qdrant",
+          "DEEPSEEK_API_KEY": "[SET]",
+          "EMBEDDING_MODEL": "gemini-embedding-2",
+          "CDP_URL": "http://localhost:58933",
+          "OMNIGRAPH_EMBEDDING_KEYS": "[SET]",
+          "OMNIGRAPH_VISION_SKIP_BALANCE_CHECK": "1",
+          "OMNIGRAPH_GEMINI_KEY": "[SET]",
+          "OMNIGRAPH_VERTEX_SA_JSON_PATH": "[SET]",
+          "OMNIGRAPH_VISION_SKIP_PROVIDERS": "openrouter",
+          "OMNIGRAPH_PROCESSED_BACKOFF": "35.0",
+          "MCP_URL": "[SET]",
+          "BAILIAN_API_KEY": "[SET]",
+          "BAILIAN_BASE_URL": "[SET]",
+          "BAILIAN_MODEL": "qwen3.7-flash",
+          "BAILIAN_EMBED_MODEL": "[SET]",
+          "OMNIGRAPH_LLM_PROVIDER": "deepseek",
+          "OMNIGRAPH_EMBED_TOKEN": "[SET]",
+          "VISION_INTER_IMAGE_SLEEP": "1.0"
+        }
+      },
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10 --batch-timeout 6300 ; ignore_errors=no ; start_time=[Wed 2026-09-09 20:00:02 CST] ; stop_time=[n/a] ; pid=460480 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Unit": "omnigraph-daily-ingest.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 00/2:00:00 UTC ; next_elapse=Wed 2026-09-09 20:00:00 CST }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "Wed 2026-09-09 20:00:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-daily-ingest.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running",
+      "FragmentPath": "/etc/systemd/system/omnigraph-daily-ingest.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "infinity",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Sun 2026-09-06 23:01:29 CST",
+      "ExecMainExitTimestamp": "Sun 2026-09-06 23:02:29 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/OmniGraph-Vault/.dajiala_env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "",
+      "Id": "omnigraph-dajiala-scan.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-dajiala-scan.service",
+      "DropInPaths": "",
+      "UnitFileState": "static",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python3 ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python3 /root/OmniGraph-Vault/scripts/dajiala_kol_scan.py --top 20 --pages 2 --db /root/OmniGraph-Vault/data/kol_scan.db ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Unit": "omnigraph-dajiala-scan.service",
+      "TimersCalendar": "{ OnCalendar=Sun *-*-* 23:00:00 ; next_elapse=Sun 2026-09-13 23:00:00 CST }",
+      "NextElapseUSecRealtime": "Sun 2026-09-13 23:01:10 CST",
+      "LastTriggerUSec": "Sun 2026-09-06 23:01:29 CST",
+      "Result": "success",
+      "Id": "omnigraph-dajiala-scan.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-dajiala-scan.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "10min",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 12:15:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 12:15:01 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "",
+      "User": "root",
+      "Id": "omnigraph-disk-cleanup.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-disk-cleanup.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-disk-cleanup.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/scripts/daily_disk_cleanup.sh ; argv[]=/root/OmniGraph-Vault/scripts/daily_disk_cleanup.sh --execute ; ignore_errors=no ; start_time=[Wed 2026-09-09 12:15:00 CST] ; stop_time=[Wed 2026-09-09 12:15:01 CST] ; pid=188895 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-disk-cleanup.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 04:15:00 UTC ; next_elapse=Thu 2026-09-10 12:15:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 12:15:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 12:15:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-disk-cleanup.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-disk-cleanup.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "on-failure",
+      "TimeoutStartUSec": "5min",
+      "TimeoutStopUSec": "5min",
+      "RuntimeMaxUSec": "3h",
+      "MainPID": "0",
+      "Result": "signal",
+      "ExecMainStartTimestamp": "n/a",
+      "ExecMainExitTimestamp": "n/a",
+      "ExecMainStatus": "0",
+      "MemoryMax": "4294967296",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-evening-ingest.service",
+      "LoadState": "loaded",
+      "ActiveState": "failed",
+      "SubState": "failed",
+      "FragmentPath": "/etc/systemd/system/omnigraph-evening-ingest.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-evening-ingest.service.d/embed.conf /etc/systemd/system/omnigraph-evening-ingest.service.d/override.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10 ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Unit": "omnigraph-evening-ingest.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 00:00:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "omnigraph-evening-ingest.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-evening-ingest.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "infinity",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 09:00:44 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 09:00:52 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "",
+      "Id": "omnigraph-ingest-daily-summary.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-ingest-daily-summary.service",
+      "DropInPaths": "",
+      "UnitFileState": "static",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python3 ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python3 /root/OmniGraph-Vault/scripts/ingest_daily_summary.py ; ignore_errors=no ; start_time=[Wed 2026-09-09 09:00:44 CST] ; stop_time=[Wed 2026-09-09 09:00:52 CST] ; pid=72602 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-ingest-daily-summary.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 09:00:00 ; next_elapse=Thu 2026-09-10 09:00:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 09:01:54 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 09:00:44 CST",
+      "Result": "success",
+      "Id": "omnigraph-ingest-daily-summary.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-ingest-daily-summary.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "infinity",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 02:31:12 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 02:31:17 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "",
+      "User": "root",
+      "Id": "omnigraph-kg-sync-alert.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kg-sync-alert.service",
+      "DropInPaths": "",
+      "UnitFileState": "static",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/deploy/kg_sync_alert.sh ; argv[]=/root/OmniGraph-Vault/deploy/kg_sync_alert.sh ; ignore_errors=no ; start_time=[Wed 2026-09-09 02:31:12 CST] ; stop_time=[Wed 2026-09-09 02:31:17 CST] ; pid=4054600 ; code=exited ; status=0 }"
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "infinity",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "exit-code",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 02:30:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 02:31:12 CST",
+      "ExecMainStatus": "1",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "",
+      "User": "",
+      "Id": "omnigraph-kg-sync.service",
+      "LoadState": "loaded",
+      "ActiveState": "failed",
+      "SubState": "failed",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kg-sync.service",
+      "DropInPaths": "",
+      "UnitFileState": "static",
+      "scope": "system",
+      "ExecStart": "{ path=/root/embed-venv/bin/python3 ; argv[]=/root/embed-venv/bin/python3 /root/OmniGraph-Vault/deploy/sync_kq_to_new.py ; ignore_errors=no ; start_time=[Wed 2026-09-09 02:30:00 CST] ; stop_time=[Wed 2026-09-09 02:31:12 CST] ; pid=4053891 ; code=exited ; status=1 }"
+    },
+    {
+      "Unit": "omnigraph-kg-sync.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 18:30:00 UTC ; next_elapse=Thu 2026-09-10 02:30:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 02:30:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 02:30:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-kg-sync.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kg-sync.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 00:00:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 00:00:02 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-kol-classify.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-classify.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-kol-classify.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_classify_kol.py --topic-file /root/OmniGraph-Vault/config/topic_keywords_2026.json --min-depth 2 ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Unit": "omnigraph-kol-classify.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 16:00:00 UTC ; next_elapse=Thu 2026-09-10 00:00:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 00:00:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 00:00:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-kol-classify.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-classify.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 19:30:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 19:30:00 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-kol-enrich.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-enrich.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-kol-enrich.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/bin/true ; argv[]=/bin/true ; ignore_errors=no ; start_time=[Wed 2026-09-09 19:30:00 CST] ; stop_time=[Wed 2026-09-09 19:30:00 CST] ; pid=442792 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-kol-enrich.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 11:30:00 UTC ; next_elapse=Thu 2026-09-10 19:30:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 19:30:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 19:30:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-kol-enrich.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-enrich.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "infinity",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "n/a",
+      "ExecMainExitTimestamp": "n/a",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "",
+      "User": "root",
+      "Id": "omnigraph-kol-refresh.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-refresh.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-kol-refresh.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/bin/bash ; argv[]=/bin/bash -c ssh -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new -p 49221 sztimhdd@ohca.ddns.net \"cd ~/OmniGraph-Vault && timeout 240 python3 scripts/refresh_wechat_cookie.py >> ~/.hermes/kol-refresh.log 2>&1\" || echo \"kol-refresh: pre-scan ssh-hermes refresh failed (scan + OnFailure remain the safety net)\" | systemd-cat -t kol-refresh ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Unit": "omnigraph-kol-refresh.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 10:55:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "omnigraph-kol-refresh.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-refresh.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "infinity",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-08-05 00:00:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-08-05 00:00:04 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "WorkingDirectory": "",
+      "User": "root",
+      "Id": "omnigraph-kol-scan-alert.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-scan-alert.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-kol-scan-alert.service.d/embed.conf",
+      "UnitFileState": "static",
+      "scope": "system",
+      "ExecStart": "{ path=/bin/bash ; argv[]=/bin/bash -c mkdir -p /root/.hermes && date -u +%Y-%m-%dT%H:%M:%SZ > /root/.hermes/wechat-session-stale ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }\n{ path=/bin/bash ; argv[]=/bin/bash -c ssh -o BatchMode=yes -o ConnectTimeout=20 hermes \"cd ~/OmniGraph-Vault && nohup python3 scripts/refresh_wechat_cookie.py >> ~/.hermes/kol-refresh.log 2>&1 &\" || echo \"kol-scan-alert: ssh hermes hand-off failed\" | systemd-cat -t kol-scan-alert ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Unit": "omnigraph-kol-scan-batch@1.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 01:30:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "omnigraph-kol-scan-batch@1.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-scan-batch@1.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Unit": "omnigraph-kol-scan-batch@2.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 05:30:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "omnigraph-kol-scan-batch@2.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-scan-batch@2.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Unit": "omnigraph-kol-scan-batch@3.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 11:00:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "omnigraph-kol-scan-batch@3.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-scan-batch@3.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Unit": "omnigraph-kol-scan-batch@4.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 15:30:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "omnigraph-kol-scan-batch@4.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-scan-batch@4.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "n/a",
+      "ExecMainExitTimestamp": "n/a",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-kol-scan.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-scan.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-kol-scan.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_scan_kol.py --daily ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Unit": "omnigraph-kol-scan.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 11:00:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "omnigraph-kol-scan.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-scan.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 18:55:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 18:55:03 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-kol-zombie-cleanup.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-zombie-cleanup.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-kol-zombie-cleanup.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/clean_lightrag_zombies.py ; ignore_errors=no ; start_time=[Wed 2026-09-09 18:55:00 CST] ; stop_time=[Wed 2026-09-09 18:55:03 CST] ; pid=422101 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-kol-zombie-cleanup.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 10:55:00 UTC ; next_elapse=Thu 2026-09-10 18:55:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 18:55:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 18:55:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-kol-zombie-cleanup.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-kol-zombie-cleanup.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 20:30:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 20:30:02 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-reconcile.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-reconcile.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-reconcile.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/reconcile_ingestions.py --auto-patch ; ignore_errors=no ; start_time=[Wed 2026-09-09 20:30:00 CST] ; stop_time=[Wed 2026-09-09 20:30:02 CST] ; pid=477577 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-reconcile.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 12:30:00 UTC ; next_elapse=Thu 2026-09-10 20:30:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 20:30:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 20:30:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-reconcile.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-reconcile.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "2min",
+      "RuntimeMaxUSec": "4h",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 02:30:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 05:01:29 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-rewrite.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-rewrite.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-rewrite.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/rewrite_body_cron.py --limit 150 ; ignore_errors=no ; start_time=[Wed 2026-09-09 02:30:00 CST] ; stop_time=[Wed 2026-09-09 05:01:29 CST] ; pid=4053892 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-rewrite.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 18:30:00 UTC ; next_elapse=Thu 2026-09-10 02:30:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 02:30:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 02:30:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-rewrite.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-rewrite.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 17:00:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 17:12:43 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-rss-fetch.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-rss-fetch.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-rss-fetch.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/enrichment/rss_fetch.py ; ignore_errors=no ; start_time=[Wed 2026-09-09 17:00:00 CST] ; stop_time=[Wed 2026-09-09 17:12:43 CST] ; pid=354764 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-rss-fetch.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 09:00:00 UTC ; next_elapse=Thu 2026-09-10 17:00:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 17:00:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 17:00:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-rss-fetch.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-rss-fetch.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 19:20:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 19:20:02 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-rss-layer2-classify.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-rss-layer2-classify.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-rss-layer2-classify.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_classify_rss_layer2.py ; ignore_errors=no ; start_time=[Wed 2026-09-09 19:20:00 CST] ; stop_time=[Wed 2026-09-09 19:20:02 CST] ; pid=436892 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-rss-layer2-classify.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 11:20:00 UTC ; next_elapse=Thu 2026-09-10 19:20:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 19:20:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 19:20:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-rss-layer2-classify.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-rss-layer2-classify.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "1min 30s",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Wed 2026-09-09 17:30:00 CST",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 17:32:47 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-rss-rescrape.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-rss-rescrape.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-rss-rescrape.service.d/embed.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/enrichment/rss_rescrape_bodies.py ; ignore_errors=no ; start_time=[Wed 2026-09-09 17:30:00 CST] ; stop_time=[Wed 2026-09-09 17:32:47 CST] ; pid=372357 ; code=exited ; status=0 }"
+    },
+    {
+      "Unit": "omnigraph-rss-rescrape.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 09:30:00 UTC ; next_elapse=Thu 2026-09-10 17:30:00 CST }",
+      "NextElapseUSecRealtime": "Thu 2026-09-10 17:30:00 CST",
+      "LastTriggerUSec": "Wed 2026-09-09 17:30:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-rss-rescrape.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-rss-rescrape.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "15min",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Tue 2026-09-08 22:00:00 CST",
+      "ExecMainExitTimestamp": "Tue 2026-09-08 22:47:29 CST",
+      "ExecMainStatus": "0",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "omnigraph-translate.service",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-translate.service",
+      "DropInPaths": "/etc/systemd/system/omnigraph-translate.service.d/embed.conf /etc/systemd/system/omnigraph-translate.service.d/override.conf",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/translate_body_cron.py --limit 50 ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Unit": "omnigraph-translate.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 14:00:00 UTC ; next_elapse=Wed 2026-09-09 22:00:00 CST }",
+      "NextElapseUSecRealtime": "Wed 2026-09-09 22:00:00 CST",
+      "LastTriggerUSec": "Tue 2026-09-08 22:00:00 CST",
+      "Result": "success",
+      "Id": "omnigraph-translate.timer",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "FragmentPath": "/etc/systemd/system/omnigraph-translate.timer",
+      "DropInPaths": "",
+      "UnitFileState": "enabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Unit": "omnigraph-vertex-probe.service",
+      "TimersCalendar": "{ OnCalendar=*-*-01 11:00:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "omnigraph-vertex-probe.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/omnigraph-vertex-probe.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    },
+    {
+      "Restart": "no",
+      "TimeoutStartUSec": "30min",
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "signal",
+      "ExecMainStartTimestamp": "Fri 2026-07-31 23:10:00 CST",
+      "ExecMainExitTimestamp": "Sat 2026-08-01 02:09:27 CST",
+      "ExecMainStatus": "9",
+      "MemoryMax": "infinity",
+      "EnvironmentFiles": "/root/.hermes/.env (ignore_errors=no)",
+      "WorkingDirectory": "/root/OmniGraph-Vault",
+      "User": "root",
+      "Id": "qdrant-snapshot.service",
+      "LoadState": "loaded",
+      "ActiveState": "failed",
+      "SubState": "failed",
+      "FragmentPath": "/etc/systemd/system/qdrant-snapshot.service",
+      "DropInPaths": "",
+      "UnitFileState": "static",
+      "scope": "system",
+      "ExecStart": "{ path=/root/OmniGraph-Vault/venv-aim1/bin/python ; argv[]=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/qdrant_to_nanovdb.py ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+    },
+    {
+      "Unit": "qdrant-snapshot.service",
+      "TimersCalendar": "{ OnCalendar=*-*-* 03/6:10:00 UTC ; next_elapse=n/a }",
+      "NextElapseUSecRealtime": "",
+      "LastTriggerUSec": "",
+      "Result": "success",
+      "Id": "qdrant-snapshot.timer",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "FragmentPath": "/etc/systemd/system/qdrant-snapshot.timer",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "scope": "system",
+      "ExecStart": ""
+    }
+  ],
+  "listeners": {
+    "code": 0,
+    "out": "State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                                       \nLISTEN 0      128        127.0.0.1:49221      0.0.0.0:*    users:((\"sshd\",pid=4178302,fd=7))                            \nLISTEN 0      2048         0.0.0.0:8933       0.0.0.0:*    users:((\"python\",pid=2018841,fd=16))                         \nLISTEN 0      32768      127.0.0.1:10248      0.0.0.0:*    users:((\"kubelet\",pid=1532024,fd=19))                        \nLISTEN 0      32768      127.0.0.1:9099       0.0.0.0:*    users:((\"cilium-agent\",pid=1539914,fd=58))                   \nLISTEN 0      32768      127.0.0.1:9101       0.0.0.0:*    users:((\"node_exporter\",pid=2183886,fd=3))                   \nLISTEN 0      4096         0.0.0.0:111        0.0.0.0:*    users:((\"rpcbind\",pid=1533094,fd=4),(\"systemd\",pid=1,fd=186))\nLISTEN 0      32768  169.254.20.10:8081       0.0.0.0:*    users:((\"node-cache\",pid=1167674,fd=7))                      \nLISTEN 0      128        127.0.0.1:58931      0.0.0.0:*    users:((\"sshd\",pid=3974491,fd=7))                            \nLISTEN 0      128        127.0.0.1:58932      0.0.0.0:*    users:((\"sshd\",pid=3974491,fd=10))                           \nLISTEN 0      128        127.0.0.1:58933      0.0.0.0:*    users:((\"sshd\",pid=3974491,fd=12))                           \nLISTEN 0      32768  169.254.20.10:53         0.0.0.0:*    users:((\"node-cache\",pid=1167674,fd=9))                      \nLISTEN 0      128          0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=1539,fd=3))                               \nLISTEN 0      32768        0.0.0.0:26102      0.0.0.0:*    users:((\"sleep\",pid=2790676,fd=3))                           \nLISTEN 0      244        127.0.1.1:5432       0.0.0.0:*    users:((\"postgres\",pid=1613974,fd=6))                        \nLISTEN 0      244        127.0.0.1:5432       0.0.0.0:*    users:((\"postgres\",pid=1613974,fd=5))                        \nLISTEN 0      5            0.0.0.0:7997       0.0.0.0:*    users:((\"python\",pid=2002587,fd=3))                          \nLISTEN 0      32768      127.0.0.1:6333       0.0.0.0:*    users:((\"docker-proxy\",pid=2368556,fd=8))                    \nLISTEN 0      2048       127.0.0.1:8766       0.0.0.0:*    users:((\"python\",pid=3733493,fd=13))                         \nLISTEN 0      32768      127.0.0.1:35199      0.0.0.0:*    users:((\"containerd\",pid=1784159,fd=111))                    \nLISTEN 0      32768      127.0.0.1:20256      0.0.0.0:*    users:((\"node-problem-de\",pid=2184081,fd=8))                 \nLISTEN 0      32768      127.0.0.1:20257      0.0.0.0:*    users:((\"node-problem-de\",pid=2184081,fd=9))                 \nLISTEN 0      32768      127.0.0.1:9890       0.0.0.0:*    users:((\"cilium-agent\",pid=1539914,fd=6))                    \nLISTEN 0      32768      127.0.0.1:2019       0.0.0.0:*    users:((\"caddy\",pid=3134716,fd=7))                           \nLISTEN 0      32768      127.0.0.1:37571      0.0.0.0:*    users:((\"hbrclient\",pid=4131933,fd=9))                       \nLISTEN 0      128            [::1]:49221         [::]:*    users:((\"sshd\",pid=4178302,fd=5))                            \nLISTEN 0      32768              *:9253             *:*    users:((\"node-cache\",pid=1167674,fd=8))                      \nLISTEN 0      32768              *:9353             *:*    users:((\"node-cache\",pid=1167674,fd=3))                      \nLISTEN 0      32768              *:10250            *:*    users:((\"kubelet\",pid=1532024,fd=30))                        \nLISTEN 0      32768          [::1]:9099          [::]:*    users:((\"cilium-agent\",pid=1539914,fd=60))                   \nLISTEN 0      32768              *:9100             *:*    users:((\"kube-rbac-proxy\",pid=678484,fd=3))                  \nLISTEN 0      4096            [::]:111           [::]:*    users:((\"rpcbind\",pid=1533094,fd=6),(\"systemd\",pid=1,fd=188))\nLISTEN 0      32768              *:80               *:*    users:((\"caddy\",pid=3134716,fd=10))                          \nLISTEN 0      128            [::1]:58931         [::]:*    users:((\"sshd\",pid=3974491,fd=5))                            \nLISTEN 0      128            [::1]:58932         [::]:*    users:((\"sshd\",pid=3974491,fd=9))                            \nLISTEN 0      128            [::1]:58933         [::]:*    users:((\"sshd\",pid=3974491,fd=11))                           \nLISTEN 0      128             [::]:22            [::]:*    users:((\"sshd\",pid=1539,fd=4))                               \nLISTEN 0      32768              *:3001             *:*    users:((\"caddy\",pid=3134716,fd=6))                           \nLISTEN 0      32768              *:11260            *:*    users:((\"plugin.csi.alib\",pid=1167811,fd=15))",
+    "error": ""
+  },
+  "docker": [
+    {
+      "ID": "571a6eba525e",
+      "Names": "qdrant",
+      "Image": "qdrant/qdrant:v1.11.5",
+      "Status": "Up 6 weeks",
+      "Ports": "127.0.0.1:6333->6333/tcp, 6334/tcp",
+      "mounts": [
+        {
+          "Type": "bind",
+          "Source": "/var/lib/qdrant",
+          "Destination": "/qdrant/storage",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+        }
+      ]
+    }
+  ],
+  "files": {
+    "batch_ingest_from_spider.py": {
+      "sha256": "e01b92537eb5ff07529c9ad8227d845f0cdf5b0dd036fa8ddc557d4cbcc73fdf",
+      "bytes": 120919,
+      "mtime_utc": "2026-09-03T18:42:24.524572+00:00"
+    },
+    "batch_classify_kol.py": {
+      "sha256": "7552316ce8faae3f53fce20edde2482e8b1f0589e0a5e1ede9c58a638c32579e",
+      "bytes": 28916,
+      "mtime_utc": "2026-09-03T18:30:52.156218+00:00"
+    },
+    "ingest_wechat.py": {
+      "sha256": "79c8e972283e640b14cfe90fd433e3e6564214a9eda42f214fff9af88b39ee5e",
+      "bytes": 80549,
+      "mtime_utc": "2026-07-22T13:10:50.646670+00:00"
+    },
+    "image_pipeline.py": {
+      "sha256": "2430d00d564aa246cb5c520225f9a112a889ff912c7682282d18f58dc23d647f",
+      "bytes": 18330,
+      "mtime_utc": "2026-08-11T18:12:16.368687+00:00"
+    },
+    "config.py": {
+      "sha256": "8d743524d4d8531eccf1679a392276357081c7309705052a3b10f5257ab3cccc",
+      "bytes": 4687,
+      "mtime_utc": "2026-07-05T23:11:09.790172+00:00"
+    },
+    "lib/models.py": {
+      "sha256": "150dfb41a9f7043c60ae02677be27a0499698c14f7deb0a5d4b509a739779523",
+      "bytes": 2272,
+      "mtime_utc": "2026-07-31T14:28:31.888036+00:00"
+    },
+    "lib/vision_cascade.py": {
+      "sha256": "db74e37571dc55df15ba2c3e78dbe71a55d17e943151c16d1e513adfb746fa6f",
+      "bytes": 16978,
+      "mtime_utc": "2026-08-22T20:06:32.429156+00:00"
+    },
+    "lib/llm_deepseek.py": {
+      "sha256": "38455622aec6dea6c046b4381faf30876d962e35bb828b0feb87f4114df6b168",
+      "bytes": 5471,
+      "mtime_utc": "2026-09-03T18:30:47.303096+00:00"
+    },
+    "lib/lightrag_embedding.py": {
+      "sha256": "c65e84f02eddafe00aaca6e9ac3b4cfe6e0d2b5a9bcbc63f9ba780850069d02d",
+      "bytes": 14265,
+      "mtime_utc": "2026-07-31T14:28:31.883036+00:00"
+    },
+    "lib/lightrag_llm.py": null,
+    "mcp_server_standalone.py": null,
+    "mcp_kg_server.py": {
+      "sha256": "cc6d011814b60b54cb06e65d676cae97bb73e7ced3759101304f6677b3ef618e",
+      "bytes": 5716,
+      "mtime_utc": "2026-07-24T00:57:07.426686+00:00"
+    },
+    "kg_api.py": {
+      "sha256": "a37c4e83ea13244b79e7455d99b6bf7dc165ec606ab6ab716980a9fa2a7c7f45",
+      "bytes": 3793,
+      "mtime_utc": "2026-07-24T00:59:39.510508+00:00"
+    },
+    "kg_synthesize.py": {
+      "sha256": "3b15d9905e0e1683c88a2907378fff942ae4b87c9044dea4010064efb64e0042",
+      "bytes": 11974,
+      "mtime_utc": "2026-06-01T19:25:01.606116+00:00"
+    },
+    "embed_server.py": {
+      "sha256": "7ce745e057ff4a56f3d43ba13c72688930b6f3328402a8a11d04c1b8581b9309",
+      "bytes": 2708,
+      "mtime_utc": "2026-07-31T14:57:02.955190+00:00"
+    },
+    "scripts/mcp-healthcheck.py": {
+      "sha256": "4542f97204e4f22d2906643e4e18beaa4918b11cc7564b18f985d72b8d220892",
+      "bytes": 11304,
+      "mtime_utc": "2026-09-03T18:58:11.761407+00:00"
+    },
+    "scripts/dajiala_kol_scan.py": {
+      "sha256": "60d9db5db6edefef3be682e7a6f51852d4633832894ee751aa0121a50f86d95c",
+      "bytes": 10465,
+      "mtime_utc": "2026-08-10T17:52:10.139836+00:00"
+    },
+    "scripts/wiki_evolve.py": {
+      "sha256": "372f36db4dcd6e624a807a3587be5ab1679f74d38ad490adec7b2c8de6e4ba62",
+      "bytes": 66358,
+      "mtime_utc": "2026-08-14T17:17:50.959304+00:00"
+    },
+    "tests/unit/test_wiki_w5b_bootstrap.py": null,
+    "scripts/sync_kq_to_new.py": null,
+    "deploy/sync_kq_to_new.py": {
+      "sha256": "62083486f916d33431efc60529f8442598072eb0dea06cfca5be68b758874cdf",
+      "bytes": 7487,
+      "mtime_utc": "2026-08-04T13:52:33.788916+00:00"
+    },
+    "pyproject.toml": {
+      "sha256": "a21f1aab12ee14ffd60a4c1a623a41cba5ed80fc5ae82d00de234babf12a38ef",
+      "bytes": 1356,
+      "mtime_utc": "2026-05-31T15:25:09.464192+00:00"
+    },
+    "requirements.txt": {
+      "sha256": "64b5647cd33a8a53a59208005b4715298db8d1dbf312d4147a030d94395d261b",
+      "bytes": 497,
+      "mtime_utc": "2026-05-31T15:25:09.464192+00:00"
+    },
+    "requirements-kb.txt": {
+      "sha256": "fb5435fbb81b3fa3fe06d3480876ae8558fa16cdc789095e3537209226bd45be",
+      "bytes": 350,
+      "mtime_utc": "2026-05-20T13:05:15+00:00"
+    }
+  },
+  "data_files": [
+    {
+      "path": "/root/.hermes/omonigraph-vault/kol_scan.db",
+      "realpath": "/root/OmniGraph-Vault/data/kol_scan.db",
+      "bytes": 155213824,
+      "mtime_utc": "2026-09-09T13:16:13.032391+00:00"
+    },
+    {
+      "path": "/root/OmniGraph-Vault/data/kol_scan.db",
+      "realpath": "/root/OmniGraph-Vault/data/kol_scan.db",
+      "bytes": 155213824,
+      "mtime_utc": "2026-09-09T13:16:13.032391+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260812_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260812_105501",
+      "bytes": 21487141,
+      "mtime_utc": "2026-08-12T10:52:22.224379+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260909_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260909_105502",
+      "bytes": 28623425,
+      "mtime_utc": "2026-09-08T23:30:24.506769+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_relationships.json.bak-260818",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_relationships.json.bak-260818",
+      "bytes": 1881780588,
+      "mtime_utc": "2026-07-19T16:29:10.767856+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260731_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260731_105501",
+      "bytes": 19326009,
+      "mtime_utc": "2026-07-31T10:51:27.089664+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260726_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260726_105501",
+      "bytes": 1339038,
+      "mtime_utc": "2026-07-26T10:13:26.231262+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260818_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260818_105501",
+      "bytes": 24278732,
+      "mtime_utc": "2026-08-18T05:06:45.637624+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260721_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260721_105501",
+      "bytes": 16744536,
+      "mtime_utc": "2026-07-21T10:23:46.429953+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260816_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260816_105501",
+      "bytes": 1638315,
+      "mtime_utc": "2026-08-15T10:55:02.167312+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260720_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260720_105501",
+      "bytes": 16449325,
+      "mtime_utc": "2026-07-20T07:35:52.993216+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260709_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260709_105501",
+      "bytes": 909459,
+      "mtime_utc": "2026-07-09T10:37:52.516840+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_chunks.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_chunks.json",
+      "bytes": 73108483,
+      "mtime_utc": "2026-08-19T12:56:55.392782+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260720_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260720_105501",
+      "bytes": 1127267,
+      "mtime_utc": "2026-07-20T07:37:58.733374+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260811_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260811_105501",
+      "bytes": 20287895,
+      "mtime_utc": "2026-08-11T10:47:37.250845+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260708_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260708_105501",
+      "bytes": 13503587,
+      "mtime_utc": "2026-07-07T10:55:01.753340+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260817_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260817_105501",
+      "bytes": 23365353,
+      "mtime_utc": "2026-08-17T10:47:46.154242+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260903_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260903_105501",
+      "bytes": 2011610,
+      "mtime_utc": "2026-09-02T18:51:41.324965+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_entities.json.bak-260818",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_entities.json.bak-260818",
+      "bytes": 1596305830,
+      "mtime_utc": "2026-07-27T15:55:49.485574+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260719_204251",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260719_204251",
+      "bytes": 16413602,
+      "mtime_utc": "2026-07-19T20:21:50.117935+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260817_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260817_105501",
+      "bytes": 1708485,
+      "mtime_utc": "2026-08-17T10:47:46.209244+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260902_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260902_105502",
+      "bytes": 27355285,
+      "mtime_utc": "2026-09-02T10:41:57.681606+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260729_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260729_105501",
+      "bytes": 1369516,
+      "mtime_utc": "2026-07-29T10:12:24.476479+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260818_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260818_105501",
+      "bytes": 1779420,
+      "mtime_utc": "2026-08-18T05:06:45.698626+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260713_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260713_105501",
+      "bytes": 14348088,
+      "mtime_utc": "2026-07-13T10:49:42.648106+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260902_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260902_105502",
+      "bytes": 1982683,
+      "mtime_utc": "2026-09-02T10:41:57.795609+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260715_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260715_105501",
+      "bytes": 14519313,
+      "mtime_utc": "2026-07-15T10:42:22.556116+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260722_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260722_105501",
+      "bytes": 1187572,
+      "mtime_utc": "2026-07-22T10:49:10.225373+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260805_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260805_105501",
+      "bytes": 19580751,
+      "mtime_utc": "2026-08-05T10:20:55.193608+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260714_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260714_105501",
+      "bytes": 14519313,
+      "mtime_utc": "2026-07-14T10:42:42.967519+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260802_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260802_105501",
+      "bytes": 19379170,
+      "mtime_utc": "2026-08-02T10:34:14.353048+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260724_151254",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260724_151254",
+      "bytes": 1267771,
+      "mtime_utc": "2026-07-24T09:12:00.913741+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260814_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260814_105501",
+      "bytes": 1624153,
+      "mtime_utc": "2026-08-13T10:55:01.578127+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260716_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260716_105501",
+      "bytes": 14572594,
+      "mtime_utc": "2026-07-16T10:29:05.233358+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260705_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260705_105502",
+      "bytes": 873008,
+      "mtime_utc": "2026-07-04T15:54:28.267057+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260819_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260819_105501",
+      "bytes": 24302958,
+      "mtime_utc": "2026-08-19T10:02:15.334151+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260831_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260831_105502",
+      "bytes": 26356153,
+      "mtime_utc": "2026-08-30T10:04:38.241085+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260904_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260904_105501",
+      "bytes": 27733645,
+      "mtime_utc": "2026-09-02T18:47:22.145463+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260805_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260805_105501",
+      "bytes": 1393560,
+      "mtime_utc": "2026-08-05T10:26:32.680120+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260712_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260712_105501",
+      "bytes": 984185,
+      "mtime_utc": "2026-07-12T10:44:38.727988+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260731_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260731_105501",
+      "bytes": 1375594,
+      "mtime_utc": "2026-07-31T10:51:27.180666+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260807_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260807_105501",
+      "bytes": 19595092,
+      "mtime_utc": "2026-08-06T10:55:01.965591+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260814_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260814_105501",
+      "bytes": 22391795,
+      "mtime_utc": "2026-08-13T06:00:19.214439+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260820_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260820_105501",
+      "bytes": 1783095,
+      "mtime_utc": "2026-08-20T10:28:30.757895+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260901_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260901_105501",
+      "bytes": 26490872,
+      "mtime_utc": "2026-09-01T10:10:43.752345+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260905_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260905_105501",
+      "bytes": 27733645,
+      "mtime_utc": "2026-09-02T18:47:22.145463+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260804_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260804_105501",
+      "bytes": 19460554,
+      "mtime_utc": "2026-08-04T10:37:37.200586+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260806_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260806_105501",
+      "bytes": 19616941,
+      "mtime_utc": "2026-08-06T10:14:36.648326+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260810_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260810_105501",
+      "bytes": 19643595,
+      "mtime_utc": "2026-08-10T10:15:04.219500+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260719_115521",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260719_115521",
+      "bytes": 16362593,
+      "mtime_utc": "2026-07-18T17:45:55.270782+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_entities.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_entities.json",
+      "bytes": 687138606,
+      "mtime_utc": "2026-08-19T12:58:56.461866+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260827_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260827_105502",
+      "bytes": 1910270,
+      "mtime_utc": "2026-08-27T10:09:19.348464+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260726_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260726_105501",
+      "bytes": 18910945,
+      "mtime_utc": "2026-07-26T10:04:27.390728+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260829_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260829_105501",
+      "bytes": 26342139,
+      "mtime_utc": "2026-08-29T10:02:55.174206+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260706_105504",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260706_105504",
+      "bytes": 13336020,
+      "mtime_utc": "2026-07-06T10:15:01.165913+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260906_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260906_105502",
+      "bytes": 2013244,
+      "mtime_utc": "2026-09-06T10:47:03.899794+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260908_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260908_105502",
+      "bytes": 2043758,
+      "mtime_utc": "2026-09-08T10:10:29.651430+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260809_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260809_105501",
+      "bytes": 19624502,
+      "mtime_utc": "2026-08-09T10:10:12.206362+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260827_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260827_105502",
+      "bytes": 26284719,
+      "mtime_utc": "2026-08-27T10:03:13.955182+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260811_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260811_105501",
+      "bytes": 1462786,
+      "mtime_utc": "2026-08-11T10:47:37.329847+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260809_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260809_105501",
+      "bytes": 1400856,
+      "mtime_utc": "2026-08-09T10:11:27.686262+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260801_105504",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260801_105504",
+      "bytes": 19357113,
+      "mtime_utc": "2026-07-31T14:06:58.163441+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260810_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260810_105501",
+      "bytes": 1404814,
+      "mtime_utc": "2026-08-10T10:19:45.834616+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260719_204251",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260719_204251",
+      "bytes": 1123677,
+      "mtime_utc": "2026-07-19T20:21:50.177936+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260908_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260908_105502",
+      "bytes": 28235669,
+      "mtime_utc": "2026-09-08T10:10:29.535427+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260706_105504",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260706_105504",
+      "bytes": 890378,
+      "mtime_utc": "2026-07-06T10:18:58.192882+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260905_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260905_105501",
+      "bytes": 2011610,
+      "mtime_utc": "2026-09-04T10:55:02.050707+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_entities.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_entities.json",
+      "bytes": 5058196,
+      "mtime_utc": "2026-09-09T13:14:33.329852+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260724_151254",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260724_151254",
+      "bytes": 18031072,
+      "mtime_utc": "2026-07-24T09:12:00.840739+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260722_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260722_105501",
+      "bytes": 17364994,
+      "mtime_utc": "2026-07-22T10:49:10.180372+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260901_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260901_105501",
+      "bytes": 1927196,
+      "mtime_utc": "2026-09-01T10:10:43.860348+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260718_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260718_105501",
+      "bytes": 16250744,
+      "mtime_utc": "2026-07-18T02:16:50.758365+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260727_133334",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260727_133334",
+      "bytes": 18998159,
+      "mtime_utc": "2026-07-27T09:12:10.786376+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/graph_chunk_entity_relation.graphml",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/graph_chunk_entity_relation.graphml",
+      "bytes": 131063633,
+      "mtime_utc": "2026-09-09T13:14:45.343158+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260804_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260804_105501",
+      "bytes": 1386816,
+      "mtime_utc": "2026-08-04T10:38:26.976846+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260815_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260815_105502",
+      "bytes": 1638315,
+      "mtime_utc": "2026-08-15T10:09:20.457110+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260727_133334",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260727_133334",
+      "bytes": 1346385,
+      "mtime_utc": "2026-07-27T09:12:10.840377+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260717_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260717_105501",
+      "bytes": 1074652,
+      "mtime_utc": "2026-07-17T10:34:16.636850+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260715_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260715_105501",
+      "bytes": 1008728,
+      "mtime_utc": "2026-07-15T10:42:22.631118+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260907_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260907_105502",
+      "bytes": 28164693,
+      "mtime_utc": "2026-09-07T00:01:04.072744+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260806_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260806_105501",
+      "bytes": 1396947,
+      "mtime_utc": "2026-08-06T10:24:04.492640+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260709_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260709_105501",
+      "bytes": 13535809,
+      "mtime_utc": "2026-07-09T10:37:52.441838+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260723_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260723_105501",
+      "bytes": 17718955,
+      "mtime_utc": "2026-07-23T10:51:51.285500+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260729_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260729_105501",
+      "bytes": 19264954,
+      "mtime_utc": "2026-07-29T10:03:30.149027+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260821_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260821_105501",
+      "bytes": 24429631,
+      "mtime_utc": "2026-08-21T10:18:30.971637+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260812_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260812_105501",
+      "bytes": 1556558,
+      "mtime_utc": "2026-08-12T10:52:22.274380+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260708_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260708_105501",
+      "bytes": 907520,
+      "mtime_utc": "2026-07-07T10:55:01.550335+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_relationships.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_relationships.json",
+      "bytes": 1019223844,
+      "mtime_utc": "2026-08-19T13:02:10.381806+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260813_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260813_105501",
+      "bytes": 1624153,
+      "mtime_utc": "2026-08-13T06:00:19.267441+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260823_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260823_105501",
+      "bytes": 24429631,
+      "mtime_utc": "2026-08-21T10:18:30.971637+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260716_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260716_105501",
+      "bytes": 1011738,
+      "mtime_utc": "2026-07-16T10:29:05.306360+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260711_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260711_105501",
+      "bytes": 13936102,
+      "mtime_utc": "2026-07-11T10:39:08.072224+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260714_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260714_105501",
+      "bytes": 1008728,
+      "mtime_utc": "2026-07-14T10:42:43.038520+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260808_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260808_105502",
+      "bytes": 19649951,
+      "mtime_utc": "2026-08-08T10:21:18.055646+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260710_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260710_105501",
+      "bytes": 13831155,
+      "mtime_utc": "2026-07-09T22:41:10.389404+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260821_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260821_105501",
+      "bytes": 1789038,
+      "mtime_utc": "2026-08-21T10:23:22.683069+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260707_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260707_105501",
+      "bytes": 13543261,
+      "mtime_utc": "2026-07-06T19:13:19.953081+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260824_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260824_105501",
+      "bytes": 25315795,
+      "mtime_utc": "2026-08-24T10:07:52.143845+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260801_105504",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260801_105504",
+      "bytes": 1376569,
+      "mtime_utc": "2026-07-31T14:06:58.266444+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260824_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260824_105501",
+      "bytes": 1851754,
+      "mtime_utc": "2026-08-24T10:16:33.515992+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260725_135136",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260725_135136",
+      "bytes": 18699178,
+      "mtime_utc": "2026-07-25T08:50:46.095927+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260820_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260820_105501",
+      "bytes": 24335958,
+      "mtime_utc": "2026-08-20T10:28:30.663893+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260725_135136",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260725_135136",
+      "bytes": 1323052,
+      "mtime_utc": "2026-07-25T08:50:46.188930+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260828_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260828_105501",
+      "bytes": 26356072,
+      "mtime_utc": "2026-08-28T10:43:40.396004+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260909_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260909_105502",
+      "bytes": 2062431,
+      "mtime_utc": "2026-09-08T23:38:04.616363+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260728_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260728_105501",
+      "bytes": 19089568,
+      "mtime_utc": "2026-07-28T10:03:43.113052+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260903_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260903_105501",
+      "bytes": 27733645,
+      "mtime_utc": "2026-09-02T18:47:22.145463+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260826_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260826_105501",
+      "bytes": 1909406,
+      "mtime_utc": "2026-08-25T17:06:49.076544+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260717_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260717_105501",
+      "bytes": 15651572,
+      "mtime_utc": "2026-07-17T10:28:50.749655+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260822_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260822_105501",
+      "bytes": 24429631,
+      "mtime_utc": "2026-08-21T10:18:30.971637+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260721_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260721_105501",
+      "bytes": 1147352,
+      "mtime_utc": "2026-07-21T10:23:46.514955+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260819_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260819_105501",
+      "bytes": 1780478,
+      "mtime_utc": "2026-08-19T10:17:25.625288+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_chunks.json.bak-260818",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/vdb_chunks.json.bak-260818",
+      "bytes": 127360208,
+      "mtime_utc": "2026-07-31T15:10:14.163403+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260825_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260825_105501",
+      "bytes": 1897725,
+      "mtime_utc": "2026-08-25T09:42:30.655030+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260823_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260823_105501",
+      "bytes": 1789038,
+      "mtime_utc": "2026-08-22T10:55:02.010172+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260723_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260723_105501",
+      "bytes": 1233815,
+      "mtime_utc": "2026-07-23T10:51:51.332501+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260826_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260826_105501",
+      "bytes": 26274189,
+      "mtime_utc": "2026-08-25T17:01:47.982972+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_llm_response_cache.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_llm_response_cache.json",
+      "bytes": 157489093,
+      "mtime_utc": "2026-09-09T13:14:37.317953+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260728_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260728_105501",
+      "bytes": 1359534,
+      "mtime_utc": "2026-07-28T10:14:09.409832+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260825_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260825_105501",
+      "bytes": 26129239,
+      "mtime_utc": "2026-08-25T09:42:30.585028+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_relations.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_relations.json",
+      "bytes": 15690608,
+      "mtime_utc": "2026-09-09T13:14:33.810864+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260907_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260907_105502",
+      "bytes": 2035823,
+      "mtime_utc": "2026-09-07T00:01:04.138746+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260718_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260718_105501",
+      "bytes": 1111025,
+      "mtime_utc": "2026-07-18T04:00:13.344285+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260828_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260828_105501",
+      "bytes": 1914858,
+      "mtime_utc": "2026-08-28T10:52:19.251183+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260822_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260822_105501",
+      "bytes": 1789038,
+      "mtime_utc": "2026-08-21T10:55:01.729492+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260830_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260830_105501",
+      "bytes": 26356153,
+      "mtime_utc": "2026-08-30T10:04:38.241085+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260711_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260711_105501",
+      "bytes": 951959,
+      "mtime_utc": "2026-07-11T10:39:08.136225+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260705_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260705_105502",
+      "bytes": 13160174,
+      "mtime_utc": "2026-07-04T15:54:28.237056+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260807_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260807_105501",
+      "bytes": 1395974,
+      "mtime_utc": "2026-08-06T10:55:01.670583+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json",
+      "bytes": 2063232,
+      "mtime_utc": "2026-09-09T13:16:13.347399+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260813_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260813_105501",
+      "bytes": 22391795,
+      "mtime_utc": "2026-08-13T06:00:19.214439+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260719_115521",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260719_115521",
+      "bytes": 1120685,
+      "mtime_utc": "2026-07-18T17:45:55.311783+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_entity_chunks.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_entity_chunks.json",
+      "bytes": 27517432,
+      "mtime_utc": "2026-09-09T13:14:34.608885+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260710_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260710_105501",
+      "bytes": 944357,
+      "mtime_utc": "2026-07-09T22:41:10.425405+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260831_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260831_105502",
+      "bytes": 1916584,
+      "mtime_utc": "2026-08-30T10:55:01.819839+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260808_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260808_105502",
+      "bytes": 1400369,
+      "mtime_utc": "2026-08-08T10:27:00.787280+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260730_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260730_105501",
+      "bytes": 19320436,
+      "mtime_utc": "2026-07-30T10:10:52.643016+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260830_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260830_105501",
+      "bytes": 1916584,
+      "mtime_utc": "2026-08-30T10:14:28.567078+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_relation_chunks.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_relation_chunks.json",
+      "bytes": 48386967,
+      "mtime_utc": "2026-09-09T13:14:35.918918+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260906_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260906_105502",
+      "bytes": 27802220,
+      "mtime_utc": "2026-09-06T10:03:31.223580+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260730_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260730_105501",
+      "bytes": 1373256,
+      "mtime_utc": "2026-07-30T10:12:29.073443+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json",
+      "bytes": 28659706,
+      "mtime_utc": "2026-09-09T13:16:13.225396+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_text_chunks.json",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_text_chunks.json",
+      "bytes": 34998881,
+      "mtime_utc": "2026-09-09T13:14:33.204849+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260707_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260707_105501",
+      "bytes": 909351,
+      "mtime_utc": "2026-07-06T19:13:19.984082+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260803_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260803_105501",
+      "bytes": 19422353,
+      "mtime_utc": "2026-08-03T10:03:45.695095+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260904_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260904_105501",
+      "bytes": 2011610,
+      "mtime_utc": "2026-09-03T10:55:01.979720+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260829_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260829_105501",
+      "bytes": 1915718,
+      "mtime_utc": "2026-08-29T10:08:03.130013+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260816_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260816_105501",
+      "bytes": 22508522,
+      "mtime_utc": "2026-08-15T10:04:33.270860+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260713_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260713_105501",
+      "bytes": 1000703,
+      "mtime_utc": "2026-07-13T10:49:42.714108+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260712_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260712_105501",
+      "bytes": 14211202,
+      "mtime_utc": "2026-07-12T10:44:38.655986+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260803_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260803_105501",
+      "bytes": 1384119,
+      "mtime_utc": "2026-08-03T10:22:21.053190+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/.graphml-npb9m_u4.tmp",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/.graphml-npb9m_u4.tmp",
+      "bytes": 48957596,
+      "mtime_utc": "2026-07-12T03:25:33.365986+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260815_105502",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_full_docs.json.bak-20260815_105502",
+      "bytes": 22508522,
+      "mtime_utc": "2026-08-15T10:04:33.270860+00:00"
+    },
+    {
+      "path": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260802_105501",
+      "realpath": "/root/.hermes/omonigraph-vault/lightrag_storage/kv_store_doc_status.json.bak-20260802_105501",
+      "bytes": 1382883,
+      "mtime_utc": "2026-08-02T10:34:14.435050+00:00"
+    }
+  ],
+  "http": {
+    "http://127.0.0.1:8766/health": {
+      "status": 200,
+      "data": {
+        "status": "ok",
+        "kb_db_path": "/root/OmniGraph-Vault/data/kol_scan.db",
+        "kb_images_dir": "/root/.hermes/omonigraph-vault/images",
+        "version": "2.0.0"
+      }
+    },
+    "http://127.0.0.1:8768/live": {
+      "error": "URLError"
+    },
+    "http://127.0.0.1:8768/ready": {
+      "error": "URLError"
+    },
+    "http://127.0.0.1:8768/status": {
+      "error": "URLError"
+    },
+    "http://127.0.0.1:7997/health": {
+      "status": 200,
+      "data": {
+        "status": "ok"
+      }
+    },
+    "http://127.0.0.1:6333/collections": {
+      "status": 200,
+      "data": [
+        {
+          "name": "lightrag_vdb_chunks_bge_m3_1024d",
+          "status": "green",
+          "points_count": 9202,
+          "indexed_vectors_count": 0,
+          "segments_count": 8,
+          "vectors": {
+            "size": 1024,
+            "distance": "Cosine",
+            "on_disk": true
+          }
+        },
+        {
+          "name": "lightrag_vdb_entities_bge_m3_1024d",
+          "status": "green",
+          "points_count": 129285,
+          "indexed_vectors_count": 135953,
+          "segments_count": 8,
+          "vectors": {
+            "size": 1024,
+            "distance": "Cosine",
+            "on_disk": true
+          }
+        },
+        {
+          "name": "lightrag_vdb_relationships_bge_m3_1024d",
+          "status": "green",
+          "points_count": 206046,
+          "indexed_vectors_count": 208664,
+          "segments_count": 8,
+          "vectors": {
+            "size": 1024,
+            "distance": "Cosine",
+            "on_disk": true
+          }
+        }
+      ]
+    }
+  }
+}

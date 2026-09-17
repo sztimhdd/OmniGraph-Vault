@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "release_id": "sqlite-docs-editorial-example-v1",
+  "published_at": "2026-09-09T00:00:00Z",
+  "documents": [
+    {
+      "doc_id": "sqlite-fts5-guide",
+      "revision_id": "sqlite-fts5-excerpt-v1",
+      "title": "SQLite FTS5 Extension",
+      "source_url": "https://www.sqlite.org/fts5.html",
+      "source_published_at": null,
+      "fetched_at": null,
+      "visibility": "public"
+    },
+    {
+      "doc_id": "sqlite-with-guide",
+      "revision_id": "sqlite-with-excerpt-v1",
+      "title": "SQLite WITH Clause",
+      "source_url": "https://www.sqlite.org/lang_with.html",
+      "source_published_at": null,
+      "fetched_at": null,
+      "visibility": "public"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "fts5-overview",
+      "revision_id": "sqlite-fts5-excerpt-v1",
+      "locator": "section:1. Overview of FTS5; first sentence",
+      "quote": "FTS5 is an SQLite virtual table module that provides full-text search functionality to database applications.",
+      "visibility": "public"
+    },
+    {
+      "evidence_id": "cte-overview",
+      "revision_id": "sqlite-with-excerpt-v1",
+      "locator": "section:1. Overview; recursive CTE paragraph",
+      "quote": "Recursive common table expressions provide the ability to do hierarchical or recursive queries of trees and graphs",
+      "visibility": "public"
+    }
+  ],
+  "knowledge": [
+    {
+      "knowledge_id": "article-fts5",
+      "kind": "article",
+      "title": "SQLite FTS5 全文检索",
+      "body": "FTS5 是 SQLite 的全文检索模块。它提供数据库内的词法检索能力；本示例没有验证中文分词或性能。",
+      "evidence_ids": [
+        "fts5-overview"
+      ],
+      "visibility": "public"
+    },
+    {
+      "knowledge_id": "wiki-sqlite-query",
+      "kind": "wiki",
+      "title": "SQLite 查询能力 Wiki",
+      "body": "SQLite 的 FTS5 可用于全文检索，递归 CTE 可查询树和图。这是两个不同用途的查询能力；本示例不据此推断高级检索质量或图遍历延迟。",
+      "evidence_ids": [
+        "fts5-overview",
+        "cte-overview"
+      ],
+      "visibility": "public"
+    }
+  ],
+  "entities": [
+    {
+      "entity_id": "sqlite",
+      "name": "SQLite",
+      "visibility": "public"
+    },
+    {
+      "entity_id": "fts5",
+      "name": "FTS5",
+      "visibility": "public"
+    },
+    {
+      "entity_id": "recursive-cte",
+      "name": "Recursive CTE",
+      "visibility": "public"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "sqlite-provides-fts5",
+      "source_id": "sqlite",
+      "target_id": "fts5",
+      "relation_type": "PROVIDES",
+      "evidence_ids": [
+        "fts5-overview"
+      ],
+      "visibility": "public"
+    },
+    {
+      "relation_id": "sqlite-supports-recursive-cte",
+      "source_id": "sqlite",
+      "target_id": "recursive-cte",
+      "relation_type": "SUPPORTS",
+      "evidence_ids": [
+        "cte-overview"
+      ],
+      "visibility": "public"
+    }
+  ]
+}

@@ -1,0 +1,4388 @@
+{
+  "timestamp_utc": "2026-09-09T13:33:46.322774+00:00",
+  "cron": [
+    "0 12 * * * /root/OmniGraph-Vault/kb/scripts/daily_rebuild.sh >> /var/log/kb-rebuild.log 2>&1"
+  ],
+  "matching_config": {
+    "/etc/systemd/system/omnigraph-daily-digest.service.bak-vnj": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily digest"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/enrichment/daily_digest.py"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kg-sync.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KG+SQLite incremental sync old->new"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "OnFailure=omnigraph-kg-sync-alert.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 9,
+        "text": "ExecStart=/root/embed-venv/bin/python3 /root/OmniGraph-Vault/deploy/sync_kq_to_new.py"
+      },
+      {
+        "line": 10,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 11,
+        "text": "StandardError=journal"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kg-sync-alert.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KG sync failure alert (Telegram)"
+      },
+      {
+        "line": 4,
+        "text": "[Service]"
+      },
+      {
+        "line": 5,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 6,
+        "text": "User=root"
+      },
+      {
+        "line": 7,
+        "text": "ExecStart=/root/OmniGraph-Vault/deploy/kg_sync_alert.sh"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-vertex-probe.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph monthly Vertex AI live probe (1st of month) timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-vertex-probe.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-1 11:00:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-zombie-cleanup.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph kol zombie cleanup (pre-scan health check) timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-kol-zombie-cleanup.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 10:55:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-disk-cleanup.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily disk cleanup timer"
+      },
+      {
+        "line": 3,
+        "text": "Documentation=https://github.com/huxxha/OmniGraph-Vault"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 8,
+        "text": "OnCalendar=*-*-* 04:15:00 UTC"
+      },
+      {
+        "line": 9,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 11,
+        "text": "[Install]"
+      },
+      {
+        "line": 12,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-disk-cleanup.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily disk cleanup (checkpoint vacuum + journal trim)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Documentation=https://github.com/huxxha/OmniGraph-Vault"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "ExecStart=/root/OmniGraph-Vault/scripts/daily_disk_cleanup.sh --execute"
+      },
+      {
+        "line": 11,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 12,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 13,
+        "text": "SyslogIdentifier=omnigraph-disk-cleanup"
+      },
+      {
+        "line": 16,
+        "text": "TimeoutStartSec=600"
+      },
+      {
+        "line": 17,
+        "text": "OnFailure="
+      },
+      {
+        "line": 19,
+        "text": "[Install]"
+      },
+      {
+        "line": 20,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-classify.service.bak-pre-scanbatch-260627": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily KOL Layer-1 classify (5 topics)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_classify_kol.py --topic Agent --topic LLM --topic RAG --topic NLP --topic CV --min-depth 2"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-dajiala-scan.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph dajiala KOL scan (weekly) — replaces dead appmsgpublish scan"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 9,
+        "text": "EnvironmentFile=/root/OmniGraph-Vault/.dajiala_env"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python3 /root/OmniGraph-Vault/scripts/dajiala_kol_scan.py --top 20 --pages 2 --db /root/OmniGraph-Vault/data/kol_scan.db"
+      },
+      {
+        "line": 13,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 14,
+        "text": "StandardError=journal"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-rss-layer2-classify.service.bak-pre-l9g-260707": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily RSS Layer-2 classify"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_classify_rss_layer2.py"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-dajiala-scan.timer.bak-20260812-030252": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=Weekly OmniGraph dajiala KOL scan (Monday 03:30)"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=Mon *-*-* 03:30:00"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 7,
+        "text": "RandomizedDelaySec=300"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/embed-server.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=Embedding Server (BGE-M3 1024d)"
+      },
+      {
+        "line": 3,
+        "text": "After=network.target"
+      },
+      {
+        "line": 5,
+        "text": "[Service]"
+      },
+      {
+        "line": 6,
+        "text": "Type=simple"
+      },
+      {
+        "line": 7,
+        "text": "User=root"
+      },
+      {
+        "line": 8,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/embed-venv/bin/python /root/OmniGraph-Vault/embed_server.py"
+      },
+      {
+        "line": 12,
+        "text": "Restart=always"
+      },
+      {
+        "line": 13,
+        "text": "RestartSec=10"
+      },
+      {
+        "line": 14,
+        "text": "StandardOutput=append:/var/log/embed-server.log"
+      },
+      {
+        "line": 15,
+        "text": "StandardError=append:/var/log/embed-server.log"
+      },
+      {
+        "line": 17,
+        "text": "[Install]"
+      },
+      {
+        "line": 18,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-evening-ingest.service.bak-pre-freq-260624": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph evening ingest 21:00 ADT (00:00 UTC next day)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-daily-ingest.service omnigraph-afternoon-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=10G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=12G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 5"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-rss-rescrape.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily RSS body rescrape"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/enrichment/rss_rescrape_bodies.py"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-afternoon-ingest.timer.bak-vnj": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph afternoon ingest 14:00 ADT (17:00 UTC) timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-afternoon-ingest.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 17:00:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/kb-api.service.bak-pre-kbv21-20260515-223154": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KB FastAPI backend"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 16,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766"
+      },
+      {
+        "line": 17,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 18,
+        "text": "RestartSec=5"
+      },
+      {
+        "line": 19,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 20,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 21,
+        "text": "NoNewPrivileges=true"
+      },
+      {
+        "line": 22,
+        "text": "PrivateTmp=true"
+      },
+      {
+        "line": 24,
+        "text": "[Install]"
+      },
+      {
+        "line": 25,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/qdrant-snapshot.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph Qdrant -> nano-vectordb JSON snapshot"
+      },
+      {
+        "line": 3,
+        "text": "After=docker.service network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Requires=docker.service"
+      },
+      {
+        "line": 5,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 14,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/qdrant_to_nanovdb.py"
+      },
+      {
+        "line": 15,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 16,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 17,
+        "text": "TimeoutStartSec=1800"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-refresh.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 21,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 22,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 23,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 25,
+        "text": "[Install]"
+      },
+      {
+        "line": 26,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-reconcile.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph reconcile ingestions (bidirectional)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/reconcile_ingestions.py --auto-patch"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan-batch@1.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KOL scan batch 1 timer (01:30 UTC, staleness-partitioned)"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 01:30:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 7,
+        "text": "Unit=omnigraph-kol-scan-batch@1.service"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-evening-ingest.service.bak-pre-l9g-260707": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph evening ingest 21:00 ADT (00:00 UTC next day)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-daily-ingest.service omnigraph-afternoon-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=4G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-evening-ingest.service.bak-pre-recovery-20260608": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph evening ingest 21:00 ADT (00:00 UTC next day)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-daily-ingest.service omnigraph-afternoon-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=4G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-ingest.service.bak-pre-recovery-20260608": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily ingest 09:00 ADT (12:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-afternoon-ingest.service omnigraph-evening-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=4G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-afternoon-ingest.service.bak-vnj": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph afternoon ingest 14:00 ADT (17:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 12,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 13,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 5"
+      },
+      {
+        "line": 14,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 15,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 17,
+        "text": "[Install]"
+      },
+      {
+        "line": 18,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-dajiala-scan.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=Weekly OmniGraph dajiala KOL scan (Sunday 23:00)"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=Sun *-*-* 23:00:00"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 7,
+        "text": "RandomizedDelaySec=300"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-ingest.service.bak-pre-freq-260624": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily ingest 09:00 ADT (12:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-afternoon-ingest.service omnigraph-evening-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=10G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=12G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 5"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-afternoon-ingest.service.bak-pre-freq-260624": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph afternoon ingest 14:00 ADT (17:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-daily-ingest.service omnigraph-evening-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=10G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=12G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 5"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan-alert.service.bak-pre-scanbatch-260627": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KOL scan failure alert (ssh-hermes refresh hand-off + stale breadcrumb)"
+      },
+      {
+        "line": 4,
+        "text": "[Service]"
+      },
+      {
+        "line": 5,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 6,
+        "text": "User=root"
+      },
+      {
+        "line": 8,
+        "text": "ExecStart=/bin/bash -c 'mkdir -p /root/.hermes && date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ > /root/.hermes/wechat-session-stale'"
+      },
+      {
+        "line": 13,
+        "text": "[credential-related line omitted]"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-digest.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily digest timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-daily-digest.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 12:30:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-afternoon-ingest.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph afternoon ingest 14:00 CST (06:00 UTC) timer"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 06:00:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 8,
+        "text": "[Install]"
+      },
+      {
+        "line": 9,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-rss-layer2-classify.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily RSS Layer-2 classify timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-rss-layer2-classify.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 11:20:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-ingest.service.bak-20260813": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily ingest 09:00 ADT (12:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-afternoon-ingest.service omnigraph-evening-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=5G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=900"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-classify.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily KOL Layer-1 classify (5 topics)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_classify_kol.py --topic-file /root/OmniGraph-Vault/config/topic_keywords_2026.json --min-depth 2"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-rss-fetch.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily RSS fetch timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-rss-fetch.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 09:00:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan-batch@4.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KOL scan batch 4 timer (15:30 UTC, staleness-partitioned)"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 15:30:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 7,
+        "text": "Unit=omnigraph-kol-scan-batch@4.service"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan.service.bak-pre-scanbatch-260627": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily KOL scan (WeChat MP API)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "OnFailure=omnigraph-kol-scan-alert.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_scan_kol.py --daily"
+      },
+      {
+        "line": 13,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 14,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 16,
+        "text": "[Install]"
+      },
+      {
+        "line": 17,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-evening-ingest.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph evening ingest 21:00 ADT (00:00 UTC next day)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-daily-ingest.service omnigraph-afternoon-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=4G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/mcp-healthcheck.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=MCP pipeline health check"
+      },
+      {
+        "line": 4,
+        "text": "[Service]"
+      },
+      {
+        "line": 5,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 6,
+        "text": "ExecStart=/root/OmniGraph-Vault/scripts/mcp-healthcheck.py"
+      },
+      {
+        "line": 7,
+        "text": "User=root"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-ingest-daily-summary.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily ingest pipeline summary (Telegram digest)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 8,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 9,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python3 /root/OmniGraph-Vault/scripts/ingest_daily_summary.py"
+      },
+      {
+        "line": 10,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 11,
+        "text": "StandardError=journal"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan-batch@3.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KOL scan batch 3 timer (11:00 UTC, staleness-partitioned)"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 11:00:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 7,
+        "text": "Unit=omnigraph-kol-scan-batch@3.service"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily KOL scan (WeChat MP API)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "OnFailure=omnigraph-kol-scan-alert.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_scan_kol.py --daily"
+      },
+      {
+        "line": 13,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 14,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 16,
+        "text": "[Install]"
+      },
+      {
+        "line": 17,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/kb-api.service.bak-20260525-204145": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KB FastAPI backend"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "StartLimitBurst=5"
+      },
+      {
+        "line": 6,
+        "text": "StartLimitIntervalSec=60"
+      },
+      {
+        "line": 8,
+        "text": "[Service]"
+      },
+      {
+        "line": 9,
+        "text": "Type=simple"
+      },
+      {
+        "line": 10,
+        "text": "User=root"
+      },
+      {
+        "line": 11,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 12,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 18,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766"
+      },
+      {
+        "line": 19,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 20,
+        "text": "RestartSec=5"
+      },
+      {
+        "line": 21,
+        "text": "MemoryHigh=1.5G"
+      },
+      {
+        "line": 22,
+        "text": "MemoryMax=2G"
+      },
+      {
+        "line": 23,
+        "text": "CPUQuota=200%"
+      },
+      {
+        "line": 24,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 25,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 26,
+        "text": "NoNewPrivileges=true"
+      },
+      {
+        "line": 27,
+        "text": "PrivateTmp=true"
+      },
+      {
+        "line": 29,
+        "text": "[Install]"
+      },
+      {
+        "line": 30,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-evening-ingest.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph evening ingest 21:00 ADT (00:00 UTC next day) timer"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 00:00:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 8,
+        "text": "[Install]"
+      },
+      {
+        "line": 9,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-ingest.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph ingest every 2h (consolidated sole runner)"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 00/2:00:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 8,
+        "text": "[Install]"
+      },
+      {
+        "line": 9,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-ingest.timer.bak-pre-freq-260624": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily ingest 09:00 ADT (12:00 UTC) timer"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 12:00:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 8,
+        "text": "[Install]"
+      },
+      {
+        "line": 9,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-zombie-cleanup.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph kol zombie cleanup (pre-scan health check)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/clean_lightrag_zombies.py"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-vertex-probe.service.disabled-googlefree-20260823": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph monthly Vertex AI live probe (1st of month)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/vertex_live_probe.py"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-ingest.service.bak-pre-l9g-260707": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily ingest 09:00 ADT (12:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-afternoon-ingest.service omnigraph-evening-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=4G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-afternoon-ingest.service.bak-pre-recovery-20260608": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph afternoon ingest 14:00 ADT (17:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-daily-ingest.service omnigraph-evening-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=4G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-ingest-daily-summary.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=Daily OmniGraph ingest summary (09:00)"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 09:00:00"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 7,
+        "text": "RandomizedDelaySec=120"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-digest.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily digest"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/export_vitaclaw_agent_news.py --output /opt/vitaclaw/control-plane/vitaclaw-site/dist/data/agent-news.json"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-afternoon-ingest.service.bak-pre-l9g-260707": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph afternoon ingest 14:00 ADT (17:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-daily-ingest.service omnigraph-evening-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=4G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan-batch@2.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KOL scan batch 2 timer (05:30 UTC, staleness-partitioned)"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 05:30:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 7,
+        "text": "Unit=omnigraph-kol-scan-batch@2.service"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan-alert.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KOL scan failure alert (ssh-hermes refresh hand-off + stale breadcrumb)"
+      },
+      {
+        "line": 4,
+        "text": "[Service]"
+      },
+      {
+        "line": 5,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 6,
+        "text": "User=root"
+      },
+      {
+        "line": 8,
+        "text": "ExecStart=/bin/bash -c 'mkdir -p /root/.hermes && date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ > /root/.hermes/wechat-session-stale'"
+      },
+      {
+        "line": 13,
+        "text": "[credential-related line omitted]"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-rss-layer2-classify.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily RSS Layer-2 classify"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_classify_rss_layer2.py"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-afternoon-ingest.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph afternoon ingest 14:00 ADT (17:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-daily-ingest.service omnigraph-evening-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=4G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=500"
+      },
+      {
+        "line": 16,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 17,
+        "text": "RestartSec=10min"
+      },
+      {
+        "line": 18,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10"
+      },
+      {
+        "line": 20,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 21,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 23,
+        "text": "[Install]"
+      },
+      {
+        "line": 24,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kg-sync.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=Daily OmniGraph KG sync (02:30 CST = 18:30 UTC)"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 18:30:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 8,
+        "text": "[Install]"
+      },
+      {
+        "line": 9,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-classify.service.bak-pre-l9g-260707": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily KOL Layer-1 classify (5 topics)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target omnigraph-vertex-proxy.service"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_classify_kol.py --topic Agent --topic LLM --topic RAG --topic NLP --topic CV --min-depth 2"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-reconcile.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph reconcile ingestions (bidirectional) timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-reconcile.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 12:30:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-enrich.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph kol-enrich (STUB — see FINDING 6) timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-kol-enrich.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 11:30:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-refresh.service.bak-260711": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=oneshot"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 18,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 19,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 20,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 22,
+        "text": "[Install]"
+      },
+      {
+        "line": 23,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily KOL scan (WeChat MP API) timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-kol-scan.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 11:00:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-classify.timer.bak-pre-scanbatch-260627": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily KOL Layer-1 classify (5 topics) timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-kol-classify.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 11:15:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-translate.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph translate body cron 11:00 ADT (14:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "TimeoutStartSec=900"
+      },
+      {
+        "line": 12,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/translate_body_cron.py --limit 20"
+      },
+      {
+        "line": 13,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 14,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 16,
+        "text": "[Install]"
+      },
+      {
+        "line": 17,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-refresh.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "[credential-related line omitted]"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-kol-refresh.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 8,
+        "text": "OnCalendar=*-*-* 10:55:00 UTC"
+      },
+      {
+        "line": 9,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 11,
+        "text": "[Install]"
+      },
+      {
+        "line": 12,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-evening-ingest.service.bak-vnj": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph evening ingest 21:00 ADT (00:00 UTC next day)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 12,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 13,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 5"
+      },
+      {
+        "line": 14,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 15,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 17,
+        "text": "[Install]"
+      },
+      {
+        "line": 18,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-enrich.service": [
+      {
+        "line": 12,
+        "text": "[Unit]"
+      },
+      {
+        "line": 13,
+        "text": "Description=OmniGraph kol-enrich (STUB — see FINDING 6)"
+      },
+      {
+        "line": 14,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 15,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 17,
+        "text": "[Service]"
+      },
+      {
+        "line": 18,
+        "text": "Type=simple"
+      },
+      {
+        "line": 19,
+        "text": "User=root"
+      },
+      {
+        "line": 20,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 21,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 22,
+        "text": "ExecStart=/bin/true"
+      },
+      {
+        "line": 23,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 24,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 26,
+        "text": "[Install]"
+      },
+      {
+        "line": 27,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan-batch@.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KOL scan batch %i (WeChat MP API, staleness-partitioned)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "OnFailure=omnigraph-kol-scan-alert.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_scan_kol.py --daily --max-accounts 15"
+      },
+      {
+        "line": 13,
+        "text": "RuntimeMaxSec=1800"
+      },
+      {
+        "line": 14,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 15,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 17,
+        "text": "[Install]"
+      },
+      {
+        "line": 18,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-translate.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph translate body 11:00 ADT (14:00 UTC) timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-translate.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 14:00:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=false"
+      },
+      {
+        "line": 8,
+        "text": "Unit=omnigraph-translate.service"
+      },
+      {
+        "line": 10,
+        "text": "[Install]"
+      },
+      {
+        "line": 11,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-classify.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily KOL Layer-1 classify (5 topics) timer"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 16:00:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 8,
+        "text": "[Install]"
+      },
+      {
+        "line": 9,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-kol-scan.timer.bak-pre-scanbatch-260627": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily KOL scan (WeChat MP API) timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-kol-scan.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 11:00:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-rss-fetch.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily RSS fetch"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/enrichment/rss_fetch.py"
+      },
+      {
+        "line": 12,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 13,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 15,
+        "text": "[Install]"
+      },
+      {
+        "line": 16,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/kb-api.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KB FastAPI backend"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "StartLimitBurst=5"
+      },
+      {
+        "line": 6,
+        "text": "StartLimitIntervalSec=60"
+      },
+      {
+        "line": 8,
+        "text": "[Service]"
+      },
+      {
+        "line": 9,
+        "text": "Type=simple"
+      },
+      {
+        "line": 10,
+        "text": "User=root"
+      },
+      {
+        "line": 11,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 12,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 18,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766"
+      },
+      {
+        "line": 19,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 20,
+        "text": "RestartSec=5"
+      },
+      {
+        "line": 21,
+        "text": "MemoryHigh=1.5G"
+      },
+      {
+        "line": 22,
+        "text": "MemoryMax=2G"
+      },
+      {
+        "line": 23,
+        "text": "CPUQuota=200%"
+      },
+      {
+        "line": 24,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 25,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 26,
+        "text": "NoNewPrivileges=true"
+      },
+      {
+        "line": 27,
+        "text": "PrivateTmp=true"
+      },
+      {
+        "line": 29,
+        "text": "[Install]"
+      },
+      {
+        "line": 30,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/kb-api.service.bak-pre-perf-fix-B": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph KB FastAPI backend"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "StartLimitBurst=5"
+      },
+      {
+        "line": 6,
+        "text": "StartLimitIntervalSec=60"
+      },
+      {
+        "line": 8,
+        "text": "[Service]"
+      },
+      {
+        "line": 9,
+        "text": "Type=simple"
+      },
+      {
+        "line": 10,
+        "text": "User=root"
+      },
+      {
+        "line": 11,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 12,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 18,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv/bin/python -m uvicorn kb.api:app --host 127.0.0.1 --port 8766"
+      },
+      {
+        "line": 19,
+        "text": "Restart=on-failure"
+      },
+      {
+        "line": 20,
+        "text": "RestartSec=5"
+      },
+      {
+        "line": 21,
+        "text": "MemoryHigh=1.5G"
+      },
+      {
+        "line": 22,
+        "text": "MemoryMax=2G"
+      },
+      {
+        "line": 23,
+        "text": "CPUQuota=200%"
+      },
+      {
+        "line": 24,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 25,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 26,
+        "text": "NoNewPrivileges=true"
+      },
+      {
+        "line": 27,
+        "text": "PrivateTmp=true"
+      },
+      {
+        "line": 29,
+        "text": "[Install]"
+      },
+      {
+        "line": 30,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-rss-rescrape.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily RSS body rescrape timer"
+      },
+      {
+        "line": 3,
+        "text": "Requires=omnigraph-rss-rescrape.service"
+      },
+      {
+        "line": 5,
+        "text": "[Timer]"
+      },
+      {
+        "line": 6,
+        "text": "OnCalendar=*-*-* 09:30:00 UTC"
+      },
+      {
+        "line": 7,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-ingest.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily ingest 09:00 ADT (12:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 5,
+        "text": "Conflicts=omnigraph-afternoon-ingest.service omnigraph-evening-ingest.service"
+      },
+      {
+        "line": 7,
+        "text": "[Service]"
+      },
+      {
+        "line": 8,
+        "text": "Type=simple"
+      },
+      {
+        "line": 9,
+        "text": "User=root"
+      },
+      {
+        "line": 10,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 11,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 12,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 13,
+        "text": "MemoryHigh=3G"
+      },
+      {
+        "line": 14,
+        "text": "MemoryMax=5G"
+      },
+      {
+        "line": 15,
+        "text": "OOMScoreAdjust=900"
+      },
+      {
+        "line": 16,
+        "text": "Restart=no"
+      },
+      {
+        "line": 17,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 18,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 10 --batch-timeout 6300"
+      },
+      {
+        "line": 19,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 20,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 22,
+        "text": "[Install]"
+      },
+      {
+        "line": 23,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-evening-ingest.timer.bak-pre-freq-260624": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph evening ingest 21:00 ADT (00:00 UTC next day) timer"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 00:00:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 8,
+        "text": "[Install]"
+      },
+      {
+        "line": 9,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-ingest.service.bak-vnj": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph daily ingest 09:00 ADT (12:00 UTC)"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 11,
+        "text": "TimeoutStartSec=300"
+      },
+      {
+        "line": 12,
+        "text": "ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed"
+      },
+      {
+        "line": 13,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/batch_ingest_from_spider.py --from-db --max-articles 5"
+      },
+      {
+        "line": 14,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 15,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 17,
+        "text": "[Install]"
+      },
+      {
+        "line": 18,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-rewrite.service": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph rewrite body cron 02:30 CST (18:30 UTC) — kb-v2.3 D-14 display rewrite"
+      },
+      {
+        "line": 3,
+        "text": "After=network-online.target"
+      },
+      {
+        "line": 4,
+        "text": "Wants=network-online.target"
+      },
+      {
+        "line": 6,
+        "text": "[Service]"
+      },
+      {
+        "line": 7,
+        "text": "Type=simple"
+      },
+      {
+        "line": 8,
+        "text": "User=root"
+      },
+      {
+        "line": 9,
+        "text": "WorkingDirectory=/root/OmniGraph-Vault"
+      },
+      {
+        "line": 10,
+        "text": "EnvironmentFile=/root/.hermes/.env"
+      },
+      {
+        "line": 19,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/rewrite_body_cron.py --limit 150"
+      },
+      {
+        "line": 20,
+        "text": "RuntimeMaxSec=14400"
+      },
+      {
+        "line": 21,
+        "text": "TimeoutStopSec=120"
+      },
+      {
+        "line": 22,
+        "text": "StandardOutput=journal"
+      },
+      {
+        "line": 23,
+        "text": "StandardError=journal"
+      },
+      {
+        "line": 25,
+        "text": "[Install]"
+      },
+      {
+        "line": 26,
+        "text": "WantedBy=multi-user.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-afternoon-ingest.timer.bak-pre-freq-260624": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph afternoon ingest 14:00 CST (06:00 UTC) timer"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 06:00:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=true"
+      },
+      {
+        "line": 8,
+        "text": "[Install]"
+      },
+      {
+        "line": 9,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-rewrite.timer": [
+      {
+        "line": 1,
+        "text": "[Unit]"
+      },
+      {
+        "line": 2,
+        "text": "Description=OmniGraph rewrite body 02:30 CST (18:30 UTC) daily timer"
+      },
+      {
+        "line": 4,
+        "text": "[Timer]"
+      },
+      {
+        "line": 5,
+        "text": "OnCalendar=*-*-* 18:30:00 UTC"
+      },
+      {
+        "line": 6,
+        "text": "Persistent=false"
+      },
+      {
+        "line": 7,
+        "text": "Unit=omnigraph-rewrite.service"
+      },
+      {
+        "line": 9,
+        "text": "[Install]"
+      },
+      {
+        "line": 10,
+        "text": "WantedBy=timers.target"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-translate.service.d/override.conf": [
+      {
+        "line": 1,
+        "text": "[Service]"
+      },
+      {
+        "line": 2,
+        "text": "ExecStart="
+      },
+      {
+        "line": 3,
+        "text": "ExecStart=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/translate_body_cron.py --limit 50"
+      }
+    ],
+    "/etc/systemd/system/omnigraph-daily-ingest.service.d/override.conf": [
+      {
+        "line": 3,
+        "text": "[Service]"
+      },
+      {
+        "line": 17,
+        "text": "TimeoutStopSec=300"
+      },
+      {
+        "line": 18,
+        "text": "RuntimeMaxSec=14400"
+      }
+    ]
+  },
+  "cdp": {
+    "http://127.0.0.1:9223/json/version": {
+      "error": "URLError"
+    },
+    "http://127.0.0.1:58933/json/version": {
+      "http": 200,
+      "Browser": "Edg/152.0.4191.19",
+      "Protocol-Version": "1.3"
+    }
+  }
+}

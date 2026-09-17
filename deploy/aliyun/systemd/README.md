@@ -118,13 +118,17 @@ The three ingest units (`omnigraph-daily-ingest`, `omnigraph-afternoon-ingest`,
 `omnigraph-evening-ingest`) include:
 
 ```ini
-ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --all-failed
+ExecStartPre=/root/OmniGraph-Vault/venv-aim1/bin/python /root/OmniGraph-Vault/scripts/cleanup_stuck_docs.py --dry-run
 ```
 
-This mirrors the `cleanup_stuck_docs.py --all-failed` call that was the first step
-in `scripts/cron_daily_ingest.sh` on Hermes. It resets articles stuck in
-`status='processing'` back to `status='candidate'` before each ingest run, preventing
-stale checkpoints from blocking the batch.
+This pre-start check is read-only: it reports documents in `failed` or `processing`
+status and does not delete or reset them. It does not provide automatic recovery for
+residue left by a process death.
+
+`cleanup_stuck_docs.py --all-failed` remains an explicit operator maintenance path.
+It performs deletion, is not concurrency-safe with an active ingest pipeline, and is
+not the default automatic recovery mechanism. Run it only after the operator has
+confirmed the pipeline is inactive and selected that maintenance action.
 
 ## kol_scan.db handoff
 

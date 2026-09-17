@@ -1,0 +1,29 @@
+{
+  "timestamp_utc": "2026-09-09T13:28:48.984677+00:00",
+  "ingest_events": {
+    "code": 1,
+    "events": [],
+    "error": ""
+  },
+  "qdrant_log": {
+    "code": -1,
+    "lines_read": 2,
+    "matches": {
+      "disk_full": [],
+      "wal_error": [],
+      "io_error": [],
+      "http500": []
+    }
+  },
+  "disk_directories": {
+    "code": 1,
+    "output": "2495066112\t/var/lib/docker\n7807692800\t/var/lib/containerd\n6521012224\t/root/.hermes/omonigraph-vault\n5611843584\t/root/qdrant_storage\n5001216\t/root/.cache\n6364790784\t/root/OmniGraph-Vault\n",
+    "error": "du: cannot access '/root/vault': No such file or directory\n"
+  },
+  "docker_usage": {
+    "code": 0,
+    "output": "TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          1         1         275.3MB   0B (0%)\nContainers      1         1         1.62GB    0B (0%)\nLocal Volumes   1         0         3.134GB   3.134GB (100%)\nBuild Cache     0         0         0B        0B\n",
+    "error": ""
+  },
+  "failed_units": []
+}

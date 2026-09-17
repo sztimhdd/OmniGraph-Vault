@@ -9,6 +9,7 @@ requires-python = ">=3.11"
 # alias (no physical `omnigraph/` dir on disk), so we declare every package
 # by name and pin its source dir via `package-dir`.
 packages = [
+    "vitax",
     "lib",
     "lib.research",
     "lib.research.stages",

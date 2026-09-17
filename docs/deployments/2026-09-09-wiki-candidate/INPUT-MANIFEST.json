@@ -1,0 +1,28 @@
+{
+  "algorithm": "sha256",
+  "generated_at": "2026-09-09",
+  "host": "OH-Desktop",
+  "root": "/home/sztimhdd/.local/share/vitax-probes/vitax-vx001.H8iYB3wq/runs/vitax-single-article-lao1z1rb",
+  "files": {
+    ".vitax-single-article-owned.json": "5773f4c92b4b1380dc18683f7aa78387b01594b8b08ca23e366e8a6fc70d0902",
+    "VITAX_SINGLE_ARTICLE_PROBE.json": "e24f4195e5bd071eb48010a3fcb340ba166d7e470afe913b748945fbd397d4af",
+    "base/checkpoints/9a48146e9c29e6dd/metadata.json": "b8e4f65bf1537dbac1faae2b1822b8f1c36d81e8bdad9cc0e94984cac1cebedc",
+    "base/entity_buffer/9955937e7a_entities.json": "6353356c46ead0676d01b3ae982f639f1dd8c0f37f8c6cda385f3783fd67ec96",
+    "base/images/9955937e7a/final_content.md": "a7db6ec8f5cbc93e7a9603267159317044e59c52ade90efe51a06c653251b231",
+    "base/images/9955937e7a/metadata.json": "2806cb5bdcee7d510f458c718005b041b8e8afd2d49a8104164865f805e0885c",
+    "fresh-reader.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rag/graph_chunk_entity_relation.graphml": "c27f77e054fc309516b3e6840e0665d4f2491ec84440ef961363b26031b18768",
+    "rag/kv_store_doc_status.json": "ef2dbab47e137c8ef496e962ef973f23ea64b394a89a6f52fd1fa17ccb34fc34",
+    "rag/kv_store_entity_chunks.json": "130d6ebe522c122e26403c58fc56785fd5b0fc8401b150d3c899425c9e256a06",
+    "rag/kv_store_full_docs.json": "5379567b6a226093a52659bb59dc3f2e10394bcdf9a9a507cd77ad9cb3e45ee3",
+    "rag/kv_store_full_entities.json": "6c088b7cef338af4a701fa91ec769d3bc15b50a2bac4f19de981f72619843555",
+    "rag/kv_store_full_relations.json": "b61ce7ae2fb2f90075c56692c25bd2f70c3edd2cf7156285550258a93620d0be",
+    "rag/kv_store_llm_response_cache.json": "d2d125175bfc1391b040721b2def677fa5e233d174adf1dc4a8721457611b191",
+    "rag/kv_store_relation_chunks.json": "746c834e6a3fa6b3d1ab6ae0e6ada066a28903cc45dc56e5857bffffc2ab17b3",
+    "rag/kv_store_text_chunks.json": "b493b5e469f73f788866305034dad3c6a7214809d4a0d43ea314be0e31f61b0a",
+    "rag/vdb_chunks.json": "93b5db7bff087ca161cbc72af9de338eaa9dafb9820284fa520d4a0d6d8ef021",
+    "rag/vdb_entities.json": "febb56053de3366a682a415d2daac2fee8de977c09c13f8910d774ec5dee2a2e",
+    "rag/vdb_relationships.json": "c500763ac72b321e98a3b7e1744ac69f2be476058b8828847db9c2d55796d210",
+    "runtime.log": "a14b2968afbe94610133e857d317a10ef9649d287845864127970e2c50595ae5"
+  }
+}

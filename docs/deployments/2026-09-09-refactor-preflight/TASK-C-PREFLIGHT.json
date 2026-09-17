@@ -1,0 +1,29 @@
+{
+  "observed_at_utc": "2026-09-09T14:58:00Z",
+  "status": "BLOCKED_FOR_GLOBAL_MIGRATION",
+  "isolated_pc_single_article_e2e": "AUTHORIZED_AFTER_ISOLATION_AND_ROUTE_ACCEPTANCE",
+  "remote_access": {
+    "mode": "read_only",
+    "ssh_options": ["BatchMode=yes", "ConnectTimeout=8"],
+    "hostname_verified": {"OHPC": "OH-Desktop", "ack-node-2": "iZj1imk39yc55iZ", "ack-node-1": "ack-node-2-kg"}
+  },
+  "blockers": [
+    {"id": "kg-sync", "service": "omnigraph-kg-sync.service", "state": "failed", "latest_failure": "2026-09-09 02:31:12 CST", "category": "entity first-batch HTTP error after 3 retries"},
+    {"id": "prestart-cleanup", "service": "omnigraph-daily-ingest.service", "state": "active", "risk": "ExecStartPre deletes failed and processing docs with only advisory busy detection"}
+  ],
+  "site": {
+    "host": "ack-node-2",
+    "caddy_process": "caddy run --config /etc/caddy/Caddyfile",
+    "systemd_caddy_state": "inactive",
+    "static_root": "/opt/vitaclaw/control-plane/vitaclaw-site/dist",
+    "shared_routes": ["/kb/*", "/omnigraph/embed", "/api/trial*", "/api/vitaclaw-assistant/*", "management/control-plane paths"],
+    "recommendation": "retain old cloud VM and shared Caddy; do not implement migration yet"
+  },
+  "e2e": {
+    "entry": "scripts/bench_ingest_fixture.py",
+    "fixture": "test/fixtures/gpt55_article",
+    "not_run": true,
+    "required_before_run": ["new isolated runtime", "new database/vector namespace", "explicit non-production provider route", "1024-d embedding endpoint", "destructive-cleanup prohibition"]
+  },
+  "redaction": "No environment values, credentials, runtime data, or article content recorded."
+}

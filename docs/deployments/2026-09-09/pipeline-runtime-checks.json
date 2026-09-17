@@ -1,0 +1,25 @@
+{
+  "timestamp_utc": "2026-09-09T13:36:25.690018+00:00",
+  "checks": {
+    "embedding": {
+      "http": 200,
+      "vectors": 1,
+      "dimensions": [
+        1024
+      ]
+    },
+    "provider_account": {
+      "http": 200,
+      "is_available": true,
+      "currencies": [
+        "CNY"
+      ]
+    }
+  },
+  "model_overrides": {
+    "OMNIGRAPH_LOCAL_EMBED": "1",
+    "OMNIGRAPH_LOCAL_EMBED_URL": "http://localhost:7997/embeddings"
+  },
+  "disk": "Filesystem        1B-blocks        Used   Available Use% Mounted on\n/dev/vda3      105286258688 67679756288 33093849088  68% /\n",
+  "service_state": "MainPID=460480\nResult=success\nExecMainStartTimestamp=Wed 2026-09-09 20:00:02 CST\nExecMainExitTimestamp=n/a\nId=omnigraph-daily-ingest.service\nActiveState=active\nSubState=running\n\nMainPID=0\nResult=exit-code\nExecMainStartTimestamp=Wed 2026-09-09 02:30:00 CST\nExecMainExitTimestamp=Wed 2026-09-09 02:31:12 CST\nId=omnigraph-kg-sync.service\nActiveState=failed\nSubState=failed\n\nMainPID=0\nResult=success\nExecMainStartTimestamp=n/a\nExecMainExitTimestamp=n/a\nId=omni-kb-api.service\nActiveState=inactive\nSubState=dead\n\nMainPID=0\nResult=success\nExecMainStartTimestamp=n/a\nExecMainExitTimestamp=n/a\nId=omni-mcp.service\nActiveState=inactive\nSubState=dead\n"
+}
