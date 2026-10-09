@@ -1,3 +1,5 @@
+> 实现参考：模型、路径与命令使用前查当前代码。本文件不新增产品要求、阶段门或付费操作；工作范围按[当前方案](../docs/spec/VITAX_HOBBY_TDD.md)。
+
 # OmniGraph-Vault Skill Packaging Guide
 
 Contributor-facing condensed guide for building SkillHub-ready skills.

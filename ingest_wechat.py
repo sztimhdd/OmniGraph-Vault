@@ -1202,8 +1202,12 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
     Returns:
         asyncio.Task: handle for the background Vision worker when images were
             present and the worker was spawned.
-        None: if zero images OR cache-hit branch (descriptions already
-            embedded in cached final_content.md) OR error before spawn.
+        None: zero images OR cache-hit branch — the parent doc is verified
+            ingested in both cases (descriptions, when any, are already
+            embedded in the cached final_content.md). Genuine failures
+            (scrape failure, PROCESSED-verification failure, short body)
+            RAISE so callers never mistake a failed doc for a
+            success-with-no-vision-task.
     """
     print(f"--- Starting Ingestion: {url} ---")
 
@@ -1256,24 +1260,26 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
                 f"MIN_INGEST_BODY_LEN={MIN_INGEST_BODY_LEN} (url={url[:80]})"
             )
 
+        # MVP-06: define doc_id BEFORE the try so the post-insert verification
+        # can reference it even if get_rag() raises.
+        # D-09.05: deterministic doc_id lets rollback remove partial state on timeout.
+        # Phase 19 SCH-02 (Rule 1 auto-fix): tracker key is ckpt_hash (SHA-256[:16])
+        # to match batch_ingest_from_spider.py:275 which now uses get_article_hash(url).
+        # The doc_id value still uses article_hash (MD5[:10]) — image-dir namespace
+        # preserved. Only the registry key changed; the value is opaque.
+        # Phase quick-260510-uai: doc_id prefix is parameterized by `source`
+        # (default 'wechat'); RSS dispatch produces `rss_<hash>`.
+        doc_id = f"{source or 'wechat'}_{article_hash}"
         try:
             if rag is None:
                 # D-09.07 / D-09.04: flush=True → fresh instance, no replay of prior pending buffer.
                 rag = await get_rag(flush=True)
-            # D-09.05: deterministic doc_id lets rollback remove partial state on timeout.
-            # Phase 19 SCH-02 (Rule 1 auto-fix): tracker key is ckpt_hash (SHA-256[:16])
-            # to match batch_ingest_from_spider.py:275 which now uses get_article_hash(url).
-            # The doc_id value still uses article_hash (MD5[:10]) — image-dir namespace
-            # preserved. Only the registry key changed; the value is opaque.
-            # Phase quick-260510-uai: doc_id prefix is parameterized by `source`
-            # (default 'wechat'); RSS dispatch produces `rss_<hash>`.
-            doc_id = f"{source or 'wechat'}_{article_hash}"
             _register_pending_doc_id(ckpt_hash, doc_id)
             # Quick 260517-rgd-2: route via _ainsert_with_402_fallback so a
             # DeepSeek 402 mid-extraction degrades to text-only (sidecar marker
             # written) rather than failing the cache-hit path. Non-402 errors
-            # still raise and get caught by the outer except below (preserving
-            # existing swallow behavior for unexpected failures).
+            # re-raise out of the helper and are re-raised again below — see
+            # MVP-06 P1.
             await _ainsert_with_402_fallback(
                 rag, doc_id, full_content, ckpt_hash
             )
@@ -1282,7 +1288,20 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
             # then calls _clear_pending_doc_id() itself.
             _clear_pending_doc_id(ckpt_hash)
         except Exception as e:
+            # MVP-06 P1: a failed (re)insert must NOT be masked by a stale
+            # PROCESSED status left by an earlier run. Log, then re-raise so the
+            # outer orchestrator marks the row failed and the mig-009 retry pool
+            # re-queues. 402 graceful-degrade is handled INSIDE
+            # _ainsert_with_402_fallback (it returns, does not raise).
             print(f"LightRAG insert failed: {e}")
+            raise
+
+        # MVP-06: verify the cached parent doc actually persisted — mirrors the
+        # fresh-path gate at ``_verify_doc_processed_or_raise`` below. Makes this
+        # None return truthfully mean "doc ingested, no Vision task": a real
+        # failure raises, and the outer batch orchestrator marks the row failed
+        # for the mig-009 retry pool.
+        await _verify_doc_processed_or_raise(rag, doc_id)
 
         print(f"✅ Cached article processed (scrape skipped)")
         # D-10.05: cache-hit path has descriptions already embedded in the
@@ -1354,7 +1373,13 @@ async def ingest_article(url, *, source: str = "wechat", rag=None) -> "asyncio.T
 
         if not article_data:
             print("Scraping failed (both Apify and browser fallback).")
-            return
+            # MVP-06: a scrape failure is a REAL failure, not the
+            # "success-with-no-vision-task" None. RAISE so the outer
+            # batch_ingest_from_spider orchestrator's except path marks the row
+            # failed instead of silently counting it as ingested.
+            raise RuntimeError(
+                f"Scrape failed (UA/Apify/CDP/MCP returned no article): {url[:80]}"
+            )
 
         # Persist scrape stage: write raw HTML blob (apify returns markdown, so
         # wrap it into a minimal HTML shell for uniform resume-parse path).

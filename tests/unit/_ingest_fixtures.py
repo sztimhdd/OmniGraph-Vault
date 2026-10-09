@@ -273,6 +273,10 @@ def patch_layer_funcs(
     monkeypatch.setattr(logging, "basicConfig", lambda *a, **kw: None)
 
     monkeypatch.setattr(bi, "SLEEP_BETWEEN_ARTICLES", 0)
+    if not isinstance(bi._wiki_update_check, AsyncMock):
+        monkeypatch.setattr(bi, "_wiki_update_check", AsyncMock(return_value={}))
+    import lib.translate
+    monkeypatch.setattr(lib.translate, "translate_title_with_deepseek_tavily", AsyncMock(return_value=None))
 
     return {
         "layer1": layer1_mock,

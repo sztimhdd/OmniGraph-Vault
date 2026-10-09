@@ -1,0 +1,27 @@
+#!/bin/sh
+# VitaX producer entry. Copy to /root/.vitax-local-automation/producer (0700).
+# One bounded refresh on the collector, then publish the new release to the reader.
+set -eu
+CODE="${VITAX_CODE:-/root/OmniGraph-Vault}"
+RUNTIME="${VITAX_ROOT:-/root/.vitax-local-automation/runtime}"
+BASE_DB="${VITAX_BASE_DATABASE:-/root/.vitax-local-automation/base/public.sqlite}"
+PY="${VITAX_PYTHON:-$CODE/venv-aim1/bin/python}"
+# The reused venv preloads lib for atomic writes before the script starts.
+export OMNIGRAPH_REPO_ROOT="$CODE"
+# A trusted prebuilt SPA is copied by the builder when present; otherwise the
+# default npm build + prerender path runs. Never build with npm on the collector.
+if [ -d "$CODE/vitax-site/dist" ]; then
+  export VITAX_PREBUILT_SITE="$CODE/vitax-site/dist"
+fi
+# Business keys stay in the collector's own /root/.hermes/.env. Never set
+# OMNIGRAPH_LOAD_ENV=0 here: config.py would skip loading them.
+cd "$CODE"
+# A failed batch still promotes the articles it accepted, so publish either way;
+# the exit status stays visible to systemd and the journal.
+status=0
+"$PY" "$CODE/scripts/refresh_vitax_local.py" --root "$RUNTIME" --base-database "$BASE_DB" --backfill --backfill-lane D --queue 50 || status=$?
+# Refresh the existing free search index and incrementally copy captured media.
+OMNIGRAPH_REPO_ROOT=/root/OmniGraph-Vault "$PY" -m kb.scripts.rebuild_fts --db /root/OmniGraph-Vault/data/kol_scan.db || status=$?
+rsync -az --timeout=120 -e 'ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o HostKeyAlias=47.103.73.20' /root/.hermes/omonigraph-vault/images/ root@172.18.12.150:/root/vitax-mvp/media/ || status=$?
+"$PY" "$CODE/scripts/publish_vitax_release.py" --root "$RUNTIME" || status=$?
+exit "$status"

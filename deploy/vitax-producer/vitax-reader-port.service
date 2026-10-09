@@ -1,0 +1,13 @@
+[Unit]
+Description=VitaX public reader port 8767 to internal 8788
+After=network.target
+Before=vitax-reader.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c '/usr/sbin/iptables -t nat -C PREROUTING -p tcp --dport 8767 -m comment --comment vitax-reader -j REDIRECT --to-ports 8788 2>/dev/null || exec /usr/sbin/iptables -t nat -I PREROUTING 1 -p tcp --dport 8767 -m comment --comment vitax-reader -j REDIRECT --to-ports 8788'
+ExecStop=-/usr/sbin/iptables -t nat -D PREROUTING -p tcp --dport 8767 -m comment --comment vitax-reader -j REDIRECT --to-ports 8788
+
+[Install]
+WantedBy=multi-user.target

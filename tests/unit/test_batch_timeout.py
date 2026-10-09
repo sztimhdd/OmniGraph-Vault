@@ -27,20 +27,19 @@ def test_clamp_kicks_in_late_batch() -> None:
     assert clamp_article_timeout(900, 500, 60) == 440
 
 
-def test_boundary_effective_budget_zero_uses_half_timeout() -> None:
-    # remaining=60, safety=60 → effective=0 → half-timeout branch.
-    # max(60, int(900*0.5)) = max(60, 450) = 450.
-    assert clamp_article_timeout(900, 60, 60) == 450
+def test_boundary_preserves_finalization_margin() -> None:
+    # No new work can consume the finalization reserve.
+    assert clamp_article_timeout(900, 60, 60) == 0
 
 
-def test_budget_overrun_half_timeout_fallback() -> None:
-    # remaining=30 < safety_margin=60 → effective negative → half-timeout branch.
-    assert clamp_article_timeout(900, 30, 60) == 450
+def test_budget_overrun_starts_no_work() -> None:
+    # An overrun must not grant fresh execution time.
+    assert clamp_article_timeout(900, 30, 60) == 0
 
 
-def test_half_timeout_floors_at_60() -> None:
-    # single_timeout=60, effective<=0 → max(60, int(60*0.5)) = max(60, 30) = 60.
-    assert clamp_article_timeout(60, 30, 60) == 60
+def test_expired_budget_has_no_floor() -> None:
+    # The article floor cannot override the batch deadline.
+    assert clamp_article_timeout(60, 30, 60) == 0
 
 
 def test_single_timeout_wins_when_smaller() -> None:
@@ -55,18 +54,24 @@ def test_custom_safety_margin() -> None:
 
 def test_get_remaining_budget_positive() -> None:
     # batch_start slightly in the past, budget large → positive float returned.
-    start = time.time() - 10  # 10s ago
+    start = time.monotonic() - 10  # 10s ago
     remaining = get_remaining_budget(start, 3600)
     assert 3580 < remaining <= 3600  # allow clock-tick jitter
 
 
 def test_get_remaining_budget_floors_at_zero() -> None:
     # batch_start far in the past → elapsed > budget → floored at 0.
-    start = time.time() - 10_000
+    start = time.monotonic() - 10_000
     assert get_remaining_budget(start, 3600) == 0.0
 
 
 def test_get_remaining_budget_returns_float() -> None:
-    start = time.time()
+    start = time.monotonic()
     remaining = get_remaining_budget(start, 3600)
     assert isinstance(remaining, float)
+
+
+def test_wall_clock_jump_cannot_restore_budget(monkeypatch):
+    monkeypatch.setattr(time, "monotonic", lambda: 200)
+    monkeypatch.setattr(time, "time", lambda: -10000)
+    assert get_remaining_budget(100, 100) == 0

@@ -1,3 +1,5 @@
+> 历史记录：只供查实现和当时结果；旧审核要求、执行限制和下一步指令已被[当前需求](spec/VITAX_HOBBY_PRD.md)与[批处理计划](superpowers/plans/2026-10-04-vitax-next-stage.md)替代。
+
 # 本地真实知识生产切片
 
 范围是 VX-004 的可运行离线生产切片：它读取已经抓取并保留的 HTML，生成标准文档修订，调用一次有界 Hermes 任务或接收一份实际保存的输出，严格核验引用后调用 `vitax.knowledge.build` 创建全新的公开 SQLite。它不抓取 URL、不安装依赖、不发布、不改现有知识库或运行时数据。

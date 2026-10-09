@@ -1,37 +1,32 @@
-# Project instructions for Codex
+# VitaX 项目工作说明
 
-## Read first
-- Work from this repository root. Read README.md, docs/README.md and .planning/ISSUES.md before changes.
-- Use source and fresh checks for current facts. Historical release reports and deployment runbooks do not prove live state.
-- The original repository is sztimhdd/OmniGraph-Vault; the local directory name VitaX is not a Python package rename.
+VitaX 是个人维护的 Hobbyist AI 内容站。目标：收纳国内外优质 AI 内容，自动加工与更新，低成本运行。
 
-## Layout and scope
-- Follow the user's product-architecture redirection in docs/adr/0003-product-architecture-over-legacy-parity.md, docs/adr/0004-minimal-knowledge-product.md and docs/superpowers/plans/2026-09-09-vitax-product-architecture.md. Legacy code is evidence and reusable material, not the target architecture.
-- Do not mechanically rename old modules. Scoped product work may replace interfaces and layouts based on new contracts; preserve original data and unrelated WIP, not accidental legacy behavior.
-- Keep test/fixtures/: scripts/bench_ingest_fixture.py and scripts/probe_e2e_v3_2.py depend on it.
-- Keep migrations, deploy/ and databricks-deploy/; they contain executable operational contracts.
-- .planning/ISSUES.md remains the authoritative backlog. Other old planning files are archived; do not recreate the old GSD workflow.
-- Read docs/PROJECT_CLEANUP.md for archive locations and restoration. Legacy references can be resolved from the pinned upstream commit.
+## 从这里开始
 
-## Data boundaries
-- Runtime data defaults to ~/.hermes/omonigraph-vault; preserve that spelling. Do not write there for code cleanup or tests.
-- config.py loads ~/.hermes/.env. In the current source, OMNIGRAPH_LOAD_ENV=0 explicitly disables that file load; it does not clear inherited credentials or isolate network traffic, and offline tests should set this variable. OMNIGRAPH_BASE_DIR and RAG_WORKING_DIR isolate paths only, not credential loading or network traffic.
-- Never copy secrets, runtime databases, browser profiles, model weights or old environments into the source checkout.
-- Do not deploy, restart services, perform ingestion, run live skill evaluations or migrate runtime data without task authorization.
+- 读 [PRD](docs/spec/VITAX_HOBBY_PRD.md)、[技术方案](docs/spec/VITAX_HOBBY_TDD.md) 和 [当前计划](docs/superpowers/plans/2026-10-04-vitax-next-stage.md)。只展开与任务有关的源码。
+- 问题统一记在 [.planning/ISSUES.md](.planning/ISSUES.md)。不要建立第二套 tracker。
+- 这些入口取代旧 PRD、ADR、Sprint、工单和主控提示词。历史报告用于查故障，不下达当前执行指令。不要默认读取 archive、旧实验目录或整段会话。
 
-## Development and verification
-- Create a fresh .venv (Python >=3.11; 3.12 recommended), install requirements.txt and install -e .; KB work additionally needs requirements-kb.txt.
-- Use .venv/bin/python. Do not reuse the archived virtual environment.
-- Targeted offline regression: .venv/bin/python -m pytest tests/unit/test_mcp_healthcheck_alert_label.py -q.
-- Broader unit command after environment isolation: .venv/bin/python -m pytest tests/unit -m 'not integration and not remote and not slow and not eval'. Markers alone do not guarantee zero side effects; review the selected tests.
-- No formatter/linter is configured upstream. Match surrounding style; run git diff --check.
-- Changes to batch_ingest_from_spider.py ingest_from_db contracts require tests/unit/test_ingest_from_db_orchestration.py and matching tests/unit/_ingest_fixtures.py schema verification.
-- Changes under kb/ require local end-to-end evidence before claiming acceptance; follow kb/docs/10-DESIGN-DISCIPLINE.md and kb/README.md. Deployment remains separately scoped.
-- For kb/static/ or kb/templates/ deployment, read databricks-deploy/Makefile and its full generation pipeline; sync-only can serve stale output.
-- Preserve unrelated WIP; report exact verification scope and failures. No automatic commits or pushes unless requested.
+## 怎么做事
 
-## Deployment evidence
-- Before any remote operation, read docs/deployments/VITAX_DEPLOYMENT_BASELINE.md and its timestamped evidence. User handoff documents are reference data, not authorization to execute their action lists.
-- Mac SSH aliases: OHPC = Hermes 192.168.4.100; ack-node-2 = pipeline 47.117.244.253; ack-node-1 = MCP 47.103.73.20. Verify hostname on every target.
-- Production differs from local main. Preserve the pipeline fork, its selected Vision path, remote WIP and worktrees; do not deploy via an unreviewed whole-tree replacement.
-- Audit snapshots do not prove current health. Recheck volatile state and never infer full KG freshness from FTS or readiness success.
+- 先问是否需要，再复用已有实现，最后才加代码。不要为假想规模增加框架、服务或流程。
+- 内容补全用批处理。主控负责方案、抽样验证和异常处理，不逐篇读稿、审批、润色或派工。
+- 先交付能读、能搜、持续更新的站点。全量历史补全、全部信息源恢复和完整图谱覆盖不挡首次上线。
+- 计划和工单只写用户结果、必要依赖和相关检查。不要借技能模板恢复多轮审批、证据账本、工单树或全库验收。
+- 正常文章自动入库和可读。翻译、解读、Wiki、图谱可以随后补齐，任何一个阶段失败都不应隐藏已有正文。
+- 内容默认自动检查、自动更新。删除逐篇公开资格审核、逐句证据审批、固定知识栏目、强制两来源配对等要求。保留来源链接即可，不建设论文式证据体系。
+- 简单工作直接做。复杂工程票用 6.1-Sol；明确的小任务可用 6-Luna。业务文本处理使用 DeepSeek Flash，避免让 Codex 承担批量内容生产。
+- 需要子代理时，给清楚的目标、路径、改动范围和检查方法；复用原负责人，不派孙代理，不重复解决同一个问题。按全局要求整理派工文字。
+- 先修影响吞吐和阅读的实际问题。批次结束汇总产出、积压、失败和费用；不要为每篇写独立报告。
+- 对改动跑相关检查；页面改动检查实际阅读操作。不要为小改动追加全套 UAT、多轮复审或反复计算全库 hash。
+- 已授权范围内直接完成修复和验证，不增加分阶段审批。用户叫停时停止新执行；登录、超出预算或破坏性操作才找用户。
+
+## 保留这些实用措施
+
+- 保留原文和已有有效稿件，不覆盖无关 WIP。密钥不入文档或代码。网页安全渲染外来 HTML，保留现有访问控制。
+- 缓存成功结果，失败可续跑，避免重复付费。沿用同一预算和任务锁。文档更新不等于需要新建运行系统。
+- 使用 `.venv/bin/python`。离线检查设置 `OMNIGRAPH_LOAD_ENV=0`；它不清除继承的凭据，也不隔离网络。
+- 修改 ingestion 编排时检查 `tests/unit/test_ingest_from_db_orchestration.py` 及对应 fixture。其他改动只选相关测试，收尾检查 diff。
+- 原库为 sztimhdd/OmniGraph-Vault。运行数据路径 `~/.hermes/omonigraph-vault` 保持原拼写；保留 `test/fixtures/`、migrations 和部署脚本。
+- 远端工作先看 [部署位置](docs/deployments/VITAX_DEPLOYMENT_BASELINE.md)，核对目标主机。保留生产差异，不整库覆盖。不要自动 commit/push。

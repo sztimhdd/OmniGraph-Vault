@@ -127,6 +127,8 @@ def test_feed_level_fault_tolerance_and_error_count(fresh_db: Path) -> None:
          patch("enrichment.rss_fetch.time.sleep", return_value=None):
         stats = rss_fetch.run(max_feeds=None, dry_run=False, db_path=fresh_db)
 
+    assert stats["status"] == "partial"
+    assert rss_fetch.exit_status(stats) == 2
     assert stats["feeds_ok"] == 1
     assert stats["feeds_fail"] == 1
     assert stats["articles_inserted"] == 1
@@ -177,3 +179,17 @@ def test_dry_run_writes_nothing(fresh_db: Path) -> None:
     conn.close()
     assert n == 0
     assert last is None
+
+
+def test_insert_failure_is_reported_and_success_is_committed(fresh_db: Path) -> None:
+    with sqlite3.connect(fresh_db) as conn:
+        conn.execute("CREATE TRIGGER reject_bad BEFORE INSERT ON rss_articles WHEN NEW.title='bad' BEGIN SELECT RAISE(FAIL,'synthetic bad row'); END")
+    entries = [_entry("https://a.example/good", "good", EN_BODY_LONG),
+               _entry("https://a.example/bad", "bad", EN_BODY_LONG)]
+    with patch("enrichment.rss_fetch.feedparser.parse", return_value=_fake_feedparser_result(entries)), \
+         patch("enrichment.rss_fetch.time.sleep", return_value=None):
+        stats = rss_fetch.run(None, False, fresh_db)
+    assert stats["status"] == "partial" and rss_fetch.exit_status(stats) == 2
+    assert stats["articles_inserted"] == 1 and stats["articles_failed"] == 1
+    with sqlite3.connect(fresh_db) as conn:
+        assert conn.execute("SELECT count(*) FROM rss_articles").fetchone()[0] == 1

@@ -218,6 +218,37 @@ async def test_drain_unpacks_8_col_tuple_with_image_count(
 
 
 @pytest.mark.asyncio
+async def test_limited_batch_processes_both_sources_before_second_wechat(monkeypatch, tmp_path):
+    """A two-item budget cannot be consumed by WeChat while RSS is ready."""
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.setattr(bi, "PROJECT_ROOT", tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir()
+    for i in (1, 2, 3):
+        seed_kol_article(conn, art_id=i, body="synthetic original " * 50,
+                         layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1)
+    seed_rss_article(conn, art_id=1, body="synthetic RSS original " * 50,
+                     layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1)
+    handles = patch_layer_funcs(
+        monkeypatch,
+        layer1_results=[FilterResult(verdict="candidate", reason="synthetic", prompt_version=PROMPT_VERSION_LAYER1) for _ in range(4)],
+        scrape_result=ScrapeResult(markdown="synthetic original evidence " * 50, method="fixture"),
+        ingest_outcome=(True, 1.0, True),
+    )
+    monkeypatch.setattr(bi, "_wiki_update_check", AsyncMock(return_value={}))
+    monkeypatch.setattr("lib.translate.translate_title_with_deepseek_tavily", AsyncMock(return_value=None))
+    monkeypatch.setattr(bi, "LAYER2_BATCH_SIZE", 5)
+    async def scored(articles):
+        return [FilterResult(verdict="ok", reason="synthetic depth", prompt_version=PROMPT_VERSION_LAYER2) for _ in articles]
+    monkeypatch.setattr(bi, "layer2_full_body_score", AsyncMock(side_effect=scored))
+    await bi.ingest_from_db("ai", False, max_articles=2)
+    assert {(r[1], r[0], r[2]) for r in _ingestion_rows(conn)} == {
+        ("wechat", 1, "ok"), ("rss", 1, "ok")
+    }
+    assert [call.args[0] for call in handles["ingest_article"].call_args_list] == ["wechat", "rss"]
+
+
+@pytest.mark.asyncio
 async def test_max_articles_cap_includes_queued_count(
     monkeypatch, tmp_path: Path
 ):
@@ -655,8 +686,10 @@ async def test_wiki_hook_receives_only_ok_doc_confirmed_source_refs(
     # Behavior 4: TimeoutError isolation — a timed-out hook never aborts
     # ingest_from_db; per-article ingestions rows still persist.
     async def _raise_timeout(coro, timeout=None):
-        coro.close()
-        raise asyncio.TimeoutError()
+        if timeout == 120:
+            coro.close()
+            raise asyncio.TimeoutError()
+        return await real_wait_for(coro, timeout=timeout)
 
     monkeypatch.setattr(asyncio, "wait_for", _raise_timeout)
 
@@ -1394,3 +1427,47 @@ async def test_t6_bridge_virgin_candidate_layer1_once_then_ready(
         f"clearing layer1_reason must re-arm the Layer 1 path; "
         f"got {tick2_layer1.call_count} calls"
     )
+
+
+@pytest.mark.asyncio
+async def test_deadline_exhausted_after_layer2_starts_no_ingest(monkeypatch, tmp_path):
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.setattr(bi, "PROJECT_ROOT", tmp_path)
+    seed_kol_article(conn, art_id=1, body="synthetic " * 100,
+                     layer1_verdict="candidate", layer1_prompt_version=PROMPT_VERSION_LAYER1)
+    handles = patch_layer_funcs(monkeypatch, layer1_results=[
+        FilterResult(verdict="candidate", reason="ok", prompt_version=PROMPT_VERSION_LAYER1)], layer2_results=[
+        FilterResult(verdict="ok", reason="depth=2", prompt_version=PROMPT_VERSION_LAYER2)])
+    remaining = [1000]
+    monkeypatch.setattr(bi, "get_remaining_budget", lambda *args: remaining[0])
+    async def consume_budget(*args):
+        remaining[0] = 60
+        return [FilterResult(verdict="ok", reason="depth=2", prompt_version=PROMPT_VERSION_LAYER2)]
+    monkeypatch.setattr(bi, "layer2_full_body_score", consume_budget)
+    await bi.ingest_from_db("ai", False, batch_timeout=1000)
+    handles["ingest_article"].assert_not_awaited()
+    handles["rag"].finalize_storages.assert_awaited_once()
+    assert _ingestion_rows(conn) == []
+
+
+@pytest.mark.asyncio
+async def test_slow_title_translation_keeps_completed_ingestion(monkeypatch, tmp_path):
+    conn = _wire_db(monkeypatch, tmp_path)
+    monkeypatch.setattr(bi, "PROJECT_ROOT", tmp_path)
+    seed_kol_article(conn, art_id=1, body="synthetic " * 100)
+    handles = patch_layer_funcs(monkeypatch, layer1_results=[
+        FilterResult(verdict="candidate", reason="ok", prompt_version=PROMPT_VERSION_LAYER1)],
+        layer2_results=[FilterResult(verdict="ok", reason="depth=2", prompt_version=PROMPT_VERSION_LAYER2)])
+    import lib.translate
+    async def slow_translation(*args, **kwargs):
+        await asyncio.sleep(1)
+    monkeypatch.setattr(lib.translate, "translate_title_with_deepseek_tavily", slow_translation)
+    remaining = [1000]
+    async def completed(*args, **kwargs):
+        remaining[0] = 60.01
+        return True, 0.5, True
+    monkeypatch.setattr(bi, "get_remaining_budget", lambda *args: remaining[0])
+    monkeypatch.setattr(bi, "ingest_article", completed)
+    await bi.ingest_from_db("ai", False, batch_timeout=1000)
+    assert _status_counts(conn) == {"ok": 1}
+    handles["rag"].finalize_storages.assert_awaited_once()

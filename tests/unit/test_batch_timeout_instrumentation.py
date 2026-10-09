@@ -64,6 +64,7 @@ _EXPECTED_KEYS = {
     "completed_articles",
     "timed_out_articles",
     "not_started_articles",
+    "attempted_articles",
     "avg_article_time_sec",
     "timeout_histogram",
     "clamped_timeouts",
@@ -74,7 +75,7 @@ _EXPECTED_KEYS = {
 def test_metrics_has_all_11_top_level_keys() -> None:
     metrics = b._build_batch_timeout_metrics(
         total_budget=3600,
-        batch_start=time.time() - 100,
+        batch_start=time.monotonic() - 100,
         completed_times=[50.0, 60.0, 70.0],
         total_articles=5,
         timed_out=1,
@@ -88,7 +89,7 @@ def test_metrics_has_all_11_top_level_keys() -> None:
 def test_metrics_avg_article_time_is_null_when_zero_completed() -> None:
     metrics = b._build_batch_timeout_metrics(
         total_budget=3600,
-        batch_start=time.time() - 10,
+        batch_start=time.monotonic() - 10,
         completed_times=[],
         total_articles=5,
         timed_out=0,
@@ -103,7 +104,7 @@ def test_metrics_avg_article_time_is_null_when_zero_completed() -> None:
 def test_metrics_avg_article_time_matches_mean() -> None:
     metrics = b._build_batch_timeout_metrics(
         total_budget=3600,
-        batch_start=time.time() - 100,
+        batch_start=time.monotonic() - 100,
         completed_times=[50.0, 60.0, 70.0],
         total_articles=3,
         timed_out=0,
@@ -120,7 +121,7 @@ def test_metrics_not_started_computed_correctly() -> None:
     # 10 total, 5 completed, 2 timed out → 3 not_started
     metrics = b._build_batch_timeout_metrics(
         total_budget=3600,
-        batch_start=time.time() - 100,
+        batch_start=time.monotonic() - 100,
         completed_times=[10.0] * 5,
         total_articles=10,
         timed_out=2,
@@ -134,7 +135,7 @@ def test_metrics_not_started_computed_correctly() -> None:
 def test_metrics_safety_margin_triggered_flag_preserved() -> None:
     metrics = b._build_batch_timeout_metrics(
         total_budget=3600,
-        batch_start=time.time() - 100,
+        batch_start=time.monotonic() - 100,
         completed_times=[50.0],
         total_articles=1,
         timed_out=0,
@@ -144,3 +145,9 @@ def test_metrics_safety_margin_triggered_flag_preserved() -> None:
     )
     assert metrics["safety_margin_triggered"] is True
     assert metrics["clamped_timeouts"] == 1
+
+
+def test_attempted_skipped_rows_are_not_reported_as_unstarted():
+    metrics=b._build_batch_timeout_metrics(total_budget=6300,batch_start=time.monotonic(),completed_times=[],total_articles=8,timed_out=0,clamped_count=0,safety_margin_triggered=False,histogram={},attempted_count=8)
+    assert metrics['not_started_articles']==0
+    assert metrics['attempted_articles']==8

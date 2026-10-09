@@ -1,0 +1,23 @@
+[Unit]
+Description=VitaX producer: one bounded local refresh, then publish to the reader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/OmniGraph-Vault
+# Business keys stay in the collector's own /root/.hermes/.env, which config.py
+# loads when OMNIGRAPH_LOAD_ENV is unset. Do NOT set OMNIGRAPH_LOAD_ENV=0 here:
+# that makes the producer run without credentials.
+TimeoutStartSec=3600
+MemoryHigh=5G
+MemoryMax=6G
+OOMScoreAdjust=900
+Restart=no
+ExecStart=/root/.vitax-local-automation/producer
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

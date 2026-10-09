@@ -64,6 +64,14 @@ async def run(
     # ``additional_chunks`` (kg_search findings) surfaced when Reasoner ran
     # successfully — gated on status="ok" so a failed Reasoner doesn't leak
     # partial chunks into ``result.sources``.
+    #
+    # MVP-06: also merge the OTHER successful upstream stages that already
+    # carry ``Source`` objects — WebBaseline snippets and Verifier external
+    # citations. Reuses the existing Source dataclass (no new schema, no
+    # fabricated evidence); ordering follows pipeline stage order so the [n]
+    # citation numbering stays deterministic.
+    if state.web_baseline is not None and state.web_baseline.status == "ok":
+        sources.extend(state.web_baseline.snippets)
     if state.retrieved is not None and state.retrieved.status == "ok":
         sources.extend(state.retrieved.chunks)
     if (
@@ -72,6 +80,8 @@ async def run(
         and state.reasoned.additional_chunks
     ):
         sources.extend(state.reasoned.additional_chunks)
+    if state.verified is not None and state.verified.status == "ok":
+        sources.extend(state.verified.external_citations)
 
     # ar-2 image collection: prefer ``reasoned.analyzed_images`` (caption-
     # anchored), fall back to ``retrieved.image_candidates`` with filename

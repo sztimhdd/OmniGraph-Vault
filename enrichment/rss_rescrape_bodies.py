@@ -9,6 +9,7 @@ Intended: daily cron after rss-fetch (06:00), before classify/ingest.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sqlite3
 import sys
@@ -54,6 +55,7 @@ async def main() -> int:
     if not rows:
         logger.info("No candidate articles with missing body — nothing to do.")
         conn.close()
+        print(json.dumps({"status": "ok", "attempted": 0, "rescued": 0, "failed": 0, "remaining": 0}))
         return 0
 
     logger.info("Found %d candidate(s) with NULL body", len(rows))
@@ -77,9 +79,15 @@ async def main() -> int:
 
         await asyncio.sleep(DELAY_S)
 
+    remaining = conn.execute(
+        "SELECT count(*) FROM rss_articles WHERE layer1_verdict='candidate' AND body IS NULL"
+    ).fetchone()[0]
     conn.close()
     logger.info("Done: rescued %d/%d", rescued, len(rows))
-    return 0
+    failed = len(rows) - rescued
+    status = "ok" if not failed and not remaining else "partial" if rescued else "failed"
+    print(json.dumps({"status": status, "attempted": len(rows), "rescued": rescued, "failed": failed, "remaining": remaining}))
+    return {"ok": 0, "partial": 2, "failed": 1}[status]
 
 
 if __name__ == "__main__":

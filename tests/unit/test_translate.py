@@ -104,6 +104,24 @@ def _make_translate_test_db(tmp_path):
     return conn
 
 
+@pytest.mark.asyncio
+async def test_cron_partial_fields_are_not_full_success_and_keep_saved_body(tmp_path, monkeypatch):
+    import argparse
+    import logging
+    from scripts import translate_body_cron as cron
+    conn = _make_translate_test_db(tmp_path)
+    for table in ("articles", "rss_articles"):
+        conn.execute(f"INSERT INTO {table}(id,title,body,layer1_verdict,layer2_verdict,layer2_at) VALUES(1,'synthetic title','synthetic original','candidate','ok','2026-10-02')")
+    conn.commit()
+    monkeypatch.setattr(cron, "_resolve_db_path", lambda: tmp_path / "test.db")
+    monkeypatch.setattr("lib.translate.translate_body_with_deepseek_tavily", AsyncMock(return_value={"body_translated":"保存的中文译文", "lang":"zh-CN"}))
+    monkeypatch.setattr("lib.translate.translate_title_with_deepseek_tavily", AsyncMock(return_value=None))
+    assert await cron._run(argparse.Namespace(limit=2, dry_run=False), logging.getLogger('synthetic')) == 2
+    for table in ("articles", "rss_articles"):
+        assert conn.execute(f'SELECT body,body_translated,title_translated FROM {table}').fetchone() == ('synthetic original','保存的中文译文',None)
+    conn.close()
+
+
 def test_select_candidate_rows_skips_fully_translated(tmp_path):
     """SELECT excludes rows where BOTH body_translated AND title_translated are set.
 
@@ -260,7 +278,7 @@ async def test_translate_one_row_title_failure_does_not_block_body(tmp_path):
             row, conn, dry_run=False, logger=logging.getLogger("test"),
         )
 
-    assert result == "ok", "must return 'ok' when at least one path succeeds"
+    assert result == "partial", "a saved body is retained, but the missing title is not full success"
     db_row = conn.execute(
         "SELECT body_translated, title_translated FROM articles WHERE id=99"
     ).fetchone()

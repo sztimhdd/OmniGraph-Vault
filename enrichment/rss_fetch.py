@@ -103,8 +103,8 @@ def _fetch_feed(xml_url: str) -> list[dict]:
 
 def _insert_articles(
     conn: sqlite3.Connection, feed_id: int, articles: list[dict]
-) -> int:
-    inserted = 0
+) -> tuple[int, int]:
+    inserted = failed = 0
     for a in articles:
         try:
             cur = conn.execute(
@@ -128,8 +128,9 @@ def _insert_articles(
             if cur.rowcount == 1:
                 inserted += 1
         except Exception as ex:
+            failed += 1
             logger.warning("insert failed for %s: %s", a["url"], ex)
-    return inserted
+    return inserted, failed
 
 
 def run(max_feeds: int | None, dry_run: bool, db_path: Path = DB) -> dict:
@@ -139,14 +140,14 @@ def run(max_feeds: int | None, dry_run: bool, db_path: Path = DB) -> dict:
     ).fetchall()
     if max_feeds is not None:
         feeds = feeds[:max_feeds]
-    stats = {"feeds_ok": 0, "feeds_fail": 0, "articles_inserted": 0}
+    stats = {"feeds_ok": 0, "feeds_fail": 0, "articles_inserted": 0, "articles_failed": 0}
     for feed_id, xml_url, name in feeds:
         try:
             articles = _fetch_feed(xml_url)
             if not dry_run:
-                stats["articles_inserted"] += _insert_articles(
-                    conn, feed_id, articles
-                )
+                inserted, failed = _insert_articles(conn, feed_id, articles)
+                stats["articles_inserted"] += inserted
+                stats["articles_failed"] += failed
                 conn.execute(
                     "UPDATE rss_feeds SET last_fetched_at=datetime('now','localtime'), "
                     "error_count=0 WHERE id=?",
@@ -166,7 +167,15 @@ def run(max_feeds: int | None, dry_run: bool, db_path: Path = DB) -> dict:
                 conn.commit()
         time.sleep(FEED_DELAY_SECONDS)
     conn.close()
+    stats["status"] = (
+        "ok" if not (stats["feeds_fail"] or stats["articles_failed"]) else
+        "partial" if stats["feeds_ok"] else "failed"
+    )
     return stats
+
+
+def exit_status(stats: dict) -> int:
+    return {"ok": 0, "partial": 2, "failed": 1}[stats["status"]]
 
 
 def main() -> None:
@@ -180,16 +189,8 @@ def main() -> None:
     args = p.parse_args()
     stats = run(args.max_feeds, args.dry_run)
     logger.info("stats: %s", stats)
-    print(
-        json.dumps(
-            {
-                "status": "ok",
-                "feeds_ok": stats["feeds_ok"],
-                "feeds_fail": stats["feeds_fail"],
-                "articles_inserted": stats["articles_inserted"],
-            }
-        )
-    )
+    print(json.dumps(stats))
+    raise SystemExit(exit_status(stats))
 
 
 if __name__ == "__main__":

@@ -13,6 +13,10 @@ The entry point is deliberately narrow:
   a missing translation stays ``unknown`` instead of being regenerated;
 * migration outcome, quality verdict, and publication permission are recorded
   independently, so a review downgrade never erases imported material;
+* a legacy import is not an acceptance step and never publishes: the committed public
+  release is always a valid, empty schema-v1 release, and public knowledge comes only from
+  the verified acceptance path (``vitax.production.accept_model_output`` plus
+  :func:`vitax.knowledge.build`);
 * re-importing identical inputs is a no-op and never overwrites human edits;
 * ``dry_run`` previews without creating the candidate directory.
 
@@ -98,11 +102,10 @@ _MAX_FAILURE_REASON = 300
 #: not a statement about professional value, factual accuracy, or translation
 #: faithfulness, which deterministic rules cannot certify.
 QUALITY_STATUSES = ("passed", "needs-review", "excluded")
-PUBLISHED_ONLY_SUBSET = (
-    "publication.status=public and publication.safety_qualification.status=qualified "
-    "and quality.status=passed and quality.deterministic_status=passed "
-    "and translation.completeness=full"
-)
+#: The projection collections ``vitax.knowledge.build`` accepts. A legacy import commits the
+#: public schema with all five empty; public content itself is produced only by the verified
+#: acceptance path (``vitax.production.accept_model_output`` plus ``vitax.knowledge.build``).
+_PROJECTION_COLLECTIONS = ("documents", "evidence", "knowledge", "entities", "relations")
 
 _MOJIBAKE_MARKERS = ("\ufffd", "Ã©", "â€", "ï»¿")
 _TRUNCATION_MARKERS = (
@@ -456,27 +459,6 @@ def _review_update(
     return {**previous, "migration": migration, "quality": quality, "publication": publication}
 
 
-def _is_publicly_projectable(record: Mapping[str, object]) -> bool:
-    """The deterministic publication gate.
-
-    It is computed from preserved source text and completeness only, so neither a
-    caller quality override nor a stored review verdict can widen it.
-    """
-    publication = record.get("publication")
-    quality = record.get("quality")
-    translation = record.get("translation")
-    if not (isinstance(publication, Mapping) and isinstance(quality, Mapping) and isinstance(translation, Mapping)):
-        return False
-    qualification = publication.get("safety_qualification")
-    if not isinstance(qualification, Mapping):
-        return False
-    return (
-        publication.get("status") == "public"
-        and qualification.get("status") == "qualified"
-        and quality.get("status") == "passed"
-        and quality.get("deterministic_status") == "passed"
-        and translation.get("completeness") == "full"
-    )
 
 
 def _table_columns(connection: sqlite3.Connection, table: str, source: str) -> set[str]:
@@ -661,64 +643,24 @@ def _merge_records(
     return merged, results
 
 
-def _public_projection(records: list[dict[str, object]], release_id: str, published_at: str) -> dict[str, object]:
-    documents: list[dict[str, object]] = []
-    evidence: list[dict[str, object]] = []
-    knowledge: list[dict[str, object]] = []
-    for record in records:
-        if not _is_publicly_projectable(record):
-            continue
-        translation = record["translation"]
-        # The public body is the full translation. Original text is never used as
-        # a fallback, so an untranslated article cannot leak through this path.
-        paragraphs = _split_paragraphs(translation["text"])
-        title = translation["title"]
-        if not paragraphs or not title:
-            continue
-        revision_id = str(record["revision_id"])
-        evidence_ids = []
-        for index, paragraph in enumerate(paragraphs, 1):
-            evidence_id = f"{revision_id}-p{index:04d}"
-            evidence_ids.append(evidence_id)
-            evidence.append(
-                {
-                    "evidence_id": evidence_id,
-                    "revision_id": revision_id,
-                    "locator": f"paragraph:{index}",
-                    "quote": paragraph,
-                    "visibility": "public",
-                }
-            )
-        documents.append(
-            {
-                "doc_id": record["source"]["source_ref"].replace(":", "-"),
-                "revision_id": revision_id,
-                "title": title,
-                "source_url": record["source"]["url"],
-                "source_published_at": record["source_published_at"],
-                "fetched_at": record["fetched_at"],
-                "visibility": "public",
-            }
-        )
-        knowledge.append(
-            {
-                "knowledge_id": revision_id,
-                "kind": "article",
-                "title": title,
-                "body": "\n\n".join(paragraphs),
-                "evidence_ids": evidence_ids,
-                "visibility": "public",
-            }
-        )
+def _public_projection(release_id: str, published_at: str) -> dict[str, object]:
+    """The public read model of a legacy import: a valid, always empty schema-v1 release.
+
+    A legacy candidate record is private material. Its ``publication`` mark, its quality
+    verdict, and its full translation are recorded metadata about permission, review, and
+    completeness; none of them is accepted knowledge, and no record field a writer adds can
+    change that. Public knowledge is produced only by the acceptance path that builds and
+    validates its own reviewed projection (``vitax.production.accept_model_output`` with
+    :func:`vitax.knowledge.build`), which packages its own release.
+
+    So every legacy import commits this empty projection, which is what lets a run with no
+    public content replace a stale public database instead of leaving it in place.
+    """
     return {
         "schema_version": _PUBLIC_SCHEMA_VERSION,
         "release_id": release_id,
         "published_at": published_at,
-        "documents": documents,
-        "evidence": evidence,
-        "knowledge": knowledge,
-        "entities": [],
-        "relations": [],
+        **{name: [] for name in _PROJECTION_COLLECTIONS},
     }
 
 
@@ -1109,12 +1051,17 @@ def import_legacy_articles(
     Each commit writes one self-contained ``generations/<id>/`` directory holding
     the append-only ``import-records.jsonl``, the failure ledger, the manifest, and
     ``public-candidate.sqlite``, then makes it visible by swapping the single
-    ``current`` pointer. The restricted projection of every eligible record
-    (explicitly public, fully translated, deterministic quality passed, and
-    safety-qualified) is rebuilt through :func:`vitax.knowledge.build` inside that
-    generation, so a rejected projection leaves the previous generation current and
-    a reader never sees files from two batches. A run with no eligible record
-    leaves a valid, empty projection rather than a stale one.
+    ``current`` pointer. The public projection is rebuilt through
+    :func:`vitax.knowledge.build` inside that generation, so a rejected projection
+    leaves the previous generation current and a reader never sees files from two
+    batches.
+
+    That projection is always empty: an import migrates private material and is not an
+    acceptance step. A record's own ``public`` mark, translation completeness, quality
+    statuses, or any free-form field it carries never create public knowledge, so every run
+    commits a valid, empty release that replaces a stale one. Public knowledge comes from
+    the verified acceptance path instead (``vitax.production.accept_model_output`` plus
+    :func:`vitax.knowledge.build`), which packages its own release.
 
     ``quality_override`` records an explicit review verdict for the imported
     range; it changes the recorded quality state only and never deletes the
@@ -1157,7 +1104,9 @@ def import_legacy_articles(
 
     snapshot_id = _snapshot_id(legacy_database)
 
-    def assemble() -> tuple[list[dict[str, object]], dict[str, object]]:
+    def assemble() -> tuple[
+        list[dict[str, object]], dict[str, object], dict[str, object]
+    ]:
         committed = _resolve_committed(output_dir)
         existing = committed[1] if committed else []
         previous_failures = committed[2] if committed else []
@@ -1171,7 +1120,9 @@ def import_legacy_articles(
         results["failed"] = len(new_failures)
         results["outstanding_failed"] = len(outstanding)
         results["input"] = len(rows)
-        projectable = [record for record in merged if _is_publicly_projectable(record)]
+        # A legacy import commits the empty release, and the summary states exactly that
+        # empty release, so the two cannot disagree.
+        projection = _public_projection(release_id, timestamp)
         summary: dict[str, object] = {
             "schema_version": SCHEMA_VERSION,
             "source": source,
@@ -1186,21 +1137,20 @@ def import_legacy_articles(
             "batch_failures": new_failures,
             "llm_requests": 0,
             "network_requests": 0,
-            "public_records": len(projectable),
-            "public_knowledge_ids": [record["revision_id"] for record in projectable],
-            "publication_subset_rule": PUBLISHED_ONLY_SUBSET,
+            "public_records": 0,
+            "public_knowledge_ids": [],
             "publication_safety_rule": PUBLICATION_SAFETY_RULE,
         }
-        return merged, summary
+        return merged, summary, projection
 
     if dry_run:
-        _, summary = assemble()
+        _, summary, _ = assemble()
         summary["written"] = None
         return summary
 
     _prepare_private_directory(output_dir)
     with _candidate_lock(output_dir):
-        merged, summary = assemble()
+        merged, summary, projection = assemble()
         generation = _generation_id(
             merged,
             summary["failures"],  # type: ignore[arg-type]
@@ -1248,7 +1198,7 @@ def import_legacy_articles(
                 records=merged,
                 failures=summary["failures"],  # type: ignore[arg-type]
                 manifest=manifest,
-                projection=_public_projection(merged, release_id, timestamp),
+                projection=projection,
             )
         # The pointer is the single atomic commit marker. A rejected projection
         # never reaches here, so the previously committed generation stays current.

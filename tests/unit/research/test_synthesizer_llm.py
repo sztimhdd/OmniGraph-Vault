@@ -28,6 +28,8 @@ from lib.research.types import (
     ResearchState,
     RetrieverOutput,
     Source,
+    VerifierOutput,
+    WebBaseline,
 )
 
 
@@ -106,3 +108,47 @@ async def test_synthesizer_real_prose_not_chunks0_verbatim(tmp_path):
     # The new real-LLM path must NOT return chunks[0].snippet verbatim
     assert "THE_STUB_SNIPPET" not in result.markdown
     assert "Real LLM Answer" in result.markdown
+
+
+@pytest.mark.unit
+async def test_synthesizer_merges_web_baseline_and_verifier_sources(tmp_path):
+    """MVP-06: WebBaseline snippets + Verifier external citations (both status
+    'ok') land in ``result.sources`` even when there are NO KG chunks, and are
+    numbered in the synthesis prompt so citations resolve."""
+    web = Source(
+        kind="web", uri="https://example.com/a", title="A", snippet="web-snippet-A"
+    )
+    ground = Source(
+        kind="grounding",
+        uri="https://example.com/b",
+        title="B",
+        snippet="verify-snippet-B",
+    )
+    state = ResearchState(query="q", timestamp_start=0.0)
+    state.web_baseline = WebBaseline(queries_used=["q"], snippets=[web])
+    state.retrieved = None  # external sources only — no KG chunks at all
+    state.verified = VerifierOutput(
+        fact_check_summary_md="ok",
+        confidence=1.0,
+        external_citations=[ground],
+        discrepancies=[],
+        iter_count=1,
+    )
+
+    captured_prompt = {}
+
+    async def mock_llm(prompt, **kw):
+        captured_prompt["prompt"] = prompt
+        return "# Answer\n\nprose [1][2]."
+
+    with mock.patch(
+        "lib.research.stages.synthesizer.get_llm_func", return_value=mock_llm
+    ):
+        result = await run_synthesizer("q", _make_minimal_cfg(tmp_path), state)
+
+    uris = [s.uri for s in result.sources]
+    assert "https://example.com/a" in uris, f"WebBaseline source dropped: {uris}"
+    assert "https://example.com/b" in uris, f"Verifier source dropped: {uris}"
+    # Both also surface in the numbered [n] chunk block for citation.
+    assert "web-snippet-A" in captured_prompt["prompt"]
+    assert "verify-snippet-B" in captured_prompt["prompt"]

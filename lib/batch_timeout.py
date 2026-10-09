@@ -27,15 +27,13 @@ def clamp_article_timeout(
     Rules (BTIMEOUT-02):
       * If ``remaining_budget - safety_margin > 0`` → return
         ``min(single_timeout, int(effective_budget))``.
-      * Else (batch out of budget) → return
-        ``max(60, int(single_timeout * 0.5))`` so the next article still has
-        a viable 60s floor; if it times out, checkpoint captures state for a
-        later re-run.
+      * Else return zero. The caller must not start new work.
+
 
     Args:
         single_timeout: Phase 9 per-article budget in seconds.
         remaining_budget: Batch budget remaining in seconds; MAY be a float
-            (from ``time.time()`` subtraction).
+            (from ``time.monotonic()`` subtraction).
         safety_margin: Seconds reserved for post-batch bookkeeping (default
             ``BATCH_SAFETY_MARGIN_S`` = 60).
 
@@ -44,8 +42,8 @@ def clamp_article_timeout(
     """
     effective_budget = remaining_budget - safety_margin
     if effective_budget <= 0:
-        # Batch out of budget; article gets half-timeout fallback.
-        return max(60, int(single_timeout * 0.5))
+        # Reserve finalization time instead of starting another article.
+        return 0
     return min(single_timeout, int(effective_budget))
 
 
@@ -53,12 +51,12 @@ def get_remaining_budget(batch_start: float, total_batch_budget: int) -> float:
     """Compute remaining batch budget in seconds (floored at 0).
 
     Args:
-        batch_start: ``time.time()`` value captured at batch start.
+        batch_start: ``time.monotonic()`` value captured at batch start.
         total_batch_budget: Total batch budget in seconds (from
             ``OMNIGRAPH_BATCH_TIMEOUT_SEC`` or ``--batch-timeout``).
 
     Returns:
         ``max(0, total_batch_budget - elapsed)``.
     """
-    elapsed = time.time() - batch_start
+    elapsed = time.monotonic() - batch_start
     return max(0.0, float(total_batch_budget) - elapsed)

@@ -22,6 +22,8 @@ import os
 import sqlite3
 import sys
 import time
+from pathlib import Path
+from datetime import UTC, datetime
 import urllib.parse
 import urllib.request
 
@@ -157,6 +159,7 @@ def scan_account_pro(key: str, conn: sqlite3.Connection | None, nickname: str,
     seen_urls: set[str] = set()
     total_cost = 0.0
     offset = ""
+    history_end = False
     # Pro needs a ghid; if we only have a nickname the vendor supports that too.
     ident = wechat_id or nickname
     for page in range(1, pages + 1):
@@ -164,6 +167,7 @@ def scan_account_pro(key: str, conn: sqlite3.Connection | None, nickname: str,
             d = fetch_by_ghid(key, ident, offset=offset, use_ip=use_ip)
         except Exception as e:
             out["error"] = f"HTTP/parse: {e}"
+            out["rate_limited"] = getattr(e, "code", None) == 429 or "rate limit" in str(e).lower()
             break
         code = d.get("code")
         out["code"] = code
@@ -172,6 +176,7 @@ def scan_account_pro(key: str, conn: sqlite3.Connection | None, nickname: str,
         out["remain"] = d.get("remain_money")
         if code != 0:
             out["error"] = d.get("msg", f"code={code}")
+            out["rate_limited"] = code == 429 or "rate limit" in str(out["error"]).lower()
             break
         msg_list = (d.get("MsgList") or {}).get("Msg") or []
         for send in msg_list:
@@ -187,8 +192,12 @@ def scan_account_pro(key: str, conn: sqlite3.Connection | None, nickname: str,
         paging = (d.get("MsgList") or {}).get("PagingInfo") or {}
         offset = paging.get("Offset", "")
         if paging.get("IsEnd") == 1:
+            history_end = True
             break
     out["found"] = len(all_rows)
+    out["history_end"] = history_end
+    times = [r["update_time"] for r in all_rows if isinstance(r.get("update_time"), int) and r["update_time"] > 0]
+    out["oldest_send_time"] = min(times) if times else None
     if dry_run or conn is None:
         out["articles"] = all_rows[:5]
         return out
@@ -218,12 +227,88 @@ def load_accounts(db_path: str, top: int | None = None) -> list[dict]:
     return [{"name": r[0], "wechat_id": r[1] or ""} for r in rows]
 
 
+def _coverage_targets(accounts_file):
+    value = json.loads(Path(accounts_file).read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or type(value.get("schema_version")) is not int or value["schema_version"] != 1:
+        raise ValueError("invalid target schema")
+    ids = value.get("account_ids")
+    if not isinstance(ids, list) or not ids or any(type(i) is not int or i < 1 for i in ids) or len(ids) != len(set(ids)):
+        raise ValueError("account_ids must be unique positive integers")
+    return ids
+
+
+def select_coverage_accounts(db_path, accounts_file, *, max_accounts=20):
+    if type(max_accounts) is not int or not 1 <= max_accounts <= 20:
+        raise ValueError("max_accounts must be 1–20")
+    ids = _coverage_targets(accounts_file)
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        conn.execute("PRAGMA query_only=ON")
+        conn.row_factory = sqlite3.Row
+        fields = {r[1] for r in conn.execute("PRAGMA table_info(accounts)")}
+        if "last_attempted_at" not in fields:
+            raise ValueError("coverage schema migration is required")
+        rows = list(conn.execute("SELECT id,name,wechat_id,last_scanned_at FROM accounts WHERE id IN (" + ','.join('?' for _ in ids) + ") ORDER BY last_attempted_at IS NOT NULL,last_attempted_at,id", ids))
+        if len(rows) != len(ids):
+            raise ValueError("target account id is missing")
+    return [dict(row) for row in rows[:max_accounts]]
+
+
+def run_coverage(db_path, accounts_file, key, *, pages=2, max_accounts=20, sleep_seconds=1.0, dry_run=False, use_ip=False):
+    if type(pages) is not int or not 1 <= pages <= 2:
+        raise ValueError("coverage pages must be 1–2")
+    rows = select_coverage_accounts(db_path, accounts_file, max_accounts=max_accounts)
+    if dry_run:
+        return {"status": "preview", "attempted": 0, "selected_ids": [r["id"] for r in rows], "pages": pages}
+    if not key:
+        raise ValueError("API key is required")
+    results = []
+    consecutive_limited = 0
+    stopped = None
+    with sqlite3.connect(db_path) as conn:
+        for index, account in enumerate(rows):
+            conn.execute("UPDATE accounts SET last_attempted_at=? WHERE id=?", (datetime.now(UTC).isoformat(), account["id"]))
+            conn.commit()
+            try:
+                outcome = scan_account_pro(key, conn, account["name"], wechat_id=account["wechat_id"] or "", pages=pages, use_ip=use_ip)
+            except Exception:
+                outcome = {"error": "request_failed", "code": None}
+            ok = outcome.get("code") == 0 and not outcome.get("error")
+            gap = "unknown"
+            prior = account["last_scanned_at"]
+            oldest = outcome.get("oldest_send_time")
+            if ok and prior:
+                try:
+                    prior_time = datetime.fromisoformat(prior)
+                    if prior_time.tzinfo is None:
+                        raise ValueError("legacy success timezone is unknown")
+                    if outcome.get("history_end"):
+                        gap = False
+                    elif type(oldest) is int:
+                        gap = oldest > prior_time.timestamp()
+                except ValueError:
+                    pass
+            if ok:
+                conn.execute("UPDATE accounts SET last_scanned_at=? WHERE id=?", (datetime.now(UTC).isoformat(), account["id"]))
+                conn.commit()
+            results.append({"account_id": account["id"], "success": bool(ok), "new": outcome.get("new", 0), "found": outcome.get("found", 0), "coverage_gap": gap, "error": None if ok else "request_failed"})
+            consecutive_limited = consecutive_limited + 1 if outcome.get("rate_limited") else 0
+            if consecutive_limited >= 3:
+                stopped = "rate_limited"
+                break
+            if index + 1 < len(rows) and sleep_seconds > 0:
+                time.sleep(sleep_seconds)
+    failed = sum(not r["success"] for r in results)
+    return {"status": "ok" if failed == 0 else "partial" if failed < len(results) else "failed", "attempted": len(results), "failed": failed, "unattempted": len(rows) - len(results), "stopped": stopped, "results": results}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Dajiala API KOL scanner")
     ap.add_argument("--key", default=os.environ.get("DAJIALA_API_KEY", ""),
                     help="dajiala API key (or DAJIALA_API_KEY env)")
     ap.add_argument("--account", help="scan a single KOL nickname")
     ap.add_argument("--db", default="data/kol_scan.db")
+    ap.add_argument("--accounts-file", help="private approved account-id target file")
+    ap.add_argument("--max-accounts", type=int, default=20)
     ap.add_argument("--top", type=int, help="scan top-N KOLs by prior value")
     ap.add_argument("--pages", type=int, default=1,
                     help="pages per KOL (1 page = latest 5 sends; weekly scan: 2-3)")
@@ -232,6 +317,13 @@ def main() -> None:
     ap.add_argument("--sleep", type=float, default=1.0, help="seconds between KOLs")
     args = ap.parse_args()
 
+    if args.accounts_file:
+        try:
+            result = run_coverage(args.db, args.accounts_file, args.key, pages=args.pages, max_accounts=args.max_accounts, sleep_seconds=args.sleep, dry_run=args.dry_run, use_ip=args.use_ip)
+        except (ValueError, OSError, sqlite3.Error) as exc:
+            ap.error(str(exc))
+        print(json.dumps(result, ensure_ascii=False))
+        raise SystemExit(0 if result['status'] in {'ok', 'preview'} else 2 if result['status']=='partial' else 1)
     if not args.key:
         ap.error("missing API key: pass --key or set DAJIALA_API_KEY")
 

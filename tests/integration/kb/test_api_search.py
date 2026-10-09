@@ -13,9 +13,9 @@ Coverage matrix:
    10. P50 FTS5 latency < 100ms (API-04 contract)
    11. DATA-07 active by default — negative-case rows excluded from FTS hits
 
-Skill(skill="python-patterns", args="TestClient + monkeypatch.setenv + importlib.reload chain so router picks up KB_DB_PATH pointing at fixture_db AND KB_SEARCH_BYPASS_QUALITY off. monkeypatch on omnigraph_search.query.search to avoid LightRAG calls (the only mock — external HTTP / async dependency).")
+Skill(skill="python-patterns", args="TestClient + monkeypatch.setenv + importlib.reload chain so router picks up KB_DB_PATH pointing at fixture_db AND KB_SEARCH_BYPASS_QUALITY off. monkeypatch on kg_synthesize.synthesize_response to avoid LightRAG calls (the only mock — external HTTP / async dependency).")
 
-Skill(skill="writing-tests", args="Real SQLite throughout for the FTS5 path. KG path mocks omnigraph_search.query.search since LightRAG storage isn't available in CI. Tests assert observable HTTP behavior (status code, body shape), not internal job_store state.")
+Skill(skill="writing-tests", args="Real SQLite throughout for the FTS5 path. KG path mocks kg_synthesize.synthesize_response since LightRAG storage isn't available in CI. Tests assert observable HTTP behavior (status code, body shape), not internal job_store state.")
 """
 from __future__ import annotations
 
@@ -26,6 +26,46 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
+
+# ---- Offline import double (lightrag) --------------------------------------
+#
+# The offline test venv deliberately has no LightRAG install (see
+# tests/unit/test_search_query_context.py for the same pattern). kb.services.
+# synthesize imports ``from lightrag.lightrag import LightRAG`` at module top,
+# so without a double the whole module fails to import. Install a minimal
+# double ONLY when the real package is absent; a full env is unaffected.
+
+
+def _install_lightrag_import_double() -> None:
+    import importlib.util
+    import sys
+    import types
+
+    if "lightrag" in sys.modules:
+        return
+    try:
+        if importlib.util.find_spec("lightrag") is not None:
+            return
+    except (ImportError, ValueError):
+        pass
+    package = types.ModuleType("lightrag")
+    module = types.ModuleType("lightrag.lightrag")
+
+    class LightRAG:  # minimal placeholder — never instantiated in these tests
+        pass
+
+    class QueryParam:  # kg_synthesize imports this at module top
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    module.LightRAG = LightRAG
+    module.QueryParam = QueryParam
+    sys.modules.setdefault("lightrag", package)
+    sys.modules.setdefault("lightrag.lightrag", module)
+
+
+_install_lightrag_import_double()
 
 
 # ---- App-client fixture ----------------------------------------------------
@@ -47,7 +87,7 @@ def app_client(
 
     kb-v2.1-1: KB_KG_GCP_SA_KEY_PATH points at a tmp dummy SA file so
     KG_MODE_AVAILABLE evaluates True, preserving the kb-3-06 dispatch tests
-    that mock omnigraph_search.query.search. The dummy file is just for the
+    that mock kg_synthesize.synthesize_response. The dummy file is just for the
     flag's existence + readability probe; nothing here actually parses it.
     """
     sa_dummy = tmp_path / "kg-sa-dummy.json"
@@ -149,10 +189,13 @@ def test_search_empty_q_is_422(app_client: TestClient) -> None:
 def test_search_default_mode_is_kg(app_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Default mode is now 'kg' (kb-v2.2-3 F8'). No mode= param → KG path."""
 
-    async def fake_search(q, mode="hybrid"):
+    async def fake_search(q, mode="hybrid", **_kw):
         return f"KG:{q}"
 
-    monkeypatch.setattr("omnigraph_search.query.search", fake_search)
+    # MVP-06: the KG worker awaits kg_synthesize.synthesize_response — patching
+    # omnigraph_search.query.search left the real model reachable. Patch the
+    # actual entry point so the background task never calls a live provider.
+    monkeypatch.setattr("kg_synthesize.synthesize_response", fake_search)
     r = app_client.get("/api/search?q=agent")
     assert r.status_code in (200, 202)
     body = r.json()
@@ -205,10 +248,12 @@ def test_search_p50_fts_latency_under_100ms(app_client: TestClient) -> None:
 def test_search_kg_returns_job_id(app_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """KG mode dispatches a BackgroundTask and returns 202 + job_id."""
 
-    async def fake_search(q, mode="hybrid"):
+    async def fake_search(q, mode="hybrid", **_kw):
         return f"KG:{q}"
 
-    monkeypatch.setattr("omnigraph_search.query.search", fake_search)
+    # MVP-06: patch the real KG entry point (kg_synthesize), not the unused
+    # omnigraph_search.query.search shim.
+    monkeypatch.setattr("kg_synthesize.synthesize_response", fake_search)
     r = app_client.get("/api/search?q=hello&mode=kg")
     assert r.status_code in (200, 202)
     body = r.json()

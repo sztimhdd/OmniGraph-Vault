@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import os
 from dataclasses import dataclass, field
 from typing import Optional
@@ -31,8 +32,14 @@ _MIN_CONTENT_LENGTH: int = 200
 # (e.g. simonwillison.net) routinely produce 200-400 char extracts that
 # are still real content. 200-char floor still blocks pure-boilerplate scrapes.
 
+# Explicit wall/paywall phrases — rejected at any length. "Sign in" is kept
+# only as the blocking variants below; the bare phrase is generic (a normal nav
+# link and prose like "sign in with GitHub") and is handled by
+# _GENERIC_WALL_LINE_MARKERS as a button / login-prompt line instead.
 _LOGIN_WALL_PATTERNS: tuple[str, ...] = (
-    "Sign in",
+    "Sign in to continue",
+    "Sign in to read",
+    "Sign in to view",
     "Log in to continue",
     "Subscribe to read",
     "Subscribe to continue reading",
@@ -49,6 +56,10 @@ _LOGIN_WALL_PATTERNS: tuple[str, ...] = (
     "会员专享",
     "付费内容",
 )
+
+# Generic nav/button phrase: only a wall when it heads its own line (a sign-in
+# button or a login-prompt line), never when it sits inside a sentence.
+_GENERIC_WALL_LINE_MARKERS: tuple[str, ...] = ("Sign in",)
 
 # --- SCR-05 constants ---------------------------------------------------
 
@@ -104,16 +115,30 @@ def _route(url: str, site_hint: Optional[str]) -> str:
 # --- SCR-04 quality gate ------------------------------------------------
 
 def _passes_quality_gate(markdown: Optional[str]) -> bool:
-    """Return True iff markdown is long enough and has no login-wall marker.
+    """Return True iff markdown is long enough and not a login wall.
 
-    Case-insensitive match on _LOGIN_WALL_PATTERNS (SCR-04).
+    SCR-04. Below _MIN_CONTENT_LENGTH fails (short shells). Explicit
+    wall/paywall phrases (_LOGIN_WALL_PATTERNS, case-insensitive) reject at any
+    length. The generic "Sign in" (_GENERIC_WALL_LINE_MARKERS) rejects only as
+    a button / login-prompt line, so ordinary prose ("sign in with GitHub")
+    does not reject a real article body.
     """
     if not markdown or len(markdown) < _MIN_CONTENT_LENGTH:
         return False
     lowered = markdown.lower()
     for pat in _LOGIN_WALL_PATTERNS:
-        if pat.lower() in lowered:
+        if (re.search(r"(?<!\w)" + re.escape(pat.lower()) + r"(?!\w)", lowered)
+                if pat.isascii() else pat.lower() in lowered):
+            logger.info("Body rejected: login-wall marker %r", pat)
             return False
+    for pat in _GENERIC_WALL_LINE_MARKERS:
+        prompt = re.compile(re.escape(pat.lower()) + r"(?!\w)")
+        for line in lowered.splitlines():
+            # Strip leading markdown link / bullet / quote syntax so "[Sign in](..)"
+            # and "> Sign in" count as a button line.
+            if prompt.match(line.strip().lstrip("[>*#-\u2022 ").lstrip()):
+                logger.info("Body rejected: login-prompt line %r", pat)
+                return False
     return True
 
 

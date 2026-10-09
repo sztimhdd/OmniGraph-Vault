@@ -1,0 +1,11 @@
+# One recurring producer; every fire advances the shared-budget D queue.
+[Unit]
+Description=VitaX producer periodic run
+
+[Timer]
+OnCalendar=*-*-* 00/2:00:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

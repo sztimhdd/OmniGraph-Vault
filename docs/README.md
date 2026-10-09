@@ -1,32 +1,24 @@
-# 文档索引
+# VitaX 文档
 
-## 当前入口
+## 当前工作只从这些入口开始
 
-- [本地真实知识生产](LOCAL_REAL_PRODUCTION.md)：两份真实HTML到Hermes知识包、跨来源Wiki与同版公开读库，已完成本地候选切片验收
+- [项目工作说明](../AGENTS.md)
+- [PRD：Hobbyist AI 内容站](spec/VITAX_HOBBY_PRD.md)
+- [TDD：批处理技术方案](spec/VITAX_HOBBY_TDD.md)
+- [执行计划（含部署章节）](superpowers/plans/2026-10-04-vitax-next-stage.md)
+- [当前EPIC核心需求与五张执行票](../.planning/ISSUES.md)
+- [内容轨道当前状态](work-items/vitax-content/CHECKPOINT.md)
 
-- [本地公开知识读库](LOCAL_PUBLIC_KNOWLEDGE.md)：首个新合同构建/读取组件与可重放示例
+## 按需查询
 
-- [ADR0004：最小知识产品](adr/0004-minimal-knowledge-product.md)：KG/Wiki/可选AgentRAG边界与组件裁决
+- [部署位置](deployments/VITAX_DEPLOYMENT_BASELINE.md)、[开发环境](LOCAL_DEV_SETUP.md)
+- [采集告警与进度查询方法](deployments/2026-10-04-pipeline-steward-check/REPORT.md)
+- [浏览器发现的阅读问题](research/2026-10-03-vitax-reader-audit/REPORT.md)
+- [管家提示词](research/2026-10-04-hermes-dot-steward/PROMPT.md)
+- [Dots提前熟悉两台阿里云环境的提示词](research/2026-10-05-dots-aliyun/PROMPT.md)
+- [Dots两机环境笔记（10/5只读核查）](/Users/hai/Documents/Codex/2026-10-04/task-2/VITAX_ENVIRONMENT_NOTE_2026-10-05.md)：已连通；Python、新站/HTTPS与发布内容缺口已纳入MVP-04。
+- [内容轨道过去的执行结果](work-items/vitax-content/REPORT.md)
 
-- [产品架构与执行重排](superpowers/plans/2026-09-09-vitax-product-architecture.md)：当前主线，按 ponytail 收敛并实施；组件按实际收益准入
-- [现有架构取证](research/2026-09-09-vitax-current-architecture.md)与[检索项目调研](research/2026-09-09-vitax-retrieval-landscape.md)：源码、当前上游能力及选型依据
-
-- [VitaX 三环境部署档案](deployments/VITAX_DEPLOYMENT_BASELINE.md)：当前接管入口与时间点证据
-
-- [项目说明](../README.md) 与 [Agent 工作规则](../AGENTS.md)
-- [已知问题](../.planning/ISSUES.md)：保留上游问题与解决记录
-- [本地开发](LOCAL_DEV_SETUP.md)、[测试](e2e-testing.md)、[代码约定](conventions.md)
-- [架构](architecture.md)、[技术栈](tech-stack.md)、[KB 接口契约](../kb/README.md)
-- [MCP 接入](MCP-QUICKSTART.md)、[运维](OPERATIONS.md)、[操作手册](OPERATOR_RUNBOOK.md)
-- [部署说明](../OMNIGRAPH_DEPLOY.md)、[部署流程](../Deploy.md)、[BGE-M3 迁移](../BGE_M3_MIGRATION.md)
-- [技能规范](skills/SKILL_STANDARDS.md)
-- [本次整理与恢复](PROJECT_CLEANUP.md)
-- [VitaX 重构规格](spec/VITAX_REFACTOR_SPEC.md) 与 [执行工单](work-items/vitax-refactor/README.md)
-
-## 阅读优先级
-
-当前源码与可重复验证 > 接口契约 > 运维／设计说明 > 历史报告。
-保留的说明仍可能包含旧模型、旧主机和历史部署结果，使用前核对源码与目标环境。
-`docs/design/`、`docs/spec/`、`specs/` 等包含设计依据，存在不等于已实现或正式验收。
-旧 GSD 规划、阶段总结和选定交接报告已移出工作区；现有 Markdown 链接改为固定提交的 GitHub 地址。
-正文中的历史路径可使用整理记录中的 `git show` 方式查阅。
+旧计划、旧规格和旧工单入口已替换。历史报告只记录当时结果，其中的审批、预算百分比、下一步命令不再是当前要求。
+归档、部署报告、研究报告、`.superpowers/`实验文件按需查事实，不能覆盖当前PRD，也不应被整批加载为主控上下文。
+[本轮精简记录](HOBBY_SIMPLIFICATION.md)；[旧文档归档](archive/2026-10-04-pre-hobby/README.md)。

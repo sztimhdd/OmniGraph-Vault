@@ -1,0 +1,10 @@
+--- a/lightrag/kg/qdrant_impl.py
++++ b/lightrag/kg/qdrant_impl.py
+@@ -581,6 +581,7 @@
+                 # Create QdrantClient if not already created
+                 if self._client is None:
+                     self._client = QdrantClient(
++                        timeout=30,
+                         url=os.environ.get(
+                             "QDRANT_URL", config.get("qdrant", "uri", fallback=None)
+                         ),

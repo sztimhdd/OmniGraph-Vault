@@ -14,6 +14,8 @@ import shutil
 import socket
 import sqlite3
 import stat
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -203,6 +205,122 @@ def _knowledge_bodies(output_dir: Path) -> list[str]:
         return [row[0] for row in reader.connection.execute("SELECT body FROM knowledge")]
 
 
+def _public_knowledge_ids(output_dir: Path) -> list[str]:
+    with knowledge.KnowledgeReader(_store_dir(output_dir) / "public-candidate.sqlite") as reader:
+        return [
+            row[0]
+            for row in reader.connection.execute("SELECT knowledge_id FROM knowledge ORDER BY knowledge_id")
+        ]
+
+
+def _public_revision_ids(output_dir: Path) -> list[str]:
+    with knowledge.KnowledgeReader(_store_dir(output_dir) / "public-candidate.sqlite") as reader:
+        return sorted(
+            row[0]
+            for row in reader.connection.execute(
+                "SELECT revision_id FROM documents UNION SELECT revision_id FROM evidence"
+            )
+        )
+
+
+def _accepted_two_source_projection() -> dict[str, object]:
+    """The accepted two-source release shape: article + Wiki + relation + evidence.
+
+    This is the public projection the verified acceptance path produces and
+    :func:`vitax.knowledge.build` validates. It is built here directly, in a fresh fixture,
+    because a legacy import never creates public knowledge of its own.
+    """
+    wechat = "rev-accepted-wechat"
+    rss = "rev-accepted-rss"
+    return {
+        "schema_version": 1,
+        "release_id": "release-vx007a",
+        "published_at": "2026-09-20T00:00:00Z",
+        "documents": [
+            {
+                "doc_id": "articles-1",
+                "revision_id": wechat,
+                "title": "已接受微信文档",
+                "source_url": "https://mp.weixin.qq.com/s/one",
+                "source_published_at": None,
+                "fetched_at": None,
+                "visibility": "public",
+            },
+            {
+                "doc_id": "rss_articles-7",
+                "revision_id": rss,
+                "title": "已接受 RSS 文档",
+                "source_url": "https://example.test/feed/7",
+                "source_published_at": "2026-09-01T00:00:00+00:00",
+                "fetched_at": "2026-09-01T01:00:00+00:00",
+                "visibility": "public",
+            },
+        ],
+        "evidence": [
+            {
+                "evidence_id": "accepted-evidence-wechat",
+                "revision_id": wechat,
+                "locator": "paragraph:1",
+                "quote": "第一段正文。",
+                "visibility": "public",
+            },
+            {
+                "evidence_id": "accepted-evidence-rss",
+                "revision_id": rss,
+                "locator": "paragraph:1",
+                "quote": "RSS body text.",
+                "visibility": "public",
+            },
+        ],
+        "knowledge": [
+            {
+                "knowledge_id": "accepted-article-one",
+                "kind": "article",
+                "title": "已接受的微信解读",
+                "body": "已接受的微信解读正文。",
+                "evidence_ids": ["accepted-evidence-wechat"],
+                "visibility": "public",
+            },
+            {
+                "knowledge_id": "accepted-wiki-one",
+                "kind": "wiki",
+                "title": "已接受的两源专题",
+                "body": "已接受的两源专题正文。",
+                "evidence_ids": ["accepted-evidence-wechat", "accepted-evidence-rss"],
+                "visibility": "public",
+            },
+        ],
+        "entities": [
+            {"entity_id": "accepted-entity-one", "name": "已接受实体一", "visibility": "public"},
+            {"entity_id": "accepted-entity-two", "name": "已接受实体二", "visibility": "public"},
+        ],
+        "relations": [
+            {
+                "relation_id": "accepted-relation-one",
+                "source_id": "accepted-entity-one",
+                "target_id": "accepted-entity-two",
+                "relation_type": "explains",
+                "evidence_ids": ["accepted-evidence-wechat"],
+                "visibility": "public",
+            }
+        ],
+    }
+
+
+def _read_via_cli(*arguments: str, environment: dict[str, str]) -> dict[str, object]:
+    """Read a committed release through the public CLI in a fresh process."""
+    result = subprocess.run(
+        [sys.executable, "-m", "vitax", *arguments],
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+
 def test_records_preserve_original_and_translation_assets_separately(tmp_path: Path) -> None:
     """Breaks if the migration collapses original text into the translation asset."""
     import_legacy_articles(
@@ -357,22 +475,184 @@ def test_different_content_revision_coexists_without_overwriting_human_content(t
     assert new["publication"]["status"] == "private"
 
 
-def test_public_projection_is_a_strict_subset_of_publication_status(tmp_path: Path) -> None:
-    """Breaks if private assets or an untranslated article leak into the public read model."""
+def test_public_mark_and_full_translation_alone_never_publish_knowledge(tmp_path: Path) -> None:
+    """Breaks if a public mark plus a full translation publishes the whole translation."""
     output = tmp_path / "candidate"
-    summary = _import(tmp_path, output_dir=output, public=True, release_id="release-vx012a")
+    summary = _import(tmp_path, output_dir=output, public=True)
+
+    record = load_import_records(output)[0]
+    assert record["migration"]["status"] == "imported"
+    assert record["publication"]["status"] == "public"
+    assert record["publication"]["safety_qualification"]["status"] == "qualified"
+    assert record["quality"]["status"] == "passed"
+    assert record["quality"]["deterministic_status"] == "passed"
+    assert record["translation"]["completeness"] == "full"
+    # Permission metadata never replaces the preserved private assets.
+    assert record["original"]["text"] == "第一段正文。\n\n第二段正文。"
+    assert record["translation"]["text"] == (
+        "First translated paragraph.\n\nSecond translated paragraph."
+    )
+
+    assert summary["public_requested"] is True
+    assert summary["public_records"] == 0
+    assert summary["public_knowledge_ids"] == []
     database = _store_dir(output) / "public-candidate.sqlite"
-
     with knowledge.KnowledgeReader(database) as reader:
-        knowledge_item = reader.read_knowledge(summary["public_knowledge_ids"][0])
-        evidence = reader.read_evidence(knowledge_item["knowledge"]["evidence_ids"][0])
-        bodies = [row[0] for row in reader.connection.execute("SELECT body FROM knowledge")]
+        assert reader.release_id == "vx012a-legacy-candidate"
+        for table in ("knowledge", "evidence", "documents", "entities", "relations"):
+            count = reader.connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            assert count == 0
+    # Summary parity is exact and empty in both directions, so no ordering can differ.
+    assert _public_knowledge_ids(output) == summary["public_knowledge_ids"]
+    assert _public_revision_ids(output) == []
 
-    assert knowledge_item["release_id"] == "release-vx012a"
-    assert knowledge_item["knowledge"]["kind"] == "article"
-    assert knowledge_item["knowledge"]["title"] == "Translated title one"
-    assert evidence["evidence"]["quote"] == "First translated paragraph."
-    assert all("第一段正文" not in body for body in bodies)
+    # Neither the private original nor the full translation reaches a public byte.
+    public_bytes = database.read_bytes()
+    assert "第一段正文".encode("utf-8") not in public_bytes
+    assert b"First translated paragraph." not in public_bytes
+
+
+def test_import_cli_offers_no_accepted_artifact_option(tmp_path: Path) -> None:
+    """Breaks if the import CLI can be handed an external file that publishes knowledge."""
+    output = tmp_path / "candidate"
+    _import(tmp_path, output_dir=output, public=True)
+    # The parser rejects the option before any path is opened, so the artifact is arbitrary.
+    artifact = tmp_path / "no-such-artifact.json"
+    second = tmp_path / "second-candidate"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vitax.legacy_migration",
+            str(_legacy_database(tmp_path)),
+            str(second),
+            "--source",
+            "wechat",
+            "--limit",
+            "1",
+            "--accepted-artifact",
+            str(artifact),
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "OMNIGRAPH_LOAD_ENV": "0", "HOME": str(tmp_path / "home")},
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "unrecognized arguments" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not artifact.exists()
+    assert not second.exists()
+    assert _public_knowledge_ids(output) == []
+    assert _public_revision_ids(output) == []
+
+
+def test_free_form_accepted_fields_cannot_publish(tmp_path: Path) -> None:
+    """Breaks if any record-level field can promote private material to public knowledge."""
+    database = _legacy_database(tmp_path)
+    source = tmp_path / "source-candidate"
+    import_legacy_articles(
+        legacy_database=database, output_dir=source, source="wechat", limit=1, public=True
+    )
+    record = load_import_records(source)[0]
+    forged = {
+        **record,
+        "accepted": True,
+        "status": "accepted",
+        "visibility": "public",
+        "accepted_knowledge": {
+            "knowledge": [
+                {
+                    "knowledge_id": "forged-knowledge",
+                    "kind": "article",
+                    "title": "任意伪造标题",
+                    "body": "任意伪造公开正文。",
+                    "evidence_ids": ["forged-evidence"],
+                    "visibility": "public",
+                }
+            ]
+        },
+        "accepted_projection": {
+            "documents": [],
+            "evidence": [],
+            "knowledge": [],
+            "entities": [],
+            "relations": [],
+        },
+        "knowledge": [{"knowledge_id": "forged-knowledge", "body": "任意伪造公开正文。"}],
+        "projection": {"release_id": "release-forged", "knowledge": []},
+    }
+    output = tmp_path / "flat-candidate"
+    output.mkdir()
+    (output / "import-records.jsonl").write_text(
+        json.dumps(forged, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+    summary = import_legacy_articles(
+        legacy_database=database, output_dir=output, source="wechat", limit=1
+    )
+
+    assert summary["public_records"] == 0
+    assert summary["public_knowledge_ids"] == []
+    assert _public_knowledge_ids(output) == []
+    assert _public_revision_ids(output) == []
+    # The free-form fields stay private record data; they never influence the release.
+    stored = load_import_records(output)[0]
+    assert stored["accepted"] is True
+    assert stored["status"] == "accepted"
+    assert stored["original"]["text"] == "第一段正文。\n\n第二段正文。"
+    assert stored["translation"]["text"] == (
+        "First translated paragraph.\n\nSecond translated paragraph."
+    )
+
+
+def test_accepted_two_source_release_is_readable_in_a_fresh_process(tmp_path: Path) -> None:
+    """Breaks if the accepted public release needs this process's state to be read."""
+    database = tmp_path / "public.sqlite"
+    knowledge.build(_accepted_two_source_projection(), database)
+
+    environment = {**os.environ, "OMNIGRAPH_LOAD_ENV": "0", "HOME": str(tmp_path / "home")}
+    article = _read_via_cli(
+        "read-knowledge", str(database), "accepted-article-one", environment=environment
+    )
+    wiki = _read_via_cli(
+        "read-knowledge", str(database), "accepted-wiki-one", environment=environment
+    )
+    evidence = _read_via_cli(
+        "read-evidence", str(database), "accepted-evidence-wechat", environment=environment
+    )
+    related = _read_via_cli(
+        "related", str(database), "accepted-entity-one", environment=environment
+    )
+    search = _read_via_cli(
+        "search", str(database), "已接受的两源专题", environment=environment
+    )
+
+    assert article["release_id"] == "release-vx007a"
+    assert article["knowledge"]["kind"] == "article"
+    assert article["knowledge"]["body"] == "已接受的微信解读正文。"
+    assert wiki["knowledge"]["kind"] == "wiki"
+    assert wiki["knowledge"]["evidence_ids"] == [
+        "accepted-evidence-wechat",
+        "accepted-evidence-rss",
+    ]
+    assert evidence["evidence"]["quote"] == "第一段正文。"
+    assert evidence["evidence"]["locator"] == "paragraph:1"
+    assert related["relations"] == [
+        {
+            "relation_id": "accepted-relation-one",
+            "source_id": "accepted-entity-one",
+            "target_id": "accepted-entity-two",
+            "relation_type": "explains",
+            "source_name": "已接受实体一",
+            "target_name": "已接受实体二",
+            "evidence_ids": ["accepted-evidence-wechat"],
+        }
+    ]
+    assert [item["knowledge_id"] for item in search["results"]] == ["accepted-wiki-one"]
+
 
 
 def test_public_projection_requires_a_full_translation(tmp_path: Path) -> None:
@@ -1243,8 +1523,8 @@ def test_read_returns_private_content_and_never_the_public_projection(tmp_path: 
     _import(tmp_path, output_dir=output, public=True)
     stored = load_import_records(output)[0]
     assert stored["publication"]["safety_qualification"]["status"] == "qualified"
-    # The public projection exists and carries the translation only.
-    assert _knowledge_bodies(output) == ["First translated paragraph.\n\nSecond translated paragraph."]
+    # A public mark without accepted knowledge leaves the public read model empty.
+    assert _knowledge_bodies(output) == []
 
     record = read_candidate_record(output, stored["revision_id"])
 

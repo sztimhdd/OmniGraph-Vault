@@ -1,8 +1,8 @@
 [Unit]
-Description=Weekly OmniGraph dajiala KOL scan (Monday 03:30)
+Description=Weekly OmniGraph dajiala KOL scan (Sunday 23:00 China time)
 
 [Timer]
-OnCalendar=Mon *-*-* 03:30:00
+OnCalendar=Sun *-*-* 23:00:00 Asia/Shanghai
 Persistent=true
 RandomizedDelaySec=300
 

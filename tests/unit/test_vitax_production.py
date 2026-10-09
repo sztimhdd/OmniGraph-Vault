@@ -214,6 +214,62 @@ def test_capture_root_requires_the_recorded_raw_html_hash(tmp_path: Path) -> Non
         standardize_documents(source, capture_root=tmp_path)
 
 
+def test_stored_markdown_keeps_exact_bytes_code_and_unknown_fetch_time(tmp_path: Path) -> None:
+    markdown = "原文第一段。\n\n```python\nif True:\n    print('原样')\n\n    print('代码')\n```\n"
+    path = tmp_path / "original.md"
+    path.write_bytes(markdown.encode())
+    item = {"source_id": "wechat-1", "source_url": "https://example.test/stored", "capture_format": "stored-markdown", "markdown_path": str(path), "raw_markdown_sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "source_record_ref": {"source": "wechat", "record_id": 1}, "source_snapshot_id": "snapshot-one", "representation_saved_at": "2026-10-02T01:00:00Z", "fetched_at": None}
+    source = {"documents": [item]}
+    document = standardize_documents(source, capture_root=tmp_path)["documents"][0]
+    assert document["raw_markdown_sha256"] == item["raw_markdown_sha256"]
+    assert "raw_html_sha256" not in document and document["images"] == []
+    assert document["fetched_at"] is None and document["representation_saved_at"] == item["representation_saved_at"]
+    assert document["extraction_method"] == "stored-markdown:v1"
+    assert markdown == document["paragraphs"][0]["text"]
+    revision = document["revision_id"]
+    proposal = {"knowledge": [{"knowledge_id": "stored-article", "kind": "article", "language": "zh", "title": "保存原文", "body": "代码证据保留了缩进及空行。", "citations": [{"revision_id": revision, "locator": "paragraph:1", "quote": "if True:\n    print('原样')\n\n    print('代码')"}]}], "entities": [], "relations": []}
+    accepted = accept_model_output({"documents": [document]}, json.dumps(proposal), stage="article")
+    build(accepted["projection"], tmp_path / "stored-public.sqlite")
+    duplicated = standardize_documents({"documents": [item, {**item, "source_id": "alias-one", "source_url": "https://example.test/alias"}]}, capture_root=tmp_path)
+    wiki = {"knowledge": [{"knowledge_id": "duplicate-source-wiki", "kind": "wiki", "language": "zh", "title": "同一来源", "body": "这是同一个稳定来源的两个版本。", "citations": [{"revision_id": d["revision_id"], "locator": "paragraph:1", "quote": "原文第一段。"} for d in duplicated["documents"]]}], "entities": [], "relations": []}
+    # MVP-02: one source (even two revisions of one URL) may start a Wiki.
+    accepted_wiki = accept_model_output(duplicated, json.dumps(wiki), stage="wiki")
+    assert accepted_wiki["projection"]["knowledge"][0]["knowledge_id"] == "duplicate-source-wiki"
+    for changes in ({"html_path": str(path)}, {"capture_format": "other"}, {"raw_markdown_sha256": "0" * 64}, {"image_context_path": str(path)}, {"source_record_ref": {"source": "rss", "record_id": True}}):
+        with pytest.raises(ProductionError):
+            standardize_documents({"documents": [{**item, **changes}]}, capture_root=tmp_path)
+
+
+def test_wiki_can_start_from_one_source(tmp_path: Path) -> None:
+    """Breaks if the retired two-source pairing gate still blocks a single source."""
+    source = _input(tmp_path)
+    source["documents"][1]["source_url"] = source["documents"][0]["source_url"]
+    standardized = standardize_documents(source, capture_root=tmp_path)
+    accepted = accept_model_output(standardized, _model(standardized))
+    wiki = next(item for item in accepted["projection"]["knowledge"] if item["kind"] == "wiki")
+    assert wiki["knowledge_id"] == "wiki-alpha-beta"
+
+
+def test_article_without_model_citations_gets_a_truthful_source_link(tmp_path: Path) -> None:
+    """Breaks if one missing citation field blocks the whole batch again (10/7)."""
+    standardized = standardize_documents(_input(tmp_path), capture_root=tmp_path)
+    alpha = standardized["documents"][0]
+    proposal = {"knowledge": [{"knowledge_id": "article-alpha", "kind": "article", "language": "zh", "title": "阿尔法", "body": "阿尔法证据说明了结论。"}], "entities": [], "relations": []}
+    accepted = accept_model_output({"schema_version": 1, "documents": [alpha]}, json.dumps(proposal), stage="article")
+    knowledge = accepted["projection"]["knowledge"][0]
+    quote = {item["evidence_id"]: item for item in accepted["projection"]["evidence"]}[knowledge["evidence_ids"][0]]
+    assert quote["revision_id"] == alpha["revision_id"] and quote["quote"] in alpha["paragraphs"][0]["text"]
+
+
+def test_wiki_knowledge_without_graph_lists_is_accepted(tmp_path: Path) -> None:
+    """Breaks if a Wiki reply that omits entities/relations blocks the batch (10/5)."""
+    standardized = standardize_documents(_input(tmp_path), capture_root=tmp_path)
+    alpha, beta = standardized["documents"]
+    proposal = {"knowledge": [{"knowledge_id": "wiki-alpha-beta", "kind": "wiki", "language": "zh", "title": "主题", "body": "两份来源共同说明主题。", "citations": [{"revision_id": alpha["revision_id"], "locator": "paragraph:1", "quote": "Alpha evidence is exact."}, {"revision_id": beta["revision_id"], "locator": "paragraph:1", "quote": "Beta evidence is exact."}]}]}
+    accepted = accept_model_output(standardized, json.dumps(proposal), stage="wiki")
+    assert accepted["projection"]["entities"] == [] and accepted["projection"]["relations"] == []
+
+
 def test_final_hermes_envelope_rejects_quote_heavy_prompt_without_spawning() -> None:
     """Breaks if production measures a prompt differently from the Hermes transport."""
     standardized = {"documents": [{"revision_id": "rev-heavy", "title": "Heavy", "paragraphs": [{"locator": "paragraph:1", "text": '"' * 14500}], "images": []}]}
@@ -395,3 +451,130 @@ def test_usage_invalid_native_envelope_retains_text_and_safe_diagnosis(tmp_path,
     assert "sensitive-decoy" not in (output / "failure.json").read_text()
     assert not (output / "accepted.json").exists()
     assert not (output / "projection.json").exists()
+
+
+def test_direct_deepseek_receipt_accepts_only_matching_output(tmp_path):
+    source = _input(tmp_path)
+    input_path = tmp_path / "input.json"
+    input_path.write_text(json.dumps(source))
+    raw = _model(standardize_documents(source, capture_root=tmp_path))
+    output = tmp_path / "output.json"; output.write_text(raw)
+    receipt = tmp_path / "receipt.json"
+    usage = dict(receipt_type="deepseek-chat.v1", provider="deepseek", model="deepseek-flash",
+                 requested_model="deepseek-v4-flash", request_id="synthetic", api_calls=1, failed=False,
+                 finish_reason="stop", prompt_tokens=10, completion_tokens=3, total_tokens=13,
+                 output_sha256=hashlib.sha256(raw.encode()).hexdigest())
+    receipt.write_text(json.dumps(usage | {"credential":"must-not-copy"}))
+    accepted = run(input_path, tmp_path / "accepted", capture_root=tmp_path,
+                   model_output=output, model_receipt=receipt, run_hermes=False, manual=None, sqlite_path=None)
+    assert accepted["usage"] == usage
+    output.write_text(raw + " ")
+    with pytest.raises(ProductionError, match="output-bound"):
+        run(input_path, tmp_path / "rejected", capture_root=tmp_path,
+            model_output=output, model_receipt=receipt, run_hermes=False, manual=None, sqlite_path=None)
+
+
+def test_wrapped_prose_citation_retains_exact_original_span():
+    from vitax.production import _citations
+    source='Before. Training-Time Harness\n中，保留原文。 After.'
+    item={'revision_id':'rev-a','locator':'paragraph:1','quote':'Training-Time Harness 中，保留原文。'}
+    _,evidence,_=_citations([item],{('rev-a','paragraph:1'):source})
+    assert evidence[0]['quote']=='Training-Time Harness\n中，保留原文。'
+    for invalid in ('Training-Time Harness 中，改写原文。','Training-Time Harness 中;保留原文。'):
+        with pytest.raises(ProductionError, match='does not match'):
+            _citations([item | {'quote':invalid}],{('rev-a','paragraph:1'):source})
+    with pytest.raises(ProductionError, match='does not match'):
+        _citations([item],{('rev-a','paragraph:1'):source+' '+source})
+
+
+def test_citation_ids_resolve_to_exact_source_and_reject_unknown_ids():
+    from vitax.production import _citations, _citation_bank
+    locators={('rev-a','paragraph:1'):'An\nevalis a collection of challenges designed to answer a question about a model.'}
+    bank=_citation_bank(locators)
+    selected=next(item for item in bank if 'collection of challenges' in item['quote'])
+    _,evidence,_=_citations([{'citation_id':selected['citation_id']}],locators)
+    assert evidence[0]['quote']==selected['quote']
+    assert evidence[0]['quote'] in locators[('rev-a','paragraph:1')]
+    with pytest.raises(ProductionError, match='unknown citation'):
+        _citations([{'citation_id':'invented'}],locators)
+
+
+def test_model_entity_case_is_canonical_and_case_collision_is_rejected(tmp_path):
+    standardized=standardize_documents(_input(tmp_path),capture_root=tmp_path)
+    proposal=json.loads(_model(standardized))
+    proposal['entities'][0]['entity_id']='Alpha'
+    proposal['relations'][0]['source_id']='Alpha'
+    accepted=accept_model_output(standardized,json.dumps(proposal))
+    assert accepted['projection']['entities'][0]['entity_id']=='alpha'
+    assert accepted['projection']['relations'][0]['source_id']=='alpha'
+    proposal['entities'].append({'entity_id':'alpha','name':'collision'})
+    with pytest.raises(ProductionError, match='unique'):
+        accept_model_output(standardized,json.dumps(proposal))
+
+
+def test_short_lines_still_have_verbatim_citation_bank():
+    from vitax.production import _citation_bank
+    text='\n\n  '+('harness\nshort prose\n' * 120)
+    bank=_citation_bank({('rev-a','paragraph:1'):text})
+    assert bank and bank[0]['quote'] in text
+    from vitax.production import _citations
+    _,evidence,_=_citations([{'citation_id':bank[0]['citation_id']}],{('rev-a','paragraph:1'):text.strip()})
+    assert evidence[0]['quote'] in text
+
+
+def test_relation_case_collision_is_rejected_before_build(tmp_path):
+    standardized=standardize_documents(_input(tmp_path),capture_root=tmp_path)
+    proposal=json.loads(_model(standardized))
+    relation=proposal['relations'][0]
+    proposal['relations'].append(relation | {'relation_id':relation['relation_id'].upper()})
+    with pytest.raises(ProductionError, match='relation_id must be unique'):
+        accept_model_output(standardized,json.dumps(proposal))
+
+
+def test_wiki_json_object_content_wrapper_keeps_body_validation(tmp_path):
+    standardized = standardize_documents(_input(tmp_path), capture_root=tmp_path)
+    proposal = json.loads(_model(standardized))
+    proposal['knowledge'] = [proposal['knowledge'][1]]
+    proposal['entities'] = []; proposal['relations'] = []
+    wrapped = {'type':'json_object','content':proposal}
+    accepted = accept_model_output(standardized, json.dumps(wrapped), stage='wiki')
+    assert accepted['projection']['knowledge'][0]['kind'] == 'wiki'
+    del proposal['knowledge'][0]['body']
+    with pytest.raises(ProductionError, match='body'):
+        accept_model_output(standardized, json.dumps(wrapped), stage='wiki')
+
+
+def test_wiki_flat_knowledge_object_is_adapted_and_still_validated(tmp_path):
+    """Real cached Wiki output is one flat knowledge object, not a three-list envelope."""
+    standardized = standardize_documents(_input(tmp_path), capture_root=tmp_path)
+    wiki = json.loads(_model(standardized))['knowledge'][1]
+    flat = {'type': 'wiki'} | {key: wiki.get(key, []) for key in ('knowledge_id', 'title', 'language', 'kind', 'image_ids', 'citations', 'body')}
+    accepted = accept_model_output(standardized, json.dumps(flat), stage='wiki')
+    assert accepted['projection']['knowledge'][0]['knowledge_id'] == 'wiki-alpha-beta'
+    assert accepted['projection']['knowledge'][0]['kind'] == 'wiki'
+    assert accepted['projection']['entities'] == [] and accepted['projection']['relations'] == []
+
+    for bad, match in (
+        (flat | {'kind': 'article'}, 'wiki stage may only produce wiki knowledge'),
+        (flat | {'body': '   '}, 'body'),
+        (flat | {'citations': [{'revision_id': wiki['citations'][0]['revision_id'], 'locator': 'paragraph:1', 'quote': 'not in source'}]}, 'citation'),
+    ):
+        with pytest.raises(ProductionError, match=match):
+            accept_model_output(standardized, json.dumps(bad), stage='wiki')
+
+
+def test_inline_bank_ids_close_evidence_and_unknown_ids_reject_article(tmp_path):
+    from vitax.production import _citation_bank
+    standardized = standardize_documents(_input(tmp_path), capture_root=tmp_path)
+    alpha = standardized['documents'][0]
+    proposal = json.loads(_model(standardized))
+    proposal['knowledge'] = [proposal['knowledge'][0]]
+    proposal['relations'] = []
+    identifier = _citation_bank({(alpha['revision_id'],'paragraph:1'):alpha['paragraphs'][0]['text']})[0]['citation_id']
+    proposal['knowledge'][0]['body'] += '（'+identifier+'）'
+    accepted = accept_model_output({'documents':[alpha]},json.dumps(proposal),stage='article')
+    assert identifier in accepted['projection']['knowledge'][0]['evidence_ids']
+    assert identifier in {e['evidence_id'] for e in accepted['projection']['evidence']}
+    proposal['knowledge'][0]['body'] += ' evidence-'+'0'*20
+    with pytest.raises(ProductionError,match='unknown citation'):
+        accept_model_output({'documents':[alpha]},json.dumps(proposal),stage='article')

@@ -153,8 +153,8 @@ async def _translate_one_row(
 
     Body and title are translated independently — each path has its own
     try/except so a failure in one does not abort the other. Outcome
-    aggregation: returns 'ok' if AT LEAST ONE field needed translation and
-    succeeded; 'fail' if every needed field failed; 'dry_run' if dry-run.
+    aggregation: 'ok' when all needed fields succeed, 'partial' when one
+    succeeds, 'fail' when none succeed; existing successful fields are kept.
     """
     art_id, table, title, body, body_translated, title_translated = row
     needs_body = body_translated is None
@@ -247,7 +247,9 @@ async def _translate_one_row(
                 art_id, table,
             )
 
-    return "ok" if (body_ok or title_ok) else "fail"
+    if (body_ok or not needs_body) and (title_ok or not needs_title):
+        return "ok"
+    return "partial" if (body_ok or title_ok) else "fail"
 
 
 async def _run(args: argparse.Namespace, logger: logging.Logger) -> int:
@@ -269,15 +271,17 @@ async def _run(args: argparse.Namespace, logger: logging.Logger) -> int:
         logger.info("selected %d candidate(s) for translation", len(rows))
 
         start = time.time()
-        tally = {"ok": 0, "fail": 0, "dry_run": 0}
+        tally = {"ok": 0, "partial": 0, "fail": 0, "dry_run": 0}
         for row in rows:
             outcome = await _translate_one_row(row, conn, args.dry_run, logger)
             tally[outcome] = tally.get(outcome, 0) + 1
         elapsed = time.time() - start
         logger.info(
-            "summary attempted=%d ok=%d fail=%d dry_run=%d elapsed=%.1fs",
-            len(rows), tally["ok"], tally["fail"], tally["dry_run"], elapsed,
+            "summary attempted=%d ok=%d partial=%d fail=%d dry_run=%d elapsed=%.1fs",
+            len(rows), tally["ok"], tally["partial"], tally["fail"], tally["dry_run"], elapsed,
         )
+        if tally["partial"] or tally["fail"]:
+            return 2 if tally["ok"] or tally["partial"] else 1
         return 0
     finally:
         conn.close()

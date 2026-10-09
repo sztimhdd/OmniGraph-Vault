@@ -13,6 +13,18 @@ import pytest
 from vitax.knowledge import KnowledgeError, KnowledgeReader, build
 
 
+def test_cjk_substring_and_kind_before_limit(tmp_path):
+    p = _projection()
+    p["knowledge"][0].update(title="上下文检索", body="片段语境")
+    p["knowledge"][1].update(title="知识索引", body="上下文检索和证据")
+    database = tmp_path / "cjk.sqlite"
+    build(p, database)
+    with KnowledgeReader(database) as reader:
+        assert [x["knowledge_id"] for x in reader.search("上下文")["results"]] == ["article-a", "wiki-ai"]
+        assert reader.search("上下文", limit=1, kind="wiki")["results"][0]["knowledge_id"] == "wiki-ai"
+        assert reader.search("上下文%_")["results"] == []
+
+
 def _projection() -> dict[str, object]:
     return {
         "schema_version": 1,
@@ -412,3 +424,110 @@ def test_reader_and_cli_reject_missing_paths_and_invalid_limits(tmp_path: Path) 
     assert json.loads(search.stdout)["results"][0]["knowledge_id"] == "article-a"
     assert json.loads(evidence.stdout)["evidence"]["document"]["doc_id"] == "doc-a"
     assert json.loads(related.stdout)["relations"][0]["target_id"] == "entity-beta"
+
+
+def test_list_knowledge_and_entities_return_bounded_stable_rows(tmp_path: Path) -> None:
+    """Breaks if list reads lose release metadata, stable ordering, or kind filtering."""
+    database = tmp_path / "public.sqlite"
+    build(_projection(), database)
+
+    with KnowledgeReader(database) as reader:
+        knowledge = reader.list_knowledge(limit=10)
+        articles = reader.list_knowledge(kind="article", limit=10)
+        wiki = reader.list_knowledge(kind="wiki", limit=1)
+        entities = reader.list_entities(limit=10)
+        first_entity = reader.list_entities(limit=1)
+
+    assert knowledge["release_id"] == "release-2026-09-09"
+    assert knowledge["published_at"] == "2026-09-09T12:00:00Z"
+    assert [row["knowledge_id"] for row in knowledge["results"]] == ["article-a", "wiki-ai"]
+    assert [row["kind"] for row in knowledge["results"]] == ["article", "wiki"]
+    assert all(set(row) == {"knowledge_id", "kind", "title"} for row in knowledge["results"])
+    assert [row["knowledge_id"] for row in articles["results"]] == ["article-a"]
+    assert [row["knowledge_id"] for row in wiki["results"]] == ["wiki-ai"]
+    assert entities["release_id"] == "release-2026-09-09"
+    assert [row["entity_id"] for row in entities["results"]] == ["entity-alpha", "entity-beta"]
+    assert all(set(row) == {"entity_id", "name"} for row in entities["results"])
+    assert [row["entity_id"] for row in first_entity["results"]] == ["entity-alpha"]
+
+
+@pytest.mark.parametrize(
+    ("call", "message"),
+    [
+        (
+            lambda reader: reader.list_knowledge(kind="article'; DROP TABLE knowledge; --", limit=5),
+            "kind must be article or wiki",
+        ),
+        (lambda reader: reader.list_knowledge(kind="", limit=5), "kind must be article or wiki"),
+        (lambda reader: reader.list_knowledge(kind=b"article", limit=5), "kind must be article or wiki"),
+        (lambda reader: reader.list_knowledge(limit=0), "limit must be between 1 and 100"),
+        (lambda reader: reader.list_knowledge(limit=101), "limit must be between 1 and 100"),
+        (lambda reader: reader.list_knowledge(limit=True), "limit must be between 1 and 100"),
+        (lambda reader: reader.list_entities(limit=0), "limit must be between 1 and 100"),
+        (lambda reader: reader.list_entities(limit="10"), "limit must be between 1 and 100"),
+    ],
+)
+def test_list_reads_reject_unbounded_or_injected_input(tmp_path: Path, call, message: str) -> None:
+    """Breaks if list filters or limits accept arbitrary SQL fragments or unbounded values."""
+    database = tmp_path / "public.sqlite"
+    build(_projection(), database)
+
+    with KnowledgeReader(database) as reader:
+        with pytest.raises(KnowledgeError, match=message):
+            call(reader)
+        assert len(reader.list_knowledge(limit=100)["results"]) == 2
+
+
+def _ranking_projection() -> dict[str, object]:
+    """One term matches both kinds, ranked so the article precedes the wiki."""
+    projection = _projection()
+    projection["knowledge"].extend(
+        [
+            {
+                "knowledge_id": "article-dominant",
+                "kind": "article",
+                "title": "bounded bounded",
+                "body": "bounded " * 8 + "article rows rank first.",
+                "evidence_ids": ["ev-a"],
+                "visibility": "public",
+            },
+            {
+                "knowledge_id": "wiki-matched",
+                "kind": "wiki",
+                "title": "Bounded wiki",
+                "body": "One bounded mention only.",
+                "evidence_ids": ["ev-a"],
+                "visibility": "public",
+            },
+        ]
+    )
+    return projection
+
+
+def test_search_kind_filter_applies_before_ordering_and_limit(tmp_path: Path) -> None:
+    """Breaks if a kind filter is applied after the relevance ranking and limit."""
+    database = tmp_path / "ranking.sqlite"
+    build(_ranking_projection(), database)
+
+    with KnowledgeReader(database) as reader:
+        ranked = reader.search("bounded", limit=1)
+        wiki = reader.search("bounded", limit=1, kind="wiki")
+        articles = reader.search("bounded", limit=5, kind="article")
+        everything = reader.search("bounded", limit=5)
+
+    assert [row["knowledge_id"] for row in ranked["results"]] == ["article-dominant"]
+    assert [row["knowledge_id"] for row in wiki["results"]] == ["wiki-matched"]
+    assert wiki["results"][0]["kind"] == "wiki"
+    assert [row["knowledge_id"] for row in articles["results"]] == ["article-dominant"]
+    assert {row["knowledge_id"] for row in everything["results"]} == {"article-dominant", "wiki-matched"}
+    assert wiki["release_id"] == "release-2026-09-09"
+
+
+def test_search_rejects_an_invalid_kind_filter(tmp_path: Path) -> None:
+    """Breaks if the optional kind filter accepts an arbitrary SQL fragment."""
+    database = tmp_path / "ranking.sqlite"
+    build(_ranking_projection(), database)
+
+    with KnowledgeReader(database) as reader:
+        with pytest.raises(KnowledgeError, match="kind must be article or wiki"):
+            reader.search("bounded", limit=1, kind="article' OR 1=1 --")

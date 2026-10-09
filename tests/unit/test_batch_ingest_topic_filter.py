@@ -175,15 +175,18 @@ def test_sql_rss_joins_rss_feeds_for_source_name():
     assert "r.feed_id = f.id" in sql
 
 
-def test_sql_orders_by_source_desc_then_id():
-    """ir-4 FIFO replacement: 'wechat' DESC > 'rss' so KOL rows come
-    first, then RSS rows, FIFO within each source group.
-
-    Pure ORDER BY a.id from ir-1 era is not expressible across UNION ALL
-    (UNION strips table prefixes); the alias approach uses the output
-    column ``source`` and ``id``."""
-    sql, _ = _build_topic_filter_query([])
-    assert "ORDER BY source DESC, id" in sql
+def test_query_interleaves_source_local_fifo_positions():
+    """Both sources are reached before either consumes the second position."""
+    from tests.unit._ingest_fixtures import in_memory_db, seed_kol_article, seed_rss_article
+    conn = in_memory_db()
+    for i in (2, 1):
+        seed_kol_article(conn, art_id=i)
+        seed_rss_article(conn, art_id=i)
+    sql, params = _build_topic_filter_query([])
+    rows = conn.execute(sql, params).fetchall()
+    assert [(r[1], r[0]) for r in rows] == [('wechat',1),('rss',1),('wechat',2),('rss',2)]
+    assert all(len(row) == 8 for row in rows)
+    conn.close()
 
 
 def test_sql_layer1_predicate_present_on_both_branches():
@@ -360,10 +363,9 @@ def test_dual_source_sql_executes_both_branches():
         f"Both source literals must appear in the result. Got: {sources}"
     )
 
-    # ORDER BY source DESC, id → 'wechat' rows first (DESC), then 'rss' rows.
-    # Within each source, FIFO by id ascending.
-    assert sources == ["wechat", "wechat", "rss", "rss"], (
-        f"FIFO order broken; expected KOL-then-RSS by id, got: {sources}"
+    # Each source preserves FIFO, and neither track owns the bounded prefix.
+    assert sources == ["wechat", "rss", "wechat", "rss"], (
+        f"Source-local FIFO interleaving broken: {sources}"
     )
 
 
@@ -456,6 +458,8 @@ def _run_main_capture_topics(monkeypatch, argv_extra: list[str]) -> list[str] | 
         captured["topic"] = topic
 
     monkeypatch.setattr(bi, "ingest_from_db", fake_ingest_from_db)
+    exit_codes = []
+    monkeypatch.setattr(bi.os, "_exit", lambda code: exit_codes.append(code))
     monkeypatch.setattr(
         sys, "argv",
         ["batch_ingest_from_spider.py", "--from-db", "--dry-run", "--max-articles", "1"]
@@ -463,6 +467,7 @@ def _run_main_capture_topics(monkeypatch, argv_extra: list[str]) -> list[str] | 
     )
 
     bi.main()  # must not raise SystemExit(1)
+    assert exit_codes == [0]
 
     return captured.get("topic")  # type: ignore[return-value]
 

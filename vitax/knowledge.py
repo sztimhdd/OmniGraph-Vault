@@ -19,11 +19,24 @@ from urllib.parse import quote, urlparse
 
 
 MAX_LIMIT = 100
+DEFAULT_LIMIT = 20
 MAX_QUERY_LENGTH = 512
+KNOWLEDGE_KINDS = ("article", "wiki")
 
 
 class KnowledgeError(ValueError):
     """The projection or its read-model database violates the public contract."""
+
+
+class KnowledgeNotFound(KnowledgeError):
+    """A requested public identifier is absent from this release."""
+
+
+def validate_kind(kind: object) -> str:
+    """Reject any kind outside the fixed public knowledge kinds."""
+    if not isinstance(kind, str) or kind not in KNOWLEDGE_KINDS:
+        raise KnowledgeError("kind must be article or wiki")
+    return kind
 
 
 def _require_text(value: object, name: str) -> str:
@@ -115,6 +128,12 @@ def _evidence_ids(item: Mapping[str, object], name: str) -> list[str]:
     return list(values)
 
 
+def body_evidence_ids(body: str) -> list[str]:
+    """Recognize the canonical evidence IDs emitted by the existing producer."""
+    pattern = r"(?<![A-Za-z0-9_-])evidence-[0-9a-f]{20}(?![A-Za-z0-9_-])"
+    return list(dict.fromkeys(re.findall(pattern, body)))
+
+
 def _validate_projection(source: Mapping[str, object]) -> dict[str, object]:
     if type(source.get("schema_version")) is not int or source["schema_version"] != 1:
         raise KnowledgeError("schema_version must be 1")
@@ -146,13 +165,17 @@ def _validate_projection(source: Mapping[str, object]) -> dict[str, object]:
     knowledge = _public_ids(_items(source, "knowledge"), "knowledge_id", "knowledge")
     for knowledge_id, item in knowledge.items():
         kind = item.get("kind")
-        if not isinstance(kind, str) or kind not in {"article", "wiki"}:
+        if not isinstance(kind, str) or kind not in KNOWLEDGE_KINDS:
             raise KnowledgeError("knowledge.kind must be article or wiki")
         _require_text(item.get("title"), "knowledge.title")
-        _require_text(item.get("body"), "knowledge.body")
-        for evidence_id in _evidence_ids(item, f"knowledge {knowledge_id}"):
+        body = _require_text(item.get("body"), "knowledge.body")
+        linked = _evidence_ids(item, f"knowledge {knowledge_id}")
+        closed = list(dict.fromkeys([*linked, *body_evidence_ids(body)]))
+        for evidence_id in closed:
             if evidence_id not in evidence:
                 raise KnowledgeError(f"unknown evidence_id: {evidence_id}")
+        # Add only links to evidence already approved for this public release.
+        knowledge[knowledge_id] = {**item, "evidence_ids": closed}
 
     entities = _public_ids(_items(source, "entities"), "entity_id", "entities")
     for item in entities.values():
@@ -365,23 +388,66 @@ class KnowledgeReader:
             f"SELECT evidence_id FROM {table} WHERE {owner_column} = ? ORDER BY position", (owner_id,)
         )]
 
-    def search(self, query: str, limit: int = 10) -> dict[str, object]:
+    def search(self, query: str, limit: int = 10, kind: str | None = None) -> dict[str, object]:
+        """Rank matches by relevance, optionally restricted to one validated kind."""
         if not isinstance(query, str) or not query or len(query) > MAX_QUERY_LENGTH:
             raise KnowledgeError(f"query must be a nonempty string up to {MAX_QUERY_LENGTH} characters")
         limit = self._limit(limit)
+        if any("\u3400" <= character <= "\u9fff" for character in query):
+            # ponytail: scan small public text; use an index only after measured latency requires it.
+            predicate = ""
+            parameters: tuple[object, ...] = (query, query)
+            if kind is not None:
+                predicate = " AND kind = ?"
+                parameters += (validate_kind(kind),)
+            rows = self.connection.execute(
+                "SELECT knowledge_id,kind,title FROM knowledge "
+                f"WHERE (instr(title,?)>0 OR instr(body,?)>0){predicate} "
+                "ORDER BY CASE WHEN instr(title,?)>0 THEN 0 ELSE 1 END,knowledge_id LIMIT ?",
+                (*parameters, query, limit),
+            )
+            return self._response(results=[dict(row) for row in rows])
         literal_query = '"' + query.replace('"', '""') + '"'
+        predicate = ""
+        parameters: tuple[object, ...] = (literal_query, limit)
+        if kind is not None:
+            predicate = " AND k.kind = ?"
+            parameters = (literal_query, validate_kind(kind), limit)
         rows = self.connection.execute(
             "SELECT k.knowledge_id, k.kind, k.title FROM knowledge_fts f "
             "JOIN knowledge k ON k.knowledge_id = f.knowledge_id "
-            "WHERE knowledge_fts MATCH ? ORDER BY bm25(knowledge_fts), k.knowledge_id LIMIT ?",
-            (literal_query, limit),
+            f"WHERE knowledge_fts MATCH ?{predicate} "
+            "ORDER BY bm25(knowledge_fts), k.knowledge_id LIMIT ?",
+            parameters,
+        )
+        return self._response(results=[dict(row) for row in rows])
+
+    def list_knowledge(self, kind: str | None = None, limit: int = DEFAULT_LIMIT) -> dict[str, object]:
+        """List stable knowledge rows, optionally filtered to one validated kind."""
+        limit = self._limit(limit)
+        if kind is None:
+            rows = self.connection.execute(
+                "SELECT knowledge_id, kind, title FROM knowledge ORDER BY knowledge_id LIMIT ?", (limit,)
+            )
+        else:
+            rows = self.connection.execute(
+                "SELECT knowledge_id, kind, title FROM knowledge WHERE kind = ? ORDER BY knowledge_id LIMIT ?",
+                (validate_kind(kind), limit),
+            )
+        return self._response(results=[dict(row) for row in rows])
+
+    def list_entities(self, limit: int = DEFAULT_LIMIT) -> dict[str, object]:
+        """List stable entity rows so a caller can discover relation entry points."""
+        limit = self._limit(limit)
+        rows = self.connection.execute(
+            "SELECT entity_id, name FROM entities ORDER BY entity_id LIMIT ?", (limit,)
         )
         return self._response(results=[dict(row) for row in rows])
 
     def read_knowledge(self, knowledge_id: str) -> dict[str, object]:
         row = self.connection.execute("SELECT knowledge_id, kind, title, body FROM knowledge WHERE knowledge_id = ?", (knowledge_id,)).fetchone()
         if row is None:
-            raise KnowledgeError(f"knowledge item not found: {knowledge_id}")
+            raise KnowledgeNotFound(f"knowledge item not found: {knowledge_id}")
         item = dict(row)
         item["evidence_ids"] = self._evidence_ids("knowledge_evidence", "knowledge_id", knowledge_id)
         return self._response(knowledge=item)
@@ -392,7 +458,7 @@ class KnowledgeReader:
             "FROM evidence e JOIN documents d ON d.revision_id = e.revision_id WHERE e.evidence_id = ?", (evidence_id,)
         ).fetchone()
         if row is None:
-            raise KnowledgeError(f"evidence item not found: {evidence_id}")
+            raise KnowledgeNotFound(f"evidence item not found: {evidence_id}")
         value = dict(row)
         value["document"] = {key: value.pop(key) for key in ("doc_id", "title", "source_url")}
         return self._response(evidence=value)
@@ -400,7 +466,7 @@ class KnowledgeReader:
     def related(self, entity_id: str, limit: int = 10) -> dict[str, object]:
         limit = self._limit(limit)
         if self.connection.execute("SELECT 1 FROM entities WHERE entity_id = ?", (entity_id,)).fetchone() is None:
-            raise KnowledgeError(f"entity not found: {entity_id}")
+            raise KnowledgeNotFound(f"entity not found: {entity_id}")
         rows = self.connection.execute(
             "SELECT r.relation_id, r.source_id, r.target_id, r.relation_type, "
             "s.name AS source_name, t.name AS target_name FROM relations r "

@@ -33,6 +33,8 @@ metadata:
       config: ["GEMINI_API_KEY", "TELEGRAM_BOT_TOKEN", "CDP_URL"]
 ---
 
+> VitaX当前任务按 [Hobbyist PRD](../../docs/spec/VITAX_HOBBY_PRD.md) 和 [批处理方案](../../docs/spec/VITAX_HOBBY_TDD.md) 执行。本技能提供现有工具用法，不新增产品流程、付费调用或自动提交授权。
+
 # zhihu-haowen-enrich
 
 **Purpose**: For ONE question, drive zhida.zhihu.com, extract the AI summary and

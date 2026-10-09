@@ -339,11 +339,13 @@ def _build_batch_timeout_metrics(
     clamped_count: int,
     safety_margin_triggered: bool,
     histogram: dict[str, int],
+    attempted_count: int | None = None,
 ) -> dict:
     """Assemble the batch_timeout_metrics dict per design § Monitoring Metrics (BTIMEOUT-04)."""
-    elapsed = time.time() - batch_start
+    elapsed = time.monotonic() - batch_start
     completed_count = len(completed_times)
-    not_started = total_articles - completed_count - timed_out
+    attempted = completed_count + timed_out if attempted_count is None else attempted_count
+    not_started = total_articles - attempted
     avg_article_time = (
         sum(completed_times) / completed_count if completed_count > 0 else None
     )
@@ -355,6 +357,7 @@ def _build_batch_timeout_metrics(
         "completed_articles": completed_count,
         "timed_out_articles": timed_out,
         "not_started_articles": max(0, not_started),
+        "attempted_articles": attempted,
         "avg_article_time_sec": round(avg_article_time, 2) if avg_article_time else None,
         "timeout_histogram": dict(histogram),
         "clamped_timeouts": clamped_count,
@@ -416,12 +419,20 @@ async def ingest_article(
     try:
         # D-09.03: 900s floor covers a worst-case single-chunk 800s DeepSeek call.
         # Phase 17 (BTIMEOUT-02): if the caller passed a clamped budget, use it.
-        result = await asyncio.wait_for(
+        # Keep a local ref to the returned Vision task handle (fire-and-forget;
+        # lib.vision_tracking owns the lifecycle). ``None`` for cached /
+        # zero-image success paths.
+        _vision_task = await asyncio.wait_for(
             ingest_wechat.ingest_article(url, source=source, rag=rag),
             timeout=timeout_s,
         )
-        if result is None:
-            return False, time.time() - t_start, False
+        # MVP-06: the inner returns the background Vision task handle when
+        # images were present and None for the cached / zero-image success
+        # paths. Genuine failures (scrape failure, PROCESSED-verification
+        # failure, short body) RAISE and are caught by the except branches
+        # below. So a non-exception return always means the parent doc was
+        # ingested — never gate doc success on the Vision handle (which is
+        # fire-and-forget per D-10.09).
         return True, time.time() - t_start, True
     except asyncio.TimeoutError:
         wall = time.time() - t_start
@@ -827,6 +838,11 @@ def print_filter_summary(passed: list[dict], filtered_out: list[dict]) -> None:
 
 
 async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> None:
+    batch_start = time.monotonic()
+    total_batch_budget = _resolve_batch_timeout(kwargs.get("batch_timeout"))
+    async def within_budget(awaitable):
+        return await asyncio.wait_for(awaitable, timeout=max(0, get_remaining_budget(batch_start, total_batch_budget) - BATCH_SAFETY_MARGIN_S))
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     summary: list[dict] = []
     processed = 0
@@ -852,23 +868,25 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
     all_articles: list[dict] = []
 
     for i, (account_name, fakeid) in enumerate(accounts, 1):
+        if get_remaining_budget(batch_start, total_batch_budget) <= BATCH_SAFETY_MARGIN_S:
+            break
         logger.info("=== Account %d/%d: %s (fakeid=%s) ===", i, total_accounts, account_name, fakeid)
 
         try:
-            articles = list_articles(
+            articles = await within_budget(asyncio.to_thread(list_articles,
                 token=kol_config.TOKEN,
                 cookie=kol_config.COOKIE,
                 fakeid=fakeid,
                 days_back=days_back,
                 max_articles=max_articles,
-            )
+            ))
         except Exception as exc:
             err_str = str(exc)
             logger.error("Failed to list articles for %s: %s", account_name, exc)
             summary.append({"account": account_name, "error": err_str})
             if "rate limit" in err_str.lower() or "freq control" in err_str.lower() or "200013" in err_str:
                 logger.info("  Cooling down %.0fs (WeChat rate limit hit)...", RATE_LIMIT_COOLDOWN)
-                time.sleep(RATE_LIMIT_COOLDOWN)
+                await asyncio.sleep(min(RATE_LIMIT_COOLDOWN, max(0, get_remaining_budget(batch_start, total_batch_budget) - BATCH_SAFETY_MARGIN_S)))
             continue
 
         logger.info("Found %d articles for %s", len(articles), account_name)
@@ -877,7 +895,7 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
             all_articles.append(article)
 
         if i < total_accounts:
-            time.sleep(RATE_LIMIT_SLEEP_ACCOUNTS)
+            await asyncio.sleep(min(RATE_LIMIT_SLEEP_ACCOUNTS, max(0, get_remaining_budget(batch_start, total_batch_budget) - BATCH_SAFETY_MARGIN_S)))
 
     # Phase 2: Filter
     scanning_active = bool(topic_filter or exclude_topics)
@@ -889,9 +907,12 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
             exclude_topics,
             min_depth,
         )
-        passed, filtered_out = batch_classify_articles(
-            all_articles, topic_filter, exclude_topics, min_depth, classifier=classifier,
-        )
+        try:
+            passed, filtered_out = await within_budget(asyncio.to_thread(batch_classify_articles,
+                all_articles, topic_filter, exclude_topics, min_depth, classifier=classifier))
+        except asyncio.TimeoutError:
+            logger.warning("Batch deadline reached during classification")
+            return
         print_filter_summary(passed, filtered_out)
     else:
         passed = all_articles
@@ -906,21 +927,25 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
         # D-09.04 (STATE-01): flush=True discards any in-memory pending buffer
         # from a prior crashed run → no replay → no wasted embed quota.
         logger.info("Initializing fresh LightRAG instance (flush=True; STATE-01)...")
-        rag = await get_rag(flush=True)
+        try:
+            rag = await within_budget(get_rag(flush=True))
+        except asyncio.TimeoutError:
+            logger.warning("Batch deadline reached during initialization")
+            return
 
     # Phase 17 BTIMEOUT-01: batch-budget state
-    total_batch_budget = _resolve_batch_timeout(kwargs.get("batch_timeout"))
-    batch_start = time.time()
     completed_times: list[float] = []
     timeout_histogram: dict[str, int] = {label: 0 for label, _ in _HISTOGRAM_BUCKETS}
     timeout_histogram["900s+"] = 0
     timed_out_count = 0
+    attempted_count = 0
     clamped_count = 0
     safety_margin_triggered = False
 
     try:
         total = len(passed)
         for i, article in enumerate(passed, 1):
+            attempted_count += 1
             title = article.get("title", "(no title)")
             url = article.get("url", "")
             account_name = article.get("account", "?")
@@ -962,8 +987,9 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
                     "  Clamped article timeout: %ds (remaining=%.0fs, margin=%ds)",
                     effective_timeout, remaining, BATCH_SAFETY_MARGIN_S,
                 )
-            if remaining - BATCH_SAFETY_MARGIN_S <= 0:
+            if effective_timeout <= 0:
                 safety_margin_triggered = True
+                break
 
             success, wall, doc_confirmed = await ingest_article(
                 'wechat', url, dry_run, rag, effective_timeout=effective_timeout
@@ -990,14 +1016,14 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
             processed += 1
             if not dry_run and processed < total:
                 logger.info("  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...", SLEEP_BETWEEN_ARTICLES)
-                await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
+                await asyncio.sleep(min(SLEEP_BETWEEN_ARTICLES, max(0, get_remaining_budget(batch_start, total_batch_budget) - BATCH_SAFETY_MARGIN_S)))
 
             # Phase 17 BTIMEOUT-01: early-exit if budget fully exhausted.
             if get_remaining_budget(batch_start, total_batch_budget) <= 0:
                 logger.warning(
                     "Batch budget exhausted (%ds elapsed >= %ds) — stopping loop; "
                     "remaining %d article(s) will show as not_started in metrics.",
-                    int(time.time() - batch_start), total_batch_budget, total - i,
+                    int(time.monotonic() - batch_start), total_batch_budget, total - i,
                 )
                 break
     finally:
@@ -1017,6 +1043,7 @@ async def run(days_back: int, max_articles: int, dry_run: bool, **kwargs) -> Non
             clamped_count=clamped_count,
             safety_margin_triggered=safety_margin_triggered,
             histogram=timeout_histogram,
+            attempted_count=attempted_count,
         )
         logger.info("batch_timeout_metrics: %s", json.dumps(metrics))
         metrics_path = PROJECT_ROOT / "data" / f"batch_timeout_metrics_{timestamp}.json"
@@ -1527,9 +1554,8 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
     with version != CURRENT re-enter the candidate pool when the Layer 1
     reject taxonomy is bumped) and the Layer 1 prompt-version predicate.
 
-    ORDER BY ``source DESC, id``: 'wechat' DESC > 'rss' so KOL rows come
-    first (FIFO within KOL), then RSS rows (FIFO within RSS). Preserves
-    KOL priority while letting RSS clear over time.
+    Interleave source-local FIFO positions so a bounded batch reaches both
+    WeChat and RSS. WeChat wins each equal-position tie; all gates stay shared.
 
     rss_feeds JOIN: INNER JOIN — rss_articles.feed_id NOT NULL and
     rss_feeds has 92 rows with name populated (W0 audit verified). An
@@ -1580,8 +1606,12 @@ def _build_topic_filter_query(topics: list[str]) -> tuple[str, tuple[str, ...]]:
            AND (r.layer1_verdict IS NULL
                 OR r.layer1_prompt_version IS NOT ?
                 OR r.layer1_verdict = 'candidate')
-        ORDER BY source DESC, id
     """
+    sql = (
+        "SELECT id,source,title,url,source_name,body,summary,image_count FROM ("
+        + sql
+        + ") ORDER BY row_number() OVER (PARTITION BY source ORDER BY id), source DESC, id"
+    )
     return sql, (
         SKIP_REASON_VERSION_CURRENT,
         PROMPT_VERSION_LAYER1,
@@ -1816,6 +1846,12 @@ async def ingest_from_db(
     happy path — context manager close is idempotent with the existing
     try/finally close call sites.
     """
+    batch_start = time.monotonic()
+    total_batch_budget = _resolve_batch_timeout(batch_timeout)
+
+    async def within_budget(awaitable):
+        return await asyncio.wait_for(awaitable, timeout=max(0, get_remaining_budget(batch_start, total_batch_budget) - BATCH_SAFETY_MARGIN_S))
+
     topics = [topic] if isinstance(topic, str) else topic
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -1915,6 +1951,8 @@ async def ingest_from_db(
         # receives source-aware {"source", "ref"} mappings (design §6.3).
         wiki_success_refs: dict[tuple[str, str], dict[str, str]] = {}
         for chunk_idx, chunk in enumerate(chunks):
+            if get_remaining_budget(batch_start, total_batch_budget) <= BATCH_SAFETY_MARGIN_S:
+                break
             # v3.5 ir-4 (LF-4.4): row tuple is now 7 cols
             # (id, source, title, url, source_name, body, summary).
             # ArticleMeta.source comes from row[1] so persist_layer1_verdicts
@@ -1931,7 +1969,11 @@ async def ingest_from_db(
             ]
 
             t0 = time.monotonic()
-            layer1_results = await layer1_pre_filter(articles_meta)
+            try:
+                layer1_results = await within_budget(layer1_pre_filter(articles_meta))
+            except asyncio.TimeoutError:
+                logger.warning("Batch deadline reached during Layer 1; unstarted rows retained")
+                break
             wall_ms = int((time.monotonic() - t0) * 1000)
 
             cand_count = sum(1 for r in layer1_results if r.verdict == "candidate")
@@ -1987,7 +2029,11 @@ async def ingest_from_db(
             # D-09.04 (STATE-01): flush=True discards any in-memory pending buffer
             # from a prior crashed run → no replay → no wasted embed quota.
             logger.info("Initializing fresh LightRAG instance (flush=True; STATE-01)...")
-            rag = await get_rag(flush=True)
+            try:
+                rag = await within_budget(get_rag(flush=True))
+            except asyncio.TimeoutError:
+                logger.warning("Batch deadline reached during LightRAG initialization")
+                return
             # v3.5 ir-2 hotfix: LightRAG get_rag() reconfigures root logger;
             # restore our format so [layer2] batch lines are visible.
             logging.basicConfig(
@@ -1998,12 +2044,11 @@ async def ingest_from_db(
             )
 
         # Phase 17 BTIMEOUT-01: batch-budget state
-        total_batch_budget = _resolve_batch_timeout(batch_timeout)
-        batch_start = time.time()
         completed_times: list[float] = []
         timeout_histogram: dict[str, int] = {label: 0 for label, _ in _HISTOGRAM_BUCKETS}
         timeout_histogram["900s+"] = 0
         timed_out_count = 0
+        attempted_count = 0
         clamped_count = 0
         safety_margin_triggered = False
 
@@ -2024,6 +2069,9 @@ async def ingest_from_db(
                 reaches LAYER2_BATCH_SIZE and once at end-of-loop."""
                 nonlocal layer2_chunk_idx, processed, timed_out_count, clamped_count, safety_margin_triggered
                 if not layer2_queue:
+                    return
+                if get_remaining_budget(batch_start, total_batch_budget) <= BATCH_SAFETY_MARGIN_S:
+                    safety_margin_triggered = True
                     return
 
                 queue_snapshot = list(layer2_queue)
@@ -2080,7 +2128,7 @@ async def ingest_from_db(
 
                 t0 = time.monotonic()
                 try:
-                    layer2_results = await layer2_full_body_score(articles_with_body)
+                    layer2_results = await within_budget(layer2_full_body_score(articles_with_body))
                 except Exception as exc:  # noqa: BLE001 -- mirror article_filter's whole-batch-NULL normalization
                     logger.warning(
                         "[layer2] batch %d Layer 2 call raised %s: %s — "
@@ -2189,8 +2237,9 @@ async def ingest_from_db(
                             "  Clamped article timeout: %ds (article_budget=%ds remaining=%.0fs margin=%ds)",
                             effective_timeout, article_budget, remaining, BATCH_SAFETY_MARGIN_S,
                         )
-                    if remaining - BATCH_SAFETY_MARGIN_S <= 0:
+                    if effective_timeout <= 0:
                         safety_margin_triggered = True
+                        break
 
                     success, wall, doc_confirmed = await ingest_article(
                         source_d, url_d, dry_run, rag, effective_timeout=effective_timeout
@@ -2232,10 +2281,10 @@ async def ingest_from_db(
                                 translate_title_with_deepseek_tavily,
                             )
 
-                            translation = await translate_title_with_deepseek_tavily(
+                            translation = await within_budget(translate_title_with_deepseek_tavily(
                                 title_d or "",
                                 source_lang=detect_source_lang(title_d or ""),
-                            )
+                            ))
                             if translation:
                                 _t_table = (
                                     "articles" if source_d == "wechat" else "rss_articles"
@@ -2271,7 +2320,7 @@ async def ingest_from_db(
                             "  Sleeping %ds (DeepSeek LLM + dual-key Gemini rotation)...",
                             SLEEP_BETWEEN_ARTICLES,
                         )
-                        await asyncio.sleep(SLEEP_BETWEEN_ARTICLES)
+                        await asyncio.sleep(min(SLEEP_BETWEEN_ARTICLES, max(0, get_remaining_budget(batch_start, total_batch_budget) - BATCH_SAFETY_MARGIN_S)))
 
             # v3.5 ir-1 (LF-3.1) + ir-4 (LF-4.4): iterate over candidate_rows
             # (Layer 1 candidates only). Rejects already wrote skipped ingestions
@@ -2280,6 +2329,9 @@ async def ingest_from_db(
             # 6-col shape (digest as last col) became the 7-col shape with
             # 'wechat'/'rss' inserted at row[1] and digest aliased to summary.
             for i, (art_id, source, title, url, account, body, summary, image_count_row) in enumerate(candidate_rows, 1):
+                if get_remaining_budget(batch_start, total_batch_budget) <= BATCH_SAFETY_MARGIN_S:
+                    safety_margin_triggered = True
+                    break
                 # quick-260511-mxc: strict hard cap. Pre-fix this check was
                 # processed-only, so queued-but-not-yet-drained rows leaked past
                 # the cap (up to LAYER2_BATCH_SIZE-1 = 4 extra). Charging the
@@ -2294,6 +2346,7 @@ async def ingest_from_db(
                     )
                     break
 
+                attempted_count += 1
                 logger.info("[%d/%d] [%s] %s", i, len(candidate_rows), account, title)
 
                 # v3.5 ir-1 (LF-3.6): dry-run short-circuits per-article work.
@@ -2353,8 +2406,8 @@ async def ingest_from_db(
                 # unrelated=True + confidence≥0.9. Fail-open on any error.
                 GRADED_ENABLED = os.environ.get("OMNIGRAPH_GRADED_CLASSIFY", "0") == "1"
                 if GRADED_ENABLED and normalized_topics and summary:
-                    probe = await _graded_probe(
-                        title, account, summary, normalized_topics, api_key)
+                    probe = await within_budget(_graded_probe(
+                        title, account, summary, normalized_topics, api_key))
                     if probe and probe.get("unrelated") and probe.get("confidence", 0) >= 0.9:
                         logger.info(
                             "graded-skip: art_id=%d source=%s conf=%.2f reason=%r",
@@ -2392,7 +2445,7 @@ async def ingest_from_db(
                 if _needs_scrape(source, body):
                     try:
                         from lib.scraper import scrape_url
-                        scraped = await scrape_url(url)
+                        scraped = await within_budget(scrape_url(url))
                         if scraped and not scraped.summary_only:
                             persisted = _persist_scraped_body(
                                 conn, art_id, source, scraped
@@ -2456,7 +2509,7 @@ async def ingest_from_db(
                         logger.warning(
                             "Batch budget exhausted (%ds elapsed >= %ds) — stopping loop; "
                             "remaining %d candidate(s) will show as not_started in metrics.",
-                            int(time.time() - batch_start), total_batch_budget,
+                            int(time.monotonic() - batch_start), total_batch_budget,
                             len(candidate_rows) - i,
                         )
                         break
@@ -2483,7 +2536,7 @@ async def ingest_from_db(
             # never reach W3. Timeout + handlers unchanged.
             try:
                 wiki_stats = await asyncio.wait_for(
-                    _wiki_update_check(list(wiki_success_refs.values()), conn), timeout=120
+                    _wiki_update_check(list(wiki_success_refs.values()), conn), timeout=min(120, max(0, get_remaining_budget(batch_start, total_batch_budget) - BATCH_SAFETY_MARGIN_S))
                 )
                 logger.info("W3 wiki hook: %s", wiki_stats)
             except asyncio.TimeoutError:
@@ -2512,6 +2565,7 @@ async def ingest_from_db(
                 clamped_count=clamped_count,
                 safety_margin_triggered=safety_margin_triggered,
                 histogram=timeout_histogram,
+                attempted_count=attempted_count,
             )
             logger.info("batch_timeout_metrics: %s", json.dumps(metrics))
             metrics_path = PROJECT_ROOT / "data" / f"batch_timeout_metrics_{timestamp}.json"

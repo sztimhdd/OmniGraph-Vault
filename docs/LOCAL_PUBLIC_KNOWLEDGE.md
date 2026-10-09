@@ -1,3 +1,5 @@
+> 历史记录：只供查实现和当时结果；旧审核要求、执行限制和下一步指令已被[当前需求](spec/VITAX_HOBBY_PRD.md)与[批处理计划](superpowers/plans/2026-10-04-vitax-next-stage.md)替代。
+
 # 本地公开知识读库
 
 2026-09-09。范围：VX-007 的第一个离线构建/读取切片。此处说明实际 CLI 合同；完整 ingestion、站点、图片发布、BYOLLM、向量/图引擎选型和云端 release 尚未验收。

@@ -100,9 +100,9 @@ async def _tavily_search(title: str, n_results: int = 3) -> list[str]:
         logger.debug("TAVILY_API_KEY not set; skipping terminology lookup")
         return []
     try:
-        from tavily import TavilyClient  # lazy import — optional dep
-        client = TavilyClient(api_key=api_key)
-        result = client.search(
+        from tavily import AsyncTavilyClient  # lazy import — optional dep
+        client = AsyncTavilyClient(api_key=api_key)
+        result = await client.search(
             query=title,
             search_depth="basic",
             max_results=n_results,

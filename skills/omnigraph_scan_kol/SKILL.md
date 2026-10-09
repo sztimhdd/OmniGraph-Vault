@@ -16,6 +16,8 @@ metadata:
       files: ["kol_config.py", "data/kol_scan.db"]
 ---
 
+> VitaX当前任务按 [Hobbyist PRD](../../docs/spec/VITAX_HOBBY_PRD.md) 和 [批处理方案](../../docs/spec/VITAX_HOBBY_TDD.md) 执行。本技能提供现有工具用法，不新增产品流程、付费调用或自动提交授权。
+
 # omnigraph_scan_kol
 
 Daily incremental scan of all registered WeChat KOL accounts (currently 56). Stores article metadata

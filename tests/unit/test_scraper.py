@@ -57,8 +57,9 @@ def test_quality_gate():
     # Login-wall keyword (Chinese) fails
     content_cn = "a" * 100 + " 请先登录 再查看 " + "a" * 100
     assert _passes_quality_gate(content_cn) is False
-    # Sanity: 16 patterns defined
-    assert len(_LOGIN_WALL_PATTERNS) == 16
+    # Sanity: 18 explicit patterns defined (bare "Sign in" split out to the
+    # line-scoped generic markers; three "Sign in to …" blockers added)
+    assert len(_LOGIN_WALL_PATTERNS) == 18
 
 
 # SCR-05 -----------------------------------------------------------------
@@ -261,3 +262,40 @@ async def test_scrape_generic_layer2_html2text_wins_when_both_trafilatura_short(
     assert result.markdown == "h" * 250
     assert result.method == "requests+html2text"
     assert fake_html2text.html2text.call_count == 1
+
+
+def test_quality_gate_does_not_match_login_marker_inside_words():
+    assert _passes_quality_gate('We design interfaces for AI tools. '*40)
+    assert not _passes_quality_gate('Please Sign in to continue. '+ 'x '*150)
+
+
+# MVP-03: narrative "Sign in" must not reject a real article body ---------
+
+def test_quality_gate_accepts_narrative_sign_in_prose():
+    """Real blog narration ("sign in with GitHub") must PASS at any length.
+
+    Regression for the collector reject where a 9855-char body was rejected
+    only because its prose contained that phrase mid-line.
+    """
+    para = ("The research team published the data and you can sign in with "
+            "GitHub to explore it in Datasette Lite. ")
+    body = para * 60  # ~4.8k chars, no line begins with "Sign in"
+    assert len(body) > 1000
+    assert _passes_quality_gate(body) is True
+    # Short-but-real narration above the floor also passes.
+    assert _passes_quality_gate("You can sign in with GitHub to comment. " * 6) is True
+
+
+def test_quality_gate_rejects_wall_prompts_even_in_long_bodies():
+    """Long article + a real blocking prompt, and bare button lines, still fail."""
+    body = "A long real article paragraph about agents and wikis. " * 80
+    assert len(body) > 1000
+    # Explicit blocker anywhere in a long body → wall.
+    assert _passes_quality_gate(body + "\n\nSign in to continue reading.") is False
+    assert _passes_quality_gate(body + "\n\nSubscribe to read the full article.") is False
+    # Generic "Sign in" as a standalone button / login-prompt line → wall.
+    assert _passes_quality_gate(body + "\n\n[Sign in](https://example.com/login)") is False
+    assert _passes_quality_gate(body + "\n\nSign in") is False
+    # Short shells / wall still fail via the explicit phrase and length floor.
+    assert _passes_quality_gate("Sign in to continue reading.\n") is False
+    assert _passes_quality_gate("x" * 199) is False

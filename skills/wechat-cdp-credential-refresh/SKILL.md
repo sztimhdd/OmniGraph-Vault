@@ -15,6 +15,8 @@ compatibility: |
   File target: $OMNIGRAPH_ROOT/kol_config.py
 ---
 
+> VitaX当前任务按 [Hobbyist PRD](../../docs/spec/VITAX_HOBBY_PRD.md) 和 [批处理方案](../../docs/spec/VITAX_HOBBY_TDD.md) 执行。本技能提供现有工具用法，不新增产品流程、付费调用或自动提交授权。
+
 # wechat-cdp-credential-refresh
 
 ## Overview

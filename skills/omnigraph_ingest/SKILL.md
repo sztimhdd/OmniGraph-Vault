@@ -25,6 +25,8 @@ metadata:
       config: ["OMNIGRAPH_GEMINI_KEY"]
 ---
 
+> VitaX当前任务按 [Hobbyist PRD](../../docs/spec/VITAX_HOBBY_PRD.md) 和 [批处理方案](../../docs/spec/VITAX_HOBBY_TDD.md) 执行。本技能提供现有工具用法，不新增产品流程、付费调用或自动提交授权。
+
 # omnigraph_ingest
 
 ## Pre-flight Checks (always run FIRST)
@@ -500,7 +502,6 @@ path. Full details: `references/lightrag-1.4.15-extract-compat.md`
 | **UA scrape returns empty body** | Layer2 log shows "正文环境异常无有效内容", "正文缺失", or "正文不可访问" for multiple WeChat URLs. All cascade layers (Apify → CDP → MCP → UA) return None. | WeChat anti-scraping blocks the request. These are logged as `layer2 enqueue skipped — no body for art_id=N; will retry next tick`. **Normal** — ~30% of WeChat URLs fail scrape on any given tick. The article is deferred and re-attempted on the next cron cycle. No action needed unless the same article fails repeatedly for 3+ consecutive days. |
 | **Checkpoint-skip dominates loop time** | The per-article loop pauses on ~28 `checkpoint-skip: already-ingested hash=...` lines. This is the main time sink in the scraping phase. | Expected — the script checks `content_hash` against the DB. These are quick hash lookups and only consume ~1-2s each. No action needed. |
 | **Enrichment NOT automatic** | WeChat articles go through bare ingest only (Layer1→Layer2→scrape→ainsert). Zhihu 好问 enrichment is NOT part of `cron_daily_ingest.sh`. CDP browser will have no Zhihu visit records. | By design. Enrichment is a separate manual pipeline via the `enrich_article` skill (extract_questions → zhihu-haowen-enrich → fetch_zhihu → merge_and_ingest). To add enrichment to cron, either schedule `enrich_article` as a second cron pass or add it to the batch_ingest loop. |
-| Status reports: user wants raw data, not narration | User asks for status reports with explicit "不要 narrate / 不要 summarize / 不要解读" instructions. | When asked for a status report, dump raw command output verbatim. Use `echo "=== section ==="` dividers. Do NOT add interpretation, analysis, or summary paragraphs. Let the user read the raw data and draw their own conclusions. This applies to: cron status checks, DB queries, log analysis, contract reconciliation, pipeline progress monitoring. |
 | Non-interference monitoring | User asks to check cron/tmux progress with "不打断不干扰" or "不要打断". | Use `tmux capture-pane` (NOT `tmux attach`), `tail` log files, and `grep` for stage indicators. NEVER kill, SIGTERM, attach to, or interact with the running session. Use `ps -p <pane_pid>` if needed to verify liveness. If session is a zombie (dead pane), kill ONLY after confirming completion via log/DB counts. |
 | LightRAG entity extraction returns 0 entities | Articles stored in full_docs (status=processed) but entity/relation counts don't increase. Can query via full-text but not entity graph. | LightRAG entity extraction (DeepSeek LLM) may return empty entity list. Articles ARE searchable via full-text. Check with entity count before/after ingest. Note: DeepSeek 402 "Insufficient Balance" causes doc_status='failed' + 0 entities (different — see mystery-row-cleanup). |
 
